@@ -11,7 +11,6 @@ import weakref
 import carla
 import numpy as np
 
-import opencda.core.common.CAVISE_modules as CAVISE # CAVISE
 from opencda.core.application.platooning.platooning_plugin \
     import PlatooningPlugin
 from opencda.core.common.misc import compute_distance
@@ -168,14 +167,6 @@ class V2XManager(object):
 
             if distance < self.communication_range:
                 self.cav_nearby.update({vid: vm})
-
-        #CAVISE
-        # proto_file = 'OpenCDA_message.proto'
-        # visible_cavs = CAVISE.make_list_of_visible_cavs(proto_file, self.vid)
-        # for vid in visible_cavs:
-        #     self.cav_nearby.update({vid: 1})  # в дальнейшем вместо 1 нужно будет подтягивать информацию vid
-        #CAVISE
-
     """
     -----------------------------------------------------------
                  Below is platooning related 

@@ -5,16 +5,11 @@ Basic class of CAV
 # Author: Runsheng Xu <rxx3386@ucla.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
-import uuid
-
-#CAVISE
+# CAVISE
 import json
-import os
-import opencda.core.common.CAVISE_modules as CAVISE
-from opencda.core.common.CAVISE_read_file import extract_info_from_proto_file
-from opencda.core.common.CAVISE_write_file \
-    import ProtobufWriter
-#CAVISE
+import copy
+
+import uuid
 
 from opencda.core.actuation.control_manager \
     import ControlManager
@@ -31,6 +26,32 @@ from opencda.core.plan.behavior_agent \
     import BehaviorAgent
 from opencda.core.map.map_manager import MapManager
 from opencda.core.common.data_dumper import DataDumper
+
+# CAVISE
+class SerializableTransform:
+    def __init__(self, transform):
+        self.location = {
+            'x': transform.location.x,
+            'y': transform.location.y,
+            'z': transform.location.z
+        }
+        self.rotation = {
+            'pitch': transform.rotation.pitch,
+            'yaw': transform.rotation.yaw,
+            'roll': transform.rotation.roll
+        }
+
+    def to_dict(self):
+        return {'location': self.location, 'rotation': self.rotation}
+
+    @classmethod
+    def from_dict(cls, data):
+        transform = carla.Transform(
+            location=carla.Location(x=data['location']['x'], y=data['location']['y'], z=data['location']['z']),
+            rotation=carla.Rotation(pitch=data['rotation']['pitch'], yaw=data['rotation']['yaw'], roll=data['rotation']['roll'])
+        )
+        return cls(transform)
+###
 
 
 class VehicleManager(object):
@@ -96,10 +117,6 @@ class VehicleManager(object):
         self.vid = str(uuid.uuid1())
         self.vehicle = vehicle
         self.carla_map = carla_map
-
-        #CAVISE
-        self.cav_data = {}
-        #CAVISE
 
         # retrieve the configure for different modules
         sensing_config = config_yaml['sensing']
@@ -204,78 +221,28 @@ class VehicleManager(object):
                         'carla_map': self.carla_map,
                         'world': self.vehicle.get_world(),
                         'static_bev': self.map_manager.static_bev}
+
+
         self.safety_manager.update_info(safety_input)
-
-        #CAVISE
-        proto_file = 'opencda/core/common/OpenCDA_message.proto'
-        cavs_nearby = self.v2x_manager.cav_nearby
-        self.cav_data['vid'] = str(int(self.vid.replace('-', ''), 16)) # an unique uuid for this vehicle
-        self.cav_data['ego_spd'] = ego_spd
-        self.cav_data['ego_pos'] = CAVISE.SerializableTransform(ego_pos).to_dict()
-        self.cav_data['blue_vehicles'] = {}
-        self.cav_data['vehicles'] = [{'x': el.get_location().x, 'y': el.get_location().y, 'z': el.get_location().z} for el in safety_input['objects']['vehicles']]
-        self.cav_data['traffic_lights'] = [{'x': el.get_location().x, 'y': el.get_location().y, 'z': el.get_location().z} for el in safety_input['objects']['traffic_lights']]
-        self.cav_data['static_objects'] = [] # пока не используется
-        self.cav_data['from_who_received'] = [] # пока не используется
-
-
-        writer = ProtobufWriter(proto_file)
-        writer.set_cav_data(self.cav_data)
-        writer.write_to_file()
-
-        #print("___________________________________________________________________________________________________________________________________________________________________________________________________________________")
-        #print(self.cav_data, "обработали свою инфу")
-        #print("___________________________________________________________________________________________________________________________________________________________________________________________________________________")
-
-
-        #CAVISE
+        # CAVISE
+        #print("opencda/core/common/vehicle_manager", "ILYYYHAAAAAAAAAAA", safety_input)
+        with open('MESSAGES/ms.json', 'w') as file_out:
+            safety_input_cp = {}
+            #safety_input_cp['objects']['vehicles'] = [vehicle.to_dict() for vehicle in safety_input_cp['objects']['vehicles']]
+            safety_input_cp['ego_pos'] = SerializableTransform(ego_pos).to_dict()
+            safety_input_cp['ego_spd'] = ego_spd
+            safety_input_cp['objects'] = {}
+            safety_input_cp['objects']['vehicles'] = [(el.carla_id, el.location.x, el.location.y, el.location.z) for el in safety_input['objects']['vehicles']]
+            safety_input_cp['objects']['traffic_lights'] = [(el.carla_id, el.location.x, el.location.y, el.location.z) for el in safety_input['objects']['traffic_lights']]
+            json.dump(safety_input_cp, file_out, indent=2)
 
         # update ego position and speed to v2x manager,
         # and then v2x manager will search the nearby cavs
-        #self.v2x_manager.update_info(ego_pos, ego_spd)
+        self.v2x_manager.update_info(ego_pos, ego_spd)
 
         self.agent.update_information(ego_pos, ego_spd, objects)
         # pass position and speed info to controller
         self.controller.update_info(ego_pos, ego_spd)
-    def update_info_v2x(self):
-        abs_proto_file_path = os.path.abspath('opencda/core/common/Messages/Artery_message.proto')
-        v2x_info = extract_info_from_proto_file(abs_proto_file_path)
-        cav_list = []
-        try:
-            cav_list = v2x_info[str(int(self.vid.replace('-', ''), 16))]['cav_list']
-        except:
-            print('warning! Information lost!')
-
-        if cav_list != []:
-            for cav_number_n_info in cav_list:
-                self.cav_data['blue_vehicles'][cav_number_n_info['vid']] = {
-                                                                            'ego_spd' : cav_number_n_info['ego_spd'],
-                                                                            'ego_pos' : cav_number_n_info['ego_pos']
-                                                                            }
-                for blue_cav in cav_number_n_info['blue_vehicles']:
-                    blue_vid, blue_info = blue_cav.items()
-                    self.cav_data['blue_vehicles'][blue_vid] = {
-                                                                'ego_spd' : blue_info['ego_spd'],
-                                                                'ego_pos' : blue_info['ego_pos']
-                                                                }
-                    
-                tf = self.cav_data['traffic_lights'] + cav_number_n_info['traffic_lights']
-                tf_strings = [json.dumps(item, sort_keys=True) for item in tf]
-                unique_tf_strings = set(tf_strings)
-                unique_tf = [json.loads(item) for item in unique_tf_strings]
-                self.cav_data['traffic_lights'] = unique_tf
-
-                veh = self.cav_data['vehicles'] + cav_number_n_info['vehicles']
-                veh_strings = [json.dumps(item, sort_keys=True) for item in veh]
-                unique_veh_strings = set(veh_strings)
-                unique_veh = [json.loads(item) for item in unique_veh_strings]
-                self.cav_data['vehicles'] = unique_veh
-                
-            print(self.cav_data, "итог")
-
-        
-
-
 
     def run_step(self, target_speed=None):
         """

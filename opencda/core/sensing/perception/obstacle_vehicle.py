@@ -184,7 +184,6 @@ class ObstacleVehicle(object):
         self.color = vehicle.attributes["color"] \
             if hasattr(vehicle, "attributes") \
                and "color" in vehicle.attributes else None
-
         self.set_velocity(vehicle.get_velocity())
         # the vehicle controlled by sumo has speed 0 in carla,
         # thus we need to retrieve the correct number from sumo
@@ -229,3 +228,17 @@ class ObstacleVehicle(object):
                                                 max_bound=max_boundary_sensor)
         aabb.color = (1, 0, 0)
         self.o3d_bbx = aabb
+    # CAVISE
+    def to_dict(self):
+        """
+        Convert the ObstacleVehicle instance to a dictionary.
+        """
+        return {
+            'location': self.location.to_dict(),
+            'carla_id': self.carla_id
+            # Add other attributes as needed
+        }
+    def __repr__(self):
+        return f"({self.location}, {self.carla_id})" # ВСЁ КРОМЕ type_id почему так не знаю\
+    def __str__(self):
+        return f"({self.location}, {self.carla_id})" # ВСЁ КРОМЕ type_id почему так не знаю
