@@ -169,12 +169,6 @@ class V2XManager(object):
             if distance < self.communication_range:
                 self.cav_nearby.update({vid: vm})
 
-        #CAVISE
-        # proto_file = 'OpenCDA_message.proto'
-        # visible_cavs = CAVISE.make_list_of_visible_cavs(proto_file, self.vid)
-        # for vid in visible_cavs:
-        #     self.cav_nearby.update({vid: 1})  # в дальнейшем вместо 1 нужно будет подтягивать информацию vid
-        #CAVISE
 
     """
     -----------------------------------------------------------

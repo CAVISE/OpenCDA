@@ -223,16 +223,8 @@ class VehicleManager(object):
         writer.set_cav_data(self.cav_data)
         writer.write_to_file()
 
-        #print("___________________________________________________________________________________________________________________________________________________________________________________________________________________")
-        #print(self.cav_data, "обработали свою инфу")
-        #print("___________________________________________________________________________________________________________________________________________________________________________________________________________________")
-
 
         #CAVISE
-
-        # update ego position and speed to v2x manager,
-        # and then v2x manager will search the nearby cavs
-        #self.v2x_manager.update_info(ego_pos, ego_spd)
 
         self.agent.update_information(ego_pos, ego_spd, objects)
         # pass position and speed info to controller

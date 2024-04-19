@@ -1,13 +1,33 @@
+"""
+@CAVISE_write_file.py
+@brief This module provides functionality for writing data to a protobuf file.
+"""
+
 from opencda.core.common.OpenCDA_message_structure_pb2 import OpenCDA_message
 import yaml
 
 
 class ProtobufWriter:
+    """
+    @class ProtobufWriter
+    @brief Class for writing data to a protobuf file.
+    """
+
     def __init__(self, filename):
+        """
+        @brief Constructor for ProtobufWriter class.
+        @param filename The filename of the protobuf file.
+        """
+
         self.filename = filename
         self.opencda_message = OpenCDA_message()
 
     def set_cav_data(self, cav_data):
+        """
+        @brief Sets CAV data to the protobuf message.
+        @param cav_data A dictionary containing CAV data.
+        """
+                
         cav_message = self.opencda_message.cav.add()  # Добавляем новый объект Cav в список
 
         cav_message.vid = cav_data['vid']
@@ -55,6 +75,10 @@ class ProtobufWriter:
 
 
     def write_to_file(self):
+        """
+        @brief Writes the protobuf message to the file.
+        """
+
         with open("opencda/core/common/sim_param.yaml", "r") as file:
             data = yaml.safe_load(file)
 
@@ -75,6 +99,9 @@ class ProtobufWriter:
     
 
     def reset_file(self):
-        # Очищаем файл и сбрасываем счетчик записей
+        """
+        @brief Resets the protobuf file and counter.
+        """
+        
         open(self.filename, 'w').close()
         self.record_count = 0
