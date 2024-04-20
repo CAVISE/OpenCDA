@@ -18,8 +18,8 @@ _sym_db = _symbol_database.Default()
 DESCRIPTOR = _descriptor.FileDescriptor(
   name='OpenCDA_message_structure.proto',
   package='structure_opencda',
-  syntax='proto2',
-  serialized_pb=_b('\n\x1fOpenCDA_message_structure.proto\x12\x11structure_opencda\"\xa3\t\n\x0fOpenCDA_message\x12\x33\n\x03\x63\x61v\x18\x01 \x03(\x0b\x32&.structure_opencda.OpenCDA_message.Cav\x1a\xda\x08\n\x03\x43\x61v\x12\x0b\n\x03vid\x18\x01 \x01(\t\x12\x0f\n\x07\x65go_spd\x18\x02 \x01(\x02\x12>\n\x07\x65go_pos\x18\x03 \x01(\x0b\x32-.structure_opencda.OpenCDA_message.Cav.EgoPos\x12J\n\rblue_vehicles\x18\x04 \x01(\x0b\x32\x33.structure_opencda.OpenCDA_message.Cav.BlueVehicles\x12\x41\n\x08vehicles\x18\x05 \x01(\x0b\x32/.structure_opencda.OpenCDA_message.Cav.Vehicles\x12L\n\x0etraffic_lights\x18\x06 \x01(\x0b\x32\x34.structure_opencda.OpenCDA_message.Cav.TrafficLights\x12L\n\x0estatic_objects\x18\x07 \x01(\x0b\x32\x34.structure_opencda.OpenCDA_message.Cav.StaticObjects\x12\x19\n\x11\x66rom_who_received\x18\x08 \x03(\t\x1aS\n\x06\x45goPos\x12\t\n\x01x\x18\x01 \x01(\x02\x12\t\n\x01y\x18\x02 \x01(\x02\x12\t\n\x01z\x18\x03 \x01(\x02\x12\r\n\x05pitch\x18\x04 \x01(\x02\x12\x0b\n\x03yaw\x18\x05 \x01(\x02\x12\x0c\n\x04roll\x18\x06 \x01(\x02\x1a\xc6\x01\n\x0c\x42lueVehicles\x12M\n\x08\x62lue_cav\x18\x01 \x03(\x0b\x32;.structure_opencda.OpenCDA_message.Cav.BlueVehicles.BlueCav\x1ag\n\x07\x42lueCav\x12\x0b\n\x03vid\x18\x01 \x01(\t\x12\x0f\n\x07\x65go_spd\x18\x02 \x01(\x02\x12>\n\x07\x65go_pos\x18\x03 \x01(\x0b\x32-.structure_opencda.OpenCDA_message.Cav.EgoPos\x1a~\n\x08Vehicles\x12G\n\x07\x63\x61v_pos\x18\x01 \x03(\x0b\x32\x36.structure_opencda.OpenCDA_message.Cav.Vehicles.CavPos\x1a)\n\x06\x43\x61vPos\x12\t\n\x01x\x18\x01 \x01(\x02\x12\t\n\x01y\x18\x02 \x01(\x02\x12\t\n\x01z\x18\x03 \x01(\x02\x1a\x85\x01\n\rTrafficLights\x12J\n\x06tf_pos\x18\x01 \x03(\x0b\x32:.structure_opencda.OpenCDA_message.Cav.TrafficLights.TfPos\x1a(\n\x05TfPos\x12\t\n\x01x\x18\x01 \x01(\x02\x12\t\n\x01y\x18\x02 \x01(\x02\x12\t\n\x01z\x18\x03 \x01(\x02\x1a\x88\x01\n\rStaticObjects\x12L\n\x07obj_pos\x18\x01 \x03(\x0b\x32;.structure_opencda.OpenCDA_message.Cav.StaticObjects.ObjPos\x1a)\n\x06ObjPos\x12\t\n\x01x\x18\x01 \x01(\x02\x12\t\n\x01y\x18\x02 \x01(\x02\x12\t\n\x01z\x18\x03 \x01(\x02')
+  syntax='proto3',
+  serialized_pb=_b('\n\x1fOpenCDA_message_structure.proto\x12\x11structure_opencda\"\xa3\t\n\x0fOpenCDA_message\x12\x33\n\x03\x63\x61v\x18\x01 \x03(\x0b\x32&.structure_opencda.OpenCDA_message.Cav\x1a\xda\x08\n\x03\x43\x61v\x12\x0b\n\x03vid\x18\x01 \x01(\t\x12\x0f\n\x07\x65go_spd\x18\x02 \x01(\x02\x12>\n\x07\x65go_pos\x18\x03 \x01(\x0b\x32-.structure_opencda.OpenCDA_message.Cav.EgoPos\x12J\n\rblue_vehicles\x18\x04 \x01(\x0b\x32\x33.structure_opencda.OpenCDA_message.Cav.BlueVehicles\x12\x41\n\x08vehicles\x18\x05 \x01(\x0b\x32/.structure_opencda.OpenCDA_message.Cav.Vehicles\x12L\n\x0etraffic_lights\x18\x06 \x01(\x0b\x32\x34.structure_opencda.OpenCDA_message.Cav.TrafficLights\x12L\n\x0estatic_objects\x18\x07 \x01(\x0b\x32\x34.structure_opencda.OpenCDA_message.Cav.StaticObjects\x12\x19\n\x11\x66rom_who_received\x18\x08 \x03(\t\x1aS\n\x06\x45goPos\x12\t\n\x01x\x18\x01 \x01(\x02\x12\t\n\x01y\x18\x02 \x01(\x02\x12\t\n\x01z\x18\x03 \x01(\x02\x12\r\n\x05pitch\x18\x04 \x01(\x02\x12\x0b\n\x03yaw\x18\x05 \x01(\x02\x12\x0c\n\x04roll\x18\x06 \x01(\x02\x1a\xc6\x01\n\x0c\x42lueVehicles\x12M\n\x08\x62lue_cav\x18\x01 \x03(\x0b\x32;.structure_opencda.OpenCDA_message.Cav.BlueVehicles.BlueCav\x1ag\n\x07\x42lueCav\x12\x0b\n\x03vid\x18\x01 \x01(\t\x12\x0f\n\x07\x65go_spd\x18\x02 \x01(\x02\x12>\n\x07\x65go_pos\x18\x03 \x01(\x0b\x32-.structure_opencda.OpenCDA_message.Cav.EgoPos\x1a~\n\x08Vehicles\x12G\n\x07\x63\x61v_pos\x18\x01 \x03(\x0b\x32\x36.structure_opencda.OpenCDA_message.Cav.Vehicles.CavPos\x1a)\n\x06\x43\x61vPos\x12\t\n\x01x\x18\x01 \x01(\x02\x12\t\n\x01y\x18\x02 \x01(\x02\x12\t\n\x01z\x18\x03 \x01(\x02\x1a\x85\x01\n\rTrafficLights\x12J\n\x06tf_pos\x18\x01 \x03(\x0b\x32:.structure_opencda.OpenCDA_message.Cav.TrafficLights.TfPos\x1a(\n\x05TfPos\x12\t\n\x01x\x18\x01 \x01(\x02\x12\t\n\x01y\x18\x02 \x01(\x02\x12\t\n\x01z\x18\x03 \x01(\x02\x1a\x88\x01\n\rStaticObjects\x12L\n\x07obj_pos\x18\x01 \x03(\x0b\x32;.structure_opencda.OpenCDA_message.Cav.StaticObjects.ObjPos\x1a)\n\x06ObjPos\x12\t\n\x01x\x18\x01 \x01(\x02\x12\t\n\x01y\x18\x02 \x01(\x02\x12\t\n\x01z\x18\x03 \x01(\x02\x62\x06proto3')
 )
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
 
@@ -83,7 +83,7 @@ _OPENCDA_MESSAGE_CAV_EGOPOS = _descriptor.Descriptor(
   ],
   options=None,
   is_extendable=False,
-  syntax='proto2',
+  syntax='proto3',
   extension_ranges=[],
   oneofs=[
   ],
@@ -127,7 +127,7 @@ _OPENCDA_MESSAGE_CAV_BLUEVEHICLES_BLUECAV = _descriptor.Descriptor(
   ],
   options=None,
   is_extendable=False,
-  syntax='proto2',
+  syntax='proto3',
   extension_ranges=[],
   oneofs=[
   ],
@@ -157,7 +157,7 @@ _OPENCDA_MESSAGE_CAV_BLUEVEHICLES = _descriptor.Descriptor(
   ],
   options=None,
   is_extendable=False,
-  syntax='proto2',
+  syntax='proto3',
   extension_ranges=[],
   oneofs=[
   ],
@@ -201,7 +201,7 @@ _OPENCDA_MESSAGE_CAV_VEHICLES_CAVPOS = _descriptor.Descriptor(
   ],
   options=None,
   is_extendable=False,
-  syntax='proto2',
+  syntax='proto3',
   extension_ranges=[],
   oneofs=[
   ],
@@ -231,7 +231,7 @@ _OPENCDA_MESSAGE_CAV_VEHICLES = _descriptor.Descriptor(
   ],
   options=None,
   is_extendable=False,
-  syntax='proto2',
+  syntax='proto3',
   extension_ranges=[],
   oneofs=[
   ],
@@ -275,7 +275,7 @@ _OPENCDA_MESSAGE_CAV_TRAFFICLIGHTS_TFPOS = _descriptor.Descriptor(
   ],
   options=None,
   is_extendable=False,
-  syntax='proto2',
+  syntax='proto3',
   extension_ranges=[],
   oneofs=[
   ],
@@ -305,7 +305,7 @@ _OPENCDA_MESSAGE_CAV_TRAFFICLIGHTS = _descriptor.Descriptor(
   ],
   options=None,
   is_extendable=False,
-  syntax='proto2',
+  syntax='proto3',
   extension_ranges=[],
   oneofs=[
   ],
@@ -349,7 +349,7 @@ _OPENCDA_MESSAGE_CAV_STATICOBJECTS_OBJPOS = _descriptor.Descriptor(
   ],
   options=None,
   is_extendable=False,
-  syntax='proto2',
+  syntax='proto3',
   extension_ranges=[],
   oneofs=[
   ],
@@ -379,7 +379,7 @@ _OPENCDA_MESSAGE_CAV_STATICOBJECTS = _descriptor.Descriptor(
   ],
   options=None,
   is_extendable=False,
-  syntax='proto2',
+  syntax='proto3',
   extension_ranges=[],
   oneofs=[
   ],
@@ -458,7 +458,7 @@ _OPENCDA_MESSAGE_CAV = _descriptor.Descriptor(
   ],
   options=None,
   is_extendable=False,
-  syntax='proto2',
+  syntax='proto3',
   extension_ranges=[],
   oneofs=[
   ],
@@ -488,7 +488,7 @@ _OPENCDA_MESSAGE = _descriptor.Descriptor(
   ],
   options=None,
   is_extendable=False,
-  syntax='proto2',
+  syntax='proto3',
   extension_ranges=[],
   oneofs=[
   ],

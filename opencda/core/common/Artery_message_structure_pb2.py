@@ -18,8 +18,8 @@ _sym_db = _symbol_database.Default()
 DESCRIPTOR = _descriptor.FileDescriptor(
   name='Artery_message_structure.proto',
   package='structure_artery',
-  syntax='proto2',
-  serialized_pb=_b('\n\x1e\x41rtery_message_structure.proto\x12\x10structure_artery\"\x83\x0c\n\x0e\x41rtery_message\x12S\n\x14received_information\x18\x01 \x03(\x0b\x32\x35.structure_artery.Artery_message.Received_information\x1a\x9b\x0b\n\x14Received_information\x12\x12\n\nartery_vid\x18\x01 \x01(\t\x12\x0b\n\x03vid\x18\x02 \x01(\t\x12\x46\n\x03\x63\x61v\x18\x03 \x03(\x0b\x32\x39.structure_artery.Artery_message.Received_information.Cav\x1a\x99\n\n\x03\x43\x61v\x12\x0b\n\x03vid\x18\x01 \x01(\t\x12\x0f\n\x07\x65go_spd\x18\x02 \x01(\x02\x12Q\n\x07\x65go_pos\x18\x03 \x01(\x0b\x32@.structure_artery.Artery_message.Received_information.Cav.EgoPos\x12]\n\rblue_vehicles\x18\x04 \x01(\x0b\x32\x46.structure_artery.Artery_message.Received_information.Cav.BlueVehicles\x12T\n\x08vehicles\x18\x05 \x01(\x0b\x32\x42.structure_artery.Artery_message.Received_information.Cav.Vehicles\x12_\n\x0etraffic_lights\x18\x06 \x01(\x0b\x32G.structure_artery.Artery_message.Received_information.Cav.TrafficLights\x12_\n\x0estatic_objects\x18\x07 \x01(\x0b\x32G.structure_artery.Artery_message.Received_information.Cav.StaticObjects\x12\x19\n\x11\x66rom_who_received\x18\x08 \x03(\t\x1aS\n\x06\x45goPos\x12\t\n\x01x\x18\x01 \x01(\x02\x12\t\n\x01y\x18\x02 \x01(\x02\x12\t\n\x01z\x18\x03 \x01(\x02\x12\r\n\x05pitch\x18\x04 \x01(\x02\x12\x0b\n\x03yaw\x18\x05 \x01(\x02\x12\x0c\n\x04roll\x18\x06 \x01(\x02\x1a\xec\x01\n\x0c\x42lueVehicles\x12`\n\x08\x62lue_cav\x18\x01 \x03(\x0b\x32N.structure_artery.Artery_message.Received_information.Cav.BlueVehicles.BlueCav\x1az\n\x07\x42lueCav\x12\x0b\n\x03vid\x18\x01 \x01(\t\x12\x0f\n\x07\x65go_spd\x18\x02 \x01(\x02\x12Q\n\x07\x65go_pos\x18\x03 \x01(\x0b\x32@.structure_artery.Artery_message.Received_information.Cav.EgoPos\x1a\x91\x01\n\x08Vehicles\x12Z\n\x07\x63\x61v_pos\x18\x01 \x03(\x0b\x32I.structure_artery.Artery_message.Received_information.Cav.Vehicles.CavPos\x1a)\n\x06\x43\x61vPos\x12\t\n\x01x\x18\x01 \x01(\x02\x12\t\n\x01y\x18\x02 \x01(\x02\x12\t\n\x01z\x18\x03 \x01(\x02\x1a\x98\x01\n\rTrafficLights\x12]\n\x06tf_pos\x18\x01 \x03(\x0b\x32M.structure_artery.Artery_message.Received_information.Cav.TrafficLights.TfPos\x1a(\n\x05TfPos\x12\t\n\x01x\x18\x01 \x01(\x02\x12\t\n\x01y\x18\x02 \x01(\x02\x12\t\n\x01z\x18\x03 \x01(\x02\x1a\x9b\x01\n\rStaticObjects\x12_\n\x07obj_pos\x18\x01 \x03(\x0b\x32N.structure_artery.Artery_message.Received_information.Cav.StaticObjects.ObjPos\x1a)\n\x06ObjPos\x12\t\n\x01x\x18\x01 \x01(\x02\x12\t\n\x01y\x18\x02 \x01(\x02\x12\t\n\x01z\x18\x03 \x01(\x02')
+  syntax='proto3',
+  serialized_pb=_b('\n\x1e\x41rtery_message_structure.proto\x12\x10structure_artery\"\x83\x0c\n\x0e\x41rtery_message\x12S\n\x14received_information\x18\x01 \x03(\x0b\x32\x35.structure_artery.Artery_message.Received_information\x1a\x9b\x0b\n\x14Received_information\x12\x12\n\nartery_vid\x18\x01 \x01(\t\x12\x0b\n\x03vid\x18\x02 \x01(\t\x12\x46\n\x03\x63\x61v\x18\x03 \x03(\x0b\x32\x39.structure_artery.Artery_message.Received_information.Cav\x1a\x99\n\n\x03\x43\x61v\x12\x0b\n\x03vid\x18\x01 \x01(\t\x12\x0f\n\x07\x65go_spd\x18\x02 \x01(\x02\x12Q\n\x07\x65go_pos\x18\x03 \x01(\x0b\x32@.structure_artery.Artery_message.Received_information.Cav.EgoPos\x12]\n\rblue_vehicles\x18\x04 \x01(\x0b\x32\x46.structure_artery.Artery_message.Received_information.Cav.BlueVehicles\x12T\n\x08vehicles\x18\x05 \x01(\x0b\x32\x42.structure_artery.Artery_message.Received_information.Cav.Vehicles\x12_\n\x0etraffic_lights\x18\x06 \x01(\x0b\x32G.structure_artery.Artery_message.Received_information.Cav.TrafficLights\x12_\n\x0estatic_objects\x18\x07 \x01(\x0b\x32G.structure_artery.Artery_message.Received_information.Cav.StaticObjects\x12\x19\n\x11\x66rom_who_received\x18\x08 \x03(\t\x1aS\n\x06\x45goPos\x12\t\n\x01x\x18\x01 \x01(\x02\x12\t\n\x01y\x18\x02 \x01(\x02\x12\t\n\x01z\x18\x03 \x01(\x02\x12\r\n\x05pitch\x18\x04 \x01(\x02\x12\x0b\n\x03yaw\x18\x05 \x01(\x02\x12\x0c\n\x04roll\x18\x06 \x01(\x02\x1a\xec\x01\n\x0c\x42lueVehicles\x12`\n\x08\x62lue_cav\x18\x01 \x03(\x0b\x32N.structure_artery.Artery_message.Received_information.Cav.BlueVehicles.BlueCav\x1az\n\x07\x42lueCav\x12\x0b\n\x03vid\x18\x01 \x01(\t\x12\x0f\n\x07\x65go_spd\x18\x02 \x01(\x02\x12Q\n\x07\x65go_pos\x18\x03 \x01(\x0b\x32@.structure_artery.Artery_message.Received_information.Cav.EgoPos\x1a\x91\x01\n\x08Vehicles\x12Z\n\x07\x63\x61v_pos\x18\x01 \x03(\x0b\x32I.structure_artery.Artery_message.Received_information.Cav.Vehicles.CavPos\x1a)\n\x06\x43\x61vPos\x12\t\n\x01x\x18\x01 \x01(\x02\x12\t\n\x01y\x18\x02 \x01(\x02\x12\t\n\x01z\x18\x03 \x01(\x02\x1a\x98\x01\n\rTrafficLights\x12]\n\x06tf_pos\x18\x01 \x03(\x0b\x32M.structure_artery.Artery_message.Received_information.Cav.TrafficLights.TfPos\x1a(\n\x05TfPos\x12\t\n\x01x\x18\x01 \x01(\x02\x12\t\n\x01y\x18\x02 \x01(\x02\x12\t\n\x01z\x18\x03 \x01(\x02\x1a\x9b\x01\n\rStaticObjects\x12_\n\x07obj_pos\x18\x01 \x03(\x0b\x32N.structure_artery.Artery_message.Received_information.Cav.StaticObjects.ObjPos\x1a)\n\x06ObjPos\x12\t\n\x01x\x18\x01 \x01(\x02\x12\t\n\x01y\x18\x02 \x01(\x02\x12\t\n\x01z\x18\x03 \x01(\x02\x62\x06proto3')
 )
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
 
@@ -83,7 +83,7 @@ _ARTERY_MESSAGE_RECEIVED_INFORMATION_CAV_EGOPOS = _descriptor.Descriptor(
   ],
   options=None,
   is_extendable=False,
-  syntax='proto2',
+  syntax='proto3',
   extension_ranges=[],
   oneofs=[
   ],
@@ -127,7 +127,7 @@ _ARTERY_MESSAGE_RECEIVED_INFORMATION_CAV_BLUEVEHICLES_BLUECAV = _descriptor.Desc
   ],
   options=None,
   is_extendable=False,
-  syntax='proto2',
+  syntax='proto3',
   extension_ranges=[],
   oneofs=[
   ],
@@ -157,7 +157,7 @@ _ARTERY_MESSAGE_RECEIVED_INFORMATION_CAV_BLUEVEHICLES = _descriptor.Descriptor(
   ],
   options=None,
   is_extendable=False,
-  syntax='proto2',
+  syntax='proto3',
   extension_ranges=[],
   oneofs=[
   ],
@@ -201,7 +201,7 @@ _ARTERY_MESSAGE_RECEIVED_INFORMATION_CAV_VEHICLES_CAVPOS = _descriptor.Descripto
   ],
   options=None,
   is_extendable=False,
-  syntax='proto2',
+  syntax='proto3',
   extension_ranges=[],
   oneofs=[
   ],
@@ -231,7 +231,7 @@ _ARTERY_MESSAGE_RECEIVED_INFORMATION_CAV_VEHICLES = _descriptor.Descriptor(
   ],
   options=None,
   is_extendable=False,
-  syntax='proto2',
+  syntax='proto3',
   extension_ranges=[],
   oneofs=[
   ],
@@ -275,7 +275,7 @@ _ARTERY_MESSAGE_RECEIVED_INFORMATION_CAV_TRAFFICLIGHTS_TFPOS = _descriptor.Descr
   ],
   options=None,
   is_extendable=False,
-  syntax='proto2',
+  syntax='proto3',
   extension_ranges=[],
   oneofs=[
   ],
@@ -305,7 +305,7 @@ _ARTERY_MESSAGE_RECEIVED_INFORMATION_CAV_TRAFFICLIGHTS = _descriptor.Descriptor(
   ],
   options=None,
   is_extendable=False,
-  syntax='proto2',
+  syntax='proto3',
   extension_ranges=[],
   oneofs=[
   ],
@@ -349,7 +349,7 @@ _ARTERY_MESSAGE_RECEIVED_INFORMATION_CAV_STATICOBJECTS_OBJPOS = _descriptor.Desc
   ],
   options=None,
   is_extendable=False,
-  syntax='proto2',
+  syntax='proto3',
   extension_ranges=[],
   oneofs=[
   ],
@@ -379,7 +379,7 @@ _ARTERY_MESSAGE_RECEIVED_INFORMATION_CAV_STATICOBJECTS = _descriptor.Descriptor(
   ],
   options=None,
   is_extendable=False,
-  syntax='proto2',
+  syntax='proto3',
   extension_ranges=[],
   oneofs=[
   ],
@@ -458,7 +458,7 @@ _ARTERY_MESSAGE_RECEIVED_INFORMATION_CAV = _descriptor.Descriptor(
   ],
   options=None,
   is_extendable=False,
-  syntax='proto2',
+  syntax='proto3',
   extension_ranges=[],
   oneofs=[
   ],
@@ -502,7 +502,7 @@ _ARTERY_MESSAGE_RECEIVED_INFORMATION = _descriptor.Descriptor(
   ],
   options=None,
   is_extendable=False,
-  syntax='proto2',
+  syntax='proto3',
   extension_ranges=[],
   oneofs=[
   ],
@@ -532,7 +532,7 @@ _ARTERY_MESSAGE = _descriptor.Descriptor(
   ],
   options=None,
   is_extendable=False,
-  syntax='proto2',
+  syntax='proto3',
   extension_ranges=[],
   oneofs=[
   ],
