@@ -2,16 +2,16 @@ matplotlib==3.4.2
 networkx==2.5.1
 numpy==1.20.3
 omegaconf==2.3.0
-pillow
+pillow==9.5.0
 pyparsing==2.4.7
 six==1.16.0
-open3d
+open3d==0.17.0
 opencv-python==4.5.2.52
-pandas
-pygame
+pandas==1.3.5
+pygame==2.5.2
 scikit-learn==0.24.2
 scipy==1.6.3
-seaborn
+seaborn==0.11.0
 --find-links https://download.pytorch.org/whl/torch_stable.html
 torch==1.8.0+cpu
 torchvision==0.9.0+cpu

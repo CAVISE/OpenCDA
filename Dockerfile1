@@ -81,11 +81,11 @@ FROM nvidia/vulkan:1.3-470
 
 # Define build arguments and environment variables.
 
-ARG USER=opencda
+ARG USER=root
 ARG CARLA_VERSION=0.9.12
 ARG ADDITIONAL_MAPS=true
 ARG PERCEPTION=true
-ARG SUMO=false
+ARG SUMO=true
 ARG OPENCDA_FULL_INSTALL=true
 
 ENV TZ=America/New_York
@@ -100,23 +100,11 @@ WORKDIR /home
 
 RUN useradd -m ${USER}
 
-
 RUN set -xue && apt-key del 7fa2af80 \
-&& apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/3bf863cc.pub \
+&& apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/3bf863cc.pub \
 && apt-get update \
 && apt-get install -y build-essential cmake debhelper git wget xdg-user-dirs xserver-xorg libvulkan1 libsdl2-2.0-0 \
 libsm6 libgl1-mesa-glx libomp5 pip unzip libjpeg8 libtiff5 software-properties-common nano fontconfig
-
-# Добавляем необходимые пакеты для установки Python 3.7 CAVISE
-RUN apt-get update && apt-get install -y \
-    software-properties-common \
-    && add-apt-repository -y ppa:deadsnakes/ppa \
-    && apt-get update \
-    && apt-get install -y python3.7 python3.7-dev \
-    && rm -rf /var/lib/apt/lists/*
-
-# Устанавливаем Python 3.7 по умолчанию
-RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.7 1
 
 # Install CARLA and its additional maps.
 
@@ -126,18 +114,16 @@ RUN wget https://carla-releases.s3.us-east-005.backblazeb2.com/Linux/CARLA_0.9.1
 --progress=bar:force:noscroll \
 && tar -zxvf CARLA_${CARLA_VERSION}.tar.gz --directory carla && rm CARLA_${CARLA_VERSION}.tar.gz \
 && if [ ${ADDITIONAL_MAPS} = true ] ; then \
-wget https://carla-releases.s3.us-east-005.backblazeb2.com/Linux/AdditionalMaps_0.9.12.tar.gz -nv \
+wget https://carla-releases.s3.us-east-005.backblazeb2.com/Linux/CARLA_0.9.12.tar.gz -nv \
 --show-progress --progress=bar:force:noscroll && \
 tar -zxvf AdditionalMaps_${CARLA_VERSION}.tar.gz --directory carla && rm AdditionalMaps_${CARLA_VERSION}.tar.gz ; \
 elif [ ${ADDITIONAL_MAPS} != false ] ; then echo "Invalid ADDITIONAL_MAPS argument." ; \
 else echo "Additional CARLA maps will not be installed." ; fi && chown -R ${USER}:${USER} /home/carla
 
 # Install the perception components (PyTorch and YOLOv5).
-RUN apt-get update && \
-    apt-get install -y python3.7-distutils
 
 RUN if [ ${PERCEPTION} = true ] ; then \
-pip install torch torchvision torchaudio "yolov5==5.0.0"; \
+pip install torch torchvision torchaudio yolov5 ; \
 elif [ ${PERCEPTION} != false ] ; then echo "Invalid PERCEPTION argument." ; \
 else echo "Perception components (PyTorch and YOLOv5) will not be installed." ; fi
 
