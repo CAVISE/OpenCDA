@@ -85,7 +85,6 @@ ARG USER=opencda
 ARG CARLA_VERSION=0.9.12
 ARG ADDITIONAL_MAPS=true
 ARG PERCEPTION=true
-ARG SUMO=false
 ARG OPENCDA_FULL_INSTALL=true
 
 ENV TZ=America/New_York
@@ -140,14 +139,6 @@ RUN if [ ${PERCEPTION} = true ] ; then \
 pip install torch torchvision torchaudio "yolov5==5.0.0"; \
 elif [ ${PERCEPTION} != false ] ; then echo "Invalid PERCEPTION argument." ; \
 else echo "Perception components (PyTorch and YOLOv5) will not be installed." ; fi
-
-# Install SUMO.
-
-RUN if [ ${SUMO} = true ] ; then \
-add-apt-repository ppa:sumo/stable && apt-get update && apt-get install -y sumo sumo-tools sumo-doc \
-&& pip install traci ; \
-elif [ ${SUMO} != false ] ; then echo "Invalid SUMO argument." ; \
-else echo "SUMO will not be installed." ; fi
 
 # Install OpenCDA.
 
