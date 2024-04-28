@@ -196,7 +196,7 @@ class CommunicationManager:
 
 
 if __name__ == "__main__":
-    address = "tcp://localhost:7777"
+    address = "tcp://172.20.0.2:7777"
     cm1 = (
     CommunicationManagerBuilder(address)
     .with_error_handler()
