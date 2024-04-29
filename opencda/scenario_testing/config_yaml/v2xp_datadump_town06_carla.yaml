@@ -20,6 +20,7 @@ blueprint:
 # Define the basic parameters of the vehicles
 vehicle_base:
   sensing:
+    perception:
       activate: false # when not activated, objects positions will be retrieved from server directly
       camera:
         visualize: 1 # how many camera images need to be visualized. 0 means no visualization for camera
