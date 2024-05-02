@@ -8,12 +8,14 @@ customized 2-lane freeway simplified map sorely with carla
 import os
 
 import carla
+import time
 
 import opencda.scenario_testing.utils.sim_api as sim_api
 from opencda.core.common.cav_world import CavWorld
 from opencda.scenario_testing.evaluations.evaluate_manager import \
     EvaluationManager
 from opencda.scenario_testing.utils.yaml_utils import add_current_time, save_yaml
+from opencda.core.common.process_directory import proccess_directory, clear_directory, clear_directory_now
 
 
 def run_scenario(opt, scenario_params):
@@ -60,6 +62,8 @@ def run_scenario(opt, scenario_params):
                                       'data_protocol.yaml')
         save_yaml(scenario_params, save_yaml_name)
 
+        count = 0
+        clear_directory_now("data_dumping/now/")
         while True:
             scenario_manager.tick()
             transform = single_cav_list[0].vehicle.get_transform()
@@ -70,15 +74,24 @@ def run_scenario(opt, scenario_params):
                 carla.Rotation(
                     pitch=-
                     90)))
-
-            for i, single_cav in enumerate(single_cav_list):
+            
+            count += 1
+            for _, single_cav in enumerate(single_cav_list):
                 single_cav.update_info()
+            for _, single_cav in enumerate(single_cav_list):
+                single_cav.update_info_v2x()
                 control = single_cav.run_step()
                 single_cav.vehicle.apply_control(control)
 
             for rsu in rsu_list:
                 rsu.update_info()
                 rsu.run_step()
+            try:
+                clear_directory("data_dumping/now/")
+                proccess_directory(count)
+                time.sleep(5)
+            except:
+                pass
 
     finally:
         eval_manager.evaluate()
