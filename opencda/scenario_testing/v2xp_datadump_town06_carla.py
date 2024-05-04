@@ -16,7 +16,7 @@ from opencda.scenario_testing.evaluations.evaluate_manager import \
     EvaluationManager
 from opencda.scenario_testing.utils.yaml_utils import add_current_time, save_yaml
 from opencda.core.common.process_directory import proccess_directory, clear_directory, clear_directory_now
-
+from opencda.core.common.opencood_test import make_pred, load_model
 
 def run_scenario(opt, scenario_params):
     try:
@@ -62,8 +62,12 @@ def run_scenario(opt, scenario_params):
                                       'data_protocol.yaml')
         save_yaml(scenario_params, save_yaml_name)
 
+        # load the model 
+        if opt.model_dir:
+            model, device, hypes = load_model(opt)
         count = 0
-        clear_directory_now("data_dumping/now/")
+        dir_count = 0 
+        clear_directory_now("data_dumping/sample/now/")
         while True:
             scenario_manager.tick()
             transform = single_cav_list[0].vehicle.get_transform()
@@ -86,12 +90,17 @@ def run_scenario(opt, scenario_params):
             for rsu in rsu_list:
                 rsu.update_info()
                 rsu.run_step()
+            
             try:
-                clear_directory("data_dumping/now/")
+                clear_directory("data_dumping/sample/now/")
                 proccess_directory(count)
+                dir_count = count
                 time.sleep(5)
             except:
                 pass
+            if opt.fusion_method and opt.model_dir and dir_count == count:
+                make_pred(opt, model, device, hypes)
+            
 
     finally:
         eval_manager.evaluate()

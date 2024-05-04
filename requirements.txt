@@ -14,3 +14,14 @@ seaborn==0.11.0
 lxml==5.1.0
 shapely==1.8.4
 omegaconf==2.3.0
+cmake
+easydict~=1.9
+numba==0.49.0
+scikit-image
+tqdm
+PyYAML
+cython
+tensorboardX
+einops
+cumm
+timm

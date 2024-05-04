@@ -12,10 +12,10 @@ def proccess_directory(count):
     data_directory = os.path.join(source_directory, subdirectories[-2])
     subdirectories = sorted([d for d in os.listdir(data_directory) if os.path.isdir(os.path.join(data_directory, d))])
     
-    shutil.copy(os.path.join(data_directory, "data_protocol.yaml"), "data_dumping/now/")
+    shutil.copy(os.path.join(data_directory, "data_protocol.yaml"), "data_dumping/sample/now")
     
     for folder in subdirectories:
-        destination_folder = os.path.join("data_dumping/now", folder)
+        destination_folder = os.path.join("data_dumping/sample/now", folder)
         os.makedirs(destination_folder, exist_ok=True)
         for postfix in postfixes:
             source_file_path = os.path.join(data_directory, folder, f"{number}{postfix}")

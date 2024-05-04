@@ -33,6 +33,27 @@ def arg_parse():
     parser.add_argument('-v', "--version", type=str, default='0.9.11',
                         help='Specify the CARLA simulator version, default'
                              'is 0.9.11, 0.9.12 is also supported.')
+    parser.add_argument('--model_dir', type=str,
+                        help='Continued training path')
+    parser.add_argument('--fusion_method', type=str,
+                        default='late',
+                        help='late, early or intermediate')
+    parser.add_argument('--show_vis', action='store_true',
+                        help='whether to show image visualization result')
+    parser.add_argument('--show_sequence', action='store_true',
+                        help='whether to show video visualization result.'
+                             'it can note be set true with show_vis together ')
+    parser.add_argument('--save_vis', action='store_true',
+                        help='whether to save visualization result')
+    parser.add_argument('--save_npy', action='store_true',
+                        help='whether to save prediction and gt result'
+                             'in npy_test file')
+    parser.add_argument('--global_sort_detections', action='store_true',
+                        help='whether to globally sort detections by confidence score.'
+                             'If set to True, it is the mainstream AP computing method,'
+                             'but would increase the tolerance for FP (False Positives).')
+    parser.add_argument('--save_vis_n', type=int, default=10,
+                        help='save how many numbers of visualization result?')
     # parse the arguments and return the result
     opt = parser.parse_args()
     return opt
