@@ -5,7 +5,12 @@ Basic class of CAV
 # Author: Runsheng Xu <rxx3386@ucla.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
+import os
 import uuid
+import json
+
+# CAVISE
+import opencda.core.common.communication.serialize as cavise
 
 from opencda.core.actuation.control_manager \
     import ControlManager
@@ -87,6 +92,9 @@ class VehicleManager(object):
         self.vid = str(uuid.uuid1())
         self.vehicle = vehicle
         self.carla_map = carla_map
+
+        # cavise data payload
+        self.cav_data = {}
 
         # retrieve the configure for different modules
         sensing_config = config_yaml['sensing']
@@ -193,13 +201,51 @@ class VehicleManager(object):
                         'static_bev': self.map_manager.static_bev}
         self.safety_manager.update_info(safety_input)
 
-        # update ego position and speed to v2x manager,
-        # and then v2x manager will search the nearby cavs
-        self.v2x_manager.update_info(ego_pos, ego_spd)
+        cavs_nearby = self.v2x_manager.cav_nearby
+        self.cav_data['vid'] = str(int(self.vid.replace('-', ''), 16)) # an unique uuid for this vehicle
+        self.cav_data['ego_spd'] = ego_spd
+        self.cav_data['ego_pos'] = cavise.SerializableTransform(ego_pos).to_dict()
+        self.cav_data['blue_vehicles'] = {}
+        self.cav_data['vehicles'] = [{'x': el.get_location().x, 'y': el.get_location().y, 'z': el.get_location().z} for el in safety_input['objects']['vehicles']]
+        self.cav_data['traffic_lights'] = [{'x': el.get_location().x, 'y': el.get_location().y, 'z': el.get_location().z} for el in safety_input['objects']['traffic_lights']]
+        self.cav_data['static_objects'] = [] # пока не используется
+        self.cav_data['from_who_received'] = [] # пока не используется
 
         self.agent.update_information(ego_pos, ego_spd, objects)
         # pass position and speed info to controller
         self.controller.update_info(ego_pos, ego_spd)
+
+    def update_info_v2x(self, cav_list=[]):
+
+        if cav_list != []:
+            for cav_number_n_info in cav_list:
+                self.cav_data['blue_vehicles'][cav_number_n_info['vid']] = \
+                {
+                    'ego_spd' : cav_number_n_info['ego_spd'],
+                    'ego_pos' : cav_number_n_info['ego_pos']
+                }
+                for blue_cav in cav_number_n_info['blue_vehicles']:
+                    blue_vid, blue_info = blue_cav.items()
+                    self.cav_data['blue_vehicles'][blue_vid] = \
+                    {
+                        'ego_spd' : blue_info['ego_spd'],
+                        'ego_pos' : blue_info['ego_pos']
+                    }
+                    
+                tf = self.cav_data['traffic_lights'] + cav_number_n_info['traffic_lights']
+                tf_strings = [json.dumps(item, sort_keys=True) for item in tf]
+                unique_tf_strings = set(tf_strings)
+                unique_tf = [json.loads(item) for item in unique_tf_strings]
+                self.cav_data['traffic_lights'] = unique_tf
+
+                veh = self.cav_data['vehicles'] + cav_number_n_info['vehicles']
+                veh_strings = [json.dumps(item, sort_keys=True) for item in veh]
+                unique_veh_strings = set(veh_strings)
+                unique_veh = [json.loads(item) for item in unique_veh_strings]
+                self.cav_data['vehicles'] = unique_veh
+                
+            #print(self.cav_data, "result")
+
 
     def run_step(self, target_speed=None):
         """

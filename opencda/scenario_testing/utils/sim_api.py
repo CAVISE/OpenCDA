@@ -191,11 +191,12 @@ class ScenarioManager:
         elif town:
             try:
                 self.world = self.client.load_world(town)
-            except RuntimeError:
+            except RuntimeError as error:
                 print(
                     f"{bcolors.FAIL} %s is not found in your CARLA repo! "
                     f"Please download all town maps to your CARLA "
                     f"repo!{bcolors.ENDC}" % town)
+                print(error)
         else:
             self.world = self.client.get_world()
 

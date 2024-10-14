@@ -24,7 +24,7 @@ def run_scenario(opt, scenario_params):
         # sumo conifg file path
         current_path = os.path.dirname(os.path.realpath(__file__))
         sumo_cfg = os.path.join(current_path,
-                                '../assets/Town06')
+                                '../assets/Town06_intersections')
 
         # create co-simulation scenario manager
         scenario_manager = \
@@ -36,12 +36,13 @@ def run_scenario(opt, scenario_params):
                                       sumo_file_parent_path=sumo_cfg)
         single_cav_list = \
             scenario_manager.create_vehicle_manager(application=['single'],
-                                                    map_helper=map_api.spawn_helper_2lanefree)
+                                                    map_helper=map_api.
+                                                    spawn_helper_2lanefree)
 
         # create evaluation manager
         eval_manager = \
             EvaluationManager(scenario_manager.cav_world,
-                              script_name='single_town06_cosim',
+                              script_name='intersections',
                               current_time=scenario_params['current_time'])
 
         spectator = scenario_manager.world.get_spectator()
@@ -65,3 +66,4 @@ def run_scenario(opt, scenario_params):
         scenario_manager.close()
         for v in single_cav_list:
             v.destroy()
+

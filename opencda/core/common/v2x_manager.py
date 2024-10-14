@@ -167,6 +167,8 @@ class V2XManager(object):
 
             if distance < self.communication_range:
                 self.cav_nearby.update({vid: vm})
+
+
     """
     -----------------------------------------------------------
                  Below is platooning related 

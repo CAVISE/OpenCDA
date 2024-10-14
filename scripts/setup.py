@@ -1,7 +1,7 @@
 import os
 from distutils.core import setup
 
-CARLA_VERSION = '0.9.11'
+CARLA_VERSION = '0.9.12'
 if 'CARLA_VERSION' in os.environ:
       CARLA_VERSION = os.environ['CARLA_VERSION']
 

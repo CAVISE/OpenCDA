@@ -1,0 +1,7 @@
+setuptools
+distro
+wheel
+typing-extensions
+pyzmq
+protobuf==3.18.1
+carla==0.9.12
