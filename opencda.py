@@ -33,6 +33,8 @@ def arg_parse():
     parser.add_argument('-v', "--version", type=str, default='0.9.11',
                         help='Specify the CARLA simulator version, default'
                              'is 0.9.11, 0.9.12 is also supported.')
+    parser.add_argument("--with_cccp", action='store_true',
+                        help='wether to run a communication manager instance in this simulation.')
     # parse the arguments and return the result
     opt = parser.parse_args()
     return opt

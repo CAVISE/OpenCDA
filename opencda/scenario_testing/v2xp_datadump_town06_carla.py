@@ -47,7 +47,7 @@ def run_scenario(opt, scenario_params):
         # create evaluation manager
         eval_manager = \
             EvaluationManager(scenario_manager.cav_world,
-                              script_name='coop_town06',
+                              script_name='v2xp_datadump_town06_carla',
                               current_time=scenario_params['current_time'])
 
         spectator = scenario_manager.world.get_spectator()

@@ -36,13 +36,15 @@ class CavWorld(object):
         The machine learning manager class.
     """
 
-    def __init__(self, apply_ml=False):
+    def __init__(self, apply_ml=False, with_cccp=False):
 
         self.vehicle_id_set = set()
         self._vehicle_manager_dict = {}
         self._platooning_dict = {}
         self._rsu_manager_dict = {}
         self.ml_manager = None
+        # CAVISE communication protocol manager
+        self.comms_manager = None
 
         if apply_ml:
             # we import in this way so the user don't need to install ml
@@ -51,6 +53,20 @@ class CavWorld(object):
                 "opencda.customize.ml_libs.ml_manager"), 'MLManager')
             # initialize the ml manager to load the DL/ML models into memory
             self.ml_manager = ml_manager()
+
+        if with_cccp:
+            builder = getattr(importlib.import_module(
+                "opencda.core.common.communication.manager"), 'CommunicationManagerBuilder')
+            manager = getattr(importlib.import_module(
+                "opencda.core.common.communication.manager"), 'CommunicationManager')
+            # build default comms manager, probably think about config?
+            # TODO: pass this as some sort of config
+            # TODO: add docs for this
+            address = "tcp://artery_container:7777"
+            self.comms_manager = builder(address)       \
+                .with_error_handler()                   \
+                .with_logger(manager.default_logger)    \
+                .build()
 
         # this is used only when co-simulation activated.
         self.sumo2carla_ids = {}

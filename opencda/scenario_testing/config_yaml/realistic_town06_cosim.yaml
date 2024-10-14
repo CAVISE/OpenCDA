@@ -7,9 +7,9 @@ description: |-
 vehicle_base:
   sensing:
     perception:
-      activate: true # when not activated, objects positions will be retrieved from server directly
+      activate: false # when not activated, objects positions will be retrieved from server directly
       camera:
-        visualize: 4 # how many camera images need to be visualized. 0 means no visualization for camera
+        visualize: 0 # how many camera images need to be visualized. 0 means no visualization for camera
         num: 4 # how many cameras are mounted on the vehicle. Maximum 3(frontal, left and right cameras)
         # relative positions (x,y,z,yaw) of the camera. len(positions) should be equal to camera num
         positions:
@@ -19,9 +19,9 @@ vehicle_base:
           - [-2.0, 0.0, 1.5, 180]
 
     localization:
-      activate: true # when not activated, ego position will be retrieved from server directly
+      activate: false # when not activated, ego position will be retrieved from server directly
       debug_helper:
-        show_animation: true # whether to show real-time trajectory plotting
+        show_animation: false # whether to show real-time trajectory plotting
 
   behavior:
     ignore_traffic_light: false # whether to ignore traffic light
@@ -29,10 +29,10 @@ vehicle_base:
 
 # define sumo simulation setting for traffic generation
 sumo:
-  port: ~
-  host: ~
+  port: 8813
+  host: artery_container # IP address artery docker container
   gui: true
-  client_order: 1
+  client_order: 2
   step_length: ${world.fixed_delta_seconds}
 
 
@@ -41,6 +41,24 @@ scenario:
   single_cav_list: # this is for merging vehicle or single cav without v2x
     - name: cav1
       spawn_position: [47.7194, 139.51, 0.3, 0, 0, 0]
+      destination: [600, 145.51, 0.3]
+      v2x:
+        communication_range: 45
+      behavior:
+        local_planner:
+          debug_trajectory: false
+          debug: false
+    - name: cav2
+      spawn_position: [55, 129.51, 0.4, 0, 0, 0]
+      destination: [600, 145.51, 0.3]
+      v2x:
+        communication_range: 45
+      behavior:
+        local_planner:
+          debug_trajectory: false
+          debug: false
+    - name: cav3
+      spawn_position: [60, 149.51, 0.7, 0, 0, 0]
       destination: [600, 145.51, 0.3]
       v2x:
         communication_range: 45
