@@ -154,8 +154,8 @@ sumo:
 scenario:
   single_cav_list: # this is for merging vehicle or single cav without v2x
     - name: cav1
-      spawn_position: [6.2, 360.1, 0.3, 0, -90, 0]
-      destination: [-12.8, 384.6, 0.3]
+      spawn_position: [-8.6, 233.4, 0.3, 0, 90, 0]
+      destination: [-8.6, -75.7, 0.3]
       v2x:
         communication_range: 45
 
@@ -176,5 +176,3 @@ scenario:
       destination: [618.8, 149.1, 0.3]
       v2x:
         communication_range: 45
-
-
