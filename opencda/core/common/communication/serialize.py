@@ -4,9 +4,18 @@
 """
 
 import carla
+import logging
+import importlib
 
-import protos.cavise.opencda_pb2 as proto_opencda
-import protos.cavise.artery_pb2 as proto_artery
+proto_opencda = None
+proto_artery = None
+
+try:
+    proto_opencda = importlib.import_module('protos.cavise.opencda_pb2')
+    proto_artery = importlib.import_module('protos.cavise.artery_pb2')
+except ImportError as error:
+    logging.warning(f'failed to import protos, serialization is disabled: {error}')
+
 
 class SerializableTransform:
     """
@@ -18,6 +27,10 @@ class SerializableTransform:
         @brief Constructor for creating a SerializableTransform object from a carla.Transform.
         @param transform The carla.Transform object to serialize.
         """
+        
+        if proto_artery is None or proto_opencda is None:
+            raise ValueError("serialization is not available, imports failed") 
+
         self.ego_pos = {
             'x': transform.location.x,
             'y': transform.location.y,
@@ -53,7 +66,7 @@ class SerializableTransform:
 class MessageHandler:
 
     def __init__(self):
-        self.opencda_message = proto_opencda.OpenCDA_message()
+        self.opencda_message = proto_opencda.opencda_pb2.OpenCDA_message()
 
     def set_cav_data(self, cav_data):
         cav_message = self.opencda_message.cav.add()  # Добавляем новый объект Cav в список
@@ -103,14 +116,14 @@ class MessageHandler:
 
     def serialize_to_string(self) -> str:
         message = self.opencda_message.SerializeToString()
-        self.opencda_message = proto_opencda.OpenCDA_message()
+        self.opencda_message = proto_opencda.opencda_pb2.OpenCDA_message()
         return message
     
     @staticmethod
     def deserialize_from_string(string):
         received_information_dict = {}
 
-        artery_message = proto_artery.Artery_message()
+        artery_message = proto_artery.artery_pb2.Artery_message()
         artery_message.ParseFromString(string)
 
         for received_info in artery_message.received_information:
