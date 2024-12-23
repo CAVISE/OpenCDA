@@ -3,5 +3,6 @@ distro
 wheel
 typing-extensions
 pyzmq
-protobuf==3.18.1
+protoc-wheel==21.1
+protobuf==4.21.1
 carla==0.9.12

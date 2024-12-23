@@ -7,14 +7,11 @@ import carla
 import logging
 import importlib
 
-proto_opencda = None
-proto_artery = None
+from . import toolchain
+toolchain.CommunicationToolchain.handleMessages(['opencda', 'artery'])
 
-try:
-    proto_opencda = importlib.import_module('protos.cavise.opencda_pb2')
-    proto_artery = importlib.import_module('protos.cavise.artery_pb2')
-except ImportError as error:
-    logging.warning(f'failed to import protos, serialization is disabled: {error}')
+from .protos.cavise import opencda_pb2 as proto_opencda
+from .protos.cavise import artery_pb2 as proto_artery
 
 
 class SerializableTransform:
@@ -27,9 +24,6 @@ class SerializableTransform:
         @brief Constructor for creating a SerializableTransform object from a carla.Transform.
         @param transform The carla.Transform object to serialize.
         """
-        
-        if proto_artery is None or proto_opencda is None:
-            raise ValueError("serialization is not available, imports failed") 
 
         self.ego_pos = {
             'x': transform.location.x,
