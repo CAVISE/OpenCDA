@@ -12,7 +12,7 @@ import opencda.scenario_testing.utils.customized_map_api as map_api
 from opencda.core.common.cav_world import CavWorld
 from opencda.core.common.communication.serialize import MessageHandler
 
-import protos.cavise.artery_pb2 as proto_artery
+import opencda.core.common.communication.protos.cavise.artery_pb2 as proto_artery
 
 from opencda.scenario_testing.evaluations.evaluate_manager import EvaluationManager
 from opencda.scenario_testing.utils.yaml_utils import add_current_time

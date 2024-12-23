@@ -2,43 +2,12 @@ FROM archlinux:base-devel-20240804.0.251467 AS carla
 
 SHELL [ "/bin/bash", "-c"]
 
-# carla version to install
-ARG CARLA_VERSION=0.9.12
-# additional maps flag for carla
-ARG ADDITIONAL_MAPS=true
-
-RUN pacman -Syu --noconfirm wget tar
-
-ENV CARLA_ARCHIVE_URL=https://carla-releases.s3.us-east-005.backblazeb2.com/Linux/CARLA_${CARLA_VERSION}.tar.gz
-ENV MAPS_ARCHIVE_URL=https://carla-releases.s3.us-east-005.backblazeb2.com/Linux/AdditionalMaps_${CARLA_VERSION}.tar.gz
-
-RUN wget ${CARLA_ARCHIVE_URL} -nv &&  \
-    mkdir carla &&                                                                  \
-    tar -zxvf CARLA_${CARLA_VERSION}.tar.gz --directory carla &&                    \
-    rm CARLA_${CARLA_VERSION}.tar.gz
-
-RUN if [ "${ADDITIONAL_MAPS}" = "true" ]; then                                          \
-        wget ${MAPS_ARCHIVE_URL} -nv &&   \
-        tar -zxvf AdditionalMaps_${CARLA_VERSION}.tar.gz --directory carla &&           \
-        rm AdditionalMaps_${CARLA_VERSION}.tar.gz                                       \
-    ; fi
-
-
-FROM carla AS final
-
-SHELL [ "/bin/bash", "-c"]
-
 # if sumo needed
 ARG SUMO=true
 # user name to use
 ARG USER=opencda
 
 WORKDIR /cavise
-COPY --from=carla /carla .
-
-ENV CARLA_HOME="/carla"
-ENV CARLA_VERSION="0.9.12"
-ENV TZ=America/New_York
 
 RUN pacman -Syu --noconfirm pacman-contrib
 RUN pacman -S --noconfirm python3 python-pip pyenv bison git gcc cmake
