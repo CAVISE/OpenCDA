@@ -6,10 +6,12 @@ Script to run different scenarios.
 # Author: Runsheng Xu <rxx3386@ucla.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
-import argparse
-import importlib
 import os
 import sys
+import logging
+import argparse
+import importlib
+
 from omegaconf import OmegaConf
 
 from opencda.version import __version__
@@ -57,6 +59,8 @@ def main():
     scene_dict = OmegaConf.load(config_yaml)
     # merge the dictionaries
     scene_dict = OmegaConf.merge(default_dict, scene_dict)
+    # configure basic logging
+    logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 
     # import the testing script
     testing_scenario = importlib.import_module(
@@ -65,7 +69,7 @@ def main():
     if not os.path.isfile(config_yaml):
         sys.exit(
             "opencda/scenario_testing/config_yaml/%s.yaml not found!" % opt.test_cenario)
-
+        
     # get the function for running the scenario from the testing script
     scenario_runner = getattr(testing_scenario, 'run_scenario')
     # run the scenario testing
