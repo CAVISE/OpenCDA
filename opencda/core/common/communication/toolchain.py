@@ -8,6 +8,8 @@ import importlib
 import subprocess
 import dataclasses
 
+logger = logging.getLogger('cavise.protobuf_toolchain')
+
 # Config for protoc
 @dataclasses.dataclass
 class MessageConfig:
@@ -18,8 +20,7 @@ class CommunicationToolchain:
 
     # handle messages, it is assumed that it is safe to import messages after this call
     @staticmethod
-    # TODO: make None or MessageConfig in type hint
-    def handleMessages(messages: typing.List[str], config: typing.Any = None):
+    def handleMessages(messages: typing.List[str], config: MessageConfig | None = None):
         if config is None:
             config = MessageConfig(
                 pathlib.PurePath('opencda/core/common/communication/messages'),
@@ -31,7 +32,7 @@ class CommunicationToolchain:
             if not CommunicationToolchain.tryImport(config, message):
                 CommunicationToolchain.generateMessage(config, [message])
             else:
-                logging.info(f'found generated message: {message}')
+                logger.info(f'found generated message: {message}')
 
     
     # wrap import call as boolean result, useful for running checks
@@ -40,8 +41,8 @@ class CommunicationToolchain:
         try:
             importlib.import_module(str(config.binary_dir.joinpath(message)).replace('/', '.'))
             return message in sys.modules
-        except ModuleNotFoundError as error:
-            logging.warning(f'could not found message {message}')
+        except ModuleNotFoundError:
+            logger.warning(f'could not found message {message}')
         return False
             
 
@@ -63,7 +64,7 @@ class CommunicationToolchain:
         )
 
         if process.returncode != 0:
-            logging.error(f'failed to generate protos, subroutine exited with: {errno.errorcode[process.returncode]}')
+            logger.error(f'failed to generate protos, subroutine exited with: {errno.errorcode[process.returncode]}')
             sys.exit(process.returncode)
         else:
-            logging.info('generated protos for: ' + ' '.join(messages))
+            logger.info('generated protos for: ' + ' '.join(messages))
