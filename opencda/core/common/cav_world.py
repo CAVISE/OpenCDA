@@ -55,18 +55,11 @@ class CavWorld(object):
             self.ml_manager = ml_manager()
 
         if with_cccp:
-            builder = getattr(importlib.import_module(
-                "opencda.core.common.communication.manager"), 'CommunicationManagerBuilder')
-            manager = getattr(importlib.import_module(
-                "opencda.core.common.communication.manager"), 'CommunicationManager')
-            # build default comms manager, probably think about config?
+            manager = getattr(importlib.import_module('opencda.core.common.communication.manager'), 'CommunicationManager')
             # TODO: pass this as some sort of config
             # TODO: add docs for this
-            address = "tcp://artery_container:7777"
-            self.comms_manager = builder(address)       \
-                .with_error_handler()                   \
-                .with_logger(manager.default_logger)    \
-                .build()
+            address = 'tcp://artery:7777'
+            self.comms_manager = manager(address)
 
         # this is used only when co-simulation activated.
         self.sumo2carla_ids = {}

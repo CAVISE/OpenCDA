@@ -5,6 +5,12 @@ Basic class for RSU(Roadside Unit) management.
 # Author: Runsheng Xu <rxx3386@ucla.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
+import uuid
+import json
+
+# CAVISE
+import opencda.core.common.communication.serialize as cavise
+
 from opencda.core.common.data_dumper import DataDumper
 from opencda.core.sensing.perception.perception_manager import \
     PerceptionManager
@@ -58,14 +64,21 @@ class RSUManager(object):
             current_time='',
             data_dumping=False):
 
-        self.rid = config_yaml['id']
-        # The id of rsu is always a negative int
+        if 'id' in config_yaml:
+            self.rid = config_yaml['id']
+            # The id of rsu is always a negative int
+        else:
+            self.rid = int(uuid.uuid1().int & (1 << 64) - 1)
+
         if self.rid > 0:
-            self.rid = -self.rid
+                self.rid = -self.rid
 
         # read map from the world everytime is time-consuming, so we need
         # explicitly extract here
         self.carla_map = carla_map
+
+        # cavise data payload
+        self.rsu_data = {}
 
         # retrieve the configure for different modules
         # todo: add v2x module to rsu later
@@ -108,6 +121,47 @@ class RSUManager(object):
 
         # object detection todo: pass it to other CAVs for V2X percetion
         objects = self.perception_manager.detect(ego_pos)
+
+        self.rsu_data['vid'] = str(self.rid)
+        self.rsu_data['ego_spd'] = ego_spd
+        self.rsu_data['ego_pos'] = cavise.SerializableTransform(ego_pos).to_dict()
+        self.rsu_data['blue_vehicles'] = {}
+        self.rsu_data['vehicles'] = []
+        self.rsu_data['traffic_lights'] = []
+        self.rsu_data['static_objects'] = [] # пока не используется
+        self.rsu_data['from_who_received'] = [] # пока не используется
+
+    def update_info_v2x(self, cav_list=[]):
+
+        if cav_list != []:
+            for cav_number_n_info in cav_list:
+                self.rsu_data['blue_vehicles'][cav_number_n_info['vid']] = \
+                {
+                    'ego_spd' : cav_number_n_info['ego_spd'],
+                    'ego_pos' : cav_number_n_info['ego_pos']
+                }
+                for blue_cav in cav_number_n_info['blue_vehicles']:
+                    blue_vid, blue_info = blue_cav.items()
+                    self.rsu_data['blue_vehicles'][blue_vid] = \
+                    {
+                        'ego_spd' : blue_info['ego_spd'],
+                        'ego_pos' : blue_info['ego_pos']
+                    }
+                    
+                tf = self.rsu_data['traffic_lights'] + cav_number_n_info['traffic_lights']
+                tf_strings = [json.dumps(item, sort_keys=True) for item in tf]
+                unique_tf_strings = set(tf_strings)
+                unique_tf = [json.loads(item) for item in unique_tf_strings]
+                self.rsu_data['traffic_lights'] = unique_tf
+
+                veh = self.rsu_data['vehicles'] + cav_number_n_info['vehicles']
+                veh_strings = [json.dumps(item, sort_keys=True) for item in veh]
+                unique_veh_strings = set(veh_strings)
+                unique_veh = [json.loads(item) for item in unique_veh_strings]
+                self.rsu_data['vehicles'] = unique_veh
+                
+            #print(self.rsu_data, "result")
+
 
     def run_step(self):
         """

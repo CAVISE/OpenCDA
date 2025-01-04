@@ -5,7 +5,6 @@ Basic class of CAV
 # Author: Runsheng Xu <rxx3386@ucla.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
-import os
 import uuid
 import json
 
@@ -88,8 +87,15 @@ class VehicleManager(object):
             current_time='',
             data_dumping=False):
 
-        # an unique uuid for this vehicle
-        self.vid = str(uuid.uuid1())
+        if 'id' in config_yaml:
+            self.vid = config_yaml['id']
+            # The id of cav is always a positive int
+        else:
+            self.vid = int(uuid.uuid1().int & (1 << 64) - 1)
+
+        if self.vid < 0:
+            self.vid = -self.vid
+
         self.vehicle = vehicle
         self.carla_map = carla_map
 
@@ -201,8 +207,7 @@ class VehicleManager(object):
                         'static_bev': self.map_manager.static_bev}
         self.safety_manager.update_info(safety_input)
 
-        cavs_nearby = self.v2x_manager.cav_nearby
-        self.cav_data['vid'] = str(int(self.vid.replace('-', ''), 16)) # an unique uuid for this vehicle
+        self.cav_data['vid'] = str(self.vid) # TODO: Изменить vid на id и добавить тип объекта
         self.cav_data['ego_spd'] = ego_spd
         self.cav_data['ego_pos'] = cavise.SerializableTransform(ego_pos).to_dict()
         self.cav_data['blue_vehicles'] = {}

@@ -9,11 +9,14 @@ description: |-
 vehicle_base:
   sensing:
     perception:
+      activate: false
       camera:
         visualize: 0 # how many camera images need to be visualized. 0 means no visualization for camera
         num: 0 # how many cameras are mounted on the vehicle. Maximum 3(frontal, left and right cameras)
         # relative positions (x,y,z,yaw) of the camera. len(positions) should be equal to camera num
         positions: []
+      lidar:
+        visualize: true
   behavior:
     max_speed: 50 # maximum speed, km/h
     tailgate_speed: 60 # when a vehicles needs to be close to another vehicle asap

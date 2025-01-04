@@ -9,6 +9,7 @@ Perception module base.
 import weakref
 import sys
 import time
+import logging
 
 import carla
 import cv2
@@ -25,6 +26,7 @@ from opencda.core.sensing.perception.o3d_lidar_libs import \
     o3d_visualizer_init, o3d_pointcloud_encode, o3d_visualizer_show, \
     o3d_camera_lidar_fusion
 
+logger = logging.getLogger("cavise.perception_manager")
 
 class CameraSensor:
     """
@@ -377,7 +379,7 @@ class PerceptionManager:
         ml_manager = cav_world.ml_manager
 
         if self.activate and data_dump:
-            sys.exit("When you dump data, please deactivate the "
+            logger.info("When you dump data for dataset, please deactivate the "
                      "detection function for precise label.")
 
         if self.activate and not ml_manager:
@@ -389,7 +391,7 @@ class PerceptionManager:
 
         # we only spawn the camera when perception module is activated or
         # camera visualization is needed
-        if self.activate or self.camera_visualize:
+        if self.activate or self.camera_visualize or data_dump:
             self.rgb_camera = []
             mount_position = config_yaml['camera']['positions']
             assert len(mount_position) == self.camera_num, \
@@ -404,18 +406,27 @@ class PerceptionManager:
 
         else:
             self.rgb_camera = None
+            logger.warning("Variable rgb_camera is None. Dumping, detection function or camera visualization should be activated to avoid this behavior")
 
         # we only spawn the LiDAR when perception module is activated or lidar
         # visualization is needed
-        if self.activate or self.lidar_visualize:
+        self.lidar = None
+        self.o3d_vis = None
+
+        if self.lidar_visualize or self.activate or data_dump:
             self.lidar = LidarSensor(vehicle,
-                                     self.carla_world,
-                                     config_yaml['lidar'],
-                                     self.global_position)
-            self.o3d_vis = o3d_visualizer_init(self.id)
-        else:
-            self.lidar = None
-            self.o3d_vis = None
+                                    self.carla_world,
+                                    config_yaml['lidar'],
+                                    self.global_position)
+            if self.lidar_visualize:
+                self.o3d_vis = o3d_visualizer_init(self.id)
+            elif not self.lidar_visualize:
+                logger.warning("Variable o3d_vis is None. Lidar visualization should be activated to avoid this behavior")
+
+        if not self.lidar:
+            logger.warning("Variable lidar is None. Dumping, detection function or Lidar visualization should be activated to avoid this behavior")
+
+
 
         # if data dump is true, semantic lidar is also spawned
         self.data_dump = data_dump
@@ -613,14 +624,14 @@ class PerceptionManager:
         objects.update({'vehicles': vehicle_list})
 
         if self.camera_visualize:
-            while self.rgb_camera[0].image is None:
-                continue
 
             names = ['front', 'right', 'left', 'back']
 
             for (i, rgb_camera) in enumerate(self.rgb_camera):
                 if i > self.camera_num - 1 or i > self.camera_visualize - 1:
                     break
+                while self.rgb_camera[0].image is None:
+                    continue
                 # we only visualiz the frontal camera
                 rgb_image = np.array(rgb_camera.image)
                 # draw the ground truth bbx on the camera image
@@ -674,6 +685,10 @@ class PerceptionManager:
         """
         semantic_idx = self.semantic_lidar.obj_idx
         semantic_tag = self.semantic_lidar.obj_tag
+        
+        if semantic_tag is None or semantic_idx is None:
+            logger.warning("[perception_manager] Variable semantic_idx or semantic_tag is None")
+            return vehicle_list
 
         # label 10 is the vehicle
         vehicle_idx = semantic_idx[semantic_tag == 10]

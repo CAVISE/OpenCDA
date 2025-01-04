@@ -24,6 +24,7 @@ from opencda.co_simulation.sumo_integration.sumo_simulation import \
     SumoSimulation
 from opencda.scenario_testing.utils.sim_api import ScenarioManager
 
+logger = logging.getLogger("cavise.cosim_api")
 
 class CoScenarioManager(ScenarioManager):
     """
@@ -54,7 +55,8 @@ class CoScenarioManager(ScenarioManager):
                  xodr_path=None,
                  town=None,
                  cav_world=None,
-                 sumo_file_parent_path=None):
+                 sumo_file_parent_path=None,
+                 with_cccp=False):
         # carla side initializations(partial init is already done in scenario
         # manager
         super(CoScenarioManager, self).__init__(scenario_params,
@@ -84,6 +86,13 @@ class CoScenarioManager(ScenarioManager):
         # sumo side initialization
         base_name = \
             os.path.basename(sumo_file_parent_path)
+
+        sumo_key = 'sumo'
+        if with_cccp:
+            base_name += "_artery"
+            sumo_key = 'sumo-artery'
+
+
         sumo_cfg = \
             os.path.join(sumo_file_parent_path, base_name + '.sumocfg')
         # todo: use yaml file to generate the route file
@@ -93,12 +102,12 @@ class CoScenarioManager(ScenarioManager):
                                          'and use .sumocfg as extension' \
                                          % sumo_cfg
 
-        sumo_port = scenario_params['sumo']['port']
-        sumo_host = scenario_params['sumo']['host']
-        sumo_gui = scenario_params['sumo']['gui']
-        sumo_client_order = scenario_params['sumo']['client_order']
+        sumo_port = scenario_params[sumo_key]['port']
+        sumo_host = scenario_params[sumo_key]['host']
+        sumo_gui = scenario_params[sumo_key]['gui']
+        sumo_client_order = scenario_params[sumo_key]['client_order']
         # tick freq, the same as carla
-        sumo_step_length = scenario_params['sumo']['step_length']
+        sumo_step_length = scenario_params[sumo_key]['step_length']
 
         self.sumo = SumoSimulation(sumo_cfg, sumo_step_length,
                                    sumo_host, sumo_port, sumo_gui,
@@ -332,11 +341,11 @@ class CoScenarioManager(ScenarioManager):
         self.world.apply_settings(self.origin_settings)
 
         # Destroying synchronized actors.
-        print('destroying carla actor')
+        logger.info('destroying carla actor')
         for carla_actor_id in self.sumo2carla_ids.values():
             self.destroy_actor(carla_actor_id)
 
-        print('destroying sumo actor')
+        logger.info('destroying sumo actor')
         for sumo_actor_id in self.carla2sumo_ids.values():
             self.sumo.destroy_actor(sumo_actor_id)
 
