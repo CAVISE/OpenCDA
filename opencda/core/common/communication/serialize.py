@@ -4,8 +4,6 @@
 """
 
 import carla
-import logging
-import importlib
 
 from . import toolchain
 toolchain.CommunicationToolchain.handleMessages(['opencda', 'artery'])
@@ -60,7 +58,7 @@ class SerializableTransform:
 class MessageHandler:
 
     def __init__(self):
-        self.opencda_message = proto_opencda.opencda_pb2.OpenCDA_message()
+        self.opencda_message = proto_opencda.OpenCDA_message()
 
     def set_cav_data(self, cav_data):
         cav_message = self.opencda_message.cav.add()  # Добавляем новый объект Cav в список
@@ -110,14 +108,14 @@ class MessageHandler:
 
     def serialize_to_string(self) -> str:
         message = self.opencda_message.SerializeToString()
-        self.opencda_message = proto_opencda.opencda_pb2.OpenCDA_message()
+        self.opencda_message = proto_opencda.OpenCDA_message()
         return message
     
     @staticmethod
     def deserialize_from_string(string):
         received_information_dict = {}
 
-        artery_message = proto_artery.artery_pb2.Artery_message()
+        artery_message = proto_artery.Artery_message()
         artery_message.ParseFromString(string)
 
         for received_info in artery_message.received_information:

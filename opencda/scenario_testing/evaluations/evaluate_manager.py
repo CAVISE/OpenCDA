@@ -7,9 +7,11 @@ Evaluation manager.
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
 import os
+import logging
 from datetime import datetime
 from opencda.scenario_testing.evaluations.utils import lprint
 
+logger = logging.getLogger("cavise.evaluate_manager")
 
 class EvaluationManager(object):
     """
@@ -53,13 +55,13 @@ class EvaluationManager(object):
         log_file = os.path.join(self.eval_save_path, 'log.txt')
 
         self.localization_eval(log_file)
-        print('Localization Evaluation Done.')
+        logger.info('Localization Evaluation Done')
 
         self.kinematics_eval(log_file)
-        print('Kinematics Evaluation Done.')
+        logger.info('Kinematics Evaluation Done')
 
         self.platooning_eval(log_file)
-        print('Platooning Evaluation Done.')
+        logger.info('Platooning Evaluation Done')
 
     def kinematics_eval(self, log_file):
         """

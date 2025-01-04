@@ -17,6 +17,8 @@ vehicle_base:
           - [0.0, 0.3, 1.8, 100]
           - [0.0, -0.3, 1.8, -100]
           - [-2.0, 0.0, 1.5, 180]
+      lidar:
+        visualize: false
 
     localization:
       activate: false # when not activated, ego position will be retrieved from server directly
@@ -27,10 +29,16 @@ vehicle_base:
     ignore_traffic_light: false # whether to ignore traffic light
     collision_time_ahead: 2.0 # used for collision checking
 
-# define sumo simulation setting for traffic generation
 sumo:
   port: 8813
-  host: artery_container # IP address artery docker container
+  host: artery
+  gui: true
+  client_order: 2
+  step_length: ${world.fixed_delta_seconds}
+
+sumo-artery:
+  port: 8813
+  host: artery # IP address artery docker container
   gui: true
   client_order: 2
   step_length: ${world.fixed_delta_seconds}
