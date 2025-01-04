@@ -1,3 +1,3 @@
 """Specifies the current version number of OpenCDA."""
 
-__version__ = "0.1.3"
+__version__ = "0.1.4"

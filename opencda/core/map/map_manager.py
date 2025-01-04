@@ -8,6 +8,7 @@
 
 import math
 import uuid
+import logging
 
 import cv2
 import carla
@@ -22,6 +23,7 @@ from opencda.core.map.map_utils import \
 from opencda.core.map.map_drawing import \
     cv2_subpixel, draw_agent, draw_road, draw_lane
 
+logger = logging.getLogger("cavise.map_manager")
 
 class MapManager(object):
     """
@@ -146,10 +148,10 @@ class MapManager(object):
             return
         self.rasterize_static()
         self.rasterize_dynamic()
-        if self.visualize:
-            cv2.imshow('the bev map of agent %s' % self.agent_id,
-                       self.vis_bev)
-            cv2.waitKey(1)
+        # if self.visualize:
+        #     cv2.imshow('the bev map of agent %s' % self.agent_id,
+        #                self.vis_bev)
+        #     cv2.waitKey(1)
 
     @staticmethod
     def get_bounds(left_lane, right_lane):
@@ -274,9 +276,8 @@ class MapManager(object):
         crosswalks_ids = []
 
         # boundary of each lane for later filtering
-        lanes_bounds = np.empty((0, 2, 2), dtype=np.float)
-        crosswalks_bounds = np.empty((0, 2, 2), dtype=np.float)
-
+        lanes_bounds = np.empty((0, 2, 2), dtype=np.float64)
+        crosswalks_bounds = np.empty((0, 2, 2), dtype=np.float64)
         # loop all waypoints to get lane information
         for (i, waypoint) in enumerate(self.topology):
             # unique id for each lane
@@ -289,7 +290,13 @@ class MapManager(object):
             while nxt.road_id == waypoint.road_id \
                     and nxt.lane_id == waypoint.lane_id:
                 waypoints.append(nxt)
-                nxt = nxt.next(self.lane_sample_resolution)[0]
+                options = nxt.next(self.lane_sample_resolution)
+
+                if options:
+                    nxt = options[0]
+                else:
+                    logger.warning(f"Expected next road after this one with id {nxt.road_id}, got nothing")
+                    break
 
             # waypoint is the centerline, we need to calculate left lane mark
             left_marking = [lateral_shift(w.transform, -w.lane_width * 0.5) for

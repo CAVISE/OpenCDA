@@ -40,7 +40,7 @@ def init(opt, scenario_params) -> None:
     if not cavise_root:
         raise EnvironmentError('missing cavise root!')
     
-    sumo_cfg = f'{cavise_root}/opencda/opencda/scenario_testing/config_sumo/realistic_town06_cosim'
+    sumo_cfg = f'{cavise_root}/opencda/opencda/assets/realistic_town06_cosim'
     scenario_manager = sim_api.CoScenarioManager(
         scenario_params,
         opt.apply_ml,
@@ -96,9 +96,9 @@ def run() -> None:
             message_handler.set_cav_data(single_cav.cav_data)
         
         # be verbose!
-        json_output = MessageToJson(message_handler.opencda_message, including_default_value_fields=True, preserving_proto_field_name=True)
-        with open(OPENCDA_MESSAGE_LOCATION, 'w') as json_file:
-            json_file.write(json_output)
+        # json_output = MessageToJson(message_handler.opencda_message, preserving_proto_field_name=True)
+        # with open(OPENCDA_MESSAGE_LOCATION, 'w') as json_file:
+        #     json_file.write(json_output)
         
         out_message = message_handler.serialize_to_string()
         cav_world.comms_manager.send_message(out_message)
@@ -106,11 +106,11 @@ def run() -> None:
         v2x_info = MessageHandler.deserialize_from_string(in_message)
 
         # be verbose!
-        parsed = proto_artery.Artery_message()
-        parsed.ParseFromString(in_message)
-        json_output = MessageToJson(parsed, including_default_value_fields=True, preserving_proto_field_name=True)
-        with open(ARTERY_MESSAGE_LOCATION, 'w') as json_file:
-            json_file.write(json_output)
+        # parsed = proto_artery.Artery_message()
+        # parsed.ParseFromString(in_message)
+        # json_output = MessageToJson(parsed, preserving_proto_field_name=True)
+        # with open(ARTERY_MESSAGE_LOCATION, 'w') as json_file:
+        #     json_file.write(json_output)
         
         for _, single_cav in enumerate(single_cav_list):
             cav_list = []
