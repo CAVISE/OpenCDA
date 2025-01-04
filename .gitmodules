@@ -1,0 +1,4 @@
+[submodule "OpenCOOD"]
+	path = OpenCOOD
+	url = ../OpenCOOD.git
+	branch = main
