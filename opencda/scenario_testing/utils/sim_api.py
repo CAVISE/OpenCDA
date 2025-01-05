@@ -271,7 +271,6 @@ class ScenarioManager:
         single_cav_list : list
             A list contains all single CAVs' vehicle manager.
         """
-        logger.info('Creating single CAVs')
         # By default, we use lincoln as our cav model.
         default_model = 'vehicle.lincoln.mkz_2017'
 
@@ -327,6 +326,7 @@ class ScenarioManager:
                 clean=True)
 
             single_cav_list.append(vehicle_manager)
+            logger.info(f'Created CAV with id {vehicle_manager.vid}')
 
         return single_cav_list
 
@@ -427,7 +427,6 @@ class ScenarioManager:
         rsu_list : list
             A list contains all rsu managers..
         """
-        logger.info('Creating RSU')
         rsu_list = []
         for i, rsu_config in enumerate(
                 self.scenario_params['scenario']['rsu_list']):
@@ -440,6 +439,7 @@ class ScenarioManager:
                                      data_dump)
 
             rsu_list.append(rsu_manager)
+            logger.info(f'Created RSU with id {rsu_manager.rid}')
 
         return rsu_list
 

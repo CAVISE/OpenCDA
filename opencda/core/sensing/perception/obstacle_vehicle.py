@@ -239,6 +239,6 @@ class ObstacleVehicle(object):
             # Add other attributes as needed
         }
     def __repr__(self):
-        return f"({self.location}, {self.carla_id})" # ВСЁ КРОМЕ type_id почему так не знаю\
+        return f"({self.location}, {self.carla_id})" # ВСЁ КРОМЕ type_id почему так не знаю
     def __str__(self):
         return f"({self.location}, {self.carla_id})" # ВСЁ КРОМЕ type_id почему так не знаю
