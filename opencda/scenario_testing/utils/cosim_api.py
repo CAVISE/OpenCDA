@@ -341,11 +341,11 @@ class CoScenarioManager(ScenarioManager):
         self.world.apply_settings(self.origin_settings)
 
         # Destroying synchronized actors.
-        logger.info('destroying carla actor')
+        logger.info('Destroying carla actor')
         for carla_actor_id in self.sumo2carla_ids.values():
             self.destroy_actor(carla_actor_id)
 
-        logger.info('destroying sumo actor')
+        logger.info('Destroying sumo actor')
         for sumo_actor_id in self.carla2sumo_ids.values():
             self.sumo.destroy_actor(sumo_actor_id)
 
