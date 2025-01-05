@@ -55,6 +55,9 @@ class RSUManager(object):
     data_dumper : opencda object
         Used for dumping sensor data.
     """
+
+    current_id:int = -1
+
     def __init__(
             self,
             carla_world,
@@ -65,13 +68,11 @@ class RSUManager(object):
             data_dumping=False):
 
         if 'id' in config_yaml:
-            self.rid = config_yaml['id']
+            self.rid = -abs(int(config_yaml['id']))
             # The id of rsu is always a negative int
         else:
-            self.rid = int(uuid.uuid1().int & (1 << 64) - 1)
-
-        if self.rid > 0:
-                self.rid = -self.rid
+            self.rid = RSUManager.current_id
+            RSUManager.current_id -= 1
 
         # read map from the world everytime is time-consuming, so we need
         # explicitly extract here

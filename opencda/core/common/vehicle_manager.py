@@ -77,6 +77,8 @@ class VehicleManager(object):
         Used for dumping sensor data.
     """
 
+    current_id:int = 1
+
     def __init__(
             self,
             vehicle,
@@ -88,13 +90,11 @@ class VehicleManager(object):
             data_dumping=False):
 
         if 'id' in config_yaml:
-            self.vid = config_yaml['id']
+            self.vid = abs(int(config_yaml['id']))
             # The id of cav is always a positive int
         else:
-            self.vid = int(uuid.uuid1().int & (1 << 64) - 1)
-
-        if self.vid < 0:
-            self.vid = -self.vid
+            self.vid = VehicleManager.current_id
+            VehicleManager.current_id += 1
 
         self.vehicle = vehicle
         self.carla_map = carla_map

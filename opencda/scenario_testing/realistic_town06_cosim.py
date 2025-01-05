@@ -26,8 +26,8 @@ single_cav_list = None
 spectator = None
 cav_world = None
 
-OPENCDA_MESSAGE_LOCATION = os.environ.get('CAVISE_ROOT_DIR') + '/simdata/opencda/message.json'
-ARTERY_MESSAGE_LOCATION = os.environ.get('CAVISE_ROOT_DIR') + '/simdata/artery/message.json'
+OPENCDA_MESSAGE_LOCATION = os.environ.get('CAVISE_ROOT_DIR') + '/simdata/message_opencda.json'
+ARTERY_MESSAGE_LOCATION = os.environ.get('CAVISE_ROOT_DIR') + '/simdata/message_artery.json'
 
 
 def init(opt, scenario_params) -> None:
@@ -96,26 +96,26 @@ def run() -> None:
             message_handler.set_cav_data(single_cav.cav_data)
         
         # be verbose!
-        # json_output = MessageToJson(message_handler.opencda_message, preserving_proto_field_name=True)
-        # with open(OPENCDA_MESSAGE_LOCATION, 'w') as json_file:
-        #     json_file.write(json_output)
+        json_output = MessageToJson(message_handler.opencda_message, preserving_proto_field_name=True)
+        with open(OPENCDA_MESSAGE_LOCATION, 'w') as json_file:
+            json_file.write(json_output)
         
         out_message = message_handler.serialize_to_string()
         cav_world.comms_manager.send_message(out_message)
         in_message = cav_world.comms_manager.receive_message()
         v2x_info = MessageHandler.deserialize_from_string(in_message)
 
-        # be verbose!
-        # parsed = proto_artery.Artery_message()
-        # parsed.ParseFromString(in_message)
-        # json_output = MessageToJson(parsed, preserving_proto_field_name=True)
-        # with open(ARTERY_MESSAGE_LOCATION, 'w') as json_file:
-        #     json_file.write(json_output)
+        #be verbose!
+        parsed = proto_artery.Artery_message()
+        parsed.ParseFromString(in_message)
+        json_output = MessageToJson(parsed, preserving_proto_field_name=True)
+        with open(ARTERY_MESSAGE_LOCATION, 'w') as json_file:
+            json_file.write(json_output)
         
         for _, single_cav in enumerate(single_cav_list):
             cav_list = []
             if len(v2x_info) > 0:
-                cav_list = v2x_info[str(int(single_cav.vid.replace('-', ''), 16))]['cav_list']
+                cav_list = v2x_info[str(single_cav.vid)]['cav_list']
             else:
                 print('Data has been lost!')
             single_cav.update_info_v2x(cav_list=cav_list)

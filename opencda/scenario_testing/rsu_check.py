@@ -14,7 +14,7 @@ from opencda.core.common.cav_world import CavWorld
 from opencda.core.common.communication.serialize import MessageHandler
 from opencda.core.common.coperception_model_manager import CoperceptionModelManager, DirectoryProcessor
 
-# import protos.cavise.artery_pb2 as proto_artery
+import opencda.core.common.communication.protos.cavise.artery_pb2 as proto_artery
 
 from opencda.scenario_testing.evaluations.evaluate_manager import EvaluationManager
 from opencda.scenario_testing.utils.yaml_utils import add_current_time, save_yaml
@@ -29,8 +29,8 @@ rsu_list = None
 spectator = None
 cav_world = None
 
-OPENCDA_MESSAGE_LOCATION = os.environ.get('CAVISE_ROOT_DIR') + '/simdata/opencda/message.json'
-ARTERY_MESSAGE_LOCATION = os.environ.get('CAVISE_ROOT_DIR') + '/simdata/artery/message.json'
+OPENCDA_MESSAGE_LOCATION = os.environ.get('CAVISE_ROOT_DIR') + '/simdata/message_opencda.json'
+ARTERY_MESSAGE_LOCATION = os.environ.get('CAVISE_ROOT_DIR') + '/simdata/message_artery.json'
 
 
 def init(opt, scenario_params) -> None:
@@ -152,7 +152,7 @@ def run() -> None:
         if cav_world.comms_manager is not None:
         
             # be verbose!
-            json_output = MessageToJson(message_handler.opencda_message, including_default_value_fields=True, preserving_proto_field_name=True)
+            json_output = MessageToJson(message_handler.opencda_message, preserving_proto_field_name=True)
             with open(OPENCDA_MESSAGE_LOCATION, 'w') as json_file:
                 json_file.write(json_output)
             
@@ -164,7 +164,7 @@ def run() -> None:
             # be verbose!
             parsed = proto_artery.Artery_message()
             parsed.ParseFromString(in_message)
-            json_output = MessageToJson(parsed, including_default_value_fields=True, preserving_proto_field_name=True)
+            json_output = MessageToJson(parsed, preserving_proto_field_name=True)
             with open(ARTERY_MESSAGE_LOCATION, 'w') as json_file:
                 json_file.write(json_output)
         else:
