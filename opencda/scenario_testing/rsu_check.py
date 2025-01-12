@@ -28,6 +28,7 @@ single_cav_list = None
 rsu_list = None
 spectator = None
 cav_world = None
+scenario_name = "rsu_check"
 
 OPENCDA_MESSAGE_LOCATION = os.environ.get('CAVISE_ROOT_DIR') + '/simdata/message_opencda.json'
 ARTERY_MESSAGE_LOCATION = os.environ.get('CAVISE_ROOT_DIR') + '/simdata/message_artery.json'
@@ -43,7 +44,7 @@ def init(opt, scenario_params) -> None:
     if not cavise_root:
         raise EnvironmentError('missing cavise root!')
     
-    sumo_cfg = f'{cavise_root}/opencda/opencda/assets/rsu_check'
+    sumo_cfg = f'{cavise_root}/opencda/opencda/assets/{scenario_name}'
     scenario_manager = sim_api.CoScenarioManager(
         scenario_params,
         opt.apply_ml,
@@ -58,7 +59,7 @@ def init(opt, scenario_params) -> None:
     coperception_model_manager = None
 
     if data_dump:
-        scenario_manager.client.start_recorder("rsu_check.log", True)
+        scenario_manager.client.start_recorder(f"{scenario_name}.log", True)
 
         current_path = os.path.dirname(os.path.realpath(__file__))
         save_yaml_name = os.path.join(
@@ -85,7 +86,7 @@ def init(opt, scenario_params) -> None:
 
     eval_manager = EvaluationManager(
         scenario_manager.cav_world, 
-        script_name='rsu_check', 
+        script_name=scenario_name, 
         current_time=scenario_params['current_time']
     )
 
@@ -206,4 +207,3 @@ def run_scenario(opt, scenario_params) -> None:
         finalize(opt)
         if raised_error is not None:
             raise raised_error
-
