@@ -278,6 +278,10 @@ class ScenarioManager:
             self.world.get_blueprint_library().find(default_model)
         single_cav_list = []
 
+        if self.scenario_params['scenario']['single_cav_list'] is None:
+            logger.info('No CAV was created')
+            return single_cav_list
+
         for i, cav_config in enumerate(
                 self.scenario_params['scenario']['single_cav_list']):
             # in case the cav wants to join a platoon later
@@ -428,6 +432,10 @@ class ScenarioManager:
             A list contains all rsu managers..
         """
         rsu_list = []
+        if self.scenario_params['scenario']['rsu_list'] is None:
+            logger.info('No RSU was created')
+            return rsu_list
+        
         for i, rsu_config in enumerate(
                 self.scenario_params['scenario']['rsu_list']):
             rsu_config = OmegaConf.merge(self.scenario_params['rsu_base'],
