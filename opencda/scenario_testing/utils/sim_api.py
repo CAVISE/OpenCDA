@@ -50,7 +50,7 @@ def car_blueprint_filter(blueprint_library, carla_version='0.9.15'):
     """
 
     if carla_version == '0.9.15' or carla_version == '0.9.14':
-        print(f'Carla {carla_version} version is selected')
+        logger.info(f'Carla {carla_version} version is selected')
         blueprints = [
             blueprint_library.find('vehicle.audi.a2'),
             blueprint_library.find('vehicle.audi.tt'),
@@ -175,7 +175,7 @@ class ScenarioManager:
                 self.world = self.client.load_world(town)
             except RuntimeError as error:
                 logger.error(
-                    f"{bcolors.FAIL} {town} is not found in your CARLA repo! "
+                    f"{bcolors.FAIL}{town} is not found in your CARLA repo! "
                     f"Please download all town maps to your CARLA "
                     f"repo!{bcolors.ENDC}")
                 logger.error(error)
@@ -274,11 +274,10 @@ class ScenarioManager:
         # By default, we use lincoln as our cav model.
         default_model = 'vehicle.lincoln.mkz_2017'
 
-        cav_vehicle_bp = \
-            self.world.get_blueprint_library().find(default_model)
+        cav_vehicle_bp = self.world.get_blueprint_library().find(default_model)
         single_cav_list = []
 
-        if self.scenario_params['scenario']['single_cav_list'] is None:
+        if self.scenario_params.get('scenario') is None or self.scenario_params['scenario'].get('single_cav_list', None) is None:
             logger.info('No CAV was created')
             return single_cav_list
 
@@ -352,7 +351,6 @@ class ScenarioManager:
         single_cav_list : list
             A list contains all single CAVs' vehicle manager.
         """
-        logger.info('Creating platoons')
         platoon_list = []
         self.cav_world = CavWorld(self.apply_ml)
 
@@ -360,8 +358,11 @@ class ScenarioManager:
         # same car
         default_model = 'vehicle.lincoln.mkz_2017'
 
-        cav_vehicle_bp = \
-            self.world.get_blueprint_library().find(default_model)
+        cav_vehicle_bp = self.world.get_blueprint_library().find(default_model)
+
+        if self.scenario_params.get('scenario') is None or self.scenario_params['scenario'].get('platoon_list', None) is None:
+            logger.info('No platoon was created')
+            return platoon_list
 
         # create platoons
         for i, platoon in enumerate(
@@ -432,14 +433,30 @@ class ScenarioManager:
             A list contains all rsu managers..
         """
         rsu_list = []
-        if self.scenario_params['scenario']['rsu_list'] is None:
+
+        if self.scenario_params.get('scenario') is None or self.scenario_params['scenario'].get('rsu_list', None) is None:
             logger.info('No RSU was created')
             return rsu_list
-        
-        for i, rsu_config in enumerate(
-                self.scenario_params['scenario']['rsu_list']):
-            rsu_config = OmegaConf.merge(self.scenario_params['rsu_base'],
-                                         rsu_config)
+
+        for rsu_config in self.scenario_params['scenario']['rsu_list']:
+            rsu_config = OmegaConf.merge(self.scenario_params['rsu_base'], rsu_config)
+            default_model = 'static.prop.gnome'
+            static_bp = self.world.get_blueprint_library().find(default_model)
+
+            spawn_transform = carla.Transform(
+                    carla.Location(
+                        x=rsu_config['spawn_position'][0],
+                        y=rsu_config['spawn_position'][1],
+                        z=rsu_config['spawn_position'][2]
+                    ),
+                    carla.Rotation(
+                        pitch=rsu_config['spawn_position'][5],
+                        yaw=rsu_config['spawn_position'][4],
+                        roll=rsu_config['spawn_position'][3]
+                    )
+            )
+
+            self.world.spawn_actor(static_bp, spawn_transform)
             rsu_manager = RSUManager(self.world, rsu_config,
                                      self.carla_map,
                                      self.cav_world,
@@ -658,7 +675,12 @@ class ScenarioManager:
         bg_list : list
             The list that contains all the background traffic vehicles.
         """
-        logger.info('Spawning CARLA traffic flow')
+        bg_list = []
+
+        if self.scenario_params.get('carla_traffic_manager') is None:
+            logger.info('No Carla traffic flow was created')
+            return None, bg_list
+        
         traffic_config = self.scenario_params['carla_traffic_manager']
         tm = self.client.get_trafficmanager()
 
@@ -669,8 +691,6 @@ class ScenarioManager:
         tm.global_percentage_speed_difference(
             traffic_config['global_speed_perc'])
 
-        bg_list = []
-
         if isinstance(traffic_config['vehicle_list'], list) or \
                 isinstance(traffic_config['vehicle_list'], ListConfig):
             bg_list = self.spawn_vehicles_by_list(tm,
@@ -680,7 +700,11 @@ class ScenarioManager:
         else:
             bg_list = self.spawn_vehicle_by_range(tm, traffic_config, bg_list)
 
-        logger.info('CARLA traffic flow generated')
+        
+        if not bg_list:
+            logger.info('No Carla traffic flow was created')
+        else:
+            logger.info('CARLA traffic flow generated')
         return tm, bg_list
 
     def tick(self):

@@ -21,10 +21,11 @@ from opencda.version import __version__
 
 try:
     coloredlogs = importlib.import_module('coloredlogs')
-except ModuleNotFoundError as error:
+except ModuleNotFoundError:
     coloredlogs = None
     print('could not find coloredlogs module! Your life will look pale.')
     print('if you are interested in improving it: https://pypi.org/project/coloredlogs')
+
 
 # Handle cavise log creation, obtain this logger later with a call to
 # logging.getLogger('cavise'). Use for our (cavise) code only.
@@ -39,6 +40,7 @@ def create_logger(level: int, fmt: str = '- [%(asctime)s][%(name)s] %(message)s'
         logger.addHandler(handler)
     logger.propagate = False
     return logger
+
 
 # Parse command line args.
 def arg_parse() -> argparse.Namespace:
@@ -55,6 +57,10 @@ def arg_parse() -> argparse.Namespace:
     #                     help='whether ml/dl framework such as sklearn/pytorch is needed in the testing. '
     #                          'Set it to true only when you have installed the pytorch/sklearn package.')
     parser.add_argument('-v', "--version", type=str, default='0.9.15', help='Specify the CARLA simulator version.')
+    parser.add_argument('--free-spectator', action='store_true', help='Enable free movement for the spectator camera.')
+    parser.add_argument('-x', '--xodr', action='store_true', help='Run simulation using a custom map from an XODR file.')
+    parser.add_argument('-c', '--cosim', action='store_true', help='Enable co-simulation with SUMO.')
+    parser.add_argument('--town', type=str, help='Set the town to simulate in.')
     parser.add_argument('--with-cccp', action='store_true', help='wether to run a communication manager instance in this simulation.')
 
     # Coperception models parameters
@@ -72,7 +78,7 @@ def arg_parse() -> argparse.Namespace:
                              'but would increase the tolerance for FP (False Positives).')
     return parser.parse_args()
 
-
+# TODO: python setup.py develop для OpenCOOD на проверку присутствия файлов cython
 def main() -> None:
     opt = arg_parse()
     logger = create_logger(logging.DEBUG)
@@ -94,15 +100,11 @@ def main() -> None:
     scene_dict = omegaconf.OmegaConf.load(str(config_yaml))
     scene_dict = omegaconf.OmegaConf.merge(default_dict, scene_dict)
     opt.apply_ml = False
-    try:
-        testing_scenario = importlib.import_module(f'opencda.scenario_testing.{opt.test_scenario}')
-    except ModuleNotFoundError:
-        logger.error(f'failed to find scenario: {opt.test_scenario}, maybe check opencda/scenario_testing for it?')
-        sys.exit(errno.EPERM)
-        
+    testing_scenario = importlib.import_module('opencda.scenario_testing.general_scenario')
+
     scenario_runner = getattr(testing_scenario, 'run_scenario')
     if scenario_runner is None:
-        logger.error(f'failed to get \'run_scenario\' method from scenario module. Ensure it exists and follows specified template')
+        logger.error('Failed to get \'run_scenario\' method from scenario module. Ensure it exists and follows specified template')
         sys.exit(errno.EPERM)
     scenario_runner(opt, scene_dict)
 
