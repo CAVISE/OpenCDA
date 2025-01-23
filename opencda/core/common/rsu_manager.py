@@ -5,8 +5,8 @@ Basic class for RSU(Roadside Unit) management.
 # Author: Runsheng Xu <rxx3386@ucla.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
-import uuid
 import json
+import carla
 
 # CAVISE
 import opencda.core.common.communication.serialize as cavise
@@ -56,7 +56,7 @@ class RSUManager(object):
         Used for dumping sensor data.
     """
 
-    current_id:int = -1
+    current_id: int = -1
 
     def __init__(
             self,
@@ -84,15 +84,14 @@ class RSUManager(object):
         # retrieve the configure for different modules
         # todo: add v2x module to rsu later
         sensing_config = config_yaml['sensing']
-        sensing_config['localization']['global_position'] = \
-            config_yaml['spawn_position']
-        sensing_config['perception']['global_position'] = \
-            config_yaml['spawn_position']
+        sensing_config['localization']['global_position'] = config_yaml['spawn_position']
+        sensing_config['perception']['global_position'] = config_yaml['spawn_position']
 
         # localization module
         self.localizer = LocalizationManager(carla_world,
                                              sensing_config['localization'],
                                              self.carla_map)
+
         # perception module
         self.perception_manager = PerceptionManager(vehicle=None,
                                                     config_yaml=sensing_config['perception'],
