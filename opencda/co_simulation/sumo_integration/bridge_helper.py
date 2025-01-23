@@ -167,7 +167,9 @@ class BridgeHelper(object):
         attrs = carla_actor.attributes
         extent = carla_actor.bounding_box.extent
 
-        if int(attrs['number_of_wheels']) == 2:
+        if 'number_of_wheels' not in attrs:
+            traci.vehicletype.copy('DEFAULT_VEHTYPE', type_id)
+        elif int(attrs['number_of_wheels']) == 2:
             traci.vehicletype.copy('DEFAULT_BIKETYPE', type_id)
         else:
             traci.vehicletype.copy('DEFAULT_VEHTYPE', type_id)
@@ -180,6 +182,13 @@ class BridgeHelper(object):
             if 'guiShape' in BridgeHelper._VTYPES[type_id]:
                 shape = BridgeHelper._VTYPES[type_id]['guiShape']
                 traci.vehicletype.setShapeClass(type_id, shape)
+
+        if 'number_of_wheels' not in attrs:
+            traci.vehicletype.setLength(type_id, 5 * extent.x)
+            traci.vehicletype.setWidth(type_id, 5 * extent.y)
+            traci.vehicletype.setHeight(type_id, 0.01 * extent.z)
+            traci.vehicletype.setColor(type_id, (255, 0, 0, 255))
+            return type_id
 
         if 'color' in attrs:
             color = attrs['color'].split(',')
@@ -214,7 +223,7 @@ class BridgeHelper(object):
         """
         type_id = carla_actor.type_id
 
-        if not type_id.startswith('vehicle'):
+        if not type_id.startswith('vehicle') and not type_id.startswith('static'):
             logging.error(
                 '[BridgeHelper] Blueprint %s not supported. No vehicle will be spawned in sumo',
                 type_id)

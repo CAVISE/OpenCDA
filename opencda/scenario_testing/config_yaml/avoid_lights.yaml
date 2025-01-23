@@ -155,7 +155,7 @@ sumo:
 #   platoon_list: []
 
 scenario:
-  single_cav_list: # this is for merging vehicle or single cav without v2x
+    single_cav_list: # this is for merging vehicle or single cav without v2x
     - name: cav1
       spawn_position: [39.4, -19, 0.3, 0, 180, 0]
       destination: [-93.7, -19.3, 0.3]

@@ -6,9 +6,9 @@ cosimulation code.
 # Author: CARLA Team, Runsheng Xu <rxx3386@ucla.edu>
 # License: MIT
 
-import logging
 import os
 import sys
+import logging
 
 if 'SUMO_HOME' in os.environ:
     sys.path.append(os.path.join(os.environ['SUMO_HOME'], 'tools'))
@@ -25,6 +25,7 @@ from opencda.co_simulation.sumo_integration.sumo_simulation import \
 from opencda.scenario_testing.utils.sim_api import ScenarioManager
 
 logger = logging.getLogger("cavise.cosim_api")
+
 
 class CoScenarioManager(ScenarioManager):
     """
@@ -84,23 +85,19 @@ class CoScenarioManager(ScenarioManager):
                                     'traffic light', landmark.id)
 
         # sumo side initialization
-        base_name = \
-            os.path.basename(sumo_file_parent_path)
+        base_name = os.path.basename(sumo_file_parent_path)
 
         sumo_key = 'sumo'
         if with_cccp:
             base_name += "_artery"
             sumo_key = 'sumo-artery'
 
-
-        sumo_cfg = \
-            os.path.join(sumo_file_parent_path, base_name + '.sumocfg')
+        sumo_cfg = os.path.join(sumo_file_parent_path, base_name + '.sumocfg')
         # todo: use yaml file to generate the route file
-        assert os.path.isfile(sumo_cfg), '%s does not exist, make sure' \
+        assert os.path.isfile(sumo_cfg), f'{sumo_cfg} does not exist, make sure' \
                                          'your config file name has the' \
                                          'same basename as the directory' \
-                                         'and use .sumocfg as extension' \
-                                         % sumo_cfg
+                                         'and use .sumocfg as extension'
 
         sumo_port = scenario_params[sumo_key]['port']
         sumo_host = scenario_params[sumo_key]['host']
@@ -140,8 +137,7 @@ class CoScenarioManager(ScenarioManager):
         self.sumo.tick()
 
         # Spawning new sumo actors in carla (i.e, not controlled by carla).
-        sumo_spawned_actors = self.sumo.spawned_actors - set(
-            self.carla2sumo_ids.values())
+        sumo_spawned_actors = self.sumo.spawned_actors - set(self.carla2sumo_ids.values())
 
         for sumo_actor_id in sumo_spawned_actors:
             self.sumo.subscribe(sumo_actor_id)
@@ -150,18 +146,14 @@ class CoScenarioManager(ScenarioManager):
             # given the sumo vehicle type, return the corresponding
             # carla vehicle type. If there is no such correspondence,
             # carla will choose a random vehicle type.
-            carla_blueprint = \
-                BridgeHelper.get_carla_blueprint(sumo_actor, False)
+            carla_blueprint = BridgeHelper.get_carla_blueprint(sumo_actor, False)
 
             if carla_blueprint is not None:
                 # return the sumo-controlled vehicle position under
                 # Carla coordinate system. There is a translation between
                 # the two.
-                carla_transform = \
-                    BridgeHelper.get_carla_transform(sumo_actor.transform,
-                                                     sumo_actor.extent)
-                carla_actor_id = self.spawn_actor(carla_blueprint,
-                                                  carla_transform)
+                carla_transform = BridgeHelper.get_carla_transform(sumo_actor.transform, sumo_actor.extent)
+                carla_actor_id = self.spawn_actor(carla_blueprint, carla_transform)
                 if carla_actor_id != INVALID_ACTOR_ID:
                     self.sumo2carla_ids[sumo_actor_id] = carla_actor_id
 
@@ -179,11 +171,8 @@ class CoScenarioManager(ScenarioManager):
 
             sumo_actor = self.sumo.get_actor(sumo_actor_id)
 
-            carla_transform = \
-                BridgeHelper.get_carla_transform(sumo_actor.transform,
-                                                 sumo_actor.extent)
-            assert self.synchronize_vehicle(carla_actor_id,
-                                            carla_transform)
+            carla_transform = BridgeHelper.get_carla_transform(sumo_actor.transform, sumo_actor.extent)
+            assert self.synchronize_vehicle(carla_actor_id, carla_transform)
 
         # -----------------
         # carla-->sumo sync
@@ -193,7 +182,7 @@ class CoScenarioManager(ScenarioManager):
         # Update data structures for the current frame.
         current_actors = set(
             [vehicle.id for vehicle in
-             self.world.get_actors().filter('vehicle.*')])
+             filter(lambda actor: actor.type_id.startswith('vehicle.') or actor.type_id.startswith('static.'), self.world.get_actors())])
         self.spawned_actors = current_actors.difference(self._active_actors)
         self.destroyed_actors = self._active_actors.difference(current_actors)
         self._active_actors = current_actors

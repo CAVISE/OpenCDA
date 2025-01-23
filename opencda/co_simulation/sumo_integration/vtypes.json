@@ -89,6 +89,10 @@
         },
         "vehicle.bh.crossbike": {
             "vClass": "bicycle"
+        },
+        "static.prop.gnome": {
+            "guiShape": "moped",
+            "vClass": "ignoring"
         }
     }
 }
