@@ -39,7 +39,7 @@ class CommunicationToolchain:
     @staticmethod
     def tryImport(config: MessageConfig, message: str) -> bool:
         try:
-            importlib.import_module(str(config.binary_dir.joinpath(message)).replace('/', '.'))
+            importlib.import_module(str(config.binary_dir.joinpath(f"{message}_pb2")).replace('/', '.'))
             return message in sys.modules
         except ModuleNotFoundError:
             logger.warning(f'could not found message {message}')
