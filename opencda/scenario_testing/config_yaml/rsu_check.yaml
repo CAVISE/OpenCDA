@@ -3,6 +3,9 @@ description: |-
   Author: Runsheng Xu <rxx3386@ucla.edu>
   Content: This is the scenario testing configuration file for single vehicle full-stack system in town06 with co-simulation
 
+world:
+  town: Town06
+
 blueprint:
   use_multi_class_bp: true
   bp_meta_path: "opencda/assets/blueprint_meta/bbx_stats_0915.json" # Define the path for loading the blueprint metadata for defining the class of each blueprint
@@ -106,7 +109,7 @@ sumo-artery:
 scenario:
   rsu_list:
     - name: rsu1
-      spawn_position: [12.00, 56.28, 6.6, 23, -72, 188]
+      spawn_position: [16.292295, 60.521175, 15, 0, 0, 0]
       id: -1
     # - name: rsu2
     #   spawn_position: [-16.29, 36.37, 6.6]

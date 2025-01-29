@@ -60,8 +60,7 @@ def arg_parse() -> argparse.Namespace:
     parser.add_argument('--free-spectator', action='store_true', help='Enable free movement for the spectator camera.')
     parser.add_argument('-x', '--xodr', action='store_true', help='Run simulation using a custom map from an XODR file.')
     parser.add_argument('-c', '--cosim', action='store_true', help='Enable co-simulation with SUMO.')
-    parser.add_argument('--town', type=str, help='Set the town to simulate in.')
-    parser.add_argument('--with-cccp', action='store_true', help='wether to run a communication manager instance in this simulation.')
+    parser.add_argument('--with-capi', action='store_true', help='wether to run a communication manager instance in this simulation.')
 
     # Coperception models parameters
     parser.add_argument('--with-coperception', action='store_true', help='Whether to enable the use of cooperative perception models in this simulation.')
