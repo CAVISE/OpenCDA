@@ -5,6 +5,7 @@ description: |-
 
 # define carla simulation setting
 world:
+  town: Town06
   sync_mode: true
   client_port: 2000
   fixed_delta_seconds: 0.05

@@ -3,6 +3,9 @@ description: |-
   Author: Runsheng Xu <rxx3386@ucla.edu>
   Content: This is the scenario testing configuration file for single vehicle testing in town06 with perception/localization activated
 
+world:
+  town: Town06
+
 # First define the basic parameters of the vehicles
 vehicle_base:
   sensing:

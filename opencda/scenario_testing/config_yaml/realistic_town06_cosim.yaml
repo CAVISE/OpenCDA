@@ -3,6 +3,9 @@ description: |-
   Author: Runsheng Xu <rxx3386@ucla.edu>
   Content: This is the scenario testing configuration file for single vehicle full-stack system in town06 with co-simulation
 
+world:
+  town: Town06
+
 # First define the basic parameters of the vehicles
 vehicle_base:
   sensing:
@@ -26,7 +29,7 @@ vehicle_base:
         show_animation: false # whether to show real-time trajectory plotting
 
   behavior:
-  max_speed: 10 # maximum speed, km/h
+    max_speed: 10 # maximum speed, km/h
     tailgate_speed: 1 # when a vehicles needs to be close to another vehicle asap
     speed_lim_dist: 3 # max_speed - speed_lim_dist = target speed
     speed_decrease: 15 # used in car following mode to decrease speed for distance keeping
