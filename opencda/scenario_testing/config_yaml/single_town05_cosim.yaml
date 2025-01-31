@@ -3,7 +3,8 @@ description: |-
   Author: Runsheng Xu <rxx3386@ucla.edu>
   Content: This is the scenario testing configuration file town05 cosimulation.
 
-
+world:
+  town: Town05
 
 # First define the basic parameters of the vehicles
 vehicle_base:

@@ -6,6 +6,8 @@ import os
 import zmq
 import carla
 import logging
+import sys
+import errno
 
 import opencda.scenario_testing.utils.cosim_api as sim_api
 import opencda.scenario_testing.utils.customized_map_api as map_api
@@ -56,7 +58,7 @@ def init(opt, scenario_params) -> None:
     free_spectator = opt.free_spectator
     scenario_name = opt.test_scenario
     scenario_params = add_current_time(scenario_params)
-    cav_world = CavWorld(opt.apply_ml, opt.with_cccp)
+    cav_world = CavWorld(opt.apply_ml, opt.with_capi)
 
     cavise_root = os.environ.get('CAVISE_ROOT_DIR')
     if not cavise_root:
@@ -65,6 +67,14 @@ def init(opt, scenario_params) -> None:
     xodr_path = None
     if opt.xodr:
         xodr_path = f'{cavise_root}/opencda/opencda/assets/{scenario_name}/{scenario_name}.xodr'
+    
+    town = None
+    if xodr_path is None:
+        if scenario_params['world'].get('town', None) is None:
+            logger.error(f'You must specify xodr parameter or town key in opencda/scenario_testing/config_yaml/{opt.test_scenario}.yaml')
+            sys.exit(0)
+        else:
+            town = scenario_params['world']['town']
 
     if opt.cosim:
         sumo_cfg = f'{cavise_root}/opencda/opencda/assets/{scenario_name}'
@@ -72,10 +82,10 @@ def init(opt, scenario_params) -> None:
             scenario_params=scenario_params,
             apply_ml=opt.apply_ml,
             carla_version=opt.version,
-            town=opt.town,
+            town=town,
             cav_world=cav_world,
             sumo_file_parent_path=sumo_cfg,
-            with_cccp=opt.with_cccp
+            with_capi=opt.with_capi
         )
     else:
         scenario_manager = sim_api.ScenarioManager(
@@ -83,7 +93,7 @@ def init(opt, scenario_params) -> None:
             apply_ml=opt.apply_ml,
             carla_version=opt.version,
             xodr_path=xodr_path,
-            town=opt.town,
+            town=town,
             cav_world=cav_world
         )
 

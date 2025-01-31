@@ -3,6 +3,9 @@ description: |-
   Author: Runsheng Xu <rxx3386@ucla.edu>
   Content: This is the scenario testing configuration file for v2x perception data dumping
 
+world:
+  town: Town06
+
 # Define settings for multi-class blueprint spawning
 # Comment out this chunk of code or set use_multi_class_bp to be False if you don't want to spawn multi-class actors
 blueprint:

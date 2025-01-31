@@ -36,7 +36,7 @@ class CavWorld(object):
         The machine learning manager class.
     """
 
-    def __init__(self, apply_ml=False, with_cccp=False):
+    def __init__(self, apply_ml=False, with_capi=False):
 
         self.vehicle_id_set = set()
         self._vehicle_manager_dict = {}
@@ -54,7 +54,7 @@ class CavWorld(object):
             # initialize the ml manager to load the DL/ML models into memory
             self.ml_manager = ml_manager()
 
-        if with_cccp:
+        if with_capi:
             manager = getattr(importlib.import_module('opencda.core.common.communication.manager'), 'CommunicationManager')
             # TODO: pass this as some sort of config
             # TODO: add docs for this

@@ -38,7 +38,7 @@ def init(opt, scenario_params) -> None:
     global eval_manager, scenario_manager, single_cav_list, spectator, cav_world, rsu_list, coperception_model_manager
 
     scenario_params = add_current_time(scenario_params)
-    cav_world = CavWorld(opt.apply_ml, opt.with_cccp)
+    cav_world = CavWorld(opt.apply_ml, opt.with_capi)
 
     cavise_root = os.environ.get('CAVISE_ROOT_DIR')
     if not cavise_root:
@@ -52,7 +52,7 @@ def init(opt, scenario_params) -> None:
         town='Town06',
         cav_world=cav_world,
         sumo_file_parent_path=sumo_cfg,
-        with_cccp=opt.with_cccp
+        with_capi=opt.with_capi
     )
 
     data_dump = opt.with_coperception and (opt.model_dir is not None) or opt.record
@@ -148,7 +148,7 @@ def run() -> None:
                 dir_number = tick_number
             except Exception as e:
                 if tick_number % 2 == 0:
-                    print(f"[WARNING] An error occurred: {e}")
+                    logger.warning(f"[WARNING] An error occurred: {e}")
 
         if cav_world.comms_manager is not None:
         
