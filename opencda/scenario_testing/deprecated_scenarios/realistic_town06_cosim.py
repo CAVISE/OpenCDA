@@ -34,7 +34,7 @@ def init(opt, scenario_params) -> None:
     global eval_manager, scenario_manager, single_cav_list, rsu_list, spectator, cav_world
 
     scenario_params = add_current_time(scenario_params)
-    cav_world = CavWorld(opt.apply_ml, opt.with_cccp)
+    cav_world = CavWorld(opt.apply_ml, opt.with_capi)
 
     cavise_root = os.environ.get('CAVISE_ROOT_DIR')
     if not cavise_root:

@@ -57,7 +57,7 @@ class CoScenarioManager(ScenarioManager):
                  town=None,
                  cav_world=None,
                  sumo_file_parent_path=None,
-                 with_cccp=False):
+                 with_capi=False):
         # carla side initializations(partial init is already done in scenario
         # manager
         super(CoScenarioManager, self).__init__(scenario_params,
@@ -88,7 +88,7 @@ class CoScenarioManager(ScenarioManager):
         base_name = os.path.basename(sumo_file_parent_path)
 
         sumo_key = 'sumo'
-        if with_cccp:
+        if with_capi:
             base_name += "_artery"
             sumo_key = 'sumo-artery'
 
