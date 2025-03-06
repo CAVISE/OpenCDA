@@ -88,9 +88,6 @@ class CoScenarioManager(ScenarioManager):
         base_name = os.path.basename(sumo_file_parent_path)
 
         sumo_key = 'sumo'
-        if with_capi:
-            base_name += "_artery"
-            sumo_key = 'sumo-artery'
 
         sumo_cfg = os.path.join(sumo_file_parent_path, base_name + '.sumocfg')
         # todo: use yaml file to generate the route file

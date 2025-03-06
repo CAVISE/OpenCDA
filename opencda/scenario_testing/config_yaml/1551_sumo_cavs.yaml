@@ -96,17 +96,10 @@ vehicle_base:
 
 # define sumo simulation setting for traffic generation
 sumo:
-  port: ~
-  host: ~
+  port: 4001
+  host: sumo
   gui: true
   client_order: 1
-  step_length: ${world.fixed_delta_seconds}
-
-sumo-artery:
-  port: 8813
-  host: artery # IP address artery docker container
-  gui: true
-  client_order: 2
   step_length: ${world.fixed_delta_seconds}
 
 
