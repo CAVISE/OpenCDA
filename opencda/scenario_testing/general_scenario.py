@@ -77,7 +77,7 @@ def init(opt, scenario_params) -> None:
             town = scenario_params['world']['town']
 
     if opt.cosim:
-        sumo_cfg = f'{cavise_root}/opencda/opencda/assets/{scenario_name}'
+        sumo_cfg = f'{cavise_root}/opencda/opencda/sumo-assets/{scenario_name}'
         scenario_manager = sim_api.CoScenarioManager(
             scenario_params=scenario_params,
             apply_ml=opt.apply_ml,
