@@ -315,16 +315,7 @@ class SumoSimulation(object):
             sumo_binary = sumolib.checkBinary('sumo')
 
         if host is None or port is None:
-            logging.info('Starting new sumo server...')
-            if sumo_gui is True:
-                logging.info('Remember to press the play button to start the simulation')
-
-            traci.start([sumo_binary,
-                '--configuration-file', cfg_file,
-                '--step-length', str(step_length),
-                '--collision.check-junctions'
-            ])
-
+            logging.error('Error in sumo section of scenario YAML config.')
         else:
             logging.info('Connection to sumo server. Host: %s Port: %s', host, port)
             traci.init(host=host, port=port)
