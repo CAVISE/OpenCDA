@@ -1,0 +1,142 @@
+data_augment:
+- ALONG_AXIS_LIST:
+  - x
+  NAME: random_world_flip
+- NAME: random_world_rotation
+  WORLD_ROT_ANGLE:
+  - -0.78539816
+  - 0.78539816
+- NAME: random_world_scaling
+  WORLD_SCALE_RANGE:
+  - 0.95
+  - 1.05
+fusion:
+  args: []
+  core_method: IntermediateFusionDataset
+loss:
+  args:
+    cls_weight: 1.0
+    reg: 2.0
+  core_method: point_pillar_loss
+lr_scheduler:
+  core_method: multistep
+  gamma: 0.1
+  step_size:
+  - 10
+  - 20
+model:
+  args:
+    anchor_num: 2
+    anchor_number: 2
+    backbone_3d: []
+    base_bev_backbone:
+      compression: 2
+      layer_nums:
+      - 5
+      - 5
+      layer_strides:
+      - 1
+      - 2
+      num_filters:
+      - 128
+      - 256
+      num_upsample_filter:
+      - 256
+      - 256
+      upsample_strides:
+      - 1
+      - 2
+    batch_size: 1
+    grid_size: !!python/object/apply:numpy.core.multiarray._reconstruct
+      args:
+      - !!python/name:numpy.ndarray ''
+      - !!python/tuple
+        - 0
+      - !!binary |
+        Yg==
+      state: !!python/tuple
+      - 1
+      - !!python/tuple
+        - 3
+      - !!python/object/apply:numpy.dtype
+        args:
+        - i8
+        - false
+        - true
+        state: !!python/tuple
+        - 3
+        - <
+        - null
+        - null
+        - null
+        - -1
+        - -1
+        - 0
+      - false
+      - !!binary |
+        AAsAAAAAAAAgAwAAAAAAACgAAAAAAAAA
+    height_compression:
+      feature_num: 256
+    lidar_range: &id001
+    - -140.8
+    - -40
+    - -3
+    - 140.8
+    - 40
+    - 1
+    mean_vfe:
+      feature_points: 4
+    voxel_size: &id002
+    - 0.1
+    - 0.1
+    - 0.1
+  core_method: second_intermediate
+name: second_intermediate_fusion
+optimizer:
+  args:
+    eps: 1.0e-10
+    weight_decay: 0.0001
+  core_method: Adam
+  lr: 0.001
+postprocess:
+  gt_range: *id001
+  anchor_args:
+    D: 40
+    H: 800
+    W: 2816
+    cav_lidar_range: *id001
+    feature_stride: 8
+    h: 1.56
+    l: 3.9
+    num: 2
+    r:
+    - 0
+    - 90
+    vd: 0.1
+    vh: 0.1
+    vw: 0.1
+    w: 1.6
+  core_method: VoxelPostprocessor
+  max_num: 100
+  nms_thresh: 0.15
+  order: hwl
+  target_args:
+    neg_threshold: 0.45
+    pos_threshold: 0.6
+    score_threshold: 0.2
+preprocess:
+  args:
+    max_points_per_voxel: 5
+    max_voxel_test: 70000
+    max_voxel_train: 36000
+    voxel_size: *id002
+  cav_lidar_range: *id001
+  core_method: SpVoxelPreprocessor
+root_dir: "/data/opv2v/train"
+train_params:
+  batch_size: &batch_size 4
+  epoches: 20
+  eval_freq: 1
+  save_freq: 1
+validate_dir: "data_dumping/sample"
+yaml_parser: load_second_params
