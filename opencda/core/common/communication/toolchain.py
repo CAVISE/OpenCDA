@@ -4,6 +4,7 @@ import errno
 import typing
 import pathlib
 import logging
+import argparse
 import importlib
 import subprocess
 import dataclasses
@@ -20,7 +21,7 @@ class CommunicationToolchain:
 
     # handle messages, it is assumed that it is safe to import messages after this call
     @staticmethod
-    def handleMessages(messages: typing.List[str], config: MessageConfig | None = None):
+    def handle_messages(messages: typing.List[str], config: typing.Optional[MessageConfig] = None):
         if config is None:
             config = MessageConfig(
                 pathlib.PurePath('opencda/core/common/communication/messages'),
@@ -29,15 +30,15 @@ class CommunicationToolchain:
 
         importlib.invalidate_caches()
         for message in messages:
-            if not CommunicationToolchain.tryImport(config, message):
-                CommunicationToolchain.generateMessage(config, [message])
+            if not CommunicationToolchain.try_import(config, message):
+                CommunicationToolchain.generate_message(config, [message])
             else:
                 logger.info(f'found generated message: {message}')
 
     
     # wrap import call as boolean result, useful for running checks
     @staticmethod
-    def tryImport(config: MessageConfig, message: str) -> bool:
+    def try_import(config: MessageConfig, message: str) -> bool:
         try:
             importlib.import_module(str(config.binary_dir.joinpath(f"{message}_pb2")).replace('/', '.'))
             return message in sys.modules
@@ -48,7 +49,7 @@ class CommunicationToolchain:
 
     # invoke subroutine to create python message impl from proto file
     @staticmethod
-    def generateMessage(config: MessageConfig, messages: typing.List[str]) -> None:
+    def generate_message(config: MessageConfig, messages: typing.List[str]) -> None:
         process = subprocess.run(
             [
                 'protoc', 
@@ -68,3 +69,21 @@ class CommunicationToolchain:
             sys.exit(process.returncode)
         else:
             logger.info('generated protos for: ' + ' '.join(messages))
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-m', dest='messages', action='append')
+    args = parser.parse_args()
+
+    if args.messages is None:
+        args.messages = ['artery', 'opencda']
+    
+    config = MessageConfig(
+        source_dir=pathlib.Path('messages'),
+        binary_dir=pathlib.Path('protos/cavise')
+    )
+
+    print(f'using paths: {config}')
+
+    CommunicationToolchain.handle_messages(args.messages, config)
