@@ -6,7 +6,7 @@
 import carla
 
 from . import toolchain
-toolchain.CommunicationToolchain.handleMessages(['opencda', 'artery'])
+toolchain.CommunicationToolchain.handle_messages(['opencda', 'artery'])
 
 from .protos.cavise import opencda_pb2 as proto_opencda
 from .protos.cavise import artery_pb2 as proto_artery
