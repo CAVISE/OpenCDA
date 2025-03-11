@@ -99,7 +99,7 @@ def main() -> None:
     scene_dict = omegaconf.OmegaConf.load(str(config_yaml))
     scene_dict = omegaconf.OmegaConf.merge(default_dict, scene_dict)
     opt.apply_ml = False
-    testing_scenario = importlib.import_module('opencda.scenario_testing.general_scenario')
+    testing_scenario = importlib.import_module('opencda.scenario_testing.scenario')
 
     scenario_runner = getattr(testing_scenario, 'run_scenario')
     if scenario_runner is None:
