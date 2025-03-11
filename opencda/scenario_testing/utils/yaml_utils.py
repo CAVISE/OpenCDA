@@ -57,7 +57,7 @@ def add_current_time(params):
 
     params['current_time'] = current_time
 
-    return params
+    return params, current_time
 
 
 def save_yaml(data, save_name):
