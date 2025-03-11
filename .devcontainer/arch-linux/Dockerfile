@@ -51,7 +51,7 @@ RUN cmake --install /sumo/build
 RUN groupadd sudo && useradd -m -G sudo ${USER}
 RUN echo "${USER} ALL=(ALL:ALL) NOPASSWD: ALL" | sudo tee /etc/sudoers.d/${USER}
 
-WORKDIR /home/${USER}/opencda
+WORKDIR /workspaces/opencda
 COPY .python-version .python-version
 COPY requirements_ci.txt requirements_ci.txt
 COPY requirements.txt requirements.txt
@@ -65,5 +65,5 @@ RUN pyenv install $(pyenv local) && pyenv local && pyenv rehash
 RUN pip3 install --no-cache-dir --break-system-packages \
     -r requirements.txt -r requirements_ci.txt -r requirements_cavise.txt traci
 
-ENV PYTHONPATH=/home/${USER}/opencda
+ENV PYTHONPATH=/workspaces/opencda
 ENV SUMO_HOME=/usr/local/share/sumo
