@@ -3,8 +3,8 @@ matplotlib
 networkx
 numpy==1.26.4
 pillow
-#pyparsing
-#six
+pyparsing
+six
 opencv-python
 pandas
 pygame
@@ -17,3 +17,30 @@ omegaconf
 notebook
 jupyter-packaging
 pyyaml
+cvxpy
+torch
+tqdm
+setuptools
+distro
+wheel
+typing-extensions
+pyzmq
+protoc-wheel
+# Protobuf version must be maintained
+# between artery and opencda!
+protobuf==5.27.0
+carla==0.9.15
+cmake
+easydict
+numba
+scikit-image
+PyYAML
+cython
+tensorboardX
+einops
+timm
+spconv-cu126
+coloredlogs
+torchvision
+--find-links https://download.pytorch.org/whl/torch_stable.html
+traci
