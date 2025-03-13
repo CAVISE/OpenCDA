@@ -10,11 +10,6 @@ import os
 import sys
 import logging
 
-if 'SUMO_HOME' in os.environ:
-    sys.path.append(os.path.join(os.environ['SUMO_HOME'], 'tools'))
-else:
-    sys.exit("please declare environment variable 'SUMO_HOME'")
-
 import carla
 
 from opencda.co_simulation.sumo_integration.constants import SPAWN_OFFSET_Z
