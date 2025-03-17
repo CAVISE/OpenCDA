@@ -93,12 +93,8 @@ def spawn_helper_2lanefree(carla_version, coefficient):
                                                  z=0.3),
                                   carla.Rotation(yaw=-20.4866))
 
-    transform_point.location.x = transform_point.location.x + coefficient * \
-                                 (begin_point.location.x -
-                                  transform_point.location.x)
-    transform_point.location.y = transform_point.location.y + coefficient * \
-                                 (begin_point.location.y -
-                                  transform_point.location.y)
+    transform_point.location.x = transform_point.location.x + coefficient * (begin_point.location.x - transform_point.location.x)
+    transform_point.location.y = transform_point.location.y + coefficient * (begin_point.location.y - transform_point.location.y)
 
     return transform_point
 

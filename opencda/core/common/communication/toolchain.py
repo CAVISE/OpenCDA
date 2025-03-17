@@ -1,7 +1,9 @@
 import os
 import sys
 import errno
+import shutil
 import typing
+import filecmp
 import pathlib
 import logging
 import argparse
@@ -9,13 +11,18 @@ import importlib
 import subprocess
 import dataclasses
 
+from pathlib import Path
+
+
 logger = logging.getLogger('cavise.protobuf_toolchain')
+
 
 # Config for protoc
 @dataclasses.dataclass
 class MessageConfig:
     source_dir: pathlib.PurePath
     binary_dir: pathlib.PurePath
+
 
 class CommunicationToolchain:
 
@@ -35,7 +42,6 @@ class CommunicationToolchain:
             else:
                 logger.info(f'found generated message: {message}')
 
-    
     # wrap import call as boolean result, useful for running checks
     @staticmethod
     def try_import(config: MessageConfig, message: str) -> bool:
@@ -45,11 +51,30 @@ class CommunicationToolchain:
         except ModuleNotFoundError:
             logger.warning(f'could not found message {message}')
         return False
-            
+
+    @staticmethod
+    def copy_proto(source: str, destination: str) -> None:
+        src = Path(source).resolve()
+        dst = Path(destination).resolve()
+
+        if not src.exists():
+            logger.error(f"Source file not found: {src}")
+            return
+
+        dst.parent.mkdir(parents=True, exist_ok=True)
+
+        if dst.exists() and filecmp.cmp(src, dst, shallow=False):
+            logger.info(f"File is already up-to-date: {dst}")
+            return
+
+        shutil.copy2(src, dst)
+        logger.info(f"Copied {src} -> {dst}")
 
     # invoke subroutine to create python message impl from proto file
     @staticmethod
     def generate_message(config: MessageConfig, messages: typing.List[str]) -> None:
+        CommunicationToolchain.copy_proto("../messages/artery.proto", "opencda/core/common/communication/messages/artery.proto")
+        CommunicationToolchain.copy_proto("../messages/opencda.proto", "opencda/core/common/communication/messages/opencda.proto")
         process = subprocess.run(
             [
                 'protoc', 
@@ -59,13 +84,13 @@ class CommunicationToolchain:
             ], 
             encoding='UTF-8',
             # silent run
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL, 
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE, 
             env=os.environ
         )
 
         if process.returncode != 0:
-            logger.error(f'failed to generate protos, subroutine exited with: {errno.errorcode[process.returncode]}')
+            logger.error(f'failed to generate protos, subroutine exited with: {errno.errorcode[process.returncode]}\nSTDERR: {process.stderr.strip()}')
             sys.exit(process.returncode)
         else:
             logger.info('generated protos for: ' + ' '.join(messages))
@@ -78,7 +103,7 @@ if __name__ == '__main__':
 
     if args.messages is None:
         args.messages = ['artery', 'opencda']
-    
+
     config = MessageConfig(
         source_dir=pathlib.Path('messages'),
         binary_dir=pathlib.Path('protos/cavise')
