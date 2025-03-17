@@ -77,6 +77,7 @@ def arg_parse() -> argparse.Namespace:
                              'but would increase the tolerance for FP (False Positives).')
     return parser.parse_args()
 
+
 # TODO: python setup.py develop для OpenCOOD на проверку присутствия файлов cython
 def main() -> None:
     opt = arg_parse()
