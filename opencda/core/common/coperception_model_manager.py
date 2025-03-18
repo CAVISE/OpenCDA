@@ -4,9 +4,9 @@ import shutil
 import logging
 from tqdm import tqdm
 
-import torch # type: ignore
+import torch  # type: ignore
 import open3d as o3d
-from torch.utils.data import DataLoader # type: ignore
+from torch.utils.data import DataLoader  # type: ignore
 
 import opencood.hypes_yaml.yaml_utils as yaml_utils
 from opencood.tools import train_utils, inference_utils
@@ -16,6 +16,7 @@ from opencood.utils import eval_utils
 from opencood.visualization import vis_utils
 
 logger = logging.getLogger("cavise.coperception_model_manager")
+
 
 class CoperceptionModelManager():
 
@@ -31,12 +32,11 @@ class CoperceptionModelManager():
         self.saved_path = self.opt.model_dir
         _, self.model = train_utils.load_saved_model(self.saved_path, self.model)
 
-
     def make_pred(self):
         assert self.opt.fusion_method in ['late', 'early', 'intermediate']
         assert not (self.opt.show_vis and self.opt.show_sequence), 'you can only visualize ' \
-                                                        'the results in single ' \
-                                                        'image mode or video mode'
+                                                                   'the results in single '  \
+                                                                   'image mode or video mode'
         logger.info('Dataset Building')
         opencood_dataset = build_dataset(self.hypes, visualize=True, train=False)
         logger.info(f"{len(opencood_dataset)} samples found.")
@@ -47,7 +47,6 @@ class CoperceptionModelManager():
                                 shuffle=False,
                                 pin_memory=False,
                                 drop_last=False)
-
 
         self.model.eval()
 
@@ -96,21 +95,22 @@ class CoperceptionModelManager():
                     raise NotImplementedError('Only early, late and intermediate'
                                             'fusion is supported.')
 
-                # eval_utils.caluclate_tp_fp(pred_box_tensor,
-                #                         pred_score,
-                #                         gt_box_tensor,
-                #                         result_stat,
-                #                         0.3)
-                # eval_utils.caluclate_tp_fp(pred_box_tensor,
-                #                         pred_score,
-                #                         gt_box_tensor,
-                #                         result_stat,
-                #                         0.5)
-                # eval_utils.caluclate_tp_fp(pred_box_tensor,
-                #                         pred_score,
-                #                         gt_box_tensor,
-                #                         result_stat,
-                #                         0.7)
+                eval_utils.caluclate_tp_fp(pred_box_tensor,
+                                        pred_score,
+                                        gt_box_tensor,
+                                        result_stat,
+                                        0.3)
+                eval_utils.caluclate_tp_fp(pred_box_tensor,
+                                        pred_score,
+                                        gt_box_tensor,
+                                        result_stat,
+                                        0.5)
+                eval_utils.caluclate_tp_fp(pred_box_tensor,
+                                        pred_score,
+                                        gt_box_tensor,
+                                        result_stat,
+                                        0.7)
+
                 if self.opt.save_npy:
                     npy_save_path = os.path.join(self.opt.model_dir, 'npy')
                     if not os.path.exists(npy_save_path):
@@ -173,8 +173,7 @@ class CoperceptionModelManager():
                             gt_box_tensor,
                             batch_data['ego']['origin_lidar'],
                             vis_pcd,
-                            mode='constant'
-                            )
+                            mode='constant')
                     if i == 0:
                         vis.add_geometry(pcd)
                         vis_utils.linset_assign_list(vis,
@@ -209,7 +208,7 @@ class DirectoryProcessor:
     def __init__(self, source_directory="data_dumping", now_directory="data_dumping/sample/now"):
         self.source_directory = source_directory
         self.now_directory = now_directory
-        
+
     def process_directory(self, tick_number):
         number = f"{tick_number:06d}"
         postfixes = [".pcd", ".yaml", "_camera0.png", "_camera1.png", "_camera2.png", "_camera3.png"]
@@ -242,4 +241,4 @@ class DirectoryProcessor:
             if os.path.isfile(item_path) or os.path.islink(item_path):
                 os.remove(item_path)  # Удаляем файлы и символические ссылки
             elif os.path.isdir(item_path):
-                shutil.rmtree(item_path) 
+                shutil.rmtree(item_path)

@@ -28,6 +28,7 @@ from opencda.core.sensing.perception.o3d_lidar_libs import \
 
 logger = logging.getLogger("cavise.perception_manager")
 
+
 class CameraSensor:
     """
     Camera manager for vehicle or infrastructure.
@@ -258,21 +259,15 @@ class SemanticLidarSensor:
         if vehicle is not None:
             world = vehicle.get_world()
 
-        blueprint = \
-            world.get_blueprint_library(). \
-                find('sensor.lidar.ray_cast_semantic')
+        blueprint = world.get_blueprint_library().find('sensor.lidar.ray_cast_semantic')
 
         # set attribute based on the configuration
         blueprint.set_attribute('upper_fov', str(config_yaml['upper_fov']))
         blueprint.set_attribute('lower_fov', str(config_yaml['lower_fov']))
         blueprint.set_attribute('channels', str(config_yaml['channels']))
         blueprint.set_attribute('range', str(config_yaml['range']))
-        blueprint.set_attribute(
-            'points_per_second', str(
-                config_yaml['points_per_second']))
-        blueprint.set_attribute(
-            'rotation_frequency', str(
-                config_yaml['rotation_frequency']))
+        blueprint.set_attribute('points_per_second', str(config_yaml['points_per_second']))
+        blueprint.set_attribute('rotation_frequency', str(config_yaml['rotation_frequency']))
 
         # spawn sensor
         if global_position is None:
@@ -425,8 +420,6 @@ class PerceptionManager:
 
         if not self.lidar:
             logger.warning("Variable lidar is None. Dumping, detection function or Lidar visualization should be activated to avoid this behavior")
-
-
 
         # if data dump is true, semantic lidar is also spawned
         self.data_dump = data_dump
@@ -592,11 +585,10 @@ class PerceptionManager:
         world = self.carla_world
 
         vehicle_list = world.get_actors().filter("*vehicle*")
-        # todo: hard coded
+        # TODO: hard coded
         thresh = 50 if not self.data_dump else 120
 
-        vehicle_list = [v for v in vehicle_list if self.dist(v) < thresh and
-                        v.id != self.id]
+        vehicle_list = [v for v in vehicle_list if self.dist(v) < thresh and v.id != self.id]
 
         # use semantic lidar to filter out vehicles out of the range
         if self.data_dump:
@@ -685,13 +677,14 @@ class PerceptionManager:
         """
         semantic_idx = self.semantic_lidar.obj_idx
         semantic_tag = self.semantic_lidar.obj_tag
-        
+
         if semantic_tag is None or semantic_idx is None:
-            logger.warning("[perception_manager] Variable semantic_idx or semantic_tag is None")
+            logger.warning("Variable semantic_idx or semantic_tag is None")
             return vehicle_list
 
-        # label 10 is the vehicle
-        vehicle_idx = semantic_idx[semantic_tag == 10]
+        # label 10 is the vehicle (is it true???)
+        # I replaced 10 with 14 and get ground truth worked
+        vehicle_idx = semantic_idx[semantic_tag == 14]
         # each individual instance id
         vehicle_unique_id = list(np.unique(vehicle_idx))
 
@@ -757,8 +750,7 @@ class PerceptionManager:
 
         world = self.carla_world
         vehicle_list = world.get_actors().filter("*vehicle*")
-        vehicle_list = [v for v in vehicle_list if self.dist(v) < 50 and
-                        v.id != self.id]
+        vehicle_list = [v for v in vehicle_list if self.dist(v) < 50 and v.id != self.id]
 
         # todo: consider the minimum distance to be safer in next version
         for v in vehicle_list:
@@ -831,9 +823,7 @@ class PerceptionManager:
 
             ve_dir = vehicle_waypoint.transform.get_forward_vector()
             wp_dir = object_waypoint.transform.get_forward_vector()
-            dot_ve_wp = ve_dir.x * wp_dir.x +\
-                        ve_dir.y * wp_dir.y + \
-                        ve_dir.z * wp_dir.z
+            dot_ve_wp = ve_dir.x * wp_dir.x + ve_dir.y * wp_dir.y + ve_dir.z * wp_dir.z
 
             if dot_ve_wp < 0:
                 continue

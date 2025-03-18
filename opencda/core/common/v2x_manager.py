@@ -168,7 +168,6 @@ class V2XManager(object):
             if distance < self.communication_range:
                 self.cav_nearby.update({vid: vm})
 
-
     """
     -----------------------------------------------------------
                  Below is platooning related 
@@ -278,8 +277,7 @@ class V2XManager(object):
         in_id : int
             The ego vehicle's in team id.
         """
-        return self.platooning_plugin.platooning_object, \
-               self.platooning_plugin.in_id
+        return self.platooning_plugin.platooning_object, self.platooning_plugin.in_id
 
     def get_platoon_status(self):
         """
@@ -304,5 +302,4 @@ class V2XManager(object):
         rear_vehicle : opencda object
             Rear vehicle of the ego vehicle in the platoon.
         """
-        return self.platooning_plugin.front_vehicle, \
-               self.platooning_plugin.rear_vechile
+        return self.platooning_plugin.front_vehicle, self.platooning_plugin.rear_vechile
