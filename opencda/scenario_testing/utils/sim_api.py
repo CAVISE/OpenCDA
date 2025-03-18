@@ -158,6 +158,7 @@ class ScenarioManager:
                  cav_world=None):
         self.scenario_params = scenario_params
         self.carla_version = carla_version
+        self.world = None
 
         simulation_config = scenario_params['world']
 
@@ -177,7 +178,7 @@ class ScenarioManager:
                 self.world = self.client.load_world(town)
             except RuntimeError as error:
                 logger.error(
-                    f"{bcolors.FAIL}{town} is not found in your CARLA repo! "
+                    f"{bcolors.FAIL}{town} probably is not in your CARLA repo! "
                     f"Please download all town maps to your CARLA "
                     f"repo!{bcolors.ENDC}")
                 logger.error(error)
@@ -185,7 +186,7 @@ class ScenarioManager:
             self.world = self.client.get_world()
 
         if not self.world:
-            sys.exit('World loading failed')
+            sys.exit('- World loading failed')
 
         self.origin_settings = self.world.get_settings()
         new_settings = self.world.get_settings()
@@ -195,8 +196,7 @@ class ScenarioManager:
             new_settings.fixed_delta_seconds = \
                 simulation_config['fixed_delta_seconds']
         else:
-            sys.exit(
-                'ERROR: Current version only supports sync simulation mode')
+            sys.exit('ERROR: Current version only supports sync simulation mode')
 
         self.world.apply_settings(new_settings)
 
