@@ -682,6 +682,12 @@ class PerceptionManager:
             logger.warning("Variable semantic_idx or semantic_tag is None")
             return vehicle_list
 
+        if len(semantic_idx) != len(semantic_tag):
+            logger.warning(f"Size mismatch: semantic_idx={len(semantic_idx)}, semantic_tag={len(semantic_tag)}")
+            min_size = min(len(semantic_idx), len(semantic_tag))
+            semantic_idx = semantic_idx[:min_size]
+            semantic_tag = semantic_tag[:min_size]
+
         # label 10 is the vehicle (is it true???)
         # I replaced 10 with 14 and get ground truth worked
         vehicle_idx = semantic_idx[semantic_tag == 14]

@@ -148,7 +148,7 @@ class Scenario:
         directory_processor.clear_directory_now()
 
         while True:
-            logger.debug(f'running: sumulation tick: {tick_number}')
+            logger.debug(f'running: simulation tick: {tick_number}')
             self.scenario_manager.tick()
             tick_number += 1
 
