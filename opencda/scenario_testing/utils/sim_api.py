@@ -625,17 +625,16 @@ class ScenarioManager:
                 if self.use_multi_class_bp:
                     label = np.random.choice(label_list, p=prob)
                     # Given the label (class), find all associated blueprints in CARLA
-                    ego_vehicle_random_list = multi_class_vehicle_blueprint_filter(
-                        label, blueprint_library, self.bp_meta)
+                    ego_vehicle_random_list = multi_class_vehicle_blueprint_filter(label, blueprint_library, self.bp_meta)
+                    if not ego_vehicle_random_list:
+                        logger.warning(f"No blueprints found for label: {label}, using default blueprint")
+                        ego_vehicle_random_list = blueprint_library.filter("vehicle.*")
                 ego_vehicle_bp = random.choice(ego_vehicle_random_list)
                 if ego_vehicle_bp.has_attribute("color"):
-                    color = random.choice(
-                        ego_vehicle_bp.get_attribute(
-                            'color').recommended_values)
+                    color = random.choice(ego_vehicle_bp.get_attribute('color').recommended_values)
                     ego_vehicle_bp.set_attribute('color', color)
 
-            vehicle = \
-                self.world.try_spawn_actor(ego_vehicle_bp, spawn_transform)
+            vehicle = self.world.try_spawn_actor(ego_vehicle_bp, spawn_transform)
 
             if not vehicle:
                 continue
