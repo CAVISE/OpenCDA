@@ -215,8 +215,7 @@ class CoScenarioManager(ScenarioManager):
 
         # Updates traffic lights in sumo based on carla information.
         # todo make sure the tl is synced
-        common_landmarks = self.sumo.traffic_light_ids & \
-                           self.traffic_light_ids
+        common_landmarks = self.sumo.traffic_light_ids & self.traffic_light_ids
         for landmark_id in common_landmarks:
             carla_tl_state = self.get_traffic_light_state(landmark_id)
             sumo_tl_state = BridgeHelper.get_sumo_traffic_light_state(
