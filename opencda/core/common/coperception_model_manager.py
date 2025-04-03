@@ -1,12 +1,13 @@
 import os
+import re
 import time
 import shutil
 import logging
 from tqdm import tqdm
 
-import torch # type: ignore
+import torch  # type: ignore
 import open3d as o3d
-from torch.utils.data import DataLoader # type: ignore
+from torch.utils.data import DataLoader  # type: ignore
 
 import opencood.hypes_yaml.yaml_utils as yaml_utils
 from opencood.tools import train_utils, inference_utils
@@ -16,6 +17,7 @@ from opencood.utils import eval_utils
 from opencood.visualization import vis_utils
 
 logger = logging.getLogger("cavise.coperception_model_manager")
+
 
 class CoperceptionModelManager():
 
@@ -31,12 +33,11 @@ class CoperceptionModelManager():
         self.saved_path = self.opt.model_dir
         _, self.model = train_utils.load_saved_model(self.saved_path, self.model)
 
-
     def make_pred(self):
         assert self.opt.fusion_method in ['late', 'early', 'intermediate']
         assert not (self.opt.show_vis and self.opt.show_sequence), 'you can only visualize ' \
-                                                        'the results in single ' \
-                                                        'image mode or video mode'
+                                                                   'the results in single '  \
+                                                                   'image mode or video mode'
         logger.info('Dataset Building')
         opencood_dataset = build_dataset(self.hypes, visualize=True, train=False)
         logger.info(f"{len(opencood_dataset)} samples found.")
@@ -47,7 +48,6 @@ class CoperceptionModelManager():
                                 shuffle=False,
                                 pin_memory=False,
                                 drop_last=False)
-
 
         self.model.eval()
 
@@ -96,21 +96,22 @@ class CoperceptionModelManager():
                     raise NotImplementedError('Only early, late and intermediate'
                                             'fusion is supported.')
 
-                # eval_utils.caluclate_tp_fp(pred_box_tensor,
-                #                         pred_score,
-                #                         gt_box_tensor,
-                #                         result_stat,
-                #                         0.3)
-                # eval_utils.caluclate_tp_fp(pred_box_tensor,
-                #                         pred_score,
-                #                         gt_box_tensor,
-                #                         result_stat,
-                #                         0.5)
-                # eval_utils.caluclate_tp_fp(pred_box_tensor,
-                #                         pred_score,
-                #                         gt_box_tensor,
-                #                         result_stat,
-                #                         0.7)
+                eval_utils.caluclate_tp_fp(pred_box_tensor,
+                                        pred_score,
+                                        gt_box_tensor,
+                                        result_stat,
+                                        0.3)
+                eval_utils.caluclate_tp_fp(pred_box_tensor,
+                                        pred_score,
+                                        gt_box_tensor,
+                                        result_stat,
+                                        0.5)
+                eval_utils.caluclate_tp_fp(pred_box_tensor,
+                                        pred_score,
+                                        gt_box_tensor,
+                                        result_stat,
+                                        0.7)
+
                 if self.opt.save_npy:
                     npy_save_path = os.path.join(self.opt.model_dir, 'npy')
                     if not os.path.exists(npy_save_path):
@@ -173,8 +174,7 @@ class CoperceptionModelManager():
                             gt_box_tensor,
                             batch_data['ego']['origin_lidar'],
                             vis_pcd,
-                            mode='constant'
-                            )
+                            mode='constant')
                     if i == 0:
                         vis.add_geometry(pcd)
                         vis_utils.linset_assign_list(vis,
@@ -209,10 +209,24 @@ class DirectoryProcessor:
     def __init__(self, source_directory="data_dumping", now_directory="data_dumping/sample/now"):
         self.source_directory = source_directory
         self.now_directory = now_directory
-        
+
+    def detect_cameras(self, data_directory):
+        inner_subdirectories = sorted(
+            [d for d in os.listdir(data_directory) if os.path.isdir(os.path.join(data_directory, d))]
+        )
+        if not inner_subdirectories:
+            return []
+
+        sample_folder = os.path.join(data_directory, inner_subdirectories[0])
+        camera_files = [f for f in os.listdir(sample_folder) if re.match(r'\d+_camera\d+\.png', f)]
+
+        camera_ids = sorted(set(re.findall(r'_camera(\d+)\.png', f)[0] for f in camera_files if re.findall(r'_camera(\d+)\.png', f)))
+
+        return [f"_camera{cam_id}.png" for cam_id in camera_ids]
+
     def process_directory(self, tick_number):
         number = f"{tick_number:06d}"
-        postfixes = [".pcd", ".yaml", "_camera0.png", "_camera1.png", "_camera2.png", "_camera3.png"]
+        postfixes = [".pcd", ".yaml"]
 
         subdirectories = sorted(
             [d for d in os.listdir(self.source_directory) if os.path.isdir(os.path.join(self.source_directory, d))]
@@ -222,6 +236,10 @@ class DirectoryProcessor:
             raise ValueError("Not enough subdirectories in source directory to process.")
 
         data_directory = os.path.join(self.source_directory, subdirectories[-2])
+
+        camera_postfixes = self.detect_cameras(data_directory)
+        postfixes.extend(camera_postfixes)
+
         inner_subdirectories = sorted(
             [d for d in os.listdir(data_directory) if os.path.isdir(os.path.join(data_directory, d))]
         )
@@ -234,7 +252,8 @@ class DirectoryProcessor:
             for postfix in postfixes:
                 source_file_path = os.path.join(data_directory, folder, f"{number}{postfix}")
                 destination_file_path = os.path.join(destination_folder, f"{number}{postfix}")
-                shutil.copy(source_file_path, destination_file_path)
+                if os.path.exists(source_file_path):
+                    shutil.copy(source_file_path, destination_file_path)
 
     def clear_directory_now(self):
         for item in os.listdir(self.now_directory):
@@ -242,4 +261,4 @@ class DirectoryProcessor:
             if os.path.isfile(item_path) or os.path.islink(item_path):
                 os.remove(item_path)  # Удаляем файлы и символические ссылки
             elif os.path.isdir(item_path):
-                shutil.rmtree(item_path) 
+                shutil.rmtree(item_path)
