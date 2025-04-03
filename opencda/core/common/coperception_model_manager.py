@@ -1,4 +1,5 @@
 import os
+import re
 import time
 import shutil
 import logging
@@ -209,9 +210,23 @@ class DirectoryProcessor:
         self.source_directory = source_directory
         self.now_directory = now_directory
 
+    def detect_cameras(self, data_directory):
+        inner_subdirectories = sorted(
+            [d for d in os.listdir(data_directory) if os.path.isdir(os.path.join(data_directory, d))]
+        )
+        if not inner_subdirectories:
+            return []
+
+        sample_folder = os.path.join(data_directory, inner_subdirectories[0])
+        camera_files = [f for f in os.listdir(sample_folder) if re.match(r'\d+_camera\d+\.png', f)]
+
+        camera_ids = sorted(set(re.findall(r'_camera(\d+)\.png', f)[0] for f in camera_files if re.findall(r'_camera(\d+)\.png', f)))
+
+        return [f"_camera{cam_id}.png" for cam_id in camera_ids]
+
     def process_directory(self, tick_number):
         number = f"{tick_number:06d}"
-        postfixes = [".pcd", ".yaml", "_camera0.png", "_camera1.png", "_camera2.png", "_camera3.png"]
+        postfixes = [".pcd", ".yaml"]
 
         subdirectories = sorted(
             [d for d in os.listdir(self.source_directory) if os.path.isdir(os.path.join(self.source_directory, d))]
@@ -221,6 +236,10 @@ class DirectoryProcessor:
             raise ValueError("Not enough subdirectories in source directory to process.")
 
         data_directory = os.path.join(self.source_directory, subdirectories[-2])
+
+        camera_postfixes = self.detect_cameras(data_directory)
+        postfixes.extend(camera_postfixes)
+
         inner_subdirectories = sorted(
             [d for d in os.listdir(data_directory) if os.path.isdir(os.path.join(data_directory, d))]
         )
@@ -233,7 +252,8 @@ class DirectoryProcessor:
             for postfix in postfixes:
                 source_file_path = os.path.join(data_directory, folder, f"{number}{postfix}")
                 destination_file_path = os.path.join(destination_folder, f"{number}{postfix}")
-                shutil.copy(source_file_path, destination_file_path)
+                if os.path.exists(source_file_path):
+                    shutil.copy(source_file_path, destination_file_path)
 
     def clear_directory_now(self):
         for item in os.listdir(self.now_directory):
