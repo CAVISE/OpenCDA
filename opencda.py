@@ -67,7 +67,7 @@ def arg_parse() -> argparse.Namespace:
     parser.add_argument('--model-dir', type=str, help='Continued training path')
     parser.add_argument('--fusion-method', type=str, default='late', help='late, early or intermediate')
     parser.add_argument('--show-vis', action='store_true', help='whether to show image visualization result')
-    parser.add_argument('--show-sequence', action='store_true', help='whether to show video visualization result. It can note be set true with show_vis together.')
+    parser.add_argument('--show-sequence', action='store_true', help='whether to show video visualization result. It can not be set true with show_vis together.')
     parser.add_argument('--save-vis', action='store_true', help='whether to save visualization result')
     parser.add_argument('--save-npy', action='store_true', help='whether to save prediction and gt result in npy_test file')
     parser.add_argument('--save-vis-n', type=int, default=10, help='save how many numbers of visualization result?')
@@ -76,6 +76,7 @@ def arg_parse() -> argparse.Namespace:
                              'If set to True, it is the mainstream AP computing method,'
                              'but would increase the tolerance for FP (False Positives).')
     return parser.parse_args()
+
 
 # TODO: python setup.py develop для OpenCOOD на проверку присутствия файлов cython
 def main() -> None:
@@ -112,4 +113,4 @@ if __name__ == '__main__':
     try:
         main()
     except KeyboardInterrupt:
-        print(' - Exited by user.')
+        print('- Exited by user.')

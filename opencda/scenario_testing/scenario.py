@@ -148,7 +148,7 @@ class Scenario:
         directory_processor.clear_directory_now()
 
         while True:
-            logger.debug(f'running: sumulation tick: {tick_number}')
+            logger.debug(f'running: simulation tick: {tick_number}')
             self.scenario_manager.tick()
             tick_number += 1
 
@@ -198,6 +198,7 @@ class Scenario:
                 v2x_info = {}
 
             for i, single_cav in enumerate(self.single_cav_list):
+                # TODO: Добавить обновление информации
                 cav_list = []
                 if single_cav.v2x_manager.in_platoon():
                     self.single_cav_list.pop(i)
@@ -206,17 +207,18 @@ class Scenario:
                 elif self.cav_world.comms_manager is not None:
                     logger.info(f'CAV number {single_cav.vid} has not received any messages')
 
-                single_cav.update_info_v2x(cav_list=cav_list)
+                single_cav.update_info_v2x()
                 control = single_cav.run_step()
                 single_cav.vehicle.apply_control(control)
 
             for rsu in self.rsu_list:
+                # TODO: Добавить обновление информации
                 cav_list = []
                 if str(rsu.rid) in v2x_info:
                     cav_list = v2x_info[str(rsu.rid)]['cav_list']
                 elif self.cav_world.comms_manager is not None:
                     logger.info(f'RSU number {rsu.rid} has not received any messages')
-                rsu.update_info_v2x(cav_list=cav_list)
+                rsu.update_info_v2x()
                 rsu.run_step()
 
             if self.coperception_model_manager is not None and \

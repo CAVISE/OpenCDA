@@ -29,6 +29,7 @@ from opencda.scenario_testing.utils.customized_map_api import \
 
 logger = logging.getLogger("cavise.sim_api")
 
+
 def car_blueprint_filter(blueprint_library, carla_version='0.9.15'):
     """
     Exclude the uncommon vehicles from the default CARLA blueprint library
@@ -78,6 +79,7 @@ def car_blueprint_filter(blueprint_library, carla_version='0.9.15'):
                  "0.9.11 and 0.9.12, please use OpenCDA v0.1.3.")
 
     return blueprints
+
 
 def multi_class_vehicle_blueprint_filter(label, blueprint_library, bp_meta):
     """
@@ -156,6 +158,7 @@ class ScenarioManager:
                  cav_world=None):
         self.scenario_params = scenario_params
         self.carla_version = carla_version
+        self.world = None
 
         simulation_config = scenario_params['world']
 
@@ -175,7 +178,7 @@ class ScenarioManager:
                 self.world = self.client.load_world(town)
             except RuntimeError as error:
                 logger.error(
-                    f"{bcolors.FAIL}{town} is not found in your CARLA repo! "
+                    f"{bcolors.FAIL}{town} probably is not in your CARLA repo! "
                     f"Please download all town maps to your CARLA "
                     f"repo!{bcolors.ENDC}")
                 logger.error(error)
@@ -183,7 +186,7 @@ class ScenarioManager:
             self.world = self.client.get_world()
 
         if not self.world:
-            sys.exit('World loading failed')
+            sys.exit('- World loading failed')
 
         self.origin_settings = self.world.get_settings()
         new_settings = self.world.get_settings()
@@ -193,8 +196,7 @@ class ScenarioManager:
             new_settings.fixed_delta_seconds = \
                 simulation_config['fixed_delta_seconds']
         else:
-            sys.exit(
-                'ERROR: Current version only supports sync simulation mode')
+            sys.exit('ERROR: Current version only supports sync simulation mode')
 
         self.world.apply_settings(new_settings)
 
@@ -285,7 +287,7 @@ class ScenarioManager:
                 self.scenario_params['scenario']['single_cav_list']):
             # in case the cav wants to join a platoon later
             # it will be empty dictionary for single cav application
-            platoon_base = OmegaConf.create({'platoon': self.scenario_params.get('platoon_base',{})})
+            platoon_base = OmegaConf.create({'platoon': self.scenario_params.get('platoon_base', {})})
             cav_config = OmegaConf.merge(self.scenario_params['vehicle_base'],
                                          platoon_base,
                                          cav_config)
@@ -444,16 +446,16 @@ class ScenarioManager:
             static_bp = self.world.get_blueprint_library().find(default_model)
 
             spawn_transform = carla.Transform(
-                    carla.Location(
-                        x=rsu_config['spawn_position'][0],
-                        y=rsu_config['spawn_position'][1],
-                        z=rsu_config['spawn_position'][2]
-                    ),
-                    carla.Rotation(
-                        pitch=rsu_config['spawn_position'][5],
-                        yaw=rsu_config['spawn_position'][4],
-                        roll=rsu_config['spawn_position'][3]
-                    )
+                carla.Location(
+                    x=rsu_config['spawn_position'][0],
+                    y=rsu_config['spawn_position'][1],
+                    z=rsu_config['spawn_position'][2]
+                ),
+                carla.Rotation(
+                    pitch=rsu_config['spawn_position'][5],
+                    yaw=rsu_config['spawn_position'][4],
+                    roll=rsu_config['spawn_position'][3]
+                )
             )
 
             self.world.spawn_actor(static_bp, spawn_transform)
@@ -610,8 +612,7 @@ class ScenarioManager:
 
             spawn_transform = carla.Transform(carla.Location(x=coordinates[0],
                                                              y=coordinates[1],
-                                                             z=coordinates[
-                                                                   2] + 0.3),
+                                                             z=coordinates[2] + 0.3),
                                               carla.Rotation(
                                                   roll=coordinates[3],
                                                   yaw=coordinates[4],
@@ -624,17 +625,16 @@ class ScenarioManager:
                 if self.use_multi_class_bp:
                     label = np.random.choice(label_list, p=prob)
                     # Given the label (class), find all associated blueprints in CARLA
-                    ego_vehicle_random_list = multi_class_vehicle_blueprint_filter(
-                        label, blueprint_library, self.bp_meta)
+                    ego_vehicle_random_list = multi_class_vehicle_blueprint_filter(label, blueprint_library, self.bp_meta)
+                    if not ego_vehicle_random_list:
+                        logger.warning(f"No blueprints found for label: {label}, using default blueprint")
+                        ego_vehicle_random_list = blueprint_library.filter("vehicle.*")
                 ego_vehicle_bp = random.choice(ego_vehicle_random_list)
                 if ego_vehicle_bp.has_attribute("color"):
-                    color = random.choice(
-                        ego_vehicle_bp.get_attribute(
-                            'color').recommended_values)
+                    color = random.choice(ego_vehicle_bp.get_attribute('color').recommended_values)
                     ego_vehicle_bp.set_attribute('color', color)
 
-            vehicle = \
-                self.world.try_spawn_actor(ego_vehicle_bp, spawn_transform)
+            vehicle = self.world.try_spawn_actor(ego_vehicle_bp, spawn_transform)
 
             if not vehicle:
                 continue
@@ -680,7 +680,7 @@ class ScenarioManager:
         if self.scenario_params.get('carla_traffic_manager') is None:
             logger.info('No Carla traffic flow was created')
             return None, bg_list
-        
+
         traffic_config = self.scenario_params['carla_traffic_manager']
         tm = self.client.get_trafficmanager()
 
@@ -700,7 +700,6 @@ class ScenarioManager:
         else:
             bg_list = self.spawn_vehicle_by_range(tm, traffic_config, bg_list)
 
-        
         if not bg_list:
             logger.info('No Carla traffic flow was created')
         else:
