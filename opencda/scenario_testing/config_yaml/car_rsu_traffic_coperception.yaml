@@ -88,6 +88,18 @@ vehicle_base:
       debug_trajectory: false
       debug: false
 
+# define the background traffic control by carla
+carla_traffic_manager:
+  global_speed_perc: -10
+  auto_lane_change: true
+  random: true # whether to random select vehicles' color and model
+  ignore_lights_percentage: 100 # whether set the traffic ignore traffic lights
+  vehicle_list: ~  # a number or a list
+  # Used only when vehicle_list is a number.
+  #  x_min, x_max, y_min, y_max, x_step, y_step, vehicle_num
+  range:
+    - [-70, 80, 0, 200, 5, 5, 25]
+
 # define sumo simulation setting for traffic generation
 sumo:
   port: 3000
