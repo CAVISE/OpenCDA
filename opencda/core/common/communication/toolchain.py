@@ -36,11 +36,7 @@ class CommunicationToolchain:
             )
 
         importlib.invalidate_caches()
-        for message in messages:
-            if not CommunicationToolchain.try_import(config, message):
-                CommunicationToolchain.generate_message(config, [message])
-            else:
-                logger.info(f'found generated message: {message}')
+        CommunicationToolchain.generate_message(config, messages)
 
     # wrap import call as boolean result, useful for running checks
     @staticmethod
@@ -73,21 +69,20 @@ class CommunicationToolchain:
     # invoke subroutine to create python message impl from proto file
     @staticmethod
     def generate_message(config: MessageConfig, messages: typing.List[str]) -> None:
-        CommunicationToolchain.copy_proto("../messages/artery.proto", "opencda/core/common/communication/messages/artery.proto")
-        CommunicationToolchain.copy_proto("../messages/opencda.proto", "opencda/core/common/communication/messages/opencda.proto")
-        process = subprocess.run(
-            [
-                'protoc', 
-                f'--proto_path={config.source_dir}', 
-                f'--python_out={config.binary_dir}', 
-                *map(lambda message: config.source_dir.joinpath(f'{message}.proto'), messages)
-            ], 
-            encoding='UTF-8',
-            # silent run
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE, 
-            env=os.environ
-        )
+        for message in messages:
+            CommunicationToolchain.copy_proto(f"../messages/{message}.proto", f"opencda/core/common/communication/messages/{message}.proto")
+
+        command = ['protoc', 
+                   f'--proto_path={config.source_dir}',
+                   f'--python_out={config.binary_dir}', 
+                   *map(lambda message: config.source_dir.joinpath(f'{message}.proto'), messages)]
+
+        process = subprocess.run(command, 
+                                 encoding='UTF-8',
+                                 # silent run
+                                 stdout=subprocess.PIPE,
+                                 stderr=subprocess.PIPE, 
+                                 env=os.environ)
 
         if process.returncode != 0:
             logger.error(f'failed to generate protos, subroutine exited with: {errno.errorcode[process.returncode]}\nSTDERR: {process.stderr.strip()}')
