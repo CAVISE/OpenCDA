@@ -5,12 +5,6 @@ Basic class of CAV
 # Author: Runsheng Xu <rxx3386@ucla.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
-import uuid
-import json
-
-# CAVISE
-import opencda.core.common.communication.serialize as cavise
-
 from opencda.core.actuation.control_manager \
     import ControlManager
 from opencda.core.application.platooning.platoon_behavior_agent\
