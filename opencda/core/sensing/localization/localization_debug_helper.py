@@ -168,120 +168,70 @@ class LocDebugHelper(object):
 
     def evaluate(self):
         """
-        Plot the localization related data points.
+        Plot localization-related data and compute mean errors.
 
         Returns:
-            -figures(matplotlib.pyplot.plot): The plot of
-            localization related figures.
-            -perform_txt(txt file): The localization related
-            datas saved as text file.
-
+            - figure (matplotlib.figure.Figure): Visualization of localization.
+            - perform_txt (str): Summary of mean errors.
         """
         figure, axis = plt.subplots(3, 2)
         figure.set_size_inches(16, 12)
-        # x, y coordinates
+
+        # Plot positions
         axis[0, 0].plot(self.gnss_x, self.gnss_y, ".g", label='gnss')
         axis[0, 0].plot(self.gt_x, self.gt_y, ".b", label='gt')
         axis[0, 0].plot(self.filter_x, self.filter_y, ".r", label='filter')
         axis[0, 0].legend()
         axis[0, 0].set_title("x-y coordinates plotting")
 
-        # yaw angle
-        axis[0, 1].plot(np.arange(len(self.gnss_yaw)),
-                        self.gnss_yaw, ".g", label='gnss')
-        axis[0, 1].plot(np.arange(len(self.gt_yaw)),
-                        self.gt_yaw, ".b", label='gt')
-        axis[0, 1].plot(np.arange(len(self.filter_yaw)),
-                        self.filter_yaw, ".r", label='filter')
+        # Plot yaw
+        axis[0, 1].plot(np.arange(len(self.gnss_yaw)), self.gnss_yaw, ".g", label='gnss')
+        axis[0, 1].plot(np.arange(len(self.gt_yaw)), self.gt_yaw, ".b", label='gt')
+        axis[0, 1].plot(np.arange(len(self.filter_yaw)), self.filter_yaw, ".r", label='filter')
         axis[0, 1].legend()
-        axis[0, 1].set_title("yaw angle(degree) plotting")
+        axis[0, 1].set_title("yaw angle (degree) plotting")
 
-        # speed
-        axis[1, 0].plot(np.arange(len(self.gnss_spd)),
-                        self.gnss_spd, ".g", label='gnss')
-        axis[1, 0].plot(np.arange(len(self.gt_spd)),
-                        self.gt_spd, ".b", label='gt')
-        axis[1, 0].plot(np.arange(len(self.filter_spd)),
-                        self.filter_spd, ".r", label='filter')
+        # Plot speed
+        axis[1, 0].plot(np.arange(len(self.gnss_spd)), self.gnss_spd, ".g", label='gnss')
+        axis[1, 0].plot(np.arange(len(self.gt_spd)), self.gt_spd, ".b", label='gt')
+        axis[1, 0].plot(np.arange(len(self.filter_spd)), self.filter_spd, ".r", label='filter')
         axis[1, 0].legend()
-        axis[1, 0].set_title("speed(m/s) plotting")
+        axis[1, 0].set_title("speed (m/s) plotting")
 
-        # error curve on x
-        axis[1, 1].plot(np.arange(len(self.gnss_x)), np.array(
-            self.gt_x) - np.array(self.gnss_x), "-g", label='gnss')
-        axis[1, 1].plot(np.arange(len(self.filter_x)), np.array(
-            self.gt_x) - np.array(self.filter_x), "-r", label='filter')
+        # Plot x error
+        axis[1, 1].plot(np.arange(len(self.gnss_x)), np.array(self.gt_x) - np.array(self.gnss_x), "-g", label='gnss')
+        axis[1, 1].plot(np.arange(len(self.filter_x)), np.array(self.gt_x) - np.array(self.filter_x), "-r", label='filter')
         axis[1, 1].legend()
         axis[1, 1].set_title("error curve on x coordinates")
 
-        # error curve on y
-        axis[2, 0].plot(np.arange(len(self.gnss_y)), np.array(
-            self.gt_y) - np.array(self.gnss_y), "-g", label='gnss')
-        axis[2, 0].plot(np.arange(len(self.filter_y)), np.array(
-            self.gt_y) - np.array(self.filter_y), "-r", label='filter')
+        # Plot y error
+        axis[2, 0].plot(np.arange(len(self.gnss_y)), np.array(self.gt_y) - np.array(self.gnss_y), "-g", label='gnss')
+        axis[2, 0].plot(np.arange(len(self.filter_y)), np.array(self.gt_y) - np.array(self.filter_y), "-r", label='filter')
         axis[2, 0].legend()
         axis[2, 0].set_title("error curve on y coordinates")
 
-        # error curve on yaw
-        axis[2, 1].plot(np.arange(len(self.gnss_yaw)), np.array(
-            self.gt_yaw) - np.array(self.gnss_yaw), "-g", label='gnss')
-        axis[2, 1].plot(np.arange(len(self.filter_yaw)), np.array(
-            self.gt_yaw) - np.array(self.filter_yaw), "-r", label='filter')
+        # Plot yaw error
+        axis[2, 1].plot(np.arange(len(self.gnss_yaw)), np.array(self.gt_yaw) - np.array(self.gnss_yaw), "-g", label='gnss')
+        axis[2, 1].plot(np.arange(len(self.filter_yaw)), np.array(self.gt_yaw) - np.array(self.filter_yaw), "-r", label='filter')
         axis[2, 1].legend()
         axis[2, 1].set_title("error curve on yaw angle")
 
-        figure.suptitle('localization plotting of actor id %d' % self.actor_id)
+        figure.suptitle(f'Localization plotting of actor id {self.actor_id}')
 
-        x_error_mean = np.mean(
-            np.abs(
-                np.array(
-                    self.gt_x) -
-                np.array(
-                    self.gnss_x)))
-        y_error_mean = np.mean(
-            np.abs(
-                np.array(
-                    self.gt_y) -
-                np.array(
-                    self.gnss_y)))
-        yaw_error_mean = np.mean(
-            np.abs(
-                np.array(
-                    self.gt_yaw) -
-                np.array(
-                    self.gnss_yaw)))
-
-        perform_txt = 'mean error for GNSS raw data on x-axis: %f (meter), ' \
-                      'mean error for GNSS raw data on y-axis: %f (meter),' \
-                      'mean error for GNSS raw data on yaw : %f (degree) \n'\
-                      % (x_error_mean,
-                         y_error_mean,
-                         yaw_error_mean)
-
-        x_error_mean = np.mean(
-            np.abs(
-                np.array(
-                    self.gt_x) -
-                np.array(
-                    self.filter_x)))
-        y_error_mean = np.mean(
-            np.abs(
-                np.array(
-                    self.gt_y) -
-                np.array(
-                    self.filter_y)))
-        yaw_error_mean = np.mean(
-            np.abs(
-                np.array(
-                    self.gt_yaw) -
-                np.array(
-                    self.filter_yaw)))
-
-        perform_txt += 'mean error after data fusion on x-axis: %f (meter), ' \
-                       'mean error after data fusion  on y-axis: %f (meter),' \
-                       'mean error after data fusion yaw : %f (degree) \n' \
-                       % (x_error_mean,
-                          y_error_mean,
-                          yaw_error_mean)
+        perform_txt = ""
+        perform_txt += self._format_mean_error('GNSS raw data', self.gt_x, self.gnss_x, self.gt_y, self.gnss_y, self.gt_yaw, self.gnss_yaw)
+        perform_txt += self._format_mean_error('data fusion', self.gt_x, self.filter_x, self.gt_y, self.filter_y, self.gt_yaw, self.filter_yaw)
 
         return figure, perform_txt
+
+    def _safe_mean_error(self, a, b):
+        if len(a) == 0 or len(b) == 0:
+            return float('nan')
+        return np.mean(np.abs(np.array(a) - np.array(b)))
+
+    def _format_mean_error(self, label, x1, x2, y1, y2, yaw1, yaw2):
+        x_error = self._safe_mean_error(x1, x2)
+        y_error = self._safe_mean_error(y1, y2)
+        yaw_error = self._safe_mean_error(yaw1, yaw2)
+        return f"mean error for {label} on x-axis: {x_error:.3f} (m), " \
+               f"on y-axis: {y_error:.3f} (m), on yaw: {yaw_error:.3f} (°)\n"

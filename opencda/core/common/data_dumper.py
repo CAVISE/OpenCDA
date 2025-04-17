@@ -50,10 +50,7 @@ class DataDumper(object):
 
     """
 
-    def __init__(self,
-                 perception_manager,
-                 vehicle_id,
-                 save_time):
+    def __init__(self, perception_manager, vehicle_id, save_time):
 
         self.rgb_camera = perception_manager.rgb_camera
         self.lidar = perception_manager.lidar
@@ -73,10 +70,7 @@ class DataDumper(object):
 
         self.count = 0
 
-    def run_step(self,
-                 perception_manager,
-                 localization_manager,
-                 behavior_agent):
+    def run_step(self, perception_manager, localization_manager, behavior_agent):
         """
         Dump data at running time.
 
@@ -93,12 +87,12 @@ class DataDumper(object):
         """
         self.count += 1
         # we ignore the first 60 steps
-        if self.count < 60:
+        if self.count < 0:
             return
 
         # 10hz
-        if self.count % 2 != 0:
-            return
+        # if self.count % 2 != 0:
+        #     return
 
         self.save_rgb_image(self.count)
         self.save_lidar_points(self.count)
@@ -113,20 +107,19 @@ class DataDumper(object):
         """
         for (i, camera) in enumerate(self.rgb_camera):
 
-            #frame = camera.frame
+            # frame = camera.frame
             image = camera.image
 
             image_name = '%06d' % count + '_' + 'camera%d' % i + '.png'
 
-            cv2.imwrite(os.path.join(self.save_parent_folder, image_name),
-                        image)
+            cv2.imwrite(os.path.join(self.save_parent_folder, image_name), image)
 
     def save_lidar_points(self, count):
         """
         Save 3D lidar points to disk.
         """
         point_cloud = self.lidar.data
-        #frame = self.lidar.frame
+        # frame = self.lidar.frame
 
         point_xyz = point_cloud[:, :-1]
         point_intensity = point_cloud[:, -1]
