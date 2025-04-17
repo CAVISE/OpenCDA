@@ -132,8 +132,11 @@ class CoperceptionModelManager():
                 if self.opt.show_sequence:
                     pcd, pred_o3d_box, gt_o3d_box = \
                         vis_utils.visualize_inference_sample_dataloader(
-                            pred_box_tensor, gt_box_tensor,
-                            batch_data['ego']['origin_lidar'], vis_pcd, mode='constant')
+                            pred_box_tensor,
+                            gt_box_tensor,
+                            batch_data['ego']['origin_lidar'],
+                            vis_pcd,
+                            mode='constant')
                     if i == 0:
                         vis.add_geometry(pcd)
                         vis_utils.linset_assign_list(vis, vis_aabbs_pred, pred_o3d_box, update_mode='add')
