@@ -78,9 +78,6 @@ class RSUManager(object):
         # explicitly extract here
         self.carla_map = carla_map
 
-        # cavise data payload
-        self.rsu_data = {}
-
         # retrieve the configure for different modules
         # todo: add v2x module to rsu later
         sensing_config = config_yaml['sensing']
@@ -117,13 +114,9 @@ class RSUManager(object):
         self.localizer.localize()
 
         ego_pos = self.localizer.get_ego_pos()
-        ego_spd = self.localizer.get_ego_spd()
 
         # object detection todo: pass it to other CAVs for V2X perception
         objects = self.perception_manager.detect(ego_pos)
-
-        self.rsu_data['vid'] = str(self.rid)
-        self.rsu_data['ego_spd'] = ego_spd
 
     def update_info_v2x(self):
         # TODO: Добавить обновление информации
