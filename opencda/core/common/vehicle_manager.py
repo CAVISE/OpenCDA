@@ -5,12 +5,6 @@ Basic class of CAV
 # Author: Runsheng Xu <rxx3386@ucla.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
-import uuid
-import json
-
-# CAVISE
-import opencda.core.common.communication.serialize as cavise
-
 from opencda.core.actuation.control_manager \
     import ControlManager
 from opencda.core.application.platooning.platoon_behavior_agent\
@@ -98,9 +92,6 @@ class VehicleManager(object):
 
         self.vehicle = vehicle
         self.carla_map = carla_map
-
-        # cavise data payload
-        self.cav_data = {}
 
         # retrieve the configure for different modules
         sensing_config = config_yaml['sensing']
@@ -206,9 +197,6 @@ class VehicleManager(object):
                         'world': self.vehicle.get_world(),
                         'static_bev': self.map_manager.static_bev}
         self.safety_manager.update_info(safety_input)
-
-        self.cav_data['vid'] = str(self.vid)  # TODO: Изменить vid на id и добавить тип объекта
-        self.cav_data['ego_spd'] = ego_spd
 
         self.agent.update_information(ego_pos, ego_spd, objects)
         # pass position and speed info to controller
