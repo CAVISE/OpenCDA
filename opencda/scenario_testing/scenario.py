@@ -85,6 +85,13 @@ class Scenario:
                 cav_world=self.cav_world
             )
 
+        if self.cav_world.comms_manager is not None:
+            self.cav_world.comms_manager.create_socket(zmq.PAIR, 'connect')
+            self.message_handler = MessageHandler()
+            logger.info('running: creating message handler')
+        else:
+            self.message_handler = None
+
         logger.info(f'using scenario manager of type: {type(self.scenario_manager)}')
 
         data_dump = opt.with_coperception and opt.model_dir is not None or opt.record
@@ -99,7 +106,16 @@ class Scenario:
             save_yaml(scenario_params, save_yaml_name)
 
             if opt.with_coperception and opt.model_dir:
-                self.coperception_model_manager = CoperceptionModelManager(opt=opt)
+
+                if opt.fusion_method not in ['late', 'early', 'intermediate']:
+                    logger.error('Invalid fusion method: must be one of "late", "early", or "intermediate".')
+                    sys.exit(1)
+
+                if not os.path.isdir(opt.model_dir):
+                    logger.error(f'Model directory "{opt.model_dir}" does not exist.')
+                    sys.exit(1)
+
+                self.coperception_model_manager = CoperceptionModelManager(opt=opt, message_handler=self.message_handler)
                 logger.info('created cooperception manager')
 
         elif opt.record:
@@ -134,23 +150,15 @@ class Scenario:
         self.spectator = self.scenario_manager.world.get_spectator()
 
     def run(self, opt: argparse.Namespace):
-
-        if self.cav_world.comms_manager is not None:
-            self.cav_world.comms_manager.create_socket(zmq.PAIR, 'connect')
-            message_handler = MessageHandler()
-            logger.info('running: creating message handler')
-        else:
-            message_handler = None
-
-        dir_number = tick_number = -1
+        tick_number = 0
         directory_processor = DirectoryProcessor(source_directory='data_dumping', now_directory='data_dumping/sample/now')
         os.makedirs('data_dumping/sample/now', exist_ok=True)
         directory_processor.clear_directory_now()
 
         while True:
+            tick_number += 1
             logger.debug(f'running: simulation tick: {tick_number}')
             self.scenario_manager.tick()
-            tick_number += 1
 
             if not opt.free_spectator and any(array is not None for array in [self.single_cav_list, self.platoon_list]):
                 if self.single_cav_list is not None:
@@ -170,61 +178,43 @@ class Scenario:
                 logger.debug('updating single cavs')
                 for single_cav in self.single_cav_list:
                     single_cav.update_info()
-                    if message_handler is not None:
-                        message_handler.set_cav_data(single_cav.cav_data)
 
             if self.rsu_list is not None:
                 logger.debug('updating RSUs')
                 for rsu in self.rsu_list:
                     rsu.update_info()
-                    if message_handler is not None:
-                        message_handler.set_cav_data(rsu.rsu_data)
-
-            # TODO: what the fuck?
-            if self.coperception_model_manager is not None and tick_number >= 60:
-                try:
-                    directory_processor.clear_directory_now()
-                    directory_processor.process_directory(tick_number)
-                    dir_number = tick_number
-                except Exception as e:
-                    if tick_number % 2 == 0:
-                        logger.warning(f'uh oh error occurred: {e}')
-
-            logger.debug('updating v2x info')
-            if self.cav_world.comms_manager is not None:
-                self.cav_world.comms_manager.send_message(message_handler.serialize_to_string())
-                v2x_info = MessageHandler.deserialize_from_string(self.cav_world.comms_manager.receive_message())
-            else:
-                v2x_info = {}
 
             for i, single_cav in enumerate(self.single_cav_list):
-                # TODO: Добавить обновление информации
-                cav_list = []
-                if single_cav.v2x_manager.in_platoon():
-                    self.single_cav_list.pop(i)
-                if str(single_cav.vid) in v2x_info:
-                    cav_list = v2x_info[str(single_cav.vid)]['cav_list']
-                elif self.cav_world.comms_manager is not None:
-                    logger.info(f'CAV number {single_cav.vid} has not received any messages')
-
                 single_cav.update_info_v2x()
                 control = single_cav.run_step()
                 single_cav.vehicle.apply_control(control)
 
             for rsu in self.rsu_list:
-                # TODO: Добавить обновление информации
-                cav_list = []
-                if str(rsu.rid) in v2x_info:
-                    cav_list = v2x_info[str(rsu.rid)]['cav_list']
-                elif self.cav_world.comms_manager is not None:
-                    logger.info(f'RSU number {rsu.rid} has not received any messages')
                 rsu.update_info_v2x()
                 rsu.run_step()
 
-            if self.coperception_model_manager is not None and \
-               self.coperception_model_manager.opt.fusion_method and \
-               self.coperception_model_manager.opt.model_dir and dir_number == tick_number:
-                self.coperception_model_manager.make_pred()
+            if self.coperception_model_manager is not None:
+                try:
+                    logger.info(f'Processing {tick_number} tick')
+                    directory_processor.clear_directory_now()
+                    directory_processor.process_directory(tick_number)
+                    logger.info(f'Successfully processed {tick_number} tick')
+                except Exception as e:
+                    logger.warning(f'An error occurred during proceesing {tick_number} tick: {e}')
+
+                self.coperception_model_manager.make_dataset()
+
+                if self.cav_world.comms_manager is not None:  # TODO: Надо добавить возможность Artery работать без OpenCOOD
+                    self.coperception_model_manager.opencood_dataset.get_entity_item(idx=0)  # TODO: Надо разобраться с тем, как выбирать ego в моделях совместного восприятия
+                    msg = self.message_handler.serialize_to_string()
+                    self.cav_world.comms_manager.send_message(msg)
+                    logger.info(f'{round(len(msg) / (1 << 20), 3)} MB about to be sent')
+
+                    msg = self.cav_world.comms_manager.receive_message()
+                    logger.info(f'{round(len(msg) / (1 << 20), 3)} MB were received')
+                    self.message_handler.deserialize_from_string(msg)
+
+                self.coperception_model_manager.make_prediction()
 
     def finalize(self, opt: argparse.Namespace):
         if opt.record:

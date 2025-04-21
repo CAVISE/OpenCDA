@@ -79,6 +79,7 @@ def arg_parse() -> argparse.Namespace:
 
 
 # TODO: python setup.py develop для OpenCOOD на проверку присутствия файлов cython
+# TODO: python opencood/pcdet_utils/setup.py build_ext --inplace
 def main() -> None:
     opt = arg_parse()
     logger = create_logger(logging.DEBUG)
