@@ -97,5 +97,5 @@ train_params:
   eval_freq: 1
   save_freq: 1
 root_dir: "opv2v_data_dumping/train"
-validate_dir: "data_dumping/sample"
+validate_dir: "simulation_output/data_dumping/sample"
 yaml_parser: load_voxel_params

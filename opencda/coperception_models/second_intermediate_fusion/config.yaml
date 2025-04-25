@@ -138,5 +138,5 @@ train_params:
   epoches: 20
   eval_freq: 1
   save_freq: 1
-validate_dir: "data_dumping/sample"
+validate_dir: "simulation_output/data_dumping/sample"
 yaml_parser: load_second_params
