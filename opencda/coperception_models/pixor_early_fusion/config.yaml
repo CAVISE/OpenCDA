@@ -2,7 +2,7 @@ name: pixor_early_fusion
 
 yaml_parser: "load_bev_params"
 root_dir: "opv2v_data_dumping/train"
-validate_dir: "data_dumping/sample"
+validate_dir: "simulation_output/data_dumping/sample"
 train_params:
   batch_size: &batch_size 2
   epoches: 15

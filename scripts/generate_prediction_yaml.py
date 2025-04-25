@@ -216,5 +216,5 @@ def generate_prediction_yaml(root_dir, future_seconds=8, past_seconds=1):
 
 
 if __name__ == '__main__':
-    root_dir = '../data_dumping/'
+    root_dir = '../simulation_output/data_dumping/'
     generate_prediction_yaml(root_dir)

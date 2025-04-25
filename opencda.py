@@ -119,11 +119,11 @@ def arg_parse() -> argparse.Namespace:
     parser.add_argument('--show-sequence', action='store_true', help='whether to show video visualization result. It can not be set true with show_vis together.')
     parser.add_argument('--save-vis', action='store_true', help='whether to save visualization result')
     parser.add_argument('--save-npy', action='store_true', help='whether to save prediction and gt result in npy_test file')
-    parser.add_argument('--save-vis-n', type=int, default=10, help='save how many numbers of visualization result?')
     parser.add_argument('--global-sort-detections', action='store_true',
                         help='whether to globally sort detections by confidence score.'
                              'If set to True, it is the mainstream AP computing method,'
                              'but would increase the tolerance for FP (False Positives).')
+    parser.add_argument('--ticks', type=int, help='number of simulation ticks to execute')
     return parser.parse_args()
 
 

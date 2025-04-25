@@ -233,7 +233,7 @@ preprocess:
   core_method: SpVoxelPreprocessor
   keep_original_lidar: true
 root_dir: "opv2v_data_dumping/train"
-validate_dir: "data_dumping/sample"
+validate_dir: "simulation_output/data_dumping/sample"
 train_params:
   batch_size: 4
   epoches: 20
