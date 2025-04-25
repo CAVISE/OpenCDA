@@ -59,6 +59,7 @@ scenario:
       destination: [1000.372955, 8.3, 0.3]
       members: # the first one is regarded as leader by default
         - name: cav1
+          model: vehicle.carlamotors.carlacola
           spawn_position: [-350, 8.3, 0.3, 0, 0, 0] # x, y, z, roll, yaw, pitch
           perception:
             camera:
@@ -74,10 +75,16 @@ scenario:
               debug_trajectory: true
               debug: false
         - name: cav2
+          model: vehicle.tesla.cybertruck
+          color: [0, 0, 255]
           spawn_position: [-360, 8.3, 0.3, 0, 0, 0]
         - name: cav3
+          model: vehicle.volkswagen.t2
+          color: [255, 0, 255]
           spawn_position: [-370, 8.3, 0.3, 0, 0, 0]
         - name: cav4
+          model: vehicle.mitsubishi.fusorosa
+          color: [255, 255, 255]
           spawn_position: [-380, 8.3, 0.3, 0, 0, 0]
   single_cav_list: # this is for merging vehicle or single cav without v2x
     - name: single_cav

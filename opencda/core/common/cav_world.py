@@ -77,7 +77,7 @@ class CavWorld(object):
         self._vehicle_manager_dict.update(
             {vehicle_manager.vid: vehicle_manager})
 
-    def update_platooning(self, platooning_manger):
+    def update_platooning(self, platooning_manager):
         """
         Add created platooning.
 
@@ -87,7 +87,7 @@ class CavWorld(object):
             The platooning manager class.
         """
         self._platooning_dict.update(
-            {platooning_manger.pmid: platooning_manger})
+            {platooning_manager.pmid: platooning_manager})
 
     def update_rsu_manager(self, rsu_manager):
         """
