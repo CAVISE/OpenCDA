@@ -61,7 +61,7 @@ class DataDumper(object):
         current_path = os.path.dirname(os.path.realpath(__file__))
         self.save_parent_folder = \
             os.path.join(current_path,
-                         '../../../data_dumping',
+                         '../../../simulation_output/data_dumping',
                          save_time,
                          str(self.vehicle_id))
 

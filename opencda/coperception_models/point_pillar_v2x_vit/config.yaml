@@ -1,6 +1,6 @@
 name: point_pillar_v2xvit
 root_dir: 'v2xset/train'
-validate_dir: 'data_dumping/sample'
+validate_dir: 'simulation_output/data_dumping/sample'
 
 wild_setting:
   async: false

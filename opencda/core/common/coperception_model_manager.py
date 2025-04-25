@@ -12,19 +12,19 @@ from torch.utils.data import DataLoader  # type: ignore
 import opencood.hypes_yaml.yaml_utils as yaml_utils
 from opencood.tools import train_utils, inference_utils
 from opencood.data_utils.datasets import build_dataset
-from opencood.visualization import simple_vis
+from opencood.visualization import simple_vis, vis_utils
 from opencood.utils import eval_utils
-from opencood.visualization import vis_utils
 
 logger = logging.getLogger("cavise.coperception_model_manager")
 
 
 class CoperceptionModelManager():
-
-    def __init__(self, opt, message_handler=None):
+    def __init__(self, opt, current_time, message_handler=None):
         self.opt = opt
         self.hypes = yaml_utils.load_yaml(None, self.opt)
         self.model = train_utils.create_model(self.hypes)
+        self.current_time = current_time
+        self.vis = None
 
         if torch.cuda.is_available():
             self.model.cuda()
@@ -49,7 +49,7 @@ class CoperceptionModelManager():
                         pin_memory=False,
                         drop_last=False)
 
-    def make_prediction(self):
+    def make_prediction(self, tick_number):
         assert self.opt.fusion_method in ['late', 'early', 'intermediate']
         assert not (self.opt.show_vis and self.opt.show_sequence), 'you can only visualize ' \
                                                                    'the results in single '  \
@@ -63,13 +63,12 @@ class CoperceptionModelManager():
                     0.7: {'tp': [], 'fp': [], 'gt': 0, 'score': []}}
 
         if self.opt.show_sequence:
-            vis = o3d.visualization.Visualizer()
-            vis.create_window()
-
-            vis.get_render_option().background_color = [0.05, 0.05, 0.05]
-            vis.get_render_option().point_size = 1.0
-            vis.get_render_option().show_coordinate_frame = True
-
+            if self.vis is None:
+                self.vis = o3d.visualization.Visualizer()
+                self.vis.create_window()
+                self.vis.get_render_option().background_color = [0.05, 0.05, 0.05]
+                self.vis.get_render_option().point_size = 1.0
+                self.vis.get_render_option().show_coordinate_frame = True
             # used to visualize lidar points
             vis_pcd = o3d.geometry.PointCloud()
             # used to visualize object bounding box, maximum 50
@@ -105,31 +104,27 @@ class CoperceptionModelManager():
                                                     batch_data['ego']['origin_lidar'][0],
                                                     i, npy_save_path)
 
-                if self.opt.save_vis_n and self.opt.save_vis_n > i:
+                if self.opt.save_vis:
                     for mode in ['3d', 'bev']:
-                        vis_dir = f"opencda/coperception_models/real_time_vis/vis_{mode}"
+                        vis_dir = f"simulation_output/real_time_vis/vis_{mode}/{self.opt.test_scenario}_{self.current_time}"
                         os.makedirs(vis_dir, exist_ok=True)
-                        vis_save_path = os.path.join(vis_dir, f'{mode}_{i:05d}.png')
+                        vis_save_path = os.path.join(vis_dir, f'{mode}_{tick_number:05d}.png')
                         simple_vis.visualize(pred_box_tensor, gt_box_tensor,
                                             batch_data['ego']['origin_lidar'][0],
                                             self.hypes['postprocess']['gt_range'],
                                             vis_save_path, method=mode,
                                             left_hand=True, vis_pred_box=True)
 
-                if self.opt.show_vis or self.opt.save_vis:
+                if self.opt.show_vis:
                     vis_save_path = ''
-                    if self.opt.save_vis:
-                        vis_dir = "opencda/coperception_models/real_time_vis/vis"
-                        os.makedirs(vis_dir, exist_ok=True)
-                        vis_save_path = os.path.join(vis_dir, f'{i:05d}.png')
-
                     self.opencood_dataset.visualize_result(pred_box_tensor, gt_box_tensor,
                                                         batch_data['ego']['origin_lidar'],
                                                         self.opt.show_vis,
                                                         vis_save_path,
                                                         dataset=self.opencood_dataset)
 
-                if self.opt.show_sequence:
+                if self.opt.show_sequence and pred_box_tensor is not None:
+                    self.vis.clear_geometries()
                     pcd, pred_o3d_box, gt_o3d_box = \
                         vis_utils.visualize_inference_sample_dataloader(
                             pred_box_tensor,
@@ -138,23 +133,20 @@ class CoperceptionModelManager():
                             vis_pcd,
                             mode='constant')
                     if i == 0:
-                        vis.add_geometry(pcd)
-                        vis_utils.linset_assign_list(vis, vis_aabbs_pred, pred_o3d_box, update_mode='add')
-                        vis_utils.linset_assign_list(vis, vis_aabbs_gt, gt_o3d_box, update_mode='add')
-
-                    vis_utils.linset_assign_list(vis, vis_aabbs_pred, pred_o3d_box)
-                    vis_utils.linset_assign_list(vis, vis_aabbs_gt, gt_o3d_box)
-                    vis.update_geometry(pcd)
-                    vis.poll_events()
-                    vis.update_renderer()
-                    time.sleep(0.001)
+                        self.vis.add_geometry(pcd)
+                        vis_utils.linset_assign_list(self.vis, vis_aabbs_pred, pred_o3d_box, update_mode='add')
+                        vis_utils.linset_assign_list(self.vis, vis_aabbs_gt, gt_o3d_box, update_mode='add')
+                    else:
+                        vis_utils.linset_assign_list(self.vis, vis_aabbs_pred, pred_o3d_box)
+                        vis_utils.linset_assign_list(self.vis, vis_aabbs_gt, gt_o3d_box)
+                    self.vis.update_geometry(pcd)
+                    self.vis.poll_events()
+                    self.vis.update_renderer()
 
         for precision, current_result_stat in result_stat.items():
             logger.info(f'Result for {precision} - {current_result_stat}')
 
         eval_utils.eval_final_results(result_stat, self.opt.model_dir, self.opt.global_sort_detections)
-        if self.opt.show_sequence:
-            vis.destroy_window()
 
 
 class DirectoryProcessor:

@@ -152,3 +152,5 @@ opencda/coperception_models/real_time_vis
 ready*
 
 *.tar*
+
+simulation_output
