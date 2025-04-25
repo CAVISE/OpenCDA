@@ -16,7 +16,6 @@ import opencda.scenario_testing.utils.customized_map_api as map_api
 from opencda.core.common.cav_world import CavWorld
 from opencda.core.common.vehicle_manager import VehicleManager
 from opencda.core.common.rsu_manager import RSUManager
-from opencda.core.common.rsu_manager import RSUManager
 from opencda.core.common.communication.serialize import MessageHandler
 from opencda.core.application.platooning.platooning_manager import PlatooningManager
 
@@ -42,7 +41,6 @@ class Scenario:
     scenario_name: str
 
     def __init__(self, opt: argparse.Namespace, scenario_params: omegaconf.OmegaConf):
-
         self.scenario_name = opt.test_scenario
         self.scenario_params, current_time = add_current_time(scenario_params)
         logger.info(f'running scenario with name: {self.scenario_name}; current time: {current_time}')
@@ -99,14 +97,13 @@ class Scenario:
         if data_dump:
             self.scenario_manager.client.start_recorder(f'{self.scenario_name}.log', True)
 
-            save_yaml_name = Path('data_dumping') / current_time / 'data_protocol.yaml'
+            save_yaml_name = Path('simulation_output/data_dumping') / current_time / 'data_protocol.yaml'
             logger.info(f'saving params to {save_yaml_name}')
             os.makedirs(os.path.dirname(save_yaml_name), exist_ok=True)
             save_yaml(scenario_params, save_yaml_name)
 
             if opt.with_coperception and opt.model_dir:
                 from opencda.core.common.coperception_model_manager import CoperceptionModelManager
-
                 if opt.fusion_method not in ['late', 'early', 'intermediate']:
                     logger.error('Invalid fusion method: must be one of "late", "early", or "intermediate".')
                     sys.exit(1)
@@ -115,7 +112,7 @@ class Scenario:
                     logger.error(f'Model directory "{opt.model_dir}" does not exist.')
                     sys.exit(1)
 
-                self.coperception_model_manager = CoperceptionModelManager(opt=opt, message_handler=self.message_handler)
+                self.coperception_model_manager = CoperceptionModelManager(opt=opt, current_time=current_time, message_handler=self.message_handler)
                 logger.info('created cooperception manager')
 
         elif opt.record:
@@ -166,12 +163,15 @@ class Scenario:
         tick_number = 0
         if self.coperception_model_manager is not None:
             from opencda.core.common.coperception_model_manager import DirectoryProcessor
-            directory_processor = DirectoryProcessor(source_directory='data_dumping', now_directory='data_dumping/sample/now')
-            os.makedirs('data_dumping/sample/now', exist_ok=True)
+            now_directory='simulation_output/data_dumping/sample/now'
+            directory_processor = DirectoryProcessor(source_directory='simulation_output/data_dumping', now_directory=now_directory)
+            os.makedirs(now_directory, exist_ok=True)
             directory_processor.clear_directory_now()
 
         while True:
             tick_number += 1
+            if opt.ticks and tick_number > opt.ticks:
+                break
             logger.debug(f'running: simulation tick: {tick_number}')
             self.scenario_manager.tick()
 
@@ -229,7 +229,7 @@ class Scenario:
                     logger.info(f'{round(len(msg) / (1 << 20), 3)} MB were received')
                     self.message_handler.deserialize_from_string(msg)
 
-                self.coperception_model_manager.make_prediction()
+                self.coperception_model_manager.make_prediction(tick_number)
 
     def finalize(self, opt: argparse.Namespace):
         if opt.record:
