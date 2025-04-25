@@ -139,7 +139,7 @@ preprocess:
   cav_lidar_range: *id001
   core_method: SpVoxelPreprocessor
 root_dir: "/data/opv2v/train"
-validate_dir: "data_dumping/sample"
+validate_dir: "simulation_output/data_dumping/sample"
 yaml_parser: load_point_pillar_params
 train_params:
   batch_size: &batch_size 4
