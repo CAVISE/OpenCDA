@@ -12,6 +12,7 @@ import random
 import logging
 import sys
 import json
+
 from random import shuffle
 from omegaconf import OmegaConf
 from omegaconf.listconfig import ListConfig
@@ -20,12 +21,10 @@ import carla
 import numpy as np
 
 from opencda.core.common.vehicle_manager import VehicleManager
-from opencda.core.application.platooning.platooning_manager import \
-    PlatooningManager
+from opencda.core.application.platooning.platooning_manager import PlatooningManager
 from opencda.core.common.rsu_manager import RSUManager
 from opencda.core.common.cav_world import CavWorld
-from opencda.scenario_testing.utils.customized_map_api import \
-    load_customized_world, bcolors
+from opencda.scenario_testing.utils.customized_map_api import load_customized_world, bcolors
 
 logger = logging.getLogger("cavise.sim_api")
 
@@ -250,9 +249,23 @@ class ScenarioManager:
         )
         return weather
 
-    def create_vehicle_manager(self, application,
-                               map_helper=None,
-                               data_dump=False):
+    def spawn_custom_actor(self, spawn_transform, config, fallback_model):
+        model = config.get('model', fallback_model)
+        cav_vehicle_bp = self.world.get_blueprint_library().find(model)
+
+        color = config.get('color')
+        if color is not None:
+            cav_vehicle_bp.set_attribute('color', ', '.join(map(str, color)))
+
+        return self.world.spawn_actor(cav_vehicle_bp, spawn_transform)
+
+    def create_vehicle_manager(
+        self,
+        application,
+        map_helper=None,
+        data_dump=False,
+        fallback_model: str = 'vehicle.lincoln.mkz_2017'
+    ):
         """
         Create a list of single CAVs.
 
@@ -268,15 +281,14 @@ class ScenarioManager:
         data_dump : bool
             Whether to dump sensor data.
 
+        fallback_model: str
+            Fallback cav model if none provided by config. 
+
         Returns
         -------
         single_cav_list : list
             A list contains all single CAVs' vehicle manager.
         """
-        # By default, we use lincoln as our cav model.
-        default_model = 'vehicle.lincoln.mkz_2017'
-
-        cav_vehicle_bp = self.world.get_blueprint_library().find(default_model)
         single_cav_list = []
 
         if self.scenario_params.get('scenario') is None or self.scenario_params['scenario'].get('single_cav_list', None) is None:
@@ -288,9 +300,11 @@ class ScenarioManager:
             # in case the cav wants to join a platoon later
             # it will be empty dictionary for single cav application
             platoon_base = OmegaConf.create({'platoon': self.scenario_params.get('platoon_base', {})})
-            cav_config = OmegaConf.merge(self.scenario_params['vehicle_base'],
-                                         platoon_base,
-                                         cav_config)
+            cav_config = OmegaConf.merge(
+                self.scenario_params['vehicle_base'],
+                platoon_base,
+                cav_config
+            )
             # if the spawn position is a single scalar, we need to use map
             # helper to transfer to spawn transform
             if 'spawn_special' not in cav_config:
@@ -307,9 +321,7 @@ class ScenarioManager:
                 spawn_transform = map_helper(self.carla_version,
                                              *cav_config['spawn_special'])
 
-            cav_vehicle_bp.set_attribute('color', '0, 0, 255')
-            vehicle = self.world.spawn_actor(cav_vehicle_bp, spawn_transform)
-
+            vehicle = self.spawn_custom_actor(spawn_transform, cav_config, fallback_model)
             # create vehicle manager for each cav
             vehicle_manager = VehicleManager(
                 vehicle, cav_config, application,
@@ -321,9 +333,11 @@ class ScenarioManager:
 
             vehicle_manager.v2x_manager.set_platoon(None)
 
-            destination = carla.Location(x=cav_config['destination'][0],
-                                         y=cav_config['destination'][1],
-                                         z=cav_config['destination'][2])
+            destination = carla.Location(
+                x=cav_config['destination'][0],
+                y=cav_config['destination'][1],
+                z=cav_config['destination'][2]
+            )
             vehicle_manager.update_info()
             vehicle_manager.set_destination(
                 vehicle_manager.vehicle.get_location(),
@@ -335,7 +349,12 @@ class ScenarioManager:
 
         return single_cav_list
 
-    def create_platoon_manager(self, map_helper=None, data_dump=False):
+    def create_platoon_manager(
+        self,
+        map_helper=None,
+        data_dump: bool = False,
+        fallback_model: str = 'vehicle.lincoln.mkz_2017'
+    ):
         """
         Create a list of platoons.
 
@@ -348,6 +367,9 @@ class ScenarioManager:
         data_dump : bool
             Whether to dump sensor data.
 
+        fallback_model: str
+            Fallback cav model if none provided by config. 
+
         Returns
         -------
         single_cav_list : list
@@ -356,49 +378,40 @@ class ScenarioManager:
         platoon_list = []
         self.cav_world = CavWorld(self.apply_ml)
 
-        # we use lincoln as default choice since our UCLA mobility lab use the
-        # same car
-        default_model = 'vehicle.lincoln.mkz_2017'
-
-        cav_vehicle_bp = self.world.get_blueprint_library().find(default_model)
-
         if self.scenario_params.get('scenario') is None or self.scenario_params['scenario'].get('platoon_list', None) is None:
             logger.info('No platoon was created')
             return platoon_list
 
         # create platoons
         for i, platoon in enumerate(
-                self.scenario_params['scenario']['platoon_list']):
-            platoon = OmegaConf.merge(self.scenario_params['platoon_base'],
-                                      platoon)
+            self.scenario_params['scenario']['platoon_list']
+        ):
+            platoon = OmegaConf.merge(self.scenario_params['platoon_base'], platoon)
             platoon_manager = PlatooningManager(platoon, self.cav_world)
-            for j, cav in enumerate(platoon['members']):
-                platton_base = OmegaConf.create({'platoon': platoon})
-                cav = OmegaConf.merge(self.scenario_params['vehicle_base'],
-                                      platton_base,
-                                      cav
-                                      )
-                if 'spawn_special' not in cav:
+
+            for j, cav_config in enumerate(platoon['members']):
+                platoon_base = OmegaConf.create({'platoon': platoon})
+                cav_config = OmegaConf.merge(self.scenario_params['vehicle_base'], platoon_base, cav_config)
+                if 'spawn_special' not in cav_config:
                     spawn_transform = carla.Transform(
                         carla.Location(
-                            x=cav['spawn_position'][0],
-                            y=cav['spawn_position'][1],
-                            z=cav['spawn_position'][2]),
+                            x=cav_config['spawn_position'][0],
+                            y=cav_config['spawn_position'][1],
+                            z=cav_config['spawn_position'][2]
+                        ),
                         carla.Rotation(
-                            pitch=cav['spawn_position'][5],
-                            yaw=cav['spawn_position'][4],
-                            roll=cav['spawn_position'][3]))
+                            pitch=cav_config['spawn_position'][5],
+                            yaw=cav_config['spawn_position'][4],
+                            roll=cav_config['spawn_position'][3]
+                        )
+                    )
                 else:
-                    spawn_transform = map_helper(self.carla_version,
-                                                 *cav['spawn_special'])
+                    spawn_transform = map_helper(self.carla_version, *cav_config['spawn_special'])
 
-                cav_vehicle_bp.set_attribute('color', '0, 0, 255')
-                vehicle = self.world.spawn_actor(cav_vehicle_bp,
-                                                 spawn_transform)
-
+                vehicle = self.spawn_custom_actor(spawn_transform, cav_config, fallback_model)
                 # create vehicle manager for each cav
                 vehicle_manager = VehicleManager(
-                    vehicle, cav, ['platooning'],
+                    vehicle, cav_config, ['platooning'],
                     self.carla_map, self.cav_world,
                     current_time=self.scenario_params['current_time'],
                     data_dumping=data_dump)
@@ -410,9 +423,11 @@ class ScenarioManager:
                     platoon_manager.add_member(vehicle_manager, leader=False)
 
             self.world.tick()
-            destination = carla.Location(x=platoon['destination'][0],
-                                         y=platoon['destination'][1],
-                                         z=platoon['destination'][2])
+            destination = carla.Location(
+                x=platoon['destination'][0],
+                y=platoon['destination'][1],
+                z=platoon['destination'][2]
+            )
 
             platoon_manager.set_destination(destination)
             platoon_manager.update_member_order()
