@@ -172,7 +172,7 @@ train_params:
   eval_freq: 1
   max_cav: 5
   save_freq: 1
-validate_dir: data_dumping/sample
+validate_dir: simulation_output/data_dumping/sample
 wild_setting:
   async: true
   async_mode: sim
