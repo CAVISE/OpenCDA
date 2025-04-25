@@ -82,20 +82,28 @@ scenario:
               debug_trajectory: false
               debug: false
         - name: cav2
+          model: vehicle.mitsubishi.fusorosa
+          color: [255, 255, 255]
           spawn_position: [111.7194, 139.51, 0.3, 0, 0, 0]
         - name: cav3
+          model: vehicle.mitsubishi.fusorosa
+          color: [255, 0, 255]
           spawn_position: [101.7194, 139.51, 0.3, 0, 0, 0]
         - name: cav4
+          model: vehicle.mitsubishi.fusorosa
+          color: [0, 0, 255]
           spawn_position: [91.7194, 139.51, 0.3, 0, 0, 0]
 
 
   single_cav_list: # this is for merging vehicle or single cav without v2x
     - name: cav1
+      model: vehicle.mitsubishi.fusorosa
+      color: [255, 255, 255]
       spawn_position: [47.7194, 143.51, 0.3, 0, 0, 0]
       destination: [606.87, 145.39, 0]
       sensing:
         perception:
-          activate: true
+          activate: false
           camera:
             visualize: 1 # how many camera images need to be visualized. 0 means no visualization for camera
             num: 4 # how many cameras are mounted on the vehicle. Maximum 3(frontal, left and right cameras)

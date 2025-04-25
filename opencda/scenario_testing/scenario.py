@@ -18,7 +18,6 @@ from opencda.core.common.vehicle_manager import VehicleManager
 from opencda.core.common.rsu_manager import RSUManager
 from opencda.core.common.rsu_manager import RSUManager
 from opencda.core.common.communication.serialize import MessageHandler
-from opencda.core.common.coperception_model_manager import CoperceptionModelManager, DirectoryProcessor
 from opencda.core.application.platooning.platooning_manager import PlatooningManager
 
 from opencda.scenario_testing.evaluations.evaluate_manager import EvaluationManager
@@ -36,7 +35,7 @@ class Scenario:
     # TODO: find spectator type
     spectator: Any
     cav_world: CavWorld
-    coperception_model_manager: CoperceptionModelManager
+    coperception_model_manager: Any
     platoon_list: List[PlatooningManager]
     # TODO: find bg cars type
     bg_veh_list: Any
@@ -106,6 +105,7 @@ class Scenario:
             save_yaml(scenario_params, save_yaml_name)
 
             if opt.with_coperception and opt.model_dir:
+                from opencda.core.common.coperception_model_manager import CoperceptionModelManager
 
                 if opt.fusion_method not in ['late', 'early', 'intermediate']:
                     logger.error('Invalid fusion method: must be one of "late", "early", or "intermediate".')
@@ -130,8 +130,14 @@ class Scenario:
         )
         logger.info(f'created platoon list of size {len(self.platoon_list)}')
 
+        # I'm not sure application works this way
+        if len(self.platoon_list) > 0:
+            application = ['platooning']
+        else:
+            application = ['single']
+
         self.single_cav_list = self.scenario_manager.create_vehicle_manager(
-            application=['single'], map_helper=map_api.spawn_helper_2lanefree, data_dump=data_dump
+            application=application, map_helper=map_api.spawn_helper_2lanefree, data_dump=data_dump
         )
         logger.info(f'created single cavs of size {len(self.single_cav_list)}')
 
@@ -150,10 +156,19 @@ class Scenario:
         self.spectator = self.scenario_manager.world.get_spectator()
 
     def run(self, opt: argparse.Namespace):
+        if self.cav_world.comms_manager is not None:
+            self.cav_world.comms_manager.create_socket(zmq.PAIR, 'connect')
+            message_handler = MessageHandler()
+            logger.info('running: creating message handler')
+        else:
+            message_handler = None
+
         tick_number = 0
-        directory_processor = DirectoryProcessor(source_directory='data_dumping', now_directory='data_dumping/sample/now')
-        os.makedirs('data_dumping/sample/now', exist_ok=True)
-        directory_processor.clear_directory_now()
+        if self.coperception_model_manager is not None:
+            from opencda.core.common.coperception_model_manager import DirectoryProcessor
+            directory_processor = DirectoryProcessor(source_directory='data_dumping', now_directory='data_dumping/sample/now')
+            os.makedirs('data_dumping/sample/now', exist_ok=True)
+            directory_processor.clear_directory_now()
 
         while True:
             tick_number += 1
@@ -161,11 +176,11 @@ class Scenario:
             self.scenario_manager.tick()
 
             if not opt.free_spectator and any(array is not None for array in [self.single_cav_list, self.platoon_list]):
-                if self.single_cav_list is not None:
+                if len(self.single_cav_list) > 0:
                     transform = self.single_cav_list[0].vehicle.get_transform()
                     self.spectator.set_transform(carla.Transform(transform.location + carla.Location(z=50), carla.Rotation(pitch=-90)))
                 else:
-                    transform = self.platoon_list[0].vehicle_manager_list[0].vehicle
+                    transform = self.platoon_list[0].vehicle_manager_list[0].vehicle.get_transform()
                     self.spectator.set_transform(carla.Transform(transform.location + carla.Location(z=50), carla.Rotation(pitch=-90)))
 
             if self.platoon_list is not None:
