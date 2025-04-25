@@ -8,12 +8,17 @@
 
 import uuid
 import weakref
+import logging
 
 import carla
-import matplotlib.pyplot as plt
+
 import numpy as np
+import matplotlib.pyplot as plt
 
 import opencda.core.plan.drive_profile_plotting as open_plt
+
+
+logger = logging.getLogger('cavise.platooning_manager')
 
 
 class PlatooningManager(object):
@@ -129,13 +134,13 @@ class PlatooningManager(object):
         v2_ego_transform = \
             self.vehicle_manager_list[-1].v2x_manager.get_ego_pos()
 
-        self.center_loc = carla.Location(x=(v1_ego_transform.location.x +
-                                            v2_ego_transform.location.x) /
-                                         2, y=(v1_ego_transform.location.y +
-                                               v2_ego_transform.location.y) /
-                                         2, z=(v1_ego_transform.location.z +
-                                               v2_ego_transform.location.z) /
-                                         2)
+        if any(t is None for t in (v1_ego_transform, v2_ego_transform)):
+            return
+        self.center_loc = carla.Location(
+            x=(v1_ego_transform.location.x + v2_ego_transform.location.x) / 2,
+            y=(v1_ego_transform.location.y + v2_ego_transform.location.y) / 2,
+            z=(v1_ego_transform.location.z + v2_ego_transform.location.z) / 2
+        )
 
     def update_member_order(self):
         """
