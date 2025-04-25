@@ -1,46 +1,69 @@
-open3d
-matplotlib
-networkx
+# Core Numerical & Scientific Computing
 numpy==1.26.4
-pillow
-pyparsing
-six
-opencv-python
-pandas
-pygame
-scikit-learn
 scipy
-seaborn
-lxml
-shapely
-omegaconf
-notebook
-jupyter-packaging
-pyyaml
-cvxpy
-torch
-tqdm
-setuptools
-distro
-wheel
-typing-extensions
-pyzmq
-protoc-wheel
-# Protobuf version must be maintained
-# between artery and opencda!
-protobuf==5.27.0
-carla==0.9.15
-cmake
-easydict
+pandas
 numba
-scikit-image
-PyYAML
 cython
+scikit-image
+
+# Machine Learning & Deep Learning
+scikit-learn
+torch
+torchvision
 tensorboardX
-einops
 timm
 spconv-cu126
+einops
+omegaconf
+easydict
+
+# Visualization & Logging
+matplotlib
+seaborn
+tqdm
 coloredlogs
-torchvision
---find-links https://download.pytorch.org/whl/torch_stable.html
+
+# Computer Vision & 3D Data
+opencv-python
+Pillow
+open3d
+shapely
+lxml
+
+# Graphs & Networks
+networkx
+
+# Simulation & Control
+carla==0.9.15
 traci
+
+# Optimization & Convex Programming
+cvxpy
+
+# Protobuf & Code Generation
+protobuf==5.27.0
+protoc-wheel
+
+# Multimedia & GUI
+pygame
+
+# Packaging, Build & Runtime Utilities
+cmake
+setuptools
+wheel
+distro
+typing-extensions
+pyparsing
+six
+pyzmq
+
+# Jupyter & Notebook Packaging
+notebook
+jupyter-packaging
+
+# Extra (YAML support)
+rich
+pyyaml
+
+# PyTorch stable wheels link
+--find-links https://download.pytorch.org/whl/torch_stable.html

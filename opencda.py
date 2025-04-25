@@ -11,16 +11,25 @@ Script to run different scenarios.
 import os
 import sys
 import errno
+import typing
 import pathlib
 import logging
 import argparse
 import omegaconf
-import importlib
+
 
 from opencda.version import __version__
 
+
 try:
-    coloredlogs = importlib.import_module('coloredlogs')
+    from rich.traceback import install as rich_traceback_install
+except ModuleNotFoundError:
+    rich_traceback_install = None
+    print('Rich tracebacks are not available, all CLI configuration regarding tracebacks is ignored.')
+
+
+try:
+    import coloredlogs
 except ModuleNotFoundError:
     coloredlogs = None
     print('could not find coloredlogs module! Your life will look pale.')
@@ -42,25 +51,65 @@ def create_logger(level: int, fmt: str = '- [%(asctime)s][%(name)s] %(message)s'
     return logger
 
 
+def install_traceback_handler(verbose: bool = True, suppress_modules: typing.Collection[str] = ()):
+    default_filtered_modules = [
+        'numpy',
+        'scipy',
+        'pandas',
+        'matplotlib',
+        'seaborn',
+        'torch',
+        'torchvision',
+        'scikit-learn',
+        'scikit-image',
+        'omegaconf'
+    ]
+
+    joined = set(default_filtered_modules) & set(suppress_modules)
+    if rich_traceback_install is not None:
+        rich_traceback_install(show_locals=verbose, suppress=joined)
+
+
 # Parse command line args.
 def arg_parse() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="OpenCDA scenario runner.")
+    parser = argparse.ArgumentParser(description='OpenCDA scenario runner.')
     # opencda basic args
-    parser.add_argument('-t', '--test-scenario', required=True, type=str,
-                        help='Define the name of the scenario you want to test. The given name must'
-                             'match one of the testing scripts(e.g. single_2lanefree_carla) in '
-                             'opencda/scenario_testing/ folder'
-                             ' as well as the corresponding yaml file in opencda/scenario_testing/config_yaml.')
-    parser.add_argument('--record', action='store_true', help='whether to record and save the simulation process to .log file')
+    parser.add_argument(
+        '-t', '--test-scenario', required=True, type=str,
+        help='Define the name of the scenario you want to test. Notice, this only has effect on configurations that are picked up by scenario'
+    )
+    parser.add_argument(
+        '--record', action='store_true',
+        help='Whether to record and save the simulation process to .log file'
+    )
     # NOTICE: temporary disabled until we update yolo models.
     # parser.add_argument("--apply-ml", action='store_true',
     #                     help='whether ml/dl framework such as sklearn/pytorch is needed in the testing. '
     #                          'Set it to true only when you have installed the pytorch/sklearn package.')
-    parser.add_argument('-v', "--version", type=str, default='0.9.15', help='Specify the CARLA simulator version.')
-    parser.add_argument('--free-spectator', action='store_true', help='Enable free movement for the spectator camera.')
-    parser.add_argument('-x', '--xodr', action='store_true', help='Run simulation using a custom map from an XODR file.')
-    parser.add_argument('-c', '--cosim', action='store_true', help='Enable co-simulation with SUMO.')
-    parser.add_argument('--with-capi', action='store_true', help='wether to run a communication manager instance in this simulation.')
+    parser.add_argument(
+        '-v', '--version', type=str, default='0.9.15',
+        help='Specify the CARLA simulator version (this does not have any effect in our fork)'
+    )
+    parser.add_argument(
+        '--free-spectator', action='store_true',
+        help='Enable free movement for the spectator camera.'
+    )
+    parser.add_argument(
+        '-x', '--xodr', action='store_true',
+        help='Run simulation using a custom map from an XODR file.'
+    )
+    parser.add_argument(
+        '-c', '--cosim', action='store_true',
+        help='Enable co-simulation with SUMO.'
+    )
+    parser.add_argument(
+        '--with-capi', action='store_true',
+        help='wether to run a communication manager instance in this simulation.'
+    )
+    parser.add_argument(
+        '--silence-run', dest='silent_run', action='store_true', default=False,
+        help='Log less to console and show less with tracebacks.'
+    )
 
     # Coperception models parameters
     parser.add_argument('--with-coperception', action='store_true', help='Whether to enable the use of cooperative perception models in this simulation.')
@@ -82,17 +131,22 @@ def arg_parse() -> argparse.Namespace:
 # TODO: python opencood/pcdet_utils/setup.py build_ext --inplace
 def main() -> None:
     opt = arg_parse()
-    logger = create_logger(logging.DEBUG)
+
+    verbosity, level = (False, logging.INFO) \
+        if opt.silent_run else (True, logging.DEBUG)
+    logger = create_logger(level)
+    install_traceback_handler(verbose=verbosity)
+
     logger.info(f'OpenCDA Version: {__version__}')
 
     cwd = pathlib.PurePath(os.getcwd())
-    default_yaml = config_yaml = cwd.joinpath('opencda/scenario_testing/config_yaml/default.yaml')
-    config_yaml = cwd.joinpath(f'opencda/scenario_testing/config_yaml/{opt.test_scenario}.yaml')
+    default_yaml = config_yaml = cwd / 'opencda/scenario_testing/config_yaml/default.yaml'
+    config_yaml = cwd / f'opencda/scenario_testing/config_yaml/{opt.test_scenario}.yaml'
     if not os.path.isfile(config_yaml):
-        logger.error(f'opencda/scenario_testing/config_yaml/{opt.test_scenario}.yaml not found!')
+        logger.error(f'{config_yaml.relative_to(cwd)} not found!')
         sys.exit(errno.EPERM)
 
-    # allow opencood imports
+    # allow OpenCOOD imports
     sys.path.append(str(cwd.joinpath('OpenCOOD')))
 
     # set the yaml file for the specific testing scenario
@@ -100,14 +154,15 @@ def main() -> None:
     default_dict = omegaconf.OmegaConf.load(str(default_yaml))
     scene_dict = omegaconf.OmegaConf.load(str(config_yaml))
     scene_dict = omegaconf.OmegaConf.merge(default_dict, scene_dict)
-    opt.apply_ml = False
-    testing_scenario = importlib.import_module('opencda.scenario_testing.scenario')
 
-    scenario_runner = getattr(testing_scenario, 'run_scenario')
-    if scenario_runner is None:
-        logger.error('Failed to get \'run_scenario\' method from scenario module. Ensure it exists and follows specified template')
-        sys.exit(errno.EPERM)
-    scenario_runner(opt, scene_dict)
+    # NOTICE: temporary measure (while option is turned off)
+    opt.apply_ml = False
+
+    # this function might setup crucial components in Scenario, so
+    # we should import as late as possible
+    from opencda.scenario_testing.scenario import run_scenario
+
+    run_scenario(opt, scene_dict)
 
 
 if __name__ == '__main__':
