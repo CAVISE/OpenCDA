@@ -76,33 +76,51 @@ class MessageHandler:
             'dtype': ndarray_msg.dtype
         }
 
+    def __safe_copy_ndarray(self, msg, entity_message, msg_to_message):
+        for msg_key, entity_field_name in msg_to_message.items():
+            if msg.get(msg_key) is not None:
+                getattr(entity_message, entity_field_name).CopyFrom(self.__serialize_ndarray(msg[msg_key]))
+
     def __set_entity_data(self):
         for id in self.current_message_opencda.keys():
-            entity_message = self.opencda_message.entity.add()  # Добавляем новый объект entity в список
+            entity_message = self.opencda_message.entity.add()
             entity_message.id = int(id)
             with self.handle_opencda_message(id, 'coperception') as msg:
+
+                msg_to_message = {
+                    "object_bbx_center": "object_bbx_center",
+                    "object_bbx_mask": "object_bbx_mask",
+                    "anchor_box": "anchor_box",
+                    "pos_equal_one": "pos_equal_one",
+                    "neg_equal_one": "neg_equal_one",
+                    "targets": "targets",
+                    "origin_lidar": "origin_lidar",
+                    "spatial_correction_matrix": "spatial_correction_matrix",
+                    "voxel_num_points": "voxel_num_points",
+                    "voxel_features": "voxel_features",
+                    "voxel_coords": "voxel_coords",
+                    "projected_lidar": "projected_lidar"
+                }
+
+                # field 2
                 if msg['infra'] is not None:
                     entity_message.infra = msg['infra']
+
+                # field 3
                 if msg['velocity'] is not None:
                     entity_message.velocity = msg['velocity']
+
+                # field 4
                 if msg['time_delay'] is not None:
                     entity_message.time_delay = msg['time_delay']
+
+                # field 5
                 entity_message.object_ids.extend(msg['object_ids'])
 
-                entity_message.object_bbx_center.CopyFrom(self.__serialize_ndarray(msg['object_bbx_center']))
+                # field 5
+                entity_message.lidar_pose.extend(msg['lidar_pose'])
 
-                if msg['spatial_correction_matrix'] is not None:
-                    entity_message.spatial_correction_matrix.CopyFrom(self.__serialize_ndarray(msg['spatial_correction_matrix']))
-
-                if msg['voxel_num_points'] is not None:
-                    entity_message.voxel_num_points.CopyFrom(self.__serialize_ndarray(msg['voxel_num_points']))
-                if msg['voxel_features'] is not None:
-                    entity_message.voxel_features.CopyFrom(self.__serialize_ndarray(msg['voxel_features']))
-                if msg['voxel_coords'] is not None:
-                    entity_message.voxel_coords.CopyFrom(self.__serialize_ndarray(msg['voxel_coords']))
-
-                if msg['projected_lidar'] is not None:
-                    entity_message.projected_lidar.CopyFrom(self.__serialize_ndarray(msg['projected_lidar']))
+                self.__safe_copy_ndarray(msg, entity_message, msg_to_message)
 
     @contextmanager
     def handle_opencda_message(self, id, message_type):
@@ -116,11 +134,14 @@ class MessageHandler:
                     'velocity': None,
                     'time_delay': None,
                     'object_ids': [],
-                    'object_bbx_center': {
-                        'data': bytes(),
-                        'shape': [],
-                        'dtype': ''
-                    },
+                    'lidar_pose': [],
+                    'object_bbx_center': None,
+                    'object_bbx_mask': None,
+                    'anchor_box': None,
+                    'pos_equal_one': None,
+                    'neg_equal_one': None,
+                    'targets': None,
+                    'origin_lidar': None,
                     'spatial_correction_matrix': None,
                     'voxel_num_points': None,
                     'voxel_features': None,
@@ -154,11 +175,14 @@ class MessageHandler:
                     'velocity': None,
                     'time_delay': None,
                     'object_ids': [],
-                    'object_bbx_center': {
-                        'data': bytes(),
-                        'shape': [],
-                        'dtype': ''
-                    },
+                    'lidar_pose': [],
+                    'object_bbx_center': None,
+                    'object_bbx_mask': None,
+                    'anchor_box': None,
+                    'pos_equal_one': None,
+                    'neg_equal_one': None,
+                    'targets': None,
+                    'origin_lidar': None,
                     'spatial_correction_matrix': None,
                     'voxel_num_points': None,
                     'voxel_features': None,
@@ -196,14 +220,32 @@ class MessageHandler:
 
                 with self.handle_artery_message(ego_id, entity_id, 'coperception') as msg:
                     optional_fields = [
-                        'infra', 'velocity', 'time_delay', 'spatial_correction_matrix',
-                        'voxel_num_points', 'voxel_features', 'voxel_coords', 'projected_lidar'
+                        'infra',                        # field 2
+                        'velocity',                     # field 3
+                        'time_delay',                   # field 4
+                        'object_bbx_center',            # field 7
+                        'object_bbx_mask',              # field 8
+                        'anchor_box',                   # field 9
+                        'pos_equal_one',                # field 10
+                        'neg_equal_one',                # field 11
+                        'targets',                      # field 12
+                        'origin_lidar',                 # field 13
+                        'spatial_correction_matrix',    # field 14
+                        'voxel_num_points',             # field 15
+                        'voxel_features',               # field 16
+                        'voxel_coords',                 # field 17
+                        'projected_lidar'               # field 18
                     ]
 
                     for field in optional_fields:
                         if entity_info.HasField(field):
-                            if field in ['spatial_correction_matrix', 'voxel_num_points',
-                                        'voxel_features', 'voxel_coords', 'projected_lidar']:
+                            if field in [
+                                'object_bbx_center', 'object_bbx_mask', 'anchor_box',
+                                'pos_equal_one', 'neg_equal_one', 'targets',
+                                'origin_lidar',
+                                'spatial_correction_matrix', 'voxel_num_points',
+                                'voxel_features', 'voxel_coords', 'projected_lidar'
+                            ]:
                                 msg[field] = self.__deserialize_ndarray(getattr(entity_info, field))
                             else:
                                 msg[field] = getattr(entity_info, field)
@@ -211,4 +253,4 @@ class MessageHandler:
                             msg[field] = None
 
                     msg['object_ids'] = list(entity_info.object_ids)
-                    msg['object_bbx_center'] = self.__deserialize_ndarray(entity_info.object_bbx_center)
+                    msg['lidar_pose'] = list(entity_info.lidar_pose)
