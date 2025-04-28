@@ -1,0 +1,141 @@
+description: |-
+  Copyright 2021 <UCLA Mobility Lab>
+  Author: Runsheng Xu <rxx3386@ucla.edu>
+  Content: This is the scenario testing configuration file for single vehicle full-stack system in town06 with co-simulation
+
+world:
+  town: Town04
+  # weather:
+  #   sun_altitude_angle: 90
+
+blueprint:
+  use_multi_class_bp: true
+  bp_meta_path: "opencda/assets/blueprint_meta/bbx_stats_0915.json" # Define the path for loading the blueprint metadata for defining the class of each blueprint
+  # Define blueprint type sample probabilities
+  bp_class_sample_prob:
+    car: 0.5
+    truck: 0.1
+    bus: 0.1
+    bicycle: 0.1
+    motorcycle: 0.1
+    
+rsu_base:
+  sensing:
+    perception:
+      activate: false # when not activated, objects positions will be retrieved from server directly
+      camera:
+        visualize: 0 # how many camera images need to be visualized. 0 means no visualization for camera
+        num: 4 # how many cameras are mounted on the vehicle. Maximum 3(frontal, left and right cameras)
+        # relative positions (x,y,z,yaw) of the camera. len(positions) should be equal to camera num
+        positions:
+          - [2.5, 0, 1.0, 0]
+          - [0.0, 0.3, 1.8, 100]
+          - [0.0, -0.3, 1.8, -100]
+          - [-2.0, 0.0, 1.5, 180]
+      lidar: # lidar sensor configuration, check CARLA sensor reference for more details
+        visualize: false
+        channels: 32
+        range: 120
+        points_per_second: 1000000
+        rotation_frequency: 20 # the simulation is 20 fps
+        upper_fov: 2
+        lower_fov: -25
+        dropoff_general_rate: 0.3
+        dropoff_intensity_limit: 0.7
+        dropoff_zero_intensity: 0.4
+        noise_stddev: 0.02
+    localization:
+      activate: false # when not activated, ego position will be retrieved from server directly
+      dt: ${world.fixed_delta_seconds} # used for kalman filter
+      gnss: # gnss sensor configuration
+        noise_alt_stddev: 0.05
+        noise_lat_stddev: 3e-6
+        noise_lon_stddev: 3e-6
+
+
+# First define the basic parameters of the vehicles
+vehicle_base:
+  sensing:
+    perception:
+      activate: false # when not activated, objects positions will be retrieved from server directly
+      camera:
+        visualize: 0 # how many camera images need to be visualized. 0 means no visualization for camera
+        num: 4 # how many cameras are mounted on the vehicle. Maximum 3(frontal, left and right cameras)
+        # relative positions (x,y,z,yaw) of the camera. len(positions) should be equal to camera num
+        positions:
+          - [2.5, 0, 1.0, 0]
+          - [0.0, 0.3, 1.8, 100]
+          - [0.0, -0.3, 1.8, -100]
+          - [-2.0, 0.0, 1.5, 180]
+      lidar: # lidar sensor configuration, check CARLA sensor reference for more details
+        visualize: false
+        channels: 32
+        range: 120
+        points_per_second: 1000000
+        rotation_frequency: 20 # the simulation is 20 fps
+        upper_fov: 2
+        lower_fov: -25
+        dropoff_general_rate: 0.3
+        dropoff_intensity_limit: 0.7
+        dropoff_zero_intensity: 0.4
+        noise_stddev: 0.02
+
+    localization:
+      activate: false # when not activated, ego position will be retrieved from server directly
+      debug_helper:
+        show_animation: false # whether to show real-time trajectory plotting
+
+  behavior:
+    ignore_traffic_light: true # whether to ignore traffic light
+    collision_time_ahead: 2.0 # used for collision checking
+    local_planner:
+      debug_trajectory: false
+      debug: false
+
+# define sumo simulation setting for traffic generation
+sumo:
+  port: 3000
+  host: sumo
+  gui: true
+  client_order: 2
+  step_length: ${world.fixed_delta_seconds}
+
+scenario:
+  rsu_list:
+    - name: rsu1
+      spawn_position: [252, -176, 6, 0, 0, 0]
+      id: -1
+
+  single_cav_list:
+    - name: cav1 # down -> up
+      spawn_position: [215, -169, 0.3, 0, 0, 0]
+      destination: [340, -169, 0.3]
+      id: 100
+    - name: cav2 # down -> right
+      spawn_position: [225, -169, 0.3, 0, 0, 0]
+      destination: [300, -117, 0.3]
+      id: 200
+    - name: cav3 # up -> down
+      spawn_position: [295, -172, 0.3, 0, 180, 0]
+      destination: [150, -172, 0.3]
+      id: 300
+    - name: cav4 # up -> left
+      spawn_position: [305, -172, 0.3, 0, 180, 0]
+      destination: [260, -195, 0.3]
+      id: 400
+    - name: cav5 # left -> right
+      spawn_position: [255, -210, 0.3, 0, 90, 0]
+      destination: [300, -118, 0.3]
+      id: 500
+    - name: cav6 # left -> right
+      spawn_position: [255, -220, 0.3, 0, 90, 0]
+      destination: [300, -118, 0.3]
+      id: 600
+    - name: cav7 # right -> up
+      spawn_position: [259, -137, 0.3, 0, -90, 0]
+      destination: [340, -169, 0.3]
+      id: 700
+    - name: cav8 # right -> left
+      spawn_position: [259, -127, 0.3, 0, -90, 0]
+      destination: [257, -230, 0.3]
+      id: 800
