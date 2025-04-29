@@ -233,3 +233,4 @@ class VehicleManager(object):
         self.localizer.destroy()
         self.vehicle.destroy()
         self.map_manager.destroy()
+        self.safety_manager.destroy()
