@@ -123,6 +123,12 @@ def arg_parse() -> argparse.Namespace:
                         help='whether to globally sort detections by confidence score.'
                              'If set to True, it is the mainstream AP computing method,'
                              'but would increase the tolerance for FP (False Positives).')
+
+    # [CoDrivingInt] Codriveing models parametrs
+    parser.add_argument('--with-mtp', action='store_true', help='Whether to enable the use of cooperative driving models in this simulation.')
+    parser.add_argument('--mtp-config', type=str, default='mtp_config_default', help='Define configuration of cooperative driving model.')
+    # [CoDrivingInt]
+
     parser.add_argument('--ticks', type=int, help='number of simulation ticks to execute')
     return parser.parse_args()
 

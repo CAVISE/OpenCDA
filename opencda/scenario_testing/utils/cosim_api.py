@@ -82,6 +82,7 @@ class CoScenarioManager(ScenarioManager):
         # sumo side initialization
         base_name = os.path.basename(sumo_file_parent_path)
 
+
         sumo_key = 'sumo'
 
         sumo_cfg = os.path.join(sumo_file_parent_path, base_name + '.sumocfg')
