@@ -37,7 +37,7 @@ class Scenario:
     # TODO: find spectator type
     spectator: Any
     cav_world: CavWorld
-    codriving_model_manager: CodrivingModelManager # [CoDrivingInt]
+    codriving_model_manager: CodrivingModelManager  # [CoDrivingInt]
     platoon_list: List[PlatooningManager]
     # TODO: find bg cars type
     bg_veh_list: Any
@@ -123,7 +123,7 @@ class Scenario:
             self.scenario_manager.client.start_recorder(f'{self.scenario_name}.log', True)
         else:
             self.coperception_model_manager = None
-        
+
         # [CoDrivingInt]
         if opt.with_mtp:
             logger.info('Codriving Model is initialized')
@@ -133,7 +133,7 @@ class Scenario:
 
             # TODO: Replace with params from scenario file
             self.codriving_model_manager = CodrivingModelManager(
-                pretrained='opencda/codriving_models/gnn_mtl_gnn/model_rot_gnn_mtl_np_sumo_0911_e3_1930.pth', \
+                pretrained='opencda/codriving_models/gnn_mtl_gnn/model_rot_gnn_mtl_np_sumo_0911_e3_1930.pth',
                 model_name="GNN_mtl_gnn",
                 nodes=nodes
             )
@@ -181,13 +181,12 @@ class Scenario:
         tick_number = 0
         if self.coperception_model_manager is not None:
             from opencda.core.common.coperception_model_manager import DirectoryProcessor
-            now_directory='simulation_output/data_dumping/sample/now'
+            now_directory = 'simulation_output/data_dumping/sample/now'
             directory_processor = DirectoryProcessor(source_directory='simulation_output/data_dumping', now_directory=now_directory)
             os.makedirs(now_directory, exist_ok=True)
             directory_processor.clear_directory_now()
 
         while True:
-            logger.debug(f'running: sumulation tick: {tick_number}')
             # [CoDrivingInt]
             if opt.with_mtp:
                 self.codriving_model_manager.make_trajs()
