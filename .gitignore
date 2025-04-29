@@ -1,3 +1,7 @@
+csv
+fcd
+training_params
+
 __pycache__/
 *.py[cod]
 *$py.class

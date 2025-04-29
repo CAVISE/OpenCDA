@@ -5,7 +5,7 @@
 #
 # This work is licensed under the terms of the MIT license.
 # For a copy, see <https://opensource.org/licenses/MIT>.
-""" This module provides a helper for the co-simulation between sumo and carla ."""
+""" This module provides a helper for the co-simulation between sumo and carla."""
 
 # ==================================================================================================
 # -- imports ---------------------------------------------------------------------------------------
