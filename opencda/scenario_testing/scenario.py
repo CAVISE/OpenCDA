@@ -2,6 +2,7 @@ import os
 import zmq
 import sys
 import carla
+import sumolib
 import logging
 import argparse
 import omegaconf
@@ -18,6 +19,8 @@ from opencda.core.common.vehicle_manager import VehicleManager
 from opencda.core.common.rsu_manager import RSUManager
 from opencda.core.common.communication.serialize import MessageHandler
 from opencda.core.application.platooning.platooning_manager import PlatooningManager
+from opencda.core.common.codriving_model_manager import CodrivingModelManager
+
 
 from opencda.scenario_testing.evaluations.evaluate_manager import EvaluationManager
 from opencda.scenario_testing.utils.yaml_utils import add_current_time, save_yaml
@@ -34,7 +37,7 @@ class Scenario:
     # TODO: find spectator type
     spectator: Any
     cav_world: CavWorld
-    coperception_model_manager: Any
+    codriving_model_manager: CodrivingModelManager # [CoDrivingInt]
     platoon_list: List[PlatooningManager]
     # TODO: find bg cars type
     bg_veh_list: Any
@@ -120,6 +123,21 @@ class Scenario:
             self.scenario_manager.client.start_recorder(f'{self.scenario_name}.log', True)
         else:
             self.coperception_model_manager = None
+        
+        # [CoDrivingInt]
+        if opt.with_mtp:
+            logger.info('Codriving Model is initialized')
+
+            net = sumolib.net.readNet(f"opencda/sumo-assets/{self.scenario_name}/{self.scenario_name}.net.xml")
+            nodes = net.getNodes()
+
+            # TODO: Replace with params from scenario file
+            self.codriving_model_manager = CodrivingModelManager(
+                pretrained='opencda/codriving_models/gnn_mtl_gnn/model_rot_gnn_mtl_np_sumo_0911_e3_1930.pth', \
+                model_name="GNN_mtl_gnn",
+                nodes=nodes
+            )
+        # [CoDrivingInt]
 
         self.platoon_list = self.scenario_manager.create_platoon_manager(
             map_helper=map_api.spawn_helper_2lanefree,
@@ -169,6 +187,12 @@ class Scenario:
             directory_processor.clear_directory_now()
 
         while True:
+            logger.debug(f'running: sumulation tick: {tick_number}')
+            # [CoDrivingInt]
+            if opt.with_mtp:
+                self.codriving_model_manager.make_trajs()
+            # [CoDrivingInt]
+
             tick_number += 1
             if opt.ticks and tick_number > opt.ticks:
                 break
