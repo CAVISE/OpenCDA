@@ -1,0 +1,41 @@
+# system
+NX: 4                       # state vector: z = [x, y, v, phi]
+NU: 2                       # input vector: u = [acceleration, steer]
+T: 3                        # finite time horizon length
+                            # if T is 1, the vehicle would have a larger turning radius                      
+T_aug: 30                   # finite time horizon length
+dist_stop: 1.5              # stop permitted when dist to goal < dist_stop
+speed_stop: 0.5             # stop permitted when speed < speed_stop
+time_max: 500.0             # max simulation time
+iter_max: 5                 # max iteration
+target_speed: 10.0          # target speed
+n_ind: 10                   # search index number
+dt: 0.1                     # time step
+d_dist: 1.0                 # dist step
+du_res: 0.25                # threshold for stopping iteration
+
+# mpc
+# np.diag()
+Qf: [5.0, 5.0, 0.0, 20.0]   # penalty for end state. 
+                            # Since now we only trace a single target point but not a desired traj, only Qf is used but not Q
+R: [0.01, 5.8]              # penalty for inputs. Had better choose large penalty for steering to avoid zig-zag
+Rd: [0.01, 10.1]            # penalty for change of inputs
+
+# vehicle
+RF: 3.3                     # [m] distance from rear to vehicle front end of vehicle
+RB: 0.8                     # [m] distance from rear to vehicle back end of vehicle
+W: 2.4                      # [m] width of vehicle
+wd_ratio: 0.7               # [m] distance between left-right wheels
+WB: 2.5                     # [m] Wheel base
+TR: 0.44                    # [m] Tyre radius
+TW: 0.7                     # [m] Tyre width
+
+steer_deg: 60.0             # max steering angle np.deg2rad() [rad] 
+steer_change_deg: 30.0      # maximum steering speed np.deg2rad() [rad/s]
+speed_max_kph: 55.0         # maximum speed [m/s]
+speed_min_kph: -20.0        # minimum speed [m/s]
+acceleration_max: 1.0       # maximum acceleration [m/s2]
+
+# consts
+kph_to_mps: 3.6
+deg_to_rad: 0.0174533
