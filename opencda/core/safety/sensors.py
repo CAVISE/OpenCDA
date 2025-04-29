@@ -353,3 +353,6 @@ class TrafficLightDector(object):
 
     def return_status(self):
         return {'ran_light': self.ran_light}
+
+    def destroy(self):
+        pass
