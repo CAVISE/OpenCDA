@@ -257,35 +257,35 @@ class Scenario:
     def finalize(self, opt: argparse.Namespace):
         if opt.record:
             self.scenario_manager.client.stop_recorder()
-            logging.info('finalizing: stopping recorder')
+            logger.info('finalizing: stopping recorder')
 
         if self.eval_manager is not None:
             self.eval_manager.evaluate()
-            logging.info('finalizing: evaluating results')
-
-        if self.scenario_manager is not None:
-            self.scenario_manager.close()
-            logging.info('finalizing: evaluating results')
-
-        if self.platoon_list is not None:
-            logging.info(f'finalizing: destroying {len(self.platoon_list)} platoons')
-            for platoon in self.platoon_list:
-                platoon.destroy()
-
-        if self.bg_veh_list is not None:
-            logging.info(f'finalizing: destroying {len(self.platoon_list)} background cars')
-            for v in self.bg_veh_list:
-                v.destroy()
+            logger.info('finalizing: evaluating results')
 
         if self.single_cav_list is not None:
-            logging.info(f'finalizing: destroying {len(self.platoon_list)} single cavs')
+            logger.info(f'finalizing: destroying {len(self.single_cav_list)} single cavs')
             for v in self.single_cav_list:
                 v.destroy()
 
         if self.rsu_list is not None:
-            logging.info(f'finalizing: destroying {len(self.platoon_list)} RSUs')
+            logger.info(f'finalizing: destroying {len(self.rsu_list)} RSUs')
             for r in self.rsu_list:
                 r.destroy()
+
+        if self.scenario_manager is not None:
+            self.scenario_manager.close()
+            logger.info('finalizing: evaluating results')
+
+        if self.platoon_list is not None:
+            logger.info(f'finalizing: destroying {len(self.platoon_list)} platoons')
+            for platoon in self.platoon_list:
+                platoon.destroy()
+
+        if self.bg_veh_list is not None:
+            logger.info(f'finalizing: destroying {len(self.bg_veh_list)} background cars')
+            for v in self.bg_veh_list:
+                v.destroy()
 
 
 def run_scenario(opt, scenario_params) -> None:
@@ -296,6 +296,7 @@ def run_scenario(opt, scenario_params) -> None:
     except Exception as error:
         raised_error = error
     finally:
+        logger.info("Wrapping things up... Please don't press Ctrl+C")
         if scenario:
             scenario.finalize(opt)
         if raised_error is not None:
