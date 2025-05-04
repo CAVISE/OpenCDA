@@ -10,13 +10,14 @@ Script to run different scenarios.
 
 import os
 import sys
+import enum
 import errno
 import typing
 import pathlib
 import logging
 import argparse
 import omegaconf
-
+import subprocess
 
 from opencda.version import __version__
 
@@ -36,9 +37,23 @@ except ModuleNotFoundError:
     print('if you are interested in improving it: https://pypi.org/project/coloredlogs')
 
 
+BUILD_COMPLETED_FLAG = "BUILD_COMPLETED_FLAG"
+
+
+class VerbosityLevel(enum.IntEnum):
+    # minimal output: important info, warnings and errors
+    SILENT = 1
+    # more info: might include some specific information about
+    # servives, simulators' state - should match INFO logging level
+    INFO = 2
+    # all output, use this for development
+    FULL = 3
+
+
 # Handle cavise log creation, obtain this logger later with a call to
 # logging.getLogger('cavise'). Use for our (cavise) code only.
-def create_logger(level: int, fmt: str = '- [%(asctime)s][%(name)s] %(message)s', datefmt: str = '%H:%M:%S') -> logging.Logger:
+def create_logger(level: int, fmt: str = '- [%(asctime)s][%(name)s] %(message)s',
+                  datefmt: str = '%H:%M:%S') -> logging.Logger:
     logger = logging.getLogger('cavise')
     if coloredlogs is not None:
         coloredlogs.install(level=level, logger=logger, fmt=fmt, datefmt=datefmt)
@@ -106,23 +121,32 @@ def arg_parse() -> argparse.Namespace:
         '--with-capi', action='store_true',
         help='wether to run a communication manager instance in this simulation.'
     )
-    parser.add_argument(
-        '--silence-run', dest='silent_run', action='store_true', default=False,
-        help='Log less to console and show less with tracebacks.'
-    )
 
     # Coperception models parameters
-    parser.add_argument('--with-coperception', action='store_true', help='Whether to enable the use of cooperative perception models in this simulation.')
+    parser.add_argument('--with-coperception', action='store_true',
+                        help='Whether to enable the use of cooperative perception models in this simulation.')
     parser.add_argument('--model-dir', type=str, help='Continued training path')
     parser.add_argument('--fusion-method', type=str, default='late', help='late, early or intermediate')
     parser.add_argument('--show-vis', action='store_true', help='whether to show image visualization result')
-    parser.add_argument('--show-sequence', action='store_true', help='whether to show video visualization result. It can not be set true with show_vis together.')
+    parser.add_argument('--show-sequence', action='store_true',
+                        help='whether to show video visualization result. It can not be set true with show_vis together.')
     parser.add_argument('--save-vis', action='store_true', help='whether to save visualization result')
     parser.add_argument('--save-npy', action='store_true', help='whether to save prediction and gt result in npy_test file')
     parser.add_argument('--global-sort-detections', action='store_true',
                         help='whether to globally sort detections by confidence score.'
                              'If set to True, it is the mainstream AP computing method,'
                              'but would increase the tolerance for FP (False Positives).')
+
+    def verbosity_wrapper(arg: str) -> VerbosityLevel:
+        return VerbosityLevel(int(arg))
+    parser.add_argument(
+        '--verbose',
+        action='store',
+        type=verbosity_wrapper,
+        default=VerbosityLevel.FULL,
+        choices=[level.value for level in VerbosityLevel],
+        help='Specifies overall verbosity of output.'
+    )
 
     # [CoDrivingInt] Codriveing models parametrs
     parser.add_argument('--with-mtp', action='store_true', help='Whether to enable the use of cooperative driving models in this simulation.')
@@ -133,15 +157,48 @@ def arg_parse() -> argparse.Namespace:
     return parser.parse_args()
 
 
-# TODO: python setup.py develop для OpenCOOD на проверку присутствия файлов cython
-# TODO: python opencood/pcdet_utils/setup.py build_ext --inplace
+def check_buld_for_utils(module_path: str, cwd: pathlib.PurePath, verbose: bool, logger: logging.Logger) -> bool:
+    marker_file = cwd.joinpath(f'OpenCOOD/{module_path}/{BUILD_COMPLETED_FLAG}')
+    module_name = f"opencood.{module_path.split('/')[-2]}"
+    if os.path.isfile(marker_file):
+        logger.info(f"{module_name} is already built")
+        return True
+
+    try:
+        logger.info(f"Building {module_name} ...")
+        result = subprocess.run(
+            ["python", f"{module_path}setup.py", "build_ext", "--inplace"],
+            check=True,
+            cwd=cwd.joinpath("OpenCOOD"),
+            capture_output=True,
+            text=True
+        )
+        os.close(os.open(str(marker_file), os.O_CREAT))
+        logger.info(f"Complete building {module_name}")
+        if verbose:
+            logger.info(result.stdout)
+        return True
+
+    except subprocess.CalledProcessError as e:
+        logger.info(f"Compilation error {module_name}:")
+        if verbose:
+            logger.info(e.stderr)
+        return False
+
+
 def main() -> None:
     opt = arg_parse()
 
-    verbosity, level = (False, logging.INFO) \
-        if opt.silent_run else (True, logging.DEBUG)
+    verbosity = opt.verbose
+    if verbosity == VerbosityLevel.FULL:
+        level = logging.DEBUG
+    elif verbosity == VerbosityLevel.INFO:
+        level = logging.INFO
+    else:
+        level = logging.WARNING
+
     logger = create_logger(level)
-    install_traceback_handler(verbose=verbosity)
+    install_traceback_handler(verbose=verbosity != VerbosityLevel.SILENT)
 
     logger.info(f'OpenCDA Version: {__version__}')
 
@@ -163,6 +220,17 @@ def main() -> None:
 
     # NOTICE: temporary measure (while option is turned off)
     opt.apply_ml = False
+
+    if opt.with_coperception:
+        opencood_utils = "opencood/utils/"
+        opencood_pcdet_utils = "opencood/pcdet_utils/"
+        verbose = opt.verbose
+        if not check_buld_for_utils(opencood_utils, cwd, verbosity == VerbosityLevel.FULL, logger):
+            logger.error(
+                'Failed to build opencood.utils')
+        if not check_buld_for_utils(opencood_pcdet_utils, cwd, verbosity == VerbosityLevel.FULL, logger):
+            logger.error(
+                'Failed to build opencood.pcdet_utils')
 
     # this function might setup crucial components in Scenario, so
     # we should import as late as possible
