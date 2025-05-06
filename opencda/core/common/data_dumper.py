@@ -109,6 +109,8 @@ class DataDumper(object):
 
             # frame = camera.frame
             image = camera.image
+            if image is None:
+                continue
 
             image_name = '%06d' % count + '_' + 'camera%d' % i + '.png'
 
