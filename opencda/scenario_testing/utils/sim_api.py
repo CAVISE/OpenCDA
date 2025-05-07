@@ -411,7 +411,7 @@ class ScenarioManager:
                 vehicle = self.spawn_custom_actor(spawn_transform, cav_config, fallback_model)
                 # create vehicle manager for each cav
                 vehicle_manager = VehicleManager(
-                    vehicle, cav_config, ['platooning'],
+                    vehicle, cav_config, ['platoon'],
                     self.carla_map, self.cav_world,
                     current_time=self.scenario_params['current_time'],
                     data_dumping=data_dump)
