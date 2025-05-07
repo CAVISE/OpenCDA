@@ -145,14 +145,8 @@ class Scenario:
         )
         logger.info(f'created platoon list of size {len(self.platoon_list)}')
 
-        # I'm not sure application works this way
-        if len(self.platoon_list) > 0:
-            application = ['platooning']
-        else:
-            application = ['single']
-
         self.single_cav_list = self.scenario_manager.create_vehicle_manager(
-            application=application, map_helper=map_api.spawn_helper_2lanefree, data_dump=data_dump
+            application=['single'], map_helper=map_api.spawn_helper_2lanefree, data_dump=data_dump
         )
         logger.info(f'created single cavs of size {len(self.single_cav_list)}')
 

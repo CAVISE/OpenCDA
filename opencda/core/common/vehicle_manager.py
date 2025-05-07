@@ -118,7 +118,7 @@ class VehicleManager(object):
                                             params=config_yaml['safety_manager'])
         # behavior agent
         self.agent = None
-        if 'platooning' in application:
+        if 'platoon' in application:
             platoon_config = config_yaml['platoon']
             self.agent = PlatooningBehaviorAgent(
                 vehicle,
