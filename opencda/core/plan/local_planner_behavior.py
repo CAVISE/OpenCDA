@@ -238,7 +238,7 @@ class LocalPlanner(object):
         y = []
 
         # pop out the waypoints that may damage driving performance
-        self.buffer_filter()
+        # self.buffer_filter()
 
         # [m] distance of each interpolated points
         ds = 0.1
