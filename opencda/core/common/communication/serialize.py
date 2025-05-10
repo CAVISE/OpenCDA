@@ -84,7 +84,7 @@ class MessageHandler:
     def __set_entity_data(self):
         for id in self.current_message_opencda.keys():
             entity_message = self.opencda_message.entity.add()
-            entity_message.id = int(id)
+            entity_message.id = id
             with self.handle_opencda_message(id, 'coperception') as msg:
 
                 msg_to_message = {

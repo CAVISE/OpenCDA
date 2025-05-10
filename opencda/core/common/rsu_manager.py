@@ -5,17 +5,16 @@ Basic class for RSU(Roadside Unit) management.
 # Author: Runsheng Xu <rxx3386@ucla.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
-import json
-import carla
+import logging
 
 # CAVISE
 import opencda.core.common.communication.serialize as cavise
 
 from opencda.core.common.data_dumper import DataDumper
-from opencda.core.sensing.perception.perception_manager import \
-    PerceptionManager
-from opencda.core.sensing.localization.rsu_localization_manager import \
-    LocalizationManager
+from opencda.core.sensing.perception.perception_manager import PerceptionManager
+from opencda.core.sensing.localization.rsu_localization_manager import LocalizationManager
+
+logger = logging.getLogger("cavise.rsu_manager")
 
 
 class RSUManager(object):
@@ -56,7 +55,8 @@ class RSUManager(object):
         Used for dumping sensor data.
     """
 
-    current_id: int = -1
+    current_id = 1
+    used_ids = set()
 
     def __init__(
             self,
@@ -65,21 +65,45 @@ class RSUManager(object):
             carla_map,
             cav_world,
             current_time='',
-            data_dumping=False):
+            data_dumping=False,
+            autogenerate_id_on_failure=True): #TODO: Привязать к конфигу сценария
 
-        if 'id' in config_yaml:
-            self.rid = -abs(int(config_yaml['id']))
-            # The id of rsu is always a negative int
+        config_id = config_yaml.get('id')
+
+        if config_id is not None:
+            try:
+                id_int = int(config_id)
+
+                if id_int < 0:
+                    raise ValueError("Negative ID")
+                candidate = f"rsu-{id_int}"
+                if candidate in RSUManager.used_ids:
+                    logger.warning(f"Duplicate RSU ID detected: {candidate!r}.")
+                    raise ValueError(f"Duplicate RSU ID detected: {candidate!r}.")
+                self.rid = candidate
+                RSUManager.used_ids.add(self.rid)
+
+            except (ValueError, TypeError):
+                if autogenerate_id_on_failure:
+                    self.rid = self.__generate_unique_rsu_id()
+                    logger.warning(f"Invalid or unavailable RSU ID in config: {config_id!r}. Assigned auto-generated ID: {self.rid}")
+                else:
+                    logger.error(f"Invalid or unavailable RSU ID in config: {config_id!r}.")
+                    raise
         else:
-            self.rid = RSUManager.current_id
-            RSUManager.current_id -= 1
+            if autogenerate_id_on_failure:
+                self.rid = self.__generate_unique_rsu_id()
+                logger.debug(f"No RSU ID specified in config. Assigned auto-generated ID: {self.rid}")
+            else:
+                logger.error(f"No RSU ID specified in config.")
+                raise ValueError("No RSU ID specified in config.")
 
         # read map from the world everytime is time-consuming, so we need
         # explicitly extract here
         self.carla_map = carla_map
 
         # retrieve the configure for different modules
-        # todo: add v2x module to rsu later
+        # TODO: add v2x module to rsu later
         sensing_config = config_yaml['sensing']
         sensing_config['localization']['global_position'] = config_yaml['spawn_position']
         sensing_config['perception']['global_position'] = config_yaml['spawn_position']
@@ -93,9 +117,9 @@ class RSUManager(object):
         self.perception_manager = PerceptionManager(vehicle=None,
                                                     config_yaml=sensing_config['perception'],
                                                     cav_world=cav_world,
-                                                    carla_world=carla_world,
+                                                    infra_id=self.rid,
                                                     data_dump=data_dumping,
-                                                    infra_id=self.rid)
+                                                    carla_world=carla_world)
         if data_dumping:
             self.data_dumper = DataDumper(self.perception_manager,
                                           self.rid,
@@ -104,6 +128,16 @@ class RSUManager(object):
             self.data_dumper = None
 
         cav_world.update_rsu_manager(self)
+
+    def __generate_unique_rsu_id(self):
+        """Generates a unique RSU ID in the format 'rsu-<number>', avoiding duplicates."""
+        while True:
+            candidate = f"rsu-{RSUManager.current_id}"
+            if candidate not in RSUManager.used_ids:
+                RSUManager.used_ids.add(candidate)
+                RSUManager.current_id += 1
+                return candidate
+            RSUManager.current_id += 1
 
     def update_info(self):
         """
@@ -115,7 +149,7 @@ class RSUManager(object):
 
         ego_pos = self.localizer.get_ego_pos()
 
-        # object detection todo: pass it to other CAVs for V2X perception
+        # TODO: object detection - pass it to other CAVs for V2X perception
         objects = self.perception_manager.detect(ego_pos)
 
     def update_info_v2x(self):

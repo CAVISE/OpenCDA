@@ -7,7 +7,6 @@ cosimulation code.
 # License: MIT
 
 import os
-import sys
 import logging
 
 import carla
@@ -15,8 +14,7 @@ import carla
 from opencda.co_simulation.sumo_integration.constants import SPAWN_OFFSET_Z
 from opencda.co_simulation.sumo_integration.bridge_helper import BridgeHelper
 from opencda.co_simulation.sumo_integration.constants import INVALID_ACTOR_ID
-from opencda.co_simulation.sumo_integration.sumo_simulation import \
-    SumoSimulation
+from opencda.co_simulation.sumo_integration.sumo_simulation import SumoSimulation
 from opencda.scenario_testing.utils.sim_api import ScenarioManager
 
 logger = logging.getLogger("cavise.cosim_api")
@@ -47,14 +45,12 @@ class CoScenarioManager(ScenarioManager):
 
     """
 
-    def __init__(self, scenario_params, apply_ml, carla_version,
+    def __init__(self, scenario_params, apply_ml, carla_version, node_ids,
                  xodr_path=None,
                  town=None,
                  cav_world=None,
-                 sumo_file_parent_path=None,
-                 with_capi=False):
-        # carla side initializations(partial init is already done in scenario
-        # manager
+                 sumo_file_parent_path=None):
+        # carla side initializations(partial init is already done in scenario manager
         super(CoScenarioManager, self).__init__(scenario_params,
                                                 apply_ml,
                                                 carla_version,
@@ -62,11 +58,11 @@ class CoScenarioManager(ScenarioManager):
                                                 town,
                                                 cav_world)
 
-        # these following sets are used to track the vehicles controlled
-        # by sumo side
+        # these following sets are used to track the vehicles controlled by sumo side
         self._active_actors = set()
         self.spawned_actors = set()
         self.destroyed_actors = set()
+        self.node_ids = node_ids
 
         # contains all carla traffic lights objects
         self._tls = {}
@@ -76,12 +72,10 @@ class CoScenarioManager(ScenarioManager):
                 if traffic_ligth is not None:
                     self._tls[landmark.id] = traffic_ligth
                 else:
-                    logging.warning('Landmark %s is not linked to any '
-                                    'traffic light', landmark.id)
+                    logging.warning(f'Landmark {landmark.id} is not linked to any traffic light')
 
         # sumo side initialization
         base_name = os.path.basename(sumo_file_parent_path)
-
 
         sumo_key = 'sumo'
 
@@ -180,17 +174,23 @@ class CoScenarioManager(ScenarioManager):
         self.destroyed_actors = self._active_actors.difference(current_actors)
         self._active_actors = current_actors
 
-        # Spawning new carla actors (not controlled by sumo). For example,
-        # the CAV we created on the carla side.
-        carla_spawned_actors = self.spawned_actors - set(
-            self.sumo2carla_ids.values())
+        # Spawning new carla actors (not controlled by sumo). For example, the CAV we created on the carla side.
+        carla_spawned_actors = self.spawned_actors - set(self.sumo2carla_ids.values())
+
         for carla_actor_id in carla_spawned_actors:
             carla_actor = self.world.get_actor(carla_actor_id)
             type_id = BridgeHelper.get_sumo_vtype(carla_actor)
-            color = carla_actor.attributes.get('color',
-                                               None)
+            color = carla_actor.attributes.get('color', None)
             if type_id is not None:
-                sumo_actor_id = self.sumo.spawn_actor(type_id, color)
+                if carla_actor_id in self.node_ids['platoon']:
+                    sumo_actor_id = self.sumo.spawn_actor(type_id, self.node_ids['platoon'][carla_actor_id], color)
+                elif carla_actor_id in self.node_ids['cav']:
+                    sumo_actor_id = self.sumo.spawn_actor(type_id, self.node_ids['cav'][carla_actor_id], color)
+                elif carla_actor_id in self.node_ids['rsu']:
+                    sumo_actor_id = self.sumo.spawn_actor(type_id, self.node_ids['rsu'][carla_actor_id], color)
+                else:
+                    sumo_actor_id = self.sumo.spawn_actor(type_id, f"unknown-{carla_actor_id}", color)
+
                 if sumo_actor_id != INVALID_ACTOR_ID:
                     self.carla2sumo_ids[carla_actor_id] = sumo_actor_id
                     self.sumo.subscribe(sumo_actor_id)
@@ -198,8 +198,7 @@ class CoScenarioManager(ScenarioManager):
         # Destroying required carla actors in sumo.
         for carla_actor_id in self.destroyed_actors:
             if carla_actor_id in self.carla2sumo_ids:
-                self.sumo.destroy_actor(
-                    self.carla2sumo_ids.pop(carla_actor_id))
+                self.sumo.destroy_actor(self.carla2sumo_ids.pop(carla_actor_id))
 
         # updating carla actors in sumo. For instance, update the new CAV
         # position in sumo
@@ -208,19 +207,15 @@ class CoScenarioManager(ScenarioManager):
 
             carla_actor = self.world.get_actor(carla_actor_id)
             sumo_actor = self.sumo.get_actor(sumo_actor_id)
-            sumo_transform = \
-                BridgeHelper.get_sumo_transform(carla_actor.get_transform(),
-                                            carla_actor.bounding_box.extent)
-            self.sumo.synchronize_vehicle(sumo_actor_id, sumo_transform,
-                                          None)
+            sumo_transform = BridgeHelper.get_sumo_transform(carla_actor.get_transform(), carla_actor.bounding_box.extent)
+            self.sumo.synchronize_vehicle(sumo_actor_id, sumo_transform, None)
 
         # Updates traffic lights in sumo based on carla information.
         # todo make sure the tl is synced
         common_landmarks = self.sumo.traffic_light_ids & self.traffic_light_ids
         for landmark_id in common_landmarks:
             carla_tl_state = self.get_traffic_light_state(landmark_id)
-            sumo_tl_state = BridgeHelper.get_sumo_traffic_light_state(
-                carla_tl_state)
+            sumo_tl_state = BridgeHelper.get_sumo_traffic_light_state(carla_tl_state)
 
             # Updates all the sumo links related to this landmark.
             self.sumo.synchronize_traffic_light(landmark_id, sumo_tl_state)
@@ -264,13 +259,11 @@ class CoScenarioManager(ScenarioManager):
             transform.rotation)
 
         batch = [
-            carla.command.SpawnActor(blueprint, transform).then(
-                carla.command.SetSimulatePhysics(carla.command.FutureActor,
-                                                 False))
+            carla.command.SpawnActor(blueprint, transform).then(carla.command.SetSimulatePhysics(carla.command.FutureActor, False))
         ]
         response = self.client.apply_batch_sync(batch, False)[0]
         if response.error:
-            logging.error('Spawn carla actor failed. %s', response.error)
+            logging.error(f'Spawn carla actor failed. {response.error}')
             return INVALID_ACTOR_ID
 
         return response.actor_id
