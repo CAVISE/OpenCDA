@@ -119,6 +119,10 @@ class VehicleManager(object):
                 logger.error(f"No vehicle ID specified in config.")
                 raise ValueError("No vehicle ID specified in config.")
 
+        # [CoDrivingInt]
+        self.vname = config_yaml['name']
+        # [CoDrivingInt]
+
         self.vehicle = vehicle
         self.carla_map = carla_map
 
