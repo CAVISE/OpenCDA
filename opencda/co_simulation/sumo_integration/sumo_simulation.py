@@ -24,6 +24,8 @@ from opencda.co_simulation.sumo_integration.constants import INVALID_ACTOR_ID
 
 import lxml.etree as ET  # pylint: disable=import-error
 
+logger = logging.getLogger("cavise.sumo_simulation")
+
 # ==================================================================================================
 # -- sumo definitions ------------------------------------------------------------------------------
 # ==================================================================================================
@@ -243,8 +245,7 @@ class SumoTLManager(object):
         if len(states) == 1:
             return states.pop()
         elif len(states) > 1:
-            logging.warning('Landmark %s is associated with signals with different states',
-                            landmark_id)
+            logger.warning(f'Landmark {landmark_id} is associated with signals with different states')
             return SumoSignalState.RED
         else:
             return None
@@ -299,10 +300,11 @@ def _get_sumo_net(cfg_file):
         return None
 
     net_file = os.path.join(os.path.dirname(cfg_file), tag.get('value'))
-    logging.debug('Reading net file: %s', net_file)
+    logger.debug(f'Reading net file: {net_file}')
 
     sumo_net = sumolib.net.readNet(net_file)
     return sumo_net
+
 
 class SumoSimulation(object):
     """
@@ -315,9 +317,9 @@ class SumoSimulation(object):
             sumo_binary = sumolib.checkBinary('sumo')
 
         if host is None or port is None:
-            logging.error('Error in sumo section of scenario YAML config.')
+            logger.error('Error in sumo section of scenario YAML config.')
         else:
-            logging.info('Connection to sumo server. Host: %s Port: %s', host, port)
+            logger.info(f'Connection to sumo server. Host: {host} Port: {port}')
             traci.init(host=host, port=port)
 
         traci.setOrder(client_order)
@@ -404,7 +406,7 @@ class SumoSimulation(object):
 
         return SumoActor(type_id, vclass, transform, signals, extent, color)
 
-    def spawn_actor(self, type_id, color=None):
+    def spawn_actor(self, type_id, id, color=None):
         """
         Spawns a new actor.
 
@@ -412,27 +414,31 @@ class SumoSimulation(object):
             :param color: color attribute for this specific actor.
             :return: actor id if the actor is successfully spawned. Otherwise, INVALID_ACTOR_ID.
         """
-        actor_id = 'carla' + str(self._sequential_id)
         try:
-            traci.vehicle.add(actor_id, 'carla_route', typeID=type_id)
+            traci.vehicle.add(id, 'carla_route', typeID=type_id)
         except traci.exceptions.TraCIException as error:
-            logging.error('Spawn sumo actor failed: %s', error)
+            logger.error(f"Spawn sumo actor failed: {error}")
             return INVALID_ACTOR_ID
 
         if color is not None:
             color = color.split(',')
-            traci.vehicle.setColor(actor_id, color)
+            traci.vehicle.setColor(id, color)
 
         self._sequential_id += 1
 
-        return actor_id
+        return id
 
     @staticmethod
     def destroy_actor(actor_id):
         """
         Destroys the given actor.
         """
-        traci.vehicle.remove(actor_id)
+        # traci.vehicle.remove(actor_id)
+
+        if actor_id in traci.vehicle.getIDList():
+            traci.vehicle.remove(actor_id)
+        else:
+            logger.warning(f"Tried to remove nonexistent SUMO actor: {actor_id}")
 
     def get_traffic_light_state(self, landmark_id):
         """

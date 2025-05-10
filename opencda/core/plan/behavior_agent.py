@@ -24,6 +24,7 @@ from opencda.core.plan.planer_debug_helper import PlanDebugHelper
 
 logger = logging.getLogger('cavise.behavior_agent')
 
+
 class BehaviorAgent(object):
     """
     A modulized version of carla BehaviorAgent.
@@ -884,8 +885,7 @@ class BehaviorAgent(object):
                 return 0, None
 
             target_speed = self.car_following_manager(obstacle_vehicle, distance, target_speed)
-            target_speed, target_loc = self._local_planner.run_step(
-                rx, ry, rk, target_speed=target_speed)
+            target_speed, target_loc = self._local_planner.run_step(rx, ry, rk, target_speed=target_speed)
             return target_speed, target_loc
 
         # 8. Normal behavior
@@ -893,5 +893,3 @@ class BehaviorAgent(object):
             rx, ry, rk, target_speed=self.max_speed - self.speed_lim_dist
             if not target_speed else target_speed)
         return target_speed, target_loc
-
-
