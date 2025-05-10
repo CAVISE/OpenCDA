@@ -1,4 +1,5 @@
-import torch
+from torch import nn
+
 
 class GNN_mtl_mlp(torch.nn.Module):
     def __init__(self, hidden_channels):

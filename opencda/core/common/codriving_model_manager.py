@@ -1,5 +1,5 @@
 
-
+import carla
 import traci
 import torch
 import sumolib
@@ -9,28 +9,25 @@ import numpy as np
 import pickle as pkl
 from scipy.spatial import distance
 
-from CoDriving.sripts.constants import CONTROL_RADIUS, RELEASE_RADIUS, HIDDEN_CHANNELS
+from CoDriving.scripts.constants import CONTROL_RADIUS, RELEASE_RADIUS, HIDDEN_CHANNELS
 
 
 logger = logging.getLogger('cavise.codriving_model_manager')
 
+
 class CodrivingModelManager:
-    NORMALIZED_CENTER = np.array([356.0, 356.0])
-
-    # TODO: replace nodes
-    def __init__(self, model_name, pretrained, nodes): 
-
+    def __init__(self, model_name, pretrained, nodes, excluded_nodes = None):
         self.mtp_controlled_vehicles = set()
 
-        self.vehicle_ids = set()
-        self.time = 0
+        self.sumo_cavs_ids = set()             # ids
+        self.carla_vmanagers = set()           # Vehicle Managers
         
         self.trajs = dict()
 
         self.nodes = nodes
         self.node_coords = np.array([node.getCoord() for node in nodes])
+        self.excluded_nodes = excluded_nodes  # Перекрестки на которых отключен MTP модуль
 
-        # model
         self.model_name = model_name
         self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
@@ -68,100 +65,174 @@ class CodrivingModelManager:
         except ModuleNotFoundError:
             logger.error(f'Model module {self.model_name} not found in CoDriving/models directory!')
 
-    def make_trajs(self):
-        self.vehicle_ids = traci.vehicle.getIDList()
-        self.time = traci.simulation.getTime()
+    def _get_vmanager_by_vid(self, vid: str):
+        for vmanager in self.carla_vmanagers:
+            if vmanager.vid == vid:
+                return vmanager
+        return None
 
+    def _is_carla_id(self, vid):
+        for vmanager in self.carla_vmanagers:
+            if vmanager.vid == vid:
+                return True
+        return False
+
+    def make_trajs(self, carla_vmanagers):
+        # Сохраняем список машин из SUMO и CARLA
+        self.sumo_cavs_ids = traci.vehicle.getIDList()
+
+        self.carla_vmanagers = carla_vmanagers
+
+        # Обновляем траектории всех машин (SUMO + CARLA)
         self.trajs = self.update_trajs()
 
+        # Получаем признаки агентов и список их идентификаторов
+        x, target_agent_ids = self.encoding_scenario_features()
+        num_agents = x.shape[0]
 
-        x, tgt_agent_ids = self.encoding_scenario_features()
-        num_tgt_agent = x.shape[0]
-        if num_tgt_agent > 0:
-            edge_indexs = torch.tensor([[x,y] for x in range(num_tgt_agent) for y in range(num_tgt_agent)]).T.to(self.device)
-            self.transform_sumo2carla(x)
-            x = torch.tensor(x).float().to(self.device)
-            out = self.model(x[:,[0,1,4,5,6]], edge_indexs)
+        if num_agents == 0:
+            return
+
+        # Подготовка графа агентов для GNN
+        edge_index = torch.tensor(
+            [[i, j] for i in range(num_agents) for j in range(num_agents)]
+        ).T.to(self.device)
+
+        # Преобразуем координаты и делаем предсказание модели
+        self.transform_sumo2carla(x)
+        x_tensor = torch.tensor(x).float().to(self.device)
+        predictions = self.model(x_tensor[:, [0, 1, 4, 5, 6]], edge_index)
+
+        # Обрабатываем каждого агента
+        for idx in range(num_agents):
+            vehicle_id = target_agent_ids[idx]
+
+            # Получаем текущую позицию
+            pos_x, pos_y = traci.vehicle.getPosition(vehicle_id)
+            curr_pos = np.array([pos_x, pos_y])
+
+            nearest_node = self._get_nearest_node(curr_pos)
+            if self.excluded_nodes and nearest_node in self.excluded_nodes:
+                continue
+
+            control_center = np.array(nearest_node.getCoord())
+            distance_to_center = np.linalg.norm(curr_pos - control_center)
+
+            if distance_to_center < CONTROL_RADIUS:
+                self.mtp_controlled_vehicles.add(vehicle_id)
+
+                pred_delta = predictions[idx].reshape(30, 2).detach().cpu().numpy()
+                local_delta = pred_delta[0].reshape(2, 1)
+                last_delta = pred_delta[-1].reshape(2, 1)
+
+                if last_delta[1, 0] <= 1:
+                    local_delta[1, 0] = 1e-8
+                    local_delta[0, 0] = 1e-10
+                else:
+                    local_delta[1, 0] = max(1e-8, local_delta[1, 0])
+
+                yaw = x_tensor[idx, 3].detach().cpu().item()
+                rotation = self.rotation_matrix_back(yaw)
+                global_delta = (rotation @ local_delta).squeeze()
+                global_delta[1] *= -1
+                if self._is_carla_id(vehicle_id):
+                    cav = self._get_vmanager_by_vid(vehicle_id)
+                    if cav is None:
+                        continue
             
+                    pos = cav.vehicle.get_location()
 
-            for tgt in range(num_tgt_agent):
-                curr_x, curr_y = traci.vehicle.getPosition(tgt_agent_ids[tgt])
-                curr_pos = np.array([curr_x, curr_y])
+                    threshold = 10
+                    force_value = 20
 
-                nearest_node = self._get_nearest_node(curr_pos)
-                control_center = np.array(nearest_node.getCoord())
+                    global_delta = np.where(np.abs(global_delta) <= threshold,
+                                            np.sign(global_delta) * force_value,
+                                            global_delta)
+        
+                    next_loc = carla.Location(
+                        x=pos.x + global_delta[0],
+                        y=pos.y - global_delta[1],
+                        z=pos.z,
+                    )
 
-                dist = np.linalg.norm(curr_pos - control_center)
-                
-                vehicle_id = tgt_agent_ids[tgt]
-                if dist < CONTROL_RADIUS:
-                    if vehicle_id not in self.mtp_controlled_vehicles:
-                        self.mtp_controlled_vehicles.add(vehicle_id)
-
-                    _local_delta = out[tgt].reshape(30,2).detach().cpu().numpy()
-                    local_delta = _local_delta[0].reshape(2,1)
-                    last_delta = _local_delta[-1].reshape(2,1)
-
-                    if last_delta[1,0] > 1:
-                        local_delta[1,0] = max(1e-8, local_delta[1,0])
-                    else:
-                        local_delta[1,0] = 1e-8
-                        local_delta[0,0] = 1e-10
+                    cav.agent.set_destination(pos, next_loc, clean=True, end_reset=False)
+                    cav.update_info_v2x()
                     
-                    yaw = x[tgt, 3].detach().cpu().item()
-                    rotation_back = self.rotation_matrix_back(yaw)
-                    global_delta = (rotation_back @ local_delta).squeeze()
-                    global_delta[1] *= -1
-                    
-                    pos = traci.vehicle.getPosition(vehicle_id)
-                    next_x = pos[0] + global_delta[0]
-                    next_y = pos[1] + global_delta[1]
-                    angle = self.get_yaw(tgt_agent_ids[tgt], np.array([next_x, next_y]), self.yaw_dict)
+                    if len(cav.agent.get_local_planner().get_waypoint_buffer()) == 0:
+                        logger.warning(f"{vehicle_id}: waypoint buffer is empty after set_destination!")
+
+
+                else:
                     try:
-                        traci.vehicle.moveToXY(vehicle_id, edgeID=-1, lane=-1, x=next_x, y=next_y, angle=angle, keepRoute=2)
+                        next_x = pos_x + global_delta[0]
+                        next_y = pos_y + global_delta[1]
+                        angle = self.get_yaw(vehicle_id, np.array([next_x, next_y]), self.yaw_dict)
+                        traci.vehicle.moveToXY(vehicle_id, edgeID=-1, lane=-1,
+                                            x=next_x, y=next_y, angle=angle, keepRoute=2)
                     except traci.TraCIException as e:
                         logger.error(f"Failed to move vehicle {vehicle_id}: {e}")
 
-                if dist > RELEASE_RADIUS and vehicle_id in self.mtp_controlled_vehicles:
-                    self.mtp_controlled_vehicles.remove(vehicle_id)
+            elif vehicle_id in self.mtp_controlled_vehicles:
+                if self._is_carla_id(vehicle_id):
+                    cav = self._get_vmanager_by_vid(vehicle_id)
+                    cav.agent.set_destination(cav.vehicle.get_location(), cav.agent.end_waypoint.transform.location, clean=True, end_reset=True)
+
+                self.mtp_controlled_vehicles.remove(vehicle_id)
 
 
     def update_trajs(self):
         """
-        Update the dict trajs, e.g. {'left_0': [(x0, y0, speed, yaw, yaw(sumo-degree), intention(str)), (x1, y1, speed, yaw, yaw(sumo-degree), intention(str)), ...], 'left_1': [...]}
+        Updates the self.trajs dictionary, which stores the trajectory history of each vehicle.
+        Format:
+        {
+            'vehicle_id': [
+                (rel_x, rel_y, speed, yaw_rad, yaw_deg_sumo, intention),
+                ...
+            ],
+            ...
+        }
         """
-        
-        # add the new vehicles in the scene
-        for vehicle_id in self.vehicle_ids:
-            if 'carla' in vehicle_id:
-                continue
-            if vehicle_id not in self.trajs.keys():
+
+        for vehicle_id in self.sumo_cavs_ids:
+
+            # Initialize trajectory if this is a new vehicle
+            if vehicle_id not in self.trajs:
                 self.trajs[vehicle_id] = []
 
-            pos = traci.vehicle.getPosition(vehicle_id)
-            nearest_node = self._get_nearest_node(pos)
+            # Get current vehicle position and find nearest node
+            position = np.array(traci.vehicle.getPosition(vehicle_id))
+            nearest_node = self._get_nearest_node(position)
 
+            # Skip excluded regions
+            if self.excluded_nodes and nearest_node in self.excluded_nodes:
+                continue
+
+            # Get vehicle state
             speed = traci.vehicle.getSpeed(vehicle_id)
+            yaw_deg_sumo = traci.vehicle.getAngle(vehicle_id)
+            yaw_rad = np.deg2rad(self.get_yaw(vehicle_id, position, self.yaw_dict))
 
-            yaw_sumo_degree = traci.vehicle.getAngle(vehicle_id)
-            yaw = np.deg2rad(self.get_yaw(vehicle_id, np.array(pos), self.yaw_dict))
+            # Normalize position relative to control node
+            node_x, node_y = nearest_node.getCoord()
+            rel_x = position[0] - node_x
+            rel_y = position[1] - node_y
 
-            norm_x, norm_y = nearest_node.getCoord()
-            already_steps = len(self.trajs[vehicle_id])
-
-            if already_steps == 0:
+            # Determine intention
+            if not self.trajs[vehicle_id]:  # first timestep
                 intention = self.get_intention_from_vehicle_id(vehicle_id)
-                self.trajs[vehicle_id].append((pos[0] - norm_x, pos[1] - norm_y, speed, yaw, yaw_sumo_degree, intention)) 
             else:
                 intention = self.trajs[vehicle_id][-1][-1]
                 assert isinstance(intention, str)
-                self.trajs[vehicle_id].append((pos[0] - norm_x, pos[1] - norm_y, speed, yaw, yaw_sumo_degree, intention))    # TODO: normalize the time
 
-        # remove the vehicles out of the scene
+            # Append current state to trajectory
+            self.trajs[vehicle_id].append((rel_x, rel_y, speed, yaw_rad, yaw_deg_sumo, intention))
+
+
+        # Remove trajectories of vehicles that have left the scene
         for vehicle_id in list(self.trajs):
-            if vehicle_id not in self.vehicle_ids:
+            if vehicle_id not in self.sumo_cavs_ids:
                 del self.trajs[vehicle_id]
-        
+
         return self.trajs
 
 
@@ -169,8 +240,12 @@ class CodrivingModelManager:
         """
         Parse the vehicle id to distinguish its intention.
         """
-
-        from_path, to_path, _ = vehicle_id.split('_')
+        # TODO: Intetion должно браться из сообщения от ТС, а не id/name
+        if self._is_carla_id(vehicle_id):
+            from_path, to_path = 'left', 'down'
+        else:   
+            from_path, to_path, *_ = vehicle_id.split('_')
+        
         if from_path == 'left':
             if to_path == 'right':
                 return 'straight'
@@ -207,29 +282,26 @@ class CodrivingModelManager:
 
 
     def encoding_scenario_features(self):
-        """
-        Args:
-            - trajs: e.g. {'left_0': [(x0, y0, speed, yaw, yaw', intention(str)), (x1, y1, speed, yaw, yaw', intention(str)), ...], 'left_1': [...]}
-        
-        Returns:
-            - x: [[xs, ys, xe, ye, timestamp, left, straight, right, stop, polyline_id], ...], x.shape = [N, 10]
-            - num_tgt_agent
-            - num_agent
-            - edge_indexs: shape = [2, edges]
-            - tgt_agent_ids
-        """
+        features = []
+        target_agent_ids = []
 
-        x = np.empty((0, 7))
-        tgt_agent_ids = []
+        for vehicle_id, trajectory in self.trajs.items():
+            last_position = trajectory[-1]
+            position = np.array(last_position[:2])
+            distance_to_origin = np.linalg.norm(position)
 
-        for vehicle_id in self.trajs.keys():
+            if distance_to_origin < 65:
 
-            if np.linalg.norm(self.trajs[vehicle_id][-1][:2]) < 65:
-                _x = np.concatenate((np.array(self.trajs[vehicle_id][-1][:-2]), self.get_intention_vector(self.trajs[vehicle_id][-1][-1]))).reshape(1, -1) # [1, 7]
-                x = np.vstack((x, _x))
-                tgt_agent_ids.append(vehicle_id)
+                motion_features = np.array(last_position[:-2])
+                intention_vector = self.get_intention_vector(last_position[-1])
+                feature_vector = np.concatenate((motion_features, intention_vector)).reshape(1, -1)
 
-        return x, tgt_agent_ids
+                features.append(feature_vector)
+                target_agent_ids.append(vehicle_id)
+
+        x = np.vstack(features) if features else np.empty((0, 7))
+        return x, target_agent_ids
+
 
     @staticmethod
     def transform_sumo2carla(states: np.ndarray):
@@ -259,8 +331,10 @@ class CodrivingModelManager:
         return rotation
 
 
-    @staticmethod
-    def get_yaw(vehicle_id: str, pos: np.ndarray, yaw_dict: dict):
+    def get_yaw(self, vehicle_id: str, pos: np.ndarray, yaw_dict: dict):
+        if self._is_carla_id(vehicle_id):
+            vehicle_id = 'left_down_8'
+            
         route = '_'.join(vehicle_id.split('_')[:-1])
         if route not in yaw_dict:
             logging.warning(f"Route '{route}' not found for vehicle {vehicle_id}. Using default yaw.")
