@@ -44,6 +44,9 @@ class Scenario:
     scenario_name: str
 
     def __init__(self, opt: argparse.Namespace, scenario_params: omegaconf.OmegaConf):
+        self.node_ids = {'cav': [],
+                         'rsu': [],
+                         'platoon': []}
         self.scenario_name = opt.test_scenario
         self.scenario_params, current_time = add_current_time(scenario_params)
         logger.info(f'running scenario with name: {self.scenario_name}; current time: {current_time}')
@@ -73,7 +76,7 @@ class Scenario:
                 town=town,
                 cav_world=self.cav_world,
                 sumo_file_parent_path=sumo_cfg,
-                with_capi=opt.with_capi
+                node_ids=self.node_ids
             )
         else:
             self.scenario_manager = sim_api.ScenarioManager(
@@ -139,9 +142,8 @@ class Scenario:
             )
         # [CoDrivingInt]
 
-        self.platoon_list = self.scenario_manager.create_platoon_manager(
-            map_helper=map_api.spawn_helper_2lanefree,
-            data_dump=data_dump
+        self.platoon_list, self.node_ids['platoon'] = self.scenario_manager.create_platoon_manager(
+            map_helper=map_api.spawn_helper_2lanefree, data_dump=data_dump
         )
         logger.info(f'created platoon list of size {len(self.platoon_list)}')
 
@@ -151,9 +153,9 @@ class Scenario:
         logger.info(f'created single cavs of size {len(self.single_cav_list)}')
 
         _, self.bg_veh_list = self.scenario_manager.create_traffic_carla()
-        logger.info(f'created background traffic of size {len(self.single_cav_list)}')
+        logger.info(f'created background traffic of size {len(self.bg_veh_list)}')
 
-        self.rsu_list = self.scenario_manager.create_rsu_manager(data_dump=data_dump)
+        self.rsu_list, self.node_ids['rsu'] = self.scenario_manager.create_rsu_manager(data_dump=data_dump)
         logger.info(f'created RSU list of size {len(self.rsu_list)}')
 
         self.eval_manager = EvaluationManager(
@@ -210,20 +212,14 @@ class Scenario:
                 logger.debug('updating single cavs')
                 for single_cav in self.single_cav_list:
                     single_cav.update_info()
+                    control = single_cav.run_step()
+                    single_cav.vehicle.apply_control(control)
 
             if self.rsu_list is not None:
                 logger.debug('updating RSUs')
                 for rsu in self.rsu_list:
                     rsu.update_info()
-
-            for i, single_cav in enumerate(self.single_cav_list):
-                single_cav.update_info_v2x()
-                control = single_cav.run_step()
-                single_cav.vehicle.apply_control(control)
-
-            for rsu in self.rsu_list:
-                rsu.update_info_v2x()
-                rsu.run_step()
+                    rsu.run_step()
 
             if self.coperception_model_manager is not None:
                 try:

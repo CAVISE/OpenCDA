@@ -35,7 +35,7 @@ rsu_base:
         points_per_second: 1000000
         rotation_frequency: 20 # the simulation is 20 fps
         upper_fov: 2
-        lower_fov: -25
+        lower_fov: -60
         dropoff_general_rate: 0.3
         dropoff_intensity_limit: 0.7
         dropoff_zero_intensity: 0.4
@@ -116,10 +116,10 @@ scenario:
   rsu_list:
     - name: rsu1
       spawn_position: [204.90, -177.98, 2, 0, 0, 0]
-      id: -1
+      id: 1
     - name: rsu2
       spawn_position: [250, -178.86, 2, 0, 0, 0]
-      id: -2
+      id: 2
 
   single_cav_list:
     - name: cav1
