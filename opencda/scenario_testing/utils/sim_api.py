@@ -166,8 +166,7 @@ class ScenarioManager:
             np.random.seed(simulation_config['seed'])
             random.seed(simulation_config['seed'])
 
-        self.client = \
-            carla.Client('carla', simulation_config['client_port'])
+        self.client = carla.Client('carla', simulation_config['client_port'])
         self.client.set_timeout(10.0)
 
         if xodr_path:
@@ -192,8 +191,7 @@ class ScenarioManager:
 
         if simulation_config['sync_mode']:
             new_settings.synchronous_mode = True
-            new_settings.fixed_delta_seconds = \
-                simulation_config['fixed_delta_seconds']
+            new_settings.fixed_delta_seconds = simulation_config['fixed_delta_seconds']
         else:
             sys.exit('ERROR: Current version only supports sync simulation mode')
 
@@ -204,14 +202,12 @@ class ScenarioManager:
         self.world.set_weather(weather)
 
         # Define probabilities for each type of blueprint
-        self.use_multi_class_bp = scenario_params["blueprint"][
-            'use_multi_class_bp'] if 'blueprint' in scenario_params else False
+        self.use_multi_class_bp = scenario_params["blueprint"]['use_multi_class_bp'] if 'blueprint' in scenario_params else False
         if self.use_multi_class_bp:
             # bbx/blueprint meta
             with open(scenario_params['blueprint']['bp_meta_path']) as f:
                 self.bp_meta = json.load(f)
-            self.bp_class_sample_prob = scenario_params['blueprint'][
-                'bp_class_sample_prob']
+            self.bp_class_sample_prob = scenario_params['blueprint']['bp_class_sample_prob']
 
             # normalize probability
             self.bp_class_sample_prob = {
@@ -255,7 +251,10 @@ class ScenarioManager:
 
         color = config.get('color')
         if color is not None:
-            cav_vehicle_bp.set_attribute('color', ', '.join(map(str, color)))
+            try:
+                cav_vehicle_bp.set_attribute('color', ','.join(map(str, color)))
+            except IndexError:
+                logger.warning(f"Vehicle model {cav_vehicle_bp.id} does not support the 'color' attribute. Skipping.")
 
         return self.world.spawn_actor(cav_vehicle_bp, spawn_transform)
 
@@ -290,10 +289,11 @@ class ScenarioManager:
             A list contains all single CAVs' vehicle manager.
         """
         single_cav_list = []
+        cav_carla_list = {}
 
         if self.scenario_params.get('scenario') is None or self.scenario_params['scenario'].get('single_cav_list', None) is None:
             logger.info('No CAV was created')
-            return single_cav_list
+            return single_cav_list, cav_carla_list
 
         for i, cav_config in enumerate(
                 self.scenario_params['scenario']['single_cav_list']):
@@ -322,12 +322,16 @@ class ScenarioManager:
                                              *cav_config['spawn_special'])
 
             vehicle = self.spawn_custom_actor(spawn_transform, cav_config, fallback_model)
+
             # create vehicle manager for each cav
             vehicle_manager = VehicleManager(
                 vehicle, cav_config, application,
                 self.carla_map, self.cav_world,
                 current_time=self.scenario_params['current_time'],
-                data_dumping=data_dump)
+                data_dumping=data_dump,
+                prefix='cav')
+
+            cav_carla_list[vehicle.id] = vehicle_manager.vid
 
             self.world.tick()
 
@@ -347,7 +351,7 @@ class ScenarioManager:
             single_cav_list.append(vehicle_manager)
             logger.info(f'Created CAV with id {vehicle_manager.vid}')
 
-        return single_cav_list
+        return single_cav_list, cav_carla_list
 
     def create_platoon_manager(
         self,
@@ -376,11 +380,13 @@ class ScenarioManager:
             A list contains all single CAVs' vehicle manager.
         """
         platoon_list = []
+        platoon_carla_ids = {}
+
         self.cav_world = CavWorld(self.apply_ml)
 
         if self.scenario_params.get('scenario') is None or self.scenario_params['scenario'].get('platoon_list', None) is None:
             logger.info('No platoon was created')
-            return platoon_list
+            return platoon_list, platoon_carla_ids
 
         # create platoons
         for i, platoon in enumerate(
@@ -409,12 +415,16 @@ class ScenarioManager:
                     spawn_transform = map_helper(self.carla_version, *cav_config['spawn_special'])
 
                 vehicle = self.spawn_custom_actor(spawn_transform, cav_config, fallback_model)
+
                 # create vehicle manager for each cav
                 vehicle_manager = VehicleManager(
                     vehicle, cav_config, ['platoon'],
                     self.carla_map, self.cav_world,
                     current_time=self.scenario_params['current_time'],
-                    data_dumping=data_dump)
+                    data_dumping=data_dump,
+                    prefix='platoon')
+
+                platoon_carla_ids[vehicle.id] = vehicle_manager.vid
 
                 # add the vehicle manager to platoon
                 if j == 0:
@@ -433,7 +443,7 @@ class ScenarioManager:
             platoon_manager.update_member_order()
             platoon_list.append(platoon_manager)
 
-        return platoon_list
+        return platoon_list, platoon_carla_ids
 
     def create_rsu_manager(self, data_dump):
         """
@@ -450,10 +460,11 @@ class ScenarioManager:
             A list contains all rsu managers..
         """
         rsu_list = []
+        rsu_carla_ids = {}
 
         if self.scenario_params.get('scenario') is None or self.scenario_params['scenario'].get('rsu_list', None) is None:
             logger.info('No RSU was created')
-            return rsu_list
+            return rsu_list, rsu_carla_ids
 
         for rsu_config in self.scenario_params['scenario']['rsu_list']:
             rsu_config = OmegaConf.merge(self.scenario_params['rsu_base'], rsu_config)
@@ -473,17 +484,20 @@ class ScenarioManager:
                 )
             )
 
-            self.world.spawn_actor(static_bp, spawn_transform)
+            actor = self.world.spawn_actor(static_bp, spawn_transform)
+
             rsu_manager = RSUManager(self.world, rsu_config,
                                      self.carla_map,
                                      self.cav_world,
                                      self.scenario_params['current_time'],
                                      data_dump)
 
+            rsu_carla_ids[actor.id] = rsu_manager.rid
+
             rsu_list.append(rsu_manager)
             logger.info(f'Created RSU with id {rsu_manager.rid}')
 
-        return rsu_list
+        return rsu_list, rsu_carla_ids
 
     def spawn_vehicles_by_list(self, tm, traffic_config, bg_list):
         """
@@ -508,8 +522,7 @@ class ScenarioManager:
 
         blueprint_library = self.world.get_blueprint_library()
         if not self.use_multi_class_bp:
-            ego_vehicle_random_list = car_blueprint_filter(blueprint_library,
-                                                           self.carla_version)
+            ego_vehicle_random_list = car_blueprint_filter(blueprint_library, self.carla_version)
         else:
             label_list = list(self.bp_class_sample_prob.keys())
             prob = [self.bp_class_sample_prob[itm] for itm in label_list]
@@ -543,9 +556,7 @@ class ScenarioManager:
                 ego_vehicle_bp = random.choice(ego_vehicle_random_list)
 
                 if ego_vehicle_bp.has_attribute("color"):
-                    color = random.choice(
-                        ego_vehicle_bp.get_attribute(
-                            'color').recommended_values)
+                    color = random.choice(ego_vehicle_bp.get_attribute('color').recommended_values)
                     ego_vehicle_bp.set_attribute('color', color)
 
             vehicle = self.world.spawn_actor(ego_vehicle_bp, spawn_transform)
@@ -699,19 +710,13 @@ class ScenarioManager:
         traffic_config = self.scenario_params['carla_traffic_manager']
         tm = self.client.get_trafficmanager()
 
-        tm.set_global_distance_to_leading_vehicle(
-            traffic_config['global_distance'])
+        tm.set_global_distance_to_leading_vehicle(traffic_config['global_distance'])
         tm.set_synchronous_mode(traffic_config['sync_mode'])
         tm.set_osm_mode(traffic_config['set_osm_mode'])
-        tm.global_percentage_speed_difference(
-            traffic_config['global_speed_perc'])
+        tm.global_percentage_speed_difference(traffic_config['global_speed_perc'])
 
-        if isinstance(traffic_config['vehicle_list'], list) or \
-                isinstance(traffic_config['vehicle_list'], ListConfig):
-            bg_list = self.spawn_vehicles_by_list(tm,
-                                                  traffic_config,
-                                                  bg_list)
-
+        if isinstance(traffic_config['vehicle_list'], list) or isinstance(traffic_config['vehicle_list'], ListConfig):
+            bg_list = self.spawn_vehicles_by_list(tm, traffic_config, bg_list)
         else:
             bg_list = self.spawn_vehicle_by_range(tm, traffic_config, bg_list)
 
