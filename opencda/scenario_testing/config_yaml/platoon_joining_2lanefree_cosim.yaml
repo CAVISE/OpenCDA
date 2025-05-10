@@ -51,6 +51,7 @@ scenario:
       members: # the first one is regarded as leader by default
         - name: cav1
           spawn_position: [-350, 8.3, 0.3, 0, 0, 0] # x, y, z, roll, yaw, pitch
+          color: [123, 10, 231]
           perception:
             camera:
               visualize: 1 # how many camera images need to be visualized. 0 means no visualization for camera
@@ -66,13 +67,17 @@ scenario:
               debug: false
         - name: cav2
           spawn_position: [-360, 8.3, 0.3, 0, 0, 0]
+          color: [123, 10, 231]
         - name: cav3
           spawn_position: [-370, 8.3, 0.3, 0, 0, 0]
+          color: [123, 10, 231]
         - name: cav4
           spawn_position: [-380, 8.3, 0.3, 0, 0, 0]
+          color: [123, 10, 231]
   single_cav_list: # this is for merging vehicle or single cav without v2x
     - name: single_cav
       spawn_position: [-380, 4.8, 0.3, 0, 0, 0]
+      color: [123, 10, 231]
       # when this is defined, the above parameter will be ignored, and a special map function will
       # be used to define the spawn position based on the argument
       spawn_special: [0.655]

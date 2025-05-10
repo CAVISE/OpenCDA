@@ -2,11 +2,11 @@
 The safety manager is used to collect the AV's hazard status and give the
 control back to human if necessary
 """
-import numpy as np
-import carla
+import logging
 
-from opencda.core.safety.sensors import CollisionSensor, \
-    TrafficLightDector, StuckDetector, OffRoadDetector
+from opencda.core.safety.sensors import CollisionSensor, TrafficLightDector, StuckDetector, OffRoadDetector
+
+logger = logging.getLogger("cavise.safety_manager")
 
 
 class SafetyManager:
@@ -26,8 +26,7 @@ class SafetyManager:
         self.sensors = [CollisionSensor(vehicle, params['collision_sensor']),
                         StuckDetector(params['stuck_dector']),
                         OffRoadDetector(params['offroad_dector']),
-                        TrafficLightDector(params['traffic_light_detector'],
-                                           vehicle)]
+                        TrafficLightDector(params['traffic_light_detector'], vehicle)]
 
     def update_info(self, data_dict) -> dict:
         status_dict = {}
@@ -38,13 +37,11 @@ class SafetyManager:
             print_flag = False
             # only print message when it has hazard
             for key, val in status_dict.items():
-                if val == True:
+                if val:
                     print_flag = True
                     break
             if print_flag:
-                print("Safety Warning from the safety manager:")
-                print(status_dict)
-
+                logger.info(f"Safety Warning from the safety manager:\n{status_dict}")
 
     def destroy(self):
         for sensor in self.sensors:
