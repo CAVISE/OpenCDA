@@ -794,6 +794,7 @@ class BehaviorAgent(object):
         if self.traffic_light_manager(ego_vehicle_wp) != 0:
             return 0, None
 
+        self._local_planner.buffer_filter()
         # 2. when the temporary route is finished, we return to the global route
         if len(self.get_local_planner().get_waypoints_queue()) == 0 \
                 and len(self.get_local_planner().get_waypoint_buffer()) <= 2:

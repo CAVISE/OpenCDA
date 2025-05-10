@@ -37,7 +37,7 @@ class Scenario:
     # TODO: find spectator type
     spectator: Any
     cav_world: CavWorld
-    codriving_model_manager: CodrivingModelManager  # [CoDrivingInt]
+    codriving_model_manager: CodrivingModelManager # [CoDrivingInt]
     platoon_list: List[PlatooningManager]
     # TODO: find bg cars type
     bg_veh_list: Any
@@ -147,7 +147,7 @@ class Scenario:
         )
         logger.info(f'created platoon list of size {len(self.platoon_list)}')
 
-        self.single_cav_list = self.scenario_manager.create_vehicle_manager(
+        self.single_cav_list, self.node_ids['cav'] = self.scenario_manager.create_vehicle_manager(
             application=['single'], map_helper=map_api.spawn_helper_2lanefree, data_dump=data_dump
         )
         logger.info(f'created single cavs of size {len(self.single_cav_list)}')
@@ -163,6 +163,22 @@ class Scenario:
             script_name=self.scenario_name,
             current_time=scenario_params['current_time']
         )
+
+        # [CoDrivingInt]
+        if opt.with_mtp:
+            logger.info('Codriving Model is initialized')
+
+            net = sumolib.net.readNet(f"opencda/sumo-assets/{self.scenario_name}/{self.scenario_name}.net.xml")
+            nodes = net.getNodes()
+
+            # TODO: Replace with params from scenario file
+            self.codriving_model_manager = CodrivingModelManager(
+                pretrained='opencda/codriving_models/gnn_mtl_gnn/model_rot_gnn_mtl_np_sumo_0911_e3_1930.pth', \
+                model_name="GNN_mtl_gnn",
+                nodes=nodes,
+                excluded_nodes=None, #scenario_params['excluded_nodes'] if scenario_params['excluded_nodes'] else None
+            )
+        # [CoDrivingInt]
 
         self.spectator = self.scenario_manager.world.get_spectator()
 
@@ -185,7 +201,9 @@ class Scenario:
         while True:
             # [CoDrivingInt]
             if opt.with_mtp:
-                self.codriving_model_manager.make_trajs()
+                self.codriving_model_manager.make_trajs(
+                    carla_vmanagers=self.single_cav_list
+                )
             # [CoDrivingInt]
 
             tick_number += 1

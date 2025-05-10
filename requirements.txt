@@ -69,3 +69,4 @@ pyyaml
 --find-links https://download.pytorch.org/whl/torch_stable.html
 traci
 torch_geometric
+sumolib
