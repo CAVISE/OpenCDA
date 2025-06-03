@@ -1,4 +1,7 @@
 csv
 fcd
 sumo/sumocfg/*.sumocfg
+!sumo/sumocfg/template.sumocfg
 sumo/route
+sumo/intentions/*.json
+!sumo/intentions/simple_separate_10m_intentions.json
