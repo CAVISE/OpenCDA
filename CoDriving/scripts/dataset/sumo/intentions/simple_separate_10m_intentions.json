@@ -1,0 +1,21 @@
+{
+    "center_coordinates":
+    {
+        "x": 0,
+        "y": 0
+    },
+    "paths": {
+        "E4_-E6": "straight",
+        "E4_-E7": "right",
+        "E4_-E5": "left",
+        "E6_-E4": "straight",
+        "E6_-E7": "left",
+        "E6_-E5": "right",
+        "E7_-E4": "left",
+        "E7_-E6": "right",
+        "E7_-E5": "straight",
+        "E5_-E4": "right",
+        "E5_-E6": "left",
+        "E5_-E7": "straight"
+    }
+}
