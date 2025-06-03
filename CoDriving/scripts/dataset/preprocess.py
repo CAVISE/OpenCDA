@@ -16,7 +16,7 @@ import concurrent.futures
 from multiprocessing import Value, Lock
 
 
-def process_file(csv_file):
+def process_file(csv_file, intentuion_config):
     df = pd.read_csv(os.path.join(csv_folder, csv_file))
     all_features = list()
     for track_id, remain_df in df.groupby('TRACK_ID'):
@@ -24,7 +24,7 @@ def process_file(csv_file):
             coords = remain_df[['X', 'Y', 'speed', 'yaw']].values
             coords[:, 3] = np.deg2rad(coords[:, 3])
             transform_sumo2carla(coords)
-            intention = get_intention_from_vehicle_id(track_id)[:3]
+            intention = get_intention_from_vehicle_id(track_id, intentuion_config)[:3]
             features = np.hstack((coords, intention * np.ones((coords.shape[0], 3))))
             all_features.append(features)
 
@@ -91,6 +91,7 @@ if __name__ == '__main__':
     parser.add_argument('--pkl_folder', type=str, help='path to the preprocessed data (*.pkl)', default='csv/train_pre')
     parser.add_argument('--num_mpc_aug', type=int, help='number of MPC augmentation', default=2)
     parser.add_argument('--processes', type=int, help=f'amount of processes(max: {cpu_amount})', default=cpu_amount)
+    parser.add_argument('--intention_config', type=str, help='Name of file with routes and intentins. It must be in sumo/intentions/ directory', default="simple_separate_10m_intentions.json")
     args = parser.parse_args()
 
     csv_folder = args.csv_folder
@@ -98,16 +99,18 @@ if __name__ == '__main__':
     os.makedirs(preprocess_folder, exist_ok=True)
     n_mpc_aug = args.num_mpc_aug
     processes = args.processes
+    intention_config = args.intention_config
 
     completed_tasks_amount = Value("i", 0)
     lock = Lock()
 
     csv_files = [i for i in os.listdir(csv_folder) if os.path.splitext(i)[1] == '.csv']
+    intention_config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sumo", "intentions", intention_config)
 
     print("Processing started")
     executor = concurrent.futures.ProcessPoolExecutor(max_workers=processes)
     try:
-        futures = [executor.submit(process_file, file) for file in csv_files]
+        futures = [executor.submit(process_file, file, intention_config_path) for file in csv_files]
         for future in concurrent.futures.as_completed(futures):
             try:
                 future.result()
@@ -115,11 +118,10 @@ if __name__ == '__main__':
                 print(f"Error: {e}")
         print("Done")
     except KeyboardInterrupt:
-        print("\nInterrupted by the user. Termination of tasks has begun.")
+        print("\nInterrupted by the user. Termination of tasks has begun. It may take some time.")
         print("!!!DON'T INTERRUPT IT, JUST WAIT!!!")
         for f in futures:
             f.cancel()
-        # executor.shutdown(wait=False, cancel_futures=True)
         sys.exit(1)
     finally:
         executor.shutdown()
