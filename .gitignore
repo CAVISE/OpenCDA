@@ -151,7 +151,7 @@ evaluation_outputs/
 docs/tmp.py
 video_dumping
 *data_dumping*
-opencda/coperception_models/real_time_vis
+opencda/coperception_models/coperception
 *eval.yaml
 ready*
 
