@@ -81,9 +81,9 @@ class CoScenarioManager(ScenarioManager):
 
         sumo_cfg = os.path.join(sumo_file_parent_path, base_name + '.sumocfg')
         # todo: use yaml file to generate the route file
-        assert os.path.isfile(sumo_cfg), f'{sumo_cfg} does not exist, make sure' \
-                                         'your config file name has the' \
-                                         'same basename as the directory' \
+        assert os.path.isfile(sumo_cfg), f'{sumo_cfg} does not exist, make sure ' \
+                                         'your config file name has the ' \
+                                         'same basename as the directory ' \
                                          'and use .sumocfg as extension'
 
         sumo_port = scenario_params[sumo_key]['port']
