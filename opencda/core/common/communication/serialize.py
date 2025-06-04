@@ -254,3 +254,8 @@ class MessageHandler:
 
                     msg['object_ids'] = list(entity_info.object_ids)
                     msg['lidar_pose'] = list(entity_info.lidar_pose)
+
+    def clear_messages(self):
+        # Clear opencda and artery dict messages to avoid usage of date from previous ticks
+        self.current_message_opencda = {}
+        self.current_message_artery = {}
