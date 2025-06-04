@@ -37,6 +37,10 @@ class CoperceptionModelManager():
         self.data_loader = None
         self.message_handler = message_handler
 
+        self.final_result_stat = {0.3: {'tp': [], 'fp': [], 'gt': 0, 'score': []},                
+                                  0.5: {'tp': [], 'fp': [], 'gt': 0, 'score': []},                
+                                  0.7: {'tp': [], 'fp': [], 'gt': 0, 'score': []}}
+
     def make_dataset(self):
         logger.info('Dataset Building')
         self.opencood_dataset = build_dataset(self.hypes, visualize=True, train=False, message_handler=self.message_handler)
@@ -58,8 +62,8 @@ class CoperceptionModelManager():
 
         # Create the dictionary for evaluation.
         # also store the confidence score for each prediction
-        result_stat = {0.3: {'tp': [], 'fp': [], 'gt': 0, 'score': []},                
-                    0.5: {'tp': [], 'fp': [], 'gt': 0, 'score': []},                
+        result_stat = {0.3: {'tp': [], 'fp': [], 'gt': 0, 'score': []},
+                    0.5: {'tp': [], 'fp': [], 'gt': 0, 'score': []},
                     0.7: {'tp': [], 'fp': [], 'gt': 0, 'score': []}}
 
         if self.opt.show_sequence:
@@ -98,7 +102,8 @@ class CoperceptionModelManager():
                 eval_utils.caluclate_tp_fp(pred_box_tensor, pred_score, gt_box_tensor, result_stat, 0.7)
 
                 if self.opt.save_npy:
-                    npy_save_path = os.path.join(self.opt.model_dir, 'npy')
+                    npy_dir = f"simulation_output/coperception/npy/{self.opt.test_scenario}_{self.current_time}"
+                    npy_save_path = os.path.join(npy_dir, 'npy')
                     os.makedirs(npy_save_path, exist_ok=True)
                     inference_utils.save_prediction_gt(pred_box_tensor, gt_box_tensor,
                                                     batch_data['ego']['origin_lidar'][0],
@@ -106,7 +111,7 @@ class CoperceptionModelManager():
 
                 if self.opt.save_vis:
                     for mode in ['3d', 'bev']:
-                        vis_dir = f"simulation_output/real_time_vis/vis_{mode}/{self.opt.test_scenario}_{self.current_time}"
+                        vis_dir = f"simulation_output/coperception/vis_{mode}/{self.opt.test_scenario}_{self.current_time}"
                         os.makedirs(vis_dir, exist_ok=True)
                         vis_save_path = os.path.join(vis_dir, f'{mode}_{tick_number:05d}.png')
                         simple_vis.visualize(pred_box_tensor, gt_box_tensor,
@@ -143,10 +148,20 @@ class CoperceptionModelManager():
                     self.vis.poll_events()
                     self.vis.update_renderer()
 
-        for precision, current_result_stat in result_stat.items():
-            logger.info(f'Result for {precision} - {current_result_stat}')
+        for iou in [0.3, 0.5, 0.7]:
+            self.final_result_stat[iou]['gt'] += result_stat[iou]['gt']
+            self.final_result_stat[iou]['tp'] += result_stat[iou]['tp']
+            self.final_result_stat[iou]['fp'] += result_stat[iou]['fp']
+            self.final_result_stat[iou]['score'] += result_stat[iou]['score']
 
-        eval_utils.eval_final_results(result_stat, self.opt.model_dir, self.opt.global_sort_detections)
+    def final_eval(self):
+        eval_dir = f'simulation_output/coperception/results/{self.opt.test_scenario}_{self.current_time}'
+        os.makedirs(eval_dir, exist_ok=True)
+        eval_utils.eval_final_results( 
+            self.final_result_stat,
+            eval_dir,
+            self.opt.global_sort_detections
+        )
 
 
 class DirectoryProcessor:

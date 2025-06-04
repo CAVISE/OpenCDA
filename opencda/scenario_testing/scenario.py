@@ -262,6 +262,9 @@ class Scenario:
 
                 self.coperception_model_manager.make_prediction(tick_number)
 
+                if self.cav_world.comms_manager is not None:
+                    self.message_handler.clear_messages()
+
     def finalize(self, opt: argparse.Namespace):
         if opt.record:
             self.scenario_manager.client.stop_recorder()
@@ -270,6 +273,9 @@ class Scenario:
         if self.eval_manager is not None:
             self.eval_manager.evaluate()
             logger.info('finalizing: evaluating results')
+
+        if self.coperception_model_manager is not None:
+            self.coperception_model_manager.final_eval()
 
         if self.single_cav_list is not None:
             logger.info(f'finalizing: destroying {len(self.single_cav_list)} single cavs')
