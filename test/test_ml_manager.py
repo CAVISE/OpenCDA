@@ -10,7 +10,6 @@ import sys
 import unittest
 
 import cv2
-import numpy as np
 
 # temporary solution for relative imports in case opencda is not installed
 # if opencda is installed, no need to use the following line

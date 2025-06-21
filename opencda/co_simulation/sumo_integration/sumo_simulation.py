@@ -322,9 +322,9 @@ class SumoSimulation(object):
 
     def __init__(self, cfg_file, step_length, host=None, port=None, sumo_gui=False, client_order=1):
         if sumo_gui is True:
-            sumo_binary = sumolib.checkBinary("sumo-gui")
+            sumolib.checkBinary("sumo-gui")
         else:
-            sumo_binary = sumolib.checkBinary("sumo")
+            sumolib.checkBinary("sumo")
 
         if host is None or port is None:
             logger.error("Error in sumo section of scenario YAML config.")

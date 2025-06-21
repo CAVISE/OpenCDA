@@ -212,7 +212,6 @@ def main() -> None:
     if opt.with_coperception:
         opencood_utils = "opencood/utils/"
         opencood_pcdet_utils = "opencood/pcdet_utils/"
-        verbose = opt.verbose
         if not check_buld_for_utils(opencood_utils, cwd, verbosity == VerbosityLevel.FULL, logger):
             logger.error("Failed to build opencood.utils")
         if not check_buld_for_utils(opencood_pcdet_utils, cwd, verbosity == VerbosityLevel.FULL, logger):

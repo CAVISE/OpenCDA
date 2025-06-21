@@ -10,7 +10,7 @@ from scipy import spatial
 import carla
 import numpy as np
 
-from opencda.core.common.misc import cal_distance_angle, draw_trajetory_points
+from opencda.core.common.misc import cal_distance_angle
 from opencda.core.plan.spline import Spline2D
 
 

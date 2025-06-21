@@ -4,8 +4,6 @@ Code modified from MPC_XY_Frame.py developed by Huiming Zhou et al.
 link: https://github.com/zhm-real/MotionPlanning/blob/master/Control/MPC_XY_Frame.py
 """
 
-import os
-import sys
 import math
 import cvxpy
 import yaml

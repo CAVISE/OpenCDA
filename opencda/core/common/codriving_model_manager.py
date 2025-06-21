@@ -1,14 +1,13 @@
 import carla
 import traci
 import torch
-import sumolib
 import logging
 import importlib
 import numpy as np
 import pickle as pkl
 from scipy.spatial import distance
 
-from CoDriving.scripts.constants import CONTROL_RADIUS, RELEASE_RADIUS, HIDDEN_CHANNELS
+from CoDriving.scripts.constants import CONTROL_RADIUS, HIDDEN_CHANNELS
 
 
 logger = logging.getLogger("cavise.codriving_model_manager")

@@ -10,7 +10,6 @@ from collections import deque
 
 import carla
 
-from opencda.core.common.misc import get_speed
 from opencda.core.sensing.localization.coordinate_transform import geo_to_transform
 
 

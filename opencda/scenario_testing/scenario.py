@@ -180,10 +180,10 @@ class Scenario:
     def run(self, opt: argparse.Namespace):
         if self.cav_world.comms_manager is not None:
             self.cav_world.comms_manager.create_socket(zmq.PAIR, "connect")
-            message_handler = MessageHandler()
+            MessageHandler()
             logger.info("running: creating message handler")
         else:
-            message_handler = None
+            pass
 
         tick_number = 0
         if self.coperception_model_manager is not None:

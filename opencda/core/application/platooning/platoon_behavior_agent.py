@@ -13,7 +13,7 @@ import numpy as np
 
 from opencda.core.application.platooning.fsm import FSM
 from opencda.core.application.platooning.platoon_debug_helper import PlatoonDebugHelper
-from opencda.core.common.misc import compute_distance, get_speed, cal_distance_angle
+from opencda.core.common.misc import compute_distance, cal_distance_angle
 from opencda.core.plan.behavior_agent import BehaviorAgent
 
 logger = logging.getLogger("cavise.platoon_behavior_agent")

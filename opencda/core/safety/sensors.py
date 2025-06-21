@@ -189,7 +189,7 @@ class TrafficLightDector(object):
         # Extract the active traffic lights, vehicle transform, world, and map from data_dict
         active_lights = data_dict["objects"]["traffic_lights"]
         vehicle_transform = data_dict["ego_pos"]
-        world = data_dict["world"]
+        data_dict["world"]
         self._map = data_dict["carla_map"]
 
         # Get the location of the first active traffic light
