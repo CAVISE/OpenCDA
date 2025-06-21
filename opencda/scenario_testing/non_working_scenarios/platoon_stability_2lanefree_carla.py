@@ -36,7 +36,7 @@ def run_scenario(opt, scenario_params):
         traffic_manager, bg_veh_list = scenario_manager.create_traffic_carla()
 
         if len(platoon_list) > 1:
-            sys.exit("In this scenario testing, " "only single platoon is allowed.")
+            sys.exit("In this scenario testing, only single platoon is allowed.")
 
         spectator = scenario_manager.world.get_spectator()
         spectator_vehicle = platoon_list[0].vehicle_manager_list[0].vehicle

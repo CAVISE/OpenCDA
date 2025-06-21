@@ -42,7 +42,7 @@ def generate_fcd(
     step_length: float = 0.1,
     traffic_scale: float = 0.5,
 ) -> NoReturn:
-    cmd = f"sumo -c {sumocfg_path} --fcd-output {fcd_path} --begin {begin_time} --end {begin_time+offset_time+total_time} \
+    cmd = f"sumo -c {sumocfg_path} --fcd-output {fcd_path} --begin {begin_time} --end {begin_time + offset_time + total_time} \
             --step-length {step_length} --scale {traffic_scale}"
     os.system(cmd)
 

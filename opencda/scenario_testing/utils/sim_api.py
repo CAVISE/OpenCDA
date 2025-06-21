@@ -170,9 +170,7 @@ class ScenarioManager:
                 self.world = self.client.load_world(town)
             except RuntimeError as error:
                 logger.error(
-                    f"{bcolors.FAIL}{town} probably is not in your CARLA repo! "
-                    f"Please download all town maps to your CARLA "
-                    f"repo!{bcolors.ENDC}"
+                    f"{bcolors.FAIL}{town} probably is not in your CARLA repo! Please download all town maps to your CARLA repo!{bcolors.ENDC}"
                 )
                 logger.error(error)
         else:

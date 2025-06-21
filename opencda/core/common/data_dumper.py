@@ -157,7 +157,7 @@ class DataDumper(object):
             veh_bbx = veh.bounding_box
             veh_speed = get_speed(veh)
 
-            assert veh_carla_id != -1, "Please turn off perception active" "mode if you are dumping data"
+            assert veh_carla_id != -1, "Please turn off perception activemode if you are dumping data"
 
             vehicle_dict.update(
                 {

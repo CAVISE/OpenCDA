@@ -58,7 +58,7 @@ class CoperceptionModelManager:
 
     def make_prediction(self, tick_number):
         assert self.opt.fusion_method in ["late", "early", "intermediate"]
-        assert not (self.opt.show_vis and self.opt.show_sequence), "you can only visualize " "the results in single " "image mode or video mode"
+        assert not (self.opt.show_vis and self.opt.show_sequence), "you can only visualize the results in single image mode or video mode"
         self.model.eval()
 
         # Create the dictionary for evaluation.

@@ -222,4 +222,4 @@ class LocDebugHelper(object):
         x_error = self._safe_mean_error(x1, x2)
         y_error = self._safe_mean_error(y1, y2)
         yaw_error = self._safe_mean_error(yaw1, yaw2)
-        return f"mean error for {label} on x-axis: {x_error:.3f} (m), " f"on y-axis: {y_error:.3f} (m), on yaw: {yaw_error:.3f} (°)\n"
+        return f"mean error for {label} on x-axis: {x_error:.3f} (m), on y-axis: {y_error:.3f} (m), on yaw: {yaw_error:.3f} (°)\n"

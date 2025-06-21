@@ -345,9 +345,7 @@ class PerceptionManager:
 
         if self.activate and not ml_manager:
             sys.exit(
-                "If you activate the perception module, "
-                "then apply_ml must be set to true in "
-                "the argument parser to load the detection DL model."
+                "If you activate the perception module, then apply_ml must be set to true in the argument parser to load the detection DL model."
             )
         self.ml_manager = ml_manager
 

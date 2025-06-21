@@ -242,8 +242,10 @@ for epoch in tqdm(range(0, args.epoch)):
     if epoch % 10 == 0:
         ade, fde, mr, collision_rate, val_losses, collision_penalties = evaluate(model, device, val_loader)
         record.append([ade, fde, mr, collision_rate, val_losses, collision_penalties])
-        print(f"Epoch {epoch}: Train Loss: {loss}, ADE: {ade}, FDE: {fde}, MR: {mr}, CR:{collision_rate}, \
-            Val_loss: {val_losses}, CP: {collision_penalties}, lr: {optimizer.param_groups[0]['lr']}.")
+        print(
+            f"Epoch {epoch}: Train Loss: {loss}, ADE: {ade}, FDE: {fde}, MR: {mr}, CR:{collision_rate}, \
+            Val_loss: {val_losses}, CP: {collision_penalties}, lr: {optimizer.param_groups[0]['lr']}."
+        )
         torch.save(
             model.state_dict(),
             model_path + f"/model_{'mlp' if mlp else 'gnn'}_{'wp' if collision_penalty else 'np'}_{exp_id}_e3_{str(epoch).zfill(4)}.pth",
@@ -254,8 +256,10 @@ for epoch in tqdm(range(0, args.epoch)):
             print(" !!! New smallest FDE !!! ")
         elif (epoch - best_epoch) > patience:
             if patience > 1600:  # x16
-                print(f"{'MLP' if mlp else 'GNN'} earlier stops, Best Epoch: {best_epoch}, Min ADE: {min_ade}, \
-                    Min FDE: {min_fde}, MR: {mr}, CR:{collision_rate}.")
+                print(
+                    f"{'MLP' if mlp else 'GNN'} earlier stops, Best Epoch: {best_epoch}, Min ADE: {min_ade}, \
+                    Min FDE: {min_fde}, MR: {mr}, CR:{collision_rate}."
+                )
                 break
             else:
                 optimizer.param_groups[0]["lr"] *= 0.5
