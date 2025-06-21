@@ -11,7 +11,7 @@ class GNN_mtl_mlp(torch.nn.Module):
         self.linear2 = nn.Linear(64, hidden_channels)
         self.linear3 = nn.Linear(hidden_channels, hidden_channels)
         self.linear4 = nn.Linear(hidden_channels, hidden_channels)
-        self.linear5 = nn.Linear(hidden_channels, 30*2)
+        self.linear5 = nn.Linear(hidden_channels, 30 * 2)
 
     def forward(self, x, edge_index):
         x = self.linear1(x).relu()

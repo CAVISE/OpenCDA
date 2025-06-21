@@ -27,7 +27,6 @@ class BoundingBox(object):
     """
 
     def __init__(self, corners):
-
         center_x = np.mean(corners[:, 0])
         center_y = np.mean(corners[:, 1])
         center_z = np.mean(corners[:, 2])
@@ -60,7 +59,6 @@ class StaticObstacle(object):
     """
 
     def __init__(self, corner, o3d_bbx):
-
         self.bounding_box = BoundingBox(corner)
         self.o3d_bbx = o3d_bbx
 
@@ -98,8 +96,7 @@ class TrafficLight(object):
         return self.state
 
     @staticmethod
-    def get_trafficlight_trigger_location(traffic_light: carla.Actor) \
-            -> carla.Vector3D:  # pylint: disable=invalid-name
+    def get_trafficlight_trigger_location(traffic_light: carla.Actor) -> carla.Vector3D:  # pylint: disable=invalid-name
         """
         Calculates the yaw of the waypoint that represents the trigger
         volume of the traffic light
@@ -122,6 +119,4 @@ class TrafficLight(object):
         point = rotate_point(carla.Vector3D(0, 0, area_ext.z), base_rot)
         point_location = area_loc + carla.Location(x=point.x, y=point.y)
 
-        return carla.Location(point_location.x,
-                              point_location.y,
-                              point_location.z)
+        return carla.Location(point_location.x, point_location.y, point_location.z)

@@ -10,7 +10,7 @@ import numpy as np
 
 
 class Location(object):
-    """ A mock class for Location. """
+    """A mock class for Location."""
 
     def __init__(self, x, y, z):
         self.x = x
@@ -27,7 +27,7 @@ class Transform(object):
 
 
 class Rotation(object):
-    """ A mock class for Rotation. """
+    """A mock class for Rotation."""
 
     def __init__(self, pitch, yaw, roll):
         self.pitch = pitch
@@ -36,7 +36,7 @@ class Rotation(object):
 
 
 class Vector3D(object):
-    """ A mock class for Vector3D. """
+    """A mock class for Vector3D."""
 
     def __init__(self, x, y, z):
         self.x = x
@@ -45,7 +45,7 @@ class Vector3D(object):
 
 
 class Camera(object):
-    """A mock class for camera. """
+    """A mock class for camera."""
 
     def __init__(self, attributes: dict):
         self.attributes = attributes

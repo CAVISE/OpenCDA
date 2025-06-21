@@ -3,6 +3,7 @@ from torch import nn
 from torch_geometric.nn import GraphConv as GNNConv
 from tqdm import tqdm
 
+
 class GNN_mtl_gnn(torch.nn.Module):
     def __init__(self, hidden_channels):
         super().__init__()
@@ -13,7 +14,7 @@ class GNN_mtl_gnn(torch.nn.Module):
         self.linear2 = nn.Linear(64, hidden_channels)
         self.linear3 = nn.Linear(hidden_channels, hidden_channels)
         self.linear4 = nn.Linear(hidden_channels, hidden_channels)
-        self.linear5 = nn.Linear(hidden_channels, 30*2)
+        self.linear5 = nn.Linear(hidden_channels, 30 * 2)
 
     def forward(self, x, edge_index):
         x = self.linear1(x).relu()

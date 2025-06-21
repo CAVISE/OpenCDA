@@ -25,8 +25,7 @@ class MLManager(object):
     """
 
     def __init__(self):
-
-        self.object_detector = torch.hub.load('ultralytics/yolov5', 'yolov5m')
+        self.object_detector = torch.hub.load("ultralytics/yolov5", "yolov5m")
 
     def draw_2d_box(self, result, rgb_image, index):
         """
@@ -55,17 +54,12 @@ class MLManager(object):
             label_name = result.names[label]
 
             if is_vehicle_cococlass(label):
-                label_name = 'vehicle'
+                label_name = "vehicle"
 
-            x1, y1, x2, y2 = int(
-                detection[0]), int(
-                detection[1]), int(
-                detection[2]), int(
-                detection[3])
+            x1, y1, x2, y2 = int(detection[0]), int(detection[1]), int(detection[2]), int(detection[3])
             cv2.rectangle(rgb_image, (x1, y1), (x2, y2), (0, 255, 0), 2)
             # draw text on it
-            cv2.putText(rgb_image, label_name, (x1, y1 - 10),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.9, (36, 255, 12), 1)
+            cv2.putText(rgb_image, label_name, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (36, 255, 12), 1)
 
         return rgb_image
 
