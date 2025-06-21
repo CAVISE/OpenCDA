@@ -1,6 +1,5 @@
 import os
 import re
-import time
 import shutil
 import logging
 from tqdm import tqdm

@@ -152,7 +152,7 @@ class CarlaSimulation(object):
             :param state: new traffic light state.
             :return: True if successfully updated. Otherwise, False.
         """
-        if not landmark_id in self._tls:
+        if landmark_id not in self._tls:
             logging.warning("Landmark %s not found in carla", landmark_id)
             return False
 

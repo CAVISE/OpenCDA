@@ -8,7 +8,6 @@ Basic class for RSU(Roadside Unit) management.
 import logging
 
 # CAVISE
-import opencda.core.common.communication.serialize as cavise
 
 from opencda.core.common.data_dumper import DataDumper
 from opencda.core.sensing.perception.perception_manager import PerceptionManager
@@ -88,7 +87,7 @@ class RSUManager(object):
                 self.rid = self.__generate_unique_rsu_id()
                 logger.debug(f"No RSU ID specified in config. Assigned auto-generated ID: {self.rid}")
             else:
-                logger.error(f"No RSU ID specified in config.")
+                logger.error("No RSU ID specified in config.")
                 raise ValueError("No RSU ID specified in config.")
 
         # read map from the world everytime is time-consuming, so we need
@@ -141,7 +140,7 @@ class RSUManager(object):
         ego_pos = self.localizer.get_ego_pos()
 
         # TODO: object detection - pass it to other CAVs for V2X perception
-        objects = self.perception_manager.detect(ego_pos)
+        self.perception_manager.detect(ego_pos)
 
     def update_info_v2x(self):
         # TODO: Добавить обновление информации
