@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 
-"""Finite State Machine
-"""
+"""Finite State Machine"""
 
 # Author: Runsheng Xu <rxx3386@ucla.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
@@ -41,6 +40,7 @@ class FSM(Enum):
     DISABLE:
         V2X is not available and thus won't join any platoon.
     """
+
     SEARCHING = 0
     OPEN_GAP = 1
     MOVE_TO_POINT = 2

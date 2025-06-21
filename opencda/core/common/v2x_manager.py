@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 
-"""Communication manager for cooperation
-"""
+"""Communication manager for cooperation"""
 # Author: Runsheng Xu <rxx3386@ucla.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
@@ -11,8 +10,7 @@ import weakref
 import carla
 import numpy as np
 
-from opencda.core.application.platooning.platooning_plugin \
-    import PlatooningPlugin
+from opencda.core.application.platooning.platooning_plugin import PlatooningPlugin
 from opencda.core.common.misc import compute_distance
 
 
@@ -52,8 +50,8 @@ class V2XManager(object):
 
     def __init__(self, cav_world, config_yaml, vid):
         # if disabled, no cooperation will be operated
-        self.cda_enabled = config_yaml['enabled']
-        self.communication_range = config_yaml['communication_range']
+        self.cda_enabled = config_yaml["enabled"]
+        self.communication_range = config_yaml["communication_range"]
 
         # found CAVs nearby
         self.cav_nearby = {}
@@ -62,8 +60,7 @@ class V2XManager(object):
         self._recieved_buffer = {}
 
         # used for platooning communication
-        self.platooning_plugin = PlatooningPlugin(
-            self.communication_range, self.cda_enabled)
+        self.platooning_plugin = PlatooningPlugin(self.communication_range, self.cda_enabled)
 
         self.cav_world = weakref.ref(cav_world)()
 
@@ -80,14 +77,14 @@ class V2XManager(object):
         self.lag = 0
 
         # Add noise to V2X communication if needed.
-        if 'loc_noise' in config_yaml:
-            self.loc_noise = config_yaml['loc_noise']
-        if 'yaw_noise' in config_yaml:
-            self.yaw_noise = config_yaml['yaw_noise']
-        if 'speed_noise' in config_yaml:
-            self.speed_noise = config_yaml['speed_noise']
-        if 'lag' in config_yaml:
-            self.lag = config_yaml['lag']
+        if "loc_noise" in config_yaml:
+            self.loc_noise = config_yaml["loc_noise"]
+        if "yaw_noise" in config_yaml:
+            self.yaw_noise = config_yaml["yaw_noise"]
+        if "speed_noise" in config_yaml:
+            self.speed_noise = config_yaml["speed_noise"]
+        if "lag" in config_yaml:
+            self.lag = config_yaml["lag"]
 
     def update_info(self, ego_pos, ego_spd):
         """
@@ -115,8 +112,7 @@ class V2XManager(object):
             return None
 
         # add lag
-        ego_pos = self.ego_pos[0] if len(self.ego_pos) < self.lag else \
-            self.ego_pos[np.random.randint(-1 - int(abs(self.lag)), 0)]
+        ego_pos = self.ego_pos[0] if len(self.ego_pos) < self.lag else self.ego_pos[np.random.randint(-1 - int(abs(self.lag)), 0)]
 
         x_noise = np.random.normal(0, self.loc_noise) + ego_pos.location.x
         y_noise = np.random.normal(0, self.loc_noise) + ego_pos.location.y
@@ -142,8 +138,7 @@ class V2XManager(object):
         if not self.ego_spd:
             return None
         # add lag
-        ego_speed = self.ego_spd[0] if len(self.ego_spd) < self.lag else \
-            self.ego_spd[-1 - int(abs(self.lag))]
+        ego_speed = self.ego_spd[0] if len(self.ego_spd) < self.lag else self.ego_spd[-1 - int(abs(self.lag))]
         processed_ego_speed = np.random.normal(0, self.speed_noise) + ego_speed
 
         return processed_ego_speed
@@ -161,9 +156,7 @@ class V2XManager(object):
             # avoid add itself as the cav nearby
             if vid == self.vid:
                 continue
-            distance = compute_distance(
-                self.ego_pos[-1].location,
-                vm.v2x_manager.get_ego_pos().location)
+            distance = compute_distance(self.ego_pos[-1].location, vm.v2x_manager.get_ego_pos().location)
 
             if distance < self.communication_range:
                 self.cav_nearby.update({vid: vm})
@@ -174,12 +167,7 @@ class V2XManager(object):
     -----------------------------------------------------------
     """
 
-    def set_platoon(
-            self,
-            in_id,
-            platooning_object=None,
-            platooning_id=None,
-            leader=False):
+    def set_platoon(self, in_id, platooning_object=None, platooning_id=None, leader=False):
         """
         Set platooning status
 
@@ -199,8 +187,7 @@ class V2XManager(object):
             Indicate whether this cav is a leader in platoon.
 
         """
-        self.platooning_plugin.set_platoon(
-            in_id, platooning_object, platooning_id, leader)
+        self.platooning_plugin.set_platoon(in_id, platooning_object, platooning_id, leader)
 
     def set_platoon_status(self, status):
         """

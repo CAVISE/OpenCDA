@@ -2,6 +2,7 @@
 """
 Analysis + Visualization functions for planning
 """
+
 # Author: Runsheng Xu <rxx3386@ucla.edu>
 # License:  TDG-Attribution-NonCommercial-NoDistrib
 import warnings
@@ -57,8 +58,7 @@ class PlanDebugHelper(object):
                 self.acc_list[0].append(0)
             else:
                 # todo: time-step hardcoded
-                self.acc_list[0].append(
-                    (self.speed_list[0][-1] - self.speed_list[0][-2]) / 0.05)
+                self.acc_list[0].append((self.speed_list[0][-1] - self.speed_list[0][-2]) / 0.05)
             self.ttc_list[0].append(ttc)
 
     def evaluate(self):
@@ -71,7 +71,7 @@ class PlanDebugHelper(object):
             as text files.
 
         """
-        warnings.filterwarnings('ignore')
+        warnings.filterwarnings("ignore")
         # draw speed, acc and ttc plotting
         figure = plt.figure()
         plt.subplot(311)
@@ -83,7 +83,7 @@ class PlanDebugHelper(object):
         plt.subplot(313)
         open_plt.draw_ttc_profile_single_plot(self.ttc_list)
 
-        figure.suptitle('planning profile of actor id %d' % self.actor_id)
+        figure.suptitle("planning profile of actor id %d" % self.actor_id)
 
         # calculate the statistics
         spd_avg = np.mean(np.array(self.speed_list[0]))
@@ -97,13 +97,10 @@ class PlanDebugHelper(object):
         ttc_avg = np.mean(ttc_array)
         ttc_std = np.std(ttc_array)
 
-        perform_txt = 'Speed average: %f (m/s), ' \
-                      'Speed std: %f (m/s) \n' % (spd_avg, spd_std)
+        perform_txt = "Speed average: %f (m/s), Speed std: %f (m/s) \n" % (spd_avg, spd_std)
 
-        perform_txt += 'Acceleration average: %f (m/s), ' \
-                       'Acceleration std: %f (m/s) \n' % (acc_avg, acc_std)
+        perform_txt += "Acceleration average: %f (m/s), Acceleration std: %f (m/s) \n" % (acc_avg, acc_std)
 
-        perform_txt += 'TTC average: %f (m/s), ' \
-                       'TTC std: %f (m/s) \n' % (ttc_avg, ttc_std)
+        perform_txt += "TTC average: %f (m/s), TTC std: %f (m/s) \n" % (ttc_avg, ttc_std)
 
         return figure, perform_txt

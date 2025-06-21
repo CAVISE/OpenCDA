@@ -5,10 +5,8 @@ Customized Localization Module.
 # Author: Runsheng Xu <rxx3386@ucla.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
-from opencda.core.sensing.localization.localization_manager \
-    import LocalizationManager
-from opencda.customize.core.sensing.localization.extented_kalman_filter \
-    import ExtentedKalmanFilter
+from opencda.core.sensing.localization.localization_manager import LocalizationManager
+from opencda.customize.core.sensing.localization.extented_kalman_filter import ExtentedKalmanFilter
 
 
 class CustomizedLocalizationManager(LocalizationManager):
@@ -29,10 +27,5 @@ class CustomizedLocalizationManager(LocalizationManager):
     """
 
     def __init__(self, vehicle, config_yaml, carla_map):
-        super(
-            CustomizedLocalizationManager,
-            self).__init__(
-            vehicle,
-            config_yaml,
-            carla_map)
+        super(CustomizedLocalizationManager, self).__init__(vehicle, config_yaml, carla_map)
         self.kf = ExtentedKalmanFilter(self.dt)

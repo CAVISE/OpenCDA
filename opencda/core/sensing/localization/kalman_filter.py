@@ -38,12 +38,17 @@ class KalmanFilter(object):
     """
 
     def __init__(self, dt):
-        self.Q = np.diag([
-            0.2,  # variance of location on x-axis
-            0.2,  # variance of location on y-axis
-            np.deg2rad(0.1),  # variance of yaw angle
-            0.001  # variance of velocity
-        ]) ** 2  # predict state covariance
+        self.Q = (
+            np.diag(
+                [
+                    0.2,  # variance of location on x-axis
+                    0.2,  # variance of location on y-axis
+                    np.deg2rad(0.1),  # variance of yaw angle
+                    0.001,  # variance of velocity
+                ]
+            )
+            ** 2
+        )  # predict state covariance
 
         # Observation x,y position covariance
         self.R = np.diag([0.5, 0.5, 0.2]) ** 2
@@ -71,15 +76,9 @@ class KalmanFilter(object):
         x : np.array
             Predicted state.
         """
-        F = np.array([[1.0, 0, 0, 0],
-                      [0, 1.0, 0, 0],
-                      [0, 0, 1.0, 0],
-                      [0, 0, 0, 0]])
+        F = np.array([[1.0, 0, 0, 0], [0, 1.0, 0, 0], [0, 0, 1.0, 0], [0, 0, 0, 0]])
 
-        B = np.array([[self.time_step * math.cos(x[2, 0]), 0],
-                      [self.time_step * math.sin(x[2, 0]), 0],
-                      [0.0, self.time_step],
-                      [1.0, 0.0]])
+        B = np.array([[self.time_step * math.cos(x[2, 0]), 0], [self.time_step * math.sin(x[2, 0]), 0], [0.0, self.time_step], [1.0, 0.0]])
 
         x = F @ x + B @ u
 
@@ -100,11 +99,7 @@ class KalmanFilter(object):
             Predicted measurement.
 
         """
-        H = np.array([
-            [1, 0, 0, 0],
-            [0, 1, 0, 0],
-            [0, 0, 1, 0]
-        ])
+        H = np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0]])
 
         z = H @ x
 
@@ -172,17 +167,10 @@ class KalmanFilter(object):
         y = z - zPred
 
         # projection matrix
-        H = np.array([
-            [1, 0, 0, 0],
-            [0, 1, 0, 0],
-            [0, 0, 1, 0]
-        ])
+        H = np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0]])
 
         # prediction matrix
-        F = np.array([[1.0, 0, 0, 0],
-                      [0, 1.0, 0, 0],
-                      [0, 0, 1.0, 0],
-                      [0, 0, 0, 0]])
+        F = np.array([[1.0, 0, 0, 0], [0, 1.0, 0, 0], [0, 0, 1.0, 0], [0, 0, 0, 0]])
 
         PPred = F @ self.PEst @ F.T + self.Q
         S = np.linalg.inv(H @ PPred @ H.T + self.R)
@@ -191,7 +179,4 @@ class KalmanFilter(object):
         self.xEst = xPred + K @ y
         self.PEst = K @ H @ PPred
 
-        return self.xEst[0][0], \
-            self.xEst[1][0], \
-            self.xEst[2][0],\
-            self.xEst[3][0]
+        return self.xEst[0][0], self.xEst[1][0], self.xEst[2][0], self.xEst[3][0]

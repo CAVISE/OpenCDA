@@ -22,7 +22,7 @@ directions = [
 def write_pretty_xml(element_tree, file_name):
     """Format xml"""
     rough_string = ET.tostring(element_tree.getroot(), "utf-8")
-    
+
     parsed = minidom.parseString(rough_string)
     pretty_xml = parsed.toprettyxml(indent="  ")
 
@@ -81,13 +81,9 @@ def generate(n: int, filename: str):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="")
 
-    parser.add_argument(
-        "-n", "--number", type=int, help="Number of items to be generated", default=100
-    )
-    parser.add_argument(
-        "-f", "--filename", type=str, help="Name of output file", default="gen.rou.xml"
-    )
-    
+    parser.add_argument("-n", "--number", type=int, help="Number of items to be generated", default=100)
+    parser.add_argument("-f", "--filename", type=str, help="Name of output file", default="gen.rou.xml")
+
     args = parser.parse_args()
     n = args.number
     filename = args.filename

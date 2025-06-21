@@ -12,6 +12,7 @@ from opencda.scenario_testing.evaluations.utils import lprint
 
 logger = logging.getLogger("cavise.evaluate_manager")
 
+
 class EvaluationManager(object):
     """
     Evaluation manager to manage the analysis of the
@@ -40,9 +41,7 @@ class EvaluationManager(object):
 
         current_path = os.path.dirname(os.path.realpath(__file__))
 
-        self.eval_save_path = os.path.join(
-            current_path, '../../../simulation_output/evaluation_outputs',
-            script_name + '_' + current_time)
+        self.eval_save_path = os.path.join(current_path, "../../../simulation_output/evaluation_outputs", script_name + "_" + current_time)
         if not os.path.exists(self.eval_save_path):
             os.makedirs(self.eval_save_path)
 
@@ -51,16 +50,16 @@ class EvaluationManager(object):
         Evaluate performance of all modules by plotting and writing the
         statistics into the log file.
         """
-        log_file = os.path.join(self.eval_save_path, 'log.txt')
+        log_file = os.path.join(self.eval_save_path, "log.txt")
 
         self.localization_eval(log_file)
-        logger.info('Localization Evaluation Done')
+        logger.info("Localization Evaluation Done")
 
         self.kinematics_eval(log_file)
-        logger.info('Kinematics Evaluation Done')
+        logger.info("Kinematics Evaluation Done")
 
         self.platooning_eval(log_file)
-        logger.info('Platooning Evaluation Done')
+        logger.info("Platooning Evaluation Done")
 
     def kinematics_eval(self, log_file):
         """
@@ -73,16 +72,13 @@ class EvaluationManager(object):
         lprint(log_file, "***********Kinematics Module***********")
         for vid, vm in self.cav_world.get_vehicle_managers().items():
             actor_id = vm.vehicle.id
-            lprint(log_file, 'Actor ID: %d' % actor_id)
+            lprint(log_file, "Actor ID: %d" % actor_id)
 
             loc_debug_helper = vm.agent.debug_helper
             figure, perform_txt = loc_debug_helper.evaluate()
 
             # save plotting
-            figure_save_path = os.path.join(
-                self.eval_save_path,
-                '%d_kinematics_plotting.png' %
-                actor_id)
+            figure_save_path = os.path.join(self.eval_save_path, "%d_kinematics_plotting.png" % actor_id)
             figure.savefig(figure_save_path, dpi=100)
 
             lprint(log_file, perform_txt)
@@ -97,16 +93,13 @@ class EvaluationManager(object):
         lprint(log_file, "***********Localization Module***********")
         for vid, vm in self.cav_world.get_vehicle_managers().items():
             actor_id = vm.vehicle.id
-            lprint(log_file, 'Actor ID: %d' % actor_id)
+            lprint(log_file, "Actor ID: %d" % actor_id)
 
             loc_debug_helper = vm.localizer.debug_helper
             figure, perform_txt = loc_debug_helper.evaluate()
 
             # save plotting
-            figure_save_path = os.path.join(
-                self.eval_save_path,
-                '%d_localization_plotting.png' %
-                actor_id)
+            figure_save_path = os.path.join(self.eval_save_path, "%d_localization_plotting.png" % actor_id)
             figure.savefig(figure_save_path, dpi=100)
 
             # save log txt
@@ -123,14 +116,11 @@ class EvaluationManager(object):
         lprint(log_file, "***********Platooning Analysis***********")
 
         for pmid, pm in self.cav_world.get_platoon_dict().items():
-            lprint(log_file, 'Platoon ID: %s' % pmid)
+            lprint(log_file, "Platoon ID: %s" % pmid)
             figure, perform_txt = pm.evaluate()
 
             # save plotting
-            figure_save_path = os.path.join(
-                self.eval_save_path,
-                '%s_platoon_plotting.png' %
-                pmid)
+            figure_save_path = os.path.join(self.eval_save_path, "%s_platoon_plotting.png" % pmid)
             figure.savefig(figure_save_path, dpi=100)
 
             # save log txt

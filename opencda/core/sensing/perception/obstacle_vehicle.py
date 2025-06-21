@@ -5,7 +5,6 @@ Obstacle vehicle class to save object detection.
 
 # Author: Runsheng Xu <rxx3386@ucla.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
-import sys
 
 import carla
 import numpy as np
@@ -99,9 +98,7 @@ class ObstacleVehicle(object):
         matched with the obstacle vehicle, it should be -1.
     """
 
-    def __init__(self, corners, o3d_bbx,
-                 vehicle=None, lidar=None, sumo2carla_ids=None):
-
+    def __init__(self, corners, o3d_bbx, vehicle=None, lidar=None, sumo2carla_ids=None):
         if not vehicle:
             self.bounding_box = BoundingBox(corners)
             self.location = self.bounding_box.location
@@ -181,9 +178,7 @@ class ObstacleVehicle(object):
         self.bounding_box = vehicle.bounding_box
         self.carla_id = vehicle.id
         self.type_id = vehicle.type_id
-        self.color = vehicle.attributes["color"] \
-            if hasattr(vehicle, "attributes") \
-               and "color" in vehicle.attributes else None
+        self.color = vehicle.attributes["color"] if hasattr(vehicle, "attributes") and "color" in vehicle.attributes else None
         self.set_velocity(vehicle.get_velocity())
         # the vehicle controlled by sumo has speed 0 in carla,
         # thus we need to retrieve the correct number from sumo
@@ -195,16 +190,22 @@ class ObstacleVehicle(object):
                 self.set_velocity(speed_vector)
 
         # find the min and max boundary
-        min_boundary = np.array([self.location.x - self.bounding_box.extent.x,
-                                 self.location.y - self.bounding_box.extent.y,
-                                 self.location.z + self.bounding_box.location.z
-                                 - self.bounding_box.extent.z,
-                                 1])
-        max_boundary = np.array([self.location.x + self.bounding_box.extent.x,
-                                 self.location.y + self.bounding_box.extent.y,
-                                 self.location.z + self.bounding_box.location.z
-                                 + self.bounding_box.extent.z,
-                                 1])
+        min_boundary = np.array(
+            [
+                self.location.x - self.bounding_box.extent.x,
+                self.location.y - self.bounding_box.extent.y,
+                self.location.z + self.bounding_box.location.z - self.bounding_box.extent.z,
+                1,
+            ]
+        )
+        max_boundary = np.array(
+            [
+                self.location.x + self.bounding_box.extent.x,
+                self.location.y + self.bounding_box.extent.y,
+                self.location.z + self.bounding_box.location.z + self.bounding_box.extent.z,
+                1,
+            ]
+        )
         min_boundary = min_boundary.reshape((4, 1))
         max_boundary = max_boundary.reshape((4, 1))
         stack_boundary = np.hstack((min_boundary, max_boundary))
@@ -212,33 +213,32 @@ class ObstacleVehicle(object):
         if lidar is None:
             return
         # the boundary coord at the lidar sensor space
-        stack_boundary_sensor_cords = st.world_to_sensor(stack_boundary,
-                                                         lidar.get_transform())
+        stack_boundary_sensor_cords = st.world_to_sensor(stack_boundary, lidar.get_transform())
         # convert unreal space to o3d space
-        stack_boundary_sensor_cords[:1, :] = - \
-            stack_boundary_sensor_cords[:1, :]
+        stack_boundary_sensor_cords[:1, :] = -stack_boundary_sensor_cords[:1, :]
         # (4,2) -> (3, 2)
         stack_boundary_sensor_cords = stack_boundary_sensor_cords[:-1, :]
 
         min_boundary_sensor = np.min(stack_boundary_sensor_cords, axis=1)
         max_boundary_sensor = np.max(stack_boundary_sensor_cords, axis=1)
 
-        aabb = \
-            o3d.geometry.AxisAlignedBoundingBox(min_bound=min_boundary_sensor,
-                                                max_bound=max_boundary_sensor)
+        aabb = o3d.geometry.AxisAlignedBoundingBox(min_bound=min_boundary_sensor, max_bound=max_boundary_sensor)
         aabb.color = (1, 0, 0)
         self.o3d_bbx = aabb
+
     # CAVISE
     def to_dict(self):
         """
         Convert the ObstacleVehicle instance to a dictionary.
         """
         return {
-            'location': self.location.to_dict(),
-            'carla_id': self.carla_id
+            "location": self.location.to_dict(),
+            "carla_id": self.carla_id,
             # Add other attributes as needed
         }
+
     def __repr__(self):
-        return f"({self.location}, {self.carla_id})" # ВСЁ КРОМЕ type_id почему так не знаю
+        return f"({self.location}, {self.carla_id})"  # ВСЁ КРОМЕ type_id почему так не знаю
+
     def __str__(self):
-        return f"({self.location}, {self.carla_id})" # ВСЁ КРОМЕ type_id почему так не знаю
+        return f"({self.location}, {self.carla_id})"  # ВСЁ КРОМЕ type_id почему так не знаю

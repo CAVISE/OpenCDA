@@ -34,8 +34,9 @@ class Vector3D(object):
             :py:class:`.Vector3D`: A pylot 3D vector.
         """
         from carla import Vector3D
+
         if not isinstance(vector, Vector3D):
-            raise ValueError('The vector must be a Vector3D')
+            raise ValueError("The vector must be a Vector3D")
         return cls(vector.x, vector.y, vector.z)
 
 
@@ -67,9 +68,9 @@ class Location(Vector3D):
             :py:class:`.Location`: A pylot location.
         """
         from carla import Location, Vector3D
-        if not (isinstance(location, Location)
-                or isinstance(location, Vector3D)):
-            raise ValueError('The location must be a Location or Vector3D')
+
+        if not (isinstance(location, Location) or isinstance(location, Vector3D)):
+            raise ValueError("The location must be a Location or Vector3D")
         return cls(location.x, location.y, location.z)
 
 
@@ -108,8 +109,9 @@ class Rotation(object):
             :py:class:`.Rotation`: A pylot rotation.
         """
         from carla import Rotation
+
         if not isinstance(rotation, Rotation):
-            raise ValueError('rotation should be of type Rotation')
+            raise ValueError("rotation should be of type Rotation")
         return cls(rotation.pitch, rotation.yaw, rotation.roll)
 
 
@@ -135,9 +137,7 @@ class Transform(object):
             object represented by the transform.
     """
 
-    def __init__(self,
-                 location: Location = None,
-                 rotation: Rotation = None):
+    def __init__(self, location: Location = None, rotation: Rotation = None):
         self.location = location
         self.rotation = Rotation(0, 0, 0) if not rotation else rotation
 
@@ -152,7 +152,7 @@ class Transform(object):
             :py:class:`.Transform`: An instance of a pylot transform.
         """
         from carla import Transform
+
         if not isinstance(transform, Transform):
-            raise ValueError('transform should be of type Transform')
-        return cls(Location.from_simulator_location(transform.location),
-                   Rotation.from_simulator_rotation(transform.rotation))
+            raise ValueError("transform should be of type Transform")
+        return cls(Location.from_simulator_location(transform.location), Rotation.from_simulator_rotation(transform.rotation))

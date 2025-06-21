@@ -25,12 +25,9 @@ class ControlManager(object):
     """
 
     def __init__(self, control_config):
-        controller_type = control_config['type']
-        controller = getattr(
-            importlib.import_module(
-                "opencda.core.actuation.%s" %
-                controller_type), 'Controller')
-        self.controller = controller(control_config['args'])
+        controller_type = control_config["type"]
+        controller = getattr(importlib.import_module("opencda.core.actuation.%s" % controller_type), "Controller")
+        self.controller = controller(control_config["args"])
 
     def update_info(self, ego_pos, ego_speed):
         """

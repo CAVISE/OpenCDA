@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 
-"""Rasterization drawing functions
-"""
+"""Rasterization drawing functions"""
 
 # Author: Runsheng Xu <rxx3386@ucla.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
@@ -16,10 +15,7 @@ INTERPOLATION_POINTS = 20
 
 AGENT_COLOR = (255, 255, 255)
 ROAD_COLOR = (17, 17, 31)
-Lane_COLOR = {'normal': (255, 217, 82),
-              'red': (255, 0, 0),
-              'yellow': (255, 255, 0),
-              'green': (0, 255, 0)}
+Lane_COLOR = {"normal": (255, 217, 82), "red": (255, 0, 0), "yellow": (255, 255, 0), "green": (0, 255, 0)}
 
 
 def cv2_subpixel(coords: np.ndarray) -> np.ndarray:
@@ -56,8 +52,7 @@ def draw_agent(agent_list, image):
     """
     for agent_corner in agent_list:
         agent_corner = agent_corner.reshape(-1, 2)
-        cv2.fillPoly(image, [agent_corner], AGENT_COLOR,
-                     **CV2_SUB_VALUES)
+        cv2.fillPoly(image, [agent_corner], AGENT_COLOR, **CV2_SUB_VALUES)
     return image
 
 
@@ -80,8 +75,7 @@ def draw_road(lane_area_list, image):
 
     for lane_area in lane_area_list:
         lane_area = lane_area.reshape(-1, 2)
-        cv2.fillPoly(image, [lane_area], ROAD_COLOR,
-                     **CV2_SUB_VALUES)
+        cv2.fillPoly(image, [lane_area], ROAD_COLOR, **CV2_SUB_VALUES)
     return image
 
 
@@ -104,8 +98,7 @@ def draw_lane(lane_area_list, lane_type_list, image):
     -------
     drawed image.
     """
-    for (lane_area, lane_type) in zip(lane_area_list, lane_type_list):
-        cv2.polylines(image, lane_area, False, Lane_COLOR[lane_type],
-                      **CV2_SUB_VALUES)
+    for lane_area, lane_type in zip(lane_area_list, lane_type_list):
+        cv2.polylines(image, lane_area, False, Lane_COLOR[lane_type], **CV2_SUB_VALUES)
 
     return image
