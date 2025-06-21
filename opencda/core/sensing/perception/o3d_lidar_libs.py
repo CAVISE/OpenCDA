@@ -16,37 +16,41 @@ from matplotlib import cm
 from scipy.stats import mode
 
 import opencda.core.sensing.perception.sensor_transformation as st
-from opencda.core.sensing.perception.obstacle_vehicle import \
-    is_vehicle_cococlass, ObstacleVehicle
+from opencda.core.sensing.perception.obstacle_vehicle import is_vehicle_cococlass, ObstacleVehicle
 from opencda.core.sensing.perception.static_obstacle import StaticObstacle
 
-VIRIDIS = np.array(cm.get_cmap('plasma').colors)
+VIRIDIS = np.array(cm.get_cmap("plasma").colors)
 VID_RANGE = np.linspace(0.0, 1.0, VIRIDIS.shape[0])
-LABEL_COLORS = np.array([
-    (255, 255, 255),  # None
-    (70, 70, 70),  # Building
-    (100, 40, 40),  # Fences
-    (55, 90, 80),  # Other
-    (220, 20, 60),  # Pedestrian
-    (153, 153, 153),  # Pole
-    (157, 234, 50),  # RoadLines
-    (128, 64, 128),  # Road
-    (244, 35, 232),  # Sidewalk
-    (107, 142, 35),  # Vegetation
-    (0, 0, 142),  # Vehicle
-    (102, 102, 156),  # Wall
-    (220, 220, 0),  # TrafficSign
-    (70, 130, 180),  # Sky
-    (81, 0, 81),  # Ground
-    (150, 100, 100),  # Bridge
-    (230, 150, 140),  # RailTrack
-    (180, 165, 180),  # GuardRail
-    (250, 170, 30),  # TrafficLight
-    (110, 190, 160),  # Static
-    (170, 120, 50),  # Dynamic
-    (45, 60, 150),  # Water
-    (145, 170, 100),  # Terrain
-]) / 255.0  # normalize each channel [0-1] since is what Open3D uses
+LABEL_COLORS = (
+    np.array(
+        [
+            (255, 255, 255),  # None
+            (70, 70, 70),  # Building
+            (100, 40, 40),  # Fences
+            (55, 90, 80),  # Other
+            (220, 20, 60),  # Pedestrian
+            (153, 153, 153),  # Pole
+            (157, 234, 50),  # RoadLines
+            (128, 64, 128),  # Road
+            (244, 35, 232),  # Sidewalk
+            (107, 142, 35),  # Vegetation
+            (0, 0, 142),  # Vehicle
+            (102, 102, 156),  # Wall
+            (220, 220, 0),  # TrafficSign
+            (70, 130, 180),  # Sky
+            (81, 0, 81),  # Ground
+            (150, 100, 100),  # Bridge
+            (230, 150, 140),  # RailTrack
+            (180, 165, 180),  # GuardRail
+            (250, 170, 30),  # TrafficLight
+            (110, 190, 160),  # Static
+            (170, 120, 50),  # Dynamic
+            (45, 60, 150),  # Water
+            (145, 170, 100),  # Terrain
+        ]
+    )
+    / 255.0
+)  # normalize each channel [0-1] since is what Open3D uses
 
 
 def o3d_pointcloud_encode(raw_data, point_cloud):
@@ -69,7 +73,8 @@ def o3d_pointcloud_encode(raw_data, point_cloud):
     int_color = np.c_[
         np.interp(intensity_col, VID_RANGE, VIRIDIS[:, 0]),
         np.interp(intensity_col, VID_RANGE, VIRIDIS[:, 1]),
-        np.interp(intensity_col, VID_RANGE, VIRIDIS[:, 2])]
+        np.interp(intensity_col, VID_RANGE, VIRIDIS[:, 2]),
+    ]
 
     # Isolate the 3D data
     points = np.array(raw_data[:, :-1], copy=True)
@@ -97,11 +102,7 @@ def o3d_visualizer_init(actor_id):
 
     """
     vis = o3d.visualization.Visualizer()
-    vis.create_window(window_name=str(actor_id),
-                      width=480,
-                      height=320,
-                      left=480,
-                      top=270)
+    vis.create_window(window_name=str(actor_id), width=480, height=320, left=480, top=270)
     vis.get_render_option().background_color = [0.05, 0.05, 0.05]
     vis.get_render_option().point_size = 1
     vis.get_render_option().show_coordinate_frame = True
@@ -139,7 +140,7 @@ def o3d_visualizer_show(vis, count, point_cloud, objects):
 
     for key, object_list in objects.items():
         # we only draw vehicles for now
-        if key != 'vehicles':
+        if key != "vehicles":
             continue
         for object_ in object_list:
             aabb = object_.o3d_bbx
@@ -151,18 +152,14 @@ def o3d_visualizer_show(vis, count, point_cloud, objects):
     time.sleep(0.001)
 
     for key, object_list in objects.items():
-        if key != 'vehicles':
+        if key != "vehicles":
             continue
         for object_ in object_list:
             aabb = object_.o3d_bbx
             vis.remove_geometry(aabb)
 
 
-def o3d_camera_lidar_fusion(objects,
-                            yolo_bbx,
-                            lidar_3d,
-                            projected_lidar,
-                            lidar_sensor):
+def o3d_camera_lidar_fusion(objects, yolo_bbx, lidar_3d, projected_lidar, lidar_sensor):
     """
     Utilize the 3D lidar points to extend the 2D bounding box
     from camera to 3D bounding box under world coordinates.
@@ -200,15 +197,17 @@ def o3d_camera_lidar_fusion(objects,
     for i in range(yolo_bbx.shape[0]):
         detection = yolo_bbx[i]
         # 2d bbx coordinates
-        x1, y1, x2, y2 = int(detection[0]), int(detection[1]),\
-            int(detection[2]), int(detection[3])
+        x1, y1, x2, y2 = int(detection[0]), int(detection[1]), int(detection[2]), int(detection[3])
         label = int(detection[5])
 
         # choose the lidar points in the 2d yolo bounding box
-        points_in_bbx = \
-            (projected_lidar[:, 0] > x1) & (projected_lidar[:, 0] < x2) & \
-            (projected_lidar[:, 1] > y1) & (projected_lidar[:, 1] < y2) & \
-            (projected_lidar[:, 2] > 0.0)
+        points_in_bbx = (
+            (projected_lidar[:, 0] > x1)
+            & (projected_lidar[:, 0] < x2)
+            & (projected_lidar[:, 1] > y1)
+            & (projected_lidar[:, 1] < y2)
+            & (projected_lidar[:, 2] > 0.0)
+        )
         # ignore intensity channel
         select_points = lidar_3d[points_in_bbx][:, :-1]
 
@@ -216,14 +215,14 @@ def o3d_camera_lidar_fusion(objects,
             continue
 
         # filter out the outlier
-        x_common = mode(np.array(np.abs(select_points[:, 0]),
-                                 dtype=np.int), axis=0)[0][0]
-        y_common = mode(np.array(np.abs(select_points[:, 1]),
-                                 dtype=np.int), axis=0)[0][0]
-        points_inlier = (np.abs(select_points[:, 0]) > x_common - 3) & \
-                        (np.abs(select_points[:, 0]) < x_common + 3) & \
-                        (np.abs(select_points[:, 1]) > y_common - 3) & \
-                        (np.abs(select_points[:, 1]) < y_common + 3)
+        x_common = mode(np.array(np.abs(select_points[:, 0]), dtype=np.int), axis=0)[0][0]
+        y_common = mode(np.array(np.abs(select_points[:, 1]), dtype=np.int), axis=0)[0][0]
+        points_inlier = (
+            (np.abs(select_points[:, 0]) > x_common - 3)
+            & (np.abs(select_points[:, 0]) < x_common + 3)
+            & (np.abs(select_points[:, 1]) > y_common - 3)
+            & (np.abs(select_points[:, 1]) < y_common + 3)
+        )
         select_points = select_points[points_inlier]
 
         if select_points.shape[0] < 2:
@@ -253,17 +252,17 @@ def o3d_camera_lidar_fusion(objects,
 
         if is_vehicle_cococlass(label):
             obstacle_vehicle = ObstacleVehicle(corner, aabb)
-            if 'vehicles' in objects:
-                objects['vehicles'].append(obstacle_vehicle)
+            if "vehicles" in objects:
+                objects["vehicles"].append(obstacle_vehicle)
             else:
-                objects['vehicles'] = [obstacle_vehicle]
+                objects["vehicles"] = [obstacle_vehicle]
         # todo: refine the category
         # we regard or other obstacle rather than vehicle as static class
         else:
             static_obstacle = StaticObstacle(corner, aabb)
-            if 'static' in objects:
-                objects['static'].append(static_obstacle)
+            if "static" in objects:
+                objects["static"].append(static_obstacle)
             else:
-                objects['static'] = [static_obstacle]
+                objects["static"] = [static_obstacle]
 
     return objects

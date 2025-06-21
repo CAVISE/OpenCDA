@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 
-"""Tools to plot velocity, acceleration, and curvation.
-"""
+"""Tools to plot velocity, acceleration, and curvation."""
 # Author: Runsheng Xu <rxx3386@ucla.edu>
 # License:  TDG-Attribution-NonCommercial-NoDistrib
 
@@ -119,12 +118,7 @@ def draw_dist_gap_profile_singel_plot(gap_list):
     fig.set_size_inches(11, 5)
 
 
-def draw_sub_plot(
-        velocity_list,
-        acceleration_list,
-        time_gap_list,
-        distance_gap_list,
-        ttc_list):
+def draw_sub_plot(velocity_list, acceleration_list, time_gap_list, distance_gap_list, ttc_list):
     """
     This is a specific function that draws 4 in 1 images
     for trajectory following task.
@@ -165,10 +159,8 @@ def draw_sub_plot(
 
     label = []
     for i in range(1, len(velocity_list) + 1):
-        label.append('Leading Vehicle, id: %d' %
-                     int(i - 1) if i == 1 else 'Following Vehicle, id: %d' %
-                     int(i - 1))
+        label.append("Leading Vehicle, id: %d" % int(i - 1) if i == 1 else "Following Vehicle, id: %d" % int(i - 1))
 
-    fig.legend(label, loc='upper right')
+    fig.legend(label, loc="upper right")
 
     return fig

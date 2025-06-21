@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 
-"""HDMap manager
-"""
+"""HDMap manager"""
 
 # Author: Runsheng Xu <rxx3386@ucla.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
@@ -16,14 +15,12 @@ import numpy as np
 from matplotlib.path import Path
 from shapely.geometry import Polygon
 
-from opencda.core.sensing.perception.sensor_transformation import \
-    world_to_sensor
-from opencda.core.map.map_utils import \
-    lateral_shift, list_loc2array, list_wpt2array, convert_tl_status
-from opencda.core.map.map_drawing import \
-    cv2_subpixel, draw_agent, draw_road, draw_lane
+from opencda.core.sensing.perception.sensor_transformation import world_to_sensor
+from opencda.core.map.map_utils import lateral_shift, list_loc2array, list_wpt2array, convert_tl_status
+from opencda.core.map.map_drawing import cv2_subpixel, draw_agent, draw_road, draw_lane
 
 logger = logging.getLogger("cavise.map_manager")
+
 
 class MapManager(object):
     """
@@ -93,19 +90,14 @@ class MapManager(object):
         self.carla_map = carla_map
         self.center = None
 
-        self.actvate = config['activate']
-        self.visualize = config['visualize']
-        self.pixels_per_meter = config['pixels_per_meter']
+        self.actvate = config["activate"]
+        self.visualize = config["visualize"]
+        self.pixels_per_meter = config["pixels_per_meter"]
         self.meter_per_pixel = 1 / self.pixels_per_meter
-        self.raster_size = np.array([config['raster_size'][0],
-                                     config['raster_size'][1]])
-        self.lane_sample_resolution = config['lane_sample_resolution']
+        self.raster_size = np.array([config["raster_size"][0], config["raster_size"][1]])
+        self.lane_sample_resolution = config["lane_sample_resolution"]
 
-        self.raster_radius = \
-            float(np.linalg.norm(self.raster_size *
-                                 np.array(
-                                     [self.meter_per_pixel,
-                                      self.meter_per_pixel]))) / 2
+        self.raster_radius = float(np.linalg.norm(self.raster_size * np.array([self.meter_per_pixel, self.meter_per_pixel]))) / 2
 
         # list of all start waypoints in HD Map
         topology = [x[0] for x in carla_map.get_topology()]
@@ -117,8 +109,7 @@ class MapManager(object):
         self.crosswalk_info = {}
         self.traffic_light_info = {}
         # this is mainly used for efficient filtering
-        self.bound_info = {'lanes': {},
-                           'crosswalks': {}}
+        self.bound_info = {"lanes": {}, "crosswalks": {}}
 
         # generate information for traffic light
         self.generate_tl_info(self.world)
@@ -168,21 +159,15 @@ class MapManager(object):
         -------
         bound : np.array
         """
-        x_min = min(np.min(left_lane[:, 0]),
-                    np.min(right_lane[:, 0]))
-        y_min = min(np.min(left_lane[:, 1]),
-                    np.min(right_lane[:, 1]))
-        x_max = max(np.max(left_lane[:, 0]),
-                    np.max(right_lane[:, 0]))
-        y_max = max(np.max(left_lane[:, 1]),
-                    np.max(right_lane[:, 1]))
+        x_min = min(np.min(left_lane[:, 0]), np.min(right_lane[:, 0]))
+        y_min = min(np.min(left_lane[:, 1]), np.min(right_lane[:, 1]))
+        x_max = max(np.max(left_lane[:, 0]), np.max(right_lane[:, 0]))
+        y_max = max(np.max(left_lane[:, 1]), np.max(right_lane[:, 1]))
         bounds = np.asarray([[[x_min, y_min], [x_max, y_max]]])
 
         return bounds
 
-    def agents_in_range(self,
-                        radius,
-                        agents_dict):
+    def agents_in_range(self, radius, agents_dict):
         """
         Filter out all agents out of the radius.
 
@@ -204,17 +189,14 @@ class MapManager(object):
         center = [self.center.location.x, self.center.location.y]
 
         for agent_id, agent in agents_dict.items():
-            location = agent['location']
-            distance = math.sqrt((location[0] - center[0]) ** 2 + \
-                                 (location[1] - center[1]) ** 2)
+            location = agent["location"]
+            distance = math.sqrt((location[0] - center[0]) ** 2 + (location[1] - center[1]) ** 2)
             if distance < radius:
                 final_agents.update({agent_id: agent})
 
         return final_agents
 
-    def indices_in_bounds(self,
-                          bounds: np.ndarray,
-                          half_extent: float) -> np.ndarray:
+    def indices_in_bounds(self, bounds: np.ndarray, half_extent: float) -> np.ndarray:
         """
         Get indices of elements for which the bounding box described by bounds
         intersects the one defined around center (square with side 2*half_side)
@@ -253,10 +235,10 @@ class MapManager(object):
         associate_tl_id : str
             The associated traffic light id.
         """
-        associate_tl_id = ''
+        associate_tl_id = ""
 
         for tl_id, tl_content in self.traffic_light_info.items():
-            trigger_poly = tl_content['corners']
+            trigger_poly = tl_content["corners"]
             # use Path to do fast computation
             trigger_path = Path(trigger_poly.boundary.coords[:])
             # check if any point in the middle line inside the trigger area
@@ -279,7 +261,7 @@ class MapManager(object):
         lanes_bounds = np.empty((0, 2, 2), dtype=np.float64)
         crosswalks_bounds = np.empty((0, 2, 2), dtype=np.float64)
         # loop all waypoints to get lane information
-        for (i, waypoint) in enumerate(self.topology):
+        for i, waypoint in enumerate(self.topology):
             # unique id for each lane
             lane_id = uuid.uuid4().hex[:6].upper()
             lanes_id.append(lane_id)
@@ -287,8 +269,7 @@ class MapManager(object):
             waypoints = [waypoint]
             nxt = waypoint.next(self.lane_sample_resolution)[0]
             # looping until next lane
-            while nxt.road_id == waypoint.road_id \
-                    and nxt.lane_id == waypoint.lane_id:
+            while nxt.road_id == waypoint.road_id and nxt.lane_id == waypoint.lane_id:
                 waypoints.append(nxt)
                 options = nxt.next(self.lane_sample_resolution)
 
@@ -299,10 +280,8 @@ class MapManager(object):
                     break
 
             # waypoint is the centerline, we need to calculate left lane mark
-            left_marking = [lateral_shift(w.transform, -w.lane_width * 0.5) for
-                            w in waypoints]
-            right_marking = [lateral_shift(w.transform, w.lane_width * 0.5) for
-                             w in waypoints]
+            left_marking = [lateral_shift(w.transform, -w.lane_width * 0.5) for w in waypoints]
+            right_marking = [lateral_shift(w.transform, w.lane_width * 0.5) for w in waypoints]
             # convert the list of carla.Location to np.array
             left_marking = list_loc2array(left_marking)
             right_marking = list_loc2array(right_marking)
@@ -315,15 +294,12 @@ class MapManager(object):
             # associate with traffic light
             tl_id = self.associate_lane_tl(mid_lane)
 
-            self.lane_info.update({lane_id: {'xyz_left': left_marking,
-                                             'xyz_right': right_marking,
-                                             'xyz_mid': mid_lane,
-                                             'tl_id': tl_id}})
+            self.lane_info.update({lane_id: {"xyz_left": left_marking, "xyz_right": right_marking, "xyz_mid": mid_lane, "tl_id": tl_id}})
             # boundary information
-            self.bound_info['lanes']['ids'] = lanes_id
-            self.bound_info['lanes']['bounds'] = lanes_bounds
-            self.bound_info['crosswalks']['ids'] = crosswalks_ids
-            self.bound_info['crosswalks']['bounds'] = crosswalks_bounds
+            self.bound_info["lanes"]["ids"] = lanes_id
+            self.bound_info["lanes"]["bounds"] = lanes_bounds
+            self.bound_info["crosswalks"]["ids"] = crosswalks_ids
+            self.bound_info["crosswalks"]["bounds"] = crosswalks_bounds
 
     def generate_tl_info(self, world):
         """
@@ -338,7 +314,7 @@ class MapManager(object):
         -------
         A dictionary containing traffic lights information.
         """
-        tl_list = world.get_actors().filter('traffic.traffic_light*')
+        tl_list = world.get_actors().filter("traffic.traffic_light*")
 
         for tl_actor in tl_list:
             tl_id = uuid.uuid4().hex[:4].upper()
@@ -346,34 +322,24 @@ class MapManager(object):
             base_transform = tl_actor.get_transform()
             base_rot = base_transform.rotation.yaw
             # this is where the vehicle stops
-            area_loc = base_transform.transform(
-                tl_actor.trigger_volume.location)
-            area_transform = carla.Transform(area_loc,
-                                             carla.Rotation(yaw=base_rot))
+            area_loc = base_transform.transform(tl_actor.trigger_volume.location)
+            area_transform = carla.Transform(area_loc, carla.Rotation(yaw=base_rot))
 
             # bbx extent
             ext = tl_actor.trigger_volume.extent
             # the y is to narrow
             ext.y += 0.5
-            ext_corners = np.array([
-                [-ext.x, -ext.y],
-                [ext.x, -ext.y],
-                [ext.x, ext.y],
-                [-ext.x, ext.y]])
+            ext_corners = np.array([[-ext.x, -ext.y], [ext.x, -ext.y], [ext.x, ext.y], [-ext.x, ext.y]])
             for i in range(ext_corners.shape[0]):
-                corrected_loc = area_transform.transform(
-                    carla.Location(ext_corners[i][0], ext_corners[i][1]))
+                corrected_loc = area_transform.transform(carla.Location(ext_corners[i][0], ext_corners[i][1]))
                 ext_corners[i, 0] = corrected_loc.x
                 ext_corners[i, 1] = corrected_loc.y
 
             # use shapely lib to convert to polygon
             corner_poly = Polygon(ext_corners)
             self.traffic_light_info.update(
-                {tl_id: {'actor': tl_actor,
-                         'corners': corner_poly,
-                         'base_rot': base_rot,
-                         'base_transform': base_transform
-                         }})
+                {tl_id: {"actor": tl_actor, "corners": corner_poly, "base_rot": base_rot, "base_transform": base_transform}}
+            )
 
     def generate_lane_area(self, xyz_left, xyz_right):
         """
@@ -395,11 +361,9 @@ class MapManager(object):
         lane_area = np.zeros((2, xyz_left.shape[0], 2))
         # convert coordinates to center's coordinate frame
         xyz_left = xyz_left.T
-        xyz_left = np.r_[
-            xyz_left, [np.ones(xyz_left.shape[1])]]
+        xyz_left = np.r_[xyz_left, [np.ones(xyz_left.shape[1])]]
         xyz_right = xyz_right.T
-        xyz_right = np.r_[
-            xyz_right, [np.ones(xyz_right.shape[1])]]
+        xyz_right = np.r_[xyz_right, [np.ones(xyz_right.shape[1])]]
 
         # ego's coordinate frame
         xyz_left = world_to_sensor(xyz_left, self.center).T
@@ -413,10 +377,8 @@ class MapManager(object):
         # y revert
         lane_area[:, :, 1] = -lane_area[:, :, 1]
 
-        lane_area[:, :, 0] = lane_area[:, :, 0] * self.pixels_per_meter + \
-            self.raster_size[0] // 2
-        lane_area[:, :, 1] = lane_area[:, :, 1] * self.pixels_per_meter + \
-            self.raster_size[1] // 2
+        lane_area[:, :, 0] = lane_area[:, :, 0] * self.pixels_per_meter + self.raster_size[0] // 2
+        lane_area[:, :, 1] = lane_area[:, :, 1] * self.pixels_per_meter + self.raster_size[1] // 2
 
         # to make more precise polygon
         lane_area = cv2_subpixel(lane_area)
@@ -441,8 +403,7 @@ class MapManager(object):
         corners = np.array(corners)
         # for homogeneous transformation
         corners = corners.T
-        corners = np.r_[
-            corners, [np.ones(corners.shape[1])]]
+        corners = np.r_[corners, [np.ones(corners.shape[1])]]
         # convert to ego's coordinate frame
         corners = world_to_sensor(corners, self.center).T
         corners = corners[:, :2]
@@ -452,10 +413,8 @@ class MapManager(object):
         # y revert
         corners[:, 1] = -corners[:, 1]
 
-        corners[:, 0] = corners[:, 0] * self.pixels_per_meter + \
-            self.raster_size[0] // 2
-        corners[:, 1] = corners[:, 1] * self.pixels_per_meter + \
-            self.raster_size[1] // 2
+        corners[:, 0] = corners[:, 0] * self.pixels_per_meter + self.raster_size[0] // 2
+        corners[:, 1] = corners[:, 1] * self.pixels_per_meter + self.raster_size[1] // 2
 
         # to make more precise polygon
         corner_area = cv2_subpixel(corners[:, :2])
@@ -472,16 +431,18 @@ class MapManager(object):
         The dictionary contains all agents info in the carla world.
         """
 
-        agent_list = self.world.get_actors().filter('vehicle.*')
+        agent_list = self.world.get_actors().filter("vehicle.*")
         dynamic_agent_info = {}
 
         for agent in agent_list:
             agent_id = agent.id
 
             agent_transform = agent.get_transform()
-            agent_loc = [agent_transform.location.x,
-                         agent_transform.location.y,
-                         agent_transform.location.z, ]
+            agent_loc = [
+                agent_transform.location.x,
+                agent_transform.location.y,
+                agent_transform.location.z,
+            ]
 
             agent_yaw = agent_transform.rotation.yaw
 
@@ -491,16 +452,14 @@ class MapManager(object):
                 carla.Location(x=-bb.x, y=-bb.y),
                 carla.Location(x=-bb.x, y=bb.y),
                 carla.Location(x=bb.x, y=bb.y),
-                carla.Location(x=bb.x, y=-bb.y)
+                carla.Location(x=bb.x, y=-bb.y),
             ]
             # corners are originally in ego coordinate frame, convert to
             # world coordinate
             agent_transform.transform(corners)
             corners_reformat = [[x.x, x.y, x.z] for x in corners]
 
-            dynamic_agent_info[agent_id] = {'location': agent_loc,
-                                            'yaw': agent_yaw,
-                                            'corners': corners_reformat}
+            dynamic_agent_info[agent_id] = {"location": agent_loc, "yaw": agent_yaw, "corners": corners_reformat}
         return dynamic_agent_info
 
     def rasterize_dynamic(self):
@@ -511,23 +470,17 @@ class MapManager(object):
         -------
         Rasterization image.
         """
-        self.dynamic_bev = 255 * np.zeros(
-            shape=(self.raster_size[1], self.raster_size[0], 3),
-            dtype=np.uint8)
+        self.dynamic_bev = 255 * np.zeros(shape=(self.raster_size[1], self.raster_size[0], 3), dtype=np.uint8)
         # filter using half a radius from the center
-        raster_radius = \
-            float(np.linalg.norm(self.raster_size *
-                                 np.array([self.meter_per_pixel,
-                                           self.meter_per_pixel]))) / 2
+        raster_radius = float(np.linalg.norm(self.raster_size * np.array([self.meter_per_pixel, self.meter_per_pixel]))) / 2
         # retrieve all agents
         dynamic_agents = self.load_agents_world()
         # filter out agents out of range
-        final_agents = self.agents_in_range(raster_radius,
-                                            dynamic_agents)
+        final_agents = self.agents_in_range(raster_radius, dynamic_agents)
 
         corner_list = []
         for agent_id, agent in final_agents.items():
-            agent_corner = self.generate_agent_area(agent['corners'])
+            agent_corner = self.generate_agent_area(agent["corners"])
             corner_list.append(agent_corner)
 
         self.dynamic_bev = draw_agent(corner_list, self.dynamic_bev)
@@ -537,52 +490,38 @@ class MapManager(object):
         """
         Generate the static bev map.
         """
-        self.static_bev = 255 * np.ones(
-            shape=(self.raster_size[1], self.raster_size[0], 3),
-            dtype=np.uint8)
-        self.vis_bev = 255 * np.ones(
-            shape=(self.raster_size[1], self.raster_size[0], 3),
-            dtype=np.uint8)
+        self.static_bev = 255 * np.ones(shape=(self.raster_size[1], self.raster_size[0], 3), dtype=np.uint8)
+        self.vis_bev = 255 * np.ones(shape=(self.raster_size[1], self.raster_size[0], 3), dtype=np.uint8)
 
         # filter using half a radius from the center
-        raster_radius = \
-            float(np.linalg.norm(self.raster_size *
-                                 np.array([self.meter_per_pixel,
-                                           self.meter_per_pixel]))) / 2
-        lane_indices = self.indices_in_bounds(self.bound_info['lanes'][
-                                                  'bounds'],
-                                              raster_radius)
+        raster_radius = float(np.linalg.norm(self.raster_size * np.array([self.meter_per_pixel, self.meter_per_pixel]))) / 2
+        lane_indices = self.indices_in_bounds(self.bound_info["lanes"]["bounds"], raster_radius)
         lanes_area_list = []
         lane_type_list = []
 
         for idx, lane_idx in enumerate(lane_indices):
-            lane_idx = self.bound_info['lanes']['ids'][lane_idx]
+            lane_idx = self.bound_info["lanes"]["ids"][lane_idx]
             lane_info = self.lane_info[lane_idx]
-            xyz_left, xyz_right = \
-                lane_info['xyz_left'], lane_info['xyz_right']
+            xyz_left, xyz_right = lane_info["xyz_left"], lane_info["xyz_right"]
 
             # generate lane area
             lane_area = self.generate_lane_area(xyz_left, xyz_right)
             lanes_area_list.append(lane_area)
 
             # check the associated traffic light
-            associated_tl_id = lane_info['tl_id']
+            associated_tl_id = lane_info["tl_id"]
             if associated_tl_id:
-                tl_actor = self.traffic_light_info[associated_tl_id]['actor']
+                tl_actor = self.traffic_light_info[associated_tl_id]["actor"]
                 status = convert_tl_status(tl_actor.get_state())
                 lane_type_list.append(status)
             else:
-                lane_type_list.append('normal')
+                lane_type_list.append("normal")
 
-        self.static_bev = draw_road(lanes_area_list,
-                                    self.static_bev)
-        self.static_bev = draw_lane(lanes_area_list, lane_type_list,
-                                    self.static_bev)
+        self.static_bev = draw_road(lanes_area_list, self.static_bev)
+        self.static_bev = draw_lane(lanes_area_list, lane_type_list, self.static_bev)
 
-        self.vis_bev = draw_road(lanes_area_list,
-                                 self.vis_bev)
-        self.vis_bev = draw_lane(lanes_area_list, lane_type_list,
-                                 self.vis_bev)
+        self.vis_bev = draw_road(lanes_area_list, self.vis_bev)
+        self.vis_bev = draw_lane(lanes_area_list, lane_type_list, self.vis_bev)
         self.vis_bev = cv2.cvtColor(self.vis_bev, cv2.COLOR_RGB2BGR)
 
     def destroy(self):

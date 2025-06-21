@@ -6,7 +6,7 @@
 # This work is licensed under the terms of the MIT license.
 # For a copy, see <https://opensource.org/licenses/MIT>.
 
-""" Module with auxiliary functions. """
+"""Module with auxiliary functions."""
 
 import math
 import importlib
@@ -15,9 +15,7 @@ import numpy as np
 import carla
 
 
-def draw_trajetory_points(world, waypoints, z=0.25,
-                          color=carla.Color(255, 0, 0),
-                          lt=5, size=0.1, arrow_size=0.1):
+def draw_trajetory_points(world, waypoints, z=0.25, color=carla.Color(255, 0, 0), lt=5, size=0.1, arrow_size=0.1):
     """
     Draw a list of trajectory points
 
@@ -45,16 +43,12 @@ def draw_trajetory_points(world, waypoints, z=0.25,
         wpt = waypoints[i]
         if isinstance(wpt, tuple) or isinstance(wpt, list):
             wpt = wpt[0]
-        if hasattr(wpt, 'is_junction'):
+        if hasattr(wpt, "is_junction"):
             wpt_t = wpt.transform
         else:
             wpt_t = wpt
 
-        world.debug.draw_point(
-            wpt_t.location,
-            size=size,
-            color=color,
-            life_time=lt)
+        world.debug.draw_point(wpt_t.location, size=size, color=color, life_time=lt)
 
 
 def draw_waypoints(world, waypoints, z=0.5):
@@ -96,7 +90,7 @@ def get_speed(vehicle, meters=False):
         The vehicle speed.
     """
     vel = vehicle.get_velocity()
-    vel_meter_per_second = math.sqrt(vel.x ** 2 + vel.y ** 2 + vel.z ** 2)
+    vel_meter_per_second = math.sqrt(vel.x**2 + vel.y**2 + vel.z**2)
     return vel_meter_per_second if meters else 3.6 * vel_meter_per_second
 
 
@@ -118,7 +112,7 @@ def get_acc(vehicle, meters=False):
         The vehicle speed.
     """
     acc = vehicle.get_acceleration()
-    acc_meter_per_second = math.sqrt(acc.x ** 2 + acc.y ** 2 + acc.z ** 2)
+    acc_meter_per_second = math.sqrt(acc.x**2 + acc.y**2 + acc.z**2)
 
     return acc_meter_per_second if meters else 3.6 * acc_meter_per_second
 
@@ -147,19 +141,11 @@ def cal_distance_angle(target_location, current_location, orientation):
         The measured rotation (angle) froM current location
         to target location.
     """
-    target_vector = np.array([target_location.x -
-                              current_location.x, target_location.y -
-                              current_location.y])
+    target_vector = np.array([target_location.x - current_location.x, target_location.y - current_location.y])
     norm_target = np.linalg.norm(target_vector) + 1e-10
 
-    forward_vector = np.array(
-        [math.cos(math.radians(orientation)),
-         math.sin(math.radians(orientation))])
-    d_angle = math.degrees(
-        math.acos(
-            np.clip(
-                np.dot(
-                    forward_vector, target_vector) / norm_target, -1., 1.)))
+    forward_vector = np.array([math.cos(math.radians(orientation)), math.sin(math.radians(orientation))])
+    d_angle = math.degrees(math.acos(np.clip(np.dot(forward_vector, target_vector) / norm_target, -1.0, 1.0)))
 
     return norm_target, d_angle
 
@@ -177,7 +163,7 @@ def distance_vehicle(waypoint, vehicle_transform):
         Transform of the target vehicle.
     """
     loc = vehicle_transform.location
-    if hasattr(waypoint, 'is_junction'):
+    if hasattr(waypoint, "is_junction"):
         x = waypoint.transform.location.x - loc.x
         y = waypoint.transform.location.y - loc.y
     else:

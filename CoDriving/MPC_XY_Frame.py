@@ -13,60 +13,66 @@ import numpy as np
 
 from typing import Union
 
+
 def load_config():
-    with open('configuration\MPC_config.yaml') as f:
+    with open("configuration\MPC_config.yaml") as f:
         return yaml.safe_load(f)
+
 
 K_STEER = 56.0
 K_THROTTLE = 1.5
 K_BRAKE = 0.15
 cfg = load_config()
-system_params = cfg['mpc']['system']
-vehicle_params = cfg['mpc']['vehicle']
-base_params = cfg['mpc']['base']
+system_params = cfg["mpc"]["system"]
+vehicle_params = cfg["mpc"]["vehicle"]
+base_params = cfg["mpc"]["base"]
+
 
 class P:
     # System config
-    NX = system_params['nx']  # state vector: z = [x, y, v, phi]
-    NU = system_params['nu']  # input vector: u = [acceleration, steer]
-    T = system_params['t']  # finite time horizon length
-    T_aug = system_params['t_aug']  # finite time horizon length
+    NX = system_params["nx"]  # state vector: z = [x, y, v, phi]
+    NU = system_params["nu"]  # input vector: u = [acceleration, steer]
+    T = system_params["t"]  # finite time horizon length
+    T_aug = system_params["t_aug"]  # finite time horizon length
     # Dekai: if T is 1, the vehicle would have a larger turning radius
 
     # MPC config
-    # Q = np.diag([12.0, 12.0, 1.0, 12.0])  # penalty for states   # Dekai: if set the third value (penalty for velocity) to 0.0, the vehicle is difficult to start. 
+    # Q = np.diag([12.0, 12.0, 1.0, 12.0])  # penalty for states   # Dekai: if set the third value (penalty for velocity) to 0.0, the vehicle is difficult to start.
     # Qf = np.diag([5.0, 5.0, 1.0, 20.0])  # penalty for end state # Dekai: since now we only trace a single target point but not a desired traj, only Qf is used but not Q
-    Qf = np.diag(base_params['qf'])  # penalty for end state # Dekai: since now we only trace a single target point but not a desired traj, only Qf is used but not Q
-    R = np.diag(base_params['r'])  # penalty for inputs  # Dekai: had better choose large penalty for steering to avoid zig-zag
-    Rd = np.diag(base_params['rd'])  # penalty for change of inputs
+    Qf = np.diag(
+        base_params["qf"]
+    )  # penalty for end state # Dekai: since now we only trace a single target point but not a desired traj, only Qf is used but not Q
+    R = np.diag(base_params["r"])  # penalty for inputs  # Dekai: had better choose large penalty for steering to avoid zig-zag
+    Rd = np.diag(base_params["rd"])  # penalty for change of inputs
 
-    dist_stop = base_params['dist_stop']  # stop permitted when dist to goal < dist_stop
-    speed_stop = base_params['speed_stop']  # stop permitted when speed < speed_stop
-    time_max = base_params['time_max']  # max simulation time
-    iter_max = base_params['iter_max']  # max iteration
-    target_speed = base_params['target_speed']  # target speed
-    N_IND = base_params['N_IND']  # search index number
-    dt = base_params['dt']  # time step
-    d_dist = base_params['d_dist']  # dist step
-    du_res = base_params['du_res']  # threshold for stopping iteration
+    dist_stop = base_params["dist_stop"]  # stop permitted when dist to goal < dist_stop
+    speed_stop = base_params["speed_stop"]  # stop permitted when speed < speed_stop
+    time_max = base_params["time_max"]  # max simulation time
+    iter_max = base_params["iter_max"]  # max iteration
+    target_speed = base_params["target_speed"]  # target speed
+    N_IND = base_params["N_IND"]  # search index number
+    dt = base_params["dt"]  # time step
+    d_dist = base_params["d_dist"]  # dist step
+    du_res = base_params["du_res"]  # threshold for stopping iteration
 
     # vehicle config
-    RF = vehicle_params['rf']  # [m] distance from rear to vehicle front end of vehicle
-    RB = vehicle_params['rb']  # [m] distance from rear to vehicle back end of vehicle
-    W = vehicle_params['w']  # [m] width of vehicle
-    WD = vehicle_params['wd'] * W  # [m] distance between left-right wheels
-    WB = vehicle_params['wb']  # [m] Wheel base
-    TR = vehicle_params['tr']  # [m] Tyre radius
-    TW = vehicle_params['tw']  # [m] Tyre width
+    RF = vehicle_params["rf"]  # [m] distance from rear to vehicle front end of vehicle
+    RB = vehicle_params["rb"]  # [m] distance from rear to vehicle back end of vehicle
+    W = vehicle_params["w"]  # [m] width of vehicle
+    WD = vehicle_params["wd"] * W  # [m] distance between left-right wheels
+    WB = vehicle_params["wb"]  # [m] Wheel base
+    TR = vehicle_params["tr"]  # [m] Tyre radius
+    TW = vehicle_params["tw"]  # [m] Tyre width
 
-    steer_max = np.deg2rad(vehicle_params['steer_max'])  # max steering angle [rad]
-    steer_change_max = np.deg2rad(vehicle_params['steer_change_max'])  # maximum steering speed [rad/s]
-    speed_max = vehicle_params['speed_max']  # maximum speed [m/s]
-    speed_min = vehicle_params['speed_min']  # minimum speed [m/s]
-    acceleration_max = vehicle_params['acceleration_max']  # maximum acceleration [m/s2]
+    steer_max = np.deg2rad(vehicle_params["steer_max"])  # max steering angle [rad]
+    steer_change_max = np.deg2rad(vehicle_params["steer_change_max"])  # maximum steering speed [rad/s]
+    speed_max = vehicle_params["speed_max"]  # maximum speed [m/s]
+    speed_min = vehicle_params["speed_min"]  # minimum speed [m/s]
+    acceleration_max = vehicle_params["acceleration_max"]  # maximum acceleration [m/s2]
+
 
 class Node:
-    def __init__(self, x=0.0, y=0.0, yaw=0.0, v=0.0, direct=1.0):   # current state
+    def __init__(self, x=0.0, y=0.0, yaw=0.0, v=0.0, direct=1.0):  # current state
         self.x = x
         self.y = y
         self.yaw = yaw
@@ -130,19 +136,17 @@ class PATH:
         :return: nearest index, lateral distance to ref point
         """
 
-        dx = [node.x - x for x in self.cx[self.ind_old: (self.ind_old + P.N_IND)]]
-        dy = [node.y - y for y in self.cy[self.ind_old: (self.ind_old + P.N_IND)]]
+        dx = [node.x - x for x in self.cx[self.ind_old : (self.ind_old + P.N_IND)]]
+        dy = [node.y - y for y in self.cy[self.ind_old : (self.ind_old + P.N_IND)]]
         dist = np.hypot(dx, dy)
 
         ind_in_N = int(np.argmin(dist))
         ind = self.ind_old + ind_in_N
         self.ind_old = ind
 
-        rear_axle_vec_rot_90 = np.array([[math.cos(node.yaw + math.pi / 2.0)],
-                                         [math.sin(node.yaw + math.pi / 2.0)]])
+        rear_axle_vec_rot_90 = np.array([[math.cos(node.yaw + math.pi / 2.0)], [math.sin(node.yaw + math.pi / 2.0)]])
 
-        vec_target_2_rear = np.array([[dx[ind_in_N]],
-                                      [dy[ind_in_N]]])
+        vec_target_2_rear = np.array([[dx[ind_in_N]], [dy[ind_in_N]]])
 
         er = np.dot(vec_target_2_rear.T, rear_axle_vec_rot_90)
         er = er[0][0]
@@ -150,7 +154,7 @@ class PATH:
         return ind, er
 
 
-def calc_ref_trajectory_in_T_step(node, ref_path, sp=None)->np.ndarray:
+def calc_ref_trajectory_in_T_step(node, ref_path, sp=None) -> np.ndarray:
     """
     calc referent trajectory in T steps: [x, y, v, yaw]
     using the current velocity, calc the T points along the reference path
@@ -161,13 +165,13 @@ def calc_ref_trajectory_in_T_step(node, ref_path, sp=None)->np.ndarray:
     """
 
     # if sp is None:
-        # sp = np.ones(200, dtype=np.float) * 40 / 3.6    # max speed in sumo routefile
-        
+    # sp = np.ones(200, dtype=np.float) * 40 / 3.6    # max speed in sumo routefile
+
     z_ref = np.zeros((P.NX, P.T + 1))
     length = len(ref_path.cx)
 
     # ============== get the clost step and look further for N steps ============== #
-    
+
     # ind, _ = ref_path.nearest_index(node)
 
     # z_ref[0, 0] = ref_path.cx[ind]
@@ -196,12 +200,12 @@ def calc_ref_trajectory_in_T_step(node, ref_path, sp=None)->np.ndarray:
     z_ref[0, -1] = ref_path.cx[-1]
     z_ref[1, -1] = ref_path.cy[-1]
     z_ref[2, -1] = ref_path.cv[-1]
-    z_ref[3, -1] = ref_path.cyaw[-1]    
+    z_ref[3, -1] = ref_path.cyaw[-1]
     dist_move = 0.0
     for i in range(P.T - 1, -1, -1):
         dist_move += abs(node.v) * P.dt
         ind_move = int(round(dist_move / P.d_dist))
-        index = max(length -1 - ind_move, 0)
+        index = max(length - 1 - ind_move, 0)
 
         z_ref[0, i] = ref_path.cx[index]
         z_ref[1, i] = ref_path.cy[index]
@@ -213,7 +217,7 @@ def calc_ref_trajectory_in_T_step(node, ref_path, sp=None)->np.ndarray:
     return z_ref, 0
 
 
-def get_destination_in_T_step(node, ref_path)->np.ndarray:
+def get_destination_in_T_step(node, ref_path) -> np.ndarray:
     """
     calc desired destination in T steps: [x, y, v, yaw]
     :param node: current information
@@ -225,7 +229,7 @@ def get_destination_in_T_step(node, ref_path)->np.ndarray:
     z_target[0] = ref_path.cx[-1]
     z_target[1] = ref_path.cy[-1]
     z_target[2] = ref_path.cv[-1]
-    z_target[3] = ref_path.cyaw[-1]    
+    z_target[3] = ref_path.cyaw[-1]
 
     return z_target
 
@@ -290,7 +294,7 @@ def linear_mpc_control_data_aug(z_ref, z0, a_old, delta_old):
     return a_old, delta_old, x, y, yaw, v
 
 
-def predict_states_in_T_step(z0: list, a: np.ndarray, delta: np.ndarray, z_ref: np.ndarray, pred_len: int=P.T):
+def predict_states_in_T_step(z0: list, a: np.ndarray, delta: np.ndarray, z_ref: np.ndarray, pred_len: int = P.T):
     """
     given the current state, using the acceleration and delta strategy of last time,
     predict the states of vehicle in T steps.
@@ -309,7 +313,7 @@ def predict_states_in_T_step(z0: list, a: np.ndarray, delta: np.ndarray, z_ref: 
     node = Node(x=z0[0], y=z0[1], v=z0[2], yaw=z0[3])
 
     for ai, di, i in zip(a, delta, range(1, pred_len + 1)):
-        node.update(ai, di, 1.0)    # 1.0 is forward direction
+        node.update(ai, di, 1.0)  # 1.0 is forward direction
         z_bar[0, i] = node.x
         z_bar[1, i] = node.y
         z_bar[2, i] = node.v
@@ -318,7 +322,7 @@ def predict_states_in_T_step(z0: list, a: np.ndarray, delta: np.ndarray, z_ref: 
     return z_bar
 
 
-def predict_states_in_T_step_2(curr_state: Node, a: np.ndarray, delta: np.ndarray, T: int = P.T)-> np.ndarray:
+def predict_states_in_T_step_2(curr_state: Node, a: np.ndarray, delta: np.ndarray, T: int = P.T) -> np.ndarray:
     """
     given the current state, using the acceleration and delta strategy of last time,
     predict the states of vehicle in T steps.
@@ -329,11 +333,11 @@ def predict_states_in_T_step_2(curr_state: Node, a: np.ndarray, delta: np.ndarra
     :return: [4, T+1] predict states in T steps (including curr state)
     """
 
-    z_bar = np.zeros((4, T+1))
+    z_bar = np.zeros((4, T + 1))
     z_bar[:, 0] = curr_state.x, curr_state.y, curr_state.v, curr_state.yaw
 
     for ai, di, i in zip(a, delta, range(1, P.T + 1)):
-        curr_state.update(ai, di, 1.0)    # 1.0 is forward direction
+        curr_state.update(ai, di, 1.0)  # 1.0 is forward direction
         z_bar[0, i] = curr_state.x
         z_bar[1, i] = curr_state.y
         z_bar[2, i] = curr_state.v
@@ -355,25 +359,23 @@ def calc_linear_discrete_model(v, phi, delta):
     sin_phi = math.sin(phi)
     P_dt_v = P.dt * v
 
-    A = np.array([[1.0, 0.0, P.dt * cos_phi, - P_dt_v * sin_phi],
-                  [0.0, 1.0, P.dt * sin_phi, P_dt_v * cos_phi],
-                  [0.0, 0.0, 1.0, 0.0],
-                  [0.0, 0.0, P.dt * math.tan(delta) / P.WB, 1.0]])
+    A = np.array(
+        [
+            [1.0, 0.0, P.dt * cos_phi, -P_dt_v * sin_phi],
+            [0.0, 1.0, P.dt * sin_phi, P_dt_v * cos_phi],
+            [0.0, 0.0, 1.0, 0.0],
+            [0.0, 0.0, P.dt * math.tan(delta) / P.WB, 1.0],
+        ]
+    )
 
-    B = np.array([[0.0, 0.0],
-                  [0.0, 0.0],
-                  [P.dt, 0.0],
-                  [0.0, P_dt_v / (P.WB * math.cos(delta) ** 2)]])
+    B = np.array([[0.0, 0.0], [0.0, 0.0], [P.dt, 0.0], [0.0, P_dt_v / (P.WB * math.cos(delta) ** 2)]])
 
-    C = np.array([P_dt_v * sin_phi * phi,
-                  -P_dt_v * cos_phi * phi,
-                  0.0,
-                  -P_dt_v * delta / (P.WB * math.cos(delta) ** 2)])
+    C = np.array([P_dt_v * sin_phi * phi, -P_dt_v * cos_phi * phi, 0.0, -P_dt_v * delta / (P.WB * math.cos(delta) ** 2)])
 
     return A, B, C
 
 
-def solve_linear_mpc(z_ref: np.ndarray, z_bar: np.ndarray, z0: list, d_bar: np.ndarray, pred_len: int=P.T):
+def solve_linear_mpc(z_ref: np.ndarray, z_bar: np.ndarray, z0: list, d_bar: np.ndarray, pred_len: int = P.T):
     """
     solve the quadratic optimization problem using cvxpy, solver: OSQP
     :param z_ref: [4, 7], reference trajectory (desired trajectory: [x, y, v, yaw])
@@ -414,8 +416,7 @@ def solve_linear_mpc(z_ref: np.ndarray, z_bar: np.ndarray, z0: list, d_bar: np.n
 
     a, delta, x, y, yaw, v = None, None, None, None, None, None
 
-    if prob.status == cvxpy.OPTIMAL or \
-            prob.status == cvxpy.OPTIMAL_INACCURATE:
+    if prob.status == cvxpy.OPTIMAL or prob.status == cvxpy.OPTIMAL_INACCURATE:
         x = z.value[0, :]
         y = z.value[1, :]
         v = z.value[2, :]
@@ -469,8 +470,7 @@ def solve_linear_mpc_2(z_target: np.ndarray, z_bar: np.ndarray, z0: list, d_bar:
 
     a, delta, x, y, yaw, v = None, None, None, None, None, None
 
-    if prob.status == cvxpy.OPTIMAL or \
-            prob.status == cvxpy.OPTIMAL_INACCURATE:
+    if prob.status == cvxpy.OPTIMAL or prob.status == cvxpy.OPTIMAL_INACCURATE:
         x = z.value[0, :]
         y = z.value[1, :]
         v = z.value[2, :]
@@ -483,7 +483,7 @@ def solve_linear_mpc_2(z_target: np.ndarray, z_bar: np.ndarray, z0: list, d_bar:
     return a, delta, x, y, yaw, v
 
 
-def calc_speed_profile(cx, cy, cyaw, target_speed)-> list:
+def calc_speed_profile(cx, cy, cyaw, target_speed) -> list:
     """
     design appropriate speed strategy
     :param cx: x of reference path [m]
@@ -511,7 +511,7 @@ def calc_speed_profile(cx, cy, cyaw, target_speed)-> list:
                 direction = 1.0
 
         if direction != 1.0:
-            speed_profile[i] = - target_speed
+            speed_profile[i] = -target_speed
         else:
             speed_profile[i] = target_speed
 
@@ -530,14 +530,14 @@ def pi_2_pi(angle):
     return angle
 
 
-def MPC_module(curr_state: Node, target_state: np.ndarray, a_old: list, delta_old: list, T: int = P.T)-> Union[list, list]:
+def MPC_module(curr_state: Node, target_state: np.ndarray, a_old: list, delta_old: list, T: int = P.T) -> Union[list, list]:
     """
     :param curr_state: Node[x, y, v, yaw]
     :param target_state: [4], [x, y, v, yaw]
     :param a_old: [T], if init, input None
     :param delta_old: [T], if init, input None
     :param T: num of steps to arrive the destination
-    
+
     :return a: [T]
     :return delta: [T]
     """

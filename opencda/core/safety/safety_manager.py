@@ -2,6 +2,7 @@
 The safety manager is used to collect the AV's hazard status and give the
 control back to human if necessary
 """
+
 import logging
 
 from opencda.core.safety.sensors import CollisionSensor, TrafficLightDector, StuckDetector, OffRoadDetector
@@ -20,13 +21,16 @@ class SafetyManager:
     params: dict
         A dictionary of parameters that are used to configure the SafetyManager.
     """
+
     def __init__(self, vehicle, params):
         self.vehicle = vehicle
-        self.print_message = params['print_message']
-        self.sensors = [CollisionSensor(vehicle, params['collision_sensor']),
-                        StuckDetector(params['stuck_dector']),
-                        OffRoadDetector(params['offroad_dector']),
-                        TrafficLightDector(params['traffic_light_detector'], vehicle)]
+        self.print_message = params["print_message"]
+        self.sensors = [
+            CollisionSensor(vehicle, params["collision_sensor"]),
+            StuckDetector(params["stuck_dector"]),
+            OffRoadDetector(params["offroad_dector"]),
+            TrafficLightDector(params["traffic_light_detector"], vehicle),
+        ]
 
     def update_info(self, data_dict) -> dict:
         status_dict = {}

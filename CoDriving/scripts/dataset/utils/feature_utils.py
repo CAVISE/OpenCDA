@@ -15,6 +15,7 @@ def load_path_to_intention_config(
     except FileNotFoundError:
         raise Exception(f"Файл '{intention_config_path}' не найден.")
 
+
 @cache
 def get_path_to_intention(
     intention_config_path: str,
@@ -24,18 +25,20 @@ def get_path_to_intention(
         raise KeyError(f'There is no "paths" parameter in {intention_config_path}. Please specify it')
     return config["paths"]
 
+
 @cache
 def get_center_coodinates(
     intention_config_path: str,
 ) -> dict:
     config = load_path_to_intention_config(intention_config_path)
     if "center_coordinates" not in config:
-        raise KeyError(f'There is no "center_coordinates" parameter in {intention_config_path}. Please specify it like this "center_coordinates": {{"x": 631.73, "y": 597.22}}')
+        raise KeyError(
+            f'There is no "center_coordinates" parameter in {intention_config_path}. Please specify it like this "center_coordinates": {{"x": 631.73, "y": 597.22}}'
+        )
     return config["center_coordinates"]
 
-def get_intention_from_vehicle_id(
-    vehicle_id: str, intention_config_path: str
-) -> np.ndarray:
+
+def get_intention_from_vehicle_id(vehicle_id: str, intention_config_path: str) -> np.ndarray:
     """
     Parse the vehicle id to distinguish its intention.
     """

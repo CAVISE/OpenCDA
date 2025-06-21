@@ -37,7 +37,6 @@ class CavWorld(object):
     """
 
     def __init__(self, apply_ml=False, with_capi=False):
-
         self.vehicle_id_set = set()
         self._vehicle_manager_dict = {}
         self._platooning_dict = {}
@@ -49,16 +48,15 @@ class CavWorld(object):
         if apply_ml:
             # we import in this way so the user don't need to install ml
             # packages unless they require to
-            ml_manager = getattr(importlib.import_module(
-                "opencda.customize.ml_libs.ml_manager"), 'MLManager')
+            ml_manager = getattr(importlib.import_module("opencda.customize.ml_libs.ml_manager"), "MLManager")
             # initialize the ml manager to load the DL/ML models into memory
             self.ml_manager = ml_manager()
 
         if with_capi:
-            manager = getattr(importlib.import_module('opencda.core.common.communication.manager'), 'CommunicationManager')
+            manager = getattr(importlib.import_module("opencda.core.common.communication.manager"), "CommunicationManager")
             # TODO: pass this as some sort of config
             # TODO: add docs for this
-            address = 'tcp://artery:7777'
+            address = "tcp://artery:7777"
             self.comms_manager = manager(address)
 
         # this is used only when co-simulation activated.
@@ -74,8 +72,7 @@ class CavWorld(object):
             The vehicle manager class.
         """
         self.vehicle_id_set.add(vehicle_manager.vehicle.id)
-        self._vehicle_manager_dict.update(
-            {vehicle_manager.vid: vehicle_manager})
+        self._vehicle_manager_dict.update({vehicle_manager.vid: vehicle_manager})
 
     def update_platooning(self, platooning_manager):
         """
@@ -86,8 +83,7 @@ class CavWorld(object):
         platooning_manger : opencda object
             The platooning manager class.
         """
-        self._platooning_dict.update(
-            {platooning_manager.pmid: platooning_manager})
+        self._platooning_dict.update({platooning_manager.pmid: platooning_manager})
 
     def update_rsu_manager(self, rsu_manager):
         """

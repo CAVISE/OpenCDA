@@ -8,7 +8,6 @@ PID Control Class
 # This work is licensed under the terms of the MIT license.
 # For a copy, see <https://opensource.org/licenses/MIT>.
 
-
 from collections import deque
 
 import math
@@ -46,36 +45,35 @@ class Controller:
     """
 
     def __init__(self, args):
-
         # longitudinal related
-        self.max_brake = args['max_brake']
-        self.max_throttle = args['max_throttle']
+        self.max_brake = args["max_brake"]
+        self.max_throttle = args["max_throttle"]
 
-        self._lon_k_p = args['lon']['k_p']
-        self._lon_k_d = args['lon']['k_d']
-        self._lon_k_i = args['lon']['k_i']
+        self._lon_k_p = args["lon"]["k_p"]
+        self._lon_k_d = args["lon"]["k_d"]
+        self._lon_k_i = args["lon"]["k_i"]
 
         self._lon_ebuffer = deque(maxlen=10)
 
         # lateral related
-        self.max_steering = args['max_steering']
+        self.max_steering = args["max_steering"]
 
-        self._lat_k_p = args['lat']['k_p']
-        self._lat_k_d = args['lat']['k_d']
-        self._lat_k_i = args['lat']['k_i']
+        self._lat_k_p = args["lat"]["k_p"]
+        self._lat_k_d = args["lat"]["k_d"]
+        self._lat_k_i = args["lat"]["k_i"]
 
         self._lat_ebuffer = deque(maxlen=10)
 
         # simulation time-step
-        self.dt = args['dt']
+        self.dt = args["dt"]
 
         # current speed and localization retrieved from sensing layer
         self.current_transform = None
-        self.current_speed = 0.
+        self.current_speed = 0.0
         # past steering
-        self.past_steering = 0.
+        self.past_steering = 0.0
 
-        self.dynamic = args['dynamic']
+        self.dynamic = args["dynamic"]
 
     def dynamic_pid(self):
         """
@@ -130,10 +128,7 @@ class Controller:
             _de = 0.0
             _ie = 0.0
 
-        return np.clip((self._lat_k_p * error) +
-                       (self._lat_k_d * _de) +
-                       (self._lat_k_i * _ie),
-                       -1.0, 1.0)
+        return np.clip((self._lat_k_p * error) + (self._lat_k_d * _de) + (self._lat_k_i * _ie), -1.0, 1.0)
 
     def lat_run_step(self, target_location):
         """
@@ -153,18 +148,11 @@ class Controller:
         """
         v_begin = self.current_transform.location
         v_end = v_begin + carla.Location(
-            x=math.cos(
-                math.radians(
-                    self.current_transform.rotation.yaw)), y=math.sin(
-                math.radians(
-                    self.current_transform.rotation.yaw)))
+            x=math.cos(math.radians(self.current_transform.rotation.yaw)), y=math.sin(math.radians(self.current_transform.rotation.yaw))
+        )
         v_vec = np.array([v_end.x - v_begin.x, v_end.y - v_begin.y, 0.0])
-        w_vec = np.array([target_location.x -
-                          v_begin.x, target_location.y -
-                          v_begin.y, 0.0])
-        _dot = math.acos(np.clip(np.dot(
-            w_vec, v_vec) / (np.linalg.norm(w_vec) * np.linalg.norm(v_vec)),
-                                 -1.0, 1.0))
+        w_vec = np.array([target_location.x - v_begin.x, target_location.y - v_begin.y, 0.0])
+        _dot = math.acos(np.clip(np.dot(w_vec, v_vec) / (np.linalg.norm(w_vec) * np.linalg.norm(v_vec)), -1.0, 1.0))
         _cross = np.cross(v_vec, w_vec)
 
         if _cross[2] < 0:
@@ -178,8 +166,7 @@ class Controller:
             _de = 0.0
             _ie = 0.0
 
-        return np.clip((self._lat_k_p * _dot) + (self._lat_k_d *
-                       _de) + (self._lat_k_i * _ie), -1.0, 1.0)
+        return np.clip((self._lat_k_p * _dot) + (self._lat_k_d * _de) + (self._lat_k_i * _ie), -1.0, 1.0)
 
     def run_step(self, target_speed, waypoint):
         """
