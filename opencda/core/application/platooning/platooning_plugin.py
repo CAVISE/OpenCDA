@@ -126,7 +126,7 @@ class PlatooningPlugin(object):
         if in_id is None:
             if not self.cda_enabled:
                 self.set_status(FSM.DISABLE)
-                warnings.warn("CDA feature is disabled, can not activate platooning" " application ")
+                warnings.warn("CDA feature is disabled, can not activate platooning application ")
             else:
                 self.set_status(FSM.SEARCHING)
             return

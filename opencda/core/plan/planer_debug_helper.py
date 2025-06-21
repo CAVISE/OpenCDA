@@ -97,10 +97,10 @@ class PlanDebugHelper(object):
         ttc_avg = np.mean(ttc_array)
         ttc_std = np.std(ttc_array)
 
-        perform_txt = "Speed average: %f (m/s), " "Speed std: %f (m/s) \n" % (spd_avg, spd_std)
+        perform_txt = "Speed average: %f (m/s), Speed std: %f (m/s) \n" % (spd_avg, spd_std)
 
-        perform_txt += "Acceleration average: %f (m/s), " "Acceleration std: %f (m/s) \n" % (acc_avg, acc_std)
+        perform_txt += "Acceleration average: %f (m/s), Acceleration std: %f (m/s) \n" % (acc_avg, acc_std)
 
-        perform_txt += "TTC average: %f (m/s), " "TTC std: %f (m/s) \n" % (ttc_avg, ttc_std)
+        perform_txt += "TTC average: %f (m/s), TTC std: %f (m/s) \n" % (ttc_avg, ttc_std)
 
         return figure, perform_txt
