@@ -1,4 +1,3 @@
-import os
 import zmq
 import logging
 

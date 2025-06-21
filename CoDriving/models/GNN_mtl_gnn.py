@@ -1,7 +1,6 @@
 import torch
 from torch import nn
 from torch_geometric.nn import GraphConv as GNNConv
-from tqdm import tqdm
 
 
 class GNN_mtl_gnn(torch.nn.Module):

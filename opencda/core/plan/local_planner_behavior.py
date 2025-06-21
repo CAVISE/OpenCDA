@@ -262,7 +262,6 @@ class LocalPlanner(object):
 
         boundingbox = self._vehicle.bounding_box
         veh_width = 2 * abs(boundingbox.location.y - boundingbox.extent.y)
-        lane_width = current_wpt.lane_width
 
         self.lane_lateral_change = veh_width < lateral_diff
         # check if the vehicle is in lane change based on lane id and lateral

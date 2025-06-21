@@ -5,7 +5,6 @@ Basic class of CAV
 # Author: Runsheng Xu <rxx3386@ucla.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
-import sys
 import logging
 
 from opencda.core.actuation.control_manager import ControlManager
@@ -116,7 +115,7 @@ class VehicleManager(object):
                 self.vid = self.__generate_unique_vehicle_id()
                 logger.debug(f"No vehicle ID specified in config. Assigned auto-generated ID: {self.vid}")
             else:
-                logger.error(f"No vehicle ID specified in config.")
+                logger.error("No vehicle ID specified in config.")
                 raise ValueError("No vehicle ID specified in config.")
 
         # [CoDrivingInt]
