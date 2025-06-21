@@ -1,0 +1,25 @@
+name: Lint and Format Check
+
+on: [ pull_request ]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Run ruff check
+        uses: astral-sh/ruff-action@v3
+        with:
+          args: "check"
+
+  format-check:
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Run ruff format check with diff
+        uses: astral-sh/ruff-action@v3
+        with:
+          args: "format --check --diff"
