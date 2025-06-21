@@ -146,7 +146,7 @@ class MessageHandler:
             yield msg[message_type]
         else:
             raise ValueError(
-                f'Unknown message type "{message_type}". ' 'Expected one of: ["common", "coperception"]. ' "Please verify the source of the message."
+                f'Unknown message type "{message_type}". Expected one of: ["common", "coperception"]. Please verify the source of the message.'
             )
 
     @contextmanager
@@ -183,7 +183,7 @@ class MessageHandler:
             yield msg[message_type]
         else:
             raise ValueError(
-                f'Unknown message type "{message_type}". ' 'Expected one of: ["common", "coperception"]. ' "Please verify the source of the message."
+                f'Unknown message type "{message_type}". Expected one of: ["common", "coperception"]. Please verify the source of the message.'
             )
 
     def serialize_to_string(self) -> str:

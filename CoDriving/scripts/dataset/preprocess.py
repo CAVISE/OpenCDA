@@ -84,7 +84,7 @@ def process_file(csv_file, intentuion_config):
             y = np.concatenate((y, mpc_output[:, :, 2:]), axis=-1)  # [vehicle, PRED_LEN, 6]
             y = y.reshape(num_cars, -1)
             data = (torch.tensor(x_argumented, dtype=torch.float), torch.tensor(y, dtype=torch.float), edge_index, torch.tensor([row]))
-            with open(f"{preprocess_folder}/{os.path.splitext(csv_file)[0]}-{str(row).zfill(3)}-{a+1}.pkl", "wb") as handle:
+            with open(f"{preprocess_folder}/{os.path.splitext(csv_file)[0]}-{str(row).zfill(3)}-{a + 1}.pkl", "wb") as handle:
                 pickle.dump(data, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
     with lock:

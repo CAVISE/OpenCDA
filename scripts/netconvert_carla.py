@@ -156,7 +156,7 @@ def build_topology(sumo_net):
                 )
 
             if len(lane.getParam("origId").split()) > 1:
-                logging.warning("[Building topology] Sumo net contains " "joined opendrive roads.")
+                logging.warning("[Building topology] Sumo net contains joined opendrive roads.")
 
             for odr_id in lane.getParam("origId").split():
                 odr_road_id, odr_lane_id = odr_id.split("_")
@@ -188,7 +188,7 @@ def build_topology(sumo_net):
                 conn_odr_ids = connection.getParam("origId")
                 if conn_odr_ids is not None:
                     if len(conn_odr_ids.split()) > 1:
-                        logging.warning("[Building topology] Sumo net contains " "joined opendrive paths.")
+                        logging.warning("[Building topology] Sumo net contains joined opendrive paths.")
 
                     for odr_id in conn_odr_ids.split():
                         odr_road_id, odr_lane_id = odr_id.split("_")
@@ -214,7 +214,7 @@ class SumoTrafficLight(object):
     DEFAULT_DURATION_RED_PHASE = 3
 
     Phase = collections.namedtuple("Phase", "duration state min_dur max_dur next name")
-    Connection = collections.namedtuple("Connection", "tlid from_road to_road from_lane " "to_lane link_index")
+    Connection = collections.namedtuple("Connection", "tlid from_road to_road from_lane to_lane link_index")
 
     def __init__(self, tlid, program_id="0", offset=0, tltype="static"):
         self.id = tlid
@@ -285,7 +285,7 @@ class SumoTrafficLight(object):
 
         connection = SumoTrafficLight.Connection(tlid, from_road, to_road, from_lane, to_lane, link_index)
         if any([is_same_connection(connection, c) for c in self.connections]):
-            logging.warning("Different landmarks controlling the same connection. " "Only one will be included.")
+            logging.warning("Different landmarks controlling the same connection. Only one will be included.")
             return False
 
         self.add_connection(connection)
