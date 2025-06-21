@@ -59,16 +59,9 @@ class RSUManager(object):
     used_ids = set()
 
     def __init__(
-            self,
-            carla_world,
-            config_yaml,
-            carla_map,
-            cav_world,
-            current_time='',
-            data_dumping=False,
-            autogenerate_id_on_failure=True): #TODO: Привязать к конфигу сценария
-
-        config_id = config_yaml.get('id')
+        self, carla_world, config_yaml, carla_map, cav_world, current_time="", data_dumping=False, autogenerate_id_on_failure=True
+    ):  # TODO: Привязать к конфигу сценария
+        config_id = config_yaml.get("id")
 
         if config_id is not None:
             try:
@@ -104,26 +97,24 @@ class RSUManager(object):
 
         # retrieve the configure for different modules
         # TODO: add v2x module to rsu later
-        sensing_config = config_yaml['sensing']
-        sensing_config['localization']['global_position'] = config_yaml['spawn_position']
-        sensing_config['perception']['global_position'] = config_yaml['spawn_position']
+        sensing_config = config_yaml["sensing"]
+        sensing_config["localization"]["global_position"] = config_yaml["spawn_position"]
+        sensing_config["perception"]["global_position"] = config_yaml["spawn_position"]
 
         # localization module
-        self.localizer = LocalizationManager(carla_world,
-                                             sensing_config['localization'],
-                                             self.carla_map)
+        self.localizer = LocalizationManager(carla_world, sensing_config["localization"], self.carla_map)
 
         # perception module
-        self.perception_manager = PerceptionManager(vehicle=None,
-                                                    config_yaml=sensing_config['perception'],
-                                                    cav_world=cav_world,
-                                                    infra_id=self.rid,
-                                                    data_dump=data_dumping,
-                                                    carla_world=carla_world)
+        self.perception_manager = PerceptionManager(
+            vehicle=None,
+            config_yaml=sensing_config["perception"],
+            cav_world=cav_world,
+            infra_id=self.rid,
+            data_dump=data_dumping,
+            carla_world=carla_world,
+        )
         if data_dumping:
-            self.data_dumper = DataDumper(self.perception_manager,
-                                          self.rid,
-                                          save_time=current_time)
+            self.data_dumper = DataDumper(self.perception_manager, self.rid, save_time=current_time)
         else:
             self.data_dumper = None
 
@@ -162,9 +153,7 @@ class RSUManager(object):
         """
         # dump data
         if self.data_dumper:
-            self.data_dumper.run_step(self.perception_manager,
-                                      self.localizer,
-                                      None)
+            self.data_dumper.run_step(self.perception_manager, self.localizer, None)
 
     def destroy(self):
         """

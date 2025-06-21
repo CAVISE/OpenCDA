@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 
-"""Platooning plugin for communication and track FSM
-"""
+"""Platooning plugin for communication and track FSM"""
 
 # Author: Runsheng Xu <rxx3386@ucla.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
@@ -58,7 +57,6 @@ class PlatooningPlugin(object):
     """
 
     def __init__(self, search_range, cda_enabled):
-
         self.search_range = search_range
         self.cda_enabled = cda_enabled
 
@@ -107,12 +105,7 @@ class PlatooningPlugin(object):
         self.platooning_id = None
         self.in_id = None
 
-    def set_platoon(
-            self,
-            in_id,
-            platooning_object=None,
-            platooning_id=None,
-            leader=False):
+    def set_platoon(self, in_id, platooning_object=None, platooning_id=None, leader=False):
         """
         Set platooning status.
 
@@ -133,9 +126,7 @@ class PlatooningPlugin(object):
         if in_id is None:
             if not self.cda_enabled:
                 self.set_status(FSM.DISABLE)
-                warnings.warn(
-                    "CDA feature is disabled, can not activate platooning"
-                    " application ")
+                warnings.warn("CDA feature is disabled, can not activate platooning" " application ")
             else:
                 self.set_status(FSM.SEARCHING)
             return
@@ -195,8 +186,7 @@ class PlatooningPlugin(object):
             if pmid and pmid == platoon_manager.pmid:
                 continue
 
-            distance = compute_distance(
-                ego_loc, vm.v2x_manager.get_ego_pos().location)
+            distance = compute_distance(ego_loc, vm.v2x_manager.get_ego_pos().location)
             if distance < min_dist:
                 pm = platoon_manager
                 pmid = platoon_manager.pmid
@@ -237,7 +227,7 @@ class PlatooningPlugin(object):
             return False, -1, []
 
         # used to search the closest platoon member in the searched platoon
-        min_distance = float('inf')
+        min_distance = float("inf")
         min_index = -1
         min_angle = 0
 
@@ -247,9 +237,8 @@ class PlatooningPlugin(object):
 
         platoon_vehicle_list = []
 
-        for (i, vehicle_manager) in enumerate(pm.vehicle_manager_list):
-            distance, angle = cal_distance_angle(
-                vehicle_manager.vehicle.get_location(), cur_loc, cur_yaw)
+        for i, vehicle_manager in enumerate(pm.vehicle_manager_list):
+            distance, angle = cal_distance_angle(vehicle_manager.vehicle.get_location(), cur_loc, cur_yaw)
             platoon_vehicle_list.append(vehicle_manager)
 
             if distance < min_distance:

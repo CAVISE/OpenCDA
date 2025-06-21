@@ -45,18 +45,9 @@ class CoScenarioManager(ScenarioManager):
 
     """
 
-    def __init__(self, scenario_params, apply_ml, carla_version, node_ids,
-                 xodr_path=None,
-                 town=None,
-                 cav_world=None,
-                 sumo_file_parent_path=None):
+    def __init__(self, scenario_params, apply_ml, carla_version, node_ids, xodr_path=None, town=None, cav_world=None, sumo_file_parent_path=None):
         # carla side initializations(partial init is already done in scenario manager
-        super(CoScenarioManager, self).__init__(scenario_params,
-                                                apply_ml,
-                                                carla_version,
-                                                xodr_path,
-                                                town,
-                                                cav_world)
+        super(CoScenarioManager, self).__init__(scenario_params, apply_ml, carla_version, xodr_path, town, cav_world)
 
         # these following sets are used to track the vehicles controlled by sumo side
         self._active_actors = set()
@@ -66,36 +57,36 @@ class CoScenarioManager(ScenarioManager):
 
         # contains all carla traffic lights objects
         self._tls = {}
-        for landmark in self.carla_map.get_all_landmarks_of_type('1000001'):
-            if landmark.id != '':
+        for landmark in self.carla_map.get_all_landmarks_of_type("1000001"):
+            if landmark.id != "":
                 traffic_ligth = self.world.get_traffic_light(landmark)
                 if traffic_ligth is not None:
                     self._tls[landmark.id] = traffic_ligth
                 else:
-                    logging.warning(f'Landmark {landmark.id} is not linked to any traffic light')
+                    logging.warning(f"Landmark {landmark.id} is not linked to any traffic light")
 
         # sumo side initialization
         base_name = os.path.basename(sumo_file_parent_path)
 
-        sumo_key = 'sumo'
+        sumo_key = "sumo"
 
-        sumo_cfg = os.path.join(sumo_file_parent_path, base_name + '.sumocfg')
+        sumo_cfg = os.path.join(sumo_file_parent_path, base_name + ".sumocfg")
         # todo: use yaml file to generate the route file
-        assert os.path.isfile(sumo_cfg), f'{sumo_cfg} does not exist, make sure ' \
-                                         'your config file name has the ' \
-                                         'same basename as the directory ' \
-                                         'and use .sumocfg as extension'
+        assert os.path.isfile(sumo_cfg), (
+            f"{sumo_cfg} does not exist, make sure "
+            "your config file name has the "
+            "same basename as the directory "
+            "and use .sumocfg as extension"
+        )
 
-        sumo_port = scenario_params[sumo_key]['port']
-        sumo_host = scenario_params[sumo_key]['host']
-        sumo_gui = scenario_params[sumo_key]['gui']
-        sumo_client_order = scenario_params[sumo_key]['client_order']
+        sumo_port = scenario_params[sumo_key]["port"]
+        sumo_host = scenario_params[sumo_key]["host"]
+        sumo_gui = scenario_params[sumo_key]["gui"]
+        sumo_client_order = scenario_params[sumo_key]["client_order"]
         # tick freq, the same as carla
-        sumo_step_length = scenario_params[sumo_key]['step_length']
+        sumo_step_length = scenario_params[sumo_key]["step_length"]
 
-        self.sumo = SumoSimulation(sumo_cfg, sumo_step_length,
-                                   sumo_host, sumo_port, sumo_gui,
-                                   sumo_client_order)
+        self.sumo = SumoSimulation(sumo_cfg, sumo_step_length, sumo_host, sumo_port, sumo_gui, sumo_client_order)
         # the sumo traffic light should be synchronized with carla
         self.sumo.switch_off_traffic_lights()
 
@@ -168,8 +159,13 @@ class CoScenarioManager(ScenarioManager):
 
         # Update data structures for the current frame.
         current_actors = set(
-            [vehicle.id for vehicle in
-             filter(lambda actor: actor.type_id.startswith('vehicle.') or actor.type_id.startswith('static.'), self.world.get_actors())])
+            [
+                vehicle.id
+                for vehicle in filter(
+                    lambda actor: actor.type_id.startswith("vehicle.") or actor.type_id.startswith("static."), self.world.get_actors()
+                )
+            ]
+        )
         self.spawned_actors = current_actors.difference(self._active_actors)
         self.destroyed_actors = self._active_actors.difference(current_actors)
         self._active_actors = current_actors
@@ -180,14 +176,14 @@ class CoScenarioManager(ScenarioManager):
         for carla_actor_id in carla_spawned_actors:
             carla_actor = self.world.get_actor(carla_actor_id)
             type_id = BridgeHelper.get_sumo_vtype(carla_actor)
-            color = carla_actor.attributes.get('color', None)
+            color = carla_actor.attributes.get("color", None)
             if type_id is not None:
-                if carla_actor_id in self.node_ids['platoon']:
-                    sumo_actor_id = self.sumo.spawn_actor(type_id, self.node_ids['platoon'][carla_actor_id], color)
-                elif carla_actor_id in self.node_ids['cav']:
-                    sumo_actor_id = self.sumo.spawn_actor(type_id, self.node_ids['cav'][carla_actor_id], color)
-                elif carla_actor_id in self.node_ids['rsu']:
-                    sumo_actor_id = self.sumo.spawn_actor(type_id, self.node_ids['rsu'][carla_actor_id], color)
+                if carla_actor_id in self.node_ids["platoon"]:
+                    sumo_actor_id = self.sumo.spawn_actor(type_id, self.node_ids["platoon"][carla_actor_id], color)
+                elif carla_actor_id in self.node_ids["cav"]:
+                    sumo_actor_id = self.sumo.spawn_actor(type_id, self.node_ids["cav"][carla_actor_id], color)
+                elif carla_actor_id in self.node_ids["rsu"]:
+                    sumo_actor_id = self.sumo.spawn_actor(type_id, self.node_ids["rsu"][carla_actor_id], color)
                 else:
                     sumo_actor_id = self.sumo.spawn_actor(type_id, f"unknown-{carla_actor_id}", color)
 
@@ -254,16 +250,12 @@ class CoScenarioManager(ScenarioManager):
             The carla actor id the actor is successfully spawned. Otherwise,
             INVALID_ACTOR_ID will be return.
         """
-        transform = carla.Transform(
-            transform.location + carla.Location(0, 0, SPAWN_OFFSET_Z),
-            transform.rotation)
+        transform = carla.Transform(transform.location + carla.Location(0, 0, SPAWN_OFFSET_Z), transform.rotation)
 
-        batch = [
-            carla.command.SpawnActor(blueprint, transform).then(carla.command.SetSimulatePhysics(carla.command.FutureActor, False))
-        ]
+        batch = [carla.command.SpawnActor(blueprint, transform).then(carla.command.SetSimulatePhysics(carla.command.FutureActor, False))]
         response = self.client.apply_batch_sync(batch, False)[0]
         if response.error:
-            logging.error(f'Spawn carla actor failed. {response.error}')
+            logging.error(f"Spawn carla actor failed. {response.error}")
             return INVALID_ACTOR_ID
 
         return response.actor_id
@@ -315,17 +307,17 @@ class CoScenarioManager(ScenarioManager):
         self.world.apply_settings(self.origin_settings)
 
         # Destroying synchronized actors.
-        logger.info('Destroying carla actor')
+        logger.info("Destroying carla actor")
         for carla_actor_id in self.sumo2carla_ids.values():
             self.destroy_actor(carla_actor_id)
 
-        logger.info('Destroying sumo actor')
+        logger.info("Destroying sumo actor")
         for sumo_actor_id in self.carla2sumo_ids.values():
             self.sumo.destroy_actor(sumo_actor_id)
 
         # unfreeze traffic lights, since sumo may freeze the traffic light
         for actor in self.world.get_actors():
-            if actor.type_id == 'traffic.traffic_light':
+            if actor.type_id == "traffic.traffic_light":
                 actor.freeze(False)
 
         self.sumo.close()
