@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 
-"""HDMap utilities
-"""
+"""HDMap utilities"""
 
 
 # Author: Runsheng Xu <rxx3386@ucla.edu>
@@ -36,7 +35,7 @@ def list_loc2array(list_location):
         Numpy array of shape (N, 3)
     """
     loc_array = np.zeros((len(list_location), 3))
-    for (i, carla_location) in enumerate(list_location):
+    for i, carla_location in enumerate(list_location):
         loc_array[i, 0] = carla_location.x
         loc_array[i, 1] = carla_location.y
         loc_array[i, 2] = carla_location.z
@@ -58,7 +57,7 @@ def list_wpt2array(list_wpt):
         Numpy array of shape (N, 3)
     """
     loc_array = np.zeros((len(list_wpt), 3))
-    for (i, carla_wpt) in enumerate(list_wpt):
+    for i, carla_wpt in enumerate(list_wpt):
         loc_array[i, 0] = carla_wpt.transform.location.x
         loc_array[i, 1] = carla_wpt.transform.location.y
         loc_array[i, 2] = carla_wpt.transform.location.z
@@ -78,10 +77,10 @@ def convert_tl_status(status):
     status_str : str
     """
     if status == carla.TrafficLightState.Red:
-        return 'red'
+        return "red"
     elif status == carla.TrafficLightState.Green:
-        return 'green'
+        return "green"
     elif status == carla.TrafficLightState.Yellow:
-        return 'yellow'
+        return "yellow"
     else:
-        return 'normal'
+        return "normal"

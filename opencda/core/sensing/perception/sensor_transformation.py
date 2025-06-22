@@ -10,7 +10,7 @@ from matplotlib import cm
 
 from opencda.opencda_carla import Transform
 
-VIRIDIS = np.array(cm.get_cmap('viridis').colors)
+VIRIDIS = np.array(cm.get_cmap("viridis").colors)
 VID_RANGE = np.linspace(0.0, 1.0, VIRIDIS.shape[0])
 
 
@@ -29,15 +29,14 @@ def get_camera_intrinsic(sensor):
         The 2d intrinsic matrix.
 
     """
-    VIEW_WIDTH = int(sensor.attributes['image_size_x'])
-    VIEW_HEIGHT = int(sensor.attributes['image_size_y'])
-    VIEW_FOV = int(float(sensor.attributes['fov']))
+    VIEW_WIDTH = int(sensor.attributes["image_size_x"])
+    VIEW_HEIGHT = int(sensor.attributes["image_size_y"])
+    VIEW_FOV = int(float(sensor.attributes["fov"]))
 
     matrix_k = np.identity(3)
     matrix_k[0, 2] = VIEW_WIDTH / 2.0
     matrix_k[1, 2] = VIEW_HEIGHT / 2.0
-    matrix_k[0, 0] = matrix_k[1, 1] = VIEW_WIDTH / \
-        (2.0 * np.tan(VIEW_FOV * np.pi / 360.0))
+    matrix_k[0, 0] = matrix_k[1, 1] = VIEW_WIDTH / (2.0 * np.tan(VIEW_FOV * np.pi / 360.0))
 
     return matrix_k
 
@@ -258,9 +257,7 @@ def get_bounding_box(vehicle, camera, sensor_transform):
     # bbx coordinates in sensor coordinate system. shape: (3, 8)
     cords_x_y_z = vehicle_to_sensor(bb_cords, vehicle, sensor_transform)[:3, :]
     # refer to https://github.com/carla-simulator/carla/issues/553
-    cords_y_minus_z_x = np.concatenate([cords_x_y_z[1, :].reshape(1, 8),
-                                        -cords_x_y_z[2, :].reshape(1, 8),
-                                        cords_x_y_z[0, :].reshape(1, 8)])
+    cords_y_minus_z_x = np.concatenate([cords_x_y_z[1, :].reshape(1, 8), -cords_x_y_z[2, :].reshape(1, 8), cords_x_y_z[0, :].reshape(1, 8)])
     # bounding box in sensor image. Shape:(8, 3)
     bbox = np.transpose(np.dot(camera_k_matrix, cords_y_minus_z_x))
 
@@ -359,8 +356,7 @@ def project_lidar_to_camera(lidar, camera, point_cloud, rgb_image):
 
     # Add an extra 1.0 at the end of each 3d point so it becomes of
     # shape (4, p_cloud_size) and it can be multiplied by a (4, 4) matrix.
-    local_lidar_points = np.r_[
-        local_lidar_points, [np.ones(local_lidar_points.shape[1])]]
+    local_lidar_points = np.r_[local_lidar_points, [np.ones(local_lidar_points.shape[1])]]
 
     # This (4, 4) matrix transforms the points from lidar space to world space.
     lidar_2_world = x_to_world_transformation(lidar.get_transform())
@@ -382,10 +378,7 @@ def project_lidar_to_camera(lidar, camera, point_cloud, rgb_image):
     # +-------> y             v y
 
     # (x, y ,z) -> (y, -z, x)
-    point_in_camera_coords = np.array([
-        sensor_points[1],
-        sensor_points[2] * -1,
-        sensor_points[0]])
+    point_in_camera_coords = np.array([sensor_points[1], sensor_points[2] * -1, sensor_points[0]])
 
     # retrieve camera intrinsic
     K = get_camera_intrinsic(camera)
@@ -393,21 +386,17 @@ def project_lidar_to_camera(lidar, camera, point_cloud, rgb_image):
     points_2d = np.dot(K, point_in_camera_coords)
 
     # normalize x,y,z
-    points_2d = np.array([
-        points_2d[0, :] / points_2d[2, :],
-        points_2d[1, :] / points_2d[2, :],
-        points_2d[2, :]])
+    points_2d = np.array([points_2d[0, :] / points_2d[2, :], points_2d[1, :] / points_2d[2, :], points_2d[2, :]])
 
-    image_w = int(camera.attributes['image_size_x'])
-    image_h = int(camera.attributes['image_size_y'])
+    image_w = int(camera.attributes["image_size_x"])
+    image_h = int(camera.attributes["image_size_y"])
 
     # remove points out the camera scope
     points_2d = points_2d.T
     intensity = intensity.T
-    points_in_canvas_mask = \
-        (points_2d[:, 0] > 0.0) & (points_2d[:, 0] < image_w) & \
-        (points_2d[:, 1] > 0.0) & (points_2d[:, 1] < image_h) & \
-        (points_2d[:, 2] > 0.0)
+    points_in_canvas_mask = (
+        (points_2d[:, 0] > 0.0) & (points_2d[:, 0] < image_w) & (points_2d[:, 1] > 0.0) & (points_2d[:, 1] < image_h) & (points_2d[:, 2] > 0.0)
+    )
     new_points_2d = points_2d[points_in_canvas_mask]
     new_intensity = intensity[points_in_canvas_mask]
 
@@ -418,14 +407,19 @@ def project_lidar_to_camera(lidar, camera, point_cloud, rgb_image):
     # Since at the time of the creation of this script, the intensity function
     # is returning high values, these are adjusted to be nicely visualized.
     new_intensity = 4 * new_intensity - 3
-    color_map = np.array([
-        np.interp(new_intensity, VID_RANGE, VIRIDIS[:, 0]) * 255.0,
-        np.interp(new_intensity, VID_RANGE, VIRIDIS[:, 1]) * 255.0,
-        np.interp(new_intensity, VID_RANGE, VIRIDIS[:, 2]) * 255.0]).\
-        astype(np.int).T
+    color_map = (
+        np.array(
+            [
+                np.interp(new_intensity, VID_RANGE, VIRIDIS[:, 0]) * 255.0,
+                np.interp(new_intensity, VID_RANGE, VIRIDIS[:, 1]) * 255.0,
+                np.interp(new_intensity, VID_RANGE, VIRIDIS[:, 2]) * 255.0,
+            ]
+        )
+        .astype(np.int)
+        .T
+    )
 
     for i in range(len(new_points_2d)):
-        rgb_image[v_coord[i] - 1: v_coord[i] + 1,
-                  u_coord[i] - 1: u_coord[i] + 1] = color_map[i]
+        rgb_image[v_coord[i] - 1 : v_coord[i] + 1, u_coord[i] - 1 : u_coord[i] + 1] = color_map[i]
 
     return rgb_image, points_2d

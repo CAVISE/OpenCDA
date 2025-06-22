@@ -14,7 +14,7 @@ import dataclasses
 from pathlib import Path
 
 
-logger = logging.getLogger('cavise.protobuf_toolchain')
+logger = logging.getLogger("cavise.protobuf_toolchain")
 
 
 # Config for protoc
@@ -25,14 +25,12 @@ class MessageConfig:
 
 
 class CommunicationToolchain:
-
     # handle messages, it is assumed that it is safe to import messages after this call
     @staticmethod
     def handle_messages(messages: typing.List[str], config: typing.Optional[MessageConfig] = None):
         if config is None:
             config = MessageConfig(
-                pathlib.PurePath('opencda/core/common/communication/messages'),
-                pathlib.PurePath('opencda/core/common/communication/protos/cavise')
+                pathlib.PurePath("opencda/core/common/communication/messages"), pathlib.PurePath("opencda/core/common/communication/protos/cavise")
             )
 
         importlib.invalidate_caches()
@@ -42,10 +40,10 @@ class CommunicationToolchain:
     @staticmethod
     def try_import(config: MessageConfig, message: str) -> bool:
         try:
-            importlib.import_module(str(config.binary_dir.joinpath(f"{message}_pb2")).replace('/', '.'))
+            importlib.import_module(str(config.binary_dir.joinpath(f"{message}_pb2")).replace("/", "."))
             return message in sys.modules
         except ModuleNotFoundError:
-            logger.warning(f'could not found message {message}')
+            logger.warning(f"could not found message {message}")
         return False
 
     @staticmethod
@@ -72,38 +70,41 @@ class CommunicationToolchain:
         for message in messages:
             CommunicationToolchain.copy_proto(f"../messages/{message}.proto", f"opencda/core/common/communication/messages/{message}.proto")
 
-        command = ['protoc', 
-                   f'--proto_path={config.source_dir}',
-                   f'--python_out={config.binary_dir}', 
-                   *map(lambda message: config.source_dir.joinpath(f'{message}.proto'), messages)]
+        command = [
+            "protoc",
+            f"--proto_path={config.source_dir}",
+            f"--python_out={config.binary_dir}",
+            *map(lambda message: config.source_dir.joinpath(f"{message}.proto"), messages),
+        ]
 
-        process = subprocess.run(command, 
-                                 encoding='UTF-8',
-                                 # silent run
-                                 stdout=subprocess.PIPE,
-                                 stderr=subprocess.PIPE, 
-                                 env=os.environ)
+        process = subprocess.run(
+            command,
+            encoding="UTF-8",
+            # silent run
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env=os.environ,
+        )
 
         if process.returncode != 0:
-            logger.error(f'failed to generate protos, subroutine exited with: {errno.errorcode[process.returncode]}\nSTDERR: {process.stderr.strip()}')
+            logger.error(
+                f"failed to generate protos, subroutine exited with: {errno.errorcode[process.returncode]}\nSTDERR: {process.stderr.strip()}"
+            )
             sys.exit(process.returncode)
         else:
-            logger.info('generated protos for: ' + ' '.join(messages))
+            logger.info("generated protos for: " + " ".join(messages))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('-m', dest='messages', action='append')
+    parser.add_argument("-m", dest="messages", action="append")
     args = parser.parse_args()
 
     if args.messages is None:
-        args.messages = ['artery', 'opencda']
+        args.messages = ["artery", "opencda"]
 
-    config = MessageConfig(
-        source_dir=pathlib.Path('messages'),
-        binary_dir=pathlib.Path('protos/cavise')
-    )
+    config = MessageConfig(source_dir=pathlib.Path("messages"), binary_dir=pathlib.Path("protos/cavise"))
 
-    print(f'using paths: {config}')
+    print(f"using paths: {config}")
 
     CommunicationToolchain.handle_messages(args.messages, config)
