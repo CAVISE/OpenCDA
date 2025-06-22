@@ -42,7 +42,7 @@ def generate_fcd(
     step_length: float = 0.1,
     traffic_scale: float = 0.5,
 ) -> NoReturn:
-    cmd = f"sumo -c {sumocfg_path} --fcd-output {fcd_path} --begin {begin_time} --end {begin_time+offset_time+total_time} \
+    cmd = f"sumo -c {sumocfg_path} --fcd-output {fcd_path} --begin {begin_time} --end {begin_time + offset_time + total_time} \
             --step-length {step_length} --scale {traffic_scale}"
     os.system(cmd)
 
@@ -84,9 +84,7 @@ def generate_routefile(
     random.seed(random_seed)  # make tests reproducible
     num_vehicles = 0
     net_xml_path = os.path.join(sumo_files_path, "map", net_xml_filename)
-    intention_config_path = os.path.join(
-        sumo_files_path, "intentions", intention_config_filename
-    )
+    intention_config_path = os.path.join(sumo_files_path, "intentions", intention_config_filename)
     route_path = os.path.join(sumo_files_path, "route")
     os.makedirs(route_path, exist_ok=True)
 
@@ -102,9 +100,7 @@ def generate_routefile(
             route = get_shortest_path(net_xml_path, from_edge, to_edge)
             if route == "":
                 raise Exception(f"There is no path between {from_edge} and {to_edge}")
-            route_file.write(
-                f'    <route id="{from_edge}_{to_edge}" edges="{route}"/>\n'
-            )
+            route_file.write(f'    <route id="{from_edge}_{to_edge}" edges="{route}"/>\n')
             if from_edge not in possible_paths:
                 possible_paths[from_edge] = []
             possible_paths[from_edge].append(to_edge)
@@ -114,17 +110,13 @@ def generate_routefile(
                 random_value = random.uniform(0, 1)
                 if random_value < create_new_vehicle_prob:
                     route = get_random_route(from_edge, possible_paths)
-                    route_file.write(
-                        f'    <vehicle id="{route}_{num_vehicles}" type="typeWE" route="{route}" depart="{second}" />\n'
-                    )
+                    route_file.write(f'    <vehicle id="{route}_{num_vehicles}" type="typeWE" route="{route}" depart="{second}" />\n')
                     num_vehicles += 1
 
         route_file.write("</routes>")
 
 
-def generate_sumocfg(
-    sumo_files_path: str, rou_xml_filename: str, net_filename: str
-) -> str:
+def generate_sumocfg(sumo_files_path: str, rou_xml_filename: str, net_filename: str) -> str:
     sumocfg_path = os.path.join(sumo_files_path, "sumocfg")
     os.makedirs(sumocfg_path, exist_ok=True)
     sumocfg_filename = os.path.join(sumocfg_path, f"{rou_xml_filename}.sumocfg")
@@ -198,12 +190,8 @@ def generate_csv_from_fcd(fcd_file: str, intention_config_path: str, time_per_sc
                 tgt_agent_ids.append(track_id)
 
         if len(tgt_agent_ids) > 0:
-            df = df.drop(
-                df[df.TIMESTAMP < (df["TIMESTAMP"].max() - time_per_scene)].index
-            )  # make sure each scene is exactly time_per_scene length
-            csv_df = df.loc[
-                [id in tgt_agent_ids for id in df["TRACK_ID"].values.tolist()]
-            ]
+            df = df.drop(df[df.TIMESTAMP < (df["TIMESTAMP"].max() - time_per_scene)].index)  # make sure each scene is exactly time_per_scene length
+            csv_df = df.loc[[id in tgt_agent_ids for id in df["TRACK_ID"].values.tolist()]]
             csv_name = f"{(min_time):0>5}-{(max_time):0>5}"
             save_csv(csv_df, csv_name, csv_dir)
             df = df.drop(

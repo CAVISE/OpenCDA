@@ -22,11 +22,11 @@ def lprint(logfile, *argv):
 
     # argument check
     if len(argv) == 0:
-        sys.exit('Err: wrong usage of func lprint(). Argv has to be provided.')
+        sys.exit("Err: wrong usage of func lprint(). Argv has to be provided.")
 
     arg_all = argv[0] if isinstance(argv[0], str) else str(argv[0])
     for arg in argv[1:]:
         arg_all = arg_all + (arg if isinstance(arg, str) else str(arg))
 
-    with open(logfile, 'a') as out:
-        out.write(arg_all + '\n')
+    with open(logfile, "a") as out:
+        out.write(arg_all + "\n")

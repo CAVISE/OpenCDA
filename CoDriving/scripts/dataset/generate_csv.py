@@ -41,15 +41,11 @@ if __name__ == "__main__":
     intention_config = args.intention_config
 
     now = datetime.now().strftime("%m-%d-%H-%M")
-    route_filename = (
-        f"{now}-{num_seconds:0>5}-{create_new_vehicle_prob}-{split}-{random_seed}"
-    )
+    route_filename = f"{now}-{num_seconds:0>5}-{create_new_vehicle_prob}-{split}-{random_seed}"
     TRAFFIC_SCALE = 1.0  # regulate the traffic flow
     LENGTH_PER_SCENE = (PRED_LEN + OBS_LEN) // SAMPLE_RATE
 
-    logging.basicConfig(
-        format="%(asctime)s - %(levelname)s: %(message)s", level=logging.INFO
-    )
+    logging.basicConfig(format="%(asctime)s - %(levelname)s: %(message)s", level=logging.INFO)
 
     code_path = os.path.dirname(os.path.abspath(__file__))
     sumo_files_path = os.path.join(code_path, "sumo")
