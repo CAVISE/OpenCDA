@@ -4,6 +4,7 @@ Cubic spline planner
 Author: Atsushi Sakai(@Atsushi_twi)
 
 """
+
 import math
 import numpy as np
 import bisect
@@ -56,8 +57,7 @@ class Spline:
         # calc spline coefficient b and d
         for i in range(self.nx - 1):
             self.d.append((self.c[i + 1] - self.c[i]) / (3.0 * h[i]))
-            tb = (self.a[i + 1] - self.a[i]) / h[i] - h[i] * \
-                (self.c[i + 1] + 2.0 * self.c[i]) / 3.0
+            tb = (self.a[i + 1] - self.a[i]) / h[i] - h[i] * (self.c[i + 1] + 2.0 * self.c[i]) / 3.0
             self.b.append(tb)
 
     def calc(self, t):
@@ -79,8 +79,7 @@ class Spline:
 
         i = self.__search_index(t)
         dx = t - self.x[i]
-        result = self.a[i] + self.b[i] * dx + \
-            self.c[i] * dx ** 2.0 + self.d[i] * dx ** 3.0
+        result = self.a[i] + self.b[i] * dx + self.c[i] * dx**2.0 + self.d[i] * dx**3.0
 
         return result
 
@@ -96,7 +95,7 @@ class Spline:
 
         i = self.__search_index(t)
         dx = t - self.x[i]
-        result = self.b[i] + 2.0 * self.c[i] * dx + 3.0 * self.d[i] * dx ** 2.0
+        result = self.b[i] + 2.0 * self.c[i] * dx + 3.0 * self.d[i] * dx**2.0
         return result
 
     def calcdd(self, t):
@@ -144,8 +143,7 @@ class Spline:
         """
         B = np.zeros(self.nx)
         for i in range(self.nx - 2):
-            B[i + 1] = 3.0 * (self.a[i + 2] - self.a[i + 1]) / \
-                h[i + 1] - 3.0 * (self.a[i + 1] - self.a[i]) / h[i]
+            B[i + 1] = 3.0 * (self.a[i + 2] - self.a[i + 1]) / h[i + 1] - 3.0 * (self.a[i + 1] - self.a[i]) / h[i]
         return B
 
 
@@ -206,7 +204,7 @@ class Spline2D:
         ddx = self.sx.calcdd(s)
         dy = self.sy.calcd(s)
         ddy = self.sy.calcdd(s)
-        k = (ddy * dx - ddx * dy) / ((dx ** 2 + dy ** 2)**(3 / 2))
+        k = (ddy * dx - ddx * dy) / ((dx**2 + dy**2) ** (3 / 2))
         return k
 
     def calc_yaw(self, s):
@@ -255,6 +253,7 @@ def main():
     """
     print("Spline 2D test")
     import matplotlib.pyplot as plt
+
     x = [-135, -131, -131, -131]
     y = [6.43, 10.83, 100.38, 131]
     ds = 0.1  # [m] distance of each intepolated points
@@ -296,5 +295,5 @@ def main():
     plt.show()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

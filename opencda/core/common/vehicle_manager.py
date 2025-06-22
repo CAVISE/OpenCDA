@@ -5,7 +5,6 @@ Basic class of CAV
 # Author: Runsheng Xu <rxx3386@ucla.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
-import sys
 import logging
 
 from opencda.core.actuation.control_manager import ControlManager
@@ -77,19 +76,19 @@ class VehicleManager(object):
 
     # TODO: application и prefix как будто бы дублируют друг друга, но не факт
     def __init__(
-            self,
-            vehicle,
-            config_yaml,
-            application,
-            carla_map,
-            cav_world,
-            current_time='',
-            data_dumping=False,
-            autogenerate_id_on_failure=True, #TODO: Привязать к конфигу сценария
-            prefix='unknown'):
-
-        config_id = config_yaml.get('id')
-        self.prefix = prefix if prefix in {'cav', 'platoon'} else 'unknown'
+        self,
+        vehicle,
+        config_yaml,
+        application,
+        carla_map,
+        cav_world,
+        current_time="",
+        data_dumping=False,
+        autogenerate_id_on_failure=True,  # TODO: Привязать к конфигу сценария
+        prefix="unknown",
+    ):
+        config_id = config_yaml.get("id")
+        self.prefix = prefix if prefix in {"cav", "platoon"} else "unknown"
 
         if config_id is not None:
             try:
@@ -116,47 +115,40 @@ class VehicleManager(object):
                 self.vid = self.__generate_unique_vehicle_id()
                 logger.debug(f"No vehicle ID specified in config. Assigned auto-generated ID: {self.vid}")
             else:
-                logger.error(f"No vehicle ID specified in config.")
+                logger.error("No vehicle ID specified in config.")
                 raise ValueError("No vehicle ID specified in config.")
 
         # [CoDrivingInt]
-        self.vname = config_yaml['name']
+        self.vname = config_yaml["name"]
         # [CoDrivingInt]
 
         self.vehicle = vehicle
         self.carla_map = carla_map
 
         # retrieve the configure for different modules
-        sensing_config = config_yaml['sensing']
-        map_config = config_yaml['map_manager']
-        behavior_config = config_yaml['behavior']
-        control_config = config_yaml['controller']
-        v2x_config = config_yaml['v2x']
+        sensing_config = config_yaml["sensing"]
+        map_config = config_yaml["map_manager"]
+        behavior_config = config_yaml["behavior"]
+        control_config = config_yaml["controller"]
+        v2x_config = config_yaml["v2x"]
 
         # v2x module
         self.v2x_manager = V2XManager(cav_world, v2x_config, self.vid)
         # localization module
-        self.localizer = LocalizationManager(vehicle, sensing_config['localization'], carla_map)
+        self.localizer = LocalizationManager(vehicle, sensing_config["localization"], carla_map)
         # perception module
-        self.perception_manager = PerceptionManager(vehicle=vehicle, 
-                                                    config_yaml=sensing_config['perception'], 
-                                                    cav_world=cav_world,
-                                                    infra_id=self.vid,
-                                                    data_dump=data_dumping)
+        self.perception_manager = PerceptionManager(
+            vehicle=vehicle, config_yaml=sensing_config["perception"], cav_world=cav_world, infra_id=self.vid, data_dump=data_dumping
+        )
         # map manager
         self.map_manager = MapManager(vehicle, carla_map, map_config)
         # safety manager
-        self.safety_manager = SafetyManager(vehicle=vehicle, params=config_yaml['safety_manager'])
+        self.safety_manager = SafetyManager(vehicle=vehicle, params=config_yaml["safety_manager"])
         # behavior agent
         self.agent = None
-        if 'platoon' in application:
-            platoon_config = config_yaml['platoon']
-            self.agent = PlatooningBehaviorAgent(vehicle,
-                                                 self,
-                                                 self.v2x_manager,
-                                                 behavior_config,
-                                                 platoon_config,
-                                                 carla_map)
+        if "platoon" in application:
+            platoon_config = config_yaml["platoon"]
+            self.agent = PlatooningBehaviorAgent(vehicle, self, self.v2x_manager, behavior_config, platoon_config, carla_map)
         else:
             self.agent = BehaviorAgent(vehicle, carla_map, behavior_config)
 
@@ -164,9 +156,7 @@ class VehicleManager(object):
         self.controller = ControlManager(control_config)
 
         if data_dumping:
-            self.data_dumper = DataDumper(self.perception_manager,
-                                          self.vid,
-                                          save_time=current_time)
+            self.data_dumper = DataDumper(self.perception_manager, self.vid, save_time=current_time)
         else:
             self.data_dumper = None
 
@@ -175,10 +165,10 @@ class VehicleManager(object):
     def __generate_unique_vehicle_id(self):
         """Generates a unique vehicle ID based on prefix."""
         while True:
-            if self.prefix == 'cav':
+            if self.prefix == "cav":
                 candidate = f"cav-{VehicleManager.current_cav_id}"
                 VehicleManager.current_cav_id += 1
-            elif self.prefix == 'platoon':
+            elif self.prefix == "platoon":
                 candidate = f"platoon-{VehicleManager.current_platoon_id}"
                 VehicleManager.current_platoon_id += 1
             else:
@@ -189,12 +179,7 @@ class VehicleManager(object):
                 VehicleManager.used_ids.add(candidate)
                 return candidate
 
-    def set_destination(
-            self,
-            start_location,
-            end_location,
-            clean=False,
-            end_reset=True):
+    def set_destination(self, start_location, end_location, clean=False, end_reset=True):
         """
         Set global route.
 
@@ -236,12 +221,14 @@ class VehicleManager(object):
         self.map_manager.update_information(ego_pos)
 
         # this is required by safety manager
-        safety_input = {'ego_pos': ego_pos,
-                        'ego_speed': ego_spd,
-                        'objects': objects,
-                        'carla_map': self.carla_map,
-                        'world': self.vehicle.get_world(),
-                        'static_bev': self.map_manager.static_bev}
+        safety_input = {
+            "ego_pos": ego_pos,
+            "ego_speed": ego_spd,
+            "objects": objects,
+            "carla_map": self.carla_map,
+            "world": self.vehicle.get_world(),
+            "static_bev": self.map_manager.static_bev,
+        }
         self.safety_manager.update_info(safety_input)
 
         # leave this for platooning for now
@@ -265,9 +252,7 @@ class VehicleManager(object):
 
         # dump data
         if self.data_dumper:
-            self.data_dumper.run_step(self.perception_manager,
-                                      self.localizer,
-                                      self.agent)
+            self.data_dumper.run_step(self.perception_manager, self.localizer, self.agent)
 
         return control
 

@@ -2,6 +2,7 @@
 """
 Functions to transfer coordinates under different coordinate system
 """
+
 # Author: Runsheng Xu <rxx3386@ucla.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
 import numpy as np
@@ -52,8 +53,7 @@ def geo_to_transform(lat, lon, alt, lat_0, lon_0, alt_0):
     x = mx - mx_0
 
     my = np.log(np.tan((lat + 90) * np.pi / 360)) * EARTH_RADIUS_EQUA * scale
-    my_0 = scale * EARTH_RADIUS_EQUA * \
-        np.log(np.tan((90 + lat_0) * np.pi / 360))
+    my_0 = scale * EARTH_RADIUS_EQUA * np.log(np.tan((90 + lat_0) * np.pi / 360))
     y = -(my - my_0)
 
     z = alt - alt_0

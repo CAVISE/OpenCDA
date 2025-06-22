@@ -31,13 +31,17 @@ class ExtentedKalmanFilter(object):
     """
 
     def __init__(self, dt):
-
-        self.Q = np.diag([
-            0.2,  # variance of location on x-axis
-            0.2,  # variance of location on y-axis
-            np.deg2rad(0.1),  # variance of yaw angle
-            0.001  # variance of velocity
-        ]) ** 2  # predict state covariance
+        self.Q = (
+            np.diag(
+                [
+                    0.2,  # variance of location on x-axis
+                    0.2,  # variance of location on y-axis
+                    np.deg2rad(0.1),  # variance of yaw angle
+                    0.001,  # variance of velocity
+                ]
+            )
+            ** 2
+        )  # predict state covariance
 
         self.R = np.diag([0.5, 0.5, 0.2]) ** 2
 
@@ -58,15 +62,9 @@ class ExtentedKalmanFilter(object):
         Returns:
           x (np.array): predicted state.
         """
-        F = np.array([[1.0, 0, 0, 0],
-                      [0, 1.0, 0, 0],
-                      [0, 0, 1.0, 0],
-                      [0, 0, 0, 0]])
+        F = np.array([[1.0, 0, 0, 0], [0, 1.0, 0, 0], [0, 0, 1.0, 0], [0, 0, 0, 0]])
 
-        B = np.array([[self.time_step * math.cos(x[2, 0]), 0],
-                      [self.time_step * math.sin(x[2, 0]), 0],
-                      [0.0, self.time_step],
-                      [1.0, 0.0]])
+        B = np.array([[self.time_step * math.cos(x[2, 0]), 0], [self.time_step * math.sin(x[2, 0]), 0], [0.0, self.time_step], [1.0, 0.0]])
 
         x = F @ x + B @ u
 
@@ -84,13 +82,14 @@ class ExtentedKalmanFilter(object):
         """
         yaw = x[2, 0]
         v = u[0, 0]
-        jF = np.array([
-            [1.0, 0.0, -self.time_step * v * math.sin(yaw),
-             self.time_step * math.cos(yaw)],
-            [0.0, 1.0, self.time_step * v * math.cos(yaw),
-             self.time_step * math.sin(yaw)],
-            [0.0, 0.0, 1.0, 0.0],
-            [0.0, 0.0, 0.0, 1.0]])
+        jF = np.array(
+            [
+                [1.0, 0.0, -self.time_step * v * math.sin(yaw), self.time_step * math.cos(yaw)],
+                [0.0, 1.0, self.time_step * v * math.cos(yaw), self.time_step * math.sin(yaw)],
+                [0.0, 0.0, 1.0, 0.0],
+                [0.0, 0.0, 0.0, 1.0],
+            ]
+        )
 
         return jF
 
@@ -105,11 +104,7 @@ class ExtentedKalmanFilter(object):
             -z (np.array): predicted measurement.
 
         """
-        H = np.array([
-            [1, 0, 0, 0],
-            [0, 1, 0, 0],
-            [0, 0, 1, 0]
-        ])
+        H = np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0]])
 
         z = H @ x
 
@@ -159,10 +154,7 @@ class ExtentedKalmanFilter(object):
         PPred = jF @ self.PEst @ jF.T + self.Q
 
         # Jacobian of Observation Model
-        jH = np.array([
-            [1, 0, 0, 0],
-            [0, 1, 0, 0],
-            [0, 0, 1, 0]])
+        jH = np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0]])
         zPred = self.observation_model(xPred)
         y = z - zPred
         S = jH @ PPred @ jH.T + self.R
@@ -170,7 +162,4 @@ class ExtentedKalmanFilter(object):
         self.xEst = xPred + K @ y
         self.PEst = (np.eye(len(self.xEst)) - K @ jH) @ PPred
 
-        return self.xEst[0][0], \
-            self.xEst[1][0], \
-            self.xEst[2][0], \
-            self.xEst[3][0]
+        return self.xEst[0][0], self.xEst[1][0], self.xEst[2][0], self.xEst[3][0]
