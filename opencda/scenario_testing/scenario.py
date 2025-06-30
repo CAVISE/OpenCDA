@@ -195,15 +195,16 @@ class Scenario:
             directory_processor.clear_directory_now()
 
         while True:
+            tick_number += 1
+            if opt.ticks and tick_number > opt.ticks:
+                break
+            logger.debug(f"running: simulation tick: {tick_number}")
+
             # [CoDrivingInt]
             if opt.with_mtp:
                 self.codriving_model_manager.make_trajs(carla_vmanagers=self.single_cav_list)
             # [CoDrivingInt]
 
-            tick_number += 1
-            if opt.ticks and tick_number > opt.ticks:
-                break
-            logger.debug(f"running: simulation tick: {tick_number}")
             self.scenario_manager.tick()
 
             if not opt.free_spectator and any(array is not None for array in [self.single_cav_list, self.platoon_list]):
