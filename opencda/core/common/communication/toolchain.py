@@ -101,7 +101,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.messages is None:
-        args.messages = ["artery", "opencda"]
+        args.messages = ["capi"]
 
     config = MessageConfig(source_dir=pathlib.Path("messages"), binary_dir=pathlib.Path("protos/cavise"))
 
