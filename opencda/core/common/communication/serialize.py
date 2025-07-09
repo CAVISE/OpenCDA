@@ -8,12 +8,10 @@ from contextlib import contextmanager
 
 from . import toolchain
 
-from .protos.cavise import opencda_pb2 as proto_opencda
-from .protos.cavise import artery_pb2 as proto_artery
+toolchain.CommunicationToolchain.handle_messages(["capi"])
+
+from .protos.cavise import capi_pb2 as proto_capi
 from google.protobuf.descriptor import FieldDescriptor
-
-toolchain.CommunicationToolchain.handle_messages(["opencda", "artery"])
-
 
 class SerializableTransform:
     """
@@ -89,8 +87,8 @@ class MessageHandler:
             "LABEL_REQUIRED": FieldDescriptor.LABEL_REQUIRED,
         }
 
-    def __serialize_ndarray(self, packed_array: dict) -> proto_opencda.NDArray:
-        return proto_opencda.NDArray(
+    def __serialize_ndarray(self, packed_array: dict) -> proto_capi.NDArray:
+        return proto_capi.NDArray(
             data=packed_array["data"],
             shape=list(packed_array["shape"]),
             dtype=packed_array["dtype"]
@@ -118,7 +116,7 @@ class MessageHandler:
         yield self.current_message_artery[ego_id][id][module]
 
     def make_opencda_message(self) -> str:
-        opencda_message = proto_opencda.OpenCDA_message()
+        opencda_message = proto_capi.OpenCDA_message()
 
         for entity_id, modules_dict in self.current_message_opencda.items():
             entity_message = opencda_message.entity.add()
@@ -186,7 +184,7 @@ class MessageHandler:
 
                             getattr(entity_message, key).extend(data)
 
-                        # Process Scalar
+                        # Process scalar
                         else:
                             if not isinstance(data, expected_python_type):
                                 raise ValueError(
@@ -197,7 +195,7 @@ class MessageHandler:
         return opencda_message.SerializeToString()
 
     def make_artery_data(self, string) -> None:
-        artery_message = proto_artery.Artery_message()
+        artery_message = proto_capi.Artery_message()
         artery_message.ParseFromString(string)
 
         for received_info in artery_message.received_information:
