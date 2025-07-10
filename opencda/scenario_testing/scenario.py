@@ -178,13 +178,6 @@ class Scenario:
         self.spectator = self.scenario_manager.world.get_spectator()
 
     def run(self, opt: argparse.Namespace):
-        if self.cav_world.comms_manager is not None:
-            self.cav_world.comms_manager.create_socket(zmq.PAIR, "connect")
-            MessageHandler()
-            logger.info("running: creating message handler")
-        else:
-            pass
-
         if self.coperception_model_manager is not None:
             from opencda.core.common.coperception_model_manager import DirectoryProcessor
 
@@ -203,12 +196,8 @@ class Scenario:
     def default_loop(self, opt, directory_processor):
         tick_number = -1
         while True:
-            # [CoDrivingInt]
-            if opt.with_mtp:
-                self.codriving_model_manager.make_trajs(carla_vmanagers=self.single_cav_list)
-            # [CoDrivingInt]
-
             tick_number += 1
+
             if opt.ticks and tick_number > opt.ticks:
                 break
             logger.debug(f"running: simulation tick: {tick_number}")
@@ -222,18 +211,20 @@ class Scenario:
                     transform = self.platoon_list[0].vehicle_manager_list[0].vehicle.get_transform()
                     self.spectator.set_transform(carla.Transform(transform.location + carla.Location(z=50), carla.Rotation(pitch=-90)))
 
-            if tick_number > 0:
-                if self.coperception_model_manager is not None:
-                    try:
-                        logger.info(f"Processing {tick_number} tick")
-                        directory_processor.clear_directory_now()
-                        directory_processor.process_directory(tick_number)
-                        logger.info(f"Successfully processed {tick_number} tick")
-                    except Exception as e:
-                        logger.warning(f"An error occurred during proceesing {tick_number} tick: {e}")
+            if opt.with_mtp:
+                self.codriving_model_manager.make_trajs(carla_vmanagers=self.single_cav_list)
 
-                    self.coperception_model_manager.make_dataset()
-                    self.coperception_model_manager.make_prediction(tick_number)
+            if self.coperception_model_manager is not None and tick_number > 0:
+                try:
+                    logger.info(f"Processing {tick_number} tick")
+                    directory_processor.clear_directory_now()
+                    directory_processor.process_directory(tick_number)
+                    logger.info(f"Successfully processed {tick_number} tick")
+                except Exception as e:
+                    logger.warning(f"An error occurred during proceesing {tick_number} tick: {e}")
+
+                self.coperception_model_manager.make_dataset()
+                self.coperception_model_manager.make_prediction(tick_number)
 
             if self.platoon_list is not None:
                 logger.debug("updating platoons")
@@ -254,16 +245,11 @@ class Scenario:
                     rsu.update_info()
                     rsu.run_step()
 
-    # TODO: Надо добавить возможность Artery работать без OpenCOOD
     def capi_loop(self, opt, directory_processor):
         tick_number = -1
         while True:
-            # [CoDrivingInt]
-            if opt.with_mtp:
-                self.codriving_model_manager.make_trajs(carla_vmanagers=self.single_cav_list)
-            # [CoDrivingInt]
-
             tick_number += 1
+
             if opt.ticks and tick_number > opt.ticks:
                 break
             logger.debug(f"running: simulation tick: {tick_number}")
@@ -277,33 +263,42 @@ class Scenario:
                     transform = self.platoon_list[0].vehicle_manager_list[0].vehicle.get_transform()
                     self.spectator.set_transform(carla.Transform(transform.location + carla.Location(z=50), carla.Rotation(pitch=-90)))
 
+            if opt.with_mtp:
+                self.codriving_model_manager.make_trajs(carla_vmanagers=self.single_cav_list)
+
+            """
             # Тик 0 является инициализирующим. Симуляция начинается с 0 тика, в то время как data dumper начинает с 1.
             # Это сделано для того, чтобы модуль коммуникации работал с заранее сделанными действиями CAV и RSU, как это происходит в реальной жизни.
             # Либо можно вынести действие модуля data dumper в отдельные функции и выполнять их перед коммуникацией.
-            if tick_number > 0:
-                if self.coperception_model_manager is not None:
-                    try:
-                        logger.info(f"Processing {tick_number} tick")
-                        directory_processor.clear_directory_now()
-                        directory_processor.process_directory(tick_number)
-                        logger.info(f"Successfully processed {tick_number} tick")
-                    except Exception as e:
-                        logger.warning(f"An error occurred during proceesing {tick_number} tick: {e}")
+            """
+            if self.coperception_model_manager is not None and tick_number > 0:
+                try:
+                    logger.info(f"Processing {tick_number} tick")
+                    directory_processor.clear_directory_now()
+                    directory_processor.process_directory(tick_number)
+                    logger.info(f"Successfully processed {tick_number} tick")
+                except Exception as e:
+                    logger.warning(f"An error occurred during proceesing {tick_number} tick: {e}")
 
-                    self.coperception_model_manager.make_dataset()
-                    self.coperception_model_manager.opencood_dataset.extract_data(
-                        idx=0
-                    )  # TODO: Надо разобраться с тем, как выбирать ego в моделях совместного восприятия
-                    message = self.message_handler.make_opencda_message()
-                    self.cav_world.comms_manager.send_message(message)
-                    logger.info(f"{round(len(message) / (1 << 20), 3)} MB about to be sent")
+                self.coperception_model_manager.make_dataset()
+                self.coperception_model_manager.opencood_dataset.extract_data(
+                    idx=0  # TODO: Надо разобраться с тем, как выбирать ego в моделях совместного восприятия
+                )  
 
-                    message = self.cav_world.comms_manager.receive_message()
-                    logger.info(f"{round(len(message) / (1 << 20), 3)} MB were received")
-                    self.message_handler.make_artery_data(message)
+            message = self.message_handler.make_opencda_message()
 
-                    self.coperception_model_manager.make_prediction(tick_number)
-                    self.message_handler.clear_messages()
+            self.cav_world.comms_manager.send_message(message)
+            logger.info(f"{round(len(message) / (1 << 20), 3)} MB about to be sent")
+
+            message = self.cav_world.comms_manager.receive_message()
+            logger.info(f"{round(len(message) / (1 << 20), 3)} MB were received")
+
+            self.message_handler.make_artery_data(message)
+
+            if self.coperception_model_manager is not None and tick_number > 0:
+                self.coperception_model_manager.make_prediction(tick_number)
+
+            self.message_handler.clear_messages()
 
             if self.platoon_list is not None:
                 logger.debug("updating platoons")

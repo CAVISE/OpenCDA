@@ -13,6 +13,7 @@ toolchain.CommunicationToolchain.handle_messages(["capi"])
 from .protos.cavise import capi_pb2 as proto_capi
 from google.protobuf.descriptor import FieldDescriptor
 
+
 class SerializableTransform:
     """
     @class SerializableTransform
