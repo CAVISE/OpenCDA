@@ -29,7 +29,7 @@ RUN pacman -Syu --noconfirm      \
     vulkan-tools cuda            \
     vulkan-icd-loader            \
     libjpeg-turbo libtiff        \
-    && paccache -r -k 0   
+    && paccache -r -k 0
 
 # mesa fontconfig ttf-ubuntu-font-family sdl2
 

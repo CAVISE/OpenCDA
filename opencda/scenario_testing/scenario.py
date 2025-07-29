@@ -283,7 +283,7 @@ class Scenario:
                 self.coperception_model_manager.make_dataset()
                 self.coperception_model_manager.opencood_dataset.extract_data(
                     idx=0  # TODO: Надо разобраться с тем, как выбирать ego в моделях совместного восприятия
-                )  
+                )
 
             message = self.message_handler.make_opencda_message()
 

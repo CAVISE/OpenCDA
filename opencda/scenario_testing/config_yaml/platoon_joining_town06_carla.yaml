@@ -6,7 +6,7 @@ description: |-
 
 world:
   town: Town06
-  
+
 # First define the basic parameters of the vehicles
 vehicle_base:
   sensing:
@@ -123,5 +123,3 @@ scenario:
         local_planner:
           debug_trajectory: true
           debug: false
-
-

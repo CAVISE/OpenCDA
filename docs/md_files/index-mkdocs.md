@@ -1,8 +1,8 @@
 Welcome to OpenCDA
 =====
 
-OpenCDA is a generalized framework for fast developing and testing <strong>cooperative driving automation 
-applications</strong>(e.g., cooperative perception, platooning) as well as <strong>autonomous vehicle components</strong>(e.g., 
+OpenCDA is a generalized framework for fast developing and testing <strong>cooperative driving automation
+applications</strong>(e.g., cooperative perception, platooning) as well as <strong>autonomous vehicle components</strong>(e.g.,
 perception, localization, planning, control) on <strong>multi-resolution simulators</strong>(e.g., CARLA, SUMO, NS3).
 
 OpenCDA is a work in progress, and many features are still in the future roadma.
@@ -19,7 +19,7 @@ OpenCDA Github</a>
 * [Introduction](OpenCDA_introduction.md)
 * [Installation](OpenCDA_installation.md)
 * [Quick Start](OpenCDA_getstarted.md)
-* [Tutorial](OpenCDA_tutorial.md)   
+* [Tutorial](OpenCDA_tutorial.md)
     * [Codebase structure](codebase_structure.md)
     * [Step1: Define the yaml file](OpenCDA_tutorial.md#step1-define-the-yaml-file)
     * [Step2: Construct the scenario](OpenCDA_tutorial.md#step2-construct-scenario)
@@ -30,7 +30,7 @@ OpenCDA Github</a>
 * [PythonAPI](modules.rst)
 
 
-If you use OpenCDA for academic research, you are highly encouraged to cite our paper:  
+If you use OpenCDA for academic research, you are highly encouraged to cite our paper:
  ```bibtex
 @inproceedings{xu2021opencda,
 title={OpenCDA: An Open Cooperative Driving Automation Framework Integrated with Multi-resolution Simulations},
