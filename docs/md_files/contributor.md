@@ -30,4 +30,3 @@ Dr. Xin Xia (Postdoc @ UCLA):
 Dr. Yi Guo (Postdoc @ UC):
 - Platooning algorithm, SUMO Only Mode (under dev)
 - [Linkedin](https://www.linkedin.com/in/yi-guo-4008baaa/)
-

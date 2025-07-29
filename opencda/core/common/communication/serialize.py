@@ -10,8 +10,8 @@ from . import toolchain
 
 toolchain.CommunicationToolchain.handle_messages(["capi"])
 
-from .protos.cavise import capi_pb2 as proto_capi
-from google.protobuf.descriptor import FieldDescriptor
+from .protos.cavise import capi_pb2 as proto_capi  # noqa: E402
+from google.protobuf.descriptor import FieldDescriptor  # noqa: E402
 
 
 class SerializableTransform:
@@ -89,16 +89,10 @@ class MessageHandler:
         }
 
     def __serialize_ndarray(self, packed_array: dict) -> proto_capi.NDArray:
-        return proto_capi.NDArray(
-            data=packed_array["data"],
-            shape=list(packed_array["shape"]),
-            dtype=packed_array["dtype"]
-        )
+        return proto_capi.NDArray(data=packed_array["data"], shape=list(packed_array["shape"]), dtype=packed_array["dtype"])
 
     def __deserialize_ndarray(self, ndarray_msg) -> dict:
-        return {"data": ndarray_msg.data, 
-                "shape": list(ndarray_msg.shape), 
-                "dtype": ndarray_msg.dtype}
+        return {"data": ndarray_msg.data, "shape": list(ndarray_msg.shape), "dtype": ndarray_msg.dtype}
 
     @contextmanager
     def handle_opencda_message(self, id, module):
@@ -139,19 +133,28 @@ class MessageHandler:
                         expected_label = self.LABEL_MAP.get(value["label"])
 
                         if field.type != expected_type:
-                            raise ValueError(f"[{entity_id}:{module_name}] Type mismatch for field '{key}': expected {field.type}, got {expected_type}")
+                            raise ValueError(
+                                f"[{entity_id}:{module_name}] Type mismatch for field '{key}': expected {field.type}, got {expected_type}"
+                            )
 
                         if field.label != expected_label:
-                            raise ValueError(f"[{entity_id}:{module_name}] Label mismatch for field '{key}': expected {field.label}, got {expected_label}")
+                            raise ValueError(
+                                f"[{entity_id}:{module_name}] Label mismatch for field '{key}': expected {field.label}, got {expected_label}"
+                            )
 
                         data = value["data"]
 
                         if field.type in (
-                            FieldDescriptor.TYPE_INT32, FieldDescriptor.TYPE_INT64,
-                            FieldDescriptor.TYPE_UINT32, FieldDescriptor.TYPE_UINT64,
-                            FieldDescriptor.TYPE_SINT32, FieldDescriptor.TYPE_SINT64,
-                            FieldDescriptor.TYPE_FIXED32, FieldDescriptor.TYPE_FIXED64,
-                            FieldDescriptor.TYPE_SFIXED32, FieldDescriptor.TYPE_SFIXED64,
+                            FieldDescriptor.TYPE_INT32,
+                            FieldDescriptor.TYPE_INT64,
+                            FieldDescriptor.TYPE_UINT32,
+                            FieldDescriptor.TYPE_UINT64,
+                            FieldDescriptor.TYPE_SINT32,
+                            FieldDescriptor.TYPE_SINT64,
+                            FieldDescriptor.TYPE_FIXED32,
+                            FieldDescriptor.TYPE_FIXED64,
+                            FieldDescriptor.TYPE_SFIXED32,
+                            FieldDescriptor.TYPE_SFIXED64,
                         ):
                             expected_python_type = int
                         elif field.type in (FieldDescriptor.TYPE_FLOAT, FieldDescriptor.TYPE_DOUBLE):

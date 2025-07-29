@@ -14,7 +14,7 @@ blueprint:
     bus: 0.1
     bicycle: 0.1
     motorcycle: 0.1
-    
+
 rsu_base:
   sensing:
     perception:

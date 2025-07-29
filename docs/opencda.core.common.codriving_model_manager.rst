@@ -42,7 +42,7 @@
 .. method:: make_trajs()
 
    Main update loop that:
-   
+
    - Updates vehicle trajectories.
    - Encodes scenario features.
    - Runs the GNN model.
