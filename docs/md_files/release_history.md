@@ -1,7 +1,7 @@
 ## Release History of OpenCDA
 This page demonstrates all the changes since the origin release v0.1.0 with more detailed imags.
 
---- 
+---
 ### v0.1.2
 ##### Map manager
 OpenCDA now adds a new component `map_manager` for each cav. It will dynamically load road topology, traffic light information, and dynamic
@@ -19,15 +19,15 @@ Key elements in the rasterization map:
 ---
 ### v0.1.1
 #### Cooperative Perception
-OpenCDA now supports data dumping simultaneously for multiple CAVs to develop V2V perception 
-algorithms offline. The dumped data includes: 
+OpenCDA now supports data dumping simultaneously for multiple CAVs to develop V2V perception
+algorithms offline. The dumped data includes:
 - LiDAR data
 - RGB camera (4 for each CAV)
 - GPS/IMU
 - Velocity and future planned trajectory of the CAV
 - Surrounding vehicles' bounding box position, velocity <br>
 
-Besides the above dumped data, users can also generate the future trajectory for each 
+Besides the above dumped data, users can also generate the future trajectory for each
 vehicle for trajectory prediction purpose. Run `python root_of_opencda/scripts/generate_prediction_yaml.py`
 to generate the prediction offline.
 
@@ -42,7 +42,7 @@ installing OpenCDA. When users run opencda.py, -v argument is required to classi
 OpenCDA to select the correct API.
 
 #### Weather Parameters
-To help estimate the influence of weather on cooperative driving automation, users now can 
+To help estimate the influence of weather on cooperative driving automation, users now can
 define weather setting in the yaml file to control sunlight, fog, rain, wetness and other conditions.
 
 #### Bug Fixes

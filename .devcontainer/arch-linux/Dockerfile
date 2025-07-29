@@ -14,10 +14,10 @@ RUN pacman -Syu --noconfirm     \
     python-pip pyenv bison git  \
     mesa sdl2 libsm openmp      \
     fontconfig gcc cmake        \
-    libjpeg-turbo libtiff nano  \ 
+    libjpeg-turbo libtiff nano  \
     unzip xdg-user-dirs whois   \
     ttf-ubuntu-font-family      \
-    # Sumo build deps           
+    # Sumo build deps
     xerces-c fox gdal proj      \
     gl2ps jre17-openjdk         \
     swig maven eigen            \

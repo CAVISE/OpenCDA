@@ -55,4 +55,3 @@ scenario:
           spawn_position: [-1030.722836, 8.3, 0.3, 0, 0, 0]
         - name: cav5
           spawn_position: [-1040.722836, 8.3, 0.3, 0, 0, 0]
-

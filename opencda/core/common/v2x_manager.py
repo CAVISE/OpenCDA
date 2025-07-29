@@ -163,7 +163,7 @@ class V2XManager(object):
 
     """
     -----------------------------------------------------------
-                 Below is platooning related 
+                 Below is platooning related
     -----------------------------------------------------------
     """
 

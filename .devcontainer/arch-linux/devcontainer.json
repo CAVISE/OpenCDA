@@ -1,11 +1,11 @@
 {
-    "name": "arch-linux",
-    "build": {
-        "context": "${localWorkspaceFolder}",
-        "dockerfile": "${localWorkspaceFolder}/.devcontainer/arch-linux/Dockerfile",
-        "args": {
-            "USER": "devcontainer"
-        }
+  "build": {
+    "args": {
+      "USER": "devcontainer"
     },
-    "containerUser": "devcontainer"
+    "context": "${localWorkspaceFolder}",
+    "dockerfile": "${localWorkspaceFolder}/.devcontainer/arch-linux/Dockerfile"
+  },
+  "containerUser": "devcontainer",
+  "name": "arch-linux"
 }
