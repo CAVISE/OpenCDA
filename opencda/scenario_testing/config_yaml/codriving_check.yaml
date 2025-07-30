@@ -109,4 +109,3 @@ scenario:
         local_planner:
           debug_trajectory: false
           debug: false
- 

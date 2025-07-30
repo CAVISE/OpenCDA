@@ -1,6 +1,6 @@
-## Quick Start 
+## Quick Start
 
-OpenCDA provides benchmark scenarios that researchers can use directly without any modification. We will also be adding new testing scenarios in future releases. Running these 
+OpenCDA provides benchmark scenarios that researchers can use directly without any modification. We will also be adding new testing scenarios in future releases. Running these
 scenario testings only need one line of command:
 ```she
 cd ~/OpenCDA
@@ -8,11 +8,11 @@ python opencda.py -t scenario_name -v carla_version --apply_ml --record
 ```
 Parameters explanation:
 * `-t`: The name of the tesitng scenario. A python script with the same name should exist in
-`opencda/scenario_testing/` to construct the simulation, and a yaml file with the same name should exist in 
+`opencda/scenario_testing/` to construct the simulation, and a yaml file with the same name should exist in
 `opencda/scenario_testing/config_yaml/` to define the simulation parameters.
 * `-v --version`: Define the CARLA simulator version, default 0.9.11. Right now only 0.9.11 and 0.9.12 are supported.
   We need this as there are some api changes from 0.9.11 to 0.9.12.
-* `--apply_ml`  (Optional): A flag to indicate whether a deep learning model needs to be loaded. If this flag is 
+* `--apply_ml`  (Optional): A flag to indicate whether a deep learning model needs to be loaded. If this flag is
 set, Pytorch will be imported.
 * `--record` (Optional): A flag to indicate whether to record this simulation. [Check here for more details](https://carla.readthedocs.io/en/latest/adv_recorder/).
 
@@ -34,7 +34,7 @@ If you want to activate the perception module, please check [Yaml Defining Rules
 
 ![](images/single_2lanefree_carla.gif)
 
-<strong>Note: The bounding boxes draw on the camera and lidar are retrieved from the server directly and 
+<strong>Note: The bounding boxes draw on the camera and lidar are retrieved from the server directly and
  projected to the sensor space</strong>
 
 #### 2. Town06 test (Pytorch required)
@@ -70,7 +70,7 @@ stability is verified.
 ```sh
 python opencda.py -t platoon_joining_2lanefree_carla -v 0.9.11
 ```
-In this scenario, a platoon will drive on the mainline together with a mixed traffic flow. A single CAV will come from the 
+In this scenario, a platoon will drive on the mainline together with a mixed traffic flow. A single CAV will come from the
 merging lane, communicate with the platoon to cooperatively merge into the mainline, and simultaneously join the platoon.
 
 ![](images/platoon_joining_2lanefree.gif)

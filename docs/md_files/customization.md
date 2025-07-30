@@ -1,16 +1,16 @@
 ## Algorithm Customization
 
 Due to the high modularity of OpenCDA, you can conveniently replace any default module with your own
-algorithms. The best way for customization is to <strong>put your customized module under `opencda/customize/...` , </strong> and 
+algorithms. The best way for customization is to <strong>put your customized module under `opencda/customize/...` , </strong> and
 <strong>use inheritance to overwrite the default algorithms</strong>. Afterwards, import your customized module in
 `VehicleManager` class. The only thing you need to pay attention is to make the input and output format the same
-as origin module if you only want to change a single module. Below we will show a detailed instruction 
+as origin module if you only want to change a single module. Below we will show a detailed instruction
 of customizations for each module.
 
 ---
 ### Localization Customization
 The class `LocalizationManager` takes charges of the localization task. During initialization, a gps and imu sensor will
-be spawned to collect localization related information. 
+be spawned to collect localization related information.
 
 The core function in it is `localize()`, which doesn't take any input, and aims to fill the correct value for
 `self._ego_pos` and `_speed`.
@@ -23,7 +23,7 @@ from opencda.core.sensing.localization.kalman_filter import KalmanFilter
 class LocalizationManager(object):
      def __init__(self, vehicle, config_yaml, carla_map):
         self.kf = KalmanFilter(self.dt)
-     
+
      def localize(self):
         ...
         corrected_cords = self.kf(x, y, z, speed, yaw, imu_yaw_rate)
@@ -61,7 +61,7 @@ for the downstream modules.
 The class `PerceptionManager` is responsible for perception related task. Right now it supports vehicle detection and traffic light detection. The core function `detect(ego_pos)` takes the ego position from localization module as the input, and return a dictionary `objects` whose keys are the object categories and the values are each object's attributes (e.g. 3d poses, static or dynamic) under world coordinate system in this category.
 
 To customize your own object detection algorithms, create a `perception_manager.py` under
-`opencda/customize/core/sensing/perception/` folder. 
+`opencda/customize/core/sensing/perception/` folder.
 
 ```python
 import cv2
@@ -72,7 +72,7 @@ from opencda.core.sensing.perception.static_obstacle import TrafficLight
 class CustomziedPeceptionManager(PerceptionManager):
      def __init__(self, vehicle, config_yaml, cav_world, data_dump=False):
         super(CustomizedLocalizationManager, self).__init__(vehicle, config_yaml, cav_world, data_dump)
-     
+
      def detect(self, ego_pos):
         objects = {'vehicles': [],
                    'traffic_lights': [],
@@ -86,17 +86,17 @@ class CustomziedPeceptionManager(PerceptionManager):
                 continue
             rgb_images.append(cv2.cvtColor(np.array(rgb_camera.image),
                     cv2.COLOR_BGR2RGB))
-        
+
         # retrieve lidar data from the sensor
         lidar_data = self.lidar.data
-        
+
         ########################################
         # this is where you put your algorithm #
         ########################################
         objects = your_algorithm(rgb_images, lidar_data)
         assert type(objects['vehicles']) == ObstacleVehicle
         assert type(objects['traffic_lights']) == TrafficLight
-         
+
      return objects
 
 ```
@@ -132,7 +132,7 @@ class CustomizedBehaviorAgent(BehaviorAgent):
         target_speed, target_loc = your_plan_algorithm()
         assert type(target_speed) == float
         assert type(target_loc) == carla.Location
-        
+
         return target_speed, target_loc
 ```
 ---
@@ -178,7 +178,7 @@ class CustomizeController:
         # this is where you put your algorithm #
         ########################################
         do_some_process(ego_pos, ego_spd)
-    
+
     def run_step(self, target_speed, target_loc):
         ########################################
         # this is where you put your algorithm #
@@ -194,4 +194,3 @@ vehicle_base:
         type: customize_controller # this has to be exactly the same name as the controller py file
         args: ......
 ```
-
