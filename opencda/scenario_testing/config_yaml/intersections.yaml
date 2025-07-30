@@ -177,7 +177,3 @@ scenario:
       destination: [8.52, 282.45, 1.05]
       v2x:
         communication_range: 45
-
-
-    
-

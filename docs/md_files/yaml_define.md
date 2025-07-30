@@ -301,14 +301,14 @@ scenario:
           debug: false
 ```
 As you can see, the `platoon_joining_2lanefree_carla.yaml` only contains the part that `default.yaml` does not have or has different
-parameters. 
+parameters.
 
 ### Detailed Explanation
 
 ---
 #### world
 The parameter `world` in the yaml defines the CARLA server setting.
-* `sync` : boolean type, if true, the simulation will be in sync mode, otherwise async mode. Check 
+* `sync` : boolean type, if true, the simulation will be in sync mode, otherwise async mode. Check
 the [CARLA Sync documentation](https://carla.readthedocs.io/en/latest/adv_synchrony_timestep/)  to know more.
 * `client_port` : the python client port connected to the CARLA server.
 * `fixed_delta_seconds` : The elapsed time remains constant between simulation steps.
@@ -316,12 +316,12 @@ the [CARLA Sync documentation](https://carla.readthedocs.io/en/latest/adv_synchr
 
  #### vehicle_base
  `vehicle_base` defines the default parameters for each CAV including perception, localization, planning, control,
- and v2x modules. The ampersand `&` character before `vehicle_base` is ued to to create a `named anchor`, 
- which be referenced later on with an asterisk `*`. 
+ and v2x modules. The ampersand `&` character before `vehicle_base` is ued to to create a `named anchor`,
+ which be referenced later on with an asterisk `*`.
 
  * `sensing` :  Define perception and localization related parameters.
     * `perception`:  Module related to object detection.
-        * `activate` : bool type, if false, the CAV will retrieve object positions from the server directly. 
+        * `activate` : bool type, if false, the CAV will retrieve object positions from the server directly.
         Otherwise, yolov5 will be used for object detection.
         * `camera_visualize` : int type, indicates how many camera rgb images should be visualized during
         simulation. 0 means no rgb image visualization.
@@ -330,7 +330,7 @@ the [CARLA Sync documentation](https://carla.readthedocs.io/en/latest/adv_synchr
         * `lidar_visualize` : bool type, indicates whether to visualize 3d lidar points during simulaiton.
         * `lidar` : set the configuration of the lidar sensor.
      * `localization` : Module related to self-localization.
-        * `activate` : bool type, if true, the CAV will use gnss+imu+kf to get ego vehicle position. Otherwise, 
+        * `activate` : bool type, if true, the CAV will use gnss+imu+kf to get ego vehicle position. Otherwise,
         the CAV will load the ego position from server directly.
         * `gnss` : related to the parameters of the gnss sensor.
         * `debug_helper` : parameters related to localization debugging and real-time trajectory plotting.
@@ -347,7 +347,7 @@ the [CARLA Sync documentation](https://carla.readthedocs.io/en/latest/adv_synchr
      * `speed_lim_dist` : int type, during normal driving mode, `target_speed` = `max_speed` - `speed_lim_dist`
      * `speed_decrease` : int type, when the CAV is in car following mode and it gets too close to the
      front vehicle, `target_speed` = `front_vehicle_speed` - `speed_decrease`
-     * `safety_time` : float type, ttc thresholding to identify whether the ego vehicle is too close to 
+     * `safety_time` : float type, ttc thresholding to identify whether the ego vehicle is too close to
      the front vehicle.
      * `emergency_param` : float type, `emergency_stop_distance` = `current_speed` * `emergency_param`
      * `ignore_traffic_light` : bool type, if set to true, the CAV will ignore the traffic light.
@@ -356,9 +356,9 @@ the [CARLA Sync documentation](https://carla.readthedocs.io/en/latest/adv_synchr
      * `sample_resolution` : float type, the unit distance (m) between two adjacent waypoints
      * `local_planner` : Define trajectory planning parameters.
          * `buffer_size` : dequeue type, waypoint buffer size.
-         * `trajectory_update_freq` : int type, the update frequency for trajectory, when the length of trajectory buffer 
+         * `trajectory_update_freq` : int type, the update frequency for trajectory, when the length of trajectory buffer
          is below the frequency number, the ego vehicle will re-generate the trajectory.
-         * `waypoint_update_freq` : int type, the update frequency for waypoint buffer, when the length of the 
+         * `waypoint_update_freq` : int type, the update frequency for waypoint buffer, when the length of the
          waypoint buffer is below the frequency, the waypoint buffer will load waypoints from `waypoint_queue`.
          * `min_dist` : float type, used to pop out the waypoints that are too close to the current location
          * `trajectory_dt` : float type, trajectory points sampling resolution.
@@ -371,14 +371,14 @@ the [CARLA Sync documentation](https://carla.readthedocs.io/en/latest/adv_synchr
  * `v2x` : Defome vehicle communication parameters.
      * `enabled` : bool type, indicate whether v2x is enabled.
      * `communication_range` : float type, the searching range of the CAV
-     * `loc_noise` : float type, the deviation of the noise added to the received ego position 
+     * `loc_noise` : float type, the deviation of the noise added to the received ego position
      during communication.
      * `yaw_noise` : float type, the deviation of the noise added to the received yaw angle
      during communication.
-     * `speed_noise` : float type, the deviation of the noise added to the received ego speed 
+     * `speed_noise` : float type, the deviation of the noise added to the received ego speed
      during communication.
      * `lag` : int type, the lagging during the communication. E.g., 2 means the CAV
-      receives the packages of other CAVs at most 2 time steps ago. 
+      receives the packages of other CAVs at most 2 time steps ago.
 
 #### platoon_base
 `platoon_base` define the default platooning parameters.
@@ -392,19 +392,19 @@ kind of joining.
 `carla_traffic_manager` defines the traffic flow controlled by <strong>CARLA</strong> traffic manager. <strong>
 Users do not need to define this parameter if co-simulation is conducted as Sumo will control the traffic.</strong>
 
-There are two ways to define the positions of the background vehicles. 
+There are two ways to define the positions of the background vehicles.
 * Set the parameter `vehicle_list` under `carla_traffic_manager` as a list. An example is demonstrated
 below. In this example, two vehicles are spawned as background vehicle. The first one is spawned at position `x=100, y=100, z=0.3`,
-and the initial rotation angle is `roll=0, yaw=20 (degree), pitch=0`. The second one is spawned at position 
+and the initial rotation angle is `roll=0, yaw=20 (degree), pitch=0`. The second one is spawned at position
 `x=122, y=666, z=0.3`, and the angle is `roll=0, yaw=0, pitch=0`.
 ```yaml
 carla_traffic_manager:
-  vehicle_list: 
+  vehicle_list:
     - spawn_position: [100, 100, 0.3, 0 , 20, 0]
     - spawn_position: [122, 666, 0.3, 0 , 0, 0]
 ```
 * Set the parameter `vehicle_list` under `carla_traffic_manager` as `~`. The CARLA server will then spawn
-the vehicles randomly in a certain rectangle range given by the additional parameter `range`. 
+the vehicles randomly in a certain rectangle range given by the additional parameter `range`.
 ```yaml
 carla_traffic_manager:
   vehicle_list: ~  # a number or a list
@@ -416,7 +416,7 @@ carla_traffic_manager:
 ```
 Other important parameters:
 * `sync_mode` : bool type, it should be consistent with server's sync setting.
-* `global_speed_perc` : float type, sets the difference the vehicle's intended speed and its current speed limit. 
+* `global_speed_perc` : float type, sets the difference the vehicle's intended speed and its current speed limit.
 Speed limits can be exceeded by setting the number to a negative value. Default is 30 km/h. Exceeding a speed limit can be done using negative percentages.
 For example, -300 will assign a speed of 90, 50 will assign a speed of 15.
 * `auto_lane_change` : bool type, whether the vehicles are allowed to do lane change.
@@ -442,7 +442,7 @@ scenario:
           spawn_position: [-360, 8.3, 0.3, 0, 0, 0]
           platoon: # we need to add platoon specific params
             <<: *platoon_base
-   single_cav_list: 
+   single_cav_list:
     - <<: *vehicle_base
       spawn_position: [-380, 4.8, 0.3, 0, 0, 0]
       destination: [300, 12.0, 0]
@@ -455,16 +455,16 @@ scenario:
 In the above example, a platoon containing two members and a single CAV that is out of any platoon will be spawn.
 The `destination` in the platoon sets the destination of the platoon. The first member of platoon is regarded
 as the leader by default, and the second member will be the following car. All members in the same platoon should
-be spawn in the same lane with close distance.  The `<<: *vehicle_base` will load the whole default setting of CAV 
+be spawn in the same lane with close distance.  The `<<: *vehicle_base` will load the whole default setting of CAV
 into the leader. However, since overtake is not allowed for a platoon leader and the default setting allows so, this
 needs to be changed by using the following part:
 ```yaml
 behavior:
   <<: *base_behavior
-  overtake_allowed: false   
+  overtake_allowed: false
 ```
 In this way, the default attribute  `overtake_allowed` will be overwritten to false while keeping other
-attributes unchanged. Similarly, the default CAV setting does not have the `platoon` attribute, thus we also 
+attributes unchanged. Similarly, the default CAV setting does not have the `platoon` attribute, thus we also
 add `platoon: <<: *platoon_base` to each member to assign the `platoon` attribute.
 
 For the single CAV, the meaning of the parameters are quite similar with the platoon members we just described.

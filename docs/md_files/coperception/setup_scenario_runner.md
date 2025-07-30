@@ -1,6 +1,6 @@
 ## Scenario Runner
 
-To enable the scenario runner, follow the official docs: 
+To enable the scenario runner, follow the official docs:
 https://carla-scenariorunner.readthedocs.io/en/latest/ to set up the environments.
 
 ### Details for each step:
@@ -27,4 +27,3 @@ python -c 'import scenario_runner'
 >> dir(sr)
 ['CarlaDataProvider', 'LooseVersion', 'OpenScenario', 'OpenScenarioConfiguration', 'RawTextHelpFormatter', 'RouteParser', 'RouteScenario', 'ScenarioConfigurationParser', 'ScenarioManager', 'ScenarioRunner', 'VERSION', '__builtins__', '__cached__', '__doc__', '__file__', '__loader__', '__name__', '__package__', '__spec__', 'argparse', 'carla', 'datetime', 'glob', 'importlib', 'inspect', 'json', 'main', 'os', 'pkg_resources', 'print_function', 'signal', 'sys', 'time', 'traceback']
 ```
-

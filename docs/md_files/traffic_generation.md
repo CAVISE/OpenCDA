@@ -36,10 +36,10 @@ have names ending with 'cosim', e.g. single_2lanefree_cosim.py, single_town06_co
 
 To generate the Sumo traffic flow, three things are needed:
 * Define the Sumo server settings in yaml file. Check our [yaml rule sumo part](yaml_define.html#sumo-optional) to see more details.
-* Three files that defines Sumo road network and traffic route: a `xxx.sumocfg` file, 
+* Three files that defines Sumo road network and traffic route: a `xxx.sumocfg` file,
   a `xxx.net.xml` file, and a `xxx.rou.xml` file. xxx is the name of the testing map, e,g. Town06. This
   name should keep consistent acroos the three files.
-  
+
     *   `.sumocfg` : used to give the Sumo server the path of the network and route xml file. Check
         [.sumocfg file extension](https://fileinfo.com/extension/sumocfg) to see more explanations.
     * `.net.xml` : defines the road graph. Check [Sumo Road Networks](https://sumo.dlr.de/docs/Networks/SUMO_Road_Networks.html)
@@ -58,21 +58,21 @@ To generate the Sumo traffic flow, three things are needed:
   <vType id="DEFAULT_VEHTYPE" minGap="2.50" tau="1.0"  color="255,255,255" Class="passenger" accel="0.5"/>
   <flow id="flow_0" begin="0.00" departLane="1" departSpeed="15" departPos="-320" from="-63.0.00" to="-62.0.00" via="-60.0.00" end="4800.00" vehsPerHour="1000.00" type="DEFAULT_VEHTYPE"/>
   <flow id="flow_1" begin="0.2" departLane="0" departSpeed="15" departPos="-320" from="-63.0.00" to="-62.0.00" via="-60.0.00" end="4800.00" vehsPerHour="1000.00" type="DEFAULT_VEHTYPE"/>
-  
+
   </routes>
-  
+
   ```
-* Use `CoScenarioManager` to load sumo files and create sumo traffic flow. During initialization, 
-  `CoscenarioManager` will setup the Sumo server. During the `tick()` function, `CoScenarioManager` 
+* Use `CoScenarioManager` to load sumo files and create sumo traffic flow. During initialization,
+  `CoscenarioManager` will setup the Sumo server. During the `tick()` function, `CoScenarioManager`
   will keep spawning Sumo vechiles as traffic flow.
-  
+
     ```python
   import opencda.scenario_testing.utils.cosim_api as sim_api
-  
+
   # there should be a Town06.sumocfg, a Town06.net.xml, and a Town06.rou.xml in
   # Town06 folder
   sumo_cfg = 'Town06'
-  
+
   # create co-simulation scenario manager
   scenario_manager = \
   sim_api.CoScenarioManager(scenario_params,
@@ -80,8 +80,7 @@ To generate the Sumo traffic flow, three things are needed:
                             town='Town06',
                             cav_world=cav_world,
                             sumo_file_parent_path=sumo_cfg)
-  
+
   while True:
         scenario_manager.tick()
     ```
-
