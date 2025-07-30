@@ -8,10 +8,10 @@ from contextlib import contextmanager
 
 from . import toolchain
 
-from .protos.cavise import opencda_pb2 as proto_opencda
-from .protos.cavise import artery_pb2 as proto_artery
+toolchain.CommunicationToolchain.handle_messages(["capi"])
 
-toolchain.CommunicationToolchain.handle_messages(["opencda", "artery"])
+from .protos.cavise import capi_pb2 as proto_capi  # noqa: E402
+from google.protobuf.descriptor import FieldDescriptor  # noqa: E402
 
 
 class SerializableTransform:
@@ -59,141 +59,147 @@ class SerializableTransform:
 # TODO: fix docs and annotations
 class MessageHandler:
     def __init__(self):
-        self.opencda_message = proto_opencda.OpenCDA_message()
         self.current_message_opencda = {}
         self.current_message_artery = {}
 
-    def __serialize_ndarray(self, packed_array: dict) -> proto_opencda.NDArray:
-        return proto_opencda.NDArray(data=packed_array["data"], shape=list(packed_array["shape"]), dtype=packed_array["dtype"])
+        self.TYPE_MAP = {
+            "NDArray": FieldDescriptor.TYPE_MESSAGE,  # Custom type
+            "float": FieldDescriptor.TYPE_FLOAT,
+            "double": FieldDescriptor.TYPE_DOUBLE,
+            "int32": FieldDescriptor.TYPE_INT32,
+            "int64": FieldDescriptor.TYPE_INT64,
+            "uint32": FieldDescriptor.TYPE_UINT32,
+            "uint64": FieldDescriptor.TYPE_UINT64,
+            "sint32": FieldDescriptor.TYPE_SINT32,
+            "sint64": FieldDescriptor.TYPE_SINT64,
+            "fixed32": FieldDescriptor.TYPE_FIXED32,
+            "fixed64": FieldDescriptor.TYPE_FIXED64,
+            "sfixed32": FieldDescriptor.TYPE_SFIXED32,
+            "sfixed64": FieldDescriptor.TYPE_SFIXED64,
+            "string": FieldDescriptor.TYPE_STRING,
+            "bool": FieldDescriptor.TYPE_BOOL,
+            "bytes": FieldDescriptor.TYPE_BYTES,
+            # Add additional custom or complex types here if needed
+        }
+
+        self.LABEL_MAP = {
+            "LABEL_OPTIONAL": FieldDescriptor.LABEL_OPTIONAL,
+            "LABEL_REPEATED": FieldDescriptor.LABEL_REPEATED,
+            "LABEL_REQUIRED": FieldDescriptor.LABEL_REQUIRED,
+        }
+
+    def __serialize_ndarray(self, packed_array: dict) -> proto_capi.NDArray:
+        return proto_capi.NDArray(data=packed_array["data"], shape=list(packed_array["shape"]), dtype=packed_array["dtype"])
 
     def __deserialize_ndarray(self, ndarray_msg) -> dict:
         return {"data": ndarray_msg.data, "shape": list(ndarray_msg.shape), "dtype": ndarray_msg.dtype}
 
-    def __safe_copy_ndarray(self, msg, entity_message, msg_to_message):
-        for msg_key, entity_field_name in msg_to_message.items():
-            if msg.get(msg_key) is not None:
-                getattr(entity_message, entity_field_name).CopyFrom(self.__serialize_ndarray(msg[msg_key]))
-
-    def __set_entity_data(self):
-        for id in self.current_message_opencda.keys():
-            entity_message = self.opencda_message.entity.add()
-            entity_message.id = id
-            with self.handle_opencda_message(id, "coperception") as msg:
-                msg_to_message = {
-                    "object_bbx_center": "object_bbx_center",
-                    "object_bbx_mask": "object_bbx_mask",
-                    "anchor_box": "anchor_box",
-                    "pos_equal_one": "pos_equal_one",
-                    "neg_equal_one": "neg_equal_one",
-                    "targets": "targets",
-                    "origin_lidar": "origin_lidar",
-                    "spatial_correction_matrix": "spatial_correction_matrix",
-                    "voxel_num_points": "voxel_num_points",
-                    "voxel_features": "voxel_features",
-                    "voxel_coords": "voxel_coords",
-                    "projected_lidar": "projected_lidar",
-                }
-
-                # field 2
-                if msg["infra"] is not None:
-                    entity_message.infra = msg["infra"]
-
-                # field 3
-                if msg["velocity"] is not None:
-                    entity_message.velocity = msg["velocity"]
-
-                # field 4
-                if msg["time_delay"] is not None:
-                    entity_message.time_delay = msg["time_delay"]
-
-                # field 5
-                entity_message.object_ids.extend(msg["object_ids"])
-
-                # field 5
-                entity_message.lidar_pose.extend(msg["lidar_pose"])
-
-                self.__safe_copy_ndarray(msg, entity_message, msg_to_message)
-
     @contextmanager
-    def handle_opencda_message(self, id, message_type):
+    def handle_opencda_message(self, id, module):
         if id not in self.current_message_opencda:
-            self.current_message_opencda[id] = {
-                "common": {"ego_speed": 0},
-                "coperception": {
-                    "infra": None,
-                    "velocity": None,
-                    "time_delay": None,
-                    "object_ids": [],
-                    "lidar_pose": [],
-                    "object_bbx_center": None,
-                    "object_bbx_mask": None,
-                    "anchor_box": None,
-                    "pos_equal_one": None,
-                    "neg_equal_one": None,
-                    "targets": None,
-                    "origin_lidar": None,
-                    "spatial_correction_matrix": None,
-                    "voxel_num_points": None,
-                    "voxel_features": None,
-                    "voxel_coords": None,
-                    "projected_lidar": None,
-                },
-            }
+            self.current_message_opencda[id] = {module: {}}
 
-        msg = self.current_message_opencda[id]
-
-        if message_type in msg:
-            yield msg[message_type]
-        else:
-            raise ValueError(
-                f'Unknown message type "{message_type}". Expected one of: ["common", "coperception"]. Please verify the source of the message.'
-            )
+        yield self.current_message_opencda[id][module]
 
     @contextmanager
-    def handle_artery_message(self, ego_id, id, message_type):
+    def handle_artery_message(self, ego_id, id, module):
         if ego_id not in self.current_message_artery:
             self.current_message_artery[ego_id] = {}
         if id not in self.current_message_artery[ego_id]:
-            self.current_message_artery[ego_id][id] = {
-                "common": {"ego_speed": 0},
-                "coperception": {
-                    "infra": None,
-                    "velocity": None,
-                    "time_delay": None,
-                    "object_ids": [],
-                    "lidar_pose": [],
-                    "object_bbx_center": None,
-                    "object_bbx_mask": None,
-                    "anchor_box": None,
-                    "pos_equal_one": None,
-                    "neg_equal_one": None,
-                    "targets": None,
-                    "origin_lidar": None,
-                    "spatial_correction_matrix": None,
-                    "voxel_num_points": None,
-                    "voxel_features": None,
-                    "voxel_coords": None,
-                    "projected_lidar": None,
-                },
-            }
+            self.current_message_artery[ego_id][id] = {module: {}}
 
-        msg = self.current_message_artery[ego_id][id]
+        yield self.current_message_artery[ego_id][id][module]
 
-        if message_type in msg:
-            yield msg[message_type]
-        else:
-            raise ValueError(
-                f'Unknown message type "{message_type}". Expected one of: ["common", "coperception"]. Please verify the source of the message.'
-            )
+    def make_opencda_message(self) -> str:
+        opencda_message = proto_capi.OpenCDA_message()
 
-    def serialize_to_string(self) -> str:
-        self.__set_entity_data()
-        message = self.opencda_message.SerializeToString()
-        self.opencda_message = proto_opencda.OpenCDA_message()
-        return message
+        for entity_id, modules_dict in self.current_message_opencda.items():
+            entity_message = opencda_message.entity.add()
+            entity_message.id = entity_id
+            descriptor = entity_message.DESCRIPTOR
 
-    def deserialize_from_string(self, string):
-        artery_message = proto_artery.Artery_message()
+            for module_name in modules_dict.keys():
+                with self.handle_opencda_message(entity_id, module_name) as msg:
+                    for key, value in msg.items():
+                        if key not in descriptor.fields_by_name:
+                            raise ValueError(f"[{entity_id}:{module_name}] Field '{key}' not found in protobuf.")
+
+                        if not isinstance(value, dict) or "type" not in value or "label" not in value or "data" not in value:
+                            raise ValueError(f"[{entity_id}:{module_name}] Field '{key}' must have 'type', 'label', 'data'.")
+
+                        field = descriptor.fields_by_name[key]
+
+                        expected_type = self.TYPE_MAP.get(value["type"])
+                        expected_label = self.LABEL_MAP.get(value["label"])
+
+                        if field.type != expected_type:
+                            raise ValueError(
+                                f"[{entity_id}:{module_name}] Type mismatch for field '{key}': expected {field.type}, got {expected_type}"
+                            )
+
+                        if field.label != expected_label:
+                            raise ValueError(
+                                f"[{entity_id}:{module_name}] Label mismatch for field '{key}': expected {field.label}, got {expected_label}"
+                            )
+
+                        data = value["data"]
+
+                        if field.type in (
+                            FieldDescriptor.TYPE_INT32,
+                            FieldDescriptor.TYPE_INT64,
+                            FieldDescriptor.TYPE_UINT32,
+                            FieldDescriptor.TYPE_UINT64,
+                            FieldDescriptor.TYPE_SINT32,
+                            FieldDescriptor.TYPE_SINT64,
+                            FieldDescriptor.TYPE_FIXED32,
+                            FieldDescriptor.TYPE_FIXED64,
+                            FieldDescriptor.TYPE_SFIXED32,
+                            FieldDescriptor.TYPE_SFIXED64,
+                        ):
+                            expected_python_type = int
+                        elif field.type in (FieldDescriptor.TYPE_FLOAT, FieldDescriptor.TYPE_DOUBLE):
+                            expected_python_type = float
+                        elif field.type == FieldDescriptor.TYPE_STRING:
+                            expected_python_type = str
+                        elif field.type == FieldDescriptor.TYPE_BOOL:
+                            expected_python_type = bool
+                        elif field.type == FieldDescriptor.TYPE_MESSAGE and value["type"] == "NDArray":
+                            expected_python_type = "NDArray"
+                        else:
+                            raise ValueError(
+                                f"[{entity_id}:{module_name}] Field '{key}' has unsupported protobuf field type {field.type}. "
+                                "Type checking for this field is not implemented."
+                            )
+
+                        # Process NDArray type
+                        if expected_python_type == "NDArray":
+                            getattr(entity_message, key).CopyFrom(self.__serialize_ndarray(data))
+
+                        # Process repeated type
+                        elif expected_label == FieldDescriptor.LABEL_REPEATED:
+                            if not isinstance(data, (list, tuple)):
+                                raise ValueError(f"[{entity_id}:{module_name}] Field '{key}' expected list or tuple, got {type(data)}")
+
+                            for i, item in enumerate(data):
+                                if not isinstance(item, expected_python_type):
+                                    raise ValueError(
+                                        f"[{entity_id}:{module_name}] Field '{key}' element at index {i} expected {expected_python_type.__name__}, got {type(item).__name__}"
+                                    )
+
+                            getattr(entity_message, key).extend(data)
+
+                        # Process scalar
+                        else:
+                            if not isinstance(data, expected_python_type):
+                                raise ValueError(
+                                    f"[{entity_id}:{module_name}] Field '{key}' expected type {expected_python_type.__name__}, got {type(data).__name__}"
+                                )
+                            setattr(entity_message, key, data)
+
+        return opencda_message.SerializeToString()
+
+    def make_artery_data(self, string) -> None:
+        artery_message = proto_capi.Artery_message()
         artery_message.ParseFromString(string)
 
         for received_info in artery_message.received_information:
@@ -201,50 +207,31 @@ class MessageHandler:
 
             for entity_info in received_info.entity:
                 entity_id = entity_info.id
+                modules_dict = self.current_message_opencda.get(entity_id, {})
 
-                with self.handle_artery_message(ego_id, entity_id, "coperception") as msg:
-                    optional_fields = [
-                        "infra",  # field 2
-                        "velocity",  # field 3
-                        "time_delay",  # field 4
-                        "object_bbx_center",  # field 7
-                        "object_bbx_mask",  # field 8
-                        "anchor_box",  # field 9
-                        "pos_equal_one",  # field 10
-                        "neg_equal_one",  # field 11
-                        "targets",  # field 12
-                        "origin_lidar",  # field 13
-                        "spatial_correction_matrix",  # field 14
-                        "voxel_num_points",  # field 15
-                        "voxel_features",  # field 16
-                        "voxel_coords",  # field 17
-                        "projected_lidar",  # field 18
-                    ]
+                for module_name in modules_dict.keys():
+                    with self.handle_artery_message(ego_id, entity_id, module_name) as msg:
+                        descriptor = entity_info.DESCRIPTOR
 
-                    for field in optional_fields:
-                        if entity_info.HasField(field):
-                            if field in [
-                                "object_bbx_center",
-                                "object_bbx_mask",
-                                "anchor_box",
-                                "pos_equal_one",
-                                "neg_equal_one",
-                                "targets",
-                                "origin_lidar",
-                                "spatial_correction_matrix",
-                                "voxel_num_points",
-                                "voxel_features",
-                                "voxel_coords",
-                                "projected_lidar",
-                            ]:
-                                msg[field] = self.__deserialize_ndarray(getattr(entity_info, field))
+                        for field in descriptor.fields:
+                            field_name = field.name
+
+                            has_field = True
+                            if field_name != "id" and field.label != FieldDescriptor.LABEL_REPEATED:
+                                has_field = entity_info.HasField(field_name)
+
+                            if not has_field:
+                                msg[field_name] = None
+                                continue
+
+                            value = getattr(entity_info, field_name)
+
+                            if field.type == FieldDescriptor.TYPE_MESSAGE and field.message_type.name == "NDArray":
+                                msg[field_name] = self.__deserialize_ndarray(value)
+                            elif field.label == FieldDescriptor.LABEL_REPEATED:
+                                msg[field_name] = list(value)
                             else:
-                                msg[field] = getattr(entity_info, field)
-                        else:
-                            msg[field] = None
-
-                    msg["object_ids"] = list(entity_info.object_ids)
-                    msg["lidar_pose"] = list(entity_info.lidar_pose)
+                                msg[field_name] = value
 
     def clear_messages(self):
         # Clear opencda and artery dict messages to avoid usage of date from previous ticks

@@ -3,8 +3,8 @@
 * [__System/Hardware Requirements__](#requirements)
 * [__Local Installation__](#local-installation)
     * [__1. CARLA installation__](#1-carla-installation0911-required)
-	    * [1.1 Package installation](#11-package-installation)  
-	    * [1.2 Build from source](#12-build-from-source)  
+	    * [1.1 Package installation](#11-package-installation)
+	    * [1.2 Build from source](#12-build-from-source)
 
     * [__2. Install OpenCDA__](#opencda-installation)
     * [__3. Install Pytorch and Yolov5 (Optional)__](#3-install-pytorch-and-yolov5optional)
@@ -19,7 +19,7 @@ To get started, the following requirements should be fulfilled.
 * __System requirements.__ Any 64-bits OS should run OpenCDA. We highly recommends Ubuntu  16.04/18.04/20.04.
 
 * __Adequate GPU.__ CARLA is a realistic simulation platform based on Unreal Engine 4, which requires at least a 3GB GPU for smooth scene rendering, though 8GB is recommended.
-* __Disk Space.__ Estimate 100GB of space is recommended to install CARLA and Unreal Engine. 
+* __Disk Space.__ Estimate 100GB of space is recommended to install CARLA and Unreal Engine.
 * __Python__ Python3.7 or higher version is required for full functions.
 
 
@@ -32,7 +32,7 @@ will retrieve all perception information from the simulation server directly.
 ###  1. CARLA Installation (>= 0.9.11 required)
 
 There are two different recommended ways to install the CARLA simulator and either way is fine for using OpenCDA. <br>
-Note: If you want to use the customized highway map with full assets (.fbx, .xml and .xodr) in OpenCDA, 
+Note: If you want to use the customized highway map with full assets (.fbx, .xml and .xodr) in OpenCDA,
 you have to build from source. Visit CARLA's tutorial [ADD a new map](https://carla.readthedocs.io/en/latest/tuto_A_add_map_overview/) for more information.
 
 
@@ -53,10 +53,10 @@ scenario testings in Town06.</strong>
 
 #### 1.2 Build From Source
 
-For advanced CARLA usage that involves extensive customizations, [Build CARLA from Source](https://carla.readthedocs.io/en/0.9.11/build_linux/) is also supported by OpenCDA. Though source build in 
-Windows OS is supported by CARLA, Ubuntu is the preferred OS as the OpenCDA was developoed in Ubuntu 18.04.  
+For advanced CARLA usage that involves extensive customizations, [Build CARLA from Source](https://carla.readthedocs.io/en/0.9.11/build_linux/) is also supported by OpenCDA. Though source build in
+Windows OS is supported by CARLA, Ubuntu is the preferred OS as the OpenCDA was developoed in Ubuntu 18.04.
 
-<strong>Note: OpenCDA do not require CARLA source build. However, customized map with building/lane/traffic light/road surface materials assets  in CARLA  require source build. 
+<strong>Note: OpenCDA do not require CARLA source build. However, customized map with building/lane/traffic light/road surface materials assets  in CARLA  require source build.
 Visit CARLA's tutorial [ADD a new map](https://carla.readthedocs.io/en/latest/tuto_A_add_map_overview/) for more information. </strong>
 
 ---
@@ -68,7 +68,7 @@ git clone https://github.com/ucla-mobility/OpenCDA.git
 cd OpenCDA
 ```
 Make sure you are in the root dir of OpenCDA, and next let's install the dependencies. <strong>We highly
-recommend use conda environment to install.</strong> 
+recommend use conda environment to install.</strong>
 
 ```sh
 conda env create -f environment.yml
@@ -89,7 +89,7 @@ export CARLA_VERSION=0.9.11 #or 0.9.12 depends on your CARLA
 . setup.sh
 ```
 If everything works correctly, you will see a cache folder is created in your OpenCDA root dir, and the terminal shows
-"Successful Setup!". To double check the carla package is correctly installed, run the following command and 
+"Successful Setup!". To double check the carla package is correctly installed, run the following command and
 there should be no error.
 ```sh
 python -c "import carla" # check whether carla is installed correctly.
@@ -177,7 +177,7 @@ docker build -t opencda_container .
 The following command will allow you run Carla with rendering in your docker. If the rendering is the black,
 then you probably build up the wrong nvidia graphics driver.
 ```shell
-xhost +local: 
+xhost +local:
 
 docker run -it --rm \
   -e DISPLAY=$DISPLAY \
@@ -185,4 +185,3 @@ docker run -it --rm \
   -v $HOME/.Xauthority:/root/.Xauthority \
   --name opencda_container opencda_docker /bin/bash
 ```
-

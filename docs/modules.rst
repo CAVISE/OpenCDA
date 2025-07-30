@@ -1,5 +1,5 @@
 API Reference
-=======
+=============
 
 .. toctree::
     :maxdepth: 5
@@ -23,4 +23,3 @@ Module contents
     :undoc-members:
     :show-inheritance:
     :inherited-members:
-
