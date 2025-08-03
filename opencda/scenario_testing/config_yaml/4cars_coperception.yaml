@@ -102,15 +102,23 @@ scenario:
       spawn_position: [209, -170, 0.3, 0, 0, 0]
       destination: [304 , -170, 0.3]
       id: 100
+      color: [156, 255, 206]
+
     - name: cav2
       spawn_position: [285, -172, 0.3, 0, 180, 0]
       destination: [209, -172, 0.3]
       id: 200
+      color: [156, 255, 206]
+
     - name: cav3
       spawn_position: [255, -200, 0.3, 0, 90, 0]
       destination: [255, -130, 0.3]
       id: 300
+      color: [156, 255, 206]
+
     - name: cav4
       spawn_position: [258, -130, 0.3, 0, -90, 0]
       destination: [258, -225, 0.3]
       id: 400
+      color: [156, 255, 206]
+
