@@ -17,7 +17,7 @@ from opencda.co_simulation.sumo_integration.constants import INVALID_ACTOR_ID
 from opencda.co_simulation.sumo_integration.sumo_simulation import SumoSimulation
 from opencda.scenario_testing.utils.sim_api import ScenarioManager
 
-logger = logging.getLogger("cavise.cosim_api")
+logger = logging.getLogger("cavise.opencda.opencda.scenario_testing.utils.cosim_api")
 
 
 class CoScenarioManager(ScenarioManager):

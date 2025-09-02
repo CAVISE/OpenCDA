@@ -19,7 +19,7 @@ from opencda.core.plan.global_route_planner import GlobalRoutePlanner
 from opencda.core.plan.global_route_planner_dao import GlobalRoutePlannerDAO
 from opencda.core.plan.planer_debug_helper import PlanDebugHelper
 
-logger = logging.getLogger("cavise.behavior_agent")
+logger = logging.getLogger("cavise.opencda.opencda.core.plan.behavior_agent")
 
 
 class BehaviorAgent(object):

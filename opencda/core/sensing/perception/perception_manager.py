@@ -21,7 +21,7 @@ from opencda.core.sensing.perception.obstacle_vehicle import ObstacleVehicle
 from opencda.core.sensing.perception.static_obstacle import TrafficLight
 from opencda.core.sensing.perception.o3d_lidar_libs import o3d_visualizer_init, o3d_pointcloud_encode, o3d_visualizer_show, o3d_camera_lidar_fusion
 
-logger = logging.getLogger("cavise.perception_manager")
+logger = logging.getLogger("cavise.opencda.opencda.core.sensing.perception.perception_manager")
 
 
 class CameraSensor:

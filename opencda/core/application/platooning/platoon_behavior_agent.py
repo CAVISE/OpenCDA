@@ -16,7 +16,7 @@ from opencda.core.application.platooning.platoon_debug_helper import PlatoonDebu
 from opencda.core.common.misc import compute_distance, cal_distance_angle
 from opencda.core.plan.behavior_agent import BehaviorAgent
 
-logger = logging.getLogger("cavise.platoon_behavior_agent")
+logger = logging.getLogger("cavise.opencda.opencda.core.application.platooning.platoon_behavior_agent")
 
 
 class PlatooningBehaviorAgent(BehaviorAgent):

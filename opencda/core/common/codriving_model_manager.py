@@ -10,7 +10,7 @@ from scipy.spatial import distance
 from CoDriving.scripts.constants import CONTROL_RADIUS, HIDDEN_CHANNELS
 
 
-logger = logging.getLogger("cavise.codriving_model_manager")
+logger = logging.getLogger("cavise.opencda.opencda.core.common.codriving_model_manager")
 
 
 class CodrivingModelManager:

@@ -17,7 +17,7 @@ from opencood.data_utils.pre_processor import build_preprocessor
 from opencood.utils.pcd_utils import mask_points_by_range, mask_ego_points, shuffle_points, downsample_lidar_minimum
 from opencood.utils.transformation_utils import x1_to_x2
 
-logger = logging.getLogger("cavise.OpenCOOD.opencood.data_utils.datasets.early_fusion_dataset")
+logger = logging.getLogger("cavise.opencda.OpenCOOD.opencood.data_utils.datasets.early_fusion_dataset")
 
 
 class EarlyFusionDataset(basedataset.BaseDataset):
@@ -50,10 +50,6 @@ class EarlyFusionDataset(basedataset.BaseDataset):
 
         return ego_id, ego_lidar_pose
 
-    @staticmethod
-    def __wrap_ndarray(ndarray):
-        return {"data": ndarray.tobytes(), "shape": ndarray.shape, "dtype": str(ndarray.dtype)}
-
     def extract_data(self, idx):
         base_data_dict = self.retrieve_base_data(idx)
         _, ego_lidar_pose = self.__find_ego_vehicle(base_data_dict)
@@ -63,26 +59,9 @@ class EarlyFusionDataset(basedataset.BaseDataset):
                 selected_cav_processed = self.get_item_single_car(selected_cav_base, ego_lidar_pose)
 
                 with self.message_handler.handle_opencda_message(cav_id, self.module_name) as msg:
-                    msg["object_ids"] = {
-                        "data": selected_cav_processed["object_ids"],  # list
-                        "label": "LABEL_REPEATED",
-                        "name": "object_ids",
-                        "type": "int64",
-                    }
-
-                    msg["object_bbx_center"] = {
-                        "name": "object_bbx_center",
-                        "label": "LABEL_OPTIONAL",
-                        "type": "NDArray",
-                        "data": self.__wrap_ndarray(selected_cav_processed["object_bbx_center"]),
-                    }
-
-                    msg["projected_lidar"] = {
-                        "name": "projected_lidar",
-                        "label": "LABEL_OPTIONAL",
-                        "type": "NDArray",
-                        "data": self.__wrap_ndarray(selected_cav_processed["projected_lidar"]),
-                    }
+                    msg["object_ids"] = (selected_cav_processed["object_ids"],)  # list
+                    msg["object_bbx_center"] = selected_cav_processed["object_bbx_center"]
+                    msg["projected_lidar"] = selected_cav_processed["projected_lidar"]
 
     def __process_with_messages(self, ego_id, ego_lidar_pose, base_data_dict):
         object_stack = []
@@ -101,14 +80,8 @@ class EarlyFusionDataset(basedataset.BaseDataset):
                 if cav_id in self.message_handler.current_message_artery[ego_id]:
                     with self.message_handler.handle_artery_message(ego_id, cav_id, self.module_name) as msg:
                         object_id_stack += msg["object_ids"]
-
-                        bbx = np.frombuffer(msg["object_bbx_center"]["data"], np.dtype(msg["object_bbx_center"]["dtype"]))
-                        bbx = bbx.reshape(msg["object_bbx_center"]["shape"])
-                        object_stack.append(bbx)
-
-                        projected = np.frombuffer(msg["projected_lidar"]["data"], np.dtype(msg["projected_lidar"]["dtype"]))
-                        projected = projected.reshape(msg["projected_lidar"]["shape"])
-                        projected_lidar_stack.append(projected)
+                        object_stack.append(msg["object_bbx_center"])
+                        projected_lidar_stack.append(msg["projected_lidar"])
 
         return {"object_stack": object_stack, "object_id_stack": object_id_stack, "projected_lidar_stack": projected_lidar_stack}
 

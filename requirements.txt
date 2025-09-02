@@ -1,4 +1,6 @@
 
+--extra-index-url https://download.pytorch.org/whl/cu129
+
 # PyTorch stable wheels link
 --find-links https://download.pytorch.org/whl/torch_stable.html
 
@@ -33,7 +35,7 @@ omegaconf
 open3d
 
 # Computer Vision & 3D Data
-opencv-python
+opencv-python>=4.8.1.78
 pandas
 Pillow
 
@@ -52,7 +54,7 @@ rich
 scikit-image
 
 # Machine Learning & Deep Learning
-scikit-learn
+scikit-learn>=1.5.0
 scipy
 seaborn
 setuptools

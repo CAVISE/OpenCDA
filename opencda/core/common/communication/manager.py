@@ -1,7 +1,7 @@
 import zmq
 import logging
 
-logger = logging.getLogger("cavise.communication")
+logger = logging.getLogger("cavise.opencda.opencda.core.common.communication.manager")
 
 
 class CommunicationManager:

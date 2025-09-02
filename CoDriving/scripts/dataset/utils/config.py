@@ -1,9 +1,3 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-# @Time    : 2020-05-27 15:00
-# @Author  : Xiaoke Huang
-# @Email   : xiaokehuang@foxmail.com
-
 import numpy as np
 
 RAW_DATA_FORMAT = {

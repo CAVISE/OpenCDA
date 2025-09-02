@@ -53,7 +53,7 @@ class VerbosityLevel(enum.IntEnum):
 # Handle cavise log creation, obtain this logger later with a call to
 # logging.getLogger('cavise'). Use for our (cavise) code only.
 def create_logger(level: int, fmt: str = "- [%(asctime)s][%(name)s] %(message)s", datefmt: str = "%H:%M:%S") -> logging.Logger:
-    logger = logging.getLogger("cavise")
+    logger = logging.getLogger("cavise.opencda.opencda")
     if coloredlogs is not None:
         coloredlogs.install(level=level, logger=logger, fmt=fmt, datefmt=datefmt)
     else:

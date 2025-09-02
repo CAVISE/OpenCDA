@@ -17,7 +17,7 @@ from opencood.hypes_yaml.yaml_utils import load_yaml
 from opencood.utils.pcd_utils import downsample_lidar_minimum
 from opencood.utils.transformation_utils import x1_to_x2
 
-logger = logging.getLogger("cavise.OpenCOOD.opencood.data_utils.datasets.basedataset")
+logger = logging.getLogger("cavise.opencda.OpenCOOD.opencood.data_utils.datasets.basedataset")
 
 
 class BaseDataset(Dataset):
