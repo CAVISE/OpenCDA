@@ -1,9 +1,6 @@
-# -*- coding: utf-8 -*-
 """
 Visualization tools for localization
 """
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: TDG-Attribution-NonCommercial-NoDistrib
 
 import numpy as np
 import matplotlib
@@ -153,7 +150,6 @@ class LocDebugHelper(object):
             plt.axis("equal")
             plt.grid(True)
             plt.legend()
-            plt.pause(0.001)
 
     def evaluate(self):
         """

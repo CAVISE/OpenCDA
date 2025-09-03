@@ -1,8 +1,4 @@
-"""
-@serialize.py
-@brief This module provides functionality for serializing and deserializing carla.Transform objects.
-"""
-
+import sys
 import carla
 import pickle  # TODO: In the future pickle module will be replaced with our own safe implementation
 import logging
@@ -100,8 +96,8 @@ class MessageHandler:
         if msg.WhichOneof("message") == "artery":
             artery_message = msg.artery
         else:
-            logger.warning("Message does not contain ArteryMessage")
-            return
+            logger.error("Message does not contain ArteryMessage")
+            sys.exit(1)
 
         artery_message = msg.artery
 

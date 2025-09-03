@@ -46,6 +46,9 @@ protoc-wheel
 # Multimedia & GUI
 pygame
 pyparsing
+
+# Testing
+pytest
 pyyaml
 pyzmq
 

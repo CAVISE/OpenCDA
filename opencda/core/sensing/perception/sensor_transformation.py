@@ -1,16 +1,13 @@
-# -*- coding: utf-8 -*-
 """
 This script contains the transformations between world and different sensors.
 """
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: TDG-Attribution-NonCommercial-NoDistrib
 
 import numpy as np
-from matplotlib import cm
+import matplotlib as mpl
 
 from opencda.opencda_carla import Transform
 
-VIRIDIS = np.array(cm.get_cmap("viridis").colors)
+VIRIDIS = np.array(mpl.colormaps["viridis"].colors)
 VID_RANGE = np.linspace(0.0, 1.0, VIRIDIS.shape[0])
 
 
@@ -401,8 +398,8 @@ def project_lidar_to_camera(lidar, camera, point_cloud, rgb_image):
     new_intensity = intensity[points_in_canvas_mask]
 
     # Extract the screen coords (uv) as integers.
-    u_coord = new_points_2d[:, 0].astype(np.int)
-    v_coord = new_points_2d[:, 1].astype(np.int)
+    u_coord = new_points_2d[:, 0].astype(np.int64)
+    v_coord = new_points_2d[:, 1].astype(np.int64)
 
     # Since at the time of the creation of this script, the intensity function
     # is returning high values, these are adjusted to be nicely visualized.
@@ -415,7 +412,7 @@ def project_lidar_to_camera(lidar, camera, point_cloud, rgb_image):
                 np.interp(new_intensity, VID_RANGE, VIRIDIS[:, 2]) * 255.0,
             ]
         )
-        .astype(np.int)
+        .astype(np.int64)
         .T
     )
 

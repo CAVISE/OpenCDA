@@ -1,10 +1,7 @@
-# -*- coding: utf-8 -*-
 """
 Static Obstacle base class
 """
 
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: TDG-Attribution-NonCommercial-NoDistrib
 import math
 
 import numpy as np

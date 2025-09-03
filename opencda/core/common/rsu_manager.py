@@ -1,9 +1,6 @@
-# -*- coding: utf-8 -*-
 """
 Basic class for RSU(Roadside Unit) management.
 """
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: TDG-Attribution-NonCommercial-NoDistrib
 
 import logging
 

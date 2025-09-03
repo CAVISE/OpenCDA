@@ -59,7 +59,7 @@ class EarlyFusionDataset(basedataset.BaseDataset):
                 selected_cav_processed = self.get_item_single_car(selected_cav_base, ego_lidar_pose)
 
                 with self.message_handler.handle_opencda_message(cav_id, self.module_name) as msg:
-                    msg["object_ids"] = (selected_cav_processed["object_ids"],)  # list
+                    msg["object_ids"] = selected_cav_processed["object_ids"]  # list
                     msg["object_bbx_center"] = selected_cav_processed["object_bbx_center"]
                     msg["projected_lidar"] = selected_cav_processed["projected_lidar"]
 
