@@ -87,6 +87,7 @@ vehicle_base:
     local_planner:
       debug_trajectory: false
       debug: false
+  color: [122, 156, 111]
 
 # define sumo simulation setting for traffic generation
 sumo:
