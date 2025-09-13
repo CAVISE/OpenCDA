@@ -268,7 +268,7 @@ class CodrivingModelManager:
         raise Exception("Wrong vehicle id")
 
     def get_intention_by_rotation(self, rotation):
-        if rotation < 45 or rotation > 315:
+        if rotation < 30 or rotation > 330:
             intention = "straight"
         elif rotation < 135:
             intention = "right"
@@ -344,6 +344,7 @@ class CodrivingModelManager:
         """
         if self._is_carla_id(vehicle_id):
             cav = self._get_vmanager_by_vid(vehicle_id)
+            cav.set_destination(cav.vehicle.get_location(), cav.agent.end_waypoint.transform.location, clean=True, end_reset=True)
             waypoints = cav.agent.get_local_planner().get_waypoint_buffer()
             curr_pos = np.array(traci.vehicle.getPosition(vehicle_id))
             nearest_node = self._get_nearest_node(curr_pos)
