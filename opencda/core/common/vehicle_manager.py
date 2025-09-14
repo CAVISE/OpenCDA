@@ -1,9 +1,6 @@
-# -*- coding: utf-8 -*-
 """
 Basic class of CAV
 """
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: TDG-Attribution-NonCommercial-NoDistrib
 
 import logging
 
@@ -17,7 +14,7 @@ from opencda.core.plan.behavior_agent import BehaviorAgent
 from opencda.core.map.map_manager import MapManager
 from opencda.core.common.data_dumper import DataDumper
 
-logger = logging.getLogger("cavise.vehicle_manager")
+logger = logging.getLogger("cavise.opencda.opencda.core.common.vehicle_manager")
 
 
 class VehicleManager(object):

@@ -14,7 +14,7 @@ from opencood.data_utils.datasets import build_dataset
 from opencood.visualization import simple_vis, vis_utils
 from opencood.utils import eval_utils
 
-logger = logging.getLogger("cavise.coperception_model_manager")
+logger = logging.getLogger("cavise.opencda.opencda.core.common.coperception_model_manager")
 
 
 class CoperceptionModelManager:

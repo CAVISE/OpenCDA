@@ -1,11 +1,8 @@
-# -*- coding: utf-8 -*-
 """
 Utilize scenario manager to manage CARLA simulation construction. This script
 is used for carla simulation only, and if you want to manage the Co-simulation,
 please use cosim_api.py.
 """
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: TDG-Attribution-NonCommercial-NoDistrib
 
 import math
 import random
@@ -26,7 +23,7 @@ from opencda.core.common.rsu_manager import RSUManager
 from opencda.core.common.cav_world import CavWorld
 from opencda.scenario_testing.utils.customized_map_api import load_customized_world, bcolors
 
-logger = logging.getLogger("cavise.sim_api")
+logger = logging.getLogger("cavise.opencda.opencda.scenario_testing.utils.sim_api")
 
 
 def car_blueprint_filter(blueprint_library, carla_version="0.9.15"):

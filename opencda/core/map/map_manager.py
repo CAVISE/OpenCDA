@@ -1,9 +1,4 @@
-# -*- coding: utf-8 -*-
-
 """HDMap manager"""
-
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: TDG-Attribution-NonCommercial-NoDistrib
 
 import math
 import uuid
@@ -19,7 +14,7 @@ from opencda.core.sensing.perception.sensor_transformation import world_to_senso
 from opencda.core.map.map_utils import lateral_shift, list_loc2array, list_wpt2array, convert_tl_status
 from opencda.core.map.map_drawing import cv2_subpixel, draw_agent, draw_road, draw_lane
 
-logger = logging.getLogger("cavise.map_manager")
+logger = logging.getLogger("cavise.opencda.opencda.core.map.map_manager")
 
 
 class MapManager(object):

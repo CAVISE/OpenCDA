@@ -3,9 +3,6 @@
 Used to reduce the dependency on CARLA api by mocking
 them in the same structure.
 """
-# Author: Credits to Pylot team <https://github.com/erdos-project/pylot>
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: TDG-Attribution-NonCommercial-NoDistrib
 
 
 class Vector3D(object):

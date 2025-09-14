@@ -1,9 +1,4 @@
-# -*- coding: utf-8 -*-
-
 """Finite State Machine"""
-
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: TDG-Attribution-NonCommercial-NoDistrib
 
 from enum import Enum
 

@@ -25,7 +25,7 @@ from opencda.core.common.codriving_model_manager import CodrivingModelManager
 from opencda.scenario_testing.evaluations.evaluate_manager import EvaluationManager
 from opencda.scenario_testing.utils.yaml_utils import add_current_time, save_yaml
 
-logger = logging.getLogger("cavise.scenario")
+logger = logging.getLogger("cavise.opencda.opencda.scenario_testing.scenario")
 
 
 @dataclass

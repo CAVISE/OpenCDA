@@ -1,9 +1,6 @@
-# -*- coding: utf-8 -*-
 """
 Unit test for sensor transformation.
 """
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: MIT
 
 import os
 import sys

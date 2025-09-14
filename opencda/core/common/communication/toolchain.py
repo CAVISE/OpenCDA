@@ -14,7 +14,7 @@ import dataclasses
 from pathlib import Path
 
 
-logger = logging.getLogger("cavise.protobuf_toolchain")
+logger = logging.getLogger("cavise.opencda.opencda.core.common.communication.toolchain")
 
 
 # Config for protoc

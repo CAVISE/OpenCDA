@@ -1,9 +1,4 @@
-# -*- coding: utf-8 -*-
-
 """Platooning Manager"""
-
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: TDG-Attribution-NonCommercial-NoDistrib
 
 import uuid
 import weakref
@@ -17,7 +12,7 @@ import matplotlib.pyplot as plt
 import opencda.core.plan.drive_profile_plotting as open_plt
 
 
-logger = logging.getLogger("cavise.platooning_manager")
+logger = logging.getLogger("cavise.opencda.opencda.core.application.platooning.platooning_manager")
 
 
 class PlatooningManager(object):

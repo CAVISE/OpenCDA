@@ -1,13 +1,8 @@
-# -*- coding: utf-8 -*-
-
 """
 Since multiple CAV normally use the same ML/DL model,
 here we have this class to enable different CAVs share the same model to
  avoid duplicate memory consumption.
 """
-
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: TDG-Attribution-NonCommercial-NoDistrib
 
 import cv2
 import torch
