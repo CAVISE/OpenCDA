@@ -75,6 +75,7 @@ class Scenario:
                 cav_world=self.cav_world,
                 sumo_file_parent_path=sumo_cfg,
                 node_ids=self.node_ids,
+                carla_host=opt.carla_host
             )
         else:
             self.scenario_manager = sim_api.ScenarioManager(
@@ -84,6 +85,7 @@ class Scenario:
                 xodr_path=xodr_path,
                 town=town,
                 cav_world=self.cav_world,
+                carla_host=opt.carla_host
             )
 
         if self.cav_world.comms_manager is not None:

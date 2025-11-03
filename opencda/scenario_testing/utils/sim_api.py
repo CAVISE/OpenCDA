@@ -148,7 +148,7 @@ class ScenarioManager:
 
     """
 
-    def __init__(self, scenario_params, apply_ml, carla_version, xodr_path=None, town=None, cav_world=None):
+    def __init__(self, scenario_params, apply_ml, carla_version, xodr_path=None, town=None, cav_world=None, carla_host="carla"):
         self.scenario_params = scenario_params
         self.carla_version = carla_version
         self.world = None
@@ -160,8 +160,8 @@ class ScenarioManager:
             np.random.seed(simulation_config["seed"])
             random.seed(simulation_config["seed"])
 
-        self.client = carla.Client("carla", simulation_config["client_port"])
-        self.client.set_timeout(10.0)
+        self.client = carla.Client(carla_host, simulation_config["client_port"])
+        self.client.set_timeout(30.0)
 
         if xodr_path:
             self.world = load_customized_world(xodr_path, self.client)

@@ -107,6 +107,7 @@ def arg_parse() -> argparse.Namespace:
     parser.add_argument("-x", "--xodr", action="store_true", help="Run simulation using a custom map from an XODR file.")
     parser.add_argument("-c", "--cosim", action="store_true", help="Enable co-simulation with SUMO.")
     parser.add_argument("--with-capi", action="store_true", help="wether to run a communication manager instance in this simulation.")
+    parser.add_argument("--carla-host", type=str, default="carla", help="IP address or hostname of the CARLA server (default: 'carla')")
 
     # Coperception models parameters
     parser.add_argument(
