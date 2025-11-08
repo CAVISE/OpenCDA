@@ -46,30 +46,9 @@ class CommunicationToolchain:
             logger.warning(f"could not found message {message}")
         return False
 
-    @staticmethod
-    def copy_proto(source: str, destination: str) -> None:
-        src = Path(source).resolve()
-        dst = Path(destination).resolve()
-
-        if not src.exists():
-            logger.error(f"Source file not found: {src}")
-            return
-
-        dst.parent.mkdir(parents=True, exist_ok=True)
-
-        if dst.exists() and filecmp.cmp(src, dst, shallow=False):
-            logger.info(f"File is already up-to-date: {dst}")
-            return
-
-        shutil.copy2(src, dst)
-        logger.info(f"Copied {src} -> {dst}")
-
     # invoke subroutine to create python message impl from proto file
     @staticmethod
     def generate_message(config: MessageConfig, messages: typing.List[str]) -> None:
-        for message in messages:
-            CommunicationToolchain.copy_proto(f"../messages/{message}.proto", f"opencda/core/common/communication/messages/{message}.proto")
-
         command = [
             "protoc",
             f"--proto_path={config.source_dir}",
