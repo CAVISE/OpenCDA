@@ -1,17 +1,13 @@
 import os
 import sys
 import errno
-import shutil
 import typing
-import filecmp
 import pathlib
 import logging
 import argparse
 import importlib
 import subprocess
 import dataclasses
-
-from pathlib import Path
 
 
 logger = logging.getLogger("cavise.protobuf_toolchain")

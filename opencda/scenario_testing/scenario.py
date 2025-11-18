@@ -78,7 +78,7 @@ class Scenario:
                 sumo_file_parent_path=sumo_cfg,
                 node_ids=self.node_ids,
                 carla_host=opt.carla_host,
-                carla_timeout=opt.carla_timeout
+                carla_timeout=opt.carla_timeout,
             )
         else:
             self.scenario_manager = sim_api.ScenarioManager(
@@ -89,7 +89,7 @@ class Scenario:
                 town=town,
                 cav_world=self.cav_world,
                 carla_host=opt.carla_host,
-                carla_timeout=opt.carla_timeout
+                carla_timeout=opt.carla_timeout,
             )
 
         if self.cav_world.comms_manager is not None:

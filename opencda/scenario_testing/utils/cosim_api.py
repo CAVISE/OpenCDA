@@ -45,7 +45,19 @@ class CoScenarioManager(ScenarioManager):
 
     """
 
-    def __init__(self, scenario_params, apply_ml, carla_version, node_ids, xodr_path=None, town=None, cav_world=None, sumo_file_parent_path=None, carla_host="carla", carla_timeout=30.0):
+    def __init__(
+        self,
+        scenario_params,
+        apply_ml,
+        carla_version,
+        node_ids,
+        xodr_path=None,
+        town=None,
+        cav_world=None,
+        sumo_file_parent_path=None,
+        carla_host="carla",
+        carla_timeout=30.0,
+    ):
         # carla side initializations(partial init is already done in scenario manager
         super(CoScenarioManager, self).__init__(scenario_params, apply_ml, carla_version, xodr_path, town, cav_world, carla_host)
 
