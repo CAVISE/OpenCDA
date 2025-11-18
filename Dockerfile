@@ -26,7 +26,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
             curl=8.5.0-2ubuntu10.6                               \
             unzip=6.0-28ubuntu4.1                                \
             python3-pip=24.0+dfsg-1ubuntu1.3                     \
-            python3-dev=3.12.3-0ubuntu2                          \
+            python3-dev=3.12.3-0ubuntu2.1                        \
         && rm -rf /var/lib/apt/lists/*
 # xorg bison openmp?
 

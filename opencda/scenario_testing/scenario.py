@@ -52,6 +52,8 @@ class Scenario:
         self.cav_world = CavWorld(opt.apply_ml, opt.with_capi)
         logger.info(f"created cav world, using apply_ml = {opt.apply_ml}, with_capi = {opt.with_capi}")
 
+        self.coperception_model_manager = None
+
         xodr_path = None
         if opt.xodr:
             xodr_path = Path("opencda/sumo-assets") / self.scenario_name / f"{self.scenario_name}.xodr"
@@ -99,10 +101,12 @@ class Scenario:
 
         logger.info(f"using scenario manager of type: {type(self.scenario_manager)}")
 
-        data_dump = opt.with_coperception and opt.model_dir is not None or opt.record
+        data_dump = opt.record or (opt.with_coperception and opt.model_dir is not None)
+
         logger.info("data dump is " + ("ON" if data_dump else "OFF"))
 
         if data_dump:
+            logger.info("beginning to record the simulation")
             self.scenario_manager.client.start_recorder(f"{self.scenario_name}.log", True)
 
             save_yaml_name = Path("simulation_output/data_dumping") / current_time / "data_protocol.yaml"
@@ -124,12 +128,6 @@ class Scenario:
                 self.coperception_model_manager = CoperceptionModelManager(opt=opt, current_time=current_time, message_handler=self.message_handler)
                 logger.info("created cooperception manager")
 
-        elif opt.record:
-            logger.info("beginning to record the simulation")
-            self.scenario_manager.client.start_recorder(f"{self.scenario_name}.log", True)
-        else:
-            self.coperception_model_manager = None
-
         # [CoDrivingInt]
         if opt.with_mtp:
             logger.info("Codriving Model is initialized")
@@ -139,7 +137,10 @@ class Scenario:
 
             # TODO: Replace with params from scenario file
             self.codriving_model_manager = CodrivingModelManager(
-                pretrained="opencda/codriving_models/gnn_mtl_gnn/model_rot_gnn_mtl_np_sumo_0911_e3_1930.pth", model_name="GNN_mtl_gnn", nodes=nodes
+                pretrained="opencda/codriving_models/gnn_mtl_gnn/model_rot_gnn_mtl_np_sumo_0911_e3_1930.pth",
+                model_name="GNN_mtl_gnn",
+                nodes=nodes,
+                excluded_nodes=None,  # scenario_params['excluded_nodes'] if scenario_params['excluded_nodes'] else None
             )
         # [CoDrivingInt]
 
@@ -162,22 +163,6 @@ class Scenario:
         self.eval_manager = EvaluationManager(
             self.scenario_manager.cav_world, script_name=self.scenario_name, current_time=scenario_params["current_time"]
         )
-
-        # [CoDrivingInt]
-        if opt.with_mtp:
-            logger.info("Codriving Model is initialized")
-
-            net = sumolib.net.readNet(f"opencda/sumo-assets/{self.scenario_name}/{self.scenario_name}.net.xml")
-            nodes = net.getNodes()
-
-            # TODO: Replace with params from scenario file
-            self.codriving_model_manager = CodrivingModelManager(
-                pretrained="opencda/codriving_models/gnn_mtl_gnn/model_rot_gnn_mtl_np_sumo_0911_e3_1930.pth",
-                model_name="GNN_mtl_gnn",
-                nodes=nodes,
-                excluded_nodes=None,  # scenario_params['excluded_nodes'] if scenario_params['excluded_nodes'] else None
-            )
-        # [CoDrivingInt]
 
         self.spectator = self.scenario_manager.world.get_spectator()
 
@@ -271,9 +256,9 @@ class Scenario:
                 self.codriving_model_manager.make_trajs(carla_vmanagers=self.single_cav_list)
 
             """
-            # Тик 0 является инициализирующим. Симуляция начинается с 0 тика, в то время как data dumper начинает с 1.
-            # Это сделано для того, чтобы модуль коммуникации работал с заранее сделанными действиями CAV и RSU, как это происходит в реальной жизни.
-            # Либо можно вынести действие модуля data dumper в отдельные функции и выполнять их перед коммуникацией.
+            # Tick 0 is an initialization tick. The simulation starts at tick 0, while the data dumper starts at tick 1.
+            # This ensures the communication module operates on pre-generated CAV and RSU actions, mirroring real-world behavior.
+            # Alternatively, the data dumper logic could be extracted into separate functions and executed before communication.
             """
             if self.coperception_model_manager is not None and tick_number > 0:
                 try:
@@ -286,7 +271,7 @@ class Scenario:
 
                 self.coperception_model_manager.make_dataset()
                 self.coperception_model_manager.opencood_dataset.extract_data(
-                    idx=0  # TODO: Надо разобраться с тем, как выбирать ego в моделях совместного восприятия
+                    idx=0  # TODO: Figure out how to select the ego vehicle in cooperative perception models
                 )
 
             message = self.message_handler.make_opencda_message()
