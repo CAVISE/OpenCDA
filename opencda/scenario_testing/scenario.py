@@ -19,7 +19,7 @@ from opencda.core.common.vehicle_manager import VehicleManager
 from opencda.core.common.rsu_manager import RSUManager
 from opencda.core.common.communication.serialize import MessageHandler
 from opencda.core.application.platooning.platooning_manager import PlatooningManager
-from opencda.core.common.codriving_model_manager import CodrivingModelManager
+from opencda.core.common.aim_model_manager import AIMModelManager
 
 
 from opencda.scenario_testing.evaluations.evaluate_manager import EvaluationManager
@@ -37,7 +37,7 @@ class Scenario:
     # TODO: find spectator type
     spectator: Any
     cav_world: CavWorld
-    codriving_model_manager: CodrivingModelManager  # [CoDrivingInt]
+    codriving_model_manager: AIMModelManager  # [CoDrivingInt]
     platoon_list: List[PlatooningManager]
     # TODO: find bg cars type
     bg_veh_list: Any
@@ -136,7 +136,7 @@ class Scenario:
             nodes = net.getNodes()
 
             # TODO: Replace with params from scenario file
-            self.codriving_model_manager = CodrivingModelManager(
+            self.codriving_model_manager = AIMModelManager(
                 pretrained="opencda/codriving_models/gnn_mtl_gnn/model_rot_gnn_mtl_np_sumo_0911_e3_1930.pth",
                 model_name="GNN_mtl_gnn",
                 nodes=nodes,
