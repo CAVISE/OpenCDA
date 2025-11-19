@@ -14,8 +14,16 @@ from opencda.co_simulation.sumo_integration.bridge_helper import BridgeHelper
 logger = logging.getLogger("cavise.codriving_model_manager")
 
 
-class CodrivingModelManager:
+class AIMModelManager:
     def __init__(self, model_name, pretrained, nodes, excluded_nodes=None):
+        """
+        :param model_name: model name contained in the filename
+        :param pretrained: filepath to saved model state
+        :param nodes: intersections present in the simulation
+        :param excluded_nodes: nodes that do not use AIM
+
+        :return: None
+        """
         self.mtp_controlled_vehicles = set()
 
         self.sumo_cavs_ids = set()  # ids
@@ -44,14 +52,30 @@ class CodrivingModelManager:
         self.yaw_id = {}
 
     def _load_yaw(self):
+        """
+        Loads yaw dictionary from a predefined address.
+
+        :return: yaw_dict
+        """
         with open("opencda/assets/yaw_dict_10m.pkl", "rb") as f:
             return pkl.load(f)
 
     def _get_nearest_node(self, pos):
+        """
+        Selects the nearest node from chosen position
+
+        :param pos: 2D-position on simulation map
+        :return: position of the closest node
+        """
         distances = np.linalg.norm(self.node_coords - pos, axis=1)
         return self.nodes[np.argmin(distances)]
 
     def _import_model(self):
+        """
+        Imports an ML model having name selected earlier.
+
+        :return: ML model
+        """
         try:
             model_filename = "CoDriving.models." + self.model_name
             model_lib = importlib.import_module(model_filename)
@@ -66,18 +90,36 @@ class CodrivingModelManager:
             logger.error(f"Model module {self.model_name} not found in CoDriving/models directory!")
 
     def _get_vmanager_by_vid(self, vid: str):
+        """
+        Returns vmanager with selected vid if exists.
+
+        :param vid: virtual manager id (string)
+        :return: virtual manager
+        """
         for vmanager in self.carla_vmanagers:
             if vmanager.vid == vid:
                 return vmanager
         return None
 
     def _is_carla_id(self, vid):
+        """
+        Checks if there exists virtual manager with selected vid.
+
+        :param vid: virtual manager id (string)
+        :return: boolean value
+        """
         for vmanager in self.carla_vmanagers:
             if vmanager.vid == vid:
                 return True
         return False
 
     def make_trajs(self, carla_vmanagers):
+        """
+        Creates new trajectories based on model predictions, assigns CAVs new destinations.
+
+        :param carla_vmanagers: carla virtual managers
+        :return: None
+        """
         # Сохраняем список машин из SUMO и CARLA
         self.sumo_cavs_ids = traci.vehicle.getIDList()
 
@@ -268,6 +310,12 @@ class CodrivingModelManager:
         raise Exception("Wrong vehicle id")
 
     def get_intention_by_rotation(self, rotation):
+        """
+        Distinguishes vehicle intention by its rotation
+
+        :param rotation: rotation degrees (from 0 to 360)
+        :return: intention
+        """
         if rotation < 30 or rotation > 330:
             intention = "straight"
         elif rotation < 135:
@@ -279,12 +327,27 @@ class CodrivingModelManager:
         return intention
 
     def get_distance(self, waypoint1, waypoint2):
+        """
+        Calculates Euclidean distance between two waypoints
+
+        :param waypoint1: waypoint 2D-coordinates
+        :param waypoint2: waypoint 2D-coordinates
+        :return: distance
+        """
         rel_x = waypoint1.location.x - waypoint2[0].transform.location.x
         rel_y = waypoint1.location.y - waypoint2[0].transform.location.y
         position = np.array([rel_x, rel_y])
         return np.linalg.norm(position)
 
     def get_opencda_intention(self, waypoints, mid, radius=CONTROL_RADIUS):
+        """
+        Gets intention by averaged rotation to pass 3 next waypoints.
+
+        :param waypoints: list of waypoint 2D-coordinates
+        :param mid: middle of the turning path 2D-coordinates
+        :param radius: search radius for waypoints nearby
+        :return: intention
+        """
         # Too few waypoints
         if len(waypoints) < 2:
             return "null"
@@ -324,6 +387,12 @@ class CodrivingModelManager:
         return self.get_intention_by_rotation(rotation)
 
     def get_sumo_intention(self, sumo_id):
+        """
+        Distinguishes CAV intention from SUMO based on its rotation.
+
+        :param sumo_id: SUMO CAV ID
+        :return: intention
+        """
         route = traci.vehicle.getRoute(sumo_id)
         index = traci.vehicle.getRouteIndex(sumo_id)
 
@@ -354,6 +423,11 @@ class CodrivingModelManager:
             return self.get_sumo_intention(vehicle_id)
 
     def encoding_scenario_features(self):
+        """
+        Encodes data on CAV movement and intentions for processing by ML models
+
+        :return: x: list((motion features, intention vector)), target: agent ids list(vehicle id)
+        """
         features = []
         target_agent_ids = []
 
@@ -400,6 +474,13 @@ class CodrivingModelManager:
         return rotation
 
     def get_end(self, start, intention):
+        """
+        Determines the direction of exit from the turn given its start and vehicle intention.
+
+        :param start: direction from which CAV enters the intersection
+        :param intention: direction of turning relative to CAV movement
+        :return: end
+        """
         match intention:
             case "right":
                 match start:
@@ -433,6 +514,14 @@ class CodrivingModelManager:
                         return "right"
 
     def get_yaw(self, vehicle_id: str, pos: np.ndarray, yaw_dict: dict):
+        """
+        Calculates optimal CAV yaw based on its position, using previously collected trajectory data.
+
+        :param vehicle_id: vehicle identifier
+        :param pos: 2D-position on simulation map
+        :param yaw_dict: dictionary containing information about rotation at each stage of the turn
+        :return: yaw (rotation angle)
+        """
         nearest_node = self._get_nearest_node(pos)
         if not self.trajs[vehicle_id] or self.trajs[vehicle_id][-1][-1] == "null":
             logging.warning("Intention isn't defined")
