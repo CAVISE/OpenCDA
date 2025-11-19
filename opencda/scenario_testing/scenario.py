@@ -106,7 +106,8 @@ class Scenario:
         logger.info("data dump is " + ("ON" if data_dump else "OFF"))
 
         if data_dump:
-            logger.info("beginning to record the simulation")
+            
+            logger.info("beginning to record the simulation in simulation_output/data_dumping")
             self.scenario_manager.client.start_recorder(f"{self.scenario_name}.log", True)
 
             save_yaml_name = Path("simulation_output/data_dumping") / current_time / "data_protocol.yaml"
