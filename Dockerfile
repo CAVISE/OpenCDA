@@ -35,6 +35,8 @@ RUN apt-get update && \
         vulkan-tools=1.3.275.0+dfsg1-1 \
  
         libglib2.0-0=2.80.0-6ubuntu3.4 \
+        nano \
+        ffmpeg \
     && \
 
     curl -LO https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/${PROTOC_ZIP} && \

@@ -158,3 +158,4 @@ ready*
 *.tar*
 
 simulation_output
+*.mp4

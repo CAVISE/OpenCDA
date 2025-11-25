@@ -129,6 +129,7 @@ def arg_parse() -> argparse.Namespace:
         "If set to True, it is the mainstream AP computing method,"
         "but would increase the tolerance for FP (False Positives).",
     )
+    parser.add_argument("--show-tags", nargs="+", type=int, help="What tags need to show in --save-vis")
 
     def verbosity_wrapper(arg: str) -> VerbosityLevel:
         return VerbosityLevel(int(arg))

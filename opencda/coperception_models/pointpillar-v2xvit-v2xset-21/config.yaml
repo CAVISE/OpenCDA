@@ -191,12 +191,12 @@ preprocess:
   core_method: SpVoxelPreprocessor
 root_dir: V2X/train
 train_params:
-  batch_size: 2
+  batch_size: 1
   epoches: 100
   eval_freq: 1
   max_cav: 3
   save_freq: 1
-validate_dir: simulation_output/data_dumping/samplt
+validate_dir: simulation_output/data_dumping/sample
 wild_setting:
   async: false
   async_mode: sim
