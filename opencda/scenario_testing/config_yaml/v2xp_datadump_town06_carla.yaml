@@ -78,7 +78,7 @@ vehicle_base:
         dropoff_intensity_limit: 0.7
         dropoff_zero_intensity: 0.4
         noise_stddev: 0.02
-
+  map_manager:
     visualize: false
     activate: false
   behavior:
