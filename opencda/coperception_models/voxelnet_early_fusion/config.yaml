@@ -76,12 +76,107 @@ postprocess:
     w: 1.6
   core_method: VoxelPostprocessor
   max_num: 100
-  nms_thresh: 0.15
+  nms_thresh: 0.01
   order: hwl
   target_args:
-    neg_threshold: 0.45
-    pos_threshold: 0.6
-    score_threshold: 0.20
+    neg_threshold: 0.3
+    pos_threshold: 0.7
+    score_threshold: 0.3
+preprocess:
+  args:
+    max_points_per_voxel: 32
+    max_voxel_test: 70000
+    max_voxel_train: 36000
+    voxel_size: *id002
+  cav_lidar_range: *id001
+  core_method: SpVoxelPreprocessor
+root_dir: "opv2v_data_dumping/train"
+validate_dir: "simulation_output/data_dumping/sample"
+yaml_parser: load_voxel_params
+data_augment:
+- ALONG_AXIS_LIST:
+  - x
+  NAME: random_world_flip
+- NAME: random_world_rotation
+  WORLD_ROT_ANGLE:
+  - -0.78539816
+  - 0.78539816
+- NAME: random_world_scaling
+  WORLD_SCALE_RANGE:
+  - 0.95
+  - 1.05
+fusion:
+  args: []
+  core_method: EarlyFusionDataset
+loss:
+  args:
+    cls_weight: 1.0
+    reg: 2.0
+  core_method: point_pillar_loss
+lr_scheduler:
+  core_method: multistep
+  gamma: 0.1
+  step_size:
+  - 15
+  - 30
+model:
+  args:
+    D: 10
+    H: 200
+    N: 1
+    T: 32
+    W: 704
+    anchor_num: 2
+    lidar_range: &id001
+    - -140.8
+    - -40
+    - -3
+    - 140.8
+    - 40
+    - 1
+    pillar_vfe:
+      num_filters:
+      - 64
+      use_absolute_xyz: true
+      use_norm: true
+      with_distance: false
+    voxel_size: &id002
+    - 0.4
+    - 0.4
+    - 0.4
+  core_method: voxel_net
+name: voxelnet_early_fusion
+optimizer:
+  args:
+    eps: 1.0e-10
+    weight_decay: 0.0001
+  core_method: Adam
+  lr: 0.002
+postprocess:
+  gt_range: *id001
+  anchor_args:
+    D: 10
+    H: 200
+    W: 704
+    cav_lidar_range: *id001
+    h: 1.56
+    l: 3.9
+    num: 2
+    r:
+    - 0
+    - 90
+    vd: 0.4
+    vh: 0.4
+    vw: 0.4
+    w: 1.6
+  core_method: VoxelPostprocessor
+  max_num: 100
+  nms_thresh: 0.01
+  order: hwl
+  target_args:
+    neg_threshold: 0.3
+    pos_threshold: 0.7
+    score_threshold: 0.3
 preprocess:
   args:
     max_points_per_voxel: 32
