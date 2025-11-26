@@ -123,13 +123,13 @@ postprocess:
     vw: 0.4
     w: 1.6
   core_method: VoxelPostprocessor
-  max_num: 100
-  nms_thresh: 0.15
+  max_num: 12
+  nms_thresh: 0.001
   order: hwl
   target_args:
-    neg_threshold: 0.45
-    pos_threshold: 0.6
-    score_threshold: 0.20
+    neg_threshold: 0.3
+    pos_threshold: 0.7
+    score_threshold: 0.5
 preprocess:
   args:
     max_points_per_voxel: 32
