@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 import sumolib
 from tqdm import trange
-from utils.config import COLLECT_DATA_RADIUS, OBS_LEN, PRED_LEN, SAMPLE_RATE
+from opencda.CoDriving.config import COLLECT_DATA_RADIUS, OBS_LEN, PRED_LEN, SAMPLE_RATE
 from utils.feature_utils import get_path_to_intention, get_center_coodinates
 
 

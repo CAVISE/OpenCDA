@@ -8,12 +8,16 @@ import math
 import cvxpy
 import yaml
 import numpy as np
+import os
 
 from typing import Union
 
 
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+config_path = os.path.join(CURRENT_DIR, "configuration", "MPC_config.yaml")
+
 def load_config():
-    with open("configuration\MPC_config.yaml") as f:
+    with open(config_path) as f:
         return yaml.safe_load(f)
 
 

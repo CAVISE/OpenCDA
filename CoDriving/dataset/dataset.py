@@ -9,8 +9,9 @@ import torch
 from torch_geometric.data import Data, InMemoryDataset
 from tqdm import tqdm
 
-from MPC_XY_Frame import linear_mpc_control_data_aug
-from utils.config import DT, OBS_LEN, PRED_LEN
+import add_moduls
+from MPC_XY_Frame.MPC_XY_Frame import linear_mpc_control_data_aug
+from config import DT, OBS_LEN, PRED_LEN
 
 
 obs_len, pred_len, dt = OBS_LEN, PRED_LEN, DT
@@ -21,7 +22,10 @@ def rotation_matrix(yaw):
     Make the current direction aligns to +y axis.
     https://en.wikipedia.org/wiki/Rotation_matrix#Non-standard_orientation_of_the_coordinate_system
     """
-    rotation = np.array([[np.cos(np.pi / 2 - yaw), -np.sin(np.pi / 2 - yaw)], [np.sin(np.pi / 2 - yaw), np.cos(np.pi / 2 - yaw)]])
+    rotation = np.array([
+        [np.cos(np.pi / 2 - yaw), -np.sin(np.pi / 2 - yaw)], 
+        [np.sin(np.pi / 2 - yaw), np.cos(np.pi / 2 - yaw)]
+    ])
     return rotation
 
 
@@ -33,7 +37,7 @@ class CarDataset(InMemoryDataset):
         self.mlp = mlp
         self.mpc_aug = mpc_aug
         super().__init__(preprocess_folder)
-        self.data, self.slices = torch.load(self.processed_paths[0])
+        self.data, self.slices = torch.load(self.processed_paths[0], weights_only=False)
 
     @property
     def processed_file_names(self):

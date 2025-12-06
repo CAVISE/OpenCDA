@@ -3,7 +3,7 @@ import logging
 import os
 from datetime import datetime
 
-from utils.config import DT, OBS_LEN, PRED_LEN, SAMPLE_RATE
+from opencda.CoDriving.config import DT, OBS_LEN, PRED_LEN, SAMPLE_RATE
 from utils.generate_csv_utils import (
     generate_csv_from_fcd,
     generate_fcd,

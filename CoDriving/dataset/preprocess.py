@@ -8,7 +8,7 @@ import pandas as pd
 import torch
 
 from dataset import MPC_Block, adjust_future_deltas, rotation_matrix, transform_sumo2carla
-from utils.config import NUM_PREDICT, OBS_LEN, PRED_LEN
+from opencda.CoDriving.config import NUM_PREDICT, OBS_LEN, PRED_LEN
 from utils.feature_utils import get_intention_from_vehicle_id
 
 import concurrent.futures
