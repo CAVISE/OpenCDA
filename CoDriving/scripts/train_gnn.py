@@ -8,6 +8,8 @@ from torch_geometric.loader import DataLoader
 from tqdm import tqdm
 import pandas as pd
 
+from add_path import *
+
 from CoDriving.models.model_factory import ModelFactory
 from CoDriving.dataset_scripts.dataset import CarDataset
 from CoDriving.dataset_scripts.metrics_logger import MetricLogger

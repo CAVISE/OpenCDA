@@ -3,6 +3,8 @@ import logging
 import os
 from datetime import datetime
 
+from add_path import *
+
 from CoDriving.config.config import DT, OBS_LEN, PRED_LEN, SAMPLE_RATE
 from data_config import *
 from CoDriving.dataset_scripts.utils.generate_csv_utils import (
