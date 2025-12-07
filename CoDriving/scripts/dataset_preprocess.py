@@ -7,9 +7,9 @@ import numpy as np
 import pandas as pd
 import torch
 
-from codriving.dataset_scripts.dataset import MPC_Block, adjust_future_deltas, rotation_matrix, transform_sumo2carla
-from codriving.config.config import NUM_PREDICT, OBS_LEN, PRED_LEN
-from codriving.dataset_scripts.utils.feature_utils import get_intention_from_vehicle_id
+from CoDriving.dataset_scripts.dataset import MPC_Block, adjust_future_deltas, rotation_matrix, transform_sumo2carla
+from CoDriving.config.config import NUM_PREDICT, OBS_LEN, PRED_LEN
+from CoDriving.dataset_scripts.utils.feature_utils import get_intention_from_vehicle_id
 from data_config import *
 
 import concurrent.futures

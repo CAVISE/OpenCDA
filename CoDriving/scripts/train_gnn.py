@@ -8,10 +8,10 @@ from torch_geometric.loader import DataLoader
 from tqdm import tqdm
 import pandas as pd
 
-from codriving.models.model_factory import ModelFactory
-from codriving.dataset_scripts.dataset import CarDataset
-from codriving.dataset_scripts.metrics_logger import MetricLogger
-from codriving.config.config import DT, OBS_LEN, PRED_LEN
+from CoDriving.models.model_factory import ModelFactory
+from CoDriving.dataset_scripts.dataset import CarDataset
+from CoDriving.dataset_scripts.metrics_logger import MetricLogger
+from CoDriving.config.config import DT, OBS_LEN, PRED_LEN
 from data_config import *
 
 
