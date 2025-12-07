@@ -8,8 +8,8 @@ import numpy as np
 import pandas as pd
 import sumolib
 from tqdm import trange
-from opencda.CoDriving.config import COLLECT_DATA_RADIUS, OBS_LEN, PRED_LEN, SAMPLE_RATE
-from utils.feature_utils import get_path_to_intention, get_center_coodinates
+from codriving.config.config import COLLECT_DATA_RADIUS, OBS_LEN, PRED_LEN, SAMPLE_RATE
+from .feature_utils import get_path_to_intention, get_center_coodinates
 
 
 def get_shortest_path(net_path: str, from_edge: str, to_edge: str) -> str:
@@ -132,8 +132,8 @@ def generate_sumocfg(sumo_files_path: str, rou_xml_filename: str, net_filename: 
     return sumocfg_filename
 
 
-def generate_csv_from_fcd(fcd_file: str, intention_config_path: str, time_per_scene: int, split: str = "train"):
-    csv_dir = os.path.join("csv", split)
+def generate_csv_from_fcd(fcd_file: str, csv_dir: str, intention_config_path: str, time_per_scene: int, split: str = "train"):
+    csv_dir = os.path.join(csv_dir, split)
     if os.path.exists(csv_dir):  # delete directory with old data if exists
         shutil.rmtree(csv_dir)
 

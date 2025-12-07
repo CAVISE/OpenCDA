@@ -1,8 +1,9 @@
 import torch
 from torch import nn
+from huggingface_hub import PyTorchModelHubMixin
 
 
-class GNN_mtl_mlp(torch.nn.Module):
+class GNN_mtl_mlp(torch.nn.Module, PyTorchModelHubMixin):
     def __init__(self, hidden_channels):
         super().__init__()
         torch.manual_seed(21)

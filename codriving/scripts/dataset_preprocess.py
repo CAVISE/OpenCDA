@@ -7,9 +7,10 @@ import numpy as np
 import pandas as pd
 import torch
 
-from dataset import MPC_Block, adjust_future_deltas, rotation_matrix, transform_sumo2carla
-from opencda.CoDriving.config import NUM_PREDICT, OBS_LEN, PRED_LEN
-from utils.feature_utils import get_intention_from_vehicle_id
+from codriving.dataset_scripts.dataset import MPC_Block, adjust_future_deltas, rotation_matrix, transform_sumo2carla
+from codriving.config.config import NUM_PREDICT, OBS_LEN, PRED_LEN
+from codriving.dataset_scripts.utils.feature_utils import get_intention_from_vehicle_id
+from data_config import *
 
 import concurrent.futures
 from multiprocessing import Value, Lock
@@ -109,7 +110,11 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     csv_folder = args.csv_folder
+    csv_folder = os.path.join(DATA_PATH, csv_folder)
+
     preprocess_folder = args.pkl_folder
+    preprocess_folder = os.path.join(DATA_PATH, preprocess_folder)
+
     os.makedirs(preprocess_folder, exist_ok=True)
     n_mpc_aug = args.num_mpc_aug
     processes = args.processes
@@ -119,7 +124,7 @@ if __name__ == "__main__":
     lock = Lock()
 
     csv_files = [i for i in os.listdir(csv_folder) if os.path.splitext(i)[1] == ".csv"]
-    intention_config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sumo", "intentions", intention_config)
+    intention_config_path = os.path.join(DATA_PATH, "sumo", "intentions", intention_config)
 
     print("Processing started")
     executor = concurrent.futures.ProcessPoolExecutor(max_workers=processes)

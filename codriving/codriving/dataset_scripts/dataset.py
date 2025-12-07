@@ -9,9 +9,8 @@ import torch
 from torch_geometric.data import Data, InMemoryDataset
 from tqdm import tqdm
 
-import add_moduls
-from MPC_XY_Frame.MPC_XY_Frame import linear_mpc_control_data_aug
-from config import DT, OBS_LEN, PRED_LEN
+from codriving.MPC_XY_Frame.MPC_XY_Frame import linear_mpc_control_data_aug
+from codriving.config.config import DT, OBS_LEN, PRED_LEN
 
 
 obs_len, pred_len, dt = OBS_LEN, PRED_LEN, DT

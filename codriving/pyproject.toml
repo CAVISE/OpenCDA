@@ -1,0 +1,11 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "codriving"
+version = "0.1.0"
+description = "codriving + YOLACNE"
+
+[tool.hatch.build.targets.wheel]
+packages = ["codriving"]
