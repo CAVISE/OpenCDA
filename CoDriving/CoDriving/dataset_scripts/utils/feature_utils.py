@@ -22,7 +22,9 @@ def get_path_to_intention(
 ) -> dict:
     config = load_path_to_intention_config(intention_config_path)
     if "paths" not in config:
-        raise KeyError(f'There is no "paths" parameter in {intention_config_path}. Please specify it')
+        raise KeyError(
+            f'There is no "paths" parameter in {intention_config_path}. Please specify it'
+        )
     return config["paths"]
 
 
@@ -38,7 +40,9 @@ def get_center_coodinates(
     return config["center_coordinates"]
 
 
-def get_intention_from_vehicle_id(vehicle_id: str, intention_config_path: str) -> np.ndarray:
+def get_intention_from_vehicle_id(
+    vehicle_id: str, intention_config_path: str
+) -> np.ndarray:
     """
     Parse the vehicle id to distinguish its intention.
     """
