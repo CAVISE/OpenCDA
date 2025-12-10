@@ -1,10 +1,8 @@
 import os
 
-from add_path import add_paths
 from data_config import EXPIREMENTS_PATH, DATA_PATH
+import add_path  # noqa: F401
 from CoDriving.train_scripts.train_one_config import train_one_config
-
-add_paths()
 
 
 def train():

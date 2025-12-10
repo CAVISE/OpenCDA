@@ -3,11 +3,15 @@ import os
 import sys
 import pickle
 
+from multiprocessing import Value, Lock
 import numpy as np
 import pandas as pd
 import torch
+import concurrent.futures
 
-from add_path import add_paths
+from data_config import DATA_PATH
+import add_path  # noqa: F401
+
 
 from CoDriving.dataset_scripts.dataset import (
     MPC_Block,
@@ -17,12 +21,6 @@ from CoDriving.dataset_scripts.dataset import (
 )
 from CoDriving.config.config import NUM_PREDICT, OBS_LEN, PRED_LEN
 from CoDriving.dataset_scripts.utils.feature_utils import get_intention_from_vehicle_id
-from data_config import DATA_PATH
-
-import concurrent.futures
-from multiprocessing import Value, Lock
-
-add_paths()
 
 
 def process_file(csv_file, intentuion_config):
