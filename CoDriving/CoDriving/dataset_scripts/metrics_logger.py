@@ -5,9 +5,7 @@ import logging
 
 
 class MetricLogger:
-    def __init__(
-        self, logfile_path: str, plotfile_path: str, enable_plot: bool, max_points=1000
-    ):
+    def __init__(self, logfile_path: str, plotfile_path: str, enable_plot: bool, max_points=1000):
         self.logfile_path = logfile_path
         self.plotfile_path = plotfile_path
         os.makedirs(os.path.dirname(self.logfile_path), exist_ok=True)
@@ -32,13 +30,9 @@ class MetricLogger:
     def clear_file(self):
         open(self.logfile_path, "w").close()
 
-    def add_metric_points(
-        self, epochs: list[int], timestamps: list[float], metrics: list[float]
-    ):
+    def add_metric_points(self, epochs: list[int], timestamps: list[float], metrics: list[float]):
         if not (len(epochs) == len(timestamps) == len(metrics)):
-            self.logger.error(
-                "METRIC LOG ERROR: lens of given epochs, timestamps, metrics arent the same <<<<<"
-            )
+            self.logger.error("METRIC LOG ERROR: lens of given epochs, timestamps, metrics arent the same <<<<<")
             return
 
         lines = []

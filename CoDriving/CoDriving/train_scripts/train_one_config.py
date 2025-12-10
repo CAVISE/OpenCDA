@@ -115,19 +115,11 @@ def get_optimizer(optimizer_name: str):
 
 def init_dataloaders(train_data_dir: str, val_data_dir: str, batch_size):
     try:
-        train_dataset = CarDataset(
-            preprocess_folder=train_data_dir, mlp=False, mpc_aug=True
-        )
-        train_loader = DataLoader(
-            train_dataset, batch_size=batch_size, shuffle=True, drop_last=False
-        )
+        train_dataset = CarDataset(preprocess_folder=train_data_dir, mlp=False, mpc_aug=True)
+        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, drop_last=False)
 
-        val_dataset = CarDataset(
-            preprocess_folder=val_data_dir, mlp=False, mpc_aug=True
-        )
-        val_loader = DataLoader(
-            val_dataset, batch_size=batch_size, shuffle=False, drop_last=False
-        )
+        val_dataset = CarDataset(preprocess_folder=val_data_dir, mlp=False, mpc_aug=True)
+        val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, drop_last=False)
         return train_loader, val_loader
 
     except Exception as error:
@@ -135,17 +127,13 @@ def init_dataloaders(train_data_dir: str, val_data_dir: str, batch_size):
         return None, None
 
 
-def init_model(
-    model_config_path: str, optimizer_str: str, device: str, lr, weight_decay=None
-):
+def init_model(model_config_path: str, optimizer_str: str, device: str, lr, weight_decay=None):
     model = ModelFactory.create_model(model_config_path)
     model = model.to(device)
     print(model)
 
     optimizer_cls = get_optimizer(optimizer_str)
-    optimizer = optimizer_cls(
-        params=model.parameters(), lr=lr, weight_decay=weight_decay
-    )
+    optimizer = optimizer_cls(params=model.parameters(), lr=lr, weight_decay=weight_decay)
     return model, optimizer
 
 
@@ -186,9 +174,7 @@ def train_one_epoch(
         out = out.reshape(-1, 30, 2)  # [v, pred, 2]
         out = out.permute(0, 2, 1)  # [v, 2, pred]
         yaw = batch.x[:, 3].detach().cpu().numpy()
-        rotations = torch.stack(
-            [rotation_matrix_back(yaw[i]) for i in range(batch.x.shape[0])]
-        ).to(out.device)
+        rotations = torch.stack([rotation_matrix_back(yaw[i]) for i in range(batch.x.shape[0])]).to(out.device)
         out = torch.bmm(rotations, out).permute(0, 2, 1)  # [v, pred, 2]
         out += batch.x[:, [0, 1]].unsqueeze(1)
         # [x, y, v, yaw, acc, steering]
@@ -202,9 +188,7 @@ def train_one_epoch(
             dist = torch.linalg.norm(out[_edge[:, 0]] - out[_edge[:, 1]], dim=-1)
             dist = dist_threshold - dist[dist < dist_threshold]
 
-            if (
-                dist.numel()
-            ):  # there are can be no cars with small distanses so it will be empty
+            if dist.numel():  # there are can be no cars with small distanses so it will be empty
                 _collision_penalty = dist.square().mean()
                 loss += _collision_penalty * collision_penalty_factor
 
@@ -251,9 +235,7 @@ def evaluate(
 
             out = out.permute(0, 2, 1)  # [v, 2, pred]
             yaw = batch.x[:, 3].detach().cpu().numpy()
-            rotations = torch.stack(
-                [rotation_matrix_back(yaw[i]) for i in range(batch.x.shape[0])]
-            ).to(out.device)
+            rotations = torch.stack([rotation_matrix_back(yaw[i]) for i in range(batch.x.shape[0])]).to(out.device)
             out = torch.bmm(rotations, out).permute(0, 2, 1)  # [v, pred, 2]
             out += batch.x[:, [0, 1]].unsqueeze(1)
 
@@ -268,17 +250,11 @@ def evaluate(
 
             mask = batch.edge_index[0, :] < batch.edge_index[1, :]
             _edge = batch.edge_index[:, mask].T  # [edge',2]
-            dist = torch.linalg.norm(
-                out[_edge[:, 0]] - out[_edge[:, 1]], dim=-1
-            )  # [edge, 30]
+            dist = torch.linalg.norm(out[_edge[:, 0]] - out[_edge[:, 1]], dim=-1)  # [edge, 30]
 
             collision_penalty = dist_threshold - dist[dist < dist_threshold]
-            if (
-                collision_penalty.numel()
-            ):  # there are can be no cars with small distanses so it will be empty
-                collision_penalty = (
-                    collision_penalty.square().mean() * collision_penalty_factor
-                )
+            if collision_penalty.numel():  # there are can be no cars with small distanses so it will be empty
+                collision_penalty = collision_penalty.square().mean() * collision_penalty_factor
                 collision_penalties.append(collision_penalty)
 
             dist = torch.min(dist, dim=-1)[0]
@@ -352,9 +328,7 @@ def train_one_config(
     push_to_hf = train_config.push_to_hf
     hf_project_path = train_config.hf_project_path
 
-    train_loader, val_loader = init_dataloaders(
-        path_config.train_data_dir, path_config.val_data_dir, train_config.batch_size
-    )
+    train_loader, val_loader = init_dataloaders(path_config.train_data_dir, path_config.val_data_dir, train_config.batch_size)
     model, optimizer = init_model(
         path_config.copy_model_config_path,
         train_config.optimizer,
@@ -371,9 +345,7 @@ def train_one_config(
     patience = 100
     record = []
 
-    loss_logger = MetricLogger(
-        path_config.loss_logs_path, path_config.logs_plot_path, enable_plot=True
-    )
+    loss_logger = MetricLogger(path_config.loss_logs_path, path_config.logs_plot_path, enable_plot=True)
     loss_logger.clear_file()
 
     metric_loggers = {}
@@ -396,9 +368,7 @@ def train_one_config(
             train_config.collision_penalty,
             train_config.collision_penalty_factor,
         )
-        loss_logger.add_metric_points(
-            [epoch], [epoch * len(train_loader)], [epoch_loss]
-        )
+        loss_logger.add_metric_points([epoch], [epoch * len(train_loader)], [epoch_loss])
 
         if epoch % metrics_log_epoch_frequency == 0:
             ade, fde, mr, collision_rate, val_loss, collision_penalties = evaluate(
@@ -434,9 +404,7 @@ def train_one_config(
 
             elif (epoch - best_epoch) > patience:
                 if patience > 1600:  # x16
-                    print(
-                        f"Earlier stops, Best Epoch: {best_epoch}, Min ADE: {min_ade}, Min FDE: {min_fde}, MR: {mr}, CR:{collision_rate}"
-                    )
+                    print(f"Earlier stops, Best Epoch: {best_epoch}, Min ADE: {min_ade}, Min FDE: {min_fde}, MR: {mr}, CR:{collision_rate}")
                     break
                 else:
                     optimizer.param_groups[0]["lr"] *= 0.5

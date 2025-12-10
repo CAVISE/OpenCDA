@@ -45,9 +45,7 @@ class P:
     Qf = np.diag(
         base_params["qf"]
     )  # penalty for end state # Dekai: since now we only trace a single target point but not a desired traj, only Qf is used but not Q
-    R = np.diag(
-        base_params["r"]
-    )  # penalty for inputs  # Dekai: had better choose large penalty for steering to avoid zig-zag
+    R = np.diag(base_params["r"])  # penalty for inputs  # Dekai: had better choose large penalty for steering to avoid zig-zag
     Rd = np.diag(base_params["rd"])  # penalty for change of inputs
 
     dist_stop = base_params["dist_stop"]  # stop permitted when dist to goal < dist_stop
@@ -70,9 +68,7 @@ class P:
     TW = vehicle_params["tw"]  # [m] Tyre width
 
     steer_max = np.deg2rad(vehicle_params["steer_max"])  # max steering angle [rad]
-    steer_change_max = np.deg2rad(
-        vehicle_params["steer_change_max"]
-    )  # maximum steering speed [rad/s]
+    steer_change_max = np.deg2rad(vehicle_params["steer_change_max"])  # maximum steering speed [rad/s]
     speed_max = vehicle_params["speed_max"]  # maximum speed [m/s]
     speed_min = vehicle_params["speed_min"]  # minimum speed [m/s]
     acceleration_max = vehicle_params["acceleration_max"]  # maximum acceleration [m/s2]
@@ -151,9 +147,7 @@ class PATH:
         ind = self.ind_old + ind_in_N
         self.ind_old = ind
 
-        rear_axle_vec_rot_90 = np.array(
-            [[math.cos(node.yaw + math.pi / 2.0)], [math.sin(node.yaw + math.pi / 2.0)]]
-        )
+        rear_axle_vec_rot_90 = np.array([[math.cos(node.yaw + math.pi / 2.0)], [math.sin(node.yaw + math.pi / 2.0)]])
 
         vec_target_2_rear = np.array([[dx[ind_in_N]], [dy[ind_in_N]]])
 
@@ -292,9 +286,7 @@ def linear_mpc_control_data_aug(z_ref, z0, a_old, delta_old):
     for k in range(P.iter_max):
         z_bar = predict_states_in_T_step(z0, a_old, delta_old, z_ref, pred_len=P.T_aug)
         a_rec, delta_rec = a_old[:], delta_old[:]
-        a_old, delta_old, x, y, yaw, v = solve_linear_mpc(
-            z_ref, z_bar, z0, delta_old, pred_len=P.T_aug
-        )
+        a_old, delta_old, x, y, yaw, v = solve_linear_mpc(z_ref, z_bar, z0, delta_old, pred_len=P.T_aug)
 
         du_a_max = max([abs(ia - iao) for ia, iao in zip(a_old, a_rec)])
         du_d_max = max([abs(ide - ido) for ide, ido in zip(delta_old, delta_rec)])
@@ -305,9 +297,7 @@ def linear_mpc_control_data_aug(z_ref, z0, a_old, delta_old):
     return a_old, delta_old, x, y, yaw, v
 
 
-def predict_states_in_T_step(
-    z0: list, a: np.ndarray, delta: np.ndarray, z_ref: np.ndarray, pred_len: int = P.T
-):
+def predict_states_in_T_step(z0: list, a: np.ndarray, delta: np.ndarray, z_ref: np.ndarray, pred_len: int = P.T):
     """
     given the current state, using the acceleration and delta strategy of last time,
     predict the states of vehicle in T steps.
@@ -335,9 +325,7 @@ def predict_states_in_T_step(
     return z_bar
 
 
-def predict_states_in_T_step_2(
-    curr_state: Node, a: np.ndarray, delta: np.ndarray, T: int = P.T
-) -> np.ndarray:
+def predict_states_in_T_step_2(curr_state: Node, a: np.ndarray, delta: np.ndarray, T: int = P.T) -> np.ndarray:
     """
     given the current state, using the acceleration and delta strategy of last time,
     predict the states of vehicle in T steps.
@@ -464,9 +452,7 @@ def solve_linear_mpc(
     return a, delta, x, y, yaw, v
 
 
-def solve_linear_mpc_2(
-    z_target: np.ndarray, z_bar: np.ndarray, z0: list, d_bar: np.ndarray
-):
+def solve_linear_mpc_2(z_target: np.ndarray, z_bar: np.ndarray, z0: list, d_bar: np.ndarray):
     """
     solve the quadratic optimization problem using cvxpy, solver: OSQP
     :param z_target: [4], target destination (desired: [x, y, v, yaw])
@@ -597,9 +583,7 @@ def MPC_module(
     for k in range(P.iter_max):
         z_bar = predict_states_in_T_step_2(curr_state, a_old, delta_old, T)
         a_rec, delta_rec = a_old[:], delta_old[:]
-        a_old, delta_old, x, y, yaw, v = solve_linear_mpc_2(
-            target_state, z_bar, z0, delta_old
-        )
+        a_old, delta_old, x, y, yaw, v = solve_linear_mpc_2(target_state, z_bar, z0, delta_old)
 
         du_a_max = max([abs(ia - iao) for ia, iao in zip(a_old, a_rec)])
         du_d_max = max([abs(ide - ido) for ide, ido in zip(delta_old, delta_rec)])

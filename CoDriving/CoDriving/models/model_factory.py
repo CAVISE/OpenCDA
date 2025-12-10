@@ -55,9 +55,7 @@ class ModelFactory:
                     raise IncorrectModelName()
 
                 class_name = cls.model_list_config[model_key][FACTORY_YAML_CLASS_FIELD]
-                module_name = cls.model_list_config[model_key][
-                    FACTORY_YAML_MODULE_FIELD
-                ]
+                module_name = cls.model_list_config[model_key][FACTORY_YAML_MODULE_FIELD]
                 module = importlib.import_module(module_name)
                 cls = getattr(module, class_name)
 
@@ -72,8 +70,6 @@ if __name__ == "__main__":
     factory = ModelFactory()
     models = factory.get_model_list()
 
-    model_config_path = os.path.join(
-        CURRENT_DIR, "all_models/GNN_mtl_gnn/GNN_mtl_gnn.yaml"
-    )
+    model_config_path = os.path.join(CURRENT_DIR, "all_models/GNN_mtl_gnn/GNN_mtl_gnn.yaml")
     model = factory.create_model(model_config_path)
     print(model)

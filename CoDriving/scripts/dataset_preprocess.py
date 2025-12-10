@@ -55,15 +55,10 @@ def process_file(csv_file, intentuion_config):
         x = all_features[:, row, :7]  # [vehicle, 7]
 
         # translate and then rotate Gt
-        y = (
-            all_features[:, row + 1 : row + 1 + NUM_PREDICT, :2]
-            - all_features[:, row : row + 1, :2]
-        ).transpose(
+        y = (all_features[:, row + 1 : row + 1 + NUM_PREDICT, :2] - all_features[:, row : row + 1, :2]).transpose(
             0, 2, 1
         )  # [vehicle, PRED_LEN, 2] -> [vehicle, 2, PRED_LEN]
-        rotations = np.array(
-            [rotation_matrix(x[i][3]) for i in range(x.shape[0])]
-        )  # [vehicle, 2, 2]
+        rotations = np.array([rotation_matrix(x[i][3]) for i in range(x.shape[0])])  # [vehicle, 2, 2]
         # [vehicle, 2, PRED_LEN], transform y into local coordinate system
         y = rotations @ y
         y = y.transpose(0, 2, 1)  # [vehicle, PRED_LEN, 2]
@@ -80,18 +75,12 @@ def process_file(csv_file, intentuion_config):
         )  # [vehicle, 4], [vehicle, PRED_LEN, 6]: [x, y, v, yaw, acc, delta]
         # store the control vector to accelerate future MPC opt
         all_features[:, row + 1 : row + 1 + NUM_PREDICT, -2:] = mpc_output[:, :, -2:]
-        speed = all_features[
-            :, row + 1 : row + 1 + NUM_PREDICT, 2:3
-        ]  # [vehicle, PRED_LEN, 1]
+        speed = all_features[:, row + 1 : row + 1 + NUM_PREDICT, 2:3]  # [vehicle, PRED_LEN, 1]
         yaw = (
-            all_features[:, row + 1 : row + 1 + NUM_PREDICT, 3:4]
-            - all_features[:, row : row + 1, 3:4]
-            + np.pi / 2
+            all_features[:, row + 1 : row + 1 + NUM_PREDICT, 3:4] - all_features[:, row : row + 1, 3:4] + np.pi / 2
         )  # [vehicle, PRED_LEN, 1], align the initial direction to +y
         # [vehicle, PRED_LEN*6]
-        y = np.concatenate((y, speed, yaw, mpc_output[:, :, -2:]), axis=2).reshape(
-            num_cars, -1
-        )
+        y = np.concatenate((y, speed, yaw, mpc_output[:, :, -2:]), axis=2).reshape(num_cars, -1)
         data = (
             torch.tensor(x, dtype=torch.float),
             torch.tensor(y, dtype=torch.float),
@@ -112,16 +101,10 @@ def process_file(csv_file, intentuion_config):
             )  # [vehicle, 4], [vehicle, PRED_LEN, 6]: [x, y, v, yaw, acc, delta]
             x_argumented = x.copy()
             x_argumented[:, :2] = shifted_curr[:, :2]
-            y = (
-                mpc_output[:, :, :2] - np.expand_dims(shifted_curr[:, :2], axis=1)
-            ).transpose(
-                0, 2, 1
-            )  # [vehicle, 2, PRED_LEN]
+            y = (mpc_output[:, :, :2] - np.expand_dims(shifted_curr[:, :2], axis=1)).transpose(0, 2, 1)  # [vehicle, 2, PRED_LEN]
             y = rotations @ y
             y = y.transpose(0, 2, 1)  # [vehicle, PRED_LEN, 2]
-            mpc_output[:, :, 3:4] = (
-                mpc_output[:, :, 3:4] - all_features[:, row : row + 1, 3:4] + np.pi / 2
-            )
+            mpc_output[:, :, 3:4] = mpc_output[:, :, 3:4] - all_features[:, row : row + 1, 3:4] + np.pi / 2
             # [vehicle, PRED_LEN, 6]
             y = np.concatenate((y, mpc_output[:, :, 2:]), axis=-1)
             y = y.reshape(num_cars, -1)
@@ -158,9 +141,7 @@ if __name__ == "__main__":
         help="path to the preprocessed data (*.pkl)",
         default="csv/train_pre",
     )
-    parser.add_argument(
-        "--num_mpc_aug", type=int, help="number of MPC augmentation", default=2
-    )
+    parser.add_argument("--num_mpc_aug", type=int, help="number of MPC augmentation", default=2)
     parser.add_argument(
         "--processes",
         type=int,
@@ -190,17 +171,12 @@ if __name__ == "__main__":
     lock = Lock()
 
     csv_files = [i for i in os.listdir(csv_folder) if os.path.splitext(i)[1] == ".csv"]
-    intention_config_path = os.path.join(
-        DATA_PATH, "sumo", "intentions", intention_config
-    )
+    intention_config_path = os.path.join(DATA_PATH, "sumo", "intentions", intention_config)
 
     print("Processing started")
     executor = concurrent.futures.ProcessPoolExecutor(max_workers=processes)
     try:
-        futures = [
-            executor.submit(process_file, file, intention_config_path)
-            for file in csv_files
-        ]
+        futures = [executor.submit(process_file, file, intention_config_path) for file in csv_files]
         for future in concurrent.futures.as_completed(futures):
             try:
                 future.result()
@@ -208,9 +184,7 @@ if __name__ == "__main__":
                 print(f"Error: {e}")
         print("Done")
     except KeyboardInterrupt:
-        print(
-            "\nInterrupted by the user. Termination of tasks has begun. It may take some time."
-        )
+        print("\nInterrupted by the user. Termination of tasks has begun. It may take some time.")
         print("!!!DON'T INTERRUPT IT, JUST WAIT!!!")
         for f in futures:
             f.cancel()

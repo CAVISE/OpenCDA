@@ -109,9 +109,7 @@ class CarDataset(InMemoryDataset):
                     weights=weights,
                 )
             else:
-                graph = Data(
-                    x=data[0], y=data[1], edge_index=data[2], t=data[3], weights=weights
-                )
+                graph = Data(x=data[0], y=data[1], edge_index=data[2], t=data[3], weights=weights)
             # [v,7], [v, pred_len*6], [2, edge], []
             graphs.append(graph)
 
@@ -132,13 +130,9 @@ def adjust_future_deltas(curr_states, future_states) -> None:
 
     for i_vehicle in range(num_vehicle):
         for i_step in range(num_step):
-            if (
-                future_states[i_vehicle, i_step, 3] - curr_states[i_vehicle, 3]
-            ) < -np.pi:
+            if (future_states[i_vehicle, i_step, 3] - curr_states[i_vehicle, 3]) < -np.pi:
                 future_states[i_vehicle, i_step, 3] += 2 * np.pi
-            elif (
-                future_states[i_vehicle, i_step, 3] - curr_states[i_vehicle, 3]
-            ) > np.pi:
+            elif (future_states[i_vehicle, i_step, 3] - curr_states[i_vehicle, 3]) > np.pi:
                 future_states[i_vehicle, i_step, 3] -= 2 * np.pi
 
     return None
@@ -166,9 +160,7 @@ def MPC_Block(
     shifted_curr = np.zeros((num_vehicles, 4))
     mpc_output = np.zeros((num_vehicles, pred_len, 6))
     for v in range(num_vehicles):
-        shifted_curr[v], mpc_output[v] = MPC_module(
-            curr_states[v], target_states[v], acc_delta_old[v], noise_range
-        )
+        shifted_curr[v], mpc_output[v] = MPC_module(curr_states[v], target_states[v], acc_delta_old[v], noise_range)
     return shifted_curr, mpc_output
 
 
@@ -197,22 +189,16 @@ def MPC_module(
         noise_direction = curr_state_v[3] - np.deg2rad(90)
         # TODO: uniform or Gaussian distribution?
         noise_length = np.random.uniform(low=-1, high=1) * noise_range
-        noise = (
-            np.array([np.cos(noise_direction), np.sin(noise_direction)]) * noise_length
-        )
+        noise = np.array([np.cos(noise_direction), np.sin(noise_direction)]) * noise_length
         curr_state_v[:2] += noise
 
     curr_state_v = curr_state_v.reshape(1, 4)
 
-    target_states_v = np.concatenate(
-        (curr_state_v, target_states_v), axis=0
-    )  # [pred_len+1, 4]
+    target_states_v = np.concatenate((curr_state_v, target_states_v), axis=0)  # [pred_len+1, 4]
     _curr_state_v = curr_state_v.reshape(-1).tolist()
 
     target_states_v = target_states_v.T
-    a_opt, delta_opt, x_opt, y_opt, v_opt, yaw_opt = linear_mpc_control_data_aug(
-        target_states_v, _curr_state_v, a_old, delta_old
-    )
+    a_opt, delta_opt, x_opt, y_opt, v_opt, yaw_opt = linear_mpc_control_data_aug(target_states_v, _curr_state_v, a_old, delta_old)
 
     mpc_output = np.concatenate(
         (

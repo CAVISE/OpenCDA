@@ -47,15 +47,11 @@ if __name__ == "__main__":
     intention_config = args.intention_config
 
     now = datetime.now().strftime("%m-%d-%H-%M")
-    route_filename = (
-        f"{now}-{num_seconds:0>5}-{create_new_vehicle_prob}-{split}-{random_seed}"
-    )
+    route_filename = f"{now}-{num_seconds:0>5}-{create_new_vehicle_prob}-{split}-{random_seed}"
     TRAFFIC_SCALE = 1.0  # regulate the traffic flow
     LENGTH_PER_SCENE = (PRED_LEN + OBS_LEN) // SAMPLE_RATE
 
-    logging.basicConfig(
-        format="%(asctime)s - %(levelname)s: %(message)s", level=logging.INFO
-    )
+    logging.basicConfig(format="%(asctime)s - %(levelname)s: %(message)s", level=logging.INFO)
     sumo_files_path = os.path.join(DATA_PATH, "sumo")
 
     # Generate rou.xml and sumocfg files
@@ -68,9 +64,7 @@ if __name__ == "__main__":
         net_xml_filename=net_filename,
         intention_config_filename=intention_config,
     )
-    sumocfg_path = generate_sumocfg(
-        sumo_files_path, route_filename, net_filename
-    )  # type: ignore
+    sumocfg_path = generate_sumocfg(sumo_files_path, route_filename, net_filename)  # type: ignore
 
     csv_dir_path = os.path.join(DATA_PATH, "csv")
     fcd_dir_path = os.path.join(DATA_PATH, "fcd")
@@ -81,12 +75,8 @@ if __name__ == "__main__":
     fcd_file = os.path.join(fcd_dir_path, f"{route_filename}.xml")
     logging.info(f"Generating {fcd_file}...")
     generate_fcd(sumocfg_path, fcd_file, 0, 0, num_seconds, DT, TRAFFIC_SCALE)
-    intention_config_path = os.path.join(
-        sumo_files_path, "intentions", intention_config
-    )
+    intention_config_path = os.path.join(sumo_files_path, "intentions", intention_config)
 
     # Generate csv files
     logging.info(f"Generating csv files in csv/{split}...")
-    generate_csv_from_fcd(
-        fcd_file, csv_dir_path, intention_config_path, LENGTH_PER_SCENE, split
-    )
+    generate_csv_from_fcd(fcd_file, csv_dir_path, intention_config_path, LENGTH_PER_SCENE, split)
