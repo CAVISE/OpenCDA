@@ -1,0 +1,20 @@
+lr: 0.001
+epoch: 50
+metrics_log_epoch_frequency: 1
+batch_size: 256
+optimizer: adam
+weight_decay: 0.001
+collision_penalty: true
+collision_penalty_factor: 200
+step_weights_factor: 5
+dist_threshold: 4
+mr_threshold: 4
+
+clear_exp_checkpoints: true
+exp_id: test
+logs_dir_path: logs
+train_data_dir: csv/train_pre
+val_data_dir: csv/val_pre
+
+push_to_hf: true
+hf_project_path: kijjjj/test-model1

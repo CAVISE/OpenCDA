@@ -28,6 +28,19 @@ def rotation_matrix(yaw):
   return rotation
 
 
+def rotation_matrix_back(yaw):
+  """
+  Rotate back.
+  https://en.wikipedia.org/wiki/Rotation_matrix#Non-standard_orientation_of_the_coordinate_system
+  """
+  rotation = np.array([
+      [np.cos(-np.pi / 2 + yaw), -np.sin(-np.pi / 2 + yaw)],
+      [np.sin(-np.pi / 2 + yaw), np.cos(-np.pi / 2 + yaw)]
+  ])
+  rotation = torch.tensor(rotation).float()
+  return rotation
+
+
 class CarDataset(InMemoryDataset):
   # read from preprocessed data
   def __init__(self, preprocess_folder, plot=False, mlp=False, mpc_aug=True):
@@ -36,7 +49,8 @@ class CarDataset(InMemoryDataset):
     self.mlp = mlp
     self.mpc_aug = mpc_aug
     super().__init__(preprocess_folder)
-    self.data, self.slices = torch.load(self.processed_paths[0], weights_only=False)
+    self.data, self.slices = torch.load(
+        self.processed_paths[0], weights_only=False)
 
   @property
   def processed_file_names(self):
@@ -73,8 +87,10 @@ class CarDataset(InMemoryDataset):
       # t: [], row index in a csv file
       n_v = data[0].shape[0]
       weights = torch.ones(n_v)
-      turn_index = (data[0][:, 4] + data[0][:, 6]).bool()  # left- and right-turn cases with higher weights
-      center_index1 = (data[0][:, 0].abs() < 30) * (data[0][:, 1].abs() < 30)  # vehicles in the central area with higher weights
+      # left- and right-turn cases with higher weights
+      turn_index = (data[0][:, 4] + data[0][:, 6]).bool()
+      # vehicles in the central area with higher weights
+      center_index1 = (data[0][:, 0].abs() < 30) * (data[0][:, 1].abs() < 30)
       center_index2 = (data[0][:, 0].abs() < 40) * (data[0][:, 1].abs() < 40)
       weights[turn_index] *= 1.5
       weights[center_index1] *= 4
@@ -130,7 +146,8 @@ def MPC_Block(curr_states: np.ndarray, target_states: np.ndarray, acc_delta_old:
   shifted_curr = np.zeros((num_vehicles, 4))
   mpc_output = np.zeros((num_vehicles, pred_len, 6))
   for v in range(num_vehicles):
-    shifted_curr[v], mpc_output[v] = MPC_module(curr_states[v], target_states[v], acc_delta_old[v], noise_range)
+    shifted_curr[v], mpc_output[v] = MPC_module(
+        curr_states[v], target_states[v], acc_delta_old[v], noise_range)
   return shifted_curr, mpc_output
 
 
@@ -152,17 +169,21 @@ def MPC_module(curr_state_v: np.ndarray, target_states_v: np.ndarray, acc_delta_
   if noise_range > 0:
     curr_state_v = curr_state_v.copy()  # avoid add noise in-place
     noise_direction = curr_state_v[3] - np.deg2rad(90)
-    noise_length = np.random.uniform(low=-1, high=1) * noise_range  # TODO: uniform or Gaussian distribution?
-    noise = np.array([np.cos(noise_direction), np.sin(noise_direction)]) * noise_length
+    # TODO: uniform or Gaussian distribution?
+    noise_length = np.random.uniform(low=-1, high=1) * noise_range
+    noise = np.array(
+        [np.cos(noise_direction), np.sin(noise_direction)]) * noise_length
     curr_state_v[:2] += noise
 
   curr_state_v = curr_state_v.reshape(1, 4)
 
-  target_states_v = np.concatenate((curr_state_v, target_states_v), axis=0)  # [pred_len+1, 4]
+  target_states_v = np.concatenate(
+      (curr_state_v, target_states_v), axis=0)  # [pred_len+1, 4]
   _curr_state_v = curr_state_v.reshape(-1).tolist()
 
   target_states_v = target_states_v.T
-  a_opt, delta_opt, x_opt, y_opt, v_opt, yaw_opt = linear_mpc_control_data_aug(target_states_v, _curr_state_v, a_old, delta_old)
+  a_opt, delta_opt, x_opt, y_opt, v_opt, yaw_opt = linear_mpc_control_data_aug(
+      target_states_v, _curr_state_v, a_old, delta_old)
 
   mpc_output = np.concatenate(
       (
@@ -198,4 +219,5 @@ def transform_sumo2carla(states: np.ndarray):
 
 if __name__ == "__main__":
   train_folder = "csv/train_pre"
-  train_dataset = CarDataset(preprocess_folder=train_folder, mlp=False, mpc_aug=True)
+  train_dataset = CarDataset(
+      preprocess_folder=train_folder, mlp=False, mpc_aug=True)

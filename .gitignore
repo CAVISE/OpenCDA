@@ -1,9 +1,4 @@
-*
-!CoDriving
-
-csv
-fcd
-training_params
+.vscode
 
 __pycache__/
 *.py[cod]
