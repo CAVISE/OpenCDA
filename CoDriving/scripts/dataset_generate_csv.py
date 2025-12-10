@@ -3,16 +3,18 @@ import logging
 import os
 from datetime import datetime
 
-from add_path import *
+from add_path import add_paths
 
 from CoDriving.config.config import DT, OBS_LEN, PRED_LEN, SAMPLE_RATE
-from data_config import *
+from data_config import DATA_PATH
 from CoDriving.dataset_scripts.utils.generate_csv_utils import (
     generate_csv_from_fcd,
     generate_fcd,
     generate_routefile,
     generate_sumocfg,
 )
+
+add_paths()
 
 
 if __name__ == "__main__":

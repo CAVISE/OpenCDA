@@ -1,8 +1,10 @@
 import os
 
-from add_path import *
-from data_config import *
+from add_path import add_paths
+from data_config import EXPIREMENTS_PATH, DATA_PATH
 from CoDriving.train_scripts.train_one_config import train_one_config
+
+add_paths()
 
 
 def train():

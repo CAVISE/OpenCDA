@@ -1,8 +1,6 @@
 import os
 from pathlib import Path
 import yaml
-import argparse
-import pickle
 import shutil
 from tqdm import tqdm
 import torch
@@ -14,7 +12,7 @@ import pandas as pd
 from CoDriving.models.model_factory import ModelFactory
 from CoDriving.dataset_scripts.dataset import CarDataset, rotation_matrix_back
 from CoDriving.dataset_scripts.metrics_logger import MetricLogger
-from CoDriving.config.config import DT, OBS_LEN, PRED_LEN
+# from CoDriving.config.config import DT, OBS_LEN, PRED_LEN
 
 
 class Dict2Class(object):

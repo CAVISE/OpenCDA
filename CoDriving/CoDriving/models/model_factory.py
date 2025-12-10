@@ -4,7 +4,13 @@ import importlib
 import os
 from huggingface_hub import PyTorchModelHubMixin
 
-from .model_factory_config import *
+from .model_factory_config import (
+  MODEL_LIST_PATH, 
+  FACTORY_YAML_MODELS_FIELD, 
+  FACTORY_YAML_CLASS_FIELD, 
+  FACTORY_YAML_MODULE_FIELD, 
+  CURRENT_DIR
+  )
 
 
 class IncorrectModelName(Exception):
@@ -45,7 +51,7 @@ class ModelFactory:
       models = []
 
       for model_key in yaml_config.keys():
-        if not model_key in cls.model_list:
+        if model_key not in cls.model_list:
           raise IncorrectModelName()
 
         class_name = cls.model_list_config[model_key][FACTORY_YAML_CLASS_FIELD]
