@@ -22,15 +22,14 @@ lr_scheduler:
   core_method: multistep
   gamma: 0.1
   step_size:
-  - 10
-  - 20
+  - 15
+  - 30
 model:
   args:
     anchor_num: 2
     anchor_number: 2
     backbone_3d: []
     base_bev_backbone:
-      compression: 2
       layer_nums:
       - 5
       - 5
@@ -97,7 +96,7 @@ optimizer:
     eps: 1.0e-10
     weight_decay: 0.0001
   core_method: Adam
-  lr: 0.001
+  lr: 0.002
 postprocess:
   gt_range: *id001
   anchor_args:
@@ -123,7 +122,7 @@ postprocess:
   target_args:
     neg_threshold: 0.45
     pos_threshold: 0.6
-    score_threshold: 0.2
+    score_threshold: 0.5
 preprocess:
   args:
     max_points_per_voxel: 5
@@ -132,11 +131,12 @@ preprocess:
     voxel_size: *id002
   cav_lidar_range: *id001
   core_method: SpVoxelPreprocessor
-root_dir: "/data/opv2v/train"
+root_dir: /home/opencda/cavise/opencda/opv2v_data_dumping/validate
 train_params:
-  batch_size: &batch_size 4
-  epoches: 20
+  batch_size: 1
+  epoches: 60
   eval_freq: 1
+  num_workers: 0
   save_freq: 1
 validate_dir: "simulation_output/data_dumping/sample"
 yaml_parser: load_second_params
