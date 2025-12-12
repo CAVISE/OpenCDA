@@ -131,7 +131,7 @@ preprocess:
     voxel_size: *id002
   cav_lidar_range: *id001
   core_method: SpVoxelPreprocessor
-root_dir: /home/opencda/cavise/opencda/opv2v_data_dumping/validate
+root_dir: /data/opv2v/train
 train_params:
   batch_size: 1
   epoches: 60
