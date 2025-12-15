@@ -1,17 +1,16 @@
-lr: 0.001
-epoch: 50
-metrics_log_epoch_frequency: 1
+lr: 0.0001
+epoch: 400
 batch_size: 256
 optimizer: adam
-weight_decay: 0.001
+weight_decay: 0.0001
 collision_penalty: true
-collision_penalty_factor: 200
+collision_penalty_factor: 500
 step_weights_factor: 5
 dist_threshold: 4
 mr_threshold: 4
 
+metrics_log_epoch_frequency: 2
 clear_exp_checkpoints: true
-exp_id: test
 logs_dir_path: logs
 train_data_dir: csv/train_pre
 val_data_dir: csv/val_pre

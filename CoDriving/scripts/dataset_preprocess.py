@@ -9,7 +9,7 @@ import pandas as pd
 import torch
 import concurrent.futures
 
-from data_config import DATA_PATH
+from CoDriving.scripts.data_config import DATA_PATH
 import add_path  # noqa: F401
 
 

@@ -3,7 +3,7 @@ import logging
 import os
 from datetime import datetime
 
-from data_config import DATA_PATH
+from CoDriving.scripts.data_config import DATA_PATH
 import add_path  # noqa: F401
 
 

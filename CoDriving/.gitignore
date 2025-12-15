@@ -1,5 +1,12 @@
+data/csv
+data/fcd
+data/sumo/sumocfg/*.sumocfg
+!data/sumo/sumocfg/template.sumocfg
+data/sumo/route
+data/sumo/intentions/*.json
+!data/sumo/intentions/simple_separate_10m_intentions.json
+
 experements/*
-experements/test/checkpoints
-experements/test/logs
-!experements/test/
-!experements/test/*.yaml
+experements_configs/*
+!experements_configs/model_config.yaml
+!experements_configs/train_config.yaml

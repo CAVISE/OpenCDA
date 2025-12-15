@@ -259,7 +259,7 @@ def evaluate(
 
             dist = torch.min(dist, dim=-1)[0]
             n_edge.append(len(dist))
-            n_collision.append((dist < 2).sum().item())
+            n_collision.append((dist < dist_threshold).sum().item())
 
             # out = out.permute(0,2,1)    # [v, 2, pred]
             # yaw = batch.x[:,3].detach().cpu().numpy()
@@ -296,20 +296,21 @@ def evaluate(
 
 
 METRICS = ["ade", "fde", "mr", "collision_rate", "val_loss", "collision_penalties"]
-# METRICS = ['ade', 'fde', 'mr', 'collision_rate', 'val_loss']
 
 
-def train_one_config(
-    train_config_path: str,
-    model_config_path: str,
-    expirements_path: str,
-    data_path: str,
-):
+def train_one_config(train_config_path: str, model_config_path: str, expirements_path: str, data_path: str, device_str: str):
+    torch.set_num_threads(1)
+    torch.set_num_interop_threads(1)
+
     train_config = read_config_file(train_config_path)
+    train_config_name = os.path.splitext(os.path.basename(train_config_path))[0]
+    model_config_name = os.path.splitext(os.path.basename(model_config_path))[0]
+    exp_id = f"{train_config_name}_{model_config_name}"
+
     path_config = PathConfig(
         expirements_path,
         data_path,
-        train_config.exp_id,
+        exp_id,
         train_config_path,
         model_config_path,
         train_config.logs_dir_path,
@@ -320,7 +321,12 @@ def train_one_config(
     copy_file(train_config_path, path_config.copy_train_config_path)
     copy_file(model_config_path, path_config.copy_model_config_path)
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    try:
+        device = torch.device(device_str)
+    except Exception as e:
+        print(e)
+        device = torch.device("cpu")
+
     metrics_log_epoch_frequency = train_config.metrics_log_epoch_frequency
     epochs = train_config.epoch
     collision_penalty = train_config.collision_penalty
@@ -394,7 +400,7 @@ def train_one_config(
                 model.state_dict(),
                 os.path.join(
                     path_config.model_checkpoints_dir,
-                    f"model_{'wp' if collision_penalty else 'np'}_{train_config.exp_id}_{str(epoch).zfill(4)}.pth",
+                    f"model_{'wp' if collision_penalty else 'np'}_{exp_id}_{str(epoch).zfill(4)}.pth",
                 ),
             )
 
@@ -428,11 +434,14 @@ def train_one_config(
     if push_to_hf:
         best_model_path = os.path.join(
             path_config.model_checkpoints_dir,
-            f"model_{'wp' if collision_penalty else 'np'}_{train_config.exp_id}_{str(best_epoch).zfill(4)}.pth",
+            f"model_{'wp' if collision_penalty else 'np'}_{exp_id}_{str(best_epoch).zfill(4)}.pth",
         )
         best_state_dict = torch.load(best_model_path)
         model.load_state_dict(best_state_dict)
         model.push_to_hub(hf_project_path)
+
+    if "cuda" in device_str:
+        torch.cuda.empty_cache()
 
     # pkl_file = f"model_{'mlp' if mlp else 'gnn'}_{'wp' if collision_penalty else 'np'}_{exp_id}_e3.pkl"
     # # pkl_file = f"model_{'mlp' if mlp else 'gnn'}_mtl_sumo_0911_e3.pkl"
