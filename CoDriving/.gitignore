@@ -6,7 +6,7 @@ data/sumo/route
 data/sumo/intentions/*.json
 !data/sumo/intentions/simple_separate_10m_intentions.json
 
-experements/*
+experements
 experements_configs/*
 !experements_configs/model_config.yaml
 !experements_configs/train_config.yaml

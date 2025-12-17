@@ -69,9 +69,7 @@ def generate_configs():
         "step_weights_factor": np.linspace(5, 10, 5, dtype=float).tolist(),
         "dist_threshold": np.linspace(2, 5, 5, dtype=float).tolist(),
     }
-    model_config_params = {
-        "hidden_channels": np.logspace(7, 9, num=3, base=2, dtype=int).tolist()
-    }
+    model_config_params = {"hidden_channels": np.logspace(7, 9, num=3, base=2, dtype=int).tolist()}
 
     write_configs(BASE_TRAIN_CONFIG_PATH, train_config_params, os.path.join(EXPIREMENTS_TRAIN_CONFIG_PATH, "train_config"))
     write_configs(BASE_MODEL_CONFIG_PATH, model_config_params, os.path.join(EXPIREMENTS_MODELS_CONFIG_PATH, "model_config"), model_config=True)
