@@ -14,6 +14,15 @@ from opencood.data_utils.datasets import build_dataset
 
 
 def train_parser():
+    """
+    Parse command line arguments for the training script.
+    Returns:
+        argparse.Namespace: Parsed command line arguments with the following attributes:
+            - hypes_yaml (str): Path to the YAML configuration file.
+            - model_dir (str, optional): Path to a directory containing a saved model for resuming training.
+            - half (bool): Whether to use half-precision training.
+            - dist_url (str): URL used to set up distributed training.
+    """
     parser = argparse.ArgumentParser(description="synthetic data generation")
     parser.add_argument("--hypes_yaml", type=str, required=True, help="data generation yaml file needed ")
     parser.add_argument("--model_dir", default="", help="Continued training path")
@@ -24,6 +33,23 @@ def train_parser():
 
 
 def main():
+    """
+    The function performs the following steps:
+    1. Parses command line arguments and loads the configuration
+    2. Initializes distributed training if needed
+    3. Builds training and validation datasets
+    4. Creates the model and loads weights if resuming
+    5. Sets up loss function, optimizer, and learning rate scheduler
+    6. Runs the training loop with validation
+    The training process includes:
+    - Mixed precision training if --half flag is set
+    - Distributed training if running in a distributed environment
+    - Learning rate scheduling
+    - Periodic model checkpointing
+    - Validation loss calculation
+    - TensorBoard logging
+    The function saves checkpoints to a directory named after the model and timestamp.
+    """
     opt = train_parser()
     hypes = yaml_utils.load_yaml(opt.hypes_yaml, opt)
 

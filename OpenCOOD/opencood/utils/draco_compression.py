@@ -15,6 +15,8 @@ import torch
 from glob import glob
 import subprocess
 
+from typing import List
+
 draco = "/media/hdd/yuan/draco/build_dir/draco_encoder"
 
 

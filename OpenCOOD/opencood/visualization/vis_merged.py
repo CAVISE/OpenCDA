@@ -2,6 +2,7 @@ import os
 import numpy as np
 import cv2
 
+from typing import List, Optional, Dict, Tuple
 # dair_path = {
 #     'single': 'dair_single_2022_09_19_20_24_05_FromKris',
 #     'late': 'dair_single_late_2022_09_19_20_24_05_FromKris',
@@ -12,7 +13,7 @@ import cv2
 #     'v2xvit': 'dair_npj_v2xvit_w_2022_09_06_12_31_46_FromKris'
 # }
 
-dair_path = {
+dair_path: Dict[str, str] = {
     "single": "logs/dair_single_late_2022_09_22_20_19_14",
     "disconet": "logs/dair_disconet_2022_09_22_20_27_45",
     "when2com": "logs/dair_when2com_2022_09_22_23_07_02",
@@ -20,7 +21,7 @@ dair_path = {
 }
 
 
-v2x_path = {
+v2x_path: Dict[str, str] = {
     "single": "logs/v2x2_single_2022_09_22_01_28_30",
     "late": "logs/v2x2_single_late_2022_09_22_01_28_30",
     "where2comm": "logs/v2x2_npj_where2comm_multiscale_resnet_max_2022_09_22_01_17_57",
@@ -28,7 +29,16 @@ v2x_path = {
 
 
 # Crop and merge image
-def load_img(root_dir, img_id, mode):
+def load_img(root_dir: str, img_id: int, mode: str) -> Optional[np.ndarray]:
+    """
+    Load and crop an image from the specified directory.
+    Args:
+        root_dir (str): Root directory containing the image.
+        img_id (int): ID of the image to load.
+        mode (str): Image mode, either '3d' or 'bev', determines cropping parameters.
+    Returns:
+        Optional[np.ndarray]: The loaded and cropped image as a numpy array, or None if file not found.
+    """
     img_dir = os.path.join("opencood/", root_dir, "vis_{}".format(mode), "{}_{:05d}.png".format(mode, img_id))
     if not os.path.exists(img_dir):
         print(img_dir)
@@ -50,7 +60,18 @@ if not os.path.exists(root_save_path):
     os.mkdir(root_save_path)
 
 
-def merge_img(img_id, picked_model, align="row", mode="3d"):
+def merge_img(img_id: int, picked_model: List[str], align: str = "row", 
+             mode: str = "3d") -> Optional[np.ndarray]:
+    """
+    Merge multiple images into a single image either horizontally or vertically.
+    Args:
+        img_id (int): ID of the image to process.
+        picked_model (List[str]): List of model names to include in the merge.
+        align (str): Alignment direction, either 'row' (horizontal) or 'col' (vertical).
+        mode (str): Image mode, either '3d' or 'bev'.
+    Returns:
+        Optional[np.ndarray]: Merged image as numpy array, or None if any image fails to load.
+    """
     images = []
     for model in picked_model:
         image = load_img(model, img_id, mode)

@@ -5,6 +5,8 @@ Utility functions related to point cloud
 import open3d as o3d
 import numpy as np
 
+from typing import List
+
 
 def pcd_to_np(pcd_file: str) -> np.ndarray:
     """

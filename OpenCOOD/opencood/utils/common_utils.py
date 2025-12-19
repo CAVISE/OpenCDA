@@ -8,6 +8,9 @@ import numpy as np
 import torch
 from shapely.geometry import Polygon
 
+from typing import Union, Any, Tuple, Dict, List
+from numpy import ndarray
+from torch import Tensor
 
 def check_numpy_to_torch(x: Union[ndarray, Any]) -> Tuple[Union[Tensor, Any], bool]:
     """Check if input is a numpy array and convert it to a PyTorch tensor if it is.

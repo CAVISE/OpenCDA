@@ -9,8 +9,12 @@ from datetime import datetime
 import torch
 import torch.optim as optim
 
+from typing import Dict, Any, Tuple, Optional, TypeVar, Type
+from torch.optim import Optimizer
+from torch import nn
+from torch.optim.lr_scheduler import _LRScheduler
 
-def load_saved_model(saved_path, model):
+def load_saved_model(saved_path: str, model: nn.Module) -> Tuple[int, nn.Module]:
     """
     Load saved model if exiseted
 
@@ -54,14 +58,16 @@ def load_saved_model(saved_path, model):
     return initial_epoch, model
 
 
-def setup_train(hypes):
+def setup_train(hypes: Dict[str, Any]) -> str:
     """
-    Create folder for saved model based on current timestep and model name
-
-    Parameters
-    ----------
-    hypes: dict
-        Config yaml dictionary for training:
+    Create folder for saved model based on current timestamp and model name.
+    Args:
+        hypes (Dict[str, Any]): Configuration dictionary containing at least:
+            - name (str): The name of the model.
+    Returns:
+        str: The full path to the created directory where logs will be saved.
+    The function creates a directory structure: logs/{model_name}_{timestamp}/
+    and saves the configuration as config.yaml in that directory.
     """
     model_name = hypes["name"]
     current_time = datetime.now()
@@ -88,19 +94,15 @@ def setup_train(hypes):
     return full_path
 
 
-def create_model(hypes):
+def create_model(hypes: Dict[str, Any]) -> nn.Module:
     """
-    Import the module "models/[model_name].py
-
-    Parameters
-    __________
-    hypes : dict
-        Dictionary containing parameters.
-
-    Returns
-    -------
-    model : opencood,object
-        Model object.
+    Dynamically import and instantiate a model based on the configuration.
+    Args:
+        hypes (Dict[str, Any]): Configuration dictionary containing:
+            - model.core_method (str): The name of the model class.
+            - model.args (Dict[str, Any]): Arguments to pass to the model constructor.
+    Returns:
+        nn.Module: An instance of the specified model.
     """
     backbone_name = hypes["model"]["core_method"]
     backbone_config = hypes["model"]["args"]
@@ -125,18 +127,15 @@ def create_model(hypes):
     return instance
 
 
-def create_loss(hypes):
+def create_loss(hypes: Dict[str, Any]) -> nn.Module:
     """
-    Create the loss function based on the given loss name.
-
-    Parameters
-    ----------
-    hypes : dict
-        Configuration params for training.
-    Returns
-    -------
-    criterion : opencood.object
-        The loss function.
+    Create a loss function based on the configuration.
+    Args:
+        hypes (Dict[str, Any]): Configuration dictionary containing:
+            - loss.core_method (str): The name of the loss class.
+            - loss.args (Dict[str, Any]): Arguments for the loss constructor.
+    Returns:
+        nn.Module: An instance of the specified loss function.
     """
     loss_func_name = hypes["loss"]["core_method"]
     loss_func_config = hypes["loss"]["args"]
@@ -162,16 +161,16 @@ def create_loss(hypes):
     return criterion
 
 
-def setup_optimizer(hypes, model):
+def setup_optimizer(hypes: Dict[str, Any], model: nn.Module) -> Optimizer:
     """
-    Create optimizer corresponding to the yaml file
-
-    Parameters
-    ----------
-    hypes : dict
-        The training configurations.
-    model : opencood model
-        The pytorch model
+    Create and configure an optimizer based on the configuration.
+    Args:
+        hypes (Dict[str, Any]): Configuration dictionary containing:
+            - optimizer.core_method (str): The name of the optimizer class.
+            - optimizer.lr (float): Learning rate.
+            - optimizer.args (Dict[str, Any], optional): Additional optimizer arguments.
+    Returns:
+        Optimizer: Configured optimizer instance.
     """
     method_dict = hypes["optimizer"]
     optimizer_method = getattr(optim, method_dict["core_method"], None)
@@ -185,16 +184,17 @@ def setup_optimizer(hypes, model):
         return optimizer_method(filter(lambda p: p.requires_grad, model.parameters()), lr=method_dict["lr"])
 
 
-def setup_lr_schedular(hypes, optimizer, n_iter_per_epoch):
+def setup_lr_schedular(hypes: Dict[str, Any], optimizer: Optimizer, 
+                      n_iter_per_epoch: int) -> Optional[_LRScheduler]:
     """
-    Set up the learning rate schedular.
-
-    Parameters
-    ----------
-    hypes : dict
-        The training configurations.
-
-    optimizer : torch.optimizer
+    Set up a learning rate scheduler based on the configuration.
+    Args:
+        hypes (Dict[str, Any]): Configuration dictionary containing:
+            - lr_scheduler (Dict[str, Any]): Scheduler configuration.
+        optimizer (Optimizer): The optimizer whose learning rate will be scheduled.
+        n_iter_per_epoch (int): Number of iterations per training epoch.
+    Returns:
+        Optional[_LRScheduler]: Configured learning rate scheduler, or None if not configured.
     """
     lr_schedule_config = hypes["lr_scheduler"]
 
@@ -243,7 +243,15 @@ def setup_lr_schedular(hypes, optimizer, n_iter_per_epoch):
     return scheduler
 
 
-def to_device(inputs, device):
+def to_device(inputs: Any, device: torch.device) -> Any:
+    """
+    Move input tensors to the specified device.
+    Args:
+        inputs: Input data (tensor, list, or dict of tensors).
+        device: Target device (e.g., 'cuda' or 'cpu').
+    Returns:
+        The input data with all tensors moved to the specified device.
+    """
     if isinstance(inputs, list):
         return [to_device(x, device) for x in inputs]
     elif isinstance(inputs, dict):

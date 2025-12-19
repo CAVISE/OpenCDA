@@ -15,6 +15,18 @@ from opencood.visualization import vis_utils
 
 
 def test_parser():
+    """
+    Parse command line arguments for the inference script.
+    Returns:
+        argparse.Namespace: Parsed command line arguments with the following attributes:
+            - model_dir (str): Path to the directory containing the model checkpoint
+            - fusion_method (str): Fusion method to use, one of ['late', 'early', 'intermediate']
+            - show_vis (bool): Whether to show visualization results
+            - show_sequence (bool): Whether to show video visualization (cannot be True with show_vis)
+            - save_vis (bool): Whether to save visualization results
+            - save_npy (bool): Whether to save prediction and ground truth in npy files
+            - global_sort_detections (bool): Whether to sort detections globally by confidence score
+    """
     parser = argparse.ArgumentParser(description="synthetic data generation")
     parser.add_argument("--model_dir", type=str, required=True, help="Continued training path")
     parser.add_argument("--fusion_method", required=True, type=str, default="late", help="late, early or intermediate")
@@ -36,6 +48,19 @@ def test_parser():
 
 
 def main():
+    """
+    The function performs the following steps:
+    1. Parses command line arguments
+    2. Loads the dataset and creates data loader
+    3. Initializes the model and loads weights
+    4. Runs inference on the dataset
+    5. Evaluates the results and optionally visualizes them
+    The function supports three fusion methods: 'early', 'late', and 'intermediate'.
+    It can display and/or save visualizations of the results, including both
+    single image and video sequence visualizations.
+    The evaluation results are saved in the model directory, and visualization
+    results can be saved if specified in the command line arguments.
+    """
     opt = test_parser()
     assert opt.fusion_method in ["late", "early", "intermediate"]
     assert not (opt.show_vis and opt.show_sequence), "you can only visualize the results in single image mode or video mode"

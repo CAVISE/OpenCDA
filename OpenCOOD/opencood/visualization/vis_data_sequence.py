@@ -8,6 +8,7 @@ from opencood.data_utils.datasets.early_fusion_vis_dataset import EarlyFusionVis
 
 
 def vis_parser():
+    """Parse command line arguments for visualization."""
     parser = argparse.ArgumentParser(description="data visualization")
     parser.add_argument("--color_mode", type=str, default="intensity", help="lidar color rendering mode, e.g. intensity,z-value or constant.")
     opt = parser.parse_args()

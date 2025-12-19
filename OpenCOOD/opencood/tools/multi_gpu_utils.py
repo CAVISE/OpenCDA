@@ -4,6 +4,16 @@ import torch.distributed as dist
 
 
 def get_dist_info():
+    """
+    Get the distributed process information.
+    
+    Returns:
+        tuple: A tuple containing:
+            - rank (int): Process rank within the distributed group. 
+                         Returns 0 if not using distributed training.
+            - world_size (int): Number of processes in the distributed group.
+                              Returns 1 if not using distributed training.
+    """
     if dist.is_available() and dist.is_initialized():
         rank = dist.get_rank()
         world_size = dist.get_world_size()
@@ -14,6 +24,17 @@ def get_dist_info():
 
 
 def init_distributed_mode(args):
+    """
+    Initialize distributed training environment.
+    
+    Args:
+        args: Command line arguments object that will be updated with:
+            - rank (int): Process rank
+            - world_size (int): Number of processes
+            - gpu (int): Local GPU ID
+            - distributed (bool): Whether distributed training is enabled
+            - dist_backend (str): Backend for distributed training ('nccl')
+    """
     if "RANK" in os.environ and "WORLD_SIZE" in os.environ:
         args.rank = int(os.environ["RANK"])
         args.world_size = int(os.environ["WORLD_SIZE"])

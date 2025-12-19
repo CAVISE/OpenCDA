@@ -5,6 +5,9 @@ import logging
 from opencood.utils import common_utils
 from opencood.hypes_yaml import yaml_utils
 
+from typing import Optional, Dict, List, Any, Tuple, Union
+import torch
+from torch import Tensor
 logger = logging.getLogger("cavise.OpenCOOD.opencood.utils.eval_utils")
 
 
