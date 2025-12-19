@@ -1,5 +1,4 @@
 import os
-
 import numpy as np
 import logging
 
@@ -9,7 +8,7 @@ from opencood.hypes_yaml import yaml_utils
 logger = logging.getLogger("cavise.OpenCOOD.opencood.utils.eval_utils")
 
 
-def voc_ap(rec, prec):
+def voc_ap(rec: List[float], prec: List[float]) -> Tuple[float, List[float], List[float]]:
     """
     VOC 2010 Average Precision.
     """
@@ -35,7 +34,13 @@ def voc_ap(rec, prec):
     return ap, mrec, mpre
 
 
-def caluclate_tp_fp(det_boxes, det_score, gt_boxes, result_stat, iou_thresh):
+def caluclate_tp_fp(
+    det_boxes: Optional[torch.Tensor],
+    det_score: Optional[torch.Tensor],
+    gt_boxes: torch.Tensor,
+    result_stat: Dict[float, Dict[str, List[Any]]],
+    iou_thresh: float
+) -> None:
     """
     Calculate the true positive and false positive numbers of the current
     frames.
@@ -92,7 +97,11 @@ def caluclate_tp_fp(det_boxes, det_score, gt_boxes, result_stat, iou_thresh):
     result_stat[iou_thresh]["gt"] += gt
 
 
-def calculate_ap(result_stat, iou, global_sort_detections):
+def calculate_ap(
+    result_stat: Dict[float, Dict[str, List[Any]]],
+    iou: float,
+    global_sort_detections: bool
+) -> Tuple[float, List[float], List[float]]:
     """
     Calculate the average precision and recall, and save them into a txt.
 
@@ -152,7 +161,18 @@ def calculate_ap(result_stat, iou, global_sort_detections):
     return ap, mrec, mprec
 
 
-def eval_final_results(result_stat, save_path, global_sort_detections):
+def eval_final_results(
+    result_stat: Dict[float, Dict[str, List[Any]]],
+    save_path: str,
+    global_sort_detections: bool
+) -> None:
+    """
+    Evaluate and save final detection results.
+    Args:
+        result_stat: Dictionary containing evaluation statistics.
+        save_path: Directory to save the evaluation results.
+        global_sort_detections: Whether to sort detections globally.
+    """
     dump_dict = {}
     ap_30, mrec_30, mpre_30 = calculate_ap(result_stat, 0.30, global_sort_detections)
     ap_50, mrec_50, mpre_50 = calculate_ap(result_stat, 0.50, global_sort_detections)

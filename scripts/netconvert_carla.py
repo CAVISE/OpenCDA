@@ -35,20 +35,13 @@ import sumolib
 
 
 class SumoTopology(object):
-    """
-    This object holds the topology of a sumo net. Internally, the information
-    is structured as follows:
-
-    Parameters
-    ----------
-    topology : {
-            (road_id, lane_id): [(successor_road_id, succesor_lane_id), ...], ...}
-        - paths: {
-            (road_id, lane_id): [
-                ((in_road_id, in_lane_id), (out_road_id, out_lane_id)), ...
-            ], ...}
-        - odr2sumo_ids: {
-            (odr_road_id, odr_lane_id): [(sumo_edge_id, sumo_lane_id), ...], ...}
+    """Represents the topology of a SUMO network.
+    This class provides methods to query and navigate the topology of a SUMO network,
+    including road connections, junctions, and lane mappings between OpenDRIVE and SUMO.
+    Attributes:
+        _topology: Dictionary mapping (road_id, lane_id) to sets of successor (road_id, lane_id) tuples.
+        _paths: Dictionary containing junction path information.
+        _odr2sumo_ids: Dictionary mapping OpenDRIVE (road_id, lane_id) to SUMO (edge_id, lane_index) tuples.
     """
 
     def __init__(self, topology, paths, odr2sumo_ids):
@@ -136,9 +129,20 @@ class SumoTopology(object):
         return list(self._paths.get((odr_road_id, odr_lane_id), set()))
 
 
-def build_topology(sumo_net):
-    """
-    Builds sumo topology.
+def build_topology(sumo_net: sumolib.net.Net) -> SumoTopology:
+    """Build a SumoTopology object from a SUMO network.
+
+    This function processes a SUMO network to extract its topology, including
+    road connections, lane mappings, and junction information.
+
+    Args:
+        sumo_net: The SUMO network object to process.
+
+    Returns:
+        SumoTopology: An object representing the topology of the SUMO network.
+
+    Raises:
+        RuntimeError: If the SUMO network contains lanes without original OpenDRIVE IDs.
     """
     # --------------------------
     # OpenDrive->Sumo mapped ids
@@ -201,13 +205,22 @@ def build_topology(sumo_net):
 
 
 class SumoTrafficLight(object):
-    """
-    SumoTrafficLight holds all the necessary data to define a traffic light in sumo:
-
-        * connections (tlid, from_road, to_road, from_lane, to_lane, link_index).
-        * phases (duration, state, min_dur, max_dur, nex, name).
-        * parameters.
-    """
+    """Represents a traffic light in a SUMO network.
+        This class holds all the necessary data to define a traffic light in SUMO,
+        including connections, phases, and parameters.
+        Class Attributes:
+            DEFAULT_DURATION_GREEN_PHASE: Default duration for green phases (42 seconds).
+            DEFAULT_DURATION_YELLOW_PHASE: Default duration for yellow phases (3 seconds).
+            DEFAULT_DURATION_RED_PHASE: Default duration for red phases (3 seconds).
+        Attributes:
+            id: Unique identifier for the traffic light.
+            program_id: Identifier for the traffic light program.
+            offset: Offset for the traffic light program.
+            type: Type of the traffic light (default: "static").
+            phases: List of traffic light phases.
+            parameters: Set of traffic light parameters.
+            connections: Set of traffic light connections.
+        """
 
     DEFAULT_DURATION_GREEN_PHASE = 42
     DEFAULT_DURATION_YELLOW_PHASE = 3
@@ -304,9 +317,20 @@ class SumoTrafficLight(object):
         return xml_tag
 
 
-def _netconvert_carla_impl(xodr_file, output, tmpdir, guess_tls=False):
-    """
-    Implements netconvert carla.
+def _netconvert_carla_impl(xodr_file: str, output: str, tmpdir: str, guess_tls: bool = False) -> None:
+    """Internal implementation of the netconvert_carla function.
+
+    This function handles the actual conversion process from OpenDRIVE to SUMO format,
+    including temporary file management and error handling.
+
+    Args:
+        xodr_file: Path to the input OpenDRIVE file.
+        output: Path where the output SUMO network file will be saved.
+        tmpdir: Temporary directory for intermediate files.
+        guess_tls: If True, attempts to guess traffic lights at intersections.
+
+    Raises:
+        RuntimeError: If the conversion process fails.
     """
     # ----------
     # netconvert
@@ -462,14 +486,24 @@ def _netconvert_carla_impl(xodr_file, output, tmpdir, guess_tls=False):
     tree.write(output, pretty_print=True, encoding="UTF-8", xml_declaration=True)
 
 
-def netconvert_carla(xodr_file, output, guess_tls=False):
-    """
-    Generates sumo net.
+def netconvert_carla(xodr_file: str, output: str, guess_tls: bool = False) -> str:
+    """Generate a SUMO network file from an OpenDRIVE file.
 
-        :param xodr_file: opendrive file (*.xodr)
-        :param output: output file (*.net.xml)
-        :param guess_tls: guess traffic lights at intersections.
-        :returns: path to the generated sumo net.
+    This function converts an OpenDRIVE file to a SUMO network file, with optional
+    traffic light detection at intersections.
+
+    Args:
+        xodr_file: Path to the input OpenDRIVE file (*.xodr).
+        output: Path where the output SUMO network file will be saved (*.net.xml).
+        guess_tls: If True, attempts to guess traffic lights at intersections.
+            Defaults to False.
+
+    Returns:
+        str: Path to the generated SUMO network file.
+
+    Note:
+        This function requires SUMO to be installed and the SUMO_HOME environment
+        variable to be properly set.
     """
     try:
         tmpdir = tempfile.mkdtemp()

@@ -5,7 +5,7 @@ Transformation utils
 import numpy as np
 
 
-def x_to_world(pose):
+def x_to_world(pose: list) -> np.ndarray:
     """
     The transformation matrix from x-coordinate system to carla world system
 
@@ -49,7 +49,7 @@ def x_to_world(pose):
     return matrix
 
 
-def x1_to_x2(x1, x2):
+def x1_to_x2(x1: List[float], x2: List[float]) -> np.ndarray:
     """
     Transformation matrix from x1 to x2.
 
@@ -74,7 +74,7 @@ def x1_to_x2(x1, x2):
     return transformation_matrix
 
 
-def dist_to_continuous(p_dist, displacement_dist, res, downsample_rate):
+def dist_to_continuous(p_dist: np.ndarray, displacement_dist: np.ndarray, res: float, downsample_rate: int) -> np.ndarray:
     """
     Convert points discretized format to continuous space for BEV representation.
     Parameters

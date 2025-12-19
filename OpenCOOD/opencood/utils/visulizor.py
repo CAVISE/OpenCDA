@@ -39,6 +39,14 @@ def draw_box_plt(boxes_dec, ax, color=None, linewidth_scale=1.0):
 
 
 def draw_points_pred_gt_boxes_plt_2d(pc_range, points=None, boxes_pred=None, boxes_gt=None):
+    """
+    Draw points, predicted boxes, and ground truth boxes in a 2D plot.
+    Args:
+        pc_range: List of [x_min, y_min, z_min, x_max, y_max, z_max] defining the plot area.
+        points: Point cloud data, shape (N, 3) or (N, 4).
+        boxes_pred: Predicted bounding boxes, shape (M, 5) or (M, 7).
+        boxes_gt: Ground truth bounding boxes, shape (K, 5) or (K, 7).
+    """
     ax = plt.figure(figsize=(14, 4)).add_subplot(1, 1, 1)
     ax.set_aspect("equal", "box")
     ax.set(xlim=(pc_range[0], pc_range[3]), ylim=(pc_range[1], pc_range[4]))
@@ -56,6 +64,12 @@ def draw_points_pred_gt_boxes_plt_2d(pc_range, points=None, boxes_pred=None, box
 
 
 def draw_points_boxes_plt_2d(ax, pc_range, points=None, boxes=None, color=None):
+    """
+    draw boxes in a given plt ax
+    :param boxes_dec: (N, 5) or (N, 7) in metric
+    :param ax:
+    :return: ax with drawn boxes
+    """
     if points is not None:
         ax.plot(points[:, 0], points[:, 1], ".", markersize=0.3, color=color)
     if (boxes is not None) and len(boxes) > 0:

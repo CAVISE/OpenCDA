@@ -6,7 +6,7 @@ import open3d as o3d
 import numpy as np
 
 
-def pcd_to_np(pcd_file):
+def pcd_to_np(pcd_file: str) -> np.ndarray:
     """
     Read  pcd and return numpy array.
 
@@ -33,7 +33,7 @@ def pcd_to_np(pcd_file):
     return np.asarray(pcd_np, dtype=np.float32)
 
 
-def mask_points_by_range(points, limit_range):
+def mask_points_by_range(points: np.ndarray, limit_range: list) -> np.ndarray:
     """
     Remove the lidar points out of the boundary.
 
@@ -65,7 +65,7 @@ def mask_points_by_range(points, limit_range):
     return points
 
 
-def mask_ego_points(points):
+def mask_ego_points(points: np.ndarray) -> np.ndarray:
     """
     Remove the lidar points of the ego vehicle itself.
 
@@ -85,14 +85,25 @@ def mask_ego_points(points):
     return points
 
 
-def shuffle_points(points):
+def shuffle_points(points: np.ndarray) -> np.ndarray:
+    """
+    Shuffle the order of points.
+    Parameters
+    ----------
+    points : np.ndarray
+        Input points, shape: (n, m).
+    Returns
+    -------
+    np.ndarray
+        Shuffled points with same shape as input.
+    """
     shuffle_idx = np.random.permutation(points.shape[0])
     points = points[shuffle_idx]
 
     return points
 
 
-def lidar_project(lidar_data, extrinsic):
+def lidar_project(lidar_data: np.ndarray, extrinsic: np.ndarray) -> np.ndarray:
     """
     Given the extrinsic matrix, project lidar data to another space.
 
@@ -125,7 +136,7 @@ def lidar_project(lidar_data, extrinsic):
     return projected_lidar
 
 
-def projected_lidar_stack(projected_lidar_list):
+def projected_lidar_stack(projected_lidar_list: List[np.ndarray]) -> np.ndarray:
     """
     Stack all projected lidar together.
 
@@ -146,7 +157,7 @@ def projected_lidar_stack(projected_lidar_list):
     return np.vstack(stack_lidar)
 
 
-def downsample_lidar(pcd_np, num):
+def downsample_lidar(pcd_np: np.ndarray, num: int) -> np.ndarray:
     """
     Downsample the lidar points to a certain number.
 
@@ -171,7 +182,7 @@ def downsample_lidar(pcd_np, num):
     return pcd_np
 
 
-def downsample_lidar_minimum(pcd_np_list):
+def downsample_lidar_minimum(pcd_np_list: List[np.ndarray]) -> List[np.ndarray]:
     """
     Given a list of pcd, find the minimum number and downsample all
     point clouds to the minimum number.
