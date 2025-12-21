@@ -1,14 +1,16 @@
 import argparse
 import logging
 import os
+
+# from lxml import etree
 from datetime import datetime
+# from functools import partial
 
-from CoDriving.scripts.data_config import DATA_PATH
-import add_path  # noqa: F401
+from data_path_config import DATA_PATH
 
 
-from CoDriving.config.config import DT, OBS_LEN, PRED_LEN, SAMPLE_RATE  # noqa: E402
-from CoDriving.dataset_scripts.utils.generate_csv_utils import (  # noqa: E402
+from CoDriving.data_scripts.data_config.data_config import DT, OBS_LEN, PRED_LEN, SAMPLE_RATE, VEHICLE_MAX_SPEED
+from CoDriving.data_scripts.generate_csv_utils import (
     generate_csv_from_fcd,
     generate_fcd,
     generate_routefile,
@@ -21,7 +23,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--num_seconds", type=int, help="", default=1000)
     parser.add_argument("--create_new_vehicle_prob", type=float, help="", default=0.05)
-    parser.add_argument("--split", type=str, help="train, val or test", default="val")
+    parser.add_argument("--split", type=str, help="train, val or test", default="train")
     parser.add_argument("--random_seed", type=int, help="", default=7)
     parser.add_argument(
         "--net_filename",
@@ -62,6 +64,7 @@ if __name__ == "__main__":
         random_seed=random_seed,
         net_xml_filename=net_filename,
         intention_config_filename=intention_config,
+        vehicle_max_speed=VEHICLE_MAX_SPEED,
     )
     sumocfg_path = generate_sumocfg(sumo_files_path, route_filename, net_filename)  # type: ignore
 
@@ -76,6 +79,33 @@ if __name__ == "__main__":
     generate_fcd(sumocfg_path, fcd_file, 0, 0, num_seconds, DT, TRAFFIC_SCALE)
     intention_config_path = os.path.join(sumo_files_path, "intentions", intention_config)
 
+    # x_normalizer = None
+    # y_normalizer = None
+    # speed_normalizer = None
+    # yaw_normalizer = None
+
+    # if args.normalize:
+    #     doc = etree.parse(os.path.join(sumo_files_path, "map", net_filename))
+    #     memoryElem = doc.find("location")
+    #     boundarie_str = memoryElem.get("convBoundary").split(sep=",")
+    #     xmin, ymin, xmax, ymax = [float(num) for num in boundarie_str]
+
+    #     x_normalizer = partial(min_max_normalize, mmax=xmax, mmin=xmin)
+    #     y_normalizer = partial(min_max_normalize, mmax=ymax, mmin=ymin)
+    #     speed_normalizer = partial(min_max_normalize, mmax=args.vehicle_max_speed, mmin=0)
+    #     yaw_normalizer = partial(min_max_normalize, mmax=180)
+
     # Generate csv files
     logging.info(f"Generating csv files in csv/{split}...")
-    generate_csv_from_fcd(fcd_file, csv_dir_path, intention_config_path, LENGTH_PER_SCENE, split)
+    generate_csv_from_fcd(
+        fcd_file,
+        csv_dir_path,
+        intention_config_path,
+        LENGTH_PER_SCENE,
+        split,
+        # normalize=args.normalize,
+        # x_normalizer=x_normalizer,
+        # y_normalizer=y_normalizer,
+        # yaw_normalizer=yaw_normalizer,
+        # speed_normalizer=speed_normalizer,
+    )

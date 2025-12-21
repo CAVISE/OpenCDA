@@ -1,8 +1,9 @@
 import os
 from pathlib import Path
 
-MAIN_PATH = Path(__file__).resolve().parent.parent
+MAIN_PATH = Path(__file__).resolve().parent
 DATA_PATH = os.path.join(MAIN_PATH, "data")
+DATA_VIZUALIZATION_PATH = os.path.join(DATA_PATH, "vizualization")
 EXPIREMENTS_PATH = os.path.join(MAIN_PATH, "experements")
 
 EXPIREMENTS_CONFIG_PATH = os.path.join(MAIN_PATH, "experements_configs")

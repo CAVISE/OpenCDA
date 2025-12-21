@@ -1,5 +1,7 @@
+.vscode
 data/csv
 data/fcd
+data/vizualization
 data/sumo/sumocfg/*.sumocfg
 !data/sumo/sumocfg/template.sumocfg
 data/sumo/route
@@ -7,6 +9,7 @@ data/sumo/intentions/*.json
 !data/sumo/intentions/simple_separate_10m_intentions.json
 
 experements
+experements_backup
 experements_configs/*
 !experements_configs/model_config.yaml
 !experements_configs/train_config.yaml

@@ -10,10 +10,8 @@ import numpy as np
 import pandas as pd
 
 from CoDriving.models.model_factory import ModelFactory
-from CoDriving.dataset_scripts.dataset import CarDataset, rotation_matrix_back
-from CoDriving.dataset_scripts.metrics_logger import MetricLogger
-
-# from CoDriving.config.config import DT, OBS_LEN, PRED_LEN
+from CoDriving.data_scripts.dataset import CarDataset, rotation_matrix_back
+from CoDriving.data_scripts.metrics_logger import MetricLogger
 
 
 class Dict2Class(object):
@@ -298,7 +296,7 @@ def evaluate(
 METRICS = ["ade", "fde", "mr", "collision_rate", "val_loss", "collision_penalties"]
 
 
-def train_one_config(train_config_path: str, model_config_path: str, expirements_path: str, data_path: str, device_str: str):
+def train_one_config(train_config_path: str, model_config_path: str, expirements_path: str, data_path: str, device_str: str, save_checkpoints=True):
     torch.set_num_threads(1)
     torch.set_num_interop_threads(1)
 
@@ -396,13 +394,14 @@ def train_one_config(train_config_path: str, model_config_path: str, expirements
             }
             record.append(epoch_metrics)
 
-            torch.save(
-                model.state_dict(),
-                os.path.join(
-                    path_config.model_checkpoints_dir,
-                    f"model_{'wp' if collision_penalty else 'np'}_{exp_id}_{str(epoch).zfill(4)}.pth",
-                ),
-            )
+            if save_checkpoints:
+                torch.save(
+                    model.state_dict(),
+                    os.path.join(
+                        path_config.model_checkpoints_dir,
+                        f"model_{'wp' if collision_penalty else 'np'}_{exp_id}_{str(epoch).zfill(4)}.pth",
+                    ),
+                )
 
             if fde < min_fde:
                 min_ade, min_fde = ade, fde

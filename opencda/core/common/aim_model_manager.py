@@ -7,7 +7,7 @@ import numpy as np
 import pickle as pkl
 from scipy.spatial import distance
 
-from opencda.CoDriving.constants import CONTROL_RADIUS, HIDDEN_CHANNELS
+from CoDriving.constants import CONTROL_RADIUS, HIDDEN_CHANNELS
 from opencda.co_simulation.sumo_integration.bridge_helper import BridgeHelper
 
 

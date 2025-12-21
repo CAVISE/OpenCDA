@@ -10,8 +10,7 @@ from collections import deque
 # nvidia-ml-py package
 from pynvml import nvmlInit, nvmlDeviceGetHandleByIndex, nvmlDeviceGetMemoryInfo
 
-import add_path  # noqa: F401
-from data_config import EXPIREMENTS_PATH, DATA_PATH, EXPIREMENTS_MODELS_CONFIG_PATH, EXPIREMENTS_TRAIN_CONFIG_PATH
+from data_path_config import EXPIREMENTS_PATH, DATA_PATH, EXPIREMENTS_MODELS_CONFIG_PATH, EXPIREMENTS_TRAIN_CONFIG_PATH
 from CoDriving.train_scripts.train_one_config import train_one_config
 
 
@@ -71,7 +70,7 @@ def train_many_configs(max_needed_gpu_usage=0.7, max_mem_usage=0.7, max_processe
                 device_str = f"{device_str}:{gpu_devices[ind]}"
 
             config_pair = task_queue.popleft()
-            p = mp.Process(target=train_one_config, args=(config_pair[0], config_pair[1], EXPIREMENTS_PATH, DATA_PATH, device_str))
+            p = mp.Process(target=train_one_config, args=(config_pair[0], config_pair[1], EXPIREMENTS_PATH, DATA_PATH, device_str, False))
             p.start()
             active_processes.append(p)
             time.sleep(wait_time)
