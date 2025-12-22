@@ -5,6 +5,7 @@ import numpy as np
 from data_path_config import BASE_TRAIN_CONFIG_PATH, BASE_MODEL_CONFIG_PATH, EXPIREMENTS_TRAIN_CONFIG_PATH, EXPIREMENTS_MODELS_CONFIG_PATH
 from CoDriving.data_scripts.utils.base_utils import del_files_in_dir
 
+
 def read_base_config_file(config_file_path: str):
     try:
         with open(config_file_path) as config_file:
