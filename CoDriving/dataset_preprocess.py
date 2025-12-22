@@ -57,7 +57,7 @@ if __name__ == "__main__":
     csv_folder = os.path.join(DATA_PATH, csv_folder)
     preprocess_folder = args.pkl_folder
     preprocess_folder = os.path.join(DATA_PATH, preprocess_folder)
-    
+
     if os.path.exists(preprocess_folder):
         shutil.rmtree(preprocess_folder)
     os.makedirs(preprocess_folder, exist_ok=True)
