@@ -125,4 +125,4 @@ def vizualize_data(pkl=False):
 
 
 if __name__ == "__main__":
-    vizualize_data(True)
+    vizualize_data(pkl=True)

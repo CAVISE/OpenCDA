@@ -16,9 +16,9 @@ from CoDriving.data_scripts.data_config.data_config import DT, OBS_LEN, PRED_LEN
 obs_len, pred_len, dt = OBS_LEN, PRED_LEN, DT
 
 
-def rotation_matrix(yaw):
+def rotation_matrix_with_allign_to_Y(yaw):
     """
-    Make the current direction aligns to +y axis.
+    Make the current direction aligns to +Y axis (In CARLA coordinate system).
     https://en.wikipedia.org/wiki/Rotation_matrix#Non-standard_orientation_of_the_coordinate_system
     """
     rotation = np.array(
@@ -30,15 +30,44 @@ def rotation_matrix(yaw):
     return rotation
 
 
-def rotation_matrix_back(yaw):
+def rotation_matrix_back_with_allign_to_Y(yaw):
     """
-    Rotate back.
+    Rotate back (In CARLA coordinate system).
     https://en.wikipedia.org/wiki/Rotation_matrix#Non-standard_orientation_of_the_coordinate_system
     """
     rotation = np.array(
         [
             [np.cos(-np.pi / 2 + yaw), -np.sin(-np.pi / 2 + yaw)],
             [np.sin(-np.pi / 2 + yaw), np.cos(-np.pi / 2 + yaw)],
+        ]
+    )
+    rotation = torch.tensor(rotation).float()
+    return rotation
+
+
+def rotation_matrix_with_allign_to_X(yaw):
+    """
+    Make the current direction aligns to +X axis (In CARLA coordinate system).
+    https://en.wikipedia.org/wiki/Rotation_matrix#Non-standard_orientation_of_the_coordinate_system
+    """
+    rotation = np.array(
+        [
+            [np.cos(-yaw), -np.sin(-yaw)],
+            [np.sin(-yaw), np.cos(-yaw)],
+        ]
+    )
+    return rotation
+
+
+def rotation_matrix_back_with_allign_to_X(yaw):
+    """
+    Rotate back (In CARLA coordinate system).
+    https://en.wikipedia.org/wiki/Rotation_matrix#Non-standard_orientation_of_the_coordinate_system
+    """
+    rotation = np.array(
+        [
+            [np.cos(yaw), -np.sin(yaw)],
+            [np.sin(yaw), np.cos(yaw)],
         ]
     )
     rotation = torch.tensor(rotation).float()
@@ -119,7 +148,7 @@ class CarDataset(InMemoryDataset):
 
 def adjust_future_deltas(curr_states, future_states) -> None:
     """
-    The range of delta angle is [-90, 270], in order to avoid the jump, adjust the future delta angles.
+    The range of delta angle is [-180, 180], in order to avoid the jump, adjust the future delta angles.
     :param curr_states: [vehicle, 4]
     :param future_states: [vehicle, pred_len, 4]
     """
@@ -217,7 +246,8 @@ def MPC_module(
 
 def transform_sumo2carla(states: np.ndarray):
     """
-    In-place transform from sumo to carla: [x_carla, y_carla, yaw_carla] = [x_sumo, -y_sumo, yaw_sumo-90].
+    In-place transform from sumo to carla: [x_carla, y_carla, yaw_carla] = [x_sumo, -y_sumo, yaw_sumo-90]. \
+        yaw_carla in [-90, 270] so if > 180 yaw_carla = yaw_carla - 360. After that yaw_carla in [-180, 180]
     Note:
         - the coordinate system in Carla is more convenient since the angle increases in the direction of rotation from +x to +y, while in sumo this is from +y to +x.
         - the coordinate system in Carla is a left-handed Cartesian coordinate system.
@@ -225,9 +255,14 @@ def transform_sumo2carla(states: np.ndarray):
     if states.ndim == 1:
         states[1] = -states[1]
         states[3] -= np.deg2rad(90)
+        if states[3] > np.deg2rad(180):
+            states[3] = states[3] - np.deg2rad(360)
+
     elif states.ndim == 2:
         states[:, 1] = -states[:, 1]
         states[:, 3] -= np.deg2rad(90)
+        mask = states[:, 3] > np.deg2rad(180)
+        states[mask, 3] -= np.deg2rad(360)
     else:
         raise NotImplementedError
 

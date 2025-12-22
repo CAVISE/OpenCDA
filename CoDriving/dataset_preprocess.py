@@ -6,6 +6,7 @@ import concurrent.futures
 
 from data_path_config import DATA_PATH
 from CoDriving.data_scripts.preprocess_utils import process_file
+from CoDriving.data_scripts.utils.base_utils import del_files_in_dir
 
 
 def process_file_wrapper(*args):
@@ -58,6 +59,7 @@ if __name__ == "__main__":
     preprocess_folder = args.pkl_folder
     preprocess_folder = os.path.join(DATA_PATH, preprocess_folder)
     os.makedirs(preprocess_folder, exist_ok=True)
+    del_files_in_dir(preprocess_folder)
 
     n_mpc_aug = args.num_mpc_aug
     processes = args.processes
@@ -83,6 +85,7 @@ if __name__ == "__main__":
                 intention_config_path,
                 n_mpc_aug,
                 normalize,
+                True,  # allign initial direction of motion to +X
             )
             for file in csv_files
         ]

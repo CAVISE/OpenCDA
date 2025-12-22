@@ -8,7 +8,8 @@ import os
 from CoDriving.data_scripts.dataset import (
     MPC_Block,
     adjust_future_deltas,
-    rotation_matrix,
+    rotation_matrix_with_allign_to_Y,
+    rotation_matrix_with_allign_to_X,
     transform_sumo2carla,
 )
 from CoDriving.data_scripts.data_config.data_config import NUM_PREDICT, OBS_LEN, PRED_LEN
@@ -26,7 +27,23 @@ def process_file(
     intentuion_config,
     n_mpc_aug,
     normalize,
+    allign_initial_direction_to_x=False,
 ):
+    """
+    Docstring for process_file
+
+    :param csv_folder: csv folder with csv data files
+    :type csv_folder: str
+    :param csv_file: name of csv file in folder
+    :type csv_file: str
+    :param preprocess_folder: folder for storing preprocessed data in pkls
+    :type preprocess_folder: str
+    :param intentuion_config: path to intention config file
+    :param n_mpc_aug: number of mpc augmentations
+    :param normalize: True if normalization needed
+    :param allign_initial_direction_to_x: if True: in carla coordinate system rotate coordanate system so +X to be direction of motion of car \
+          else rotate coordanate system so +Y to be direction of motion of car
+    """
     df = pd.read_csv(os.path.join(csv_folder, csv_file))
     all_features = list()
     for track_id, remain_df in df.groupby("TRACK_ID"):
@@ -59,7 +76,12 @@ def process_file(
         y = (all_features[:, row + 1 : row + 1 + NUM_PREDICT, :2] - all_features[:, row : row + 1, :2]).transpose(
             0, 2, 1
         )  # [vehicle, PRED_LEN, 2] -> [vehicle, 2, PRED_LEN]
-        rotations = np.array([rotation_matrix(x[i][3]) for i in range(x.shape[0])])  # [vehicle, 2, 2]
+
+        if allign_initial_direction_to_x:
+            rotations = np.array([rotation_matrix_with_allign_to_X(x[i][3]) for i in range(x.shape[0])])  # [vehicle, 2, 2]
+        else:
+            rotations = np.array([rotation_matrix_with_allign_to_Y(x[i][3]) for i in range(x.shape[0])])  # [vehicle, 2, 2]
+
         # [vehicle, 2, PRED_LEN], transform y into local coordinate system
         y = rotations @ y
         y = y.transpose(0, 2, 1)  # [vehicle, PRED_LEN, 2]
@@ -77,9 +99,16 @@ def process_file(
         # store the control vector to accelerate future MPC opt
         all_features[:, row + 1 : row + 1 + NUM_PREDICT, -2:] = mpc_output[:, :, -2:]
         speed = all_features[:, row + 1 : row + 1 + NUM_PREDICT, 2:3]  # [vehicle, PRED_LEN, 1]
-        yaw = (
-            all_features[:, row + 1 : row + 1 + NUM_PREDICT, 3:4] - all_features[:, row : row + 1, 3:4] + np.pi / 2
-        )  # [vehicle, PRED_LEN, 1], align the initial direction to +y
+
+        if allign_initial_direction_to_x:
+            yaw = (
+                all_features[:, row + 1 : row + 1 + NUM_PREDICT, 3:4] - all_features[:, row : row + 1, 3:4]
+            )  # [vehicle, PRED_LEN, 1], align the initial direction to +X
+        else:
+            yaw = (
+                all_features[:, row + 1 : row + 1 + NUM_PREDICT, 3:4] - all_features[:, row : row + 1, 3:4] + np.pi / 2
+            )  # [vehicle, PRED_LEN, 1], align the initial direction to +Y
+
         # [vehicle, PRED_LEN*6]
         y = np.concatenate((y, speed, yaw, mpc_output[:, :, -2:]), axis=2).reshape(num_cars, -1)
         data = (
@@ -96,6 +125,8 @@ def process_file(
         ) as handle:
             pickle.dump(data, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
+        # пока думаю, не нужна аугментация, во-первый результаты странные в данных, во-вторых чтоб искючить число параметров для подбора
+        return
         for a in range(n_mpc_aug):
             shifted_curr, mpc_output = MPC_Block(
                 curr_states, future_states, acc_delta_old, noise_range=noise_range
@@ -105,7 +136,12 @@ def process_file(
             y = (mpc_output[:, :, :2] - np.expand_dims(shifted_curr[:, :2], axis=1)).transpose(0, 2, 1)  # [vehicle, 2, PRED_LEN]
             y = rotations @ y
             y = y.transpose(0, 2, 1)  # [vehicle, PRED_LEN, 2]
-            mpc_output[:, :, 3:4] = mpc_output[:, :, 3:4] - all_features[:, row : row + 1, 3:4] + np.pi / 2
+
+            if allign_initial_direction_to_x:
+                mpc_output[:, :, 3:4] = mpc_output[:, :, 3:4] - all_features[:, row : row + 1, 3:4]
+            else:
+                mpc_output[:, :, 3:4] = mpc_output[:, :, 3:4] - all_features[:, row : row + 1, 3:4] + np.pi / 2
+
             # [vehicle, PRED_LEN, 6]
             y = np.concatenate((y, mpc_output[:, :, 2:]), axis=-1)
             y = y.reshape(num_cars, -1)

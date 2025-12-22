@@ -3,15 +3,7 @@ import yaml
 import numpy as np
 
 from data_path_config import BASE_TRAIN_CONFIG_PATH, BASE_MODEL_CONFIG_PATH, EXPIREMENTS_TRAIN_CONFIG_PATH, EXPIREMENTS_MODELS_CONFIG_PATH
-
-
-def del_configs(configs_dir_path: str):
-    for file_name in os.listdir(configs_dir_path):
-        file_path = os.path.join(configs_dir_path, file_name)
-
-        if os.path.isfile(file_path):
-            os.remove(file_path)
-
+from CoDriving.data_scripts.utils.base_utils import del_files_in_dir
 
 def read_base_config_file(config_file_path: str):
     try:
@@ -57,8 +49,8 @@ def write_configs(
 def generate_configs():
     os.makedirs(EXPIREMENTS_TRAIN_CONFIG_PATH, exist_ok=True)
     os.makedirs(EXPIREMENTS_MODELS_CONFIG_PATH, exist_ok=True)
-    del_configs(EXPIREMENTS_TRAIN_CONFIG_PATH)
-    del_configs(EXPIREMENTS_MODELS_CONFIG_PATH)
+    del_files_in_dir(EXPIREMENTS_TRAIN_CONFIG_PATH)
+    del_files_in_dir(EXPIREMENTS_MODELS_CONFIG_PATH)
 
     train_config_params = {
         "lr": np.logspace(-5, -2, num=4, dtype=float).tolist(),
