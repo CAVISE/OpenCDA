@@ -9,7 +9,7 @@ from torch_geometric.loader import DataLoader
 import numpy as np
 import pandas as pd
 
-from CoDriving.data_scripts.data_config.data_config import ALLIGN_INITIAL_DIRECTION_TO_X
+from CoDriving.data_scripts.data_config.data_config import ALLIGN_INITIAL_DIRECTION_TO_X, NUM_AUGMENTATION
 from CoDriving.models.model_factory import ModelFactory
 from CoDriving.data_scripts.dataset import CarDataset, rotation_matrix_back_with_allign_to_X, rotation_matrix_back_with_allign_to_Y
 from CoDriving.data_scripts.metrics_logger import MetricLogger
@@ -114,10 +114,10 @@ def get_optimizer(optimizer_name: str):
 
 def init_dataloaders(train_data_dir: str, val_data_dir: str, batch_size):
     try:
-        train_dataset = CarDataset(preprocess_folder=train_data_dir, mlp=False, mpc_aug=True)
+        train_dataset = CarDataset(preprocess_folder=train_data_dir, mlp=False, mpc_aug=(NUM_AUGMENTATION > 0))
         train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, drop_last=False)
 
-        val_dataset = CarDataset(preprocess_folder=val_data_dir, mlp=False, mpc_aug=True)
+        val_dataset = CarDataset(preprocess_folder=val_data_dir, mlp=False, mpc_aug=(NUM_AUGMENTATION > 0))
         val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, drop_last=False)
         return train_loader, val_loader
 

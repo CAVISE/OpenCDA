@@ -110,7 +110,7 @@ class CarDataset(InMemoryDataset):
             if os.path.splitext(file)[1] != ".pkl":
                 continue
             if not self.mpc_aug:
-                if os.path.splitext(file)[0].split("-")[1] != "0":
+                if os.path.splitext(file)[0].split("-")[-1] != "0":
                     continue
             data = pickle.load(open(os.path.join(self.preprocess_folder, file), "rb"))
             # x: [v, 7], [x, y, v, yaw, intention(3-bit)],

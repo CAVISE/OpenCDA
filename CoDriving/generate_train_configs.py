@@ -1,9 +1,9 @@
 import os
 import yaml
 import numpy as np
+import shutil
 
 from data_path_config import BASE_TRAIN_CONFIG_PATH, BASE_MODEL_CONFIG_PATH, EXPIREMENTS_TRAIN_CONFIG_PATH, EXPIREMENTS_MODELS_CONFIG_PATH
-from CoDriving.data_scripts.utils.base_utils import del_files_in_dir
 
 
 def read_base_config_file(config_file_path: str):
@@ -48,10 +48,14 @@ def write_configs(
 
 
 def generate_configs():
+    if os.path.exists(EXPIREMENTS_TRAIN_CONFIG_PATH):
+        shutil.rmtree(EXPIREMENTS_TRAIN_CONFIG_PATH)
+
+    if os.path.exists(EXPIREMENTS_MODELS_CONFIG_PATH):
+        shutil.rmtree(EXPIREMENTS_MODELS_CONFIG_PATH)
+
     os.makedirs(EXPIREMENTS_TRAIN_CONFIG_PATH, exist_ok=True)
     os.makedirs(EXPIREMENTS_MODELS_CONFIG_PATH, exist_ok=True)
-    del_files_in_dir(EXPIREMENTS_TRAIN_CONFIG_PATH)
-    del_files_in_dir(EXPIREMENTS_MODELS_CONFIG_PATH)
 
     train_config_params = {
         "lr": np.logspace(-5, -2, num=4, dtype=float).tolist(),

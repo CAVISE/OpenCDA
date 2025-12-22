@@ -43,7 +43,7 @@ def get_dir_config_files(dir_path: str):
     return dir_config_paths
 
 
-def train_many_configs(max_needed_gpu_usage=0.7, max_mem_usage=0.7, max_processes=5, wait_time=4):
+def train_many_configs(max_needed_gpu_usage=0.7, max_mem_usage=0.7, max_processes=7, wait_time=4):
     nvmlInit()
 
     main_device = "cuda" if torch.cuda.is_available() else "cpu"

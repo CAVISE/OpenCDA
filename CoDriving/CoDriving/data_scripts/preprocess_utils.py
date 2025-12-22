@@ -12,7 +12,7 @@ from CoDriving.data_scripts.dataset import (
     rotation_matrix_with_allign_to_X,
     transform_sumo2carla,
 )
-from CoDriving.data_scripts.data_config.data_config import NUM_PREDICT, OBS_LEN, PRED_LEN, ALLIGN_INITIAL_DIRECTION_TO_X
+from CoDriving.data_scripts.data_config.data_config import NUM_PREDICT, OBS_LEN, PRED_LEN, ALLIGN_INITIAL_DIRECTION_TO_X, NUM_AUGMENTATION
 from CoDriving.data_scripts.utils.feature_utils import get_intention_from_vehicle_id
 
 
@@ -25,7 +25,6 @@ def process_file(
     csv_file: str,
     preprocess_folder: str,
     intentuion_config,
-    n_mpc_aug,
     normalize,
 ):
     """
@@ -124,9 +123,7 @@ def process_file(
         ) as handle:
             pickle.dump(data, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-        # пока думаю, не нужна аугментация, во-первый результаты странные в данных, во-вторых чтоб искючить число параметров для подбора
-        return
-        for a in range(n_mpc_aug):
+        for a in range(NUM_AUGMENTATION):
             shifted_curr, mpc_output = MPC_Block(
                 curr_states, future_states, acc_delta_old, noise_range=noise_range
             )  # [vehicle, 4], [vehicle, PRED_LEN, 6]: [x, y, v, yaw, acc, delta]

@@ -6,7 +6,7 @@ import concurrent.futures
 
 from data_path_config import DATA_PATH
 from CoDriving.data_scripts.preprocess_utils import process_file
-from CoDriving.data_scripts.utils.base_utils import del_files_in_dir
+import shutil
 
 
 def process_file_wrapper(*args):
@@ -39,7 +39,6 @@ if __name__ == "__main__":
         help="path to the preprocessed data (*.pkl)",
         default="csv/train_pre",
     )
-    parser.add_argument("--num_mpc_aug", type=int, help="number of MPC augmentation", default=0)
     parser.add_argument(
         "--processes",
         type=int,
@@ -58,10 +57,11 @@ if __name__ == "__main__":
     csv_folder = os.path.join(DATA_PATH, csv_folder)
     preprocess_folder = args.pkl_folder
     preprocess_folder = os.path.join(DATA_PATH, preprocess_folder)
+    
+    if os.path.exists(preprocess_folder):
+        shutil.rmtree(preprocess_folder)
     os.makedirs(preprocess_folder, exist_ok=True)
-    del_files_in_dir(preprocess_folder)
 
-    n_mpc_aug = args.num_mpc_aug
     processes = args.processes
     intention_config = args.intention_config
     normalize = args.normalize
@@ -83,7 +83,6 @@ if __name__ == "__main__":
                 file,
                 preprocess_folder,
                 intention_config_path,
-                n_mpc_aug,
                 normalize,
             )
             for file in csv_files

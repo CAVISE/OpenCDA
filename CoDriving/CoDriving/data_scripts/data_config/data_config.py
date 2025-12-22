@@ -15,6 +15,7 @@ VEHICLE_MIN_GAP = 2.5
 MAP_BOUNDARY = 100
 
 ALLIGN_INITIAL_DIRECTION_TO_X = True # allign initial direction of motion to +X
+NUM_AUGMENTATION = 0
 
 
 RAW_DATA_FORMAT = {
