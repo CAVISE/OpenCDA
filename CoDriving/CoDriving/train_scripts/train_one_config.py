@@ -9,8 +9,9 @@ from torch_geometric.loader import DataLoader
 import numpy as np
 import pandas as pd
 
+from CoDriving.data_scripts.data_config.data_config import ALLIGN_INITIAL_DIRECTION_TO_X
 from CoDriving.models.model_factory import ModelFactory
-from CoDriving.data_scripts.dataset import CarDataset, rotation_matrix_back
+from CoDriving.data_scripts.dataset import CarDataset, rotation_matrix_back_with_allign_to_X, rotation_matrix_back_with_allign_to_Y
 from CoDriving.data_scripts.metrics_logger import MetricLogger
 
 
@@ -172,7 +173,12 @@ def train_one_epoch(
         out = out.reshape(-1, 30, 2)  # [v, pred, 2]
         out = out.permute(0, 2, 1)  # [v, 2, pred]
         yaw = batch.x[:, 3].detach().cpu().numpy()
-        rotations = torch.stack([rotation_matrix_back(yaw[i]) for i in range(batch.x.shape[0])]).to(out.device)
+
+        if ALLIGN_INITIAL_DIRECTION_TO_X:
+            rotations = torch.stack([rotation_matrix_back_with_allign_to_X(yaw[i]) for i in range(batch.x.shape[0])]).to(out.device)
+        else:
+            rotations = torch.stack([rotation_matrix_back_with_allign_to_Y(yaw[i]) for i in range(batch.x.shape[0])]).to(out.device)
+
         out = torch.bmm(rotations, out).permute(0, 2, 1)  # [v, pred, 2]
         out += batch.x[:, [0, 1]].unsqueeze(1)
         # [x, y, v, yaw, acc, steering]
@@ -233,7 +239,12 @@ def evaluate(
 
             out = out.permute(0, 2, 1)  # [v, 2, pred]
             yaw = batch.x[:, 3].detach().cpu().numpy()
-            rotations = torch.stack([rotation_matrix_back(yaw[i]) for i in range(batch.x.shape[0])]).to(out.device)
+
+            if ALLIGN_INITIAL_DIRECTION_TO_X:
+                rotations = torch.stack([rotation_matrix_back_with_allign_to_X(yaw[i]) for i in range(batch.x.shape[0])]).to(out.device)
+            else:
+                rotations = torch.stack([rotation_matrix_back_with_allign_to_Y(yaw[i]) for i in range(batch.x.shape[0])]).to(out.device)
+
             out = torch.bmm(rotations, out).permute(0, 2, 1)  # [v, pred, 2]
             out += batch.x[:, [0, 1]].unsqueeze(1)
 
@@ -430,7 +441,7 @@ def train_one_config(train_config_path: str, model_config_path: str, expirements
         )
         metric_loggers[metric].plot_metric()
 
-    if push_to_hf:
+    if save_checkpoints and push_to_hf:
         best_model_path = os.path.join(
             path_config.model_checkpoints_dir,
             f"model_{'wp' if collision_penalty else 'np'}_{exp_id}_{str(best_epoch).zfill(4)}.pth",

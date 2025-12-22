@@ -85,7 +85,6 @@ if __name__ == "__main__":
                 intention_config_path,
                 n_mpc_aug,
                 normalize,
-                True,  # allign initial direction of motion to +X
             )
             for file in csv_files
         ]

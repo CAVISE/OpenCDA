@@ -12,7 +12,7 @@ from CoDriving.data_scripts.dataset import (
     rotation_matrix_with_allign_to_X,
     transform_sumo2carla,
 )
-from CoDriving.data_scripts.data_config.data_config import NUM_PREDICT, OBS_LEN, PRED_LEN
+from CoDriving.data_scripts.data_config.data_config import NUM_PREDICT, OBS_LEN, PRED_LEN, ALLIGN_INITIAL_DIRECTION_TO_X
 from CoDriving.data_scripts.utils.feature_utils import get_intention_from_vehicle_id
 
 
@@ -27,7 +27,6 @@ def process_file(
     intentuion_config,
     n_mpc_aug,
     normalize,
-    allign_initial_direction_to_x=False,
 ):
     """
     Docstring for process_file
@@ -77,7 +76,7 @@ def process_file(
             0, 2, 1
         )  # [vehicle, PRED_LEN, 2] -> [vehicle, 2, PRED_LEN]
 
-        if allign_initial_direction_to_x:
+        if ALLIGN_INITIAL_DIRECTION_TO_X:
             rotations = np.array([rotation_matrix_with_allign_to_X(x[i][3]) for i in range(x.shape[0])])  # [vehicle, 2, 2]
         else:
             rotations = np.array([rotation_matrix_with_allign_to_Y(x[i][3]) for i in range(x.shape[0])])  # [vehicle, 2, 2]
@@ -100,7 +99,7 @@ def process_file(
         all_features[:, row + 1 : row + 1 + NUM_PREDICT, -2:] = mpc_output[:, :, -2:]
         speed = all_features[:, row + 1 : row + 1 + NUM_PREDICT, 2:3]  # [vehicle, PRED_LEN, 1]
 
-        if allign_initial_direction_to_x:
+        if ALLIGN_INITIAL_DIRECTION_TO_X:
             yaw = (
                 all_features[:, row + 1 : row + 1 + NUM_PREDICT, 3:4] - all_features[:, row : row + 1, 3:4]
             )  # [vehicle, PRED_LEN, 1], align the initial direction to +X
@@ -137,7 +136,7 @@ def process_file(
             y = rotations @ y
             y = y.transpose(0, 2, 1)  # [vehicle, PRED_LEN, 2]
 
-            if allign_initial_direction_to_x:
+            if ALLIGN_INITIAL_DIRECTION_TO_X:
                 mpc_output[:, :, 3:4] = mpc_output[:, :, 3:4] - all_features[:, row : row + 1, 3:4]
             else:
                 mpc_output[:, :, 3:4] = mpc_output[:, :, 3:4] - all_features[:, row : row + 1, 3:4] + np.pi / 2
