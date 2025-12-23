@@ -1,13 +1,14 @@
-import torch.nn as nn
-
+from typing import Dict, Any
+import torch
+from torch import nn, Tensor
 
 class HeightCompression(nn.Module):
-    def __init__(self, model_cfg, **kwargs):
+    def __init__(self, model_cfg: Dict[str, Any], **kwargs) -> None:
         super().__init__()
         self.model_cfg = model_cfg
         self.num_bev_features = self.model_cfg["feature_num"]
 
-    def forward(self, batch_dict):
+    def forward(self, batch_dict: Dict[str, Any]) -> Dict[str, Any]:
         """
         Args:
             batch_dict:

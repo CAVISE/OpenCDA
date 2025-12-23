@@ -4,8 +4,13 @@ import numpy as np
 from einops import rearrange
 from opencood.utils.common_utils import torch_tensor_to_numpy
 
+from typing import List
 
-def regroup(dense_feature, record_len, max_len):
+def regroup(
+    dense_feature: torch.Tensor,
+    record_len: List[int],
+    max_len: int
+) -> torch.Tensor:
     """
     Regroup the data based on the record_len.
 

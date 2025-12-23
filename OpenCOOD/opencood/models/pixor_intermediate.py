@@ -4,17 +4,27 @@ import torch.nn as nn
 
 from opencood.models.fuse_modules.self_attn import AttFusion
 from opencood.models.pixor import Bottleneck, BackBone, Header
-
+from torch import Tensor
+from typing import Dict, Any, List, Type
 
 class BackBoneIntermediate(BackBone):
-    def __init__(self, block, num_block, geom, use_bn=True):
+    """
+    Intermediate backbone for PIXOR model with attention-based feature fusion.
+    """
+    def __init__(
+        self, 
+        block: Type[nn.Module], 
+        num_block: List[int], 
+        geom: Dict[str, Any], 
+        use_bn: bool = True
+    ) -> None:
         super(BackBoneIntermediate, self).__init__(block, num_block, geom, use_bn)
 
         self.fusion_net3 = AttFusion(192)
         self.fusion_net4 = AttFusion(256)
         self.fusion_net5 = AttFusion(384)
 
-    def forward(self, x, record_len):
+    def forward(self, x: Tensor, record_len: Tensor) -> Tensor:
         c3, c4, c5 = self.encode(x)
 
         c5 = self.fusion_net5(c5, record_len)
@@ -45,7 +55,7 @@ class PIXORIntermediate(nn.Module):
         Header used to predict the classification and coordinates.
     """
 
-    def __init__(self, args):
+    def __init__(self, args: Dict[str, Any]) -> None:
         super(PIXORIntermediate, self).__init__()
         geom = args["geometry_param"]
         use_bn = args["use_bn"]
@@ -66,7 +76,7 @@ class PIXORIntermediate(nn.Module):
         self.header.reghead.weight.data.fill_(0)
         self.header.reghead.bias.data.fill_(0)
 
-    def forward(self, data_dict):
+    def forward(self, data_dict: Dict[str, Any]) -> Dict[str, Any]:
         bev_input = data_dict["processed_lidar"]["bev_input"]
         record_len = data_dict["record_len"]
 

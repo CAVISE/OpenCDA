@@ -1,10 +1,14 @@
 """
-Class for data augmentation
+Data augmentation pipeline for 3D point clouds and bounding boxes.
+This module provides a flexible data augmentation pipeline that can be configured
+through a YAML configuration file. It supports various augmentation techniques
+such as random flipping, rotation, and scaling of point clouds and their
+corresponding 3D bounding boxes.
 """
 
 from functools import partial
 from opencood.data_utils.augmentor import augment_utils
-
+from typing import Dict, Any, List
 
 class DataAugmentor(object):
     """
@@ -21,7 +25,13 @@ class DataAugmentor(object):
         The list of data augmented functions.
     """
 
-    def __init__(self, augment_config, train=True):
+    def __init__(self, augment_config: List[Dict[str, Any]], train: bool = True) -> None:
+        """
+        Initialize the data augmentor with the given configuration.
+        Args:
+            augment_config: List of augmentation configurations.
+            train: Whether to apply augmentations (default: True).
+        """
         self.data_augmentor_queue = []
         self.train = train
 
@@ -29,7 +39,15 @@ class DataAugmentor(object):
             cur_augmentor = getattr(self, cur_cfg["NAME"])(config=cur_cfg)
             self.data_augmentor_queue.append(cur_augmentor)
 
-    def random_world_flip(self, data_dict=None, config=None):
+    def random_world_flip(self, data_dict: Dict[str, Any] = None, config: Dict[str, Any] = None) -> Dict[str, Any]:
+        """
+        Create a function that randomly flips the world along specified axes.
+        Args:
+            config: Configuration dictionary containing:
+                - ALONG_AXIS_LIST: List of axes to flip (e.g., ['x', 'y'])
+        Returns:
+            Callable: Function that applies random flipping to input data.
+        """
         if data_dict is None:
             return partial(self.random_world_flip, config=config)
 
@@ -55,7 +73,15 @@ class DataAugmentor(object):
 
         return data_dict
 
-    def random_world_rotation(self, data_dict=None, config=None):
+    def random_world_rotation(self, data_dict: Dict[str, Any] = None, config: Dict[str, Any] = None) -> Dict[str, Any]:
+        """
+        Create a function that applies random rotation to the world.
+        Args:
+            config: Configuration dictionary containing:
+                - WORLD_ROT_ANGLE: List of [min_angle, max_angle] in radians
+        Returns:
+            Callable: Function that applies random rotation to input data.
+        """
         if data_dict is None:
             return partial(self.random_world_rotation, config=config)
 
@@ -78,7 +104,15 @@ class DataAugmentor(object):
 
         return data_dict
 
-    def random_world_scaling(self, data_dict=None, config=None):
+    def random_world_scaling(self, data_dict: Dict[str, Any] = None, config: Dict[str, Any] = None) -> Dict[str, Any]:
+        """
+        Create a function that applies random scaling to the world.
+        Args:
+            config: Configuration dictionary containing:
+                - WORLD_SCALE_RANGE: List of [min_scale, max_scale]
+        Returns:
+            Callable: Function that applies random scaling to input data.
+        """
         if data_dict is None:
             return partial(self.random_world_scaling, config=config)
 
@@ -98,7 +132,7 @@ class DataAugmentor(object):
 
         return data_dict
 
-    def forward(self, data_dict):
+    def forward(self, data_dict: Dict[str, Any]) -> Dict[str, Any]:
         """
         Args:
             data_dict:

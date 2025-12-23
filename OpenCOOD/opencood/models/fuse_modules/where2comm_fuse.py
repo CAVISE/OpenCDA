@@ -1,6 +1,7 @@
 """
 Implementation of Where2comm fusion.
 """
+from typing import Dict, List, Optional, Tuple, Any
 
 import numpy as np
 import random
@@ -8,11 +9,21 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from torch import Tensor 
 from opencood.models.fuse_modules.self_attn import ScaledDotProductAttention
 
 
 class Communication(nn.Module):
-    def __init__(self, args):
+    """
+    Communication module for Where2comm that handles feature masking based on confidence.
+    Args:
+        args: Dictionary containing configuration:
+            - threshold: Confidence threshold for communication
+            - gaussian_smooth: Optional dictionary with:
+                - k_size: Kernel size for Gaussian smoothing
+                - c_sigma: Sigma value for Gaussian kernel
+    """
+    def __init__(self, args: Dict[str, Any]) -> None:
         super(Communication, self).__init__()
         # Threshold of objectiveness
         self.threshold = args["threshold"]
@@ -27,7 +38,7 @@ class Communication(nn.Module):
         else:
             self.smooth = False
 
-    def init_gaussian_filter(self, k_size=5, sigma=1.0):
+    def init_gaussian_filter(self, k_size: int = 5, sigma: float = 1.0) -> None:
         center = k_size // 2
         x, y = np.mgrid[0 - center : k_size - center, 0 - center : k_size - center]
         gaussian_kernel = 1 / (2 * np.pi * sigma) * np.exp(-(np.square(x) + np.square(y)) / (2 * np.square(sigma)))
@@ -35,10 +46,19 @@ class Communication(nn.Module):
         self.gaussian_filter.weight.data = torch.Tensor(gaussian_kernel).to(self.gaussian_filter.weight.device).unsqueeze(0).unsqueeze(0)
         self.gaussian_filter.bias.data.zero_()
 
-    def forward(self, batch_confidence_maps, B):
+    def forward(
+        self, 
+        batch_confidence_maps: List[Tensor], 
+        B: int
+    ) -> Tuple[Tensor, float]:
         """
+        Generate communication masks based on confidence maps
         Args:
             batch_confidence_maps: [(L1, H, W), (L2, H, W), ...]
+        Returns:
+            Tuple of:
+            - communication_masks: Binary masks for communication (sum(L), 1, H, W)
+            - communication_rate: Average communication rate across batch
         """
 
         _, _, H, W = batch_confidence_maps[0].shape
@@ -80,11 +100,16 @@ class Communication(nn.Module):
 
 
 class AttentionFusion(nn.Module):
-    def __init__(self, feature_dim):
+    """
+    Attention-based feature fusion module.
+    Args:
+        feature_dim: Dimension of input features
+    """
+    def __init__(self, feature_dim: int) -> None:
         super(AttentionFusion, self).__init__()
         self.att = ScaledDotProductAttention(feature_dim)
 
-    def forward(self, x):
+    def forward(self, x: Tensor) -> Tensor:
         cav_num, C, H, W = x.shape
         x = x.view(cav_num, C, -1).permute(2, 0, 1)  # (H*W, cav_num, C), perform self attention on each pixel
         x = self.att(x, x, x)
@@ -93,7 +118,7 @@ class AttentionFusion(nn.Module):
 
 
 class Where2comm(nn.Module):
-    def __init__(self, args):
+    def __init__(self, args: Dict[str, Any]) -> None:
         super(Where2comm, self).__init__()
         self.discrete_ratio = args["voxel_size"][0]
         self.downsample_rate = args["downsample_rate"]
@@ -118,12 +143,19 @@ class Where2comm(nn.Module):
 
         self.naive_communication = Communication(args["communication"])
 
-    def regroup(self, x, record_len):
+    def regroup(x: Tensor, record_len: Tensor) -> List[Tensor]:
         cum_sum_len = torch.cumsum(record_len, dim=0)
         split_x = torch.tensor_split(x, cum_sum_len[:-1].cpu())
         return split_x
 
-    def forward(self, x, psm_single, record_len, pairwise_t_matrix, backbone=None):
+    def forward(
+        self, 
+        x: Tensor, 
+        psm_single: Tensor, 
+        record_len: Tensor, 
+        pairwise_t_matrix: Tensor, 
+        backbone: Optional[nn.Module] = None
+    ) -> Tensor:
         """
         Fusion forwarding.
 

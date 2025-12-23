@@ -1,9 +1,11 @@
+from typing import Dict, Any
 import torch
 import torch.nn as nn
+from torch import Tensor
 
 
 class PointPillarScatter(nn.Module):
-    def __init__(self, model_cfg):
+    def __init__(self, model_cfg: Dict[str, Any]) -> None:
         super().__init__()
 
         self.model_cfg = model_cfg
@@ -11,7 +13,7 @@ class PointPillarScatter(nn.Module):
         self.nx, self.ny, self.nz = model_cfg["grid_size"]
         assert self.nz == 1
 
-    def forward(self, batch_dict):
+    def forward(self, batch_dict: Dict[str, Tensor]) -> Dict[str, Tensor]:
         pillar_features, coords = batch_dict["pillar_features"], batch_dict["voxel_coords"]
         batch_spatial_features = []
         batch_size = coords[:, 0].max().int().item() + 1

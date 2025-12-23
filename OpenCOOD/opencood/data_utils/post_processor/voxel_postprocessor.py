@@ -13,14 +13,32 @@ from opencood.data_utils.post_processor.base_postprocessor import BasePostproces
 from opencood.utils import box_utils
 from opencood.utils.box_overlaps import bbox_overlaps
 from opencood.visualization import vis_utils
-
+from typing import Dict, List, Tuple, Optional, Any, Union
 
 class VoxelPostprocessor(BasePostprocessor):
-    def __init__(self, anchor_params, train):
+    """
+    Base class for voxel-based 3D object detection post-processing.
+    
+    This class provides common functionality for processing 3D object detection
+    predictions in voxel-based approaches, including anchor generation and
+    box decoding.
+    """
+    def __init__(self, anchor_params: Dict[str, Any], train: bool) -> None:
+        """
+        Initialize the VoxelPostprocessor.
+        Args:
+            anchor_params: Dictionary containing anchor configuration parameters.
+            train: Whether the processor is in training mode.
+        """
         super(VoxelPostprocessor, self).__init__(anchor_params, train)
         self.anchor_num = self.params["anchor_args"]["num"]
 
-    def generate_anchor_box(self):
+    def generate_anchor_box(self) -> torch.Tensor:
+        """
+        Generate anchor boxes for voxel-based detection.
+        Returns:
+            Tensor containing anchor boxes with shape (H, W, num_anchors, 7)
+        """
         W = self.params["anchor_args"]["W"]
         H = self.params["anchor_args"]["H"]
 
@@ -68,7 +86,8 @@ class VoxelPostprocessor(BasePostprocessor):
 
         return anchors
 
-    def generate_label(self, **kwargs):
+    def generate_label(self, **kwargs) -> Dict[str, torch.Tensor]:
+
         """
         Generate targets for training.
 
@@ -165,7 +184,7 @@ class VoxelPostprocessor(BasePostprocessor):
         return label_dict
 
     @staticmethod
-    def collate_batch(label_batch_list):
+    def collate_batch(label_batch_list: List[Dict[str, np.ndarray]]) -> Dict[str, torch.Tensor]:
         """
         Customized collate function for target label generation.
 
@@ -195,7 +214,9 @@ class VoxelPostprocessor(BasePostprocessor):
 
         return {"targets": targets, "pos_equal_one": pos_equal_one, "neg_equal_one": neg_equal_one}
 
-    def post_process(self, data_dict, output_dict):
+    def post_process(self, 
+                data_dict: Dict[str, Dict[str, Any]], 
+                output_dict: Dict[str, Dict[str, torch.Tensor]]) -> Tuple[Optional[torch.Tensor], Optional[torch.Tensor]]:
         """
         Process the outputs of the model to 2D/3D bounding box.
         Step1: convert each cav's output to bounding box format
@@ -297,7 +318,9 @@ class VoxelPostprocessor(BasePostprocessor):
         return pred_box3d_tensor, scores
 
     @staticmethod
-    def delta_to_boxes3d(deltas, anchors, channel_swap=True):
+    def delta_to_boxes3d(deltas: torch.Tensor, 
+                    anchors: torch.Tensor, 
+                    channel_swap: bool = True) -> torch.Tensor:
         """
         Convert the output delta to 3d bbx.
 
@@ -346,7 +369,12 @@ class VoxelPostprocessor(BasePostprocessor):
         return boxes3d
 
     @staticmethod
-    def visualize(pred_box_tensor, gt_tensor, pcd, show_vis, save_path, dataset=None):
+    def visualize(pred_box_tensor: torch.Tensor,
+             gt_tensor: torch.Tensor,
+             pcd: torch.Tensor,
+             show_vis: bool,
+             save_path: str,
+             dataset: Optional[Any] = None) -> None:
         """
         Visualize the prediction, ground truth with point cloud together.
 

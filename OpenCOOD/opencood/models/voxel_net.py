@@ -1,3 +1,9 @@
+"""
+VoxelNet implementation for 3D object detection.
+This module implements the VoxelNet architecture for processing point cloud data
+through voxel-based feature extraction and region proposal networks.
+"""
+from typing import Dict, Any, Union, Tuple
 import torch.nn as nn
 import torch.nn.functional as F
 import torch
@@ -5,11 +11,31 @@ from torch.autograd import Variable
 
 from opencood.models.sub_modules.pillar_vfe import PillarVFE
 from opencood.utils.common_utils import torch_tensor_to_numpy
-
+from torch import Tensor
 
 # conv2d + bn + relu
 class Conv2d(nn.Module):
-    def __init__(self, in_channels, out_channels, k, s, p, activation=True, batch_norm=True):
+    """
+    2D Convolution with optional batch normalization and ReLU activation.
+    Args:
+        in_channels: Number of input channels
+        out_channels: Number of output channels
+        k: Kernel size
+        s: Stride
+        p: Padding
+        activation: Whether to apply ReLU activation
+        batch_norm: Whether to apply batch normalization
+    """
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        k: int,
+        s: int,
+        p: int,
+        activation: bool = True,
+        batch_norm: bool = True
+    ) -> None:
         super(Conv2d, self).__init__()
         self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=k, stride=s, padding=p)
         if batch_norm:
@@ -30,7 +56,25 @@ class Conv2d(nn.Module):
 
 # conv3d + bn + relu
 class Conv3d(nn.Module):
-    def __init__(self, in_channels, out_channels, k, s, p, batch_norm=True):
+    """
+    3D Convolution with batch normalization and ReLU activation.
+    Args:
+        in_channels: Number of input channels
+        out_channels: Number of output channels
+        k: Kernel size
+        s: Stride
+        p: Padding
+        batch_norm: Whether to apply batch normalization
+    """
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        k: Union[int, Tuple[int, int, int]],
+        s: Union[int, Tuple[int, int, int]],
+        p: Union[int, Tuple[int, int, int]],
+        batch_norm: bool = True
+    ) -> None:
         super(Conv3d, self).__init__()
         self.conv = nn.Conv3d(in_channels, out_channels, kernel_size=k, stride=s, padding=p)
         if batch_norm:
@@ -48,13 +92,13 @@ class Conv3d(nn.Module):
 
 # Fully Connected Network
 class FCN(nn.Module):
-    def __init__(self, cin, cout):
+    def __init__(self, cin: int, cout: int) -> None:
         super(FCN, self).__init__()
         self.cout = cout
         self.linear = nn.Linear(cin, cout)
         self.bn = nn.BatchNorm1d(cout)
 
-    def forward(self, x):
+    def forward(self, x: Tensor) -> Tensor:
         # KK is the stacked k across batch
         kk, t, _ = x.shape
         x = self.linear(x.view(kk * t, -1))
@@ -64,14 +108,14 @@ class FCN(nn.Module):
 
 # Voxel Feature Encoding layer
 class VFE(nn.Module):
-    def __init__(self, cin, cout, T):
+    def __init__(self, cin: int, cout: int, T: int) -> None:
         super(VFE, self).__init__()
         assert cout % 2 == 0
         self.units = cout // 2
         self.fcn = FCN(cin, self.units)
         self.T = T
 
-    def forward(self, x, mask):
+    def forward(self, x: Tensor, mask: Tensor) -> Tensor:
         # point-wise feature
         pwf = self.fcn(x)
         # locally aggregated feature
@@ -120,7 +164,12 @@ class CML(nn.Module):
 
 # Region Proposal Network
 class RPN(nn.Module):
-    def __init__(self, anchor_num=2):
+    """
+    Region Proposal Network for 3D object detection.
+    Args:
+        anchor_num: Number of anchor boxes per position
+    """
+    def __init__(self, anchor_num: int = 2) -> None:
         super(RPN, self).__init__()
         self.anchor_num = anchor_num
 
@@ -157,7 +206,7 @@ class RPN(nn.Module):
 
 
 class VoxelNet(nn.Module):
-    def __init__(self, args):
+    def __init__(self, args: Dict[str, Any]):
         super(VoxelNet, self).__init__()
         self.svfe = PillarVFE(args["pillar_vfe"], num_point_features=4, voxel_size=args["voxel_size"], point_cloud_range=args["lidar_range"])
 
@@ -181,7 +230,7 @@ class VoxelNet(nn.Module):
 
         return dense_feature.transpose(0, 1)
 
-    def forward(self, data_dict):
+    def forward(self, data_dict: Dict[str, Any]) -> Dict[str, Tensor]:
         voxel_features = data_dict["processed_lidar"]["voxel_features"]
         voxel_coords = data_dict["processed_lidar"]["voxel_coords"]
         voxel_num_points = data_dict["processed_lidar"]["voxel_num_points"]

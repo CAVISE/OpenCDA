@@ -5,9 +5,19 @@ from opencood.models.sub_modules.pillar_vfe import PillarVFE
 from opencood.models.sub_modules.point_pillar_scatter import PointPillarScatter
 from opencood.models.sub_modules.att_bev_backbone import AttBEVBackbone
 
+from typing import Dict, Any, Tuple
 
 class PointPillarIntermediate(nn.Module):
-    def __init__(self, args):
+    """
+    This module implements a PointPillar-based architecture with an attention-based
+    BEV backbone for feature extraction, followed by detection heads for classification
+    and regression.
+    """
+    def __init__(self, args: Dict[str, Any]) -> None:
+        """
+        Initialize the PointPillarIntermediate model.
+
+        """
         super(PointPillarIntermediate, self).__init__()
 
         # PIllar VFE
@@ -18,7 +28,10 @@ class PointPillarIntermediate(nn.Module):
         self.cls_head = nn.Conv2d(128 * 3, args["anchor_number"], kernel_size=1)
         self.reg_head = nn.Conv2d(128 * 3, 7 * args["anchor_num"], kernel_size=1)
 
-    def forward(self, data_dict):
+    def forward(self, data_dict: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Forward pass of the PointPillarIntermediate model.
+        """
         voxel_features = data_dict["processed_lidar"]["voxel_features"]
         voxel_coords = data_dict["processed_lidar"]["voxel_coords"]
         voxel_num_points = data_dict["processed_lidar"]["voxel_num_points"]

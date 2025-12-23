@@ -10,10 +10,10 @@ from opencood.utils.transformation_utils import dist_to_continuous
 from opencood.data_utils.post_processor.base_postprocessor import BasePostprocessor
 from opencood.utils import box_utils
 from opencood.visualization import vis_utils
-
+from typing import Dict, List, Tuple, Optional, Any, Union
 
 class BevPostprocessor(BasePostprocessor):
-    def __init__(self, anchor_params, train):
+    def __init__(self, anchor_params: Dict[str, Any], train: bool = True) -> None:
         super(BevPostprocessor, self).__init__(anchor_params, train)
         # self.geometry_param = anchor_params["geometry"]
         self.geometry_param = anchor_params["geometry_param"]
@@ -23,10 +23,15 @@ class BevPostprocessor(BasePostprocessor):
         self.target_mean = np.array([0.008, 0.001, 0.202, 0.2, 0.43, 1.368])
         self.target_std_dev = np.array([0.866, 0.5, 0.954, 0.668, 0.09, 0.111])
 
-    def generate_anchor_box(self):
+    def generate_anchor_box(self) -> None:
+        """
+        Generate anchor boxes for object detection.
+        Returns:
+            None: 
+        """
         return None
 
-    def generate_label(self, **kwargs):
+    def generate_label(self, **kwargs) -> Dict[str, np.ndarray]:
         """
         Generate targets for training.
 
@@ -75,7 +80,8 @@ class BevPostprocessor(BasePostprocessor):
         }
         return label_dict
 
-    def update_label_map(self, label_map, bev_corners, reg_targets):
+    def update_label_map(self, label_map: np.ndarray, bev_corners: np.ndarray, 
+                        reg_targets: np.ndarray) -> None:
         """
         Update label_map based on bbx and regression targets.
 
@@ -126,7 +132,7 @@ class BevPostprocessor(BasePostprocessor):
             label_map[points_in_box[:, 0], points_in_box[:, 1], 0] = 1.0
             label_map[points_in_box[:, 0], points_in_box[:, 1], 1:] = actual_reg_target
 
-    def normalize_targets(self, label_map):
+    def normalize_targets(self, label_map: np.ndarray) -> np.ndarray:
         """
         Normalize label_map
 
@@ -145,7 +151,7 @@ class BevPostprocessor(BasePostprocessor):
         label_map[..., 1:] = (label_map[..., 1:] - self.target_mean) / self.target_std_dev
         return label_map
 
-    def denormalize_reg_map(self, reg_map):
+    def denormalize_reg_map(self, reg_map: Union[np.ndarray, torch.Tensor]) -> Union[np.ndarray, torch.Tensor]:
         """
         Denormalize the regression map
 
@@ -195,7 +201,8 @@ class BevPostprocessor(BasePostprocessor):
         }
         return processed_batch
 
-    def post_process(self, data_dict, output_dict):
+    def post_process(self, data_dict: Dict[str, Any], 
+                output_dict: Dict[str, Dict[str, torch.Tensor]]) -> Tuple[Optional[torch.Tensor], Optional[torch.Tensor]]:
         """
         Process the outputs of the model to 2D bounding box.
         Step1: convert each cav's output to bounding box format
@@ -270,7 +277,7 @@ class BevPostprocessor(BasePostprocessor):
         assert pred_scores.shape[0] == pred_box2ds.shape[0]
         return pred_box2ds, pred_scores
 
-    def reg_map_to_bbx_corners(self, reg_map, mask):
+    def reg_map_to_bbx_corners(self, reg_map: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
         """
         Construct bbx from the regression output of the model.
 
@@ -310,7 +317,8 @@ class BevPostprocessor(BasePostprocessor):
 
         return corners
 
-    def post_process_debug(self, data_dict, output_dict):
+    def post_process_debug(self, data_dict: Dict[str, Any], 
+                      output_dict: Dict[str, torch.Tensor]) -> torch.Tensor:
         """
         Process the outputs of the model to 2D bounding box for debug purpose.
         Step1: convert each cav's output to bounding box format
@@ -377,7 +385,12 @@ class BevPostprocessor(BasePostprocessor):
         return pred_box2ds
 
     @staticmethod
-    def visualize(pred_box_tensor, gt_tensor, pcd, show_vis, save_path, dataset=None):
+    def visualize(pred_box_tensor: torch.Tensor, 
+             gt_tensor: torch.Tensor, 
+             pcd: torch.Tensor, 
+             show_vis: bool, 
+             save_path: str, 
+             dataset: Optional[Any] = None) -> None:
         """
         Visualize the BEV 2D prediction, ground truth with point cloud together.
 

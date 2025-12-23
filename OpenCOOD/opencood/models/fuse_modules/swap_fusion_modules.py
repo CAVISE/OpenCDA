@@ -9,6 +9,8 @@ from einops.layers.torch import Rearrange, Reduce
 
 from opencood.models.sub_modules.base_transformer import FeedForward, PreNormResidual
 
+from typing import Optional
+from torch import nn, Tensor
 
 # swap attention -> max_vit
 class Attention(nn.Module):
@@ -27,7 +29,14 @@ class Attention(nn.Module):
         The agent can be different views, timestamps or vehicles.
     """
 
-    def __init__(self, dim, dim_head=32, dropout=0.0, agent_size=6, window_size=7):
+    def __init__(
+        self,
+        dim: int,
+        dim_head: int = 32,
+        dropout: float = 0.0,
+        agent_size: int = 6,
+        window_size: int = 7
+    ) -> None:
         super().__init__()
         assert (dim % dim_head) == 0, "dimension should be divisible by dimension per head"
 
@@ -67,7 +76,11 @@ class Attention(nn.Module):
         relative_position_index = relative_coords.sum(-1)  # Wd*Wh*Ww, Wd*Wh*Ww
         self.register_buffer("relative_position_index", relative_position_index)
 
-    def forward(self, x, mask=None):
+    def forward(
+        self, 
+        x: Tensor, 
+        mask: Optional[Tensor] = None
+    ) -> Tensor:
         # x shape: b, l, h, w, w_h, w_w, c
         batch, agent_size, height, width, window_height, window_width, _, _, h = *x.shape, x.device, self.heads  # eighth variable is device
 
@@ -113,7 +126,15 @@ class SwapFusionBlockMask(nn.Module):
     mask enabled for multi-vehicle cooperation.
     """
 
-    def __init__(self, input_dim, mlp_dim, dim_head, window_size, agent_size, drop_out):
+    def __init__(
+        self, 
+        input_dim: int, 
+        mlp_dim: int, 
+        dim_head: int, 
+        window_size: int, 
+        agent_size: int, 
+        drop_out: float
+    ) -> None:
         super(SwapFusionBlockMask, self).__init__()
 
         self.window_size = window_size
@@ -123,7 +144,11 @@ class SwapFusionBlockMask(nn.Module):
         self.grid_attention = PreNormResidual(input_dim, Attention(input_dim, dim_head, drop_out, agent_size, window_size))
         self.grid_ffd = PreNormResidual(input_dim, FeedForward(input_dim, mlp_dim, drop_out))
 
-    def forward(self, x, mask):
+    def forward(
+        self, 
+        x: Tensor, 
+        mask: Tensor
+    ) -> Tensor:
         # x: b l c h w
         # mask: b h w 1 l
         # window attention -> grid attention
@@ -152,7 +177,15 @@ class SwapFusionBlock(nn.Module):
     Swap Fusion Block contains window attention and grid attention.
     """
 
-    def __init__(self, input_dim, mlp_dim, dim_head, window_size, agent_size, drop_out):
+    def __init__(
+        self, 
+        input_dim: int, 
+        mlp_dim: int, 
+        dim_head: int, 
+        window_size: int, 
+        agent_size: int, 
+        drop_out: float
+    ) -> None:
         super(SwapFusionBlock, self).__init__()
         # b = batch * max_cav
         self.block = nn.Sequential(
@@ -166,7 +199,11 @@ class SwapFusionBlock(nn.Module):
             Rearrange("b m x y w1 w2 d -> b m d (w1 x) (w2 y)"),
         )
 
-    def forward(self, x, mask=None):
+    def forward(
+        self, 
+        x: Tensor, 
+        mask: Optional[Tensor] = None
+    ) -> Tensor:
         # todo: add mask operation later for mulit-agents
         x = self.block(x)
         return x
@@ -212,7 +249,11 @@ class SwapFusionEncoder(nn.Module):
             Rearrange("b h w d -> b d h w"),
         )
 
-    def forward(self, x, mask=None):
+    def forward(
+        self, 
+        x: Tensor, 
+        mask: Optional[Tensor] = None
+    ) -> Tensor:
         for stage in self.layers:
             x = stage(x, mask=mask)
         return self.mlp_head(x)

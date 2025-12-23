@@ -9,9 +9,12 @@ from opencood.models.sub_modules.downsample_conv import DownsampleConv
 from opencood.models.sub_modules.naive_compress import NaiveCompressor
 from opencood.models.fuse_modules.v2xvit_basic import V2XTransformer
 
-
+from typing import Dict, Any
 class PointPillarTransformer(nn.Module):
-    def __init__(self, args):
+    """
+    PointPillar with Transformer-based feature fusion for multi-agent collaboration.
+    """
+    def __init__(self, args: Dict[str, Any]):
         super(PointPillarTransformer, self).__init__()
 
         self.max_cav = args["max_cav"]
@@ -63,7 +66,10 @@ class PointPillarTransformer(nn.Module):
         for p in self.reg_head.parameters():
             p.requires_grad = False
 
-    def forward(self, data_dict):
+    def forward(self, data_dict: Dict[str, Any]) -> Dict[str, torch.Tensor]:
+        """
+        Forward pass of the PointPillarTransformer model.
+        """
         voxel_features = data_dict["processed_lidar"]["voxel_features"]
         voxel_coords = data_dict["processed_lidar"]["voxel_coords"]
         voxel_num_points = data_dict["processed_lidar"]["voxel_num_points"]

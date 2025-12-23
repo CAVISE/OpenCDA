@@ -9,9 +9,14 @@ from opencood.models.sub_modules.naive_compress import NaiveCompressor
 from opencood.models.fuse_modules.swap_fusion_modules import SwapFusionEncoder
 from opencood.models.fuse_modules.fuse_utils import regroup
 
+from typing import Dict, Any
 
 class PointPillarCoBEVT(nn.Module):
-    def __init__(self, args):
+    """
+    PointPillarCoBEVT implements a collaborative 3D object detection model using
+    PointPillar architecture with CoBEVT fusion for multi-agent perception.
+    """
+    def __init__(self, args: Dict[str, Any]) -> None:
         super(PointPillarCoBEVT, self).__init__()
 
         self.max_cav = args["max_cav"]
@@ -63,7 +68,10 @@ class PointPillarCoBEVT(nn.Module):
         for p in self.reg_head.parameters():
             p.requires_grad = False
 
-    def forward(self, data_dict):
+    def forward(self, data_dict: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Forward pass of the PointPillarCoBEVT model.
+        """
         voxel_features = data_dict["processed_lidar"]["voxel_features"]
         voxel_coords = data_dict["processed_lidar"]["voxel_coords"]
         voxel_num_points = data_dict["processed_lidar"]["voxel_num_points"]

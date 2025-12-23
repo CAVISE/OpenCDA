@@ -1,34 +1,45 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
+from typing import Optional, Dict, Any
 
 class PixorLoss(nn.Module):
-    def __init__(self, args):
+    """
+    PIXOR loss function for 3D object detection.
+    
+    This loss combines classification and regression losses for the PIXOR model,
+    which predicts objects in a bird's eye view representation.
+    """
+    def __init__(self, args: Dict[str, float]) -> None:
         super(PixorLoss, self).__init__()
         self.alpha = args["alpha"]
         self.beta = args["beta"]
         self.loss_dict = {}
 
-    def dtype(self):
+    def dtype(self) -> torch.dtype:
+        """
+        Get the default data type for the loss computation.
+        
+        Returns:
+            torch.dtype: The default data type (float16)
+        """
         return torch.float16
 
-    def forward(self, output_dict, target_dict):
+    def forward(self, output_dict: Dict[str, torch.Tensor], 
+               target_dict: Dict[str, torch.Tensor]) -> torch.Tensor:
         """
-        Compute loss for pixor network
-        Parameters
-        ----------
-        output_dict : dict
-           The dictionary that contains the output.
-
-        target_dict : dict
-           The dictionary that contains the target.
-
-        Returns
-        -------
-        total_loss : torch.Tensor
-            Total loss.
-
+        Compute loss for pixor network.
+        
+        Args:
+            output_dict: Dictionary containing model outputs:
+                - cls: Classification predictions [B, 1, H, W]
+                - reg: Regression predictions [B, 6, H, W]
+            target_dict: Dictionary containing ground truth:
+                - label_map: Target tensor [B, 7, H, W] where channels are:
+                    - channel 0: classification target
+                    - channels 1-6: regression targets
+        Returns:
+            torch.Tensor: Total loss value
         """
         targets = target_dict["label_map"]
         cls_preds, loc_preds = output_dict["cls"], output_dict["reg"]
@@ -69,7 +80,7 @@ class PixorLoss(nn.Module):
 
         return total_loss
 
-    def logging(self, epoch, batch_id, batch_len, writer, pbar=None):
+    def logging(self, epoch: int, batch_id: int, batch_len: int, writer, pbar: Optional[Any] = None) -> None:
         """
         Print out  the loss function for current iteration.
 

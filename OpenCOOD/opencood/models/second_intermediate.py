@@ -5,10 +5,30 @@ from opencood.models.sub_modules.mean_vfe import MeanVFE
 from opencood.models.sub_modules.sparse_backbone_3d import VoxelBackBone8x
 from opencood.models.sub_modules.height_compression import HeightCompression
 from opencood.models.sub_modules.att_bev_backbone import AttBEVBackbone
-
+from typing import Dict, Any
+import torch
 
 class SecondIntermediate(nn.Module):
-    def __init__(self, args):
+    """
+    SECOND with intermediate feature extraction for 3D object detection.
+    This model implements the SECOND (Sparsely Embedded Convolutional Detection)
+    architecture with an attention-based BEV backbone for feature extraction,
+    followed by detection heads for classification and regression.
+    """
+    def __init__(self, args: Dict[str, Any]) -> None:
+        """
+        Initialize the SecondIntermediate model.
+        Args:
+            args: Configuration dictionary containing:
+                - batch_size: Number of samples per batch
+                - mean_vfe: Configuration for MeanVoxelFeatureExtractor
+                - backbone_3d: Configuration for 3D sparse backbone
+                - grid_size: Grid size for 3D voxelization [X, Y, Z]
+                - height_compression: Configuration for height compression
+                - base_bev_backbone: Configuration for 2D BEV backbone
+                - anchor_number: Number of anchor boxes per position
+                - anchor_num: Number of anchor boxes (used for regression head)
+        """
         super(SecondIntermediate, self).__init__()
 
         self.batch_size = args["batch_size"]
@@ -25,7 +45,10 @@ class SecondIntermediate(nn.Module):
         self.cls_head = nn.Conv2d(256 * 2, args["anchor_number"], kernel_size=1)
         self.reg_head = nn.Conv2d(256 * 2, 7 * args["anchor_num"], kernel_size=1)
 
-    def forward(self, data_dict):
+    def forward(self, data_dict: Dict[str, Any]) -> Dict[str, torch.Tensor]:
+        """
+        Forward pass of the SecondIntermediate model.
+        """
         voxel_features = data_dict["processed_lidar"]["voxel_features"]
         voxel_coords = data_dict["processed_lidar"]["voxel_coords"]
         voxel_num_points = data_dict["processed_lidar"]["voxel_num_points"]

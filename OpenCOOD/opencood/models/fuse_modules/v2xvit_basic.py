@@ -1,7 +1,13 @@
+"""
+V2X Transformer implementation for multi-agent feature fusion.
+This module implements the V2X Transformer architecture for fusing features
+from multiple agents using attention mechanisms and temporal encoding.
+"""
+from typing import Dict, List, Union, Any
 import math
 
 import torch
-from torch import nn
+from torch import nn, Tensor
 
 from opencood.models.fuse_modules.hmsa import HGTCavAttention
 from opencood.models.fuse_modules.mswin import PyramidWindowAttention
@@ -15,12 +21,17 @@ from opencood.models.sub_modules.torch_transformation_utils import (
 
 
 class STTF(nn.Module):
-    def __init__(self, args):
+    def __init__(self, args: Dict[str, Union[float, List[float], int]]) -> None:
         super(STTF, self).__init__()
         self.discrete_ratio = args["voxel_size"][0]
         self.downsample_rate = args["downsample_rate"]
 
-    def forward(self, x, mask, spatial_correction_matrix):
+    def forward(
+        self, 
+        x: Tensor, 
+        mask: Tensor, 
+        spatial_correction_matrix: Tensor
+    ) -> Tensor:
         x = x.permute(0, 1, 4, 2, 3)
         dist_correction_matrix = get_discretized_transformation_matrix(spatial_correction_matrix, self.discrete_ratio, self.downsample_rate)
         # Only compensate non-ego vehicles
@@ -39,7 +50,13 @@ class RelTemporalEncoding(nn.Module):
     Implement the Temporal Encoding (Sinusoid) function.
     """
 
-    def __init__(self, n_hid, RTE_ratio, max_len=100, dropout=0.2):
+    def __init__(
+        self, 
+        n_hid: int, 
+        RTE_ratio: float, 
+        max_len: int = 100, 
+        dropout: float = 0.2
+    ) -> None:
         super(RelTemporalEncoding, self).__init__()
         position = torch.arange(0.0, max_len).unsqueeze(1)
         div_term = torch.exp(torch.arange(0, n_hid, 2) * -(math.log(10000.0) / n_hid))
@@ -51,20 +68,26 @@ class RelTemporalEncoding(nn.Module):
         self.emb = emb
         self.lin = nn.Linear(n_hid, n_hid)
 
-    def forward(self, x, t):
+    def forward(self, x: Tensor, t: Tensor) -> Tensor:
         # When t has unit of 50ms, rte_ratio=1.
         # So we can train on 100ms but test on 50ms
         return x + self.lin(self.emb(t * self.RTE_ratio)).unsqueeze(0).unsqueeze(1)
 
 
 class RTE(nn.Module):
-    def __init__(self, dim, RTE_ratio=2):
+    """
+    Relative Temporal Encoding wrapper for batched processing.
+    Args:
+        dim: Feature dimension
+        RTE_ratio: Ratio for temporal encoding
+    """
+    def __init__(self, dim: int, RTE_ratio: float = 2) -> None:
         super(RTE, self).__init__()
         self.RTE_ratio = RTE_ratio
 
         self.emb = RelTemporalEncoding(dim, RTE_ratio=self.RTE_ratio)
 
-    def forward(self, x, dts):
+    def forward(self, x: Tensor, dts: Tensor) -> Tensor:
         # x: (B,L,H,W,C)
         # dts: (B,L)
         rte_batch = []
@@ -77,7 +100,19 @@ class RTE(nn.Module):
 
 
 class V2XFusionBlock(nn.Module):
-    def __init__(self, num_blocks, cav_att_config, pwindow_config):
+    """
+    V2X Fusion Block combining multi-agent attention and pyramid window attention.
+    Args:
+        num_blocks: Number of attention blocks
+        cav_att_config: Configuration for CAV attention
+        pwindow_config: Configuration for pyramid window attention
+    """
+    def __init__(
+        self, 
+        num_blocks: int, 
+        cav_att_config: Dict[str, Any],
+        pwindow_config: Dict[str, Any]
+    ) -> None:
         super().__init__()
         # first multi-agent attention and then multi-window attention
         self.layers = nn.ModuleList([])
@@ -113,7 +148,12 @@ class V2XFusionBlock(nn.Module):
                 )
             )
 
-    def forward(self, x, mask, prior_encoding):
+    def forward(
+        self, 
+        x: Tensor, 
+        mask: Tensor, 
+        prior_encoding: Tensor
+    ) -> Tensor:
         for cav_attn, pwindow_attn in self.layers:
             x = cav_attn(x, mask=mask, prior_encoding=prior_encoding) + x
             x = pwindow_attn(x) + x
@@ -121,7 +161,19 @@ class V2XFusionBlock(nn.Module):
 
 
 class V2XTEncoder(nn.Module):
-    def __init__(self, args):
+    """
+    V2X Transformer Encoder module.
+    Args:
+        args: Dictionary containing encoder configuration:
+            - cav_att_config: Configuration for CAV attention
+            - pwindow_att_config: Configuration for pyramid window attention
+            - feed_forward: Feed-forward network configuration
+            - num_blocks: Number of fusion blocks
+            - depth: Number of encoder layers
+            - sttf: Spatial-temporal transformation config
+            - use_roi_mask: Whether to use ROI masking
+    """
+    def __init__(self, args: Dict[str, Any]) -> None:
         super().__init__()
 
         cav_att_config = args["cav_att_config"]
@@ -154,7 +206,12 @@ class V2XTEncoder(nn.Module):
                 )
             )
 
-    def forward(self, x, mask, spatial_correction_matrix):
+    def forward(
+        self, 
+        x: Tensor, 
+        mask: Tensor, 
+        spatial_correction_matrix: Tensor
+    ) -> Tensor:
         # transform the features to the current timestamp
         # velocity, time_delay, infra
         # (B,L,H,W,3)
@@ -178,13 +235,18 @@ class V2XTEncoder(nn.Module):
 
 
 class V2XTransformer(nn.Module):
-    def __init__(self, args):
+    def __init__(self, args: Dict[str, Any]) -> None:
         super(V2XTransformer, self).__init__()
 
         encoder_args = args["encoder"]
         self.encoder = V2XTEncoder(encoder_args)
 
-    def forward(self, x, mask, spatial_correction_matrix):
+    def forward(
+        self, 
+        x: Tensor, 
+        mask: Tensor, 
+        spatial_correction_matrix: Tensor
+    ) -> Tensor:
         output = self.encoder(x, mask, spatial_correction_matrix)
         output = output[:, 0]
         return output

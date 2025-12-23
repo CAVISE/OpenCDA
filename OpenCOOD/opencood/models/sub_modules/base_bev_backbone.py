@@ -2,6 +2,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 
+from typing import Dict
+from torch import Tensor
 
 class BaseBEVBackbone(nn.Module):
     def __init__(self, model_cfg, input_channels):
@@ -83,7 +85,19 @@ class BaseBEVBackbone(nn.Module):
 
         self.num_bev_features = c_in
 
-    def forward(self, data_dict):
+    def forward(self, data_dict: Dict[str, Tensor]) -> Dict[str, Tensor]:
+        """
+        Forward pass for the base BEV backbone.
+        
+        Args:
+            data_dict: Dictionary containing input features with key: spatial_features
+                  
+        Returns:
+            Dictionary containing:
+                - spatial_features_2d: Output features Tensor of shape 
+                - spatial_features_{stride}x: Multi-scale intermediate 
+                  features stored in internal ret_dict
+        """
         spatial_features = data_dict["spatial_features"]
 
         ups = []

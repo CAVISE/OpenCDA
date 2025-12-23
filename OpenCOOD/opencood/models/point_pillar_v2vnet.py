@@ -6,10 +6,14 @@ from opencood.models.sub_modules.base_bev_backbone import BaseBEVBackbone
 from opencood.models.sub_modules.downsample_conv import DownsampleConv
 from opencood.models.sub_modules.naive_compress import NaiveCompressor
 from opencood.models.fuse_modules.v2v_fuse import V2VNetFusion
-
+from typing import Dict, Any
+import torch
 
 class PointPillarV2VNet(nn.Module):
-    def __init__(self, args):
+    """
+    PointPillar with V2VNet for multi-agent collaborative 3D object detection.
+    """
+    def __init__(self, args: Dict[str, Any]) -> None:
         super(PointPillarV2VNet, self).__init__()
 
         self.max_cav = args["max_cav"]
@@ -61,7 +65,10 @@ class PointPillarV2VNet(nn.Module):
         for p in self.reg_head.parameters():
             p.requires_grad = False
 
-    def forward(self, data_dict):
+    def forward(self, data_dict: Dict[str, Any]) -> Dict[str, torch.Tensor]:
+        """
+        Forward pass of the PointPillarV2VNet model.
+        """
         voxel_features = data_dict["processed_lidar"]["voxel_features"]
         voxel_coords = data_dict["processed_lidar"]["voxel_coords"]
         voxel_num_points = data_dict["processed_lidar"]["voxel_num_points"]

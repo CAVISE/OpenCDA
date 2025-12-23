@@ -1,10 +1,18 @@
+from typing import List, Any, Tuple, Union, Optional
 import torch
-from torch import nn
+from torch import nn, Tensor
 from torch.autograd import Variable
 
 
 class ConvGRUCell(nn.Module):
-    def __init__(self, input_size, input_dim, hidden_dim, kernel_size, bias):
+    def __init__(
+        self,
+        input_size: Tuple[int, int],
+        input_dim: int,
+        hidden_dim: int,
+        kernel_size: Tuple[int, int],
+        bias: bool
+    ) -> None:
         """
         Initialize the ConvLSTM cell
         :param input_size: (int, int)
@@ -44,10 +52,10 @@ class ConvGRUCell(nn.Module):
             bias=self.bias,
         )
 
-    def init_hidden(self, batch_size):
+    def init_hidden(self, batch_size: int) -> Tensor:
         return Variable(torch.zeros(batch_size, self.hidden_dim, self.height, self.width))
 
-    def forward(self, input_tensor, h_cur):
+    def forward(self, input_tensor: Tensor, h_cur: Tensor) -> Tensor:
         """
         :param self:
         :param input_tensor: (b, c, h, w)
@@ -73,7 +81,17 @@ class ConvGRUCell(nn.Module):
 
 
 class ConvGRU(nn.Module):
-    def __init__(self, input_size, input_dim, hidden_dim, kernel_size, num_layers, batch_first=False, bias=True, return_all_layers=False):
+    def __init__(
+        self,
+        input_size: Tuple[int, int],
+        input_dim: int,
+        hidden_dim: Union[int, List[int]],
+        kernel_size: Union[Tuple[int, int], List[Tuple[int, int]]],
+        num_layers: int,
+        batch_first: bool = False,
+        bias: bool = True,
+        return_all_layers: bool = False
+    ) -> None:
         """
         :param input_size: (int, int)
             Height and width of input tensor as (height, width).
@@ -130,7 +148,11 @@ class ConvGRU(nn.Module):
         # convert python list to pytorch module
         self.cell_list = nn.ModuleList(cell_list)
 
-    def forward(self, input_tensor, hidden_state=None):
+    def forward(
+        self,
+        input_tensor: Tensor,
+        hidden_state: Optional[List[Tensor]] = None
+    ) -> Tuple[List[Tensor], List[Tensor]]:
         """
         :param input_tensor: (b, t, c, h, w) or (t,b,c,h,w)
             depends on if batch first or not extracted features from alexnet
@@ -178,14 +200,19 @@ class ConvGRU(nn.Module):
 
         return layer_output_list, last_state_list
 
-    def _init_hidden(self, batch_size, device=None, dtype=None):
+    def _init_hidden(
+        self,
+        batch_size: int,
+        device: Optional[torch.device] = None,
+        dtype: Optional[torch.dtype] = None
+    ) -> List[Tensor]:
         init_states = []
         for i in range(self.num_layers):
             init_states.append(self.cell_list[i].init_hidden(batch_size).to(device).to(dtype))
         return init_states
 
     @staticmethod
-    def _check_kernel_size_consistency(kernel_size):
+    def _check_kernel_size_consistency(kernel_size: Any) -> None:
         if not (isinstance(kernel_size, tuple) or (isinstance(kernel_size, list) and all([isinstance(elem, tuple) for elem in kernel_size]))):
             raise ValueError("`kernel_size` must be tuple or list of tuples")
 

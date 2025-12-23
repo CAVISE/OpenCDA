@@ -9,8 +9,16 @@ import torch.nn.functional as F
 import numpy as np
 import matplotlib.pyplot as plt
 
+from typing import Tuple, Optional, Union
+from torch import Tensor, device as Device, dtype as DType
 
-def get_roi_and_cav_mask(shape, cav_mask, spatial_correction_matrix, discrete_ratio, downsample_rate):
+def get_roi_and_cav_mask(
+    shape: Tuple[int, int, int, int, int],
+    cav_mask: Tensor,
+    spatial_correction_matrix: Tensor,
+    discrete_ratio: float,
+    downsample_rate: float
+) -> Tensor:
     """
     Get mask for the combination of cav_mask and rorated ROI mask.
     Parameters
@@ -47,7 +55,7 @@ def get_roi_and_cav_mask(shape, cav_mask, spatial_correction_matrix, discrete_ra
     return com_mask
 
 
-def combine_roi_and_cav_mask(roi_mask, cav_mask):
+def combine_roi_and_cav_mask(roi_mask: Tensor, cav_mask: Tensor) -> Tensor:
     """
     Combine ROI mask and CAV mask
 
@@ -72,7 +80,7 @@ def combine_roi_and_cav_mask(roi_mask, cav_mask):
     return com_mask
 
 
-def get_rotated_roi(shape, correction_matrix):
+def get_rotated_roi(shape: Tuple[int, int, int, int, int], correction_matrix: Tensor) -> Tensor:
     """
     Get rorated ROI mask.
 
@@ -101,7 +109,11 @@ def get_rotated_roi(shape, correction_matrix):
     return roi_mask
 
 
-def get_discretized_transformation_matrix(matrix, discrete_ratio, downsample_rate):
+def get_discretized_transformation_matrix(
+    matrix: Tensor, 
+    discrete_ratio: float, 
+    downsample_rate: float
+) -> Tensor:
     """
     Get disretized transformation matrix.
     Parameters
@@ -128,7 +140,7 @@ def get_discretized_transformation_matrix(matrix, discrete_ratio, downsample_rat
     return matrix.type(dtype=torch.float)
 
 
-def _torch_inverse_cast(input):
+def _torch_inverse_cast(input: Tensor) -> Tensor:
     r"""
     Helper function to make torch.inverse work with other than fp32/64.
     The function torch.inverse is only implemented for fp32/64 which makes
@@ -151,7 +163,13 @@ def _torch_inverse_cast(input):
     return out
 
 
-def normal_transform_pixel(height, width, device, dtype, eps=1e-14):
+def normal_transform_pixel(
+    height: int, 
+    width: int, 
+    device: Union[Device, str], 
+    dtype: DType, 
+    eps: float = 1e-14
+) -> Tensor:
     r"""
     Compute the normalization matrix from image size in pixels to [-1, 1].
     Args:
@@ -182,7 +200,12 @@ def normal_transform_pixel(height, width, device, dtype, eps=1e-14):
     return tr_mat.unsqueeze(0)  # 1x3x3
 
 
-def eye_like(n, B, device, dtype):
+def eye_like(
+    n: int, 
+    B: int, 
+    device: Union[Device, str], 
+    dtype: DType
+) -> Tensor:
     r"""
     Return a 2-D tensor with ones on the diagonal and
     zeros elsewhere with the same batch size as the input.
@@ -204,7 +227,11 @@ def eye_like(n, B, device, dtype):
     return identity[None].repeat(B, 1, 1)
 
 
-def normalize_homography(dst_pix_trans_src_pix, dsize_src, dsize_dst=None):
+def normalize_homography(
+    dst_pix_trans_src_pix: Tensor, 
+    dsize_src: Tuple[int, int], 
+    dsize_dst: Optional[Tuple[int, int]] = None
+) -> Tensor:
     r"""
     Normalize a given homography in pixels to [-1, 1].
     Args:
@@ -237,7 +264,7 @@ def normalize_homography(dst_pix_trans_src_pix, dsize_src, dsize_dst=None):
     return dst_norm_trans_src_norm
 
 
-def get_rotation_matrix2d(M, dsize):
+def get_rotation_matrix2d(M: Tensor, dsize: Tuple[int, int]) -> Tensor:
     r"""
     Return rotation matrix for torch.affine_grid based on transformation matrix.
     Args:
@@ -265,7 +292,7 @@ def get_rotation_matrix2d(M, dsize):
     return affine_m[:, :2, :]  # Bx2x3
 
 
-def get_transformation_matrix(M, dsize):
+def get_transformation_matrix(M: Tensor, dsize: Tuple[int, int]) -> Tensor:
     r"""
     Return transformation matrix for torch.affine_grid.
     Args:
@@ -283,7 +310,7 @@ def get_transformation_matrix(M, dsize):
     return T
 
 
-def convert_affinematrix_to_homography(A):
+def convert_affinematrix_to_homography(A: Tensor) -> Tensor:
     r"""
     Convert to homography coordinates
     Args:
@@ -299,7 +326,14 @@ def convert_affinematrix_to_homography(A):
     return H
 
 
-def warp_affine(src, M, dsize, mode="bilinear", padding_mode="zeros", align_corners=True):
+def warp_affine(
+    src: Tensor,
+    M: Tensor,
+    dsize: Tuple[int, int],
+    mode: str = "bilinear",
+    padding_mode: str = "zeros",
+    align_corners: bool = True
+) -> Tensor:
     r"""
     Transform the src based on transformation matrix M.
     Args:
@@ -339,7 +373,7 @@ class Test:
     The methods in this class are not supposed to be used outside of this file.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         pass
 
     @staticmethod

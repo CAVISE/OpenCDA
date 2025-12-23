@@ -1,3 +1,5 @@
+from typing import Dict, List, Tuple, Optional, Any
+from torch import Tensor
 import copy
 
 import torch.nn as nn
@@ -10,7 +12,7 @@ from opencood.utils import box_utils
 
 
 class RoIHead(nn.Module):
-    def __init__(self, model_cfg):
+    def __init__(self, model_cfg: Dict[str, Any]) -> None:
         super().__init__()
         self.model_cfg = model_cfg
         input_channels = model_cfg["in_channels"]
@@ -41,7 +43,7 @@ class RoIHead(nn.Module):
 
         self._init_weights(weight_init="xavier")
 
-    def _init_weights(self, weight_init="xavier"):
+    def _init_weights(self, weight_init: str = "xavier") -> None:
         if weight_init == "kaiming":
             init_func = nn.init.kaiming_normal_
         elif weight_init == "xavier":
@@ -61,7 +63,9 @@ class RoIHead(nn.Module):
                     nn.init.constant_(m.bias, 0)
         nn.init.normal_(self.reg_layers[-1].weight, mean=0, std=0.001)
 
-    def _make_fc_layers(self, input_channels, fc_list, output_channels=None):
+    def _make_fc_layers(
+        self, input_channels: int, fc_list: List[int], output_channels: Optional[int] = None
+    ) -> Tuple[nn.Sequential, int]:
         fc_layers = []
         pre_channel = input_channels
         for k in range(len(fc_list)):
@@ -80,7 +84,9 @@ class RoIHead(nn.Module):
         fc_layers = nn.Sequential(*fc_layers)
         return fc_layers, pre_channel
 
-    def get_global_grid_points_of_roi(self, rois):
+    def get_global_grid_points_of_roi(
+        self, rois: Tensor
+    ) -> Tuple[Tensor, Tensor]:
         rois = rois.view(-1, rois.shape[-1])
         batch_size_rcnn = rois.shape[0]
 
@@ -92,7 +98,9 @@ class RoIHead(nn.Module):
         return global_roi_grid_points, local_roi_grid_points
 
     @staticmethod
-    def get_dense_grid_points(rois, batch_size_rcnn, grid_size):
+    def get_dense_grid_points(
+        rois: Tensor, batch_size_rcnn: int, grid_size: int
+    ) -> Tensor:
         """
         Get the local coordinates of each grid point of a roi in the coordinate
         system of the roi(origin lies in the center of this roi.
@@ -105,7 +113,7 @@ class RoIHead(nn.Module):
         roi_grid_points = (dense_idx + 0.5) / grid_size * local_roi_size.unsqueeze(dim=1) - (local_roi_size.unsqueeze(dim=1) / 2)  # (B, 6x6x6, 3)
         return roi_grid_points
 
-    def assign_targets(self, batch_dict):
+    def assign_targets(self, batch_dict: Dict[str, Any]) -> Dict[str, Any]:
         batch_dict["rcnn_label_dict"] = {
             "rois": [],
             "gt_of_rois": [],
@@ -180,7 +188,7 @@ class RoIHead(nn.Module):
 
         return batch_dict
 
-    def roi_grid_pool(self, batch_dict):
+    def roi_grid_pool(self, batch_dict: Dict[str, Any]) -> Dict[str, Any]:
         batch_size = len(batch_dict["record_len"])
         rois = batch_dict["rcnn_label_dict"]["rois"]
         point_coords = batch_dict["point_coords"]

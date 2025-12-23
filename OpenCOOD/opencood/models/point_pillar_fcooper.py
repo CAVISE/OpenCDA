@@ -6,14 +6,17 @@ from opencood.models.sub_modules.base_bev_backbone import BaseBEVBackbone
 from opencood.models.sub_modules.downsample_conv import DownsampleConv
 from opencood.models.sub_modules.naive_compress import NaiveCompressor
 from opencood.models.fuse_modules.f_cooper_fuse import SpatialFusion
-
+from typing import Dict, Any
 
 class PointPillarFCooper(nn.Module):
     """
     F-Cooper implementation with point pillar backbone.
     """
 
-    def __init__(self, args):
+    def __init__(self, args: Dict[str, Any]) -> None:
+        """
+        Initialize the PointPillarFCooper model.
+        """
         super(PointPillarFCooper, self).__init__()
 
         self.max_cav = args["max_cav"]
@@ -65,7 +68,10 @@ class PointPillarFCooper(nn.Module):
         for p in self.reg_head.parameters():
             p.requires_grad = False
 
-    def forward(self, data_dict):
+    def forward(self, data_dict: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Forward pass of the PointPillarFCooper model.
+        """
         voxel_features = data_dict["processed_lidar"]["voxel_features"]
         voxel_coords = data_dict["processed_lidar"]["voxel_coords"]
         voxel_num_points = data_dict["processed_lidar"]["voxel_num_points"]

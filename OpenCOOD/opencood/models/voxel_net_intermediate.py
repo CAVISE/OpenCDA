@@ -1,7 +1,9 @@
 """
-VoxelNet for intermediate fusion
+VoxelNet with intermediate feature fusion for 3D object detection.
+This module implements a VoxelNet variant that performs intermediate fusion
+of features from multiple agents using attention mechanisms.
 """
-
+from typing import Dict, Any
 import torch.nn as nn
 import torch.nn.functional as F
 import torch
@@ -14,10 +16,32 @@ from opencood.utils.common_utils import torch_tensor_to_numpy
 from opencood.models.fuse_modules.self_attn import AttFusion
 from opencood.models.sub_modules.auto_encoder import AutoEncoder
 
-
+from torch import Tensor
 # conv2d + bn + relu
 class Conv2d(nn.Module):
-    def __init__(self, in_channels, out_channels, k, s, p, activation=True, batch_norm=True, bias=True):
+    """
+    A 2D convolutional layer with optional batch normalization and ReLU activation.
+    Args:
+        in_channels: Number of input channels
+        out_channels: Number of output channels
+        k: Kernel size
+        s: Stride
+        p: Padding
+        activation: Whether to apply ReLU activation
+        batch_norm: Whether to use batch normalization
+        bias: Whether to add bias to the convolution
+    """
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        k: int,
+        s: int,
+        p: int,
+        activation: bool = True,
+        batch_norm: bool = True,
+        bias: bool = True
+    ) -> None:
         super(Conv2d, self).__init__()
         self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=k, stride=s, padding=p, bias=bias)
         if batch_norm:
@@ -37,6 +61,11 @@ class Conv2d(nn.Module):
 
 
 class NaiveFusion(nn.Module):
+    """
+    A simple fusion module that concatenates multiple feature maps and applies a series of convolutions.
+    Args:
+        None
+    """
     def __init__(self):
         super(NaiveFusion, self).__init__()
         self.conv1 = Conv2d(128 * 5, 256, 3, 1, 1, batch_norm=False, bias=False)
@@ -50,7 +79,7 @@ class NaiveFusion(nn.Module):
 
 
 class VoxelNetIntermediate(nn.Module):
-    def __init__(self, args):
+    def __init__(self, args: Dict[str, Any]):
         super(VoxelNetIntermediate, self).__init__()
         self.svfe = PillarVFE(args["pillar_vfe"], num_point_features=4, voxel_size=args["voxel_size"], point_cloud_range=args["lidar_range"])
         self.cml = CML()
@@ -78,7 +107,7 @@ class VoxelNetIntermediate(nn.Module):
 
         return dense_feature.transpose(0, 1)
 
-    def regroup(self, dense_feature, record_len):
+    def regroup(self, dense_feature: torch.Tensor, record_len: list) -> torch.Tensor:
         """
         Regroup the data based on the record_len.
 
@@ -118,7 +147,10 @@ class VoxelNetIntermediate(nn.Module):
 
         return regroup_features
 
-    def forward(self, data_dict):
+    def forward(self, data_dict: Dict[str, any]) -> Dict[str, Tensor]:
+        """
+        Forward pass of the VoxelNetIntermediate model.
+        """
         voxel_features = data_dict["processed_lidar"]["voxel_features"]
         voxel_coords = data_dict["processed_lidar"]["voxel_coords"]
         voxel_num_points = data_dict["processed_lidar"]["voxel_num_points"]

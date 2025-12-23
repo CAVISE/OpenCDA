@@ -1,12 +1,17 @@
+from typing import Dict, List, Tuple, Any
 import torch
-from torch import nn
+from torch import nn, Tensor
 
 from opencood.pcdet_utils.iou3d_nms.iou3d_nms_utils import boxes_iou3d_gpu
 
 pi = 3.141592653
 
 
-def limit_period(val, offset=0.5, period=2 * pi):
+def limit_period(
+    val: Tensor,
+    offset: float = 0.5,
+    period: float = 2 * pi
+) -> Tensor:
     return val - torch.floor(val / period + offset) * period
 
 
@@ -14,18 +19,21 @@ class Matcher(nn.Module):
     """Correct localization error and use Algorithm 1:
     BBox matching with scores to fuse the proposal BBoxes"""
 
-    def __init__(self, cfg, pc_range):
+    def __init__(self, cfg: Dict[str, Any], pc_range: List[float]) -> None:
         super(Matcher, self).__init__()
         self.pc_range = pc_range
 
     @torch.no_grad()
-    def forward(self, data_dict):
+    def forward(self, data_dict: Dict[str, Any]) -> Dict[str, Any]:
         clusters, scores = self.clustering(data_dict)
         data_dict["boxes_fused"], data_dict["scores_fused"] = self.cluster_fusion(clusters, scores)
         self.merge_keypoints(data_dict)
         return data_dict
 
-    def clustering(self, data_dict):
+    def clustering(
+        self,
+        data_dict: Dict[str, Any]
+    ) -> Tuple[List[List[Tensor]], List[List[Tensor]]]:
         """
         Assign predicted boxes to clusters according to their ious with each other
         """
@@ -63,7 +71,11 @@ class Matcher(nn.Module):
 
         return clusters_batch, scores_batch
 
-    def cluster_fusion(self, clusters, scores):
+    def cluster_fusion(
+        self,
+        clusters: List[List[Tensor]],
+        scores: List[List[Tensor]]
+    ) -> Tuple[List[Tensor], List[Tensor]]:
         """
         Merge boxes in each cluster with scores as weights for merging
         """
@@ -109,7 +121,18 @@ class Matcher(nn.Module):
 
         return boxes_fused, scores_fused
 
-    def merge_keypoints(self, data_dict):
+    def merge_keypoints(self, data_dict: Dict[str, Any]) -> None:
+        """
+        Merge keypoint features and coordinates across samples.
+        Args:
+            data_dict: Dictionary containing:
+                - "point_features": List of point features
+                - "point_coords": List of point coordinates
+                - "record_len": List of integers indicating number of points per sample
+        Modifies data_dict in-place to update:
+            - "point_features": Merged point features
+            - "point_coords": Merged point coordinates
+        """
         # merge keypoints
         kpts_feat_out = []
         kpts_coor_out = []

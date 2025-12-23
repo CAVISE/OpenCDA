@@ -1,7 +1,7 @@
 import numpy as np
 
 from opencood.utils import pcd_utils
-
+from typing import Dict, Any, Tuple
 
 class BasePreprocessor(object):
     """
@@ -16,11 +16,17 @@ class BasePreprocessor(object):
         Train or test mode.
     """
 
-    def __init__(self, preprocess_params, train):
+    def __init__(self, preprocess_params: Dict[str, Any], train: bool) -> None:
+        """
+        Initialize the base preprocessor.
+        Args:
+            preprocess_params: Configuration dictionary for preprocessing.
+            train: Boolean indicating training or evaluation mode.
+        """
         self.params = preprocess_params
         self.train = train
 
-    def preprocess(self, pcd_np):
+    def preprocess(self, pcd_np: np.ndarray) -> Dict[str, np.ndarray]:
         """
         Preprocess the lidar points by simple sampling.
 
@@ -41,7 +47,9 @@ class BasePreprocessor(object):
 
         return data_dict
 
-    def project_points_to_bev_map(self, points, ratio=0.1):
+    def project_points_to_bev_map(self, 
+                                points: np.ndarray, 
+                                ratio: float = 0.1) -> np.ndarray:
         """
         Project points to BEV occupancy map with default ratio=0.1.
 

@@ -1,14 +1,29 @@
 """
 Pillar VFE, credits to OpenPCDet.
 """
-
+from typing import Dict, List, Any
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
+from torch import Tensor
 
 class PFNLayer(nn.Module):
-    def __init__(self, in_channels, out_channels, use_norm=True, last_layer=False):
+    """
+    This layer processes point features within each pillar, applying linear
+    transformation, batch normalization, and ReLU activation.
+    Args:
+        in_channels: Number of input channels/features.
+        out_channels: Number of output channels/features.
+        use_norm: Whether to use batch normalization.
+        last_layer: Whether this is the last layer in the network.
+    """
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        use_norm: bool = True,
+        last_layer: bool = False
+    ) -> None:
         super().__init__()
 
         self.last_vfe = last_layer
@@ -24,7 +39,7 @@ class PFNLayer(nn.Module):
 
         self.part = 50000
 
-    def forward(self, inputs):
+    def forward(self, inputs: Tensor) -> Tensor:
         if inputs.shape[0] > self.part:
             # nn.Linear performs randomly when batch size is too large
             num_parts = inputs.shape[0] // self.part
@@ -47,7 +62,13 @@ class PFNLayer(nn.Module):
 
 
 class PillarVFE(nn.Module):
-    def __init__(self, model_cfg, num_point_features, voxel_size, point_cloud_range):
+    def __init__(
+        self,
+        model_cfg: Dict[str, Any],
+        num_point_features: int,
+        voxel_size: List[float],
+        point_cloud_range: List[float]
+    ) -> None:
         super().__init__()
         self.model_cfg = model_cfg
 
@@ -81,7 +102,11 @@ class PillarVFE(nn.Module):
         return self.num_filters[-1]
 
     @staticmethod
-    def get_paddings_indicator(actual_num, max_num, axis=0):
+    def get_paddings_indicator(
+        actual_num: Tensor,
+        max_num: int,
+        axis: int = 0
+    ) -> Tensor:
         actual_num = torch.unsqueeze(actual_num, axis + 1)
         max_num_shape = [1] * len(actual_num.shape)
         max_num_shape[axis + 1] = -1
@@ -89,7 +114,7 @@ class PillarVFE(nn.Module):
         paddings_indicator = actual_num.int() > max_num
         return paddings_indicator
 
-    def forward(self, batch_dict):
+    def forward(self, batch_dict: Dict[str, Tensor]) -> Dict[str, Tensor]:
         voxel_features, voxel_num_points, coords = batch_dict["voxel_features"], batch_dict["voxel_num_points"], batch_dict["voxel_coords"]
         points_mean = voxel_features[:, :, :3].sum(dim=1, keepdim=True) / voxel_num_points.type_as(voxel_features).view(-1, 1, 1)
         f_cluster = voxel_features[:, :, :3] - points_mean

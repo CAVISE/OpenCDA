@@ -1,3 +1,6 @@
+"""
+This module implements the scaled dot-product attention mechanism.
+"""
 import numpy as np
 import torch
 import torch.nn as nn
@@ -27,7 +30,7 @@ class ScaledDotProductAttention(nn.Module):
           encoder outputs.
     """
 
-    def __init__(self, dim):
+    def __init__(self, dim: int) -> None:
         super(ScaledDotProductAttention, self).__init__()
         self.sqrt_dim = np.sqrt(dim)
 

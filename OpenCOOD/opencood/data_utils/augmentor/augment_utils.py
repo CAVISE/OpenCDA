@@ -1,13 +1,23 @@
 import numpy as np
 from opencood.utils import common_utils
+from typing import Tuple, Optional, Union
 
-
-def random_flip_along_x(gt_boxes, points):
+def random_flip_along_x(gt_boxes: np.ndarray, points: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     """
+    Randomly flip the point cloud and bounding boxes along the X-axis.
     Args:
-        gt_boxes: (N, 7 + C), [x, y, z, dx, dy, dz, heading, [vx], [vy]]
-        points: (M, 3 + C)
+        gt_boxes: (N, 7 + C) numpy array where:
+            - N: number of bounding boxes
+            - 7: [x, y, z, dx, dy, dz, heading]
+            - C: optional velocity components [vx, vy, ...]
+        points: (M, 3 + C) numpy array where:
+            - M: number of points
+            - 3: x, y, z coordinates
+            - C: additional features per point
     Returns:
+        Tuple containing:
+        - Flipped ground truth boxes (N, 7 + C)
+        - Flipped points (M, 3 + C)
     """
     enable = np.random.choice([False, True], replace=False, p=[0.5, 0.5])
     if enable:
@@ -21,7 +31,7 @@ def random_flip_along_x(gt_boxes, points):
     return gt_boxes, points
 
 
-def random_flip_along_y(gt_boxes, points):
+def random_flip_along_y(gt_boxes: np.ndarray, points: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     """
     Args:
         gt_boxes: (N, 7 + C), [x, y, z, dx, dy, dz, heading, [vx], [vy]]
@@ -40,7 +50,7 @@ def random_flip_along_y(gt_boxes, points):
     return gt_boxes, points
 
 
-def global_rotation(gt_boxes, points, rot_range):
+def global_rotation(gt_boxes: np.ndarray, points: np.ndarray, rot_range: Tuple[float, float]) -> Tuple[np.ndarray, np.ndarray]:
     """
     Args:
         gt_boxes: (N, 7 + C), [x, y, z, dx, dy, dz, heading, [vx], [vy]]
@@ -63,7 +73,7 @@ def global_rotation(gt_boxes, points, rot_range):
     return gt_boxes, points
 
 
-def global_scaling(gt_boxes, points, scale_range):
+def global_scaling(gt_boxes: np.ndarray, points: np.ndarray, scale_range: Tuple[float, float]) -> Tuple[np.ndarray, np.ndarray]:
     """
     Args:
         gt_boxes: (N, 7), [x, y, z, dx, dy, dz, heading]

@@ -3,14 +3,21 @@ import torch.nn as nn
 import torch.nn.functional as F
 from opencood.models.fuse_modules.self_attn import ScaledDotProductAttention
 
+from typing import List, Tuple
 
-def regroup(x, record_len):
+def regroup(x: torch.Tensor, record_len: torch.Tensor) -> List[torch.Tensor]:
     cum_sum_len = torch.cumsum(record_len, dim=0)
     split_x = torch.tensor_split(x, cum_sum_len[:-1].cpu())
     return split_x
 
 
-def normalize_pairwise_tfm(pairwise_t_matrix, H, W, discrete_ratio, downsample_rate=1):
+def normalize_pairwise_tfm(
+    pairwise_t_matrix: torch.Tensor,
+    H: int,
+    W: int,
+    discrete_ratio: float,
+    downsample_rate: int = 1
+) -> torch.Tensor:
     """
     normalize the pairwise transformation matrix to affine matrix need by torch.nn.functional.affine_grid()
 
@@ -41,7 +48,14 @@ def normalize_pairwise_tfm(pairwise_t_matrix, H, W, discrete_ratio, downsample_r
     return normalized_affine_matrix
 
 
-def warp_affine_simple(src, M, dsize, mode="bilinear", padding_mode="zeros", align_corners=False):
+def warp_affine_simple(
+    src: torch.Tensor,
+    M: torch.Tensor,
+    dsize: Tuple[int, int],
+    mode: str = "bilinear",
+    padding_mode: str = "zeros",
+    align_corners: bool = False
+) -> torch.Tensor:
     """ """
     B, C, H, W = src.size()
     grid = F.affine_grid(M, [B, C, dsize[0], dsize[1]], align_corners=align_corners).to(src)
@@ -53,7 +67,12 @@ class Att_w_Warp(nn.Module):
         super(Att_w_Warp, self).__init__()
         self.att = ScaledDotProductAttention(feature_dims)
 
-    def forward(self, xx, record_len, normalized_affine_matrix):
+    def forward(
+        self,
+        xx: torch.Tensor,
+        record_len: torch.Tensor,
+        normalized_affine_matrix: torch.Tensor
+    ) -> torch.Tensor:
         _, C, H, W = xx.shape
         B, L = normalized_affine_matrix.shape[:2]
         split_x = regroup(xx, record_len)
@@ -75,7 +94,12 @@ class Att_w_Warp(nn.Module):
         out = torch.stack(out)
         return out
 
-    def forward_debug(self, xx, record_len, normalized_affine_matrix):
+    def forward_debug(
+        self,
+        xx: torch.Tensor,
+        record_len: torch.Tensor,
+        normalized_affine_matrix: torch.Tensor
+    ) -> torch.Tensor:
         import matplotlib.pyplot as plt
         import numpy as np
 

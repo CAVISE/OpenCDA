@@ -10,9 +10,12 @@ from opencood.models.sub_modules.roi_head import RoIHead
 from opencood.models.sub_modules.matcher import Matcher
 from opencood.data_utils.post_processor.fpvrcnn_postprocessor import FpvrcnnPostprocessor
 
-
+from typing import Dict, Any
 class FPVRCNN(nn.Module):
-    def __init__(self, args):
+    """
+    FPVRCNN (Frustum Point-Voxel R-CNN) model for 3D object detection.
+    """
+    def __init__(self, args: Dict[str, Any]) -> None:
         super(FPVRCNN, self).__init__()
         lidar_range = np.array(args["lidar_range"])
         grid_size = np.round((lidar_range[3:6] - lidar_range[:3]) / np.array(args["voxel_size"])).astype(np.int64)

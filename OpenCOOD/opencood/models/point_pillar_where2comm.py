@@ -6,10 +6,32 @@ from opencood.models.sub_modules.downsample_conv import DownsampleConv
 from opencood.models.sub_modules.naive_compress import NaiveCompressor
 from opencood.models.sub_modules.pillar_vfe import PillarVFE
 from opencood.models.sub_modules.point_pillar_scatter import PointPillarScatter
-
+from typing import Dict, Any
+import torch
 
 class PointPillarWhere2comm(nn.Module):
-    def __init__(self, args):
+    """
+    PointPillar with Where2comm for communication-efficient multi-agent 3D object detection.
+    """
+    def __init__(self, args: Dict[str, Any]):
+        """
+        Initialize the PointPillarWhere2comm model.
+        Args:
+            args: Configuration dictionary containing:
+                - max_cav: Maximum number of connected automated vehicles
+                - pillar_vfe: Configuration for PillarVFE
+                - voxel_size: Voxel size [x, y, z]
+                - lidar_range: LiDAR range [x_min, y_min, z_min, x_max, y_max, z_max]
+                - point_pillar_scatter: Configuration for point pillar scatter
+                - base_bev_backbone: Configuration for BaseBEVBackbone
+                - shrink_header: Optional configuration for feature downsampling
+                - compression: Configuration for feature compression
+                - where2comm_fusion: Configuration for Where2comm fusion
+                    - multi_scale: Whether to use multi-scale features
+                - head_dim: Dimension of the detection head
+                - anchor_number: Number of anchor boxes per position
+                - backbone_fix: Whether to fix backbone parameters
+        """
         super(PointPillarWhere2comm, self).__init__()
         self.max_cav = args["max_cav"]
         # Pillar VFE
@@ -65,7 +87,7 @@ class PointPillarWhere2comm(nn.Module):
         for p in self.reg_head.parameters():
             p.requires_grad = False
 
-    def forward(self, data_dict):
+    def forward(self, data_dict: Dict[str, Any]) -> Dict[str, torch.Tensor]:
         voxel_features = data_dict["processed_lidar"]["voxel_features"]
         voxel_coords = data_dict["processed_lidar"]["voxel_coords"]
         voxel_num_points = data_dict["processed_lidar"]["voxel_num_points"]

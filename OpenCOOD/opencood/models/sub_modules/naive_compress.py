@@ -1,3 +1,6 @@
+from typing import Any, Dict, Optional, Tuple, Union
+import torch
+from torch import Tensor
 import torch.nn as nn
 
 
@@ -6,7 +9,7 @@ class NaiveCompressor(nn.Module):
     A very naive compression that only compress on the channel.
     """
 
-    def __init__(self, input_dim, compress_raito):
+    def __init__(self, input_dim: int, compress_raito: int) -> None:
         super().__init__()
         self.encoder = nn.Sequential(
             nn.Conv2d(input_dim, input_dim // compress_raito, kernel_size=3, stride=1, padding=1),
@@ -22,7 +25,7 @@ class NaiveCompressor(nn.Module):
             nn.ReLU(),
         )
 
-    def forward(self, x):
+    def forward(self, x: Tensor) -> Tensor:
         x = self.encoder(x)
         x = self.decoder(x)
 

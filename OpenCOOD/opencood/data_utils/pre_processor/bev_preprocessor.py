@@ -1,19 +1,25 @@
 """
-Convert lidar to bev
+Convert LiDAR point clouds to Bird's Eye View (BEV) representations.
 """
 
 import numpy as np
 import torch
 from opencood.data_utils.pre_processor.base_preprocessor import BasePreprocessor
-
+from typing import Dict, List, Union, Any
 
 class BevPreprocessor(BasePreprocessor):
-    def __init__(self, preprocess_params, train):
+    def __init__(self, preprocess_params: Dict[str, Any], train: bool) -> None:
+        """
+        Initialize the BEV preprocessor.
+        Args:
+            preprocess_params: Configuration dictionary for preprocessing.
+            train: Boolean indicating training or evaluation mode.
+        """
         super(BevPreprocessor, self).__init__(preprocess_params, train)
         self.lidar_range = self.params["cav_lidar_range"]
         self.geometry_param = preprocess_params["geometry_param"]
 
-    def preprocess(self, pcd_raw):
+    def preprocess(self, pcd_raw: np.ndarray) -> Dict[str, np.ndarray]:
         """
         Preprocess the lidar points to BEV representations.
 
@@ -43,7 +49,7 @@ class BevPreprocessor(BasePreprocessor):
         return data_dict
 
     @staticmethod
-    def collate_batch_list(batch):
+    def collate_batch_list(batch: List[Dict[str, np.ndarray]]) -> Dict[str, torch.Tensor]:
         """
         Customized pytorch data loader collate function.
 
@@ -62,7 +68,7 @@ class BevPreprocessor(BasePreprocessor):
         return processed_batch
 
     @staticmethod
-    def collate_batch_dict(batch):
+    def collate_batch_dict(batch: Dict[str, List[np.ndarray]]) -> Dict[str, torch.Tensor]:
         """
         Customized pytorch data loader collate function.
 
@@ -80,7 +86,7 @@ class BevPreprocessor(BasePreprocessor):
         processed_batch = {"bev_input": torch.from_numpy(np.concatenate(bev_input_list, axis=0))}
         return processed_batch
 
-    def collate_batch(self, batch):
+    def collate_batch(self, batch: Union[List[Dict[str, np.ndarray]], Dict[str, List[np.ndarray]]]) -> Dict[str, torch.Tensor]:
         """
         Customized pytorch data loader collate function.
 

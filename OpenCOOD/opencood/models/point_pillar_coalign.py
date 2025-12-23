@@ -6,6 +6,7 @@ please refer to https://github.com/yifanlu0227/CoAlign
 
 import torch.nn as nn
 
+from typing import Dict, Any
 
 from opencood.models.sub_modules.pillar_vfe import PillarVFE
 from opencood.models.sub_modules.point_pillar_scatter import PointPillarScatter
@@ -16,7 +17,10 @@ from opencood.models.fuse_modules.coalign_fuse import Att_w_Warp, normalize_pair
 
 
 class PointPillarCoAlign(nn.Module):
-    def __init__(self, args):
+    def __init__(self, args: Dict[str, Any]) -> None:
+        """
+        Initialize the PointPillarCoAlign model.
+        """
         super(PointPillarCoAlign, self).__init__()
 
         # PIllar VFE
@@ -48,7 +52,10 @@ class PointPillarCoAlign(nn.Module):
         self.cls_head = nn.Conv2d(self.out_channel, args["anchor_number"], kernel_size=1)
         self.reg_head = nn.Conv2d(self.out_channel, 7 * args["anchor_num"], kernel_size=1)
 
-    def forward(self, data_dict):
+    def forward(self, data_dict: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Forward pass of the PointPillarCoAlign model.
+        """
         voxel_features = data_dict["processed_lidar"]["voxel_features"]
         voxel_coords = data_dict["processed_lidar"]["voxel_coords"]
         voxel_num_points = data_dict["processed_lidar"]["voxel_num_points"]

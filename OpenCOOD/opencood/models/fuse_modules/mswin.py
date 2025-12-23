@@ -1,5 +1,6 @@
 """
-Multi-scale window transformer
+Multi-scale window transformer implementation for feature fusion in multi-agent systems.
+This module provides window-based attention mechanisms with support for multi-scale processing.
 """
 
 import torch
@@ -9,15 +10,41 @@ import numpy as np
 from einops import rearrange
 from opencood.models.sub_modules.split_attn import SplitAttn
 
+from typing import List
 
-def get_relative_distances(window_size):
+def get_relative_distances(window_size: int) -> torch.Tensor:
+    """
+    Generate relative position indices for a square window.
+    Args:
+        window_size: Size of the square window (height/width)
+    Returns:
+        Tensor of shape (window_size^2, window_size^2, 2) containing relative positions
+    """
     indices = torch.tensor(np.array([[x, y] for x in range(window_size) for y in range(window_size)]))
     distances = indices[None, :, :] - indices[:, None, :]
     return distances
 
 
 class BaseWindowAttention(nn.Module):
-    def __init__(self, dim, heads, dim_head, drop_out, window_size, relative_pos_embedding):
+    """
+    Base window attention module that applies self-attention within local windows.
+    Args:
+        dim: Input feature dimension
+        heads: Number of attention heads
+        dim_head: Dimension of each attention head
+        drop_out: Dropout probability
+        window_size: Size of the attention window
+        relative_pos_embedding: Whether to use relative position embeddings
+    """
+    def __init__(
+        self,
+        dim: int,
+        heads: int,
+        dim_head: int,
+        drop_out: float,
+        window_size: int,
+        relative_pos_embedding: bool
+    ) -> None:
         super().__init__()
         inner_dim = dim_head * heads
 
@@ -36,7 +63,14 @@ class BaseWindowAttention(nn.Module):
 
         self.to_out = nn.Sequential(nn.Linear(inner_dim, dim), nn.Dropout(drop_out))
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass of the base window attention.
+        Args:
+            x: Input tensor of shape (batch_size, seq_len, height, width, channels)
+        Returns:
+            Output tensor of same shape as input
+        """
         _, _, h, w, _, m = *x.shape, self.heads  # 1 -> b, 2 -> length, 5 -> c
 
         qkv = self.to_qkv(x).chunk(3, dim=-1)
@@ -84,7 +118,16 @@ class BaseWindowAttention(nn.Module):
 
 
 class PyramidWindowAttention(nn.Module):
-    def __init__(self, dim, heads, dim_heads, drop_out, window_size, relative_pos_embedding, fuse_method="naive"):
+    def __init__(
+        self,
+        dim: int,
+        heads: List[int],
+        dim_heads: List[int],
+        drop_out: float,
+        window_size: List[int],
+        relative_pos_embedding: bool,
+        fuse_method: str = "naive"
+    ) -> None:
         super().__init__()
 
         assert isinstance(window_size, list)

@@ -17,6 +17,8 @@ from opencood.hypes_yaml.yaml_utils import load_yaml
 from opencood.utils.pcd_utils import downsample_lidar_minimum
 from opencood.utils.transformation_utils import x1_to_x2
 
+from typing import Dict, List, Any, Optional, Tuple, OrderedDict as OrderedDictType
+
 logger = logging.getLogger("cavise.OpenCOOD.opencood.data_utils.datasets.basedataset")
 
 
@@ -56,7 +58,7 @@ class BaseDataset(Dataset):
 
     """
 
-    def __init__(self, params, visualize, train=True):
+    def __init__(self, params: Dict[str, Any], visualize: bool, train: bool = True) -> None:
         self.params = params
         self.visualize = visualize
         self.train = train
@@ -167,13 +169,13 @@ class BaseDataset(Dataset):
     def __len__(self):
         return self.len_record[-1]
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx: int) -> Dict[str, Any]:
         """
         Abstract method, needs to be define by the children class.
         """
         pass
 
-    def retrieve_base_data(self, idx, cur_ego_pose_flag=True):
+    def retrieve_base_data(self, idx: int, cur_ego_pose_flag: bool = True) -> Dict[str, Any]:
         """
         Given the index, return the corresponding data.
 
@@ -230,7 +232,7 @@ class BaseDataset(Dataset):
         return data
 
     @staticmethod
-    def extract_timestamps(yaml_files):
+    def extract_timestamps(yaml_files: List[str]) -> List[str]:
         """
         Given the list of the yaml files, extract the mocked timestamps.
 
@@ -280,9 +282,19 @@ class BaseDataset(Dataset):
 
         return timestamp_key
 
-    def calc_dist_to_ego(self, scenario_database, timestamp_key):
+    def calc_dist_to_ego(self, scenario_database: Dict[str, Any], timestamp_key: str) -> Dict[str, Any]:
         """
-        Calculate the distance to ego for each cav.
+        Calculate the distance of each CAV to the ego vehicle.
+        Parameters
+        ----------
+        scenario_database : Dict[str, Any]
+            Dictionary containing scenario data for all CAVs.
+        timestamp_key : str
+            Timestamp key to access the specific data.
+        Returns
+        -------
+        Dict[str, Any]
+            The ego vehicle's content with updated distance information.
         """
         ego_lidar_pose = None
         ego_cav_content = None
@@ -308,19 +320,17 @@ class BaseDataset(Dataset):
 
         return ego_cav_content
 
-    def time_delay_calculation(self, ego_flag):
+    def time_delay_calculation(self, ego_flag: bool) -> int:
         """
         Calculate the time delay for a certain vehicle.
-
         Parameters
         ----------
-        ego_flag : boolean
-            Whether the current cav is ego.
-
-        Return
-        ------
-        time_delay : int
-            The time delay quantization.
+        ego_flag : bool
+            Whether the current CAV is the ego vehicle.
+        Returns
+        -------
+        int
+            The time delay in 100ms units.
         """
         # there is not time delay for ego vehicle
         if ego_flag:
@@ -341,7 +351,7 @@ class BaseDataset(Dataset):
         time_delay = time_delay // 100
         return time_delay if self.async_flag else 0
 
-    def add_loc_noise(self, pose, xyz_std, ryp_std):
+    def add_loc_noise(self, pose: List[float], xyz_std: float, ryp_std: float) -> List[float]:
         """
         Add localization noise to the pose.
 
@@ -362,7 +372,12 @@ class BaseDataset(Dataset):
         noise_pose = [pose[0] + xyz_noise[0], pose[1] + xyz_noise[1], pose[2] + xyz_noise[2], pose[3], pose[4] + ryp_std[1], pose[5]]
         return noise_pose
 
-    def reform_param(self, cav_content, ego_content, timestamp_cur, timestamp_delay, cur_ego_pose_flag):
+    def reform_param(self, 
+                    cav_content: Dict[str, Any], 
+                    ego_content: Dict[str, Any], 
+                    timestamp_cur: str, 
+                    timestamp_delay: str, 
+                    cur_ego_pose_flag: bool) -> Dict[str, Any]:
         """
         Reform the data params with current timestamp object groundtruth and
         delay timestamp LiDAR pose for other CAVs.
@@ -426,7 +441,7 @@ class BaseDataset(Dataset):
         return delay_params
 
     @staticmethod
-    def load_camera_files(cav_path, timestamp):
+    def load_camera_files(cav_path: str, timestamp: str) -> List[str]:
         """
         Retrieve the paths to all camera files.
 
@@ -449,7 +464,7 @@ class BaseDataset(Dataset):
         camera3_file = os.path.join(cav_path, timestamp + "_camera3.png")
         return [camera0_file, camera1_file, camera2_file, camera3_file]
 
-    def project_points_to_bev_map(self, points, ratio=0.1):
+    def project_points_to_bev_map(self, points: np.ndarray, ratio: float = 0.1) -> np.ndarray:
         """
         Project points to BEV occupancy map with default ratio=0.1.
 
@@ -470,7 +485,10 @@ class BaseDataset(Dataset):
         """
         return self.pre_processor.project_points_to_bev_map(points, ratio)
 
-    def augment(self, lidar_np, object_bbx_center, object_bbx_mask):
+    def augment(self, 
+               lidar_np: np.ndarray, 
+               object_bbx_center: np.ndarray, 
+               object_bbx_mask: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Given the raw point cloud, augment by flipping and rotation.
 
@@ -494,7 +512,7 @@ class BaseDataset(Dataset):
 
         return lidar_np, object_bbx_center, object_bbx_mask
 
-    def collate_batch_train(self, batch):
+    def collate_batch_train(self, batch: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
         """
         Customized collate function for pytorch dataloader during training
         for early and late fusion dataset.
@@ -550,6 +568,12 @@ class BaseDataset(Dataset):
 
         return output_dict
 
-    def visualize_result(self, pred_box_tensor, gt_tensor, pcd, show_vis, save_path, dataset=None):
+    def visualize_result(self, 
+                        pred_box_tensor: torch.Tensor, 
+                        gt_tensor: torch.Tensor, 
+                        pcd: np.ndarray, 
+                        show_vis: bool, 
+                        save_path: str, 
+                        dataset: Optional[Any] = None) -> None:
         # visualize the model output
         self.post_processor.visualize(pred_box_tensor, gt_tensor, pcd, show_vis, save_path, dataset=dataset)

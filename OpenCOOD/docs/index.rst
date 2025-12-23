@@ -5,6 +5,10 @@
 
 Welcome to OpenCOOD's documentation!
 ===================================
+.. note::
+   This is a fork of the original OpenCOOD project, integrated within the CAVISE OpenCDA framework.
+   
+   **Original OpenCOOD**: `DerrickXuNu/OpenCOOD <https://github.com/DerrickXuNu/OpenCOOD>`_
 OpenCOOD is an open-source cooperative detection framework for autonomous driving. It provides SOTA cooperative detection algorithms,
 convenient APIs for the large-scale simulated V2V perception dataset `OPV2V <https://mobility-lab.seas.ucla.edu/opv2v/>`_, and a set of useful tools for log replay.
 
@@ -39,7 +43,7 @@ for the latest release.
 
 **Citing OpenCOOD**\ :
 
-If you are using our OpenCOOD framework or codes for your development, please cite the following paper::
+If you are using the OpenCOOD framework or codes for your development, please cite the following paper::
 
     @inproceedings{xu2022opencood,
       author = {Runsheng Xu, Hao Xiang, Xin Xia, Xu Han, Jinlong Li, Jiaqi Ma},

@@ -1,9 +1,23 @@
+"""
+Utility functions and modules for CIA-SSD.
+This module provides building blocks for the CIA-SSD detector, including feature fusion
+and multi-scale feature extraction components.
+"""
 import torch
 from torch import nn
-
+from typing import Dict, List, Union
 
 class SSFA(nn.Module):
-    def __init__(self, args):
+    """
+    Single-Stage Feature Aggregation (SSFA) module for feature extraction and fusion.
+    
+    This module processes input features through multiple convolutional blocks and fuses
+    features at different scales using skip connections and attention mechanisms.
+    Args:
+        args (dict): Configuration dictionary containing:
+            - feature_num (int): Number of input features/channels.
+    """
+    def __init__(self, args: Dict[str, int]) -> None:
         super(SSFA, self).__init__()
         self._num_input_features = args["feature_num"]  # 128
 
@@ -26,14 +40,21 @@ class SSFA(nn.Module):
         self.w_1 = get_conv_layers("Conv2d", 128, 1, n_layers=1, kernel_size=[1], stride=[1], padding=[0], relu_last=False)
 
     # default init_weights for conv(msra) and norm in ConvModule
-    def init_weights(self):
+    def init_weights(self) -> None:
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
                 nn.init.xavier_normal_(m.weight, gain=1)
                 if hasattr(m, "bias") and m.bias is not None:
                     nn.init.constant_(m.bias, 0)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass of the SSFA module.
+        Args:
+            x: Input tensor of shape
+        Returns:
+            Output tensor of shape
+        """
         x_0 = self.bottom_up_block_0(x)
         x_1 = self.bottom_up_block_1(x_0)
         x_trans_0 = self.trans_0(x_0)
@@ -51,7 +72,16 @@ class SSFA(nn.Module):
         return x_output.contiguous()
 
 
-def get_conv_layers(conv_name, in_channels, out_channels, n_layers, kernel_size, stride, padding, relu_last=True, sequential=True, **kwargs):
+def get_conv_layers(conv_name: str, 
+                   in_channels: int, 
+                   out_channels: int, 
+                   n_layers: int, 
+                   kernel_size: List[int], 
+                   stride: List[int], 
+                   padding: List[int], 
+                   relu_last: bool = True, 
+                   sequential: bool = True, 
+                   **kwargs) -> Union[nn.Sequential, List[nn.Module]]:
     """
     Build convolutional layers. kernel_size, stride and padding should be a list with the lengths that match n_layers
     """
@@ -81,7 +111,13 @@ def get_conv_layers(conv_name, in_channels, out_channels, n_layers, kernel_size,
 
 
 class Head(nn.Module):
-    def __init__(self, num_input, num_pred, num_cls, num_iou=2, use_dir=False, num_dir=1):
+    def __init__(self, 
+                num_input: int, 
+                num_pred: int, 
+                num_cls: int, 
+                num_iou: int = 2, 
+                use_dir: bool = False, 
+                num_dir: int = 1) -> None:
         super(Head, self).__init__()
         self.use_dir = use_dir
 
@@ -92,7 +128,10 @@ class Head(nn.Module):
         if self.use_dir:
             self.conv_dir = nn.Conv2d(num_input, num_dir, 1)  # 128 -> 4
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> Dict[str, torch.Tensor]:
+        """
+        Forward pass of the detection head.
+        """
         box_preds = self.conv_box(x)
         cls_preds = self.conv_cls(x)
         ret_dict = {"box_preds": box_preds, "cls_preds": cls_preds}

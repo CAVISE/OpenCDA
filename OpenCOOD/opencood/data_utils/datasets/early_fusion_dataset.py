@@ -8,7 +8,8 @@ from collections import OrderedDict
 
 import numpy as np
 import torch
-
+from typing import Dict, List, Any, Optional, Tuple, Union, OrderedDict as OrderedDictType
+from torch import Tensor
 import opencood.data_utils.datasets
 from opencood.utils import box_utils
 from opencood.data_utils.post_processor import build_postprocessor
@@ -22,11 +23,41 @@ logger = logging.getLogger("cavise.OpenCOOD.opencood.data_utils.datasets.early_f
 
 class EarlyFusionDataset(basedataset.BaseDataset):
     """
-    This dataset is used for early fusion, where each CAV transmit the raw
-    point cloud to the ego vehicle.
+    Dataset class for early fusion, where each CAV transmits raw point cloud data
+    to the ego vehicle for processing.
+    This class handles the loading and preprocessing of point cloud data from multiple
+    CAVs, with support for data augmentation and message passing between vehicles.
+    Attributes
+    ----------
+    pre_processor : object
+        Preprocessor for point cloud data.
+    post_processor : object
+        Postprocessor for generating training targets.
+    message_handler : Optional[object]
+        Handler for inter-vehicle communication.
+    module_name : str
+        Identifier for this module in the message passing system.
     """
-
-    def __init__(self, params, visualize, train=True, message_handler=None):
+    def __init__(
+        self, 
+        params: Dict[str, Any], 
+        visualize: bool, 
+        train: bool = True, 
+        message_handler: Optional[Any] = None
+    ) -> None:
+        """
+        Initialize the EarlyFusionDataset.
+        Parameters
+        ----------
+        params : Dict[str, Any]
+            Configuration parameters for the dataset.
+        visualize : bool
+            Whether to enable visualization.
+        train : bool, optional
+            Whether the dataset is used for training, by default True.
+        message_handler : Optional[Any], optional
+            Handler for inter-vehicle communication, by default None.
+        """
         super(EarlyFusionDataset, self).__init__(params, visualize, train)
         self.pre_processor = build_preprocessor(params["preprocess"], train)
         self.post_processor = build_postprocessor(params["postprocess"], train)
@@ -34,7 +65,25 @@ class EarlyFusionDataset(basedataset.BaseDataset):
         self.message_handler = message_handler
         self.module_name = "OpenCOOD.EarlyFusionDataset"
 
-    def __find_ego_vehicle(self, base_data_dict):
+    def __find_ego_vehicle(
+        self, 
+        base_data_dict: Dict[str, Any]
+    ) -> Tuple[int, List[float]]:
+        """
+        Find the ego vehicle in the base data dictionary.
+        Parameters
+        ----------
+        base_data_dict : Dict[str, Any]
+            Dictionary containing data for all CAVs.
+        Returns
+        -------
+        Tuple[int, List[float]]
+            Tuple containing the ego vehicle ID and its lidar pose.
+        Raises
+        ------
+        AssertionError
+            If no ego vehicle is found or if the ego vehicle's lidar pose is invalid.
+        """
         ego_id = -1
         ego_lidar_pose = []
 
@@ -51,10 +100,28 @@ class EarlyFusionDataset(basedataset.BaseDataset):
         return ego_id, ego_lidar_pose
 
     @staticmethod
-    def __wrap_ndarray(ndarray):
+    def __wrap_ndarray(ndarray: np.ndarray) -> Dict[str, Any]:
+        """
+        Convert a NumPy array to a serializable dictionary.
+        Parameters
+        ----------
+        ndarray : np.ndarray
+            Input NumPy array.
+        Returns
+        -------
+        Dict[str, Any]
+            Dictionary containing the array data, shape, and dtype.
+        """
         return {"data": ndarray.tobytes(), "shape": ndarray.shape, "dtype": str(ndarray.dtype)}
 
-    def extract_data(self, idx):
+    def extract_data(self, idx: int) -> None:
+        """
+        Extract and prepare data for a given index.
+        Parameters
+        ----------
+        idx : int
+            Index of the data to extract.
+        """
         base_data_dict = self.retrieve_base_data(idx)
         _, ego_lidar_pose = self.__find_ego_vehicle(base_data_dict)
 
@@ -84,7 +151,27 @@ class EarlyFusionDataset(basedataset.BaseDataset):
                         "data": self.__wrap_ndarray(selected_cav_processed["projected_lidar"]),
                     }
 
-    def __process_with_messages(self, ego_id, ego_lidar_pose, base_data_dict):
+    def __process_with_messages(
+        self, 
+        ego_id: int, 
+        ego_lidar_pose: List[float], 
+        base_data_dict: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Process data with message handling for inter-vehicle communication.
+        Parameters
+        ----------
+        ego_id : int
+            ID of the ego vehicle.
+        ego_lidar_pose : List[float]
+            Lidar pose of the ego vehicle.
+        base_data_dict : Dict[str, Any]
+            Dictionary containing base data for all CAVs.
+        Returns
+        -------
+        Dict[str, Any]
+            Processed data containing object stack, object IDs, and projected lidar.
+        """
         object_stack = []
         object_id_stack = []
         projected_lidar_stack = []
@@ -112,7 +199,24 @@ class EarlyFusionDataset(basedataset.BaseDataset):
 
         return {"object_stack": object_stack, "object_id_stack": object_id_stack, "projected_lidar_stack": projected_lidar_stack}
 
-    def __process_without_messages(self, ego_lidar_pose, base_data_dict):
+    def __process_without_messages(
+        self, 
+        ego_lidar_pose: List[float], 
+        base_data_dict: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Process data without message handling.
+        Parameters
+        ----------
+        ego_lidar_pose : List[float]
+            Lidar pose of the ego vehicle.
+        base_data_dict : Dict[str, Any]
+            Dictionary containing base data for all CAVs.
+        Returns
+        -------
+        Dict[str, Any]
+            Processed data containing object stack, object IDs, and projected lidar.
+        """
         projected_lidar_stack = []
         object_stack = []
         object_id_stack = []
@@ -134,7 +238,18 @@ class EarlyFusionDataset(basedataset.BaseDataset):
 
         return {"object_stack": object_stack, "object_id_stack": object_id_stack, "projected_lidar_stack": projected_lidar_stack}
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx: int) -> Dict[str, Any]:
+        """
+        Get a single data sample by index.
+        Parameters
+        ----------
+        idx : int
+            Index of the data sample.
+        Returns
+        -------
+        Dict[str, Any]
+            Processed data dictionary.
+        """
         base_data_dict = self.retrieve_base_data(idx)
         processed_data_dict = OrderedDict()
         processed_data_dict["ego"] = {}
@@ -200,7 +315,11 @@ class EarlyFusionDataset(basedataset.BaseDataset):
 
         return processed_data_dict
 
-    def get_item_single_car(self, selected_cav_base, ego_pose):
+    def get_item_single_car(
+        self, 
+        selected_cav_base: Dict[str, Any], 
+        ego_pose: List[float]
+    ) -> Dict[str, Any]:
         """
         Project the lidar and bbx to ego space first, and then do clipping.
 
@@ -238,7 +357,7 @@ class EarlyFusionDataset(basedataset.BaseDataset):
 
         return selected_cav_processed
 
-    def collate_batch_test(self, batch):
+    def collate_batch_test(self, batch: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
         Customized collate function for pytorch dataloader during testing
         for late fusion dataset.
@@ -298,7 +417,11 @@ class EarlyFusionDataset(basedataset.BaseDataset):
 
         return output_dict
 
-    def post_process(self, data_dict, output_dict):
+    def post_process(
+        self, 
+        data_dict: Dict[str, Any], 
+        output_dict: Dict[str, Any]
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Process the outputs of the model to 2D/3D bounding box.
 

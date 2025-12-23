@@ -4,7 +4,15 @@ import torch.nn.functional as F
 
 
 class RadixSoftmax(nn.Module):
-    def __init__(self, radix, cardinality):
+    """
+    Radix Softmax module that applies softmax along the radix dimension.
+    
+    Args:
+        radix: Number of splits (radix) for the input
+        cardinality: Number of groups for grouped convolution
+    """
+    
+    def __init__(self, radix: int, cardinality: int) -> None:
         super(RadixSoftmax, self).__init__()
         self.radix = radix
         self.cardinality = cardinality

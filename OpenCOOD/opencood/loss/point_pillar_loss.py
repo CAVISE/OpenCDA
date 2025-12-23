@@ -1,8 +1,8 @@
 import torch
 import torch.nn as nn
 import numpy as np
-
-
+from typing import Dict, Any, Optional, List
+from torch import Tensor
 class WeightedSmoothL1Loss(nn.Module):
     """
     Code-wise Weighted Smooth L1 Loss modified based on fvcore.nn.smooth_l1_loss
@@ -13,7 +13,7 @@ class WeightedSmoothL1Loss(nn.Module):
     where x = input - target.
     """
 
-    def __init__(self, beta: float = 1.0 / 9.0, code_weights: list = None):
+    def __init__(self, beta: float = 1.0 / 9.0, code_weights: Optional[List[float]] = None):
         """
         Args:
             beta: Scalar float.
@@ -29,7 +29,15 @@ class WeightedSmoothL1Loss(nn.Module):
             self.code_weights = torch.from_numpy(self.code_weights).cuda()
 
     @staticmethod
-    def smooth_l1_loss(diff, beta):
+    def smooth_l1_loss(diff: torch.Tensor, beta: float) -> torch.Tensor:
+        """
+        Compute the smooth L1 loss of differences.
+        Args:
+            diff: The difference between predictions and targets.
+            beta: The L1 to L2 change point.
+        Returns:
+            torch.Tensor: The computed smooth L1 loss.
+        """
         if beta < 1e-5:
             loss = torch.abs(diff)
         else:
@@ -38,7 +46,7 @@ class WeightedSmoothL1Loss(nn.Module):
 
         return loss
 
-    def forward(self, input: torch.Tensor, target: torch.Tensor, weights: torch.Tensor = None):
+    def forward(self, input: torch.Tensor, target: torch.Tensor, weights: Optional[torch.Tensor] = None):
         """
         Args:
             input: (B, #anchors, #codes) float tensor.
@@ -65,7 +73,7 @@ class WeightedSmoothL1Loss(nn.Module):
 
 
 class PointPillarLoss(nn.Module):
-    def __init__(self, args):
+    def __init__(self, args: Dict[str, Any]):
         super(PointPillarLoss, self).__init__()
         self.reg_loss_func = WeightedSmoothL1Loss()
         self.alpha = 0.25

@@ -3,9 +3,30 @@ from torch import nn
 
 from einops import rearrange
 
+from typing import Tuple
+from torch import nn, Tensor
 
 class HGTCavAttention(nn.Module):
-    def __init__(self, dim, heads, num_types=2, num_relations=4, dim_head=64, dropout=0.1):
+    """
+    This module implements a hierarchical multi-head self-attention mechanism that handles
+    different types of agents and their relationships.
+    Args:
+        dim: Input feature dimension
+        heads: Number of attention heads
+        num_types: Number of different agent types
+        num_relations: Number of possible relation types (num_types * num_types)
+        dim_head: Dimension of each attention head
+        dropout: Dropout probability
+    """
+    def __init__(
+        self,
+        dim: int,
+        heads: int,
+        num_types: int = 2,
+        num_relations: int = 4,
+        dim_head: int = 64,
+        dropout: float = 0.1
+    ) -> None:
         super().__init__()
         inner_dim = heads * dim_head
 
@@ -32,7 +53,24 @@ class HGTCavAttention(nn.Module):
         torch.nn.init.xavier_uniform(self.relation_att)
         torch.nn.init.xavier_uniform(self.relation_msg)
 
-    def to_qkv(self, x, types):
+    def to_qkv(
+        self,
+        x: Tensor,
+        types: Tensor
+    ) -> Tuple[Tensor, Tensor, Tensor]:
+        """
+        Transform input features into query, key, and value tensors.
+        Args:
+            x: Input tensor of shape (B, H, W, L, C)
+                B: batch size
+                H: height
+                W: width
+                L: sequence length (number of agents)
+                C: feature dimension
+            types: Agent type indices of shape (B, L)
+        Returns:
+            Tuple of (q, k, v) tensors, each of shape (B, H, W, L, inner_dim)
+        """
         # x: (B,H,W,L,C)
         # types: (B,L)
         q_batch = []
@@ -59,10 +97,26 @@ class HGTCavAttention(nn.Module):
         v = torch.cat(v_batch, dim=0)
         return q, k, v
 
-    def get_relation_type_index(self, type1, type2):
+    def get_relation_type_index(
+        self,
+        type1: Tensor,
+        type2: Tensor
+    ) -> Tensor:
         return type1 * self.num_types + type2
 
-    def get_hetero_edge_weights(self, x, types):
+    def get_hetero_edge_weights(
+        self,
+        x: Tensor,
+        types: Tensor
+    ) -> Tuple[Tensor, Tensor]:
+        """
+        Compute relation-specific attention and message weights.
+        Args:
+            x: Input tensor of shape (B, H, W, L, C)
+            types: Agent type indices of shape (B, L)
+        Returns:
+            Tuple of (w_att, w_msg) tensors, each of shape (B, M, L, L, C_head, C_head)
+        """
         w_att_batch = []
         w_msg_batch = []
 
@@ -89,7 +143,19 @@ class HGTCavAttention(nn.Module):
         w_msg = torch.cat(w_msg_batch, dim=0).permute(0, 3, 1, 2, 4, 5)
         return w_att, w_msg
 
-    def to_out(self, x, types):
+    def to_out(
+        self,
+        x: Tensor,
+        types: Tensor
+    ) -> Tensor:
+        """
+        Project the attention output back to the original dimension.
+        Args:
+            x: Input tensor of shape (B, H, W, L, inner_dim)
+            types: Agent type indices of shape (B, L)
+        Returns:
+            Output tensor of shape (B, H, W, L, C)
+        """
         out_batch = []
         for b in range(x.shape[0]):
             out_list = []
@@ -99,7 +165,22 @@ class HGTCavAttention(nn.Module):
         out = torch.cat(out_batch, dim=0)
         return out
 
-    def forward(self, x, mask, prior_encoding):
+    def forward(
+        self,
+        x: Tensor,
+        mask: Tensor,
+        prior_encoding: Tensor
+    ) -> Tensor:
+        """
+        Forward pass of the HGTCavAttention module.
+        Args:
+            x: Input features of shape (B, L, H, W, C)
+            mask: Attention mask of shape (B, H, W, L, 1)
+            prior_encoding: Prior encoding tensor of shape (B, L, H, W, 3)
+                           containing [velocities, dts, types] information
+        Returns:
+            Output tensor of shape (B, L, H, W, C)
+        """
         # x: (B, L, H, W, C) -> (B, H, W, L, C)
         # mask: (B, H, W, L, 1)
         # prior_encoding: (B,L,H,W,3)

@@ -6,8 +6,7 @@ import numpy as np
 import torch
 
 from opencood.utils import box_utils
-
-
+from typing import Dict, List, Optional, Tuple, Any
 class BasePostprocessor(object):
     """
     Template for Anchor generator.
@@ -26,19 +25,30 @@ class BasePostprocessor(object):
         coordinates (1, 7)
     """
 
-    def __init__(self, anchor_params, train=True):
+    def __init__(self, anchor_params: Dict[str, Any], train: bool = True) -> None:
         self.params = anchor_params
         self.bbx_dict = {}
         self.train = train
 
-    def generate_anchor_box(self):
+    def generate_anchor_box(self) -> Optional[torch.Tensor]:
+        """
+        Generate anchor boxes for object detection.
+        
+        Returns
+        -------
+        Optional[torch.Tensor]
+            Tensor containing anchor boxes, or None if not implemented.
+        """
         # needs to be overloaded
         return None
 
-    def generate_label(self, *argv):
+    def generate_label(self, *argv: Any) -> Any:
+        """
+        Generate labels for training.
+        """
         return None
 
-    def generate_gt_bbx(self, data_dict):
+    def generate_gt_bbx(self, data_dict: Dict[str, Any]) -> torch.Tensor:
         """
         The base postprocessor will generate 3d groundtruth bounding box.
 
@@ -85,7 +95,11 @@ class BasePostprocessor(object):
 
         return gt_box3d_tensor
 
-    def generate_object_center(self, cav_contents, reference_lidar_pose):
+    def generate_object_center(
+        self,
+        cav_contents: List[Dict[str, Any]],
+        reference_lidar_pose: List[float]
+    ) -> Tuple[np.ndarray, np.ndarray, List[Any]]:
         """
         Retrieve all objects in a format of (n, 7), where 7 represents
         x, y, z, l, w, h, yaw or x, y, z, h, w, l, yaw.

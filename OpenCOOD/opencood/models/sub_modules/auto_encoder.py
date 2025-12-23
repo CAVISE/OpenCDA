@@ -1,8 +1,21 @@
+"""
+Autoencoder module for feature compression and decompression.
+This module implements a simple convolutional autoencoder that can be used
+for feature compression in multi-agent perception systems.
+"""
 import torch.nn as nn
 
-
 class AutoEncoder(nn.Module):
-    def __init__(self, feature_num, layer_num):
+    """
+    An autoencoder for feature compression.
+    The autoencoder reduces the spatial dimensions of the input features
+    while maintaining the number of channels. It consists of multiple
+    encoding and decoding layers with skip connections.
+    Args:
+        feature_num: Number of input/output channels.
+        layer_num: Number of encoding/decoding layers.
+    """
+    def __init__(self, feature_num: int, layer_num: int) -> None:
         super().__init__()
         self.feature_num = feature_num
         self.feature_stride = 2

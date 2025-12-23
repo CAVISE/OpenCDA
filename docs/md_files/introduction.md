@@ -1,37 +1,184 @@
-## OpenCDA Overview
-Current autonomous driving simulation platforms that support scene rendering and traffic simulation mainly concentrate
-on single-vehicle intelligence; therefore, developing and testing Cooperative Driving Automation applications (e.g., cooperative perception,
-platooning, signalized intersection approach and departure) under a realistic simulated environment becomes difficult.
+OpenCDA Overview
 
-OpenCDA is created to fill such gaps.
+📍 Note: This is a fork of the original OpenCDA project developed by UCLA Mobility Lab. This fork maintains compatibility with the original while providing updates and improvements.
 
-<div class="build-buttons">
-<p>
-<a href="https://github.com/ucla-mobility/OpenCDA" target="_blank" class="btn btn-neutral" title="Go to the latest OpenCDA page">
-<span class="icon icon-github"></span> OpenCDA 0.1.1</a>
-</p>
-</div>
+What is OpenCDA?
+OpenCDA (Open Cooperative Driving Automation) is a comprehensive research and engineering framework for developing, testing, and evaluating cooperative driving automation (CDA) systems. Built on top of industry-standard simulators, OpenCDA bridges the gap between autonomous vehicle research and practical implementation.
+ Core Purpose
+Current autonomous driving simulation platforms primarily focus on single-vehicle intelligence. OpenCDA fills this critical gap by enabling:
 
-### Major Components
-![](images/OpenCDA_new_diagrams.png )
- 1. <em>Cooperative Driving System</em>: <br /> OpenCDA  provides  a  <strong>full-stack software </strong>  that  contains  the  common  self-driving  modules including
-    <strong>sensing,   planning and actuation  layers </strong>,  and  it  is  developed  purely  in  Python for fast prototyping.
-    Built  upon these basic modules, OpenCDA supports a range of  <strong>common cooperative  driving  applications</strong>. <br />
- 2. <em>Co-Simulation Tools</em>: <br />OpenCDA provides interfaces to integrate multiple open-source simulation tools
- with the cooperative driving system. Through the interfaces, OpenCDA is able to take advantage of the high-quality scene rendering
-  and realistic dynamic modelling from <strong>CARLA</strong> , and the realistic traffic simulation from <strong>SUMO</strong>. Also, CARLA only and SUMO only mode of OpenCDA also offers researchers the flexibility to test vehicle-level and traffic-level performance, respectively.
+Vehicle-to-Vehicle (V2V) Communication: Test cooperative behaviors between multiple connected vehicles
+Vehicle-to-Infrastructure (V2I) Communication: Integrate infrastructure intelligence into driving scenarios
+Full-Stack Development: Complete pipeline from perception to control, all in Python
+Realistic Testing: High-fidelity simulation with CARLA and large-scale traffic with SUMO
 
- 3. <em>Scenario Manager</em>:  <br />By defining the parameters in the Yaml file,  OpenCDA is able to <strong>construct the simulation scenario</strong>,
-<strong> creating the traffic flows</strong>, and <strong>assigning various dynamic driving tasks </strong> to different connected automated vehicles.
- Through such lightweight configuration, researchers can conveniently test and evaluate their algorithms under different scenarios. In the next verision v0.2,
- OpenScenario will be supported to trigger special events.
+ Major Components
+OpenCDA consists of four integrated subsystems:
+┌─────────────────────────────────────────────────────────────┐
+│                   OpenCDA Ecosystem                         │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  ┌──────────────────┐      ┌──────────────────┐             │
+│  │  Cooperative     │◄────►│  Co-Simulation   │             │
+│  │  Driving System  │      │     Tools        │             │
+│  └──────────────────┘      └──────────────────┘             │
+│          │                          │                       │
+│          │                          │                       │
+│  ┌──────────────────┐      ┌──────────────────┐             │
+│  │  Scenario        │◄────►│  Data Manager &  │             │
+│  │  Manager         │      │  Repository      │             │
+│  └──────────────────┘      └──────────────────┘             │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+1.  Cooperative Driving System
+The heart of OpenCDA - a complete autonomous driving stack with cooperative capabilities:
+Sensing Layer:
 
-4. <em>CDA Data Manager and Repository</em>: OpenCDA provides a series of practical functions to collect offline CDA data (e.g. V2X perception data, multi-agent trajectory prediction data) and log replay them in the simulator. The recent ICRA work [OPV2V](https://arxiv.org/abs/2109.07644)
-comes out from this component.
-### Key Features
-The key features of OpenCDA are:
-* <strong>Integration</strong>: OpenCDA utilizes CARLA and SUMO separately, as well as integrates them together for realistic scene rendering, vehicle modeling, and traffic simulation.
-* <strong> Full-stack</strong> prototype CDA Platform in Simulation: OpenCDA provides a simple prototype automated driving and cooperative driving platform, all in Python, that contains perception, localization, planning, control, and V2X communication modules.
-* <strong>Modularity</strong>: OpenCDA is highly modularized, enabling users to conveniently replace any default algorithms or protocols with their own customzied design.
-* <strong>Benchmark</strong>: OpenCDA offers benchmark testing scenarios, benchmark baseline maps, state-of-the-art benchmark algorithms for ADS and Cooperative ADS functions, and benchmark evaluation metrics.
-* <strong>Connectivity and Cooperation</strong>: OpenCDA supports various levels and categories of cooperation between CAVs in simulation. This differentiates OpenCDA from other single vehicle simulation tools.
+Perception: Camera-based object detection (YOLOv5), LiDAR processing, sensor fusion
+Localization: GPS/IMU fusion with Kalman filtering for accurate positioning
+
+Planning Layer:
+
+Behavior Planning: Traffic rule compliance, lane change decisions, intersection handling
+Local Planning: Trajectory generation with collision avoidance
+Cooperative Planning: Platooning algorithms, cooperative merging, coordinated maneuvers
+
+Control Layer:
+
+Vehicle Control: PID controllers for longitudinal and lateral control
+Customizable Controllers: Easy integration of advanced control algorithms
+
+Communication Layer:
+
+V2X Manager: Handles all vehicle-to-vehicle and vehicle-to-infrastructure communication
+Latency Simulation: Realistic network delays and packet loss modeling
+
+2.  Co-Simulation Tools
+OpenCDA integrates multiple simulation platforms:
+CARLA Simulator (Primary Graphics Engine):
+
+Latest supported: CARLA 0.9.15 (UE4) and 0.10.0 (UE5)
+High-fidelity 3D environments with realistic sensors
+Physics-based vehicle dynamics
+Weather and lighting variations
+
+SUMO Integration (Traffic Simulation):
+
+Latest supported: SUMO 1.25.0
+Large-scale traffic flow simulation
+Realistic driver behaviors
+Custom traffic patterns
+
+Flexible Modes:
+
+CARLA-only: Focus on vehicle-level testing
+SUMO-only: Focus on traffic-level analysis
+Co-simulation: Combined high-fidelity and large-scale simulation
+
+3. Scenario Manager
+Powerful scenario creation and management:
+
+YAML-based Configuration: Easy scenario definition without code changes
+Traffic Generation: Automated background traffic with customizable behaviors
+Spawn Management: Flexible vehicle and platoon placement
+OpenSCENARIO Support: Industry-standard scenario description
+Benchmark Scenarios: Pre-built scenarios for standardized testing
+
+4.  Data Manager & Repository
+Comprehensive data handling capabilities:
+
+Data Collection: Automated recording of sensor data, trajectories, and events
+Dataset Generation: Create datasets for machine learning training
+Replay Functionality: Review and analyze recorded scenarios
+Cooperative Perception Data: Multi-vehicle perception datasets (like OPV2V)
+
+Key Features
+ Why Choose OpenCDA?
+FeatureDescription Pure PythonEntire stack in Python for rapid prototyping and easy debugging🔧 Highly ModularReplace any component with custom implementations Cooperation-FirstBuilt from ground up for V2V and V2I communication Comprehensive TestingFull pipeline evaluation from perception to control🎓 Research-FriendlyDesigned for academic research with extensive documentation Industry-ReadyInterfaces with CARMA XiL tools for advanced testing Open SourceFully open source with active community
+
+ Advanced Capabilities
+Platooning:
+
+CACC (Cooperative Adaptive Cruise Control)
+Platoon formation, joining, and splitting
+Leader-follower coordination
+Stability analysis tools
+
+Cooperative Perception:
+
+Multi-vehicle sensor fusion
+Object tracking across vehicles
+Occlusion handling through cooperation
+Bandwidth-efficient data sharing
+
+Scenario Testing:
+
+Highway scenarios (2-lane, multi-lane)
+Urban scenarios (Town06, Town10)
+Custom map support
+Intersection coordination
+
+Evaluation Metrics:
+
+Safety metrics (TTC, collision detection)
+Efficiency metrics (fuel consumption, travel time)
+Comfort metrics (acceleration, jerk)
+Cooperation metrics (communication overhead, latency)
+
+🎓 Use Cases
+Research Applications
+
+Cooperative Driving Algorithms: Develop and test V2V/V2I coordination strategies
+Perception Fusion: Multi-vehicle perception and tracking algorithms
+Planning Strategies: Cooperative lane changes, merging, and intersection negotiation
+Communication Protocols: Test V2X communication under various conditions
+
+Educational Applications
+
+Autonomous Systems Education: Hands-on learning with complete AV stack
+Traffic Engineering: Study cooperative traffic flow optimization
+Software Engineering: Learn modular system design and integration
+
+Industry Applications
+
+Algorithm Validation: Test algorithms before real-world deployment
+Safety Assessment: Evaluate edge cases and failure modes
+Standard Development: Support CDA standard development (SAE J3216)
+Integration Testing: Test with CARMA and other platforms
+
+🔬 Scientific Foundation
+OpenCDA is designed to support initial-stage fundamental research for CDA:
+
+Developed in collaboration with U.S. DOT CDA Research
+Interfaces with FHWA CARMA Program
+Compatible with CARMA XiL tools
+Supports SAE J3216 CDA standards
+
+📚 Related Ecosystems
+OpenCDA is part of a larger research ecosystem:
+OPV2V Dataset (ICRA 2022):
+
+First large-scale dataset for cooperative perception
+73 scenarios with multiple connected vehicles
+LiDAR and camera data from all vehicles
+Paper | Code
+
+V2X-ViT (ECCV 2022):
+
+State-of-the-art cooperative perception with Vision Transformers
+Powered by OpenCDA simulation framework
+Paper | Code
+
+🔮 Vision
+OpenCDA aims to accelerate CDA research by providing:
+
+Accessible Tools: Lower barriers to entry for CDA research
+Reproducible Results: Standardized benchmarks and scenarios
+Community Building: Foster collaboration across institutions
+Industry Bridge: Connect research with practical deployment
+
+
+Original Project: UCLA Mobility Lab OpenCDA
+Documentation: OpenCDA Docs
+Forum: GitHub Discussions
+Issues: Report bugs and request features via GitHub Issues

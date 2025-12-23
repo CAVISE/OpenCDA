@@ -1,17 +1,30 @@
+from typing import Dict, Any
 import torch
-import torch.nn as nn
+from torch import nn, Tensor
 
 
 class MeanVFE(nn.Module):
-    def __init__(self, model_cfg, num_point_features, **kwargs):
+    def __init__(
+        self,
+        model_cfg: Dict[str, Any],
+        num_point_features: int,
+        **kwargs
+    ) -> None:
         super().__init__()
         self.model_cfg = model_cfg
         self.num_point_features = num_point_features
 
-    def get_output_feature_dim(self):
+    def get_output_feature_dim(self) -> int:
+        """
+        Get the output feature dimension.
+        """
         return self.num_point_features
 
-    def forward(self, batch_dict, **kwargs):
+    def forward(
+        self,
+        batch_dict: Dict[str, Any],
+        **kwargs
+    ) -> Dict[str, Any]:
         """
         Args:
             batch_dict:

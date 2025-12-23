@@ -8,8 +8,10 @@ from opencood.pcdet_utils.pointnet2.pointnet2_stack import pointnet2_utils as po
 from opencood.pcdet_utils.roiaware_pool3d.roiaware_pool3d_utils import points_in_boxes_gpu
 from opencood.utils import common_utils
 
+from typing import Dict, List, Optional
+from torch import Tensor
 
-def bilinear_interpolate_torch(im, x, y):
+def bilinear_interpolate_torch(im: Tensor, x: Tensor, y: Tensor) -> Tensor:
     """
     Args:
         im: (H, W, C) [y, x]
@@ -44,7 +46,15 @@ def bilinear_interpolate_torch(im, x, y):
 
 
 class VoxelSetAbstraction(nn.Module):
-    def __init__(self, model_cfg, voxel_size, point_cloud_range, num_bev_features=None, num_rawpoint_features=None, **kwargs):
+    def __init__(
+        self, 
+        model_cfg: Dict[str, any], 
+        voxel_size: List[float], 
+        point_cloud_range: List[float], 
+        num_bev_features: Optional[int] = None, 
+        num_rawpoint_features: Optional[int] = None, 
+        **kwargs
+    ) -> None:
         super().__init__()
         self.model_cfg = model_cfg
         self.voxel_size = voxel_size
@@ -97,7 +107,13 @@ class VoxelSetAbstraction(nn.Module):
         self.num_point_features = self.model_cfg["num_out_features"]
         self.num_point_features_before_fusion = c_in
 
-    def interpolate_from_bev_features(self, keypoints, bev_features, batch_size, bev_stride):
+    def interpolate_from_bev_features(
+        self, 
+        keypoints: Tensor, 
+        bev_features: Tensor, 
+        batch_size: int, 
+        bev_stride: int
+    ) -> Tensor:
         x_idxs = (keypoints[:, :, 0] - self.point_cloud_range[0]) / self.voxel_size[0]
         y_idxs = (keypoints[:, :, 1] - self.point_cloud_range[1]) / self.voxel_size[1]
         x_idxs = x_idxs / bev_stride
@@ -114,7 +130,10 @@ class VoxelSetAbstraction(nn.Module):
         point_bev_features = torch.cat(point_bev_features_list, dim=0)  # (B, N, C0)
         return point_bev_features
 
-    def get_sampled_points(self, batch_dict):
+    def forward(self, batch_dict: Dict[str, Tensor]) -> Dict[str, Tensor]:
+        """
+        Forward pass of Voxel Set Abstraction.
+        """
         batch_size = batch_dict["batch_size"]
         if self.model_cfg["point_source"] == "raw_points":
             src_points = batch_dict["origin_lidar"][:, 1:]
@@ -154,7 +173,7 @@ class VoxelSetAbstraction(nn.Module):
         # keypoints = torch.cat(keypoints_list, dim=0)  # (B, M, 3)
         return keypoints_batch
 
-    def forward(self, batch_dict):
+    def forward(self, batch_dict: Dict[str, Tensor]) -> Dict[str, Tensor]:
         """
         Args:
             batch_dict:

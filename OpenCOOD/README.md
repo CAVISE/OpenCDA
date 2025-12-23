@@ -218,60 +218,35 @@ We have a series of tutorials to help you understand OpenCOOD more. Please check
 ## Supported Projects
 OpenCOOD has supported several top conference papers in cooperative perception field.
 
-**V2V4Real: A large-scale real-world dataset for Vehicle-to-Vehicle Cooperative Perception** <br>
- Runsheng Xu, Xin Xia, Jinlong Li, Hanzhao Li, Shuo Zhang, Zhengzhong Tu, Zonglin Meng, Hao Xiang, Xiaoyu Dong, Rui Song, Hongkai Yu, Bolei Zhou, Jiaqi Ma <br>
-*CVPR 2023* <br>
+**V2V4Real: A large-scale real-world dataset for Vehicle-to-Vehicle Cooperative Perception** 
 [[Paper]]()[[Code]](https://github.com/ucla-mobility/V2V4Real)
 
-**Robust Collaborative 3D Object Detection in Presence of Pose Errors** <br>
-Yifan Lu, Quanhao Li, Baoan Liu, Mehrdad Dianati, Chen Feng, Siheng Chen, Yanfeng Wang <br>
-*ICRA 2023* <br>
+**Robust Collaborative 3D Object Detection in Presence of Pose Errors** 
 [[Paper]](https://arxiv.org/abs/2211.07214)[[Code]](https://github.com/yifanlu0227/CoAlign)
 
-
-**Analyzing Infrastructure LiDAR Placement with Realistic LiDAR Simulation Library** <br>
-Xinyu Cai, Wentao Jiang, Runsheng Xu, Wenquan Zhao, Jiaqi Ma, Si Liu, Yikang Li <br>
-*ICRA 2023* <br>
+**Analyzing Infrastructure LiDAR Placement with Realistic LiDAR Simulation Library** 
 [[Paper]](https://arxiv.org/abs/2211.15975)[[Code]](https://github.com/PJLab-ADG/LiDARSimLib-and-Placement-Evaluation)
 
-**Bridging the Domain Gap for Multi-Agent Perception** <br>
-Runsheng Xu, Jinlong Li, Xiaoyu Dong, Hongkai Yu, Jiaqi Ma∗<br>
-*ICRA 2023* <br>
+**Bridging the Domain Gap for Multi-Agent Perception** 
 [[Paper]](https://arxiv.org/pdf/2210.08451.pdf)[[Code]](https://github.com/DerrickXuNu/MPDA)
 
-**Model Agnostic Multi-agent Perception** <br>
-Runsheng Xu, Weizhe Chen, Hao Xiang,  Xin Xia, Lantao Liu, Jiaqi Ma∗<br>
-*ICRA 2023* <br>
+**Model Agnostic Multi-agent Perception** 
 [[Paper]](https://arxiv.org/abs/2203.13168)[[Code]](https://github.com/DerrickXuNu/model_anostic)
 
-**Learning for Vehicle-to-Vehicle Cooperative Perception under Lossy Communication** <br>
-Jinlong Li, Runsheng Xu, Xinyu Liu, Jin Ma, Zicheng Chi, Jiaqi Ma, Hongkai Yu<br>
-*TIV 2023* <br>
+**Learning for Vehicle-to-Vehicle Cooperative Perception under Lossy Communication** 
 [[Paper]](https://ieeexplore.ieee.org/document/10077757) [[Code]](https://github.com/jinlong17/V2VLC)
 
+**Where2comm: Communication-Efficient Collaborative Perception via Spatial Confidence Maps**
+[[Paper]](https://arxiv.org/abs/2209.12836) [[Code]](https://github.com/MediaBrain-SJTU/Where2comm)
 
-**Where2comm: Communication-Efficient Collaborative Perception via Spatial Confidence Maps** <br>
-Yue Hu, Shaoheng Fang, Zixing Lei, Yiqi Zhong, Siheng Chen<br>
-*Neurips 2022* <br>
-[[Paper]](https://arxiv.org/abs/2209.12836) [[Code]](https://github.774.gs/MediaBrain-SJTU/Where2comm)
-
-**Adaptive Feature Fusion for Cooperative Perception using LiDAR Point Clouds** <br>
-Donghao Qiao, Farhana Zulkernine<br>
-*WACV 2023* <br>
+**Adaptive Feature Fusion for Cooperative Perception using LiDAR Point Clouds** 
 [[Paper]](https://arxiv.org/abs/2208.00116)
 
-
-**CoBEVT: Cooperative Bird's Eye View Semantic Segmentation with Sparse Transformers** <br>
-Runsheng Xu*, Zhengzhong Tu*, Hao Xiang, Wei Shao, Bolei Zhou, Jiaqi Ma <br>
-*CoRL2022* <br>
+**CoBEVT: Cooperative Bird's Eye View Semantic Segmentation with Sparse Transformers** 
 [[Paper]](https://arxiv.org/abs/2207.02202) [[Code]](https://github.com/DerrickXuNu/CoBEVT)
 
-**V2X-ViT: Vehicle-to-Everything Cooperative Perception with Vision Transformer** <br>
-Runsheng Xu*, Hao Xiang*, Zhengzhong Tu*, Xin Xia, Ming-Hsuan Yang, Jiaqi Ma <br>
-*ECCV2022* <br>
+**V2X-ViT: Vehicle-to-Everything Cooperative Perception with Vision Transformer** 
 [[Paper]](https://arxiv.org/abs/2203.10638) [[Code]](https://github.com/DerrickXuNu/v2x-vit) [[Talk]](https://course.zhidx.com/c/MmQ1YWUyMzM1M2I3YzVlZjE1NzM=)
 
 **OPV2V: An Open Benchmark Dataset and Fusion Pipeline for Perception with Vehicle-to-Vehicle Communication** <br>
-Runsheng Xu*, Hao Xiang*, Xin Xia, Jinlong Li, Jiaqi Ma <br>
-*ICRA2022* <br>
 [[Paper]](https://arxiv.org/abs/2109.07644) [[Website]](https://mobility-lab.seas.ucla.edu/opv2v/) [[Code]](https://github.com/DerrickXuNu/OpenCOOD)

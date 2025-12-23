@@ -4,9 +4,19 @@ import torch.nn as nn
 
 from torch.nn import Softmax
 
+from torch import Tensor
+from typing import List
 
 class V2V_AttFusion(nn.Module):
-    def __init__(self, feature_dim):
+    """
+    Vehicle-to-Vehicle Attention Fusion module.
+    
+    This module implements attention-based fusion of features from multiple vehicles
+    using Criss-Cross Attention mechanism.
+    Args:
+        feature_dim: Dimension of input features
+    """
+    def __init__(self, feature_dim: int) -> None:
         super(V2V_AttFusion, self).__init__()
 
         self.cov_att = nn.Sequential(
@@ -17,7 +27,15 @@ class V2V_AttFusion(nn.Module):
 
         self.CCNet = CrissCrossAttention(feature_dim)
 
-    def forward(self, x, record_len):
+    def forward(self, x: Tensor, record_len: Tensor) -> Tensor:
+        """
+        Forward pass of the V2V attention fusion.
+        Args:
+            x: Input features of shape 
+            record_len: Number of agents per sample in the batch
+        Returns:
+            Fused features of shape 
+        """
         split_x = self.regroup(x, record_len)  # x =[5, 64, 100, 352], record_len=[3,2]
 
         out = []
@@ -43,14 +61,22 @@ class V2V_AttFusion(nn.Module):
 
         return torch.cat(out, dim=0)  # [2, 64, 100, 352]
 
-    def regroup(self, x, record_len):
+    def regroup(x: Tensor, record_len: Tensor) -> List[Tensor]:
+        """
+        Split input tensor into a list of tensors based on record_len.
+        Args:
+            x: Input tensor of shape
+            record_len: Number of agents per sample
+        Returns:
+            List of tensors, one per sample in the batch
+        """
         cum_sum_len = torch.cumsum(record_len, dim=0)
         split_x = torch.tensor_split(x, cum_sum_len[:-1].cpu())
 
         return split_x
 
 
-def INF(B, H, W):
+def INF(B: int, H: int, W: int) -> Tensor:
     return -torch.diag(torch.tensor(float("inf")).cuda().repeat(H), 0).unsqueeze(0).repeat(B * W, 1, 1)
 
 
@@ -61,7 +87,7 @@ class CrissCrossAttention(nn.Module):
 
     """
 
-    def __init__(self, in_dim):
+    def __init__(self, in_dim: int) -> None:
         super(CrissCrossAttention, self).__init__()
 
         self.query_conv = nn.Sequential(
@@ -78,7 +104,7 @@ class CrissCrossAttention(nn.Module):
         self.INF = INF
         self.gamma = nn.Parameter(torch.zeros(1))
 
-    def forward(self, query, key, value):
+    def forward(self, query: Tensor, key: Tensor, value: Tensor) -> Tensor:
         m_batchsize, _, height, width = query.size()
 
         proj_query = self.query_conv(query)

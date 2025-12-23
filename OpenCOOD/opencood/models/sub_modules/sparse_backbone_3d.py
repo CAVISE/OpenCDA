@@ -1,5 +1,7 @@
 from functools import partial
 
+from typing import Dict, List, Tuple, Optional, Union, Any
+import torch
 import torch.nn as nn
 
 try:  # spconv1
@@ -8,7 +10,19 @@ except ImportError:  # spconv2
     from spconv.pytorch import SparseSequential, SubMConv3d, SparseConv3d, SparseInverseConv3d, SparseConvTensor
 
 
-def post_act_block(in_channels, out_channels, kernel_size, indice_key=None, stride=1, padding=0, conv_type="subm", norm_fn=None):
+def post_act_block(
+    in_channels: int,
+    out_channels: int,
+    kernel_size: Union[int, Tuple[int, int, int]],
+    indice_key: Optional[str] = None,
+    stride: Union[int, Tuple[int, int, int]] = 1,
+    padding: Union[int, Tuple[int, int, int]] = 0,
+    conv_type: str = "subm",
+    norm_fn: Optional[callable] = None
+) -> SparseSequential:
+    """
+    Create a sparse convolution block with post-activation.
+    """
     if conv_type == "subm":
         conv = SubMConv3d(in_channels, out_channels, kernel_size, bias=False, indice_key=indice_key)
     elif conv_type == "spconv":
@@ -28,7 +42,13 @@ def post_act_block(in_channels, out_channels, kernel_size, indice_key=None, stri
 
 
 class VoxelBackBone8x(nn.Module):
-    def __init__(self, model_cfg, input_channels, grid_size, **kwargs):
+    def __init__(
+        self, 
+        model_cfg: Dict[str, Any], 
+        input_channels: int, 
+        grid_size: List[int], 
+        **kwargs
+    ) -> None:
         super().__init__()
         self.model_cfg = model_cfg
         norm_fn = partial(nn.BatchNorm1d, eps=1e-3, momentum=0.01)
@@ -81,7 +101,7 @@ class VoxelBackBone8x(nn.Module):
 
         self.backbone_channels = {"x_conv1": 16, "x_conv2": 32, "x_conv3": 64, "x_conv4": 64}
 
-    def forward(self, batch_dict):
+    def forward(self, batch_dict: Dict[str, Any]) -> Dict[str, Any]:
         """
         Args:
             batch_dict:

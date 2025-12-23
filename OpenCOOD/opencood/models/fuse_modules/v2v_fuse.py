@@ -1,9 +1,10 @@
 """
-Implementation of V2VNet Fusion
+Implementation of V2VNet Fusion module for multi-agent feature fusion.
 """
-
+from typing import Dict, List, Union
 import torch
 import torch.nn as nn
+from torch import Tensor
 
 from opencood.models.sub_modules.torch_transformation_utils import (
     get_discretized_transformation_matrix,
@@ -15,7 +16,12 @@ from opencood.models.sub_modules.convgru import ConvGRU
 
 
 class V2VNetFusion(nn.Module):
-    def __init__(self, args):
+    """
+    This module implements the V2VNet fusion mechanism which uses a combination of
+    spatial transformation and GRU-based feature updating for fusing features
+    from multiple agents.
+    """
+    def __init__(self, args: Dict[str, Union[int, float, str, Dict[str, int]]]) -> None:
         super(V2VNetFusion, self).__init__()
 
         in_channels = args["in_channels"]
@@ -42,12 +48,20 @@ class V2VNetFusion(nn.Module):
         )
         self.mlp = nn.Linear(in_channels, in_channels)
 
-    def regroup(self, x, record_len):
+    def regroup(x: Tensor, record_len: Tensor) -> List[Tensor]:
+        """
+        Split input tensor into a list of tensors based on record_len.
+        """
         cum_sum_len = torch.cumsum(record_len, dim=0)
         split_x = torch.tensor_split(x, cum_sum_len[:-1].cpu())
         return split_x
 
-    def forward(self, x, record_len, pairwise_t_matrix):
+    def forward(
+        self, 
+        x: Tensor, 
+        record_len: Tensor, 
+        pairwise_t_matrix: Tensor
+    ) -> Tensor:
         """
         Fusion forwarding.
 

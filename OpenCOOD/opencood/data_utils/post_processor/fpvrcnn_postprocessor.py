@@ -1,5 +1,6 @@
 """
-3D Anchor Generator for Voxel
+3D Anchor Generator for Voxel-based 3D object detection.
+This module provides functionality for post-processing 3D object detection
 """
 
 import numpy as np
@@ -8,19 +9,46 @@ import torch
 from opencood.data_utils.post_processor.voxel_postprocessor import VoxelPostprocessor
 from opencood.utils import box_utils
 from opencood.utils import common_utils
-
+from typing import Dict, List, Tuple, Optional, Any, Union
 
 class FpvrcnnPostprocessor(VoxelPostprocessor):
-    def __init__(self, anchor_params, train):
+    """
+    Post-processor for FPV-RCNN (Frustum Point-Voxel R-CNN).
+    Handles two-stage 3D object detection with region proposal and refinement.
+    """
+    def __init__(self, anchor_params: Dict[str, Any], train: bool) -> None:
+        """
+        Initialize the FPV-RCNN post-processor.
+        Args:
+            anchor_params: Dictionary containing anchor configuration parameters.
+            train: Whether the processor is in training mode.
+        """
         super(FpvrcnnPostprocessor, self).__init__(anchor_params, train)
 
-    def post_process(self, data_dict, output_dict, stage1=False):
+    def post_process(self, 
+                    data_dict: Dict[str, Any], 
+                    output_dict: Dict[str, Any], 
+                    stage1: bool = False) -> Union[
+                        Tuple[torch.Tensor, torch.Tensor],
+                        Tuple[List[torch.Tensor], List[torch.Tensor]]
+                    ]:
+        """
+        Process model outputs through the appropriate stage.
+        Args:
+            data_dict: Dictionary containing input data.
+            output_dict: Dictionary containing model outputs.
+            stage1: Whether to use stage1 processing.
+        Returns:
+            Tuple of (boxes, scores) with the processed detections.
+        """
         if stage1:
             return self.post_process_stage1(data_dict, output_dict)
         else:
             return self.post_process_stage2(data_dict)
 
-    def post_process_stage1(self, data_dict, output_dict):
+    def post_process_stage1(self, 
+                          data_dict: Dict[str, Any], 
+                          output_dict: Dict[str, Any]) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
         """
         Process the outputs of the model to 2D/3D bounding box.
         Step1: convert each cav's output to bounding box format
@@ -157,7 +185,18 @@ class FpvrcnnPostprocessor(VoxelPostprocessor):
 
         return batch_pred_boxes3d, batch_scores
 
-    def post_process_stage2(self, data_dict):
+    def post_process_stage2(self, 
+                          data_dict: Dict[str, Any]) -> Tuple[Optional[torch.Tensor], Optional[torch.Tensor]]:
+        """
+        Process second stage model outputs to generate final detections.
+        Args:
+            data_dict: Dictionary containing input data and stage1 outputs.
+        Returns:
+            Tuple of (projected_boxes3d, scores) where:
+                - projected_boxes3d: Tensor of predicted 3D boxes in ego coordinates
+                - scores: Confidence scores for the predictions
+            Returns (None, None) if no predictions are made.
+        """
         from opencood.pcdet_utils.iou3d_nms.iou3d_nms_utils import nms_gpu
 
         output_dict = data_dict["ego"]["fpvrcnn_out"]

@@ -18,6 +18,8 @@ from scipy.stats import mode
 import opencda.core.sensing.perception.sensor_transformation as st
 from opencda.core.sensing.perception.obstacle_vehicle import is_vehicle_cococlass, ObstacleVehicle
 from opencda.core.sensing.perception.static_obstacle import StaticObstacle
+from typing import Dict, List, Tuple, Union, Any
+import torch
 
 VIRIDIS = np.array(cm.get_cmap("plasma").colors)
 VID_RANGE = np.linspace(0.0, 1.0, VIRIDIS.shape[0])
@@ -53,7 +55,10 @@ LABEL_COLORS = (
 )  # normalize each channel [0-1] since is what Open3D uses
 
 
-def o3d_pointcloud_encode(raw_data, point_cloud):
+def o3d_pointcloud_encode(
+    raw_data: np.ndarray, 
+    point_cloud: o3d.geometry.PointCloud
+) -> None:
     """
     Encode the raw point cloud(np.array) to Open3d PointCloud object.
 
@@ -159,7 +164,13 @@ def o3d_visualizer_show(vis, count, point_cloud, objects):
             vis.remove_geometry(aabb)
 
 
-def o3d_camera_lidar_fusion(objects, yolo_bbx, lidar_3d, projected_lidar, lidar_sensor):
+def o3d_camera_lidar_fusion(
+    objects: Dict[str, List[Union[ObstacleVehicle, StaticObstacle]]],
+    yolo_bbx: torch.Tensor,
+    lidar_3d: np.ndarray,
+    projected_lidar: np.ndarray,
+    lidar_sensor: Any  # carla.Sensor type
+) -> Dict[str, List[Union[ObstacleVehicle, StaticObstacle]]]:
     """
     Utilize the 3D lidar points to extend the 2D bounding box
     from camera to 3D bounding box under world coordinates.

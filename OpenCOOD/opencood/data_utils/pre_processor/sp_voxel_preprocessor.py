@@ -8,10 +8,16 @@ import numpy as np
 import torch
 from cumm import tensorview as tv
 from opencood.data_utils.pre_processor.base_preprocessor import BasePreprocessor
-
+from typing import Dict, List, Union, Any
 
 class SpVoxelPreprocessor(BasePreprocessor):
-    def __init__(self, preprocess_params, train):
+    def __init__(self, preprocess_params: Dict[str, Any], train: bool) -> None:
+        """
+        Initialize the sparse voxel preprocessor.
+        Args:
+            preprocess_params: Configuration dictionary for preprocessing.
+            train: Boolean indicating training or evaluation mode.
+        """
         super(SpVoxelPreprocessor, self).__init__(preprocess_params, train)
         self.spconv = 1
         try:
@@ -48,7 +54,18 @@ class SpVoxelPreprocessor(BasePreprocessor):
                 max_num_voxels=self.max_voxels,
             )
 
-    def preprocess(self, pcd_np):
+    def preprocess(self, pcd_np: np.ndarray) -> Dict[str, np.ndarray]:
+        """
+        Convert point cloud to sparse voxel representation.
+        Args:
+            pcd_np: Input point cloud as numpy array of shape (N, 4) where columns
+                   are (x, y, z, intensity).
+        Returns:
+            Dictionary containing:
+                - "voxel_features": Voxel features of shape (M, max_points_per_voxel, 4)
+                - "voxel_coords": Voxel coordinates of shape (M, 3)
+                - "voxel_num_points": Number of points in each voxel of shape (M,)
+        """
         data_dict = {}
         if self.spconv == 1:
             voxel_output = self.voxel_generator.generate(pcd_np)
@@ -71,7 +88,7 @@ class SpVoxelPreprocessor(BasePreprocessor):
 
         return data_dict
 
-    def collate_batch(self, batch):
+    def collate_batch(self, batch: Union[List[Dict[str, np.ndarray]], Dict[str, List[np.ndarray]]]) -> Dict[str, torch.Tensor]:
         """
         Customized pytorch data loader collate function.
 
@@ -125,7 +142,7 @@ class SpVoxelPreprocessor(BasePreprocessor):
         return {"voxel_features": voxel_features, "voxel_coords": voxel_coords, "voxel_num_points": voxel_num_points}
 
     @staticmethod
-    def collate_batch_dict(batch: dict):
+    def collate_batch_dict(batch: Dict[str, List[np.ndarray]]) -> Dict[str, torch.Tensor]:
         """
         Collate batch if the batch is a dictionary,
         eg: {'voxel_features': [feature1, feature2...., feature n]}

@@ -3,10 +3,10 @@ import torch.nn as nn
 
 from opencood.data_utils.post_processor.voxel_postprocessor import VoxelPostprocessor
 from opencood.pcdet_utils.iou3d_nms.iou3d_nms_utils import aligned_boxes_iou3d_gpu
-
-
+from typing import Dict, Any, Optional, Tuple
+from torch import Tensor
 class CiassdLoss(nn.Module):
-    def __init__(self, args):
+    def __init__(self, args: Dict[str, Any]) -> None:
         super(CiassdLoss, self).__init__()
         self.pos_cls_weight = args["pos_cls_weight"]
         self.encode_rad_error_by_sin = args["encode_rad_error_by_sin"]
@@ -19,12 +19,12 @@ class CiassdLoss(nn.Module):
         self.num_cls = 2
         self.box_codesize = 7
 
-    def forward(self, output_dict, label_dict):
+    def forward(self, output_dict: Dict[str, Any], label_dict: Dict[str, Any]) -> Tensor:
         """
         Parameters
         ----------
-        output_dict : dict
-        target_dict : dict
+        output_dict : Dict[str, Any]
+        target_dict : Dict[str, Any]
         """
         preds_dict = output_dict["preds_dict_stage1"]
         target_dict = label_dict["stage1"]
@@ -114,7 +114,12 @@ class CiassdLoss(nn.Module):
 
         return loss
 
-    def logging(self, epoch, batch_id, batch_len, writer, pbar=None):
+    def logging(self, 
+               epoch: int, 
+               batch_id: int, 
+               batch_len: int, 
+               writer, 
+               pbar: Optional[Any] = None) -> None:
         """
         Print out  the loss function for current iteration.
 
@@ -147,7 +152,10 @@ class CiassdLoss(nn.Module):
         writer.add_scalar("Iou_loss", iou_loss.item(), epoch * batch_len + batch_id)
 
 
-def add_sin_difference(boxes1, boxes2):
+def add_sin_difference(boxes1: Tensor, boxes2: Tensor) -> Tuple[Tensor, Tensor]:
+    """
+    Add sine difference for angle regression.
+    """
     rad_pred_encoding = torch.sin(boxes1[..., -1:]) * torch.cos(boxes2[..., -1:])  # ry -> sin(pred_ry)*cos(gt_ry)
     rad_gt_encoding = torch.cos(boxes1[..., -1:]) * torch.sin(boxes2[..., -1:])  # ry -> cos(pred_ry)*sin(gt_ry)
     res_boxes1 = torch.cat([boxes1[..., :-1], rad_pred_encoding], dim=-1)
@@ -155,7 +163,10 @@ def add_sin_difference(boxes1, boxes2):
     return res_boxes1, res_boxes2
 
 
-def get_direction_target(reg_targets, anchors, one_hot=True, dir_offset=0.0):
+def get_direction_target(reg_targets: Tensor, 
+                        anchors: Tensor, 
+                        one_hot: bool = True, 
+                        dir_offset: float = 0.0) -> Tensor:
     """
     Generate targets for bounding box direction classification.
 
@@ -180,13 +191,20 @@ def get_direction_target(reg_targets, anchors, one_hot=True, dir_offset=0.0):
     return dir_cls_targets
 
 
-def one_hot_f(tensor, depth, dim=-1, on_value=1.0, dtype=torch.float32):
+def one_hot_f(tensor: Tensor, 
+              depth: int, 
+              dim: int = -1, 
+              on_value: float = 1.0, 
+              dtype: torch.dtype = torch.float32) -> Tensor:
     tensor_onehot = torch.zeros(*list(tensor.shape), depth, dtype=dtype, device=tensor.device)  # [4, 70400, 2]
     tensor_onehot.scatter_(dim, tensor.unsqueeze(dim).long(), on_value)  # [4, 70400, 2]
     return tensor_onehot
 
 
-def sigmoid_focal_loss(preds, targets, weights=None, **kwargs):
+def sigmoid_focal_loss(preds: Tensor, 
+                       targets: Tensor, 
+                       weights: Optional[Tensor] = None, 
+                       **kwargs) -> Tensor:
     assert "gamma" in kwargs and "alpha" in kwargs
     # sigmoid cross entropy with logits
     # more details: https://www.tensorflow.org/api_docs/python/tf/nn/sigmoid_cross_entropy_with_logits
@@ -204,7 +222,7 @@ def sigmoid_focal_loss(preds, targets, weights=None, **kwargs):
     return loss
 
 
-def softmax_cross_entropy_with_logits(logits, labels):
+def softmax_cross_entropy_with_logits(logits: Tensor, labels: Tensor) -> Tensor:
     param = list(range(len(logits.shape)))
     transpose_param = [0] + [param[-1]] + param[1:-1]
     logits = logits.permute(*transpose_param)
@@ -213,7 +231,13 @@ def softmax_cross_entropy_with_logits(logits, labels):
     return loss
 
 
-def weighted_smooth_l1_loss(preds, targets, sigma=3.0, weights=None):
+def weighted_smooth_l1_loss(preds: Tensor, 
+                            targets: Tensor, 
+                            sigma: float = 3.0, 
+                            weights: Optional[Tensor] = None) -> Tensor:
+    """
+    Compute weighted smooth L1 loss.
+    """
     diff = preds - targets
     abs_diff = torch.abs(diff)
     abs_diff_lt_1 = torch.le(abs_diff, 1 / (sigma**2)).type_as(abs_diff)

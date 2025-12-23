@@ -3,8 +3,10 @@ import math
 import torch.nn as nn
 import torch.nn.functional as F
 
+from typing import Dict, Any, List, Optional, Tuple, Type, Union
+from torch import Tensor
 
-def conv3x3(in_planes, out_planes, stride=1, bias=False):
+def conv3x3(in_planes: int, out_planes: int, stride: int = 1, bias: bool = False) -> nn.Conv2d:
     """3x3 convolution with padding"""
     return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride, padding=1, bias=bias)
 
@@ -12,7 +14,7 @@ def conv3x3(in_planes, out_planes, stride=1, bias=False):
 class BasicBlock(nn.Module):
     expansion = 1
 
-    def __init__(self, in_planes, planes, stride=1, downsample=None):
+    def __init__(self, in_planes: int, planes: int, stride: int = 1, downsample: Optional[nn.Module] = None) -> None:
         super(BasicBlock, self).__init__()
         self.conv1 = conv3x3(in_planes, planes, stride, bias=True)
         self.bn1 = nn.BatchNorm2d(planes)
@@ -22,7 +24,7 @@ class BasicBlock(nn.Module):
         self.downsample = downsample
         self.stride = stride
 
-    def forward(self, x):
+    def forward(self, x: Tensor) -> Tensor:
         residual = x
 
         out = self.conv1(x)
@@ -44,7 +46,7 @@ class BasicBlock(nn.Module):
 class Bottleneck(nn.Module):
     expansion = 4
 
-    def __init__(self, in_planes, planes, stride=1, downsample=None, use_bn=True):
+    def __init__(self, in_planes: int, planes: int, stride: int = 1, downsample: Optional[nn.Module] = None, use_bn: bool = True) -> None:
         super(Bottleneck, self).__init__()
         bias = not use_bn
         self.use_bn = use_bn
@@ -57,7 +59,7 @@ class Bottleneck(nn.Module):
         self.downsample = downsample
         self.relu = nn.ReLU(inplace=True)
 
-    def forward(self, x):
+    def forward(self, x: Tensor) -> Tensor:
         """
         Forward pass of residual block.
         Parameters
@@ -94,7 +96,13 @@ class Bottleneck(nn.Module):
 
 
 class BackBone(nn.Module):
-    def __init__(self, block, num_block, geom, use_bn=True):
+    def __init__(
+        self,
+        block: Type[Union[BasicBlock, Bottleneck]],
+        num_block: List[int],
+        geom: Dict[str, Any],
+        use_bn: bool = True
+    ) -> None:
         super(BackBone, self).__init__()
 
         self.use_bn = use_bn
@@ -142,7 +150,7 @@ class BackBone(nn.Module):
 
         return c3, c4, c5
 
-    def decode(self, c3, c4, c5):
+    def decode(self, c3: Tensor, c4: Tensor, c5: Tensor) -> Tensor:
         l5 = self.latlayer1(c5)
         l4 = self.latlayer2(c4)
         p5 = l4 + self.deconv1(l5)
@@ -151,13 +159,18 @@ class BackBone(nn.Module):
 
         return p4
 
-    def forward(self, x):
+    def forward(self, x: Tensor) -> Tensor:
         c3, c4, c5 = self.encode(x)
         p4 = self.decode(c3, c4, c5)
 
         return p4
 
-    def _make_layer(self, block, planes, num_blocks):
+    def _make_layer(
+        self,
+        block: Type[Union[BasicBlock, Bottleneck]],
+        planes: int,
+        num_blocks: int
+    ) -> nn.Sequential:
         if self.use_bn:
             # downsample the H*W by 1/2
             downsample = nn.Sequential(
@@ -174,7 +187,7 @@ class BackBone(nn.Module):
             self.in_planes = planes * block.expansion
         return nn.Sequential(*layers)
 
-    def _upsample_add(self, x, y):
+    def _upsample_add(self, x: Tensor, y: Tensor) -> Tensor:
         """Upsample and add two feature maps.
         Args:
           x: (Variable) top feature map to be upsampled.
@@ -195,7 +208,11 @@ class BackBone(nn.Module):
 
 
 class Header(nn.Module):
-    def __init__(self, use_bn=True):
+    """
+    Prediction header for PIXOR that takes backbone features and produces
+    classification and regression outputs.
+    """
+    def __init__(self, use_bn: bool = True) -> None:
         super(Header, self).__init__()
 
         self.use_bn = use_bn
@@ -212,7 +229,7 @@ class Header(nn.Module):
         self.clshead = conv3x3(96, 1, bias=True)
         self.reghead = conv3x3(96, 6, bias=True)
 
-    def forward(self, x):
+    def forward(self, x: Tensor) -> Tuple[Tensor, Tensor]:
         x = self.conv1(x)
         if self.use_bn:
             x = self.bn1(x)
@@ -252,7 +269,7 @@ class PIXOR(nn.Module):
         Header used to predict the classification and coordinates.
     """
 
-    def __init__(self, args):
+    def __init__(self, args: Dict[str, Any]) -> None:
         super(PIXOR, self).__init__()
         geom = args["geometry_param"]
         use_bn = args["use_bn"]
@@ -273,7 +290,7 @@ class PIXOR(nn.Module):
         self.header.reghead.weight.data.fill_(0)
         self.header.reghead.bias.data.fill_(0)
 
-    def forward(self, data_dict):
+    def forward(self, data_dict: Dict[str, Any]) -> Dict[str, Any]:
         bev_input = data_dict["processed_lidar"]["bev_input"]
 
         features = self.backbone(bev_input)
