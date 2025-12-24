@@ -50,7 +50,7 @@ if __name__ == "__main__":
 
     csv_folder = args.csv_folder
     csv_folder_path = os.path.join(DATA_PATH, csv_folder)
-    
+
     preprocess_folder = args.pkl_folder
     preprocess_folder_path = os.path.join(DATA_PATH, preprocess_folder)
 
