@@ -11,7 +11,8 @@ import pandas as pd
 
 from CoDriving.data_scripts.data_config.data_config import ALLIGN_INITIAL_DIRECTION_TO_X, NUM_AUGMENTATION, NORMALIZE_DATA, MAP_BOUNDARY
 from CoDriving.models.model_factory import ModelFactory
-from CoDriving.data_scripts.dataset import CarDataset, rotation_matrix_back_with_allign_to_X, rotation_matrix_back_with_allign_to_Y
+from CoDriving.data_scripts.dataset import CarDataset
+from CoDriving.data_scripts.preprocess_utils import rotation_matrix_back_with_allign_to_X, rotation_matrix_back_with_allign_to_Y
 from CoDriving.data_scripts.metrics_logger import MetricLogger
 from CoDriving.data_scripts.preprocess_utils import de_nomalize_yaw
 
@@ -316,7 +317,9 @@ def evaluate(
 METRICS = ["ade", "fde", "mr", "collision_rate", "val_loss", "collision_penalties"]
 
 
-def train_one_config(train_config_path: str, model_config_path: str, expirements_path: str, data_path: str, device_str: str, save_checkpoints=True):
+def train_one_config(
+    train_config_path: str, model_config_path: str, expirements_path: str, data_path: str, logs_dir_name: str, device_str: str, save_checkpoints=True
+):
     torch.set_num_threads(1)
     torch.set_num_interop_threads(1)
 
@@ -331,7 +334,7 @@ def train_one_config(train_config_path: str, model_config_path: str, expirements
         exp_id,
         train_config_path,
         model_config_path,
-        train_config.logs_dir_path,
+        logs_dir_name,
         train_config.train_data_dir,
         train_config.val_data_dir,
     )

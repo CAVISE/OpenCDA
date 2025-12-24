@@ -12,3 +12,4 @@ EXPIREMENTS_MODELS_CONFIG_PATH = os.path.join(EXPIREMENTS_CONFIG_PATH, "model_co
 
 BASE_TRAIN_CONFIG_PATH = os.path.join(EXPIREMENTS_CONFIG_PATH, "train_config.yaml")
 BASE_MODEL_CONFIG_PATH = os.path.join(EXPIREMENTS_CONFIG_PATH, "model_config.yaml")
+LOGS_DIR_NAME = "logs"

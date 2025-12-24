@@ -11,7 +11,6 @@ mr_threshold: 4
 
 metrics_log_epoch_frequency: 2
 clear_exp_checkpoints: true
-logs_dir_path: logs
 train_data_dir: csv/train_pre
 val_data_dir: csv/val_pre
 
