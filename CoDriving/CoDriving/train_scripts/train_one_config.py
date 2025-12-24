@@ -9,10 +9,11 @@ from torch_geometric.loader import DataLoader
 import numpy as np
 import pandas as pd
 
-from CoDriving.data_scripts.data_config.data_config import ALLIGN_INITIAL_DIRECTION_TO_X, NUM_AUGMENTATION
+from CoDriving.data_scripts.data_config.data_config import ALLIGN_INITIAL_DIRECTION_TO_X, NUM_AUGMENTATION, NORMALIZE_DATA, MAP_BOUNDARY
 from CoDriving.models.model_factory import ModelFactory
 from CoDriving.data_scripts.dataset import CarDataset, rotation_matrix_back_with_allign_to_X, rotation_matrix_back_with_allign_to_Y
 from CoDriving.data_scripts.metrics_logger import MetricLogger
+from CoDriving.data_scripts.preprocess_utils import de_nomalize_yaw
 
 
 class Dict2Class(object):
@@ -171,20 +172,25 @@ def train_one_epoch(
         # [x, y, v, yaw, intention(3-bit)] -> [x, y, intention]
         out = model(batch.x[:, [0, 1, 4, 5, 6]], batch.edge_index)
         out = out.reshape(-1, 30, 2)  # [v, pred, 2]
-        out = out.permute(0, 2, 1)  # [v, 2, pred]
         yaw = batch.x[:, 3].detach().cpu().numpy()
+
+        if NORMALIZE_DATA:
+            de_nomalize_yaw(yaw)
 
         if ALLIGN_INITIAL_DIRECTION_TO_X:
             rotations = torch.stack([rotation_matrix_back_with_allign_to_X(yaw[i]) for i in range(batch.x.shape[0])]).to(out.device)
         else:
             rotations = torch.stack([rotation_matrix_back_with_allign_to_Y(yaw[i]) for i in range(batch.x.shape[0])]).to(out.device)
 
-        out = torch.bmm(rotations, out).permute(0, 2, 1)  # [v, pred, 2]
-        out += batch.x[:, [0, 1]].unsqueeze(1)
         # [x, y, v, yaw, acc, steering]
         gt = batch.y.reshape(-1, 30, 6)[:, :, [0, 1]]
         error = ((gt - out).square().sum(-1) * step_weights).sum(-1)
         loss = (batch.weights * error).nanmean()
+
+        # get back from deltas to plain coordinates in predictions
+        out = out.permute(0, 2, 1)  # [v, 2, pred]
+        out = torch.bmm(rotations, out).permute(0, 2, 1)  # [v, pred, 2]
+        out += batch.x[:, [0, 1]].unsqueeze(1)
 
         if collision_penalty:
             mask = batch.edge_index[0, :] < batch.edge_index[1, :]
@@ -237,16 +243,15 @@ def evaluate(
             out = model(batch.x[:, [0, 1, 4, 5, 6]], batch.edge_index)
             out = out.reshape(-1, 30, 2)  # [v, 30, 2]
 
-            out = out.permute(0, 2, 1)  # [v, 2, pred]
             yaw = batch.x[:, 3].detach().cpu().numpy()
+
+            if NORMALIZE_DATA:
+                de_nomalize_yaw(yaw)
 
             if ALLIGN_INITIAL_DIRECTION_TO_X:
                 rotations = torch.stack([rotation_matrix_back_with_allign_to_X(yaw[i]) for i in range(batch.x.shape[0])]).to(out.device)
             else:
                 rotations = torch.stack([rotation_matrix_back_with_allign_to_Y(yaw[i]) for i in range(batch.x.shape[0])]).to(out.device)
-
-            out = torch.bmm(rotations, out).permute(0, 2, 1)  # [v, pred, 2]
-            out += batch.x[:, [0, 1]].unsqueeze(1)
 
             gt = batch.y.reshape(-1, 30, 6)[:, :, [0, 1]]
             _error = (gt - out).square().sum(-1)
@@ -256,6 +261,10 @@ def evaluate(
             val_losses.append(val_loss)
             fde.append(error[:, -1])
             ade.append(error.mean(dim=-1))
+
+            out = out.permute(0, 2, 1)  # [v, 2, pred]
+            out = torch.bmm(rotations, out).permute(0, 2, 1)  # [v, pred, 2]
+            out += batch.x[:, [0, 1]].unsqueeze(1)
 
             mask = batch.edge_index[0, :] < batch.edge_index[1, :]
             _edge = batch.edge_index[:, mask].T  # [edge',2]
@@ -338,7 +347,16 @@ def train_one_config(train_config_path: str, model_config_path: str, expirements
 
     metrics_log_epoch_frequency = train_config.metrics_log_epoch_frequency
     epochs = train_config.epoch
+
+    step_weights_factor = train_config.step_weights_factor
     collision_penalty = train_config.collision_penalty
+    collision_penalty_factor = train_config.collision_penalty_factor
+    dist_threshold = train_config.dist_threshold
+    mr_threshold = train_config.mr_threshold
+
+    if NORMALIZE_DATA:
+        dist_threshold = dist_threshold / MAP_BOUNDARY
+        mr_threshold = mr_threshold / MAP_BOUNDARY
 
     push_to_hf = train_config.push_to_hf
     hf_project_path = train_config.hf_project_path
@@ -378,10 +396,10 @@ def train_one_config(train_config_path: str, model_config_path: str, expirements
             device,
             train_loader,
             optimizer,
-            train_config.step_weights_factor,
-            train_config.dist_threshold,
-            train_config.collision_penalty,
-            train_config.collision_penalty_factor,
+            step_weights_factor,
+            dist_threshold,
+            collision_penalty,
+            collision_penalty_factor,
         )
         loss_logger.add_metric_points([epoch], [epoch * len(train_loader)], [epoch_loss])
 
@@ -390,10 +408,10 @@ def train_one_config(train_config_path: str, model_config_path: str, expirements
                 model,
                 device,
                 val_loader,
-                train_config.step_weights_factor,
-                train_config.dist_threshold,
-                train_config.collision_penalty,
-                train_config.collision_penalty_factor,
+                step_weights_factor,
+                dist_threshold,
+                mr_threshold,
+                collision_penalty_factor,
             )
             epoch_metrics = {
                 "ade": ade,

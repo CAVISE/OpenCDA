@@ -5,12 +5,12 @@ from multiprocessing import Value, Lock
 import concurrent.futures
 
 from data_path_config import DATA_PATH
-from CoDriving.data_scripts.preprocess_utils import process_file
+from CoDriving.data_scripts.preprocess_utils import preprocess_file
 import shutil
 
 
 def process_file_wrapper(*args):
-    result = process_file(*args)
+    result = preprocess_file(*args)
     with lock:
         completed_tasks_amount.value += 1
         print(f"Progress: {completed_tasks_amount.value}/{len(csv_files)}")
@@ -22,11 +22,6 @@ if __name__ == "__main__":
     cpu_amount = os.cpu_count()
 
     parser = argparse.ArgumentParser(description="")
-    parser.add_argument(
-        "--normalize",
-        action="store_true",
-        help="normalization flag",
-    )
     parser.add_argument(
         "--csv_folder",
         type=str,
@@ -54,22 +49,22 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     csv_folder = args.csv_folder
-    csv_folder = os.path.join(DATA_PATH, csv_folder)
+    csv_folder_path = os.path.join(DATA_PATH, csv_folder)
+    
     preprocess_folder = args.pkl_folder
-    preprocess_folder = os.path.join(DATA_PATH, preprocess_folder)
+    preprocess_folder_path = os.path.join(DATA_PATH, preprocess_folder)
 
-    if os.path.exists(preprocess_folder):
-        shutil.rmtree(preprocess_folder)
-    os.makedirs(preprocess_folder, exist_ok=True)
+    if os.path.exists(preprocess_folder_path):
+        shutil.rmtree(preprocess_folder_path)
+    os.makedirs(preprocess_folder_path, exist_ok=True)
 
     processes = args.processes
     intention_config = args.intention_config
-    normalize = args.normalize
 
     completed_tasks_amount = Value("i", 0)
     lock = Lock()
 
-    csv_files = [i for i in os.listdir(csv_folder) if os.path.splitext(i)[1] == ".csv"]
+    csv_files = [i for i in os.listdir(csv_folder_path) if os.path.splitext(i)[1] == ".csv"]
     intention_config_path = os.path.join(DATA_PATH, "sumo", "intentions", intention_config)
 
     print("Processing started")
@@ -77,13 +72,11 @@ if __name__ == "__main__":
     try:
         futures = [
             executor.submit(
-                # process_file,
                 process_file_wrapper,
-                csv_folder,
+                csv_folder_path,
                 file,
-                preprocess_folder,
+                preprocess_folder_path,
                 intention_config_path,
-                normalize,
             )
             for file in csv_files
         ]
@@ -93,9 +86,11 @@ if __name__ == "__main__":
             except Exception as e:
                 print(f"Error: {e}")
         print("Done")
+
     except KeyboardInterrupt:
         print("\nInterrupted by the user. Termination of tasks has begun. It may take some time.")
         print("!!!DON'T INTERRUPT IT, JUST WAIT!!!")
+
         for f in futures:
             f.cancel()
         sys.exit(1)

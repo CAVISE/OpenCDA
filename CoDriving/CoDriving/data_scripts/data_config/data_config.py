@@ -12,10 +12,11 @@ VEHICLE_SIGMA = 0.5
 VEHICLE_LENGTH = 5
 VEHICLE_MAX_SPEED = 40
 VEHICLE_MIN_GAP = 2.5
-MAP_BOUNDARY = 100
+MAP_BOUNDARY = 100 # dont torch, because sumo net file build with this map boundary in x and y
 
 ALLIGN_INITIAL_DIRECTION_TO_X = True  # allign initial direction of motion to +X
 NUM_AUGMENTATION = 0
+NORMALIZE_DATA = True
 
 
 RAW_DATA_FORMAT = {

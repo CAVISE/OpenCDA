@@ -146,11 +146,6 @@ def generate_csv_from_fcd(
     intention_config_path: str,
     time_per_scene: int,
     split: str = "train",
-    # normalize=True,
-    # x_normalizer=None,
-    # y_normalizer=None,
-    # speed_normalizer=None,
-    # yaw_normalizer=None,
 ):
     csv_dir = os.path.join(csv_dir, split)
     if os.path.exists(csv_dir):  # delete directory with old data if exists
@@ -186,16 +181,6 @@ def generate_csv_from_fcd(
                         "speed": speed,
                         "CITY_NAME": "SUMO",
                     }
-                    # {
-                    #     "TIMESTAMP": timestamp,
-                    #     "TRACK_ID": track_id,
-                    #     "OBJECT_TYPE": "tgt",
-                    #     "X": x_normalizer(x) if normalize and (x_normalizer is not None) else x,
-                    #     "Y": y_normalizer(y) if normalize and (y_normalizer is not None) else y,
-                    #     "yaw": yaw_normalizer(yaw_angle) if normalize and (yaw_normalizer is not None) else yaw_angle,
-                    #     "speed": speed_normalizer(speed) if normalize and (speed_normalizer is not None) else speed,
-                    #     "CITY_NAME": "SUMO",
-                    # }
                 ]
             )
             df = pd.concat([df, new_row], ignore_index=True)

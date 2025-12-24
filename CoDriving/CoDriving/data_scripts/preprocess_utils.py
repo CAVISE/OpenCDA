@@ -5,44 +5,296 @@ import torch
 import os
 
 
-from CoDriving.data_scripts.dataset import (
-    MPC_Block,
-    adjust_future_deltas,
-    rotation_matrix_with_allign_to_Y,
-    rotation_matrix_with_allign_to_X,
-    transform_sumo2carla,
+from CoDriving.data_scripts.data_config.data_config import (
+    NUM_PREDICT,
+    OBS_LEN,
+    PRED_LEN,
+    ALLIGN_INITIAL_DIRECTION_TO_X,
+    NUM_AUGMENTATION,
+    MAP_BOUNDARY,
+    VEHICLE_MAX_SPEED,
+    NORMALIZE_DATA,
 )
-from CoDriving.data_scripts.data_config.data_config import NUM_PREDICT, OBS_LEN, PRED_LEN, ALLIGN_INITIAL_DIRECTION_TO_X, NUM_AUGMENTATION
+from CoDriving.MPC_XY_Frame.MPC_XY_Frame import linear_mpc_control_data_aug
 from CoDriving.data_scripts.utils.feature_utils import get_intention_from_vehicle_id
 
 
-def min_max_normalize(x, mmax, mmin=0):
-    return (x - mmin) / (mmax - mmin)
+def rotation_matrix_with_allign_to_Y(yaw):
+    """
+    Make the current direction aligns to +Y axis (In CARLA coordinate system).
+    https://en.wikipedia.org/wiki/Rotation_matrix#Non-standard_orientation_of_the_coordinate_system
+    """
+    rotation = np.array(
+        [
+            [np.cos(np.pi / 2 - yaw), -np.sin(np.pi / 2 - yaw)],
+            [np.sin(np.pi / 2 - yaw), np.cos(np.pi / 2 - yaw)],
+        ]
+    )
+    return rotation
 
 
-def process_file(
-    csv_folder: str,
-    csv_file: str,
-    preprocess_folder: str,
-    intentuion_config,
-    normalize,
+def rotation_matrix_back_with_allign_to_Y(yaw):
+    """
+    Rotate back (In CARLA coordinate system).
+    https://en.wikipedia.org/wiki/Rotation_matrix#Non-standard_orientation_of_the_coordinate_system
+    """
+    rotation = np.array(
+        [
+            [np.cos(-np.pi / 2 + yaw), -np.sin(-np.pi / 2 + yaw)],
+            [np.sin(-np.pi / 2 + yaw), np.cos(-np.pi / 2 + yaw)],
+        ]
+    )
+    rotation = torch.tensor(rotation).float()
+    return rotation
+
+
+def rotation_matrix_with_allign_to_X(yaw):
+    """
+    Make the current direction aligns to +X axis (In CARLA coordinate system).
+    https://en.wikipedia.org/wiki/Rotation_matrix#Non-standard_orientation_of_the_coordinate_system
+    """
+    rotation = np.array(
+        [
+            [np.cos(-yaw), -np.sin(-yaw)],
+            [np.sin(-yaw), np.cos(-yaw)],
+        ]
+    )
+    return rotation
+
+
+def rotation_matrix_back_with_allign_to_X(yaw):
+    """
+    Rotate back (In CARLA coordinate system).
+    https://en.wikipedia.org/wiki/Rotation_matrix#Non-standard_orientation_of_the_coordinate_system
+    """
+    rotation = np.array(
+        [
+            [np.cos(yaw), -np.sin(yaw)],
+            [np.sin(yaw), np.cos(yaw)],
+        ]
+    )
+    rotation = torch.tensor(rotation).float()
+    return rotation
+
+
+def adjust_future_deltas(curr_states, future_states) -> None:
+    """
+    The range of delta angle is [-180, 180], in order to avoid the jump, adjust the future delta angles.
+
+    :param curr_states: [vehicle, 4]
+    :param future_states: [vehicle, pred_len, 4]
+    """
+
+    assert curr_states.shape[0] == future_states.shape[0]
+    num_vehicle = curr_states.shape[0]
+    num_step = future_states.shape[1]
+
+    for i_vehicle in range(num_vehicle):
+        for i_step in range(num_step):
+            if (future_states[i_vehicle, i_step, 3] - curr_states[i_vehicle, 3]) < -np.pi:
+                future_states[i_vehicle, i_step, 3] += 2 * np.pi
+            elif (future_states[i_vehicle, i_step, 3] - curr_states[i_vehicle, 3]) > np.pi:
+                future_states[i_vehicle, i_step, 3] -= 2 * np.pi
+
+    return None
+
+
+def transform_sumo2carla(states: np.ndarray):
+    """
+    In-place transform from sumo to carla: [x_carla, y_carla, yaw_carla] = [x_sumo, -y_sumo, yaw_sumo-90]. \
+        yaw_carla in [-90, 270] so if > 180 yaw_carla = yaw_carla - 360. After that yaw_carla in [-180, 180]
+    Note:
+        - the coordinate system in Carla is more convenient since the angle increases in the direction of rotation from +x to +y, while in sumo this is from +y to +x.
+        - the coordinate system in Carla is a left-handed Cartesian coordinate system.
+    """
+    if states.ndim == 1:
+        states[1] = -states[1]
+        states[3] -= np.deg2rad(90)
+        if states[3] > np.deg2rad(180):
+            states[3] = states[3] - np.deg2rad(360)
+
+    elif states.ndim == 2:
+        states[:, 1] = -states[:, 1]
+        states[:, 3] -= np.deg2rad(90)
+        mask = states[:, 3] > np.deg2rad(180)
+        states[mask, 3] -= np.deg2rad(360)
+    else:
+        raise NotImplementedError
+
+
+def MPC_Block(
+    curr_states: np.ndarray,
+    target_states: np.ndarray,
+    acc_delta_old: np.ndarray,
+    noise_range: float = 0.0,
 ):
     """
-    Docstring for process_file
+    :param curr_states: [vehicle, 4], [[x, y, speed, yaw], ...]
+    :param target_states: [vehicle, pred_len, 4]
+    :param acc_delta_old: [vehicle, pred_len, 2]
+    :param noise_range: noise on the lateral direction
 
-    :param csv_folder: csv folder with csv data files
-    :type csv_folder: str
+    :return shifted_curr: [vehicle, 4]
+    :return mpc_output: [vehicle, pred_len, 6], [x, y, speed, yaw, acc, delta]
+    """
+
+    # acc_delta_new = np.zeros_like(acc_delta_old)
+    num_vehicles = curr_states.shape[0]
+    pred_len = target_states.shape[1]
+    shifted_curr = np.zeros((num_vehicles, 4))
+    mpc_output = np.zeros((num_vehicles, pred_len, 6))
+    for v in range(num_vehicles):
+        shifted_curr[v], mpc_output[v] = MPC_module(curr_states[v], target_states[v], acc_delta_old[v], noise_range)
+    return shifted_curr, mpc_output
+
+
+def MPC_module(
+    curr_state_v: np.ndarray,
+    target_states_v: np.ndarray,
+    acc_delta_old_v: np.ndarray,
+    noise_range: float = 0.0,
+):
+    """
+    :param curr_state_v: [4], [x_0, y_0, speed_0, yaw_0]
+    :param target_states_v: [pred_len, 4], [[x_1, y_1, speed_1, yaw_1], ...]
+    :param acc_delta_old_v: [pred_len, 2], [[acc_1, delta_1], ...]
+    :param noise_range: noise on the lateral direction
+
+    :return shifted_curr: [4]
+    :return mpc_output: [pred_len, 6]
+    """
+
+    acc_delta_old_v[np.isnan(acc_delta_old_v)] = 0.0  # [pred_len, 2]
+    a_old = acc_delta_old_v[:, 0].tolist()
+    delta_old = acc_delta_old_v[:, 1].tolist()
+
+    if noise_range > 0:
+        curr_state_v = curr_state_v.copy()  # avoid add noise in-place
+        noise_direction = curr_state_v[3] - np.deg2rad(90)
+        # TODO: uniform or Gaussian distribution?
+        noise_length = np.random.uniform(low=-1, high=1) * noise_range
+        noise = np.array([np.cos(noise_direction), np.sin(noise_direction)]) * noise_length
+        curr_state_v[:2] += noise
+
+    curr_state_v = curr_state_v.reshape(1, 4)
+
+    target_states_v = np.concatenate((curr_state_v, target_states_v), axis=0)  # [pred_len+1, 4]
+    _curr_state_v = curr_state_v.reshape(-1).tolist()
+
+    target_states_v = target_states_v.T
+    a_opt, delta_opt, x_opt, y_opt, v_opt, yaw_opt = linear_mpc_control_data_aug(target_states_v, _curr_state_v, a_old, delta_old)
+
+    mpc_output = np.concatenate(
+        (
+            x_opt[1:].reshape(-1, 1),
+            y_opt[1:].reshape(-1, 1),
+            v_opt[1:].reshape(-1, 1),
+            yaw_opt[1:].reshape(-1, 1),
+            a_opt.reshape(-1, 1),
+            delta_opt.reshape(-1, 1),
+        ),
+        axis=1,
+    )
+
+    return curr_state_v.reshape(-1), mpc_output
+
+
+def min_max_normalize(x: np.ndarray, mmin, mmax, new_mmin, new_mmax):
+    """
+    Normalizing x data from [mmin, mmax] to [new_mmin, new_mmax]
+
+    :param x: data - tensor
+    :param mmin: min boundary of given data
+    :param mmax: max boundary of given data
+    :param new_mmin: min boundary of given data
+    :param new_mmax: max boundary of given data
+    """
+    if mmin >= mmax:
+        raise ValueError("Expected mmin < mmax")
+    if new_mmin >= new_mmax:
+        raise ValueError("Expected new_mmin < new_mmax")
+
+    diff = mmax - mmin
+    new_diff = new_mmax - new_mmin
+    diff_ratio = new_diff / diff
+
+    return new_mmin + (x - mmin) * diff_ratio
+
+
+def normalize_input_data(x: np.ndarray):
+    """
+    Normalizing x - input data to [-1, 1] in coords, yaw [0, 1] in speed
+
+    :param x: np.ndarray with shape [vehicle, 7] - for each vehicle [x_0, y_0, speed_0, yaw_0, intent, intent, intent]
+    """
+    x[:, 0] = min_max_normalize(x[:, 0], -MAP_BOUNDARY, MAP_BOUNDARY, -1, 1)
+    x[:, 1] = min_max_normalize(x[:, 1], -MAP_BOUNDARY, MAP_BOUNDARY, -1, 1)
+    x[:, 2] = min_max_normalize(x[:, 2], 0, VEHICLE_MAX_SPEED, 0, 1)
+    x[:, 3] = min_max_normalize(x[:, 3], -np.pi, np.pi, -1, 1)
+
+
+def normalize_target_data(y: np.ndarray):
+    """
+    Normalizing y - input data to [-1, 1] in coords, yaw [0, 1] in speed
+
+    :param y: np.ndarray with shape [vehicle, PRED_LEN, 6] - for each vehicle [[x_1, y_1, v_1, yaw_1, acc_1, delta_1], ...]
+    """
+    y[:, :, 0] = min_max_normalize(y[:, :, 0], -MAP_BOUNDARY, MAP_BOUNDARY, -1, 1)
+    y[:, :, 1] = min_max_normalize(y[:, :, 1], -MAP_BOUNDARY, MAP_BOUNDARY, -1, 1)
+    y[:, :, 2] = min_max_normalize(y[:, :, 2], 0, VEHICLE_MAX_SPEED, 0, 1)
+    y[:, :, 3] = min_max_normalize(y[:, :, 3], -np.pi, np.pi, -1, 1)
+
+
+def de_normalize_input_data(x: np.ndarray):
+    """
+    Normalizing x - input data from [-1, 1] in coords, yaw [0, 1] in speed
+
+    :param x: np.ndarray with shape [vehicle, 7] - for each vehicle [x_0, y_0, speed_0, yaw_0, intent, intent, intent]
+    """
+    x[:, 0] = min_max_normalize(x[:, 0], -1, 1, -MAP_BOUNDARY, MAP_BOUNDARY)
+    x[:, 1] = min_max_normalize(x[:, 1], -1, 1, -MAP_BOUNDARY, MAP_BOUNDARY)
+    x[:, 2] = min_max_normalize(x[:, 2], 0, 1, 0, VEHICLE_MAX_SPEED)
+    x[:, 3] = min_max_normalize(x[:, 3], -1, 1, -np.pi, np.pi)
+
+
+def de_normalize_target_data(y: np.ndarray):
+    """
+    De normalizing y - input data from [-1, 1] in coords, yaw [0, 1] in speed
+
+    :param y: np.ndarray with shape [vehicle, PRED_LEN, 6] - for each vehicle [[x_1, y_1, v_1, yaw_1, acc_1, delta_1], ...]
+    """
+    y[:, :, 0] = min_max_normalize(y[:, :, 0], -1, 1, -MAP_BOUNDARY, MAP_BOUNDARY)
+    y[:, :, 1] = min_max_normalize(y[:, :, 1], -1, 1, -MAP_BOUNDARY, MAP_BOUNDARY)
+    y[:, :, 2] = min_max_normalize(y[:, :, 2], 0, 1, 0, VEHICLE_MAX_SPEED)
+    y[:, :, 3] = min_max_normalize(y[:, :, 3], -1, 1, -np.pi, np.pi)
+
+
+def de_nomalize_yaw(yaw):
+    yaw = min_max_normalize(yaw, -1, 1, -np.pi, np.pi)
+
+
+def preprocess_file(
+    csv_folder_path: str,
+    csv_file: str,
+    preprocess_folder_path: str,
+    intentuion_config,
+):
+    """
+    Preprocesses csv file and save several pkl files
+
+    :param csv_folder_path: csv folder with csv data files path
+    :type csv_folder_path: str
     :param csv_file: name of csv file in folder
     :type csv_file: str
-    :param preprocess_folder: folder for storing preprocessed data in pkls
-    :type preprocess_folder: str
+    :param preprocess_folder_path: folder for storing preprocessed data in pkls path
+    :type preprocess_folder_path: str
     :param intentuion_config: path to intention config file
     :param n_mpc_aug: number of mpc augmentations
     :param normalize: True if normalization needed
     :param allign_initial_direction_to_x: if True: in carla coordinate system rotate coordanate system so +X to be direction of motion of car \
           else rotate coordanate system so +Y to be direction of motion of car
     """
-    df = pd.read_csv(os.path.join(csv_folder, csv_file))
+    df = pd.read_csv(os.path.join(csv_folder_path, csv_file))
     all_features = list()
     for track_id, remain_df in df.groupby("TRACK_ID"):
         if len(remain_df) >= (OBS_LEN + PRED_LEN):
@@ -98,6 +350,7 @@ def process_file(
         all_features[:, row + 1 : row + 1 + NUM_PREDICT, -2:] = mpc_output[:, :, -2:]
         speed = all_features[:, row + 1 : row + 1 + NUM_PREDICT, 2:3]  # [vehicle, PRED_LEN, 1]
 
+        # this is not an angle in local coordinate system this is a yaw with which data point was rotated. BUT for +X allignment theese yaws are the same
         if ALLIGN_INITIAL_DIRECTION_TO_X:
             yaw = (
                 all_features[:, row + 1 : row + 1 + NUM_PREDICT, 3:4] - all_features[:, row : row + 1, 3:4]
@@ -107,8 +360,15 @@ def process_file(
                 all_features[:, row + 1 : row + 1 + NUM_PREDICT, 3:4] - all_features[:, row : row + 1, 3:4] + np.pi / 2
             )  # [vehicle, PRED_LEN, 1], align the initial direction to +Y
 
+        # [vehicle, PRED_LEN, 6]
+        y = np.concatenate((y, speed, yaw, mpc_output[:, :, -2:]), axis=2)
+        if NORMALIZE_DATA:
+            normalize_target_data(y)
+            normalize_input_data(x)
+
         # [vehicle, PRED_LEN*6]
-        y = np.concatenate((y, speed, yaw, mpc_output[:, :, -2:]), axis=2).reshape(num_cars, -1)
+        y = y.reshape(num_cars, -1)
+
         data = (
             torch.tensor(x, dtype=torch.float),
             torch.tensor(y, dtype=torch.float),
@@ -118,11 +378,13 @@ def process_file(
         # x: [vehicle, 7]: [x_0, y_0, speed_0, yaw_0, intent, intent, intent]
         # y: [vehicle, PRED_LEN * 6]: [[x_1, y_1, v_1, yaw_1, acc_1, delta_1, x_2, y_2...], ...]
         with open(
-            f"{preprocess_folder}/{os.path.splitext(csv_file)[0]}-{str(row).zfill(3)}-0.pkl",
+            f"{preprocess_folder_path}/{os.path.splitext(csv_file)[0]}-{str(row).zfill(3)}-0.pkl",
             "wb",
         ) as handle:
             pickle.dump(data, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
+        # just for checks without augmentation to dont make any misstake, because augmentation gives strange data distribution
+        return
         for a in range(NUM_AUGMENTATION):
             shifted_curr, mpc_output = MPC_Block(
                 curr_states, future_states, acc_delta_old, noise_range=noise_range
@@ -141,6 +403,11 @@ def process_file(
             # [vehicle, PRED_LEN, 6]
             y = np.concatenate((y, mpc_output[:, :, 2:]), axis=-1)
             y = y.reshape(num_cars, -1)
+
+            # if NORMALIZE_DATA:
+            #     normalize_target_data(y)
+            #     normalize_input_data(x)
+
             data = (
                 torch.tensor(x_argumented, dtype=torch.float),
                 torch.tensor(y, dtype=torch.float),
@@ -148,7 +415,7 @@ def process_file(
                 torch.tensor([row]),
             )
             with open(
-                f"{preprocess_folder}/{os.path.splitext(csv_file)[0]}-{str(row).zfill(3)}-{a + 1}.pkl",
+                f"{preprocess_folder_path}/{os.path.splitext(csv_file)[0]}-{str(row).zfill(3)}-{a + 1}.pkl",
                 "wb",
             ) as handle:
                 pickle.dump(data, handle, protocol=pickle.HIGHEST_PROTOCOL)

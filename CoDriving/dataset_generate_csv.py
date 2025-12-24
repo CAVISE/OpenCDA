@@ -79,22 +79,6 @@ if __name__ == "__main__":
     generate_fcd(sumocfg_path, fcd_file, 0, 0, num_seconds, DT, TRAFFIC_SCALE)
     intention_config_path = os.path.join(sumo_files_path, "intentions", intention_config)
 
-    # x_normalizer = None
-    # y_normalizer = None
-    # speed_normalizer = None
-    # yaw_normalizer = None
-
-    # if args.normalize:
-    #     doc = etree.parse(os.path.join(sumo_files_path, "map", net_filename))
-    #     memoryElem = doc.find("location")
-    #     boundarie_str = memoryElem.get("convBoundary").split(sep=",")
-    #     xmin, ymin, xmax, ymax = [float(num) for num in boundarie_str]
-
-    #     x_normalizer = partial(min_max_normalize, mmax=xmax, mmin=xmin)
-    #     y_normalizer = partial(min_max_normalize, mmax=ymax, mmin=ymin)
-    #     speed_normalizer = partial(min_max_normalize, mmax=args.vehicle_max_speed, mmin=0)
-    #     yaw_normalizer = partial(min_max_normalize, mmax=180)
-
     # Generate csv files
     logging.info(f"Generating csv files in csv/{split}...")
     generate_csv_from_fcd(
@@ -103,9 +87,4 @@ if __name__ == "__main__":
         intention_config_path,
         LENGTH_PER_SCENE,
         split,
-        # normalize=args.normalize,
-        # x_normalizer=x_normalizer,
-        # y_normalizer=y_normalizer,
-        # yaw_normalizer=yaw_normalizer,
-        # speed_normalizer=speed_normalizer,
     )

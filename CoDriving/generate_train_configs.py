@@ -62,7 +62,7 @@ def generate_configs():
         "batch_size": np.logspace(8, 10, base=2, num=3, dtype=int).tolist(),
         "optimizer": ["adam", "adamw", "sgd"],
         "weight_decay": np.logspace(-5, -2, num=4, dtype=float).tolist(),
-        "collision_penalty_factor": np.linspace(400, 1000, 7, dtype=float).tolist(),
+        "collision_penalty_factor": np.concatenate([np.linspace(4, 10, 4, dtype=float), np.linspace(400, 1000, 4, dtype=float)]).tolist(),
         "step_weights_factor": np.linspace(5, 10, 5, dtype=float).tolist(),
         "dist_threshold": np.linspace(2, 5, 5, dtype=float).tolist(),
     }
