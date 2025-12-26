@@ -111,7 +111,7 @@ class CoperceptionModelManager:
 
                 if self.opt.save_vis:
                     for mode in ["3d", "bev"]:
-                        if (self.hypes["postprocess"]["core_method"] == "BevPostprocessor" and mode == "3d"):
+                        if self.hypes["postprocess"]["core_method"] == "BevPostprocessor" and mode == "3d":
                             continue
                         vis_dir = f"simulation_output/coperception/vis_{mode}/{self.opt.test_scenario}_{self.current_time}"
                         os.makedirs(vis_dir, exist_ok=True)
