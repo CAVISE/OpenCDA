@@ -84,6 +84,7 @@ model:
     mean_vfe:
       num_point_features: 4
     post_processer: &id003
+      gt_range: *id002
       anchor_args:
         D: 52
         H: 832
