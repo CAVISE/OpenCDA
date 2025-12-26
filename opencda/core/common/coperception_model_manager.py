@@ -111,6 +111,8 @@ class CoperceptionModelManager:
 
                 if self.opt.save_vis:
                     for mode in ["3d", "bev"]:
+                        if (self.hypes["postprocess"]["core_method"] == "BevPostprocessor" and mode == "3d"):
+                            continue
                         vis_dir = f"simulation_output/coperception/vis_{mode}/{self.opt.test_scenario}_{self.current_time}"
                         os.makedirs(vis_dir, exist_ok=True)
                         vis_save_path = os.path.join(vis_dir, f"{mode}_{tick_number:05d}.png")
@@ -136,7 +138,7 @@ class CoperceptionModelManager:
                         dataset=self.opencood_dataset,
                     )
 
-                if self.opt.show_sequence and pred_box_tensor is not None:
+                if self.opt.show_sequence and pred_box_tensor is not None and self.hypes["postprocess"]["core_method"] != "BevPostprocessor":
                     self.vis.clear_geometries()
                     pcd, pred_o3d_box, gt_o3d_box = vis_utils.visualize_inference_sample_dataloader(
                         pred_box_tensor, gt_box_tensor, batch_data["ego"]["origin_lidar"], vis_pcd, mode="constant"

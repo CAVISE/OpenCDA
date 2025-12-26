@@ -1,0 +1,80 @@
+data_augment: []
+fusion:
+  args: []
+  core_method: IntermediateFusionDataset
+loss:
+  args:
+    alpha: 1.0
+    beta: 1.0
+  core_method: pixor_loss
+lr_scheduler:
+  T_0: 5
+  T_mult: 1
+  core_method: cosineannealwarm
+  epoches: 1
+  lr_min: 1.0e-05
+  warmup_epoches: 5
+  warmup_lr: 1.0e-05
+model:
+  args:
+    decode: false
+    geometry_param: &id001
+      H1: -8
+      H2: 8
+      L1: -160
+      L2: 160
+      W1: -40
+      W2: 40
+      downsample_rate: 4
+      input_shape: !!python/tuple
+      - 640
+      - 160
+      - 33
+      label_shape: !!python/tuple
+      - 160
+      - 40
+      - 7
+      res: 0.5
+    use_bn: true
+  core_method: pixor_intermediate
+name: pixor_intermediate_fusion
+optimizer:
+  args:
+    eps: 1.0e-10
+    weight_decay: 0.0001
+  core_method: Adam
+  lr: 1.0e-05
+postprocess:
+  anchor_args:
+    cav_lidar_range: &id002
+    - -160
+    - -40
+    - -8
+    - 160
+    - 40
+    - 8
+    downsample_rate: 4
+    res: 0.5
+  core_method: BevPostprocessor
+  geometry_param: *id001
+  gt_range: *id002
+  max_num: 100
+  nms_thresh: 0.15
+  order: lwh
+  target_args:
+    score_threshold: 0.8
+preprocess:
+  args:
+    downsample_rate: 4
+    res: 0.5
+  cav_lidar_range: *id002
+  core_method: BevPreprocessor
+  geometry_param: *id001
+root_dir: V2X/train
+train_params:
+  batch_size: 2
+  epoches: 70
+  eval_freq: 1
+  save_freq: 1
+validate_dir: "simulation_output/data_dumping/sample"
+yaml_parser: load_bev_params
