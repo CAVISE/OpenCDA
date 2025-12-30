@@ -1,13 +1,42 @@
+"""
+Matplotlib-based 2D visualization utilities for point clouds and bounding boxes.
+
+This module provides functions for drawing point clouds and bounding boxes
+in 2D bird's eye view using matplotlib.
+"""
+
+from typing import Optional, List, Any, Union
+
 import numpy as np
+import numpy.typing as npt
 import matplotlib.pyplot as plt
 
 
-def draw_box_plt(boxes_dec, ax, color=None, linewidth_scale=1.0):
+def draw_box_plt(
+    boxes_dec: Union[npt.NDArray[np.floating], Any],
+    ax: plt.Axes,
+    color: Optional[Any] = None,
+    linewidth_scale: float = 1.0
+) -> plt.Axes:
     """
-    draw boxes in a given plt ax
-    :param boxes_dec: (N, 5) or (N, 7) in metric
-    :param ax:
-    :return: ax with drawn boxes
+    Draw bounding boxes in a given matplotlib axes.
+
+    Parameters
+    ----------
+    boxes_dec : np.ndarray or torch.Tensor
+        Bounding boxes with shape (N, 5) or (N, 7) in metric units.
+        Format is [x, y, dx, dy, theta] or [x, y, z, dx, dy, dz, theta].
+    ax : matplotlib.axes.Axes
+        Matplotlib axes object to draw on.
+    color : Any, optional
+        Color specification for the boxes. Default is None.
+    linewidth_scale : float, optional
+        Scale factor for line width. Default is 1.0.
+
+    Returns
+    -------
+    matplotlib.axes.Axes
+        The axes object with drawn boxes.
     """
     if not len(boxes_dec) > 0:
         return ax
@@ -38,14 +67,25 @@ def draw_box_plt(boxes_dec, ax, color=None, linewidth_scale=1.0):
     return ax
 
 
-def draw_points_pred_gt_boxes_plt_2d(pc_range, points=None, boxes_pred=None, boxes_gt=None):
+def draw_points_pred_gt_boxes_plt_2d(
+    pc_range: List[float],
+    points: Optional[npt.NDArray[np.floating]] = None,
+    boxes_pred: Optional[Union[npt.NDArray[np.floating], Any]] = None,
+    boxes_gt: Optional[Union[npt.NDArray[np.floating], Any]] = None
+) -> None:
     """
     Draw points, predicted boxes, and ground truth boxes in a 2D plot.
-    Args:
-        pc_range: List of [x_min, y_min, z_min, x_max, y_max, z_max] defining the plot area.
-        points: Point cloud data, shape (N, 3) or (N, 4).
-        boxes_pred: Predicted bounding boxes, shape (M, 5) or (M, 7).
-        boxes_gt: Ground truth bounding boxes, shape (K, 5) or (K, 7).
+
+    Parameters
+    ----------
+    pc_range : list of float
+        Point cloud range as [x_min, y_min, z_min, x_max, y_max, z_max] defining the plot area.
+    points : np.ndarray or None, optional
+        Point cloud data with shape (N, 3) or (N, 4). Default is None.
+    boxes_pred : np.ndarray or torch.Tensor or None, optional
+        Predicted bounding boxes with shape (M, 5) or (M, 7). Default is None.
+    boxes_gt : np.ndarray or torch.Tensor or None, optional
+        Ground truth bounding boxes with shape (K, 5) or (K, 7). Default is None.
     """
     ax = plt.figure(figsize=(14, 4)).add_subplot(1, 1, 1)
     ax.set_aspect("equal", "box")
@@ -63,12 +103,33 @@ def draw_points_pred_gt_boxes_plt_2d(pc_range, points=None, boxes_pred=None, box
     plt.close()
 
 
-def draw_points_boxes_plt_2d(ax, pc_range, points=None, boxes=None, color=None):
+def draw_points_boxes_plt_2d(
+    ax: plt.Axes,
+    pc_range: List[float],
+    points: Optional[npt.NDArray[np.floating]] = None,
+    boxes: Optional[Union[npt.NDArray[np.floating], Any]] = None,
+    color: Optional[Any] = None
+) -> plt.Axes:
     """
-    draw boxes in a given plt ax
-    :param boxes_dec: (N, 5) or (N, 7) in metric
-    :param ax:
-    :return: ax with drawn boxes
+    Draw points and boxes in a given matplotlib axes.
+
+    Parameters
+    ----------
+    ax : matplotlib.axes.Axes
+        Matplotlib axes object to draw on.
+    pc_range : list of float
+        Point cloud range as [x_min, y_min, z_min, x_max, y_max, z_max].
+    points : np.ndarray or None, optional
+        Point cloud data with shape (N, 3) or (N, 4). Default is None.
+    boxes : np.ndarray or torch.Tensor or None, optional
+        Bounding boxes with shape (M, 5) or (M, 7). Default is None.
+    color : Any, optional
+        Color specification for the points and boxes. Default is None.
+
+    Returns
+    -------
+    matplotlib.axes.Axes
+        The axes object with drawn points and boxes.
     """
     if points is not None:
         ax.plot(points[:, 0], points[:, 1], ".", markersize=0.3, color=color)

@@ -24,12 +24,17 @@ class SpatialFusion(nn.Module):
         """
         Split the input tensor into a list of tensors based on record_len.
         
-        Args:
-            x: Input tensor of shape [sum(record_len), C, H, W]
-            record_len: Number of features per sample in the batch, shape [B]
-            
-        Returns:
-            List of tensors where each tensor has shape [N_i, C, H, W], 
+        Parameters
+        ----------
+        x : torch.Tensor
+            Input tensor of shape [sum(record_len), C, H, W].
+        record_len : torch.Tensor
+            Number of features per sample in the batch, shape [B].
+        
+        Returns
+        -------
+        list of torch.Tensor
+            List of tensors where each tensor has shape [N_i, C, H, W],
             where N_i is the number of features for sample i
         """
         cum_sum_len = torch.cumsum(record_len, dim=0)
@@ -43,13 +48,6 @@ class SpatialFusion(nn.Module):
     ) -> torch.Tensor:
         """
         Forward pass of the spatial fusion module.
-        
-        Args:
-            x: Input tensor of shape [sum(record_len), C, H, W]
-            record_len: Number of features per sample in the batch, shape [B]
-            
-        Returns:
-            Fused tensor of shape [B, C, H, W] where B is the batch size
         """
         # x: B, C, H, W, split x:[(B1, C, W, H), (B2, C, W, H)]
         split_x = self.regroup(x, record_len)

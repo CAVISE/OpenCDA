@@ -1,3 +1,12 @@
+"""
+PointPillar with Where2comm for communication-efficient multi-agent 3D object detection.
+
+This module implements PointPillar architecture integrated with Where2comm fusion
+for efficient communication and feature sharing among multiple agents.
+"""
+from typing import Any, Dict
+
+import torch
 import torch.nn as nn
 
 from opencood.models.sub_modules.base_bev_backbone import BaseBEVBackbone
@@ -6,31 +15,49 @@ from opencood.models.sub_modules.downsample_conv import DownsampleConv
 from opencood.models.sub_modules.naive_compress import NaiveCompressor
 from opencood.models.sub_modules.pillar_vfe import PillarVFE
 from opencood.models.sub_modules.point_pillar_scatter import PointPillarScatter
-from typing import Dict, Any
-import torch
+
 
 class PointPillarWhere2comm(nn.Module):
     """
     PointPillar with Where2comm for communication-efficient multi-agent 3D object detection.
     """
-    def __init__(self, args: Dict[str, Any]):
+    def __init__(self, args):
         """
         Initialize the PointPillarWhere2comm model.
-        Args:
-            args: Configuration dictionary containing:
-                - max_cav: Maximum number of connected automated vehicles
-                - pillar_vfe: Configuration for PillarVFE
-                - voxel_size: Voxel size [x, y, z]
-                - lidar_range: LiDAR range [x_min, y_min, z_min, x_max, y_max, z_max]
-                - point_pillar_scatter: Configuration for point pillar scatter
-                - base_bev_backbone: Configuration for BaseBEVBackbone
-                - shrink_header: Optional configuration for feature downsampling
-                - compression: Configuration for feature compression
-                - where2comm_fusion: Configuration for Where2comm fusion
-                    - multi_scale: Whether to use multi-scale features
-                - head_dim: Dimension of the detection head
-                - anchor_number: Number of anchor boxes per position
-                - backbone_fix: Whether to fix backbone parameters
+
+        Parameters
+        ----------
+        args : dict
+            Configuration dictionary containing the following keys:
+            
+            max_cav : int
+                Maximum number of connected automated vehicles.
+            pillar_vfe : dict
+                Configuration for PillarVFE module.
+            voxel_size : list of float
+                Voxel size [x, y, z].
+            lidar_range : list of float
+                LiDAR range [x_min, y_min, z_min, x_max, y_max, z_max].
+            point_pillar_scatter : dict
+                Configuration for point pillar scatter module.
+            base_bev_backbone : dict
+                Configuration for BaseBEVBackbone module.
+            shrink_header : dict, optional
+                Configuration for feature downsampling.
+            compression : dict
+                Configuration for feature compression module.
+            where2comm_fusion : dict
+                Configuration for Where2comm fusion module containing:
+                
+                multi_scale : bool
+                    Whether to use multi-scale features.
+            
+            head_dim : int
+                Dimension of the detection head.
+            anchor_number : int
+                Number of anchor boxes per position.
+            backbone_fix : bool
+                Whether to fix backbone parameters during training.
         """
         super(PointPillarWhere2comm, self).__init__()
         self.max_cav = args["max_cav"]
@@ -61,11 +88,10 @@ class PointPillarWhere2comm(nn.Module):
         if args["backbone_fix"]:
             self.backbone_fix()
 
-    def backbone_fix(self):
+    def backbone_fix(self) -> None:
         """
         Fix the parameters of backbone during finetune on timedelay.
         """
-
         for p in self.pillar_vfe.parameters():
             p.requires_grad = False
 
@@ -88,6 +114,9 @@ class PointPillarWhere2comm(nn.Module):
             p.requires_grad = False
 
     def forward(self, data_dict: Dict[str, Any]) -> Dict[str, torch.Tensor]:
+        """
+        Forward pass of the PointPillarWhere2comm model.
+        """
         voxel_features = data_dict["processed_lidar"]["voxel_features"]
         voxel_coords = data_dict["processed_lidar"]["voxel_coords"]
         voxel_num_points = data_dict["processed_lidar"]["voxel_num_points"]

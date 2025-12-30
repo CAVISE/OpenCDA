@@ -1,31 +1,23 @@
 """
+Simple BEV visualization for 3D points & boxes.
+
 Written by Jinhyung Park
 
-Simple BEV visualization for 3D points & boxes.
+This module provides canvas classes for bird's eye view (BEV) visualization
+of 3D point clouds and bounding boxes in different coordinate systems.
 """
 
+from typing import Tuple, Optional, Union, List
+
 import numpy as np
+import numpy.typing as npt
 import cv2
 import matplotlib
 
 
 class Canvas_BEV(object):
+    
     def __init__(self, canvas_shape=(1000, 1000), canvas_x_range=(-50, 50), canvas_y_range=(-50, 50), canvas_bg_color=(0, 0, 0), left_hand=False):
-        """
-        Args:
-            canvas_shape (Tuple[int]): Shape of BEV Canvas image. First element
-                corresponds to X range, the second element to Y range.
-            canvas_x_range (Tuple[int]): Range of X-coords to visualize. X is
-                vertical: negative ~ positive is top ~ down.
-            canvas_y_range (Tuple[int]): Range of Y-coords to visualize. Y is
-                horizontal: negative ~ positive is left ~ right.
-            canvas_bg_color (Tuple[int]): RGB (0 ~ 255) of Canvas background
-                color.
-            left_hand: (bool), whether the point cloud is left-hand coordinate,
-                V2X-Sim is right hand, and OPV2V is left hand.
-
-            Vehicle is heading down. This code is naturally for right-hand coordinate.
-        """
 
         # Sanity check ratios
         if (canvas_shape[0] / canvas_shape[1]) != ((canvas_x_range[0] - canvas_x_range[1]) / (canvas_y_range[0] - canvas_y_range[1])):
@@ -39,25 +31,39 @@ class Canvas_BEV(object):
 
         self.clear_canvas()
 
-    def get_canvas(self):
+    def get_canvas(self) -> npt.NDArray[np.uint8]:
+        """Get the current canvas.
+
+        Returns
+        -------
+        npt.NDArray[np.uint8]
+            The canvas image array.
+        """
         return self.canvas
 
-    def clear_canvas(self):
+    def clear_canvas(self) -> None:
+        """Clear the canvas and reset to background color."""
         self.canvas = np.zeros((*self.canvas_shape, 3), dtype=np.uint8)
         self.canvas[..., :] = self.canvas_bg_color
 
-    def get_canvas_coords(self, xy):
-        """
-        Args:
-            xy (ndarray): (N, 2+) array of coordinates. Additional columns
-                beyond the first two are ignored.
+    def get_canvas_coords(
+        self, xy: npt.NDArray[np.floating]
+    ) -> Tuple[npt.NDArray[np.int32], npt.NDArray[np.bool_]]:
+        """Transform world coordinates to canvas coordinates.
 
-        Returns:
-            canvas_xy (ndarray): (N, 2) array of xy scaled into canvas
-                coordinates. Invalid locations of canvas_xy are clipped into
-                range. "x" is dim0, "y" is dim1 of canvas.
-            valid_mask (ndarray): (N,) boolean mask indicating which of
-                canvas_xy fits into canvas.
+        Parameters
+        ----------
+        xy : npt.NDArray[np.floating]
+            Array of coordinates with shape (N, 2+). Additional columns beyond
+            the first two are ignored.
+
+        Returns
+        -------
+        canvas_xy : npt.NDArray[np.int32]
+            Array with shape (N, 2) of xy scaled into canvas coordinates.
+            Invalid locations are clipped into range. "x" is dim0, "y" is dim1 of canvas.
+        valid_mask : npt.NDArray[np.bool_]
+            Boolean mask with shape (N,) indicating which canvas_xy points fit into canvas.
         """
         xy = np.copy(xy)  # prevent in-place modifications
 
@@ -68,7 +74,12 @@ class Canvas_BEV(object):
             y = -y
 
         # Get valid mask
-        valid_mask = (x > self.canvas_x_range[0]) & (x < self.canvas_x_range[1]) & (y > self.canvas_y_range[0]) & (y < self.canvas_y_range[1])
+        valid_mask = (
+            (x > self.canvas_x_range[0])
+            & (x < self.canvas_x_range[1])
+            & (y > self.canvas_y_range[0])
+            & (y < self.canvas_y_range[1])
+        )
 
         # Rescale points
         x = (x - self.canvas_x_range[0]) / (self.canvas_x_range[1] - self.canvas_x_range[0])
@@ -84,26 +95,33 @@ class Canvas_BEV(object):
 
         return canvas_xy, valid_mask
 
-    def draw_canvas_points(self, canvas_xy, radius=-1, colors=None, colors_operand=None):
-        """
-        Draws canvas_xy onto self.canvas.
+    def draw_canvas_points(
+        self,
+        canvas_xy: npt.NDArray[np.int32],
+        radius: int = -1,
+        colors: Optional[Union[Tuple[int, int, int], npt.NDArray[np.uint8], str]] = None,
+        colors_operand: Optional[npt.NDArray[np.floating]] = None,
+    ) -> None:
+        """Draw points onto the canvas.
 
-        Args:
-            canvas_xy (ndarray): (N, 2) array of *valid* canvas coordinates.
-                "x" is dim0, "y" is dim1 of canvas.
-            radius (Int):
-                -1: Each point is visualized as a single pixel.
-                r: Each point is visualized as a circle with radius r.
-            colors:
-                None: colors all points white.
-                Tuple: RGB (0 ~ 255), indicating a single color for all points.
-                ndarray: (N, 3) array of RGB values for each point.
-                String: Such as "Spectral", uses a matplotlib cmap, with the
-                    operand (the value cmap is called on for each point) being
-                    colors_operand. If colors_operand is None, uses normalized
-                    distance from (0, 0) of XY point coords.
-            colors_operand (ndarray | None): (N,) array of values cooresponding
-                to canvas_xy, to be used only if colors is a cmap.
+        Parameters
+        ----------
+        canvas_xy : npt.NDArray[np.int32]
+            Array with shape (N, 2) of valid canvas coordinates.
+            "x" is dim0, "y" is dim1 of canvas.
+        radius : int, optional
+            Point radius. -1 means each point is a single pixel, otherwise
+            points are circles with given radius. Default is -1.
+        colors : tuple or npt.NDArray[np.uint8] or str or None, optional
+            Color specification:
+            - None: colors all points white
+            - Tuple: RGB (0 ~ 255), single color for all points
+            - ndarray: (N, 3) array of RGB values for each point
+            - String: matplotlib cmap name like "Spectral"
+            Default is None.
+        colors_operand : npt.NDArray[np.floating] or None, optional
+            Array with shape (N,) of values corresponding to canvas_xy,
+            used only if colors is a cmap. Default is None.
         """
         if len(canvas_xy) == 0:
             return
@@ -141,20 +159,35 @@ class Canvas_BEV(object):
             for color, (x, y) in zip(colors.tolist(), canvas_xy.tolist()):
                 self.canvas = cv2.circle(self.canvas, (y, x), radius, color, -1, lineType=cv2.LINE_AA)
 
-    def draw_boxes(self, boxes, colors=None, texts=None, box_line_thickness=2, box_text_size=0.5, text_corner=0):
-        """
-        Draws a set of boxes onto the canvas.
-        Args:
-            boxes (ndarray): [N, 8, 3] corner 3d
+    def draw_boxes(
+        self,
+        boxes: npt.NDArray[np.floating],
+        colors: Optional[Union[Tuple[int, int, int], npt.NDArray[np.uint8]]] = None,
+        texts: Optional[List[str]] = None,
+        box_line_thickness: int = 2,
+        box_text_size: float = 0.5,
+        text_corner: int = 0,
+    ) -> None:
+        """Draw bounding boxes onto the canvas.
 
-            colors:
-                None: colors all points white.
-                Tuple: RGB (0 ~ 255), indicating a single color for all points.
-                ndarray: (N, 3) array of RGB values for each point.
-            texts (List[String]): Length N; text to write next to boxes.
-            box_line_thickness (int): cv2 line/text thickness
-            box_text_size (float): cv2 putText size
-            text_corner (int): 0 ~ 3. Which corner of 3D box to write text at.
+        Parameters
+        ----------
+        boxes : npt.NDArray[np.floating]
+            Array with shape [N, 8, 3] of 3D box corners.
+        colors : tuple or npt.NDArray[np.uint8] or None, optional
+            Color specification:
+            - None: colors all boxes white
+            - Tuple: RGB (0 ~ 255), single color for all boxes
+            - ndarray: (N, 3) array of RGB values for each box
+            Default is None.
+        texts : list of str or None, optional
+            Length N list of text to write next to boxes. Default is None.
+        box_line_thickness : int, optional
+            cv2 line/text thickness. Default is 2.
+        box_text_size : float, optional
+            cv2 putText size. Default is 0.5.
+        text_corner : int, optional
+            Corner index (0 ~ 3) of 3D box to write text at. Default is 0.
         """
         # Setup colors
         if colors is None:
@@ -172,7 +205,7 @@ class Canvas_BEV(object):
 
         boxes = np.copy(boxes)  # prevent in-place modifications
 
-        # Translate BEV 4 corners , [N, 4, 2]
+        # Translate BEV 4 corners, [N, 4, 2]
         #     4 -------- 5
         #    /|         /|
         #   7 -------- 6 .
@@ -182,7 +215,7 @@ class Canvas_BEV(object):
         #   3 -------- 2
         bev_corners = boxes[:, :4, :2]
 
-        ## Transform BEV 4 corners to canvas coords
+        # Transform BEV 4 corners to canvas coords
         bev_corners_canvas, valid_mask = self.get_canvas_coords(bev_corners.reshape(-1, 2))
         bev_corners_canvas = bev_corners_canvas.reshape(*bev_corners.shape)
         valid_mask = valid_mask.reshape(*bev_corners.shape[:-1])
@@ -193,7 +226,7 @@ class Canvas_BEV(object):
         if texts is not None:
             texts = np.array(texts)[valid_mask]
 
-        ## Draw onto canvas
+        # Draw onto canvas
         # Draw the outer boundaries
         idx_draw_pairs = [(0, 1), (1, 2), (2, 3), (3, 0)]
         for i, (color, curr_box_corners) in enumerate(zip(colors.tolist(), bev_corners_canvas)):
@@ -219,24 +252,8 @@ class Canvas_BEV(object):
 
 
 class Canvas_BEV_heading_right(object):
+
     def __init__(self, canvas_shape=(800, 2800), canvas_x_range=(-140, 140), canvas_y_range=(-40, 40), canvas_bg_color=(0, 0, 0), left_hand=True):
-        """
-        Args:
-            canvas_shape (Tuple[int]): Shape of BEV Canvas image. First element
-                corresponds to Y range, the second element to X range.
-            canvas_x_range (Tuple[int]): Range of X-coords to visualize. X is
-                horizontal: negative ~ positive is left ~ right.
-            canvas_y_range (Tuple[int]): Range of Y-coords to visualize. Y is
-                vertcal: negative ~ positive is top ~ down.
-            canvas_bg_color (Tuple[int]): RGB (0 ~ 255) of Canvas background
-                color.
-            left_hand: (bool), whether the point cloud is left-hand coordinate
-                V2X-Sim is right hand, and OPV2V is left hand.
-
-            Different from Canvas_BEV, the vehicle is heading right.
-            Naturally this code is designed for left hand coordinate
-
-        """
 
         # Sanity check ratios
         if (canvas_shape[1] / canvas_shape[0]) != ((canvas_x_range[0] - canvas_x_range[1]) / (canvas_y_range[0] - canvas_y_range[1])):
@@ -250,25 +267,39 @@ class Canvas_BEV_heading_right(object):
 
         self.clear_canvas()
 
-    def get_canvas(self):
+    def get_canvas(self) -> npt.NDArray[np.uint8]:
+        """Get the current canvas.
+
+        Returns
+        -------
+        npt.NDArray[np.uint8]
+            The canvas image array.
+        """
         return self.canvas
 
-    def clear_canvas(self):
+    def clear_canvas(self) -> None:
+        """Clear the canvas and reset to background color."""
         self.canvas = np.zeros((*self.canvas_shape, 3), dtype=np.uint8)
         self.canvas[..., :] = self.canvas_bg_color
 
-    def get_canvas_coords(self, xy):
-        """
-        Args:
-            xy (ndarray): (N, 2+) array of coordinates. Additional columns
-                beyond the first two are ignored.
+    def get_canvas_coords(
+        self, xy: npt.NDArray[np.floating]
+    ) -> Tuple[npt.NDArray[np.int32], npt.NDArray[np.bool_]]:
+        """Transform world coordinates to canvas coordinates.
 
-        Returns:
-            canvas_xy (ndarray): (N, 2) array of xy scaled into canvas
-                coordinates. Invalid locations of canvas_xy are clipped into
-                range. "x" is dim0, "y" is dim1 of canvas.
-            valid_mask (ndarray): (N,) boolean mask indicating which of
-                canvas_xy fits into canvas.
+        Parameters
+        ----------
+        xy : npt.NDArray[np.floating]
+            Array of coordinates with shape (N, 2+). Additional columns beyond
+            the first two are ignored.
+
+        Returns
+        -------
+        canvas_xy : npt.NDArray[np.int32]
+            Array with shape (N, 2) of xy scaled into canvas coordinates.
+            Invalid locations are clipped into range. "x" is dim0, "y" is dim1 of canvas.
+        valid_mask : npt.NDArray[np.bool_]
+            Boolean mask with shape (N,) indicating which canvas_xy points fit into canvas.
         """
         xy = np.copy(xy)  # prevent in-place modifications
 
@@ -279,7 +310,12 @@ class Canvas_BEV_heading_right(object):
             y = -y
 
         # Get valid mask
-        valid_mask = (x > self.canvas_x_range[0]) & (x < self.canvas_x_range[1]) & (y > self.canvas_y_range[0]) & (y < self.canvas_y_range[1])
+        valid_mask = (
+            (x > self.canvas_x_range[0])
+            & (x < self.canvas_x_range[1])
+            & (y > self.canvas_y_range[0])
+            & (y < self.canvas_y_range[1])
+        )
 
         # Rescale points
         # They are exactly lidar point coordinate
@@ -302,26 +338,32 @@ class Canvas_BEV_heading_right(object):
 
         return canvas_xy, valid_mask
 
-    def draw_canvas_points(self, canvas_xy, radius=-1, colors=None, colors_operand=None):
-        """
-        Draws canvas_xy onto self.canvas.
+    def draw_canvas_points(
+        self,
+        canvas_xy: npt.NDArray[np.int32],
+        radius: int = -1,
+        colors: Optional[Union[Tuple[int, int, int], npt.NDArray[np.uint8], str]] = None,
+        colors_operand: Optional[npt.NDArray[np.floating]] = None,
+    ) -> None:
+        """Draw points onto the canvas.
 
-        Args:
-            canvas_xy (ndarray): (N, 2) array of *valid* canvas coordinates.
-
-            radius (Int):
-                -1: Each point is visualized as a single pixel.
-                r: Each point is visualized as a circle with radius r.
-            colors:
-                None: colors all points white.
-                Tuple: RGB (0 ~ 255), indicating a single color for all points.
-                ndarray: (N, 3) array of RGB values for each point.
-                String: Such as "Spectral", uses a matplotlib cmap, with the
-                    operand (the value cmap is called on for each point) being
-                    colors_operand. If colors_operand is None, uses normalized
-                    distance from (0, 0) of XY point coords.
-            colors_operand (ndarray | None): (N,) array of values cooresponding
-                to canvas_xy, to be used only if colors is a cmap.
+        Parameters
+        ----------
+        canvas_xy : npt.NDArray[np.int32]
+            Array with shape (N, 2) of valid canvas coordinates.
+        radius : int, optional
+            Point radius. -1 means each point is a single pixel, otherwise
+            points are circles with given radius. Default is -1.
+        colors : tuple or npt.NDArray[np.uint8] or str or None, optional
+            Color specification:
+            - None: colors all points white
+            - Tuple: RGB (0 ~ 255), single color for all points
+            - ndarray: (N, 3) array of RGB values for each point
+            - String: matplotlib cmap name like "Spectral"
+            Default is None.
+        colors_operand : npt.NDArray[np.floating] or None, optional
+            Array with shape (N,) of values corresponding to canvas_xy,
+            used only if colors is a cmap. Default is None.
         """
         if len(canvas_xy) == 0:
             return
@@ -360,20 +402,35 @@ class Canvas_BEV_heading_right(object):
             for color, (x, y) in zip(colors.tolist(), canvas_xy.tolist()):
                 self.canvas = cv2.circle(self.canvas, (x, y), radius, color, -1, lineType=cv2.LINE_AA)
 
-    def draw_boxes(self, boxes, colors=None, texts=None, box_line_thickness=2, box_text_size=0.5, text_corner=0):
-        """
-        Draws a set of boxes onto the canvas.
-        Args:
-            boxes (ndarray): [N, 8, 3] corner 3d
+    def draw_boxes(
+        self,
+        boxes: npt.NDArray[np.floating],
+        colors: Optional[Union[Tuple[int, int, int], npt.NDArray[np.uint8]]] = None,
+        texts: Optional[List[str]] = None,
+        box_line_thickness: int = 2,
+        box_text_size: float = 0.5,
+        text_corner: int = 0,
+    ) -> None:
+        """Draw bounding boxes onto the canvas.
 
-            colors:
-                None: colors all points white.
-                Tuple: RGB (0 ~ 255), indicating a single color for all points.
-                ndarray: (N, 3) array of RGB values for each point.
-            texts (List[String]): Length N; text to write next to boxes.
-            box_line_thickness (int): cv2 line/text thickness
-            box_text_size (float): cv2 putText size
-            text_corner (int): 0 ~ 3. Which corner of 3D box to write text at.
+        Parameters
+        ----------
+        boxes : npt.NDArray[np.floating]
+            Array with shape [N, 8, 3] of 3D box corners.
+        colors : tuple or npt.NDArray[np.uint8] or None, optional
+            Color specification:
+            - None: colors all boxes white
+            - Tuple: RGB (0 ~ 255), single color for all boxes
+            - ndarray: (N, 3) array of RGB values for each box
+            Default is None.
+        texts : list of str or None, optional
+            Length N list of text to write next to boxes. Default is None.
+        box_line_thickness : int, optional
+            cv2 line/text thickness. Default is 2.
+        box_text_size : float, optional
+            cv2 putText size. Default is 0.5.
+        text_corner : int, optional
+            Corner index (0 ~ 3) of 3D box to write text at. Default is 0.
         """
         # Setup colors
         if colors is None:
@@ -391,7 +448,7 @@ class Canvas_BEV_heading_right(object):
 
         boxes = np.copy(boxes)  # prevent in-place modifications
 
-        # Translate BEV 4 corners , [N, 4, 2]
+        # Translate BEV 4 corners, [N, 4, 2]
         #     4 -------- 5
         #    /|         /|
         #   7 -------- 6 .

@@ -1,3 +1,9 @@
+"""
+RoI-Aware pooling operations for 3D point clouds using CUDA acceleration.
+"""
+
+from typing import Any, Union, Tuple
+
 import torch
 import torch.nn as nn
 from torch.autograd import Function
@@ -6,13 +12,22 @@ from opencood.utils import common_utils
 from opencood.pcdet_utils.roiaware_pool3d import roiaware_pool3d_cuda
 
 
-def points_in_boxes_cpu(points, boxes):
+def points_in_boxes_cpu(points: torch.Tensor, boxes: torch.Tensor) -> torch.Tensor:
     """
-    Args:
-        points: (num_points, 3)
-        boxes: [x, y, z, dx, dy, dz, heading], (x, y, z) is the box center, each box DO NOT overlaps
-    Returns:
-        point_indices: (N, num_points)
+    Find which points are inside which boxes using CPU computation.
+
+    Parameters
+    ----------
+    points : torch.Tensor
+        Point coordinates of shape (num_points, 3).
+    boxes : torch.Tensor
+        Boxes in format [x, y, z, dx, dy, dz, heading] of shape (N, 7),
+        where (x, y, z) is the box center. Boxes DO NOT overlap.
+
+    Returns
+    -------
+    torch.Tensor
+        Point indices of shape (N, num_points) indicating which points are in each box.
     """
     assert boxes.shape[1] == 7
     assert points.shape[1] == 3
@@ -25,30 +40,25 @@ def points_in_boxes_cpu(points, boxes):
     return point_indices.numpy() if is_numpy else point_indices
 
 
-def points_in_boxes_gpu(points, boxes):
+def points_in_boxes_gpu(points: torch.Tensor, boxes: torch.Tensor) -> torch.Tensor:
     """
-    :param points: (B, M, 3)
-    :param boxes: (B, T, 7), num_valid_boxes <= T
-    :return box_idxs_of_pts: (B, M), default background = -1
+    Find which box each point belongs to using GPU computation.
+
+    Parameters
+    ----------
+    points : torch.Tensor
+        Point coordinates of shape (B, M, 3).
+    boxes : torch.Tensor
+        Boxes in format [x, y, z, dx, dy, dz, heading] of shape (B, T, 7),
+        where num_valid_boxes <= T.
+
+    Returns
+    -------
+    torch.Tensor
+        Box indices for each point of shape (B, M). Background points are marked as -1.
     """
     assert boxes.shape[0] == points.shape[0]
     assert boxes.shape[2] == 7 and points.shape[2] == 3
-    # #######
-    # import matplotlib.pyplot as plt
-    # ax = plt.figure(figsize=(8, 8)).add_subplot(1, 1, 1)
-    # ax.set_aspect('equal', 'box')
-    # ax.set(xlim=(-50, 50),
-    #        ylim=(-41.6, 41.6))
-    # points0 = points[0].cpu().detach().numpy()
-    # boxes0 = boxes[0].cpu().detach().numpy()
-    # ax.plot(points0[:, 0], points0[:, 1], 'y.', markersize=3)
-    # ax.plot(boxes0[:, 0], boxes0[:, 1], 'r.', markersize=10)
-    # plt.xlabel('x')
-    # plt.ylabel('y')
-    #
-    # plt.show()
-    # plt.close()
-    # ########
     batch_size, num_points, _ = points.shape
 
     box_idxs_of_pts = points.new_zeros((batch_size, num_points), dtype=torch.int).fill_(-1)
@@ -58,31 +68,81 @@ def points_in_boxes_gpu(points, boxes):
 
 
 class RoIAwarePool3d(nn.Module):
-    def __init__(self, out_size, max_pts_each_voxel=128):
+    """
+    RoI-Aware 3D pooling module for point cloud features.
+
+    Parameters
+    ----------
+    out_size : int or tuple
+        Output size for pooled features (e.g., 7 or (7, 7, 7)).
+    max_pts_each_voxel : int, optional
+        Maximum number of points per voxel, by default 128.
+    """
+
+    def __init__(self, out_size: Union[int, Tuple[int, int, int]], max_pts_each_voxel: int = 128) -> None:
         super().__init__()
         self.out_size = out_size
         self.max_pts_each_voxel = max_pts_each_voxel
 
-    def forward(self, rois, pts, pts_feature, pool_method="max"):
+    def forward(self, rois: torch.Tensor, pts: torch.Tensor, pts_feature: torch.Tensor, pool_method: str = "max") -> torch.Tensor:
+        """
+        Forward pass for RoI-aware pooling.
+
+        Parameters
+        ----------
+        rois : torch.Tensor
+            Regions of interest of shape (N, 7).
+        pts : torch.Tensor
+            Point coordinates of shape (npoints, 3).
+        pts_feature : torch.Tensor
+            Point features of shape (npoints, C).
+        pool_method : str, optional
+            Pooling method ('max' or 'avg'), by default 'max'.
+
+        Returns
+        -------
+        torch.Tensor
+            Pooled features of shape (N, out_x, out_y, out_z, C).
+
+        Raises
+        ------
+        AssertionError
+            If pool_method is not 'max' or 'avg'.
+        """
         assert pool_method in ["max", "avg"]
         return RoIAwarePool3dFunction.apply(rois, pts, pts_feature, self.out_size, self.max_pts_each_voxel, pool_method)
 
 
 class RoIAwarePool3dFunction(Function):
-    @staticmethod
-    def forward(ctx, rois, pts, pts_feature, out_size, max_pts_each_voxel, pool_method):
-        """
-        Args:
-            ctx:
-            rois: (N, 7) [x, y, z, dx, dy, dz, heading] (x, y, z) is the box center
-            pts: (npoints, 3)
-            pts_feature: (npoints, C)
-            out_size: int or tuple, like 7 or (7, 7, 7)
-            max_pts_each_voxel:
-            pool_method: 'max' or 'avg'
+    """Custom autograd function for RoI-aware 3D pooling with CUDA acceleration."""
 
-        Returns:
-            pooled_features: (N, out_x, out_y, out_z, C)
+    @staticmethod
+    def forward(ctx: Any, rois: torch.Tensor, pts: torch.Tensor, pts_feature: torch.Tensor, out_size: Union[int, Tuple[int, int, int]], max_pts_each_voxel: int, pool_method: str) -> torch.Tensor:
+        """
+        Forward pass for RoI-aware pooling.
+
+        Parameters
+        ----------
+        ctx : Any
+            Context object for saving variables for backward pass.
+        rois : torch.Tensor
+            Regions of interest of shape (N, 7) in format [x, y, z, dx, dy, dz, heading],
+            where (x, y, z) is the box center.
+        pts : torch.Tensor
+            Point coordinates of shape (npoints, 3).
+        pts_feature : torch.Tensor
+            Point features of shape (npoints, C).
+        out_size : int or tuple
+            Output size (e.g., 7 or (7, 7, 7)).
+        max_pts_each_voxel : int
+            Maximum number of points per voxel.
+        pool_method : str
+            Pooling method ('max' or 'avg').
+
+        Returns
+        -------
+        torch.Tensor
+            Pooled features of shape (N, out_x, out_y, out_z, C).
         """
         assert rois.shape[1] == 7 and pts.shape[1] == 3
         if isinstance(out_size, int):
@@ -102,18 +162,29 @@ class RoIAwarePool3dFunction(Function):
         pts_idx_of_voxels = pts_feature.new_zeros((num_rois, out_x, out_y, out_z, max_pts_each_voxel), dtype=torch.int)
 
         pool_method_map = {"max": 0, "avg": 1}
-        pool_method = pool_method_map[pool_method]
-        roiaware_pool3d_cuda.forward(rois, pts, pts_feature, argmax, pts_idx_of_voxels, pooled_features, pool_method)
+        pool_method_int = pool_method_map[pool_method]
+        roiaware_pool3d_cuda.forward(rois, pts, pts_feature, argmax, pts_idx_of_voxels, pooled_features, pool_method_int)
 
-        ctx.roiaware_pool3d_for_backward = (pts_idx_of_voxels, argmax, pool_method, num_pts, num_channels)
+        ctx.roiaware_pool3d_for_backward = (pts_idx_of_voxels, argmax, pool_method_int, num_pts, num_channels)
         return pooled_features
 
     @staticmethod
-    def backward(ctx, grad_out):
+    def backward(ctx: Any, grad_out: torch.Tensor) -> Tuple[None, None, torch.Tensor, None, None, None]:
         """
-        :param grad_out: (N, out_x, out_y, out_z, C)
-        :return:
-            grad_in: (npoints, C)
+        Backward pass for RoI-aware pooling.
+
+        Parameters
+        ----------
+        ctx : Any
+            Context object with saved variables from forward pass.
+        grad_out : torch.Tensor
+            Gradient of output of shape (N, out_x, out_y, out_z, C).
+
+        Returns
+        -------
+        Tuple[None, None, torch.Tensor, None, None, None]
+            Gradients for all inputs. Only grad_in (for pts_feature) is computed,
+            others are None.
         """
         pts_idx_of_voxels, argmax, pool_method, num_pts, num_channels = ctx.roiaware_pool3d_for_backward
 

@@ -28,13 +28,21 @@ def get_relative_distances(window_size: int) -> torch.Tensor:
 class BaseWindowAttention(nn.Module):
     """
     Base window attention module that applies self-attention within local windows.
-    Args:
-        dim: Input feature dimension
-        heads: Number of attention heads
-        dim_head: Dimension of each attention head
-        drop_out: Dropout probability
-        window_size: Size of the attention window
-        relative_pos_embedding: Whether to use relative position embeddings
+    
+    Parameters
+    ----------
+    dim : int
+        Input feature dimension.
+    heads : int
+        Number of attention heads.
+    dim_head : int
+        Dimension of each attention head.
+    drop_out : float
+        Dropout probability.
+    window_size : int
+        Size of the attention window.
+    relative_pos_embedding : bool
+        Whether to use relative position embeddings.
     """
     def __init__(
         self,
@@ -44,7 +52,7 @@ class BaseWindowAttention(nn.Module):
         drop_out: float,
         window_size: int,
         relative_pos_embedding: bool
-    ) -> None:
+    ):
         super().__init__()
         inner_dim = dim_head * heads
 
@@ -66,10 +74,6 @@ class BaseWindowAttention(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Forward pass of the base window attention.
-        Args:
-            x: Input tensor of shape (batch_size, seq_len, height, width, channels)
-        Returns:
-            Output tensor of same shape as input
         """
         _, _, h, w, _, m = *x.shape, self.heads  # 1 -> b, 2 -> length, 5 -> c
 
@@ -127,7 +131,7 @@ class PyramidWindowAttention(nn.Module):
         window_size: List[int],
         relative_pos_embedding: bool,
         fuse_method: str = "naive"
-    ) -> None:
+    ):
         super().__init__()
 
         assert isinstance(window_size, list)

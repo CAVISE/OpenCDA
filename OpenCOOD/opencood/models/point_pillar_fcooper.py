@@ -13,10 +13,7 @@ class PointPillarFCooper(nn.Module):
     F-Cooper implementation with point pillar backbone.
     """
 
-    def __init__(self, args: Dict[str, Any]) -> None:
-        """
-        Initialize the PointPillarFCooper model.
-        """
+    def __init__(self, args):
         super(PointPillarFCooper, self).__init__()
 
         self.max_cav = args["max_cav"]

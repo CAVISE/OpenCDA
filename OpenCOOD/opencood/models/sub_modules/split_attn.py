@@ -7,12 +7,15 @@ class RadixSoftmax(nn.Module):
     """
     Radix Softmax module that applies softmax along the radix dimension.
     
-    Args:
-        radix: Number of splits (radix) for the input
-        cardinality: Number of groups for grouped convolution
+    Parameters
+    ----------
+    radix : int
+        Number of splits (radix) for the input.
+    cardinality : int
+        Number of groups for grouped convolution.
     """
     
-    def __init__(self, radix: int, cardinality: int) -> None:
+    def __init__(self, radix, cardinality):
         super(RadixSoftmax, self).__init__()
         self.radix = radix
         self.cardinality = cardinality

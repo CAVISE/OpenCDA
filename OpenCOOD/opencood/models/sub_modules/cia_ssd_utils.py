@@ -17,7 +17,7 @@ class SSFA(nn.Module):
         args (dict): Configuration dictionary containing:
             - feature_num (int): Number of input features/channels.
     """
-    def __init__(self, args: Dict[str, int]) -> None:
+    def __init__(self, args: Dict):
         super(SSFA, self).__init__()
         self._num_input_features = args["feature_num"]  # 128
 
@@ -50,10 +50,6 @@ class SSFA(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Forward pass of the SSFA module.
-        Args:
-            x: Input tensor of shape
-        Returns:
-            Output tensor of shape
         """
         x_0 = self.bottom_up_block_0(x)
         x_1 = self.bottom_up_block_1(x_0)
@@ -117,7 +113,7 @@ class Head(nn.Module):
                 num_cls: int, 
                 num_iou: int = 2, 
                 use_dir: bool = False, 
-                num_dir: int = 1) -> None:
+                num_dir: int = 1):
         super(Head, self).__init__()
         self.use_dir = use_dir
 

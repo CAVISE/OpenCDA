@@ -9,7 +9,7 @@ class NaiveCompressor(nn.Module):
     A very naive compression that only compress on the channel.
     """
 
-    def __init__(self, input_dim: int, compress_raito: int) -> None:
+    def __init__(self, input_dim, compress_raito):
         super().__init__()
         self.encoder = nn.Sequential(
             nn.Conv2d(input_dim, input_dim // compress_raito, kernel_size=3, stride=1, padding=1),

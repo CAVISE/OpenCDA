@@ -10,14 +10,17 @@ from cumm import tensorview as tv
 from opencood.data_utils.pre_processor.base_preprocessor import BasePreprocessor
 from typing import Dict, List, Union, Any
 
+
 class SpVoxelPreprocessor(BasePreprocessor):
+    """
+    Sparse voxel preprocessor for converting LiDAR point clouds to voxel representation.
+    
+    This preprocessor uses the sparse convolution library (spconv) to efficiently
+    generate voxel representations from point clouds. It supports both spconv v1.x
+    and v2.x.
+    """
+
     def __init__(self, preprocess_params: Dict[str, Any], train: bool) -> None:
-        """
-        Initialize the sparse voxel preprocessor.
-        Args:
-            preprocess_params: Configuration dictionary for preprocessing.
-            train: Boolean indicating training or evaluation mode.
-        """
         super(SpVoxelPreprocessor, self).__init__(preprocess_params, train)
         self.spconv = 1
         try:
@@ -57,14 +60,22 @@ class SpVoxelPreprocessor(BasePreprocessor):
     def preprocess(self, pcd_np: np.ndarray) -> Dict[str, np.ndarray]:
         """
         Convert point cloud to sparse voxel representation.
-        Args:
-            pcd_np: Input point cloud as numpy array of shape (N, 4) where columns
-                   are (x, y, z, intensity).
-        Returns:
+        
+        Parameters
+        ----------
+        pcd_np : np.ndarray
+            Input point cloud with shape (N, 4) where columns are (x, y, z, intensity).
+        
+        Returns
+        -------
+        dict
             Dictionary containing:
-                - "voxel_features": Voxel features of shape (M, max_points_per_voxel, 4)
-                - "voxel_coords": Voxel coordinates of shape (M, 3)
-                - "voxel_num_points": Number of points in each voxel of shape (M,)
+            - voxel_features : np.ndarray
+                Voxel features with shape (M, max_points_per_voxel, 4)
+            - voxel_coords : np.ndarray
+                Voxel coordinates with shape (M, 3)
+            - voxel_num_points : np.ndarray
+                Number of points in each voxel with shape (M,)
         """
         data_dict = {}
         if self.spconv == 1:
@@ -90,40 +101,58 @@ class SpVoxelPreprocessor(BasePreprocessor):
 
     def collate_batch(self, batch: Union[List[Dict[str, np.ndarray]], Dict[str, List[np.ndarray]]]) -> Dict[str, torch.Tensor]:
         """
-        Customized pytorch data loader collate function.
-
+        Customized PyTorch data loader collate function.
+        
         Parameters
         ----------
         batch : list or dict
-            List or dictionary.
-
+            Either a list of dictionaries (each representing a frame) or
+            a dictionary with lists as values.
+        
         Returns
         -------
-        processed_batch : dict
-            Updated lidar batch.
+        dict
+            Dictionary containing batched tensors:
+            - voxel_features : torch.Tensor
+                Concatenated voxel features
+            - voxel_coords : torch.Tensor
+                Concatenated voxel coordinates with batch indices
+            - voxel_num_points : torch.Tensor
+                Concatenated number of points per voxel
+        
+        Raises
+        ------
+        SystemExit
+            If batch is neither a list nor a dictionary.
         """
-
         if isinstance(batch, list):
             return self.collate_batch_list(batch)
         elif isinstance(batch, dict):
             return self.collate_batch_dict(batch)
         else:
-            sys.exit("Batch has too be a list or a dictionarn")
+            sys.exit("Batch has to be a list or a dictionary")
 
     @staticmethod
-    def collate_batch_list(batch):
+    def collate_batch_list(batch: List[Dict[str, np.ndarray]]) -> Dict[str, torch.Tensor]:
         """
-        Customized pytorch data loader collate function.
-
+        Collate batch when input is a list of dictionaries.
+        
         Parameters
         ----------
-        batch : list
-            List of dictionary. Each dictionary represent a single frame.
-
+        batch : list of dict
+            List of dictionaries, where each dictionary represents a single frame
+            containing 'voxel_features', 'voxel_coords', and 'voxel_num_points'.
+        
         Returns
         -------
-        processed_batch : dict
-            Updated lidar batch.
+        dict
+            Dictionary containing:
+            - voxel_features : torch.Tensor
+                Concatenated voxel features from all frames
+            - voxel_coords : torch.Tensor
+                Concatenated voxel coordinates with batch indices prepended
+            - voxel_num_points : torch.Tensor
+                Concatenated number of points per voxel from all frames
         """
         voxel_features = []
         voxel_num_points = []
@@ -144,17 +173,25 @@ class SpVoxelPreprocessor(BasePreprocessor):
     @staticmethod
     def collate_batch_dict(batch: Dict[str, List[np.ndarray]]) -> Dict[str, torch.Tensor]:
         """
-        Collate batch if the batch is a dictionary,
-        eg: {'voxel_features': [feature1, feature2...., feature n]}
-
+        Collate batch when input is a dictionary with lists as values.
+        
         Parameters
         ----------
         batch : dict
-
+            Dictionary with keys 'voxel_features', 'voxel_coords', and 'voxel_num_points',
+            where values are lists of numpy arrays.
+            Example: {'voxel_features': [feature1, feature2, ..., feature_n]}
+        
         Returns
         -------
-        processed_batch : dict
-            Updated lidar batch.
+        dict
+            Dictionary containing:
+            - voxel_features : torch.Tensor
+                Concatenated voxel features from all frames
+            - voxel_coords : torch.Tensor
+                Concatenated voxel coordinates with batch indices prepended
+            - voxel_num_points : torch.Tensor
+                Concatenated number of points per voxel from all frames
         """
         voxel_features = torch.from_numpy(np.concatenate(batch["voxel_features"]))
         voxel_num_points = torch.from_numpy(np.concatenate(batch["voxel_num_points"]))

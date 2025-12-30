@@ -12,21 +12,22 @@ class ConvGRUCell(nn.Module):
         hidden_dim: int,
         kernel_size: Tuple[int, int],
         bias: bool
-    ) -> None:
+    ):
         """
-        Initialize the ConvLSTM cell
-        :param input_size: (int, int)
+        Initialize the ConvGRU cell.
+        
+        Parameters
+        ----------
+        input_size : Tuple[int, int]
             Height and width of input tensor as (height, width).
-        :param input_dim: int
+        input_dim : int
             Number of channels of input tensor.
-        :param hidden_dim: int
+        hidden_dim : int
             Number of channels of hidden state.
-        :param kernel_size: (int, int)
+        kernel_size : Tuple[int, int]
             Size of the convolutional kernel.
-        :param bias: bool
+        bias : bool
             Whether or not to add the bias.
-        :param dtype: torch.cuda.FloatTensor or torch.FloatTensor
-            Whether or not to use cuda.
         """
         super(ConvGRUCell, self).__init__()
         self.height, self.width = input_size
@@ -57,13 +58,7 @@ class ConvGRUCell(nn.Module):
 
     def forward(self, input_tensor: Tensor, h_cur: Tensor) -> Tensor:
         """
-        :param self:
-        :param input_tensor: (b, c, h, w)
-            input is actually the target_model
-        :param h_cur: (b, c_hidden, h, w)
-            current hidden and cell states respectively
-        :return: h_next,
-            next hidden state
+        Forward pass through the ConvGRU cell.
         """
         combined = torch.cat([input_tensor, h_cur], dim=1)
         combined_conv = self.conv_gates(combined)
@@ -91,28 +86,28 @@ class ConvGRU(nn.Module):
         batch_first: bool = False,
         bias: bool = True,
         return_all_layers: bool = False
-    ) -> None:
+    ):
         """
-        :param input_size: (int, int)
+        Initialize the ConvGRU module.
+        
+        Parameters
+        ----------
+        input_size : Tuple[int, int]
             Height and width of input tensor as (height, width).
-        :param input_dim: int e.g. 256
-            Number of channels of input tensor.
-        :param hidden_dim: int e.g. 1024
-            Number of channels of hidden state.
-        :param kernel_size: (int, int)
+        input_dim : int
+            Number of channels of input tensor, e.g., 256.
+        hidden_dim : int or list of int
+            Number of channels of hidden state, e.g., 1024.
+        kernel_size : Tuple[int, int] or list of Tuple[int, int]
             Size of the convolutional kernel.
-        :param num_layers: int
-            Number of ConvLSTM layers
-        :param dtype: torch.cuda.FloatTensor or torch.FloatTensor
-            Whether or not to use cuda.
-        :param alexnet_path: str
-            pretrained alexnet parameters
-        :param batch_first: bool
-            if the first position of array is batch or not
-        :param bias: bool
-            Whether or not to add the bias.
-        :param return_all_layers: bool
-            if return hidden and cell states for all layers
+        num_layers : int
+            Number of ConvGRU layers.
+        batch_first : bool, optional
+            If True, the first position of array is batch. Default is False.
+        bias : bool, optional
+            Whether or not to add the bias. Default is True.
+        return_all_layers : bool, optional
+            If True, return hidden states for all layers. Default is False.
         """
         super(ConvGRU, self).__init__()
 
@@ -153,12 +148,6 @@ class ConvGRU(nn.Module):
         input_tensor: Tensor,
         hidden_state: Optional[List[Tensor]] = None
     ) -> Tuple[List[Tensor], List[Tensor]]:
-        """
-        :param input_tensor: (b, t, c, h, w) or (t,b,c,h,w)
-            depends on if batch first or not extracted features from alexnet
-        :param hidden_state:
-        :return: layer_output_list, last_state_list
-        """
         if not self.batch_first:
             # (t, b, c, h, w) -> (b, t, c, h, w)
             input_tensor = input_tensor.permute(1, 0, 2, 3, 4)

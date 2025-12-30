@@ -21,6 +21,7 @@ def get_roi_and_cav_mask(
 ) -> Tensor:
     """
     Get mask for the combination of cav_mask and rorated ROI mask.
+    
     Parameters
     ----------
     shape : tuple
@@ -116,6 +117,7 @@ def get_discretized_transformation_matrix(
 ) -> Tensor:
     """
     Get disretized transformation matrix.
+
     Parameters
     ----------
     matrix : torch.Tensor

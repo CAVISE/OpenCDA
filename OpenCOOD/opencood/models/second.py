@@ -1,12 +1,15 @@
 """
 SECOND (Sparsely Embedded Convolutional Detection) for 3D object detection.
+
 This module implements the SECOND architecture which processes point cloud data
 through a sparse 3D convolutional network, followed by a 2D BEV (Bird's Eye View)
 backbone for efficient 3D object detection.
 """
-import torch.nn as nn
-from typing import Dict, Any
+
+from typing import Any
+
 import torch
+import torch.nn as nn
 
 from opencood.models.sub_modules.mean_vfe import MeanVFE
 from opencood.models.sub_modules.sparse_backbone_3d import VoxelBackBone8x
@@ -24,7 +27,8 @@ class Second(nn.Module):
     4. 2D BEV Backbone for feature extraction
     5. Detection heads for classification and regression
     """
-    def __init__(self, args: Dict[str, Any]):
+
+    def __init__(self, args):
         super(Second, self).__init__()
 
         self.batch_size = args["batch_size"]
@@ -34,14 +38,14 @@ class Second(nn.Module):
         self.backbone_3d = VoxelBackBone8x(args["backbone_3d"], 4, args["grid_size"])
         # height compression
         self.height_compression = HeightCompression(args["height_compression"])
-        # base ben backbone
+        # base bev backbone
         self.backbone_2d = BaseBEVBackbone(args["base_bev_backbone"], 256)
 
         # head
         self.cls_head = nn.Conv2d(256 * 2, args["anchor_number"], kernel_size=1)
         self.reg_head = nn.Conv2d(256 * 2, 7 * args["anchor_num"], kernel_size=1)
 
-    def forward(self, data_dict: Dict[str, Any]) -> Dict[str, torch.Tensor]:
+    def forward(self, data_dict: dict[str, Any]) -> dict[str, torch.Tensor]:
         """
         Forward pass of the Second model.
         """

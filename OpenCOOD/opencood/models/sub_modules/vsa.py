@@ -175,20 +175,35 @@ class VoxelSetAbstraction(nn.Module):
 
     def forward(self, batch_dict: Dict[str, Tensor]) -> Dict[str, Tensor]:
         """
-        Args:
-            batch_dict:
-                batch_size:
-                keypoints: (B, num_keypoints, 3)
-                multi_scale_3d_features: {
-                        'x_conv4': ...
-                    }
-                points: optional (N, 1 + 3 + C) [bs_idx, x, y, z, ...]
-                spatial_features: optional
-                spatial_features_stride: optional
-
-        Returns:
-            point_features: (N, C)
-            point_coords: (N, 4)
+        Forward pass for processing batch data.
+        
+        Parameters
+        ----------
+        batch_dict : Dict[str, torch.Tensor]
+            Dictionary containing batch data with the following keys:
+            
+            - batch_size : int
+                Number of samples in the batch.
+            - keypoints : torch.Tensor
+                Keypoints tensor of shape (B, num_keypoints, 3).
+            - multi_scale_3d_features : dict
+                Dictionary with multi-scale 3D features, e.g., {'x_conv4': ...}.
+            - points : torch.Tensor, optional
+                Points tensor of shape (N, 1 + 3 + C) with format [bs_idx, x, y, z, ...].
+            - spatial_features : torch.Tensor, optional
+                Spatial features tensor.
+            - spatial_features_stride : int, optional
+                Stride value for spatial features.
+        
+        Returns
+        -------
+        Dict[str, torch.Tensor]
+            Dictionary containing:
+            
+            - point_features : torch.Tensor
+                Processed point features of shape (N, C).
+            - point_coords : torch.Tensor
+                Point coordinates of shape (N, 4).
 
         """
         keypoints = self.get_sampled_points(batch_dict)  # BxNx4

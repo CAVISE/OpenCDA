@@ -71,21 +71,30 @@ class GlobalRoutePlanner(object):
     def _build_graph(self):
         """
         This function builds a networkx graph representation of topology.
+        
         The topology is read from self._topology.
-
-        Args:
-            -vertex(graph node): (x,y,z) position in world map.
-            -entry_vector (graph edge): unit vector along tangent at
-             entry point.
-            -exit_vector (graph edge): unit vector along tangent at exit point.
-            -net_vector (graph edge): unit vector of the chord from
-             entry to exit.
-            -intersection (graph edge): boolean indicating if the edge belongs
-             to an intersection.
-        Returns:
-            -graph (nx.DiGraph): networkx graph representing the world map.
-            -id_map (dict): mapping from (x,y,z) to node id.
-            -road_id_to_edge (dict): map from road id to edge in the graph.
+        
+        Parameters
+        ----------
+        vertex : tuple
+            Graph node represented as (x, y, z) position in world map.
+        entry_vector : numpy.ndarray
+            Graph edge: unit vector along tangent at entry point.
+        exit_vector : numpy.ndarray
+            Graph edge: unit vector along tangent at exit point.
+        net_vector : numpy.ndarray
+            Graph edge: unit vector of the chord from entry to exit.
+        intersection : bool
+            Graph edge: boolean indicating if the edge belongs to an intersection.
+        
+        Returns
+        -------
+        graph : nx.DiGraph
+            Networkx graph representing the world map.
+        id_map : dict
+            Mapping from (x, y, z) to node id.
+        road_id_to_edge : dict
+            Map from road id to edge in the graph.
         """
         graph = nx.DiGraph()
         id_map = dict()  # Map with structure {(x,y,z): id, ... }
@@ -190,12 +199,16 @@ class GlobalRoutePlanner(object):
     def _localize(self, location):
         """
         This function finds the road segment closest to given location.
-
-        Args:
-            -location (carla.location) : use location to be localized
-            in the graph.
-        Returns:
-            -edge (string) : pair node ids representing an edge in the graph.
+        
+        Parameters
+        ----------
+        location : carla.Location
+            Location to be localized in the graph.
+        
+        Returns
+        -------
+        edge : tuple or None
+            Pair of node ids representing an edge in the graph, or None if localization fails.
         """
         waypoint = self._dao.get_waypoint(location)
         edge = None
@@ -288,16 +301,21 @@ class GlobalRoutePlanner(object):
 
     def _path_search(self, origin, destination):
         """
-        This function finds the shortest path connecting origin and destination
-        using A* search with distance heuristic.
-
-        Args:
-            -origin (arla.Location): object of start position.
-            -destination (carla.Location): object of of end position.
-        Returns:
-            -route (list): path as list of node ids (as int)
-            of the graph self._graph
-        connecting origin and destination.
+        This function finds the shortest path connecting origin and destination.
+        
+        Uses A* search with distance heuristic.
+        
+        Parameters
+        ----------
+        origin : carla.Location
+            Object of start position.
+        destination : carla.Location
+            Object of end position.
+        
+        Returns
+        -------
+        route : list of int
+            Path as list of node ids of the graph self._graph connecting origin and destination.
         """
 
         start, end = self._localize(origin), self._localize(destination)
@@ -396,15 +414,19 @@ class GlobalRoutePlanner(object):
 
     def abstract_route_plan(self, origin, destination):
         """
-        The function that generates the route plan based on
-        origin and destination.
-
-        Args:
-            -origin (carla.Location): object of the route's start position.
-            -destination (carla.Location):  object of the route's end position.
-        Returns:
-            - plan (list): List of turn by turn navigation decisions
-              as agents.navigation.local_planner.RoadOption.
+        The function that generates the route plan based on origin and destination.
+        
+        Parameters
+        ----------
+        origin : carla.Location
+            Object of the route's start position.
+        destination : carla.Location
+            Object of the route's end position.
+        
+        Returns
+        -------
+        plan : list
+            List of turn by turn navigation decisions as agents.navigation.local_planner.RoadOption.
         """
 
         route = self._path_search(origin, destination)

@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Utility functions for 3d lidar visualization
-and processing by utilizing open3d.
+Utility functions for 3d lidar visualization and processing by utilizing open3d.
 """
 
 # Author: CARLA Team, Runsheng Xu <rxx3386@ucla.edu>
@@ -11,6 +10,7 @@ import time
 
 import open3d as o3d
 import numpy as np
+from numpy.typing import NDArray
 
 from matplotlib import cm
 from scipy.stats import mode
@@ -20,6 +20,7 @@ from opencda.core.sensing.perception.obstacle_vehicle import is_vehicle_cococlas
 from opencda.core.sensing.perception.static_obstacle import StaticObstacle
 from typing import Dict, List, Tuple, Union, Any
 import torch
+
 
 VIRIDIS = np.array(cm.get_cmap("plasma").colors)
 VID_RANGE = np.linspace(0.0, 1.0, VIRIDIS.shape[0])
@@ -56,7 +57,7 @@ LABEL_COLORS = (
 
 
 def o3d_pointcloud_encode(
-    raw_data: np.ndarray, 
+    raw_data: NDArray, 
     point_cloud: o3d.geometry.PointCloud
 ) -> None:
     """
@@ -64,14 +65,12 @@ def o3d_pointcloud_encode(
 
     Parameters
     ----------
-    raw_data : np.ndarray
+    raw_data : NDArray
         Raw lidar points, (N, 4).
 
-    point_cloud : o3d.PointCloud
+    point_cloud : o3d.geometry.PointCloud
         Open3d PointCloud.
-
     """
-
     # Isolate the intensity and compute a color for it
     intensity = raw_data[:, -1]
     intensity_col = 1.0 - np.log(intensity) / np.log(np.exp(-0.004 * 100))
@@ -91,7 +90,7 @@ def o3d_pointcloud_encode(
     point_cloud.colors = o3d.utility.Vector3dVector(int_color)
 
 
-def o3d_visualizer_init(actor_id):
+def o3d_visualizer_init(actor_id: int) -> o3d.visualization.Visualizer:
     """
     Initialize the visualizer.
 
@@ -104,7 +103,6 @@ def o3d_visualizer_init(actor_id):
     -------
     vis : o3d.visualizer
         Initialize open3d visualizer.
-
     """
     vis = o3d.visualization.Visualizer()
     vis.create_window(window_name=str(actor_id), width=480, height=320, left=480, top=270)
@@ -115,29 +113,26 @@ def o3d_visualizer_init(actor_id):
     return vis
 
 
-def o3d_visualizer_show(vis, count, point_cloud, objects):
+def o3d_visualizer_show(
+    vis: o3d.visualization.Visualizer, 
+    count: int, 
+    point_cloud: o3d.geometry.PointCloud, 
+    objects: Dict[str, List[Any]]
+) -> None:
     """
     Visualize the point cloud at runtime.
 
     Parameters
     ----------
-    vis : o3d.Visualizer
+    vis : o3d.visualization.Visualizer
         Visualization interface.
-
     count : int
         Current step since simulation started.
-
-    point_cloud : o3d.PointCloud
+    point_cloud : o3d.geometry.PointCloud
         Open3d point cloud.
-
-    objects : dict
+    objects : Dict[str, List[Any]]
         The dictionary containing objects.
-
-    Returns
-    -------
-
     """
-
     if count == 2:
         vis.add_geometry(point_cloud)
 
@@ -167,8 +162,8 @@ def o3d_visualizer_show(vis, count, point_cloud, objects):
 def o3d_camera_lidar_fusion(
     objects: Dict[str, List[Union[ObstacleVehicle, StaticObstacle]]],
     yolo_bbx: torch.Tensor,
-    lidar_3d: np.ndarray,
-    projected_lidar: np.ndarray,
+    lidar_3d: NDArray,
+    projected_lidar: NDArray,
     lidar_sensor: Any  # carla.Sensor type
 ) -> Dict[str, List[Union[ObstacleVehicle, StaticObstacle]]]:
     """
@@ -177,28 +172,23 @@ def o3d_camera_lidar_fusion(
 
     Parameters
     ----------
-    objects : dict
+    objects : Dict[str, List[Union[ObstacleVehicle, StaticObstacle]]]
         The dictionary contains all object detection results.
-
     yolo_bbx : torch.Tensor
         Object detection bounding box at current photo from yolov5,
-        shape (n, 5)->(n, [x1, y1, x2, y2, label])
-
-    lidar_3d : np.ndarray
+        shape (n, 5)->(n, [x1, y1, x2, y2, label]).
+    lidar_3d : NDArray
         Raw 3D lidar points in lidar coordinate system.
-
-    projected_lidar : np.ndarray
+    projected_lidar : NDArray
         3D lidar points projected to the camera space.
-
-    lidar_sensor : carla.sensor
+    lidar_sensor : Any
         The lidar sensor.
 
     Returns
     -------
-    objects : dict
+    Dict[str, List[Union[ObstacleVehicle, StaticObstacle]]]
         The update object dictionary that contains 3d bounding boxes.
     """
-
     # convert torch tensor to numpy array first
     if yolo_bbx.is_cuda:
         yolo_bbx = yolo_bbx.cpu().detach().numpy()

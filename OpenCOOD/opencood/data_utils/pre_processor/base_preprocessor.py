@@ -1,43 +1,48 @@
 import numpy as np
+from numpy.typing import NDArray
 
 from opencood.utils import pcd_utils
-from typing import Dict, Any, Tuple
+from typing import Dict, Any
 
-class BasePreprocessor(object):
+class BasePreprocessor:
     """
     Basic Lidar pre-processor.
 
     Parameters
     ----------
-    preprocess_params : dict
+    preprocess_params : Dict[str, Any]
         The dictionary containing all parameters of the preprocessing.
-
     train : bool
         Train or test mode.
     """
 
-    def __init__(self, preprocess_params: Dict[str, Any], train: bool) -> None:
+    def __init__(self, preprocess_params: Dict[str, Any], train: bool):
         """
         Initialize the base preprocessor.
-        Args:
-            preprocess_params: Configuration dictionary for preprocessing.
-            train: Boolean indicating training or evaluation mode.
+        
+        Parameters
+        ----------
+        preprocess_params : Dict[str, Any]
+            Configuration dictionary for preprocessing.
+        train : bool
+            Boolean indicating training or evaluation mode.
         """
         self.params = preprocess_params
         self.train = train
 
-    def preprocess(self, pcd_np: np.ndarray) -> Dict[str, np.ndarray]:
+    def preprocess(self, pcd_np: NDArray[np.float64]) -> Dict[str, NDArray[np.float64]]:
         """
         Preprocess the lidar points by simple sampling.
 
         Parameters
         ----------
-        pcd_np : np.ndarray
+        pcd_np : NDArray[np.float64]
             The raw lidar.
 
         Returns
         -------
-        data_dict : the output dictionary.
+        Dict[str, NDArray[np.float64]]
+            The output dictionary.
         """
         data_dict = {}
         sample_num = self.params["args"]["sample_num"]
@@ -48,25 +53,23 @@ class BasePreprocessor(object):
         return data_dict
 
     def project_points_to_bev_map(self, 
-                                points: np.ndarray, 
-                                ratio: float = 0.1) -> np.ndarray:
+                                points: NDArray[np.float64], 
+                                ratio: float = 0.1) -> NDArray[np.float64]:
         """
         Project points to BEV occupancy map with default ratio=0.1.
 
         Parameters
         ----------
-        points : np.ndarray
-            (N, 3) / (N, 4)
-
-        ratio : float
+        points : NDArray[np.float64]
+            Point cloud array with shape (N, 3) or (N, 4).
+        ratio : float, optional
             Discretization parameters. Default is 0.1.
 
         Returns
         -------
-        bev_map : np.ndarray
+        NDArray[np.float64]
             BEV occupancy map including projected points with shape
             (img_row, img_col).
-
         """
         L1, W1, H1, L2, W2, H2 = self.params["cav_lidar_range"]
         img_row = int((L2 - L1) / ratio)

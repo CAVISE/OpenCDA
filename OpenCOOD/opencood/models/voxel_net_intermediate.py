@@ -1,13 +1,16 @@
 """
 VoxelNet with intermediate feature fusion for 3D object detection.
+
 This module implements a VoxelNet variant that performs intermediate fusion
 of features from multiple agents using attention mechanisms.
 """
-from typing import Dict, Any
+from typing import Any, Dict
+
+import numpy as np
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torch
-import numpy as np
+from torch import Tensor
 from torch.autograd import Variable
 
 from opencood.models.voxel_net import RPN, CML
@@ -16,20 +19,28 @@ from opencood.utils.common_utils import torch_tensor_to_numpy
 from opencood.models.fuse_modules.self_attn import AttFusion
 from opencood.models.sub_modules.auto_encoder import AutoEncoder
 
-from torch import Tensor
-# conv2d + bn + relu
 class Conv2d(nn.Module):
     """
     A 2D convolutional layer with optional batch normalization and ReLU activation.
-    Args:
-        in_channels: Number of input channels
-        out_channels: Number of output channels
-        k: Kernel size
-        s: Stride
-        p: Padding
-        activation: Whether to apply ReLU activation
-        batch_norm: Whether to use batch normalization
-        bias: Whether to add bias to the convolution
+
+    Parameters
+    ----------
+    in_channels : int
+        Number of input channels.
+    out_channels : int
+        Number of output channels.
+    k : int
+        Kernel size.
+    s : int
+        Stride.
+    p : int
+        Padding.
+    activation : bool, optional
+        Whether to apply ReLU activation, by default True.
+    batch_norm : bool, optional
+        Whether to use batch normalization, by default True.
+    bias : bool, optional
+        Whether to add bias to the convolution, by default True.
     """
     def __init__(
         self,
@@ -41,7 +52,7 @@ class Conv2d(nn.Module):
         activation: bool = True,
         batch_norm: bool = True,
         bias: bool = True
-    ) -> None:
+    ):
         super(Conv2d, self).__init__()
         self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=k, stride=s, padding=p, bias=bias)
         if batch_norm:
@@ -50,7 +61,20 @@ class Conv2d(nn.Module):
             self.bn = None
         self.activation = activation
 
-    def forward(self, x):
+    def forward(self, x: Tensor) -> Tensor:
+        """
+        Forward pass of Conv2d layer.
+
+        Parameters
+        ----------
+        x : Tensor
+            Input tensor.
+
+        Returns
+        -------
+        Tensor
+            Output tensor after convolution, batch norm, and activation.
+        """
         x = self.conv(x)
         if self.bn is not None:
             x = self.bn(x)
@@ -62,16 +86,31 @@ class Conv2d(nn.Module):
 
 class NaiveFusion(nn.Module):
     """
-    A simple fusion module that concatenates multiple feature maps and applies a series of convolutions.
-    Args:
-        None
+    A simple fusion module that concatenates multiple feature maps and applies convolutions.
+
+    This module processes concatenated features from multiple agents through
+    a series of convolutional layers to produce fused representations.
     """
+
     def __init__(self):
         super(NaiveFusion, self).__init__()
         self.conv1 = Conv2d(128 * 5, 256, 3, 1, 1, batch_norm=False, bias=False)
         self.conv2 = Conv2d(256, 128, 3, 1, 1)
 
-    def forward(self, x):
+    def forward(self, x: Tensor) -> Tensor:
+        """
+        Forward pass of NaiveFusion.
+
+        Parameters
+        ----------
+        x : Tensor
+            Concatenated feature tensor from multiple agents.
+
+        Returns
+        -------
+        Tensor
+            Fused feature tensor.
+        """
         x = self.conv1(x)
         x = self.conv2(x)
 
@@ -79,7 +118,19 @@ class NaiveFusion(nn.Module):
 
 
 class VoxelNetIntermediate(nn.Module):
-    def __init__(self, args: Dict[str, Any]):
+    """
+    VoxelNet with intermediate fusion for cooperative 3D object detection.
+
+    This model extends VoxelNet to support multi-agent cooperative perception
+    by fusing intermediate features from multiple vehicles using attention mechanisms.
+
+    Parameters
+    ----------
+    args : dict[str, Any]
+        Configuration dictionary containing model hyperparameters.
+    """
+
+    def __init__(self, args):
         super(VoxelNetIntermediate, self).__init__()
         self.svfe = PillarVFE(args["pillar_vfe"], num_point_features=4, voxel_size=args["voxel_size"], point_cloud_range=args["lidar_range"])
         self.cml = CML()
@@ -98,7 +149,22 @@ class VoxelNetIntermediate(nn.Module):
             self.compression = True
             self.compression_layer = AutoEncoder(128, args["compression"])
 
-    def voxel_indexing(self, sparse_features, coords):
+    def voxel_indexing(self, sparse_features: Tensor, coords: Tensor) -> Tensor:
+        """
+        Convert sparse voxel features to dense representation.
+
+        Parameters
+        ----------
+        sparse_features : Tensor
+            Sparse voxel features.
+        coords : Tensor
+            Voxel coordinates.
+
+        Returns
+        -------
+        Tensor
+            Dense feature volume.
+        """
         dim = sparse_features.shape[-1]
 
         dense_feature = Variable(torch.zeros(dim, self.N, self.D, self.H, self.W).cuda())
@@ -114,14 +180,14 @@ class VoxelNetIntermediate(nn.Module):
         Parameters
         ----------
         dense_feature : torch.Tensor
-            N, C, H, W
+            Dense features of shape (N, C, H, W).
         record_len : list
-            [sample1_len, sample2_len, ...]
+            List of sample lengths [sample1_len, sample2_len, ...].
 
         Returns
         -------
-        regroup_feature : torch.Tensor
-            B, 5C, H, W
+        torch.Tensor
+            Regrouped features of shape (B, 5C, H, W).
         """
         cum_sum_len = list(np.cumsum(record_len))
         split_features = torch.tensor_split(dense_feature, cum_sum_len[:-1])
@@ -147,7 +213,7 @@ class VoxelNetIntermediate(nn.Module):
 
         return regroup_features
 
-    def forward(self, data_dict: Dict[str, any]) -> Dict[str, Tensor]:
+    def forward(self, data_dict: Dict[str, Any]) -> Dict[str, Tensor]:
         """
         Forward pass of the VoxelNetIntermediate model.
         """

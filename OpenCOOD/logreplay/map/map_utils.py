@@ -22,6 +22,7 @@ def lateral_shift(transform, shift):
 def list_loc2array(list_location):
     """
     Convert list of carla location to np.array
+
     Parameters
     ----------
     list_location : list
@@ -44,6 +45,7 @@ def list_loc2array(list_location):
 def list_wpt2array(list_wpt):
     """
     Convert list of carla transform to np.array
+
     Parameters
     ----------
     list_wpt : list
@@ -66,6 +68,7 @@ def list_wpt2array(list_wpt):
 def convert_tl_status(status):
     """
     Convert carla.TrafficLightState to str.
+    
     Parameters
     ----------
     status : carla.TrafficLightState

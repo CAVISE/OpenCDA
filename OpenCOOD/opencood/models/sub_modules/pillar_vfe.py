@@ -23,7 +23,7 @@ class PFNLayer(nn.Module):
         out_channels: int,
         use_norm: bool = True,
         last_layer: bool = False
-    ) -> None:
+    ):
         super().__init__()
 
         self.last_vfe = last_layer
@@ -68,7 +68,7 @@ class PillarVFE(nn.Module):
         num_point_features: int,
         voxel_size: List[float],
         point_cloud_range: List[float]
-    ) -> None:
+    ):
         super().__init__()
         self.model_cfg = model_cfg
 

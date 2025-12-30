@@ -20,14 +20,11 @@ import omegaconf
 import subprocess
 
 from opencda.version import __version__
-
-
 try:
     from rich.traceback import install as rich_traceback_install
 except ModuleNotFoundError:
     rich_traceback_install = None
     print("Rich tracebacks are not available, all CLI configuration regarding tracebacks is ignored.")
-
 
 try:
     import coloredlogs
@@ -36,7 +33,6 @@ except ModuleNotFoundError:
     print("could not find coloredlogs module! Your life will look pale.")
     print("if you are interested in improving it: https://pypi.org/project/coloredlogs")
 
-
 BUILD_COMPLETED_FLAG = "BUILD_COMPLETED_FLAG"
 
 
@@ -44,31 +40,47 @@ class VerbosityLevel(enum.IntEnum):
     """
     Defines verbosity levels for logging and output control.
 
-    Attributes:
-        SILENT (int): Minimal output - only important info, warnings and errors.
-        INFO (int): More detailed output including specific information about services and simulators' state.
-        FULL (int): All available output, primarily used for development purposes.
+    Attributes
+    ----------
+    SILENT : int
+        Minimal output - only important info, warnings and errors.
+    INFO : int
+        More detailed output including specific information about services and simulators' state.
+    FULL : int
+        All available output, primarily used for development purposes.
     """
     SILENT = 1  # minimal output: important info, warnings and errors
     INFO = 2    # more info: might include some specific information about services, simulators' state
     FULL = 3    # all output, use this for development
 
 
-def create_logger(level: int, fmt: str = "- [%(asctime)s][%(name)s] %(message)s", datefmt: str = "%H:%M:%S") -> logging.Logger:
+def create_logger(
+    level: int, 
+    fmt: str = "- [%(asctime)s][%(name)s] %(message)s", 
+    datefmt: str = "%H:%M:%S"
+) -> logging.Logger:
     """
     Create and configure a logger for the CAVISE project.
 
-    Args:
-        level (int): The logging level (e.g., logging.INFO, logging.DEBUG).
-        fmt (str, optional): Log message format string. Defaults to "- [%(asctime)s][%(name)s] %(message)s".
-        datefmt (str, optional): Date format string. Defaults to "%H:%M:%S".
+    Parameters
+    ----------
+    level : int
+        The logging level (e.g., logging.INFO, logging.DEBUG).
+    fmt : str, optional
+        Log message format string. Default is "- [%(asctime)s][%(name)s] %(message)s".
+    datefmt : str, optional
+        Date format string. Default is "%H:%M:%S".
 
-    Returns:
-        logging.Logger: Configured logger instance.
+    Returns
+    -------
+    logging.Logger
+        Configured logger instance.
 
-    Note:
-        This logger is specifically for CAVISE code and should be obtained using logging.getLogger('cavise').
-        It uses colored logs if the coloredlogs package is available, otherwise falls back to basic logging.
+    Notes
+    -----
+    This logger is specifically for CAVISE code and should be obtained using 
+    logging.getLogger('cavise'). It uses colored logs if the coloredlogs package 
+    is available, otherwise falls back to basic logging.
     """
     logger = logging.getLogger("cavise")
     if coloredlogs is not None:
@@ -82,19 +94,26 @@ def create_logger(level: int, fmt: str = "- [%(asctime)s][%(name)s] %(message)s"
     return logger
 
 
-def install_traceback_handler(verbose: bool = True, suppress_modules: typing.Collection[str] = ()):
+def install_traceback_handler(
+    verbose: bool = True, 
+    suppress_modules: typing.Collection[str] = ()
+):
     """
     Install a rich traceback handler with module filtering.
 
-    Args:
-        verbose (bool, optional): Whether to show local variables in tracebacks. Defaults to True.
-        suppress_modules (typing.Collection[str], optional): Collection of module names to suppress in tracebacks.
-            These will be combined with default filtered modules. Defaults to empty tuple.
+    Parameters
+    ----------
+    verbose : bool, optional
+        Whether to show local variables in tracebacks. Default is True.
+    suppress_modules : typing.Collection[str], optional
+        Collection of module names to suppress in tracebacks.
+        These will be combined with default filtered modules. Default is empty tuple.
 
-    Note:
-        The following modules are filtered by default: numpy, scipy, pandas, matplotlib, seaborn,
-        torch, torchvision, scikit-learn, scikit-image, omegaconf.
-        Requires the 'rich' package to be installed for rich traceback support.
+    Notes
+    -----
+    The following modules are filtered by default: numpy, scipy, pandas, matplotlib, 
+    seaborn, torch, torchvision, scikit-learn, scikit-image, omegaconf.
+    Requires the 'rich' package to be installed for rich traceback support.
     """
     default_filtered_modules = [
         "numpy",
@@ -122,31 +141,32 @@ def arg_parse() -> argparse.Namespace:
     This function sets up and configures all command line arguments used by OpenCDA,
     including simulation parameters, logging levels, and feature toggles.
 
-    Returns:
-        argparse.Namespace: An object containing the parsed command line arguments.
+    Returns
+    -------
+    argparse.Namespace
+        An object containing the parsed command line arguments with the following attributes:
         
-    The function defines the following command line arguments:
-        -t, --test-scenario: Name of the scenario to test (required)
-        --record: Record simulation process to .log file
-        -v, --version: CARLA simulator version
-        --free-spectator: Enable free spectator camera movement
-        -x, --xodr: Use custom map from XODR file
-        -c, --cosim: Enable co-simulation with SUMO
-        --with-capi: Run communication manager instance
-        --carla-host: CARLA server hostname/IP
-        --carla-timeout: CARLA server timeout in seconds
-        --with-coperception: Enable cooperative perception models
-        --model-dir: Path for continued training
-        --fusion-method: Fusion method for perception
-        --show-vis: Show image visualization
-        --show-sequence: Show video visualization
-        --save-vis: Save visualization results
-        --save-npy: Save predictions and ground truth
-        --global-sort-detections: Sort detections by confidence
-        --verbose: Set verbosity level (1-3)
-        --with-mtp: Enable cooperative driving models
-        --mtp-config: Cooperative driving model config
-        --ticks: Number of simulation ticks
+        - test_scenario : str - Name of the scenario to test (required)
+        - record : bool - Record simulation process to .log file
+        - version : str - CARLA simulator version
+        - free_spectator : bool - Enable free spectator camera movement
+        - xodr : bool - Use custom map from XODR file
+        - cosim : bool - Enable co-simulation with SUMO
+        - with_capi : bool - Run communication manager instance
+        - carla_host : str - CARLA server hostname/IP
+        - carla_timeout : float - CARLA server timeout in seconds
+        - with_coperception : bool - Enable cooperative perception models
+        - model_dir : str - Path for continued training
+        - fusion_method : str - Fusion method for perception
+        - show_vis : bool - Show image visualization
+        - show_sequence : bool - Show video visualization
+        - save_vis : bool - Save visualization results
+        - save_npy : bool - Save predictions and ground truth
+        - global_sort_detections : bool - Sort detections by confidence
+        - verbose : VerbosityLevel - Verbosity level (1-3)
+        - with_mtp : bool - Enable cooperative driving models
+        - mtp_config : str - Cooperative driving model config
+        - ticks : int - Number of simulation ticks
     """
     parser = argparse.ArgumentParser(description="OpenCDA scenario runner.")
     # opencda basic args
@@ -213,23 +233,38 @@ def arg_parse() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def check_buld_for_utils(module_path: str, cwd: pathlib.PurePath, verbose: bool, logger: logging.Logger) -> bool:
+def check_buld_for_utils(
+    module_path: str, 
+    cwd: pathlib.PurePath, 
+    verbose: bool, 
+    logger: logging.Logger
+) -> bool:
     """
+    Check if a Python extension module has been built and build it if necessary.
+
     This function checks if a Python extension module has been built by looking
     for a marker file. If not found, it attempts to build the module.
 
-    Args:
-        module_path (str): Path to the module relative to OpenCOOD directory.
-        cwd (pathlib.PurePath): Current working directory.
-        verbose (bool): Whether to show build output.
-        logger (logging.Logger): Logger instance for output.
+    Parameters
+    ----------
+    module_path : str
+        Path to the module relative to OpenCOOD directory.
+    cwd : pathlib.PurePath
+        Current working directory.
+    verbose : bool
+        Whether to show build output.
+    logger : logging.Logger
+        Logger instance for output.
 
-    Returns:
-        bool: True if build was successful or already built, False otherwise.
+    Returns
+    -------
+    bool
+        True if build was successful or already built, False otherwise.
 
-    Note:
-        Creates a BUILD_COMPLETED_FLAG file after successful build to avoid rebuilding.
-        The function is specifically designed to work with OpenCOOD's build system.
+    Notes
+    -----
+    Creates a BUILD_COMPLETED_FLAG file after successful build to avoid rebuilding.
+    The function is specifically designed to work with OpenCOOD's build system.
     """
     marker_file = cwd.joinpath(f"OpenCOOD/{module_path}/{BUILD_COMPLETED_FLAG}")
     module_name = f"opencood.{module_path.split('/')[-2]}"
@@ -240,7 +275,11 @@ def check_buld_for_utils(module_path: str, cwd: pathlib.PurePath, verbose: bool,
     try:
         logger.info(f"Building {module_name} ...")
         result = subprocess.run(
-            ["python", f"{module_path}setup.py", "build_ext", "--inplace"], check=True, cwd=cwd.joinpath("OpenCOOD"), capture_output=True, text=True
+            ["python", f"{module_path}setup.py", "build_ext", "--inplace"], 
+            check=True, 
+            cwd=cwd.joinpath("OpenCOOD"), 
+            capture_output=True, 
+            text=True
         )
         os.close(os.open(str(marker_file), os.O_CREAT))
         logger.info(f"Complete building {module_name}")
@@ -261,15 +300,17 @@ def main() -> None:
 
     This function serves as the main entry point for the OpenCDA application.
     It performs the following operations:
+    
     1. Parses command line arguments
     2. Sets up logging based on verbosity level
     3. Installs traceback handler
     4. Loads and merges YAML configuration
     5. Initializes and runs the scenario
 
-    Note:
-        The function uses late imports for scenario components to ensure proper initialization
-        of all required modules before they are used.
+    Notes
+    -----
+    The function uses late imports for scenario components to ensure proper initialization
+    of all required modules before they are used.
     """
     opt = arg_parse()
 

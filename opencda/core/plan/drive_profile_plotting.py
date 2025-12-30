@@ -81,7 +81,7 @@ def draw_time_gap_profile_singel_plot(gap_list):
     Draw inter gap profiles in a single plot.
 
     Parameters
-    __________
+    ----------
     gap_list : list
         The vehicle front time gap profile saved in a list.
 
@@ -102,8 +102,8 @@ def draw_dist_gap_profile_singel_plot(gap_list):
     """
     Draw distance gap profiles in a single plot.
 
-    Parameters
-    __________
+   Parameters
+   ----------
     gap_list : list
         The vehicle front distance gap profile saved in a list.
     """

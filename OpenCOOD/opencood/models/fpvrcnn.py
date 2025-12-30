@@ -15,7 +15,7 @@ class FPVRCNN(nn.Module):
     """
     FPVRCNN (Frustum Point-Voxel R-CNN) model for 3D object detection.
     """
-    def __init__(self, args: Dict[str, Any]) -> None:
+    def __init__(self, args):
         super(FPVRCNN, self).__init__()
         lidar_range = np.array(args["lidar_range"])
         grid_size = np.round((lidar_range[3:6] - lidar_range[:3]) / np.array(args["voxel_size"])).astype(np.int64)

@@ -5,7 +5,7 @@ from torch import Tensor
 
 
 class PointPillarScatter(nn.Module):
-    def __init__(self, model_cfg: Dict[str, Any]) -> None:
+    def __init__(self, model_cfg):
         super().__init__()
 
         self.model_cfg = model_cfg

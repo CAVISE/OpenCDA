@@ -16,6 +16,7 @@ class GlobalRoutePlannerDAO(object):
     server instance for GlobalRoutePlanner.
 
     Parameters
+    ----------
     -wmap : carla.world
         The current carla simulation world.
     -sampling_resolution : float

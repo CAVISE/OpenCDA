@@ -2,26 +2,31 @@ import torch
 import torch.nn as nn
 import numpy as np
 from typing import Dict, Any, Optional, List
-from torch import Tensor
+
+
 class WeightedSmoothL1Loss(nn.Module):
     """
     Code-wise Weighted Smooth L1 Loss modified based on fvcore.nn.smooth_l1_loss
     https://github.com/facebookresearch/fvcore/blob/master/fvcore/nn/smooth_l1_loss.py
+    
                   | 0.5 * x ** 2 / beta   if abs(x) < beta
     smoothl1(x) = |
                   | abs(x) - 0.5 * beta   otherwise,
+    
     where x = input - target.
+    
+    Parameters
+    ----------
+    beta : float, optional
+        Scalar float. L1 to L2 change point.
+        For beta values < 1e-5, L1 loss is computed.
+        Default is 1.0 / 9.0.
+    code_weights : list of float, optional
+        Code-wise weights. If None, no weights are applied.
+        Default is None.
     """
 
     def __init__(self, beta: float = 1.0 / 9.0, code_weights: Optional[List[float]] = None):
-        """
-        Args:
-            beta: Scalar float.
-                L1 to L2 change point.
-                For beta values < 1e-5, L1 loss is computed.
-            code_weights: (#codes) float list if not None.
-                Code-wise weights.
-        """
         super(WeightedSmoothL1Loss, self).__init__()
         self.beta = beta
         if code_weights is not None:
@@ -32,11 +37,18 @@ class WeightedSmoothL1Loss(nn.Module):
     def smooth_l1_loss(diff: torch.Tensor, beta: float) -> torch.Tensor:
         """
         Compute the smooth L1 loss of differences.
-        Args:
-            diff: The difference between predictions and targets.
-            beta: The L1 to L2 change point.
-        Returns:
-            torch.Tensor: The computed smooth L1 loss.
+        
+        Parameters
+        ----------
+        diff : torch.Tensor
+            The difference between predictions and targets.
+        beta : float
+            The L1 to L2 change point.
+        
+        Returns
+        -------
+        torch.Tensor
+            The computed smooth L1 loss.
         """
         if beta < 1e-5:
             loss = torch.abs(diff)
@@ -46,18 +58,9 @@ class WeightedSmoothL1Loss(nn.Module):
 
         return loss
 
-    def forward(self, input: torch.Tensor, target: torch.Tensor, weights: Optional[torch.Tensor] = None):
+    def forward(self, input: torch.Tensor, target: torch.Tensor, weights: Optional[torch.Tensor] = None) -> torch.Tensor:
         """
-        Args:
-            input: (B, #anchors, #codes) float tensor.
-                Ecoded predicted locations of objects.
-            target: (B, #anchors, #codes) float tensor.
-                Regression targets.
-            weights: (B, #anchors) float tensor if not None.
-
-        Returns:
-            loss: (B, #anchors) float tensor.
-                Weighted smooth l1 loss without reduction.
+        Forward pass for weighted smooth L1 loss computation.
         """
         target = torch.where(torch.isnan(target), input, target)  # ignore nan targets
 
@@ -73,6 +76,10 @@ class WeightedSmoothL1Loss(nn.Module):
 
 
 class PointPillarLoss(nn.Module):
+    """
+    Loss function for PointPillar object detection model.
+    """
+
     def __init__(self, args: Dict[str, Any]):
         super(PointPillarLoss, self).__init__()
         self.reg_loss_func = WeightedSmoothL1Loss()
@@ -83,12 +90,9 @@ class PointPillarLoss(nn.Module):
         self.reg_coe = args["reg"]
         self.loss_dict = {}
 
-    def forward(self, output_dict, target_dict):
+    def forward(self, output_dict: Dict[str, torch.Tensor], target_dict: Dict[str, torch.Tensor]) -> torch.Tensor:
         """
-        Parameters
-        ----------
-        output_dict : dict
-        target_dict : dict
+        Compute the total loss for PointPillar model.
         """
         rm = output_dict["rm"]
         psm = output_dict["psm"]
@@ -136,18 +140,23 @@ class PointPillarLoss(nn.Module):
 
         return total_loss
 
-    def cls_loss_func(self, input: torch.Tensor, target: torch.Tensor, weights: torch.Tensor):
+    def cls_loss_func(self, input: torch.Tensor, target: torch.Tensor, weights: torch.Tensor) -> torch.Tensor:
         """
-        Args:
-            input: (B, #anchors, #classes) float tensor.
-                Predicted logits for each class
-            target: (B, #anchors, #classes) float tensor.
-                One-hot encoded classification targets
-            weights: (B, #anchors) float tensor.
-                Anchor-wise weights.
-
-        Returns:
-            weighted_loss: (B, #anchors, #classes) float tensor after weighting.
+        Compute focal loss for classification.
+        
+        Parameters
+        ----------
+        input : torch.Tensor
+            Shape (B, #anchors, #classes). Predicted logits for each class.
+        target : torch.Tensor
+            Shape (B, #anchors, #classes). One-hot encoded classification targets.
+        weights : torch.Tensor
+            Shape (B, #anchors). Anchor-wise weights.
+        
+        Returns
+        -------
+        torch.Tensor
+            Shape (B, #anchors, #classes). Weighted focal loss after weighting.
         """
         pred_sigmoid = torch.sigmoid(input)
         alpha_weight = target * self.alpha + (1 - target) * (1 - self.alpha)
@@ -166,26 +175,52 @@ class PointPillarLoss(nn.Module):
         return loss * weights
 
     @staticmethod
-    def sigmoid_cross_entropy_with_logits(input: torch.Tensor, target: torch.Tensor):
-        """PyTorch Implementation for tf.nn.sigmoid_cross_entropy_with_logits:
-            max(x, 0) - x * z + log(1 + exp(-abs(x))) in
-            https://www.tensorflow.org/api_docs/python/tf/nn/sigmoid_cross_entropy_with_logits
-
-        Args:
-            input: (B, #anchors, #classes) float tensor.
-                Predicted logits for each class
-            target: (B, #anchors, #classes) float tensor.
-                One-hot encoded classification targets
-
-        Returns:
-            loss: (B, #anchors, #classes) float tensor.
-                Sigmoid cross entropy loss without reduction
+    def sigmoid_cross_entropy_with_logits(input: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+        """
+        PyTorch Implementation for tf.nn.sigmoid_cross_entropy_with_logits.
+        
+        Computes: max(x, 0) - x * z + log(1 + exp(-abs(x)))
+        Reference: https://www.tensorflow.org/api_docs/python/tf/nn/sigmoid_cross_entropy_with_logits
+        
+        Parameters
+        ----------
+        input : torch.Tensor
+            Shape (B, #anchors, #classes). Predicted logits for each class.
+        target : torch.Tensor
+            Shape (B, #anchors, #classes). One-hot encoded classification targets.
+        
+        Returns
+        -------
+        torch.Tensor
+            Shape (B, #anchors, #classes). Sigmoid cross entropy loss without reduction.
         """
         loss = torch.clamp(input, min=0) - input * target + torch.log1p(torch.exp(-torch.abs(input)))
         return loss
 
     @staticmethod
-    def add_sin_difference(boxes1, boxes2, dim=6):
+    def add_sin_difference(boxes1: torch.Tensor, boxes2: torch.Tensor, dim: int = 6) -> tuple[torch.Tensor, torch.Tensor]:
+        """
+        Add sine difference encoding for rotation angles.
+        
+        Converts rotation angle difference to sine representation for better
+        gradient properties during training.
+        
+        Parameters
+        ----------
+        boxes1 : torch.Tensor
+            Predicted bounding boxes with rotation angles.
+        boxes2 : torch.Tensor
+            Target bounding boxes with rotation angles.
+        dim : int, optional
+            Dimension index of the rotation angle. Default is 6.
+        
+        Returns
+        -------
+        boxes1_encoded : torch.Tensor
+            Encoded predicted boxes with sine representation.
+        boxes2_encoded : torch.Tensor
+            Encoded target boxes with sine representation.
+        """
         assert dim != -1
         rad_pred_encoding = torch.sin(boxes1[..., dim : dim + 1]) * torch.cos(boxes2[..., dim : dim + 1])
         rad_tg_encoding = torch.cos(boxes1[..., dim : dim + 1]) * torch.sin(boxes2[..., dim : dim + 1])
@@ -194,22 +229,23 @@ class PointPillarLoss(nn.Module):
         boxes2 = torch.cat([boxes2[..., :dim], rad_tg_encoding, boxes2[..., dim + 1 :]], dim=-1)
         return boxes1, boxes2
 
-    def logging(self, epoch, batch_id, batch_len, writer, pbar=None):
+    def logging(self, epoch: int, batch_id: int, batch_len: int, writer: Any, pbar: Optional[Any] = None) -> None:
         """
         Print out the loss function for current iteration.
-
+        
         Parameters
         ----------
         epoch : int
             Current epoch for training.
         batch_id : int
-            The current batch.
+            The current batch index.
         batch_len : int
-            Total batch length in one iteration of training,
+            Total batch length in one iteration of training.
         writer : SummaryWriter
-            Used to visualize on tensorboard
-        pbar : tqdm
-            Progress bar
+            TensorBoard SummaryWriter instance for visualization.
+        pbar : tqdm, optional
+            Progress bar instance. If None, prints to console instead.
+            Default is None.
         """
         total_loss = self.loss_dict["total_loss"]
         reg_loss = self.loss_dict["reg_loss"]

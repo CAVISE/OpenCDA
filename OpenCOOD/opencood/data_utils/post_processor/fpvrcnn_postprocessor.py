@@ -1,6 +1,8 @@
 """
 3D Anchor Generator for Voxel-based 3D object detection.
+
 This module provides functionality for post-processing 3D object detection
+predictions in the context of cooperative perception using FPV-RCNN architecture.
 """
 
 import numpy as np
@@ -11,18 +13,17 @@ from opencood.utils import box_utils
 from opencood.utils import common_utils
 from typing import Dict, List, Tuple, Optional, Any, Union
 
+
 class FpvrcnnPostprocessor(VoxelPostprocessor):
     """
     Post-processor for FPV-RCNN (Frustum Point-Voxel R-CNN).
+    
     Handles two-stage 3D object detection with region proposal and refinement.
+    This class processes model outputs from both stages of FPV-RCNN to generate
+    final 3D bounding box predictions.
     """
-    def __init__(self, anchor_params: Dict[str, Any], train: bool) -> None:
-        """
-        Initialize the FPV-RCNN post-processor.
-        Args:
-            anchor_params: Dictionary containing anchor configuration parameters.
-            train: Whether the processor is in training mode.
-        """
+    
+    def __init__(self, anchor_params: Dict[str, Any], train: bool):
         super(FpvrcnnPostprocessor, self).__init__(anchor_params, train)
 
     def post_process(self, 
@@ -34,11 +35,19 @@ class FpvrcnnPostprocessor(VoxelPostprocessor):
                     ]:
         """
         Process model outputs through the appropriate stage.
-        Args:
-            data_dict: Dictionary containing input data.
-            output_dict: Dictionary containing model outputs.
-            stage1: Whether to use stage1 processing.
-        Returns:
+        
+        Parameters
+        ----------
+        data_dict : Dict[str, Any]
+            Dictionary containing input data.
+        output_dict : Dict[str, Any]
+            Dictionary containing model outputs.
+        stage1 : bool, optional
+            Whether to use stage1 processing. Default is False.
+        
+        Returns
+        -------
+        Union[Tuple[torch.Tensor, torch.Tensor], Tuple[List[torch.Tensor], List[torch.Tensor]]]
             Tuple of (boxes, scores) with the processed detections.
         """
         if stage1:
@@ -50,25 +59,25 @@ class FpvrcnnPostprocessor(VoxelPostprocessor):
                           data_dict: Dict[str, Any], 
                           output_dict: Dict[str, Any]) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
         """
-        Process the outputs of the model to 2D/3D bounding box.
-        Step1: convert each cav's output to bounding box format
-        Step2: project the bounding boxes to ego space.
-        Step:3 NMS
-
+        Process the first stage outputs of the model to 3D bounding boxes.
+        
+        Step 1: Convert each CAV's output to bounding box format.
+        Step 2: Project the bounding boxes to ego space.
+        Step 3: Apply NMS to remove duplicates.
+        
         Parameters
         ----------
-        data_dict : dict
-            The dictionary containing the origin input data of model.
-
-        output_dict :dict
-            The dictionary containing the output of the model.
-
+        data_dict : Dict[str, Any]
+            Dictionary containing the origin input data of model.
+        output_dict : Dict[str, Any]
+            Dictionary containing the output of the model.
+        
         Returns
         -------
-        pred_box3d_tensor : torch.Tensor
-            The prediction bounding box tensor after NMS.
-        gt_box3d_tensor : torch.Tensor
-            The groundtruth bounding box tensor.
+        batch_pred_boxes3d : List[torch.Tensor]
+            List of predicted 3D bounding box tensors after NMS for each batch.
+        batch_scores : List[torch.Tensor]
+            List of confidence scores corresponding to predicted boxes.
         """
         # the final bounding box list
         pred_box3d_original_list = []
@@ -189,13 +198,20 @@ class FpvrcnnPostprocessor(VoxelPostprocessor):
                           data_dict: Dict[str, Any]) -> Tuple[Optional[torch.Tensor], Optional[torch.Tensor]]:
         """
         Process second stage model outputs to generate final detections.
-        Args:
-            data_dict: Dictionary containing input data and stage1 outputs.
-        Returns:
-            Tuple of (projected_boxes3d, scores) where:
-                - projected_boxes3d: Tensor of predicted 3D boxes in ego coordinates
-                - scores: Confidence scores for the predictions
-            Returns (None, None) if no predictions are made.
+        
+        Parameters
+        ----------
+        data_dict : Dict[str, Any]
+            Dictionary containing input data and stage1 outputs.
+        
+        Returns
+        -------
+        projected_boxes3d : Optional[torch.Tensor]
+            Tensor of predicted 3D boxes in ego coordinates, shape (N, 8, 3).
+            Returns None if no predictions are made.
+        scores : Optional[torch.Tensor]
+            Confidence scores for the predictions, shape (N,).
+            Returns None if no predictions are made.
         """
         from opencood.pcdet_utils.iou3d_nms.iou3d_nms_utils import nms_gpu
 

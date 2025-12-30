@@ -16,21 +16,24 @@ import opencda.core.plan.drive_profile_plotting as open_plt
 class PlanDebugHelper(object):
     """
     This class aims to save statistics for planner behaviour.
-
-    Parameters:
-    -actor_id : int
-        The actor ID of the target vehicle for bebuging.
-
+    
+    Parameters
+    ----------
+    actor_id : int
+        The actor ID of the target vehicle for debugging.
+    
     Attributes
-    -speed_list : list
-        The list containing speed info(m/s) of all time-steps.
-    -acc_list : list
-        The list containing acceleration info(m^2/s) of all time-steps.
-    -ttc_list : list
-        The list containing ttc info(s) for all time-steps.
-    -count : int
+    ----------
+    actor_id : int
+        The actor ID of the target vehicle.
+    speed_list : list of list
+        The list containing speed info (m/s) of all time-steps.
+    acc_list : list of list
+        The list containing acceleration info (m^2/s) of all time-steps.
+    ttc_list : list of list
+        The list containing ttc info (s) for all time-steps.
+    count : int
         Used to count how many simulation steps have been executed.
-
     """
 
     def __init__(self, actor_id):
@@ -44,10 +47,13 @@ class PlanDebugHelper(object):
     def update(self, ego_speed, ttc):
         """
         Update the speed info.
-        Args:
-            -ego_speed (float): Ego speed in km/h.
-            -ttc (flot): Time to collision in seconds.
-
+        
+        Parameters
+        ----------
+        ego_speed : float
+            Ego speed in km/h.
+        ttc : float
+            Time to collision in seconds.
         """
         self.count += 1
         # at the very beginning, the vehicle is in a spawn state, so we should
@@ -63,13 +69,14 @@ class PlanDebugHelper(object):
 
     def evaluate(self):
         """
-        Evaluate the target vehicle and visulize the plot.
-        Returns:
-            -figure (matplotlib.pyplot.figure): The target vehicle's planning
-             profile (velocity, acceleration, and ttc).
-            -perform_txt (txt file): The target vehicle's planning profile
-            as text files.
-
+        Evaluate the target vehicle and visualize the plot.
+        
+        Returns
+        -------
+        figure : matplotlib.pyplot.Figure
+            The target vehicle's planning profile (velocity, acceleration, and ttc).
+        perform_txt : str
+            The target vehicle's planning profile as text.
         """
         warnings.filterwarnings("ignore")
         # draw speed, acc and ttc plotting

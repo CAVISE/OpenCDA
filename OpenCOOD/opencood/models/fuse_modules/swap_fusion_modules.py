@@ -12,6 +12,7 @@ from opencood.models.sub_modules.base_transformer import FeedForward, PreNormRes
 from typing import Optional
 from torch import nn, Tensor
 
+
 # swap attention -> max_vit
 class Attention(nn.Module):
     """
@@ -36,7 +37,7 @@ class Attention(nn.Module):
         dropout: float = 0.0,
         agent_size: int = 6,
         window_size: int = 7
-    ) -> None:
+    ):
         super().__init__()
         assert (dim % dim_head) == 0, "dimension should be divisible by dimension per head"
 
@@ -134,7 +135,7 @@ class SwapFusionBlockMask(nn.Module):
         window_size: int, 
         agent_size: int, 
         drop_out: float
-    ) -> None:
+    ):
         super(SwapFusionBlockMask, self).__init__()
 
         self.window_size = window_size

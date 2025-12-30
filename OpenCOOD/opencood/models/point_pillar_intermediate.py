@@ -5,7 +5,7 @@ from opencood.models.sub_modules.pillar_vfe import PillarVFE
 from opencood.models.sub_modules.point_pillar_scatter import PointPillarScatter
 from opencood.models.sub_modules.att_bev_backbone import AttBEVBackbone
 
-from typing import Dict, Any, Tuple
+from typing import Dict, Any
 
 class PointPillarIntermediate(nn.Module):
     """
@@ -13,7 +13,7 @@ class PointPillarIntermediate(nn.Module):
     BEV backbone for feature extraction, followed by detection heads for classification
     and regression.
     """
-    def __init__(self, args: Dict[str, Any]) -> None:
+    def __init__(self, args):
         """
         Initialize the PointPillarIntermediate model.
 

@@ -9,28 +9,38 @@ import torch.nn.functional as F
 
 class ScaledDotProductAttention(nn.Module):
     """
-    Scaled Dot-Product Attention proposed in "Attention Is All You Need"
+    Scaled Dot-Product Attention proposed in "Attention Is All You Need".
+    
     Compute the dot products of the query with all keys, divide each by sqrt(dim),
-    and apply a softmax function to obtain the weights on the values
-    Args: dim, mask
-        dim (int): dimention of attention
-        mask (torch.Tensor): tensor containing indices to be masked
-    Inputs: query, key, value, mask
-        - **query** (batch, q_len, d_model): tensor containing projection
-          vector for decoder.
-        - **key** (batch, k_len, d_model): tensor containing projection
-          vector for encoder.
-        - **value** (batch, v_len, d_model): tensor containing features of the
-          encoded input sequence.
-        - **mask** (-): tensor containing indices to be masked
-    Returns: context, attn
-        - **context**: tensor containing the context vector from
-          attention mechanism.
-        - **attn**: tensor containing the attention (alignment) from the
-          encoder outputs.
+    and apply a softmax function to obtain the weights on the values.
+    
+    Parameters
+    ----------
+    dim : int
+        Dimension of attention.
+    mask : torch.Tensor
+        Tensor containing indices to be masked.
+    
+    Attributes
+    ----------
+    query : torch.Tensor
+        Tensor of shape (batch, q_len, d_model) containing projection vector for decoder.
+    key : torch.Tensor
+        Tensor of shape (batch, k_len, d_model) containing projection vector for encoder.
+    value : torch.Tensor
+        Tensor of shape (batch, v_len, d_model) containing features of the encoded input sequence.
+    mask : torch.Tensor
+        Tensor containing indices to be masked.
+    
+    Returns
+    -------
+    context : torch.Tensor
+        Tensor containing the context vector from attention mechanism.
+    attn : torch.Tensor
+        Tensor containing the attention (alignment) from the encoder outputs.
     """
 
-    def __init__(self, dim: int) -> None:
+    def __init__(self, dim: int):
         super(ScaledDotProductAttention, self).__init__()
         self.sqrt_dim = np.sqrt(dim)
 

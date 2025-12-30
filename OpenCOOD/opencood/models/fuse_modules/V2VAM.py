@@ -1,11 +1,11 @@
 import torch
 import torch.nn as nn
 
-
 from torch.nn import Softmax
 
 from torch import Tensor
 from typing import List
+
 
 class V2V_AttFusion(nn.Module):
     """
@@ -13,10 +13,14 @@ class V2V_AttFusion(nn.Module):
     
     This module implements attention-based fusion of features from multiple vehicles
     using Criss-Cross Attention mechanism.
-    Args:
-        feature_dim: Dimension of input features
+    
+    Parameters
+    ----------
+    feature_dim : int
+        Dimension of input features.
     """
-    def __init__(self, feature_dim: int) -> None:
+    
+    def __init__(self, feature_dim: int):
         super(V2V_AttFusion, self).__init__()
 
         self.cov_att = nn.Sequential(
@@ -30,11 +34,18 @@ class V2V_AttFusion(nn.Module):
     def forward(self, x: Tensor, record_len: Tensor) -> Tensor:
         """
         Forward pass of the V2V attention fusion.
-        Args:
-            x: Input features of shape 
-            record_len: Number of agents per sample in the batch
-        Returns:
-            Fused features of shape 
+        
+        Parameters
+        ----------
+        x : torch.Tensor
+            Input features from all vehicles.
+        record_len : torch.Tensor
+            Number of vehicles per batch sample.
+        
+        Returns
+        -------
+        torch.Tensor
+            Fused features after attention.
         """
         split_x = self.regroup(x, record_len)  # x =[5, 64, 100, 352], record_len=[3,2]
 
@@ -64,11 +75,18 @@ class V2V_AttFusion(nn.Module):
     def regroup(x: Tensor, record_len: Tensor) -> List[Tensor]:
         """
         Split input tensor into a list of tensors based on record_len.
-        Args:
-            x: Input tensor of shape
-            record_len: Number of agents per sample
-        Returns:
-            List of tensors, one per sample in the batch
+        
+        Parameters
+        ----------
+        x : torch.Tensor
+            Input tensor to be split.
+        record_len : torch.Tensor
+            Number of agents per sample.
+        
+        Returns
+        -------
+        list of torch.Tensor
+            List of tensors, one per sample in the batch.
         """
         cum_sum_len = torch.cumsum(record_len, dim=0)
         split_x = torch.tensor_split(x, cum_sum_len[:-1].cpu())
@@ -81,10 +99,20 @@ def INF(B: int, H: int, W: int) -> Tensor:
 
 
 class CrissCrossAttention(nn.Module):
-    """Criss-Cross Attention Module
-
-    reference: https://github.com/speedinghzl/CCNet
-
+    """
+    Criss-Cross Attention Module.
+    
+    This module implements criss-cross attention for capturing long-range dependencies
+    in both horizontal and vertical directions.
+    
+    Parameters
+    ----------
+    in_dim : int
+        Number of input channels.
+    
+    References
+    ----------
+    .. [1] https://github.com/speedinghzl/CCNet
     """
 
     def __init__(self, in_dim: int) -> None:
@@ -105,6 +133,9 @@ class CrissCrossAttention(nn.Module):
         self.gamma = nn.Parameter(torch.zeros(1))
 
     def forward(self, query: Tensor, key: Tensor, value: Tensor) -> Tensor:
+        """
+        Forward pass through criss-cross attention.
+        """
         m_batchsize, _, height, width = query.size()
 
         proj_query = self.query_conv(query)

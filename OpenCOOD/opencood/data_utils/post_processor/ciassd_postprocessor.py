@@ -1,5 +1,6 @@
 """
 3D Anchor Generator for Voxel-based 3D object detection.
+
 This module provides functionality for post-processing 3D object detection
 predictions in the context of cooperative perception.
 """
@@ -11,18 +12,13 @@ from opencood.data_utils.post_processor.voxel_postprocessor import VoxelPostproc
 from opencood.utils import box_utils
 from typing import Dict, List, Tuple, Any, Union
 
+
 class CiassdPostprocessor(VoxelPostprocessor):
     """
     Post-processor for CIASSD (Cooperative Infrastructure-Assisted 3D Object Detection).
     Handles the conversion of model outputs to 3D bounding boxes with NMS.
     """
-    def __init__(self, anchor_params: Dict[str, Any], train: bool) -> None:
-        """
-        Initialize the CIASSD post-processor.
-        Args:
-            anchor_params: Dictionary containing anchor configuration parameters.
-            train: Whether the processor is in training mode.
-        """
+    def __init__(self, anchor_params: Dict[str, Any], train: bool):
         super(CiassdPostprocessor, self).__init__(anchor_params, train)
         self.train = train
         self.anchor_num = self.params["anchor_args"]["num"]
@@ -35,6 +31,7 @@ class CiassdPostprocessor(VoxelPostprocessor):
                    ]:
         """
         Process the outputs of the model to 2D/3D bounding box.
+
         Step1: convert each cav's output to bounding box format
         Step2: project the bounding boxes to ego space.
         Step:3 NMS

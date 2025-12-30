@@ -206,7 +206,7 @@ We have a series of tutorials to help you understand OpenCOOD more. Please check
 
 
 ## Citation
- If you are using our OpenCOOD framework or OPV2V dataset for your research, please cite the following paper:
+ If you are using the OpenCOOD framework or OPV2V dataset for your research, please cite the following paper:
  ```bibtex
 @inproceedings{xu2022opencood,
   author = {Runsheng Xu, Hao Xiang, Xin Xia, Xu Han, Jinlong Li, Jiaqi Ma},

@@ -12,8 +12,9 @@ from opencood.utils import box_utils
 from opencood.visualization import vis_utils
 from typing import Dict, List, Tuple, Optional, Any, Union
 
+
 class BevPostprocessor(BasePostprocessor):
-    def __init__(self, anchor_params: Dict[str, Any], train: bool = True) -> None:
+    def __init__(self, anchor_params: Dict[str, Any], train: bool = True):
         super(BevPostprocessor, self).__init__(anchor_params, train)
         # self.geometry_param = anchor_params["geometry"]
         self.geometry_param = anchor_params["geometry_param"]
@@ -23,12 +24,7 @@ class BevPostprocessor(BasePostprocessor):
         self.target_mean = np.array([0.008, 0.001, 0.202, 0.2, 0.43, 1.368])
         self.target_std_dev = np.array([0.866, 0.5, 0.954, 0.668, 0.09, 0.111])
 
-    def generate_anchor_box(self) -> None:
-        """
-        Generate anchor boxes for object detection.
-        Returns:
-            None: 
-        """
+    def generate_anchor_box(self):
         return None
 
     def generate_label(self, **kwargs) -> Dict[str, np.ndarray]:

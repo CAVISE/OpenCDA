@@ -123,15 +123,23 @@ class Matcher(nn.Module):
 
     def merge_keypoints(self, data_dict: Dict[str, Any]) -> None:
         """
-        Merge keypoint features and coordinates across samples.
-        Args:
-            data_dict: Dictionary containing:
-                - "point_features": List of point features
-                - "point_coords": List of point coordinates
-                - "record_len": List of integers indicating number of points per sample
+       Merge keypoint features and coordinates across samples.
+        
+        Parameters
+        ----------
+        data_dict : Dict[str, Any]
+            Dictionary containing:
+            
+            - point_features : list
+                List of point features.
+            - point_coords : list
+                List of point coordinates.
+            - record_len : list of int
+                List of integers indicating number of points per sample.
+        
+        Notes
+        -----
         Modifies data_dict in-place to update:
-            - "point_features": Merged point features
-            - "point_coords": Merged point coordinates
         """
         # merge keypoints
         kpts_feat_out = []

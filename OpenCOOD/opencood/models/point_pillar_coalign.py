@@ -17,7 +17,7 @@ from opencood.models.fuse_modules.coalign_fuse import Att_w_Warp, normalize_pair
 
 
 class PointPillarCoAlign(nn.Module):
-    def __init__(self, args: Dict[str, Any]) -> None:
+    def __init__(self, args):
         """
         Initialize the PointPillarCoAlign model.
         """

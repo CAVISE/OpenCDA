@@ -25,24 +25,34 @@ logger = logging.getLogger("cavise.OpenCOOD.opencood.data_utils.datasets.late_fu
 class LateFusionDataset(basedataset.BaseDataset):
     """
     Dataset class for late fusion where each vehicle transmits detection outputs to the ego vehicle.
+    
     This class handles the processing of LiDAR data and object detection labels for multiple connected
     autonomous vehicles (CAVs) in a cooperative perception setting. It supports both synchronous and
     asynchronous data processing with message handling capabilities.
-    Attributes:
-        pre_processor: Module for preprocessing LiDAR data.
-        post_processor: Module for post-processing detection results.
-        message_handler: Handler for inter-vehicle communication.
+    
+    Attributes
+    ----------
+    pre_processor : object
+        Module for preprocessing LiDAR data.
+    post_processor : object
+        Module for post-processing detection results.
+    message_handler : Optional[object]
+        Handler for inter-vehicle communication.
+    
+    Parameters
+    ----------
+    params : Dict[str, Any]
+        Configuration dictionary containing dataset parameters.
+    visualize : bool
+        Whether to include visualization data.
+    train : bool, optional
+        Whether the dataset is used for training. Default is True.
+    message_handler : Optional[Any], optional
+        Handler for inter-vehicle communication. Default is None.
     """
+    
     def __init__(self, params: Dict[str, Any], visualize: bool, 
-                train: bool = True, message_handler: Optional[Any] = None) -> None:
-        """
-        Initialize the LateFusionDataset.
-        Args:
-            params: Configuration dictionary containing dataset parameters.
-            visualize: Whether to include visualization data.
-            train: Whether the dataset is used for training.
-            message_handler: Handler for inter-vehicle communication.
-        """
+                train: bool = True, message_handler: Optional[Any] = None):
         super(LateFusionDataset, self).__init__(params, visualize, train)
         self.pre_processor = build_preprocessor(params["preprocess"], train)
         self.post_processor = build_postprocessor(params["postprocess"], train)
@@ -52,9 +62,15 @@ class LateFusionDataset(basedataset.BaseDataset):
     def __getitem__(self, idx: int) -> Dict[str, Any]:
         """
         Get a single data sample by index.
-        Args:
-            idx: Index of the data sample to retrieve.
-        Returns:
+        
+        Parameters
+        ----------
+        idx : int
+            Index of the data sample to retrieve.
+        
+        Returns
+        -------
+        Dict[str, Any]
             Dictionary containing the processed data sample.
         """
         base_data_dict = self.retrieve_base_data(idx)
@@ -69,9 +85,15 @@ class LateFusionDataset(basedataset.BaseDataset):
     def __wrap_ndarray(ndarray: np.ndarray) -> Dict[str, Any]:
         """
         Convert a numpy array to a serializable dictionary.
-        Args:
-            ndarray: Input numpy array.
-        Returns:
+        
+        Parameters
+        ----------
+        ndarray : np.ndarray
+            Input numpy array.
+        
+        Returns
+        -------
+        Dict[str, Any]
             Dictionary containing array data, shape, and dtype.
         """
         return {"data": ndarray.tobytes(), "shape": ndarray.shape, "dtype": str(ndarray.dtype)}
@@ -79,8 +101,11 @@ class LateFusionDataset(basedataset.BaseDataset):
     def extract_data(self, idx: int) -> None:
         """
         Extract and process data for a single frame.
-        Args:
-            idx: Index of the data point to extract.
+        
+        Parameters
+        ----------
+        idx : int
+            Index of the data point to extract.
         """
         base_data_dict = self.retrieve_base_data(idx)
 
@@ -176,14 +201,23 @@ class LateFusionDataset(basedataset.BaseDataset):
     def __find_ego_vehicle(self, base_data_dict: Dict[str, Any]) -> Tuple[str, List[float]]:
         """
         Find the ego vehicle in the base data dictionary.
-        Args:
-            base_data_dict: Dictionary containing data from all CAVs.
-        Returns:
-            Tuple of (ego_id, ego_lidar_pose) where:
-                - ego_id: ID of the ego vehicle
-                - ego_lidar_pose: Pose of the ego vehicle's LiDAR
-        Raises:
-            AssertionError: If ego vehicle is not found or not the first element.
+        
+        Parameters
+        ----------
+        base_data_dict : Dict[str, Any]
+            Dictionary containing data from all CAVs.
+        
+        Returns
+        -------
+        ego_id : str
+            ID of the ego vehicle.
+        ego_lidar_pose : List[float]
+            Pose of the ego vehicle's LiDAR.
+        
+        Raises
+        ------
+        AssertionError
+            If ego vehicle is not found or not the first element.
         """
         ego_id = -1
         ego_lidar_pose = []
@@ -204,12 +238,20 @@ class LateFusionDataset(basedataset.BaseDataset):
                           base_data_dict: Dict[str, Any]) -> Dict[str, Any]:
         """
         Process data using message passing between connected vehicles.
-        Args:
-            ego_id: ID of the ego vehicle.
-            ego_lidar_pose: LiDAR pose of the ego vehicle.
-            base_data_dict: Dictionary containing base data for all vehicles.
-        Returns:
-            Dictionary containing processed data from all connected vehicles
+        
+        Parameters
+        ----------
+        ego_id : str
+            ID of the ego vehicle.
+        ego_lidar_pose : List[float]
+            LiDAR pose of the ego vehicle.
+        base_data_dict : Dict[str, Any]
+            Dictionary containing base data for all vehicles.
+        
+        Returns
+        -------
+        Dict[str, Any]
+            Dictionary containing processed data from all connected vehicles.
         """
         processed_data_dict = OrderedDict()
 
@@ -301,11 +343,19 @@ class LateFusionDataset(basedataset.BaseDataset):
                              base_data_dict: Dict[str, Any]) -> Dict[str, Any]:
         """
         Process data without using message passing.
-        Args:
-            ego_id: ID of the ego vehicle.
-            ego_lidar_pose: LiDAR pose of the ego vehicle.
-            base_data_dict: Dictionary containing base data for all vehicles.
-        Returns:
+        
+        Parameters
+        ----------
+        ego_id : str
+            ID of the ego vehicle.
+        ego_lidar_pose : List[float]
+            LiDAR pose of the ego vehicle.
+        base_data_dict : Dict[str, Any]
+            Dictionary containing base data for all vehicles.
+        
+        Returns
+        -------
+        Dict[str, Any]
             Dictionary containing processed data from all vehicles within communication range.
         """
         processed_data_dict = OrderedDict()
@@ -332,16 +382,16 @@ class LateFusionDataset(basedataset.BaseDataset):
     def get_item_single_car(self, selected_cav_base: Dict[str, Any]) -> Dict[str, Any]:
         """
         Process a single CAV's information for the train/test pipeline.
-
+        
         Parameters
         ----------
-        selected_cav_base : dict
-            The dictionary contains a single CAV's raw information.
-
+        selected_cav_base : Dict[str, Any]
+            Dictionary containing a single CAV's raw information.
+        
         Returns
         -------
-        selected_cav_processed : dict
-            The dictionary contains the cav's processed information.
+        Dict[str, Any]
+            Dictionary containing the CAV's processed information.
         """
         selected_cav_processed = {}
 
@@ -381,9 +431,15 @@ class LateFusionDataset(basedataset.BaseDataset):
     def get_item_train(self, base_data_dict: Dict[str, Any]) -> Dict[str, Any]:
         """
         Process training data for a single sample.
-        Args:
-            base_data_dict: Dictionary containing base data for all vehicles.
-        Returns:
+        
+        Parameters
+        ----------
+        base_data_dict : Dict[str, Any]
+            Dictionary containing base data for all vehicles.
+        
+        Returns
+        -------
+        Dict[str, Any]
             Dictionary containing processed training data for a single vehicle.
             During training, returns a random vehicle's data unless in visualization mode,
             in which case it returns the ego vehicle's data.
@@ -404,9 +460,15 @@ class LateFusionDataset(basedataset.BaseDataset):
     def get_item_test(self, base_data_dict: Dict[str, Any]) -> Dict[str, Any]:
         """
         Process test data for a single sample.
-        Args:
-            base_data_dict: Dictionary containing base data for all vehicles.
-        Returns:
+        
+        Parameters
+        ----------
+        base_data_dict : Dict[str, Any]
+            Dictionary containing base data for all vehicles.
+        
+        Returns
+        -------
+        Dict[str, Any]
             Dictionary containing processed test data for all vehicles.
             If message handler is available, uses message passing; otherwise,
             processes data directly from base data.
@@ -426,10 +488,16 @@ class LateFusionDataset(basedataset.BaseDataset):
     def collate_batch_test(self, batch: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
         Collate function for test data loader.
-        Args:
-            batch: List of data samples to collate (batch size must be 1).
-        Returns:
-            Dictionary containing batched test data
+        
+        Parameters
+        ----------
+        batch : List[Dict[str, Any]]
+            List of data samples to collate (batch size must be 1).
+        
+        Returns
+        -------
+        Dict[str, Any]
+            Dictionary containing batched test data with processed features for each CAV.
         """
         # currently, we only support batch size of 1 during testing
         assert len(batch) <= 1, "Batch size 1 is required during testing!"
@@ -496,21 +564,22 @@ class LateFusionDataset(basedataset.BaseDataset):
                 output_dict: Dict[str, Any]) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Process the outputs of the model to 2D/3D bounding box.
-
+        
         Parameters
         ----------
-        data_dict : dict
-            The dictionary containing the origin input data of model.
-
-        output_dict :dict
-            The dictionary containing the output of the model.
-
+        data_dict : Dict[str, Any]
+            Dictionary containing the origin input data of model.
+        output_dict : Dict[str, Any]
+            Dictionary containing the output of the model.
+        
         Returns
         -------
         pred_box_tensor : torch.Tensor
-            The tensor of prediction bounding box after NMS.
+            Tensor of prediction bounding boxes after NMS.
+        pred_score : torch.Tensor
+            Tensor of confidence scores for predicted boxes.
         gt_box_tensor : torch.Tensor
-            The tensor of gt bounding box.
+            Tensor of ground truth bounding boxes.
         """
         pred_box_tensor, pred_score = self.post_processor.post_process(data_dict, output_dict)
         gt_box_tensor = self.post_processor.generate_gt_bbx(data_dict)

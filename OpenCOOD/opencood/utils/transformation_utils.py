@@ -1,24 +1,29 @@
 """
-Transformation utils
+Transformation utilities for coordinate system conversions.
+
+This module provides functions for transforming coordinates between different
+reference frames, including conversions between vehicle coordinate systems
+and continuous/discretized coordinate spaces.
 """
-
-import numpy as np
-
 from typing import List
 
-def x_to_world(pose: list) -> np.ndarray:
+import numpy as np
+import numpy.typing as npt
+
+
+def x_to_world(pose: List[float]) -> npt.NDArray[np.floating]:
     """
-    The transformation matrix from x-coordinate system to carla world system
+    Create transformation matrix from x-coordinate system to carla world system.
 
     Parameters
     ----------
-    pose : list
-        [x, y, z, roll, yaw, pitch]
+    pose : list of float
+        Vehicle pose as [x, y, z, roll, yaw, pitch].
 
     Returns
     -------
-    matrix : np.ndarray
-        The transformation matrix.
+    np.ndarray
+        The 4x4 transformation matrix.
     """
     x, y, z, roll, yaw, pitch = pose[:]
 
@@ -50,22 +55,21 @@ def x_to_world(pose: list) -> np.ndarray:
     return matrix
 
 
-def x1_to_x2(x1: List[float], x2: List[float]) -> np.ndarray:
+def x1_to_x2(x1: List[float], x2: List[float]) -> npt.NDArray[np.floating]:
     """
-    Transformation matrix from x1 to x2.
+    Compute transformation matrix from coordinate system x1 to x2.
 
     Parameters
     ----------
-    x1 : list
+    x1 : list of float
         The pose of x1 under world coordinates.
-    x2 : list
+    x2 : list of float
         The pose of x2 under world coordinates.
 
     Returns
     -------
-    transformation_matrix : np.ndarray
-        The transformation matrix.
-
+    np.ndarray
+        The transformation matrix from x1 to x2.
     """
     x1_to_world = x_to_world(x1)
     x2_to_world = x_to_world(x2)
@@ -75,28 +79,30 @@ def x1_to_x2(x1: List[float], x2: List[float]) -> np.ndarray:
     return transformation_matrix
 
 
-def dist_to_continuous(p_dist: np.ndarray, displacement_dist: np.ndarray, res: float, downsample_rate: int) -> np.ndarray:
+def dist_to_continuous(
+    p_dist: npt.NDArray[np.floating],
+    displacement_dist: npt.NDArray[np.floating],
+    res: float,
+    downsample_rate: int
+) -> npt.NDArray[np.floating]:
     """
-    Convert points discretized format to continuous space for BEV representation.
+    Convert points from discretized format to continuous space for BEV representation.
+
     Parameters
     ----------
-    p_dist : numpy.array
-        Points in discretized coorindates.
-
-    displacement_dist : numpy.array
+    p_dist : np.ndarray
+        Points in discretized coordinates.
+    displacement_dist : np.ndarray
         Discretized coordinates of bottom left origin.
-
     res : float
         Discretization resolution.
-
     downsample_rate : int
-        Dowmsamping rate.
+        Downsampling rate.
 
     Returns
     -------
-    p_continuous : numpy.array
-        Points in continuous coorindates.
-
+    np.ndarray
+        Points in continuous coordinates.
     """
     p_dist = np.copy(p_dist)
     p_dist = p_dist + displacement_dist

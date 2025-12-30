@@ -1,3 +1,7 @@
+"""
+Training script for cooperative perception models.
+"""
+
 import argparse
 import os
 import statistics
@@ -13,11 +17,14 @@ from opencood.tools import multi_gpu_utils
 from opencood.data_utils.datasets import build_dataset
 
 
-def train_parser():
+def train_parser() -> argparse.Namespace:
     """
     Parse command line arguments for the training script.
-    Returns:
-        argparse.Namespace: Parsed command line arguments with the following attributes:
+
+    Returns
+    -------
+    argparse.Namespace
+        Parsed command line arguments with the following attributes:
             - hypes_yaml (str): Path to the YAML configuration file.
             - model_dir (str, optional): Path to a directory containing a saved model for resuming training.
             - half (bool): Whether to use half-precision training.
@@ -32,8 +39,10 @@ def train_parser():
     return opt
 
 
-def main():
+def main() -> None:
     """
+    Main training function for cooperative perception models.
+
     The function performs the following steps:
     1. Parses command line arguments and loads the configuration
     2. Initializes distributed training if needed
@@ -41,6 +50,7 @@ def main():
     4. Creates the model and loads weights if resuming
     5. Sets up loss function, optimizer, and learning rate scheduler
     6. Runs the training loop with validation
+
     The training process includes:
     - Mixed precision training if --half flag is set
     - Distributed training if running in a distributed environment
@@ -48,6 +58,9 @@ def main():
     - Periodic model checkpointing
     - Validation loss calculation
     - TensorBoard logging
+
+    Notes
+    -----
     The function saves checkpoints to a directory named after the model and timestamp.
     """
     opt = train_parser()

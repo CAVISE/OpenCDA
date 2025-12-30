@@ -1,41 +1,63 @@
+"""
+Maximum consensus algorithm for point cloud registration.
+
+This module implements hierarchical maximum consensus methods for aligning
+point clouds using transformation search and nearest neighbor matching.
+"""
+
+from typing import Any, Optional, Tuple
+
 import numpy as np
+import numpy.typing as npt
 from sklearn.neighbors import NearestNeighbors
 
-from typing import Optional, Any, Tuple
 
 def max_consunsus_hierarchical(
-    pointsl: np.ndarray,
-    pointsr: np.ndarray,
-    loc_l: np.ndarray,
-    loc_r: np.ndarray,
-    resolution: Optional[np.ndarray] = None,
+    pointsl: npt.NDArray[np.floating],
+    pointsr: npt.NDArray[np.floating],
+    loc_l: npt.NDArray[np.floating],
+    loc_r: npt.NDArray[np.floating],
+    resolution: Optional[npt.NDArray[np.floating]] = None,
     radius: float = 1,
-    point_labels: Optional[Tuple[np.ndarray, np.ndarray]] = None,
-    label_weights: Optional[np.ndarray] = None,
+    point_labels: Optional[Tuple[npt.NDArray[np.integer], npt.NDArray[np.integer]]] = None,
+    label_weights: Optional[npt.NDArray[np.floating]] = None,
     **kwargs: Any
-) -> Tuple[Optional[np.ndarray], Optional[np.ndarray], Optional[np.ndarray]]:
+) -> Tuple[Optional[npt.NDArray[np.floating]], Optional[npt.NDArray[np.floating]], Optional[npt.NDArray[np.floating]]]:
     """
     Perform hierarchical maximum consensus for point cloud registration.
-    
-    Args:
-        pointsl: Source point cloud (N x 3).
-        pointsr: Target point cloud (M x 3).
-        loc_l: Location of source point cloud (1 x 3).
-        loc_r: Location of target point cloud (1 x 3).
-        resolution: Resolution for transformation search.
-        radius: Search radius for nearest neighbor matching.
-        point_labels: Tuple of point labels for source and target.
-        label_weights: Weights for different point labels.
-        **kwargs: Additional arguments:
-            - search_range: Search range for transformation.
-            - min_cons: Minimum consensus threshold.
-            - min_match_acc_points: Minimum number of matched points.
-            
-    Returns:
-        Tuple containing:
-            - Transformation matrix (3x3) or None if no good match
-            - Local transformation parameters or None
-            - Transformed target points or None
+
+    Parameters
+    ----------
+    pointsl : np.ndarray
+        Source point cloud with shape (N, 3).
+    pointsr : np.ndarray
+        Target point cloud with shape (M, 3).
+    loc_l : np.ndarray
+        Location of source point cloud with shape (1, 3).
+    loc_r : np.ndarray
+        Location of target point cloud with shape (1, 3).
+    resolution : np.ndarray, optional
+        Resolution for transformation search.
+    radius : float, default=1
+        Search radius for nearest neighbor matching.
+    point_labels : tuple of np.ndarray, optional
+        Tuple of point labels for source and target.
+    label_weights : np.ndarray, optional
+        Weights for different point labels.
+    **kwargs : Any
+        Additional keyword arguments:
+        - search_range : Search range for transformation.
+        - min_cons : Minimum consensus threshold.
+        - min_match_acc_points : Minimum number of matched points.
+
+    Returns
+    -------
+    T : np.ndarray or None
+        Transformation matrix with shape (3, 3), or None if no good match.
+    tf_local : np.ndarray or None
+        Local transformation parameters, or None if no good match.
+    pointsr_out : np.ndarray or None
+        Transformed target points, or None if no good match.
     """
     max_err = kwargs["search_range"]  # np.array([1, 1, 6])
     min_cons = kwargs["min_cons"]
@@ -68,44 +90,70 @@ def max_consunsus_hierarchical(
 
 
 def max_consensus2(
-    pointsl: np.ndarray,
-    pointsr: np.ndarray,
-    xyr_min: np.ndarray,
-    xyr_max: np.ndarray,
-    resolution: np.ndarray,
+    pointsl: npt.NDArray[np.floating],
+    pointsr: npt.NDArray[np.floating],
+    xyr_min: npt.NDArray[np.floating],
+    xyr_max: npt.NDArray[np.floating],
+    resolution: npt.NDArray[np.floating],
     radius: float,
-    loc_l: Optional[np.ndarray] = None,
-    loc_r: Optional[np.ndarray] = None,
-    point_labels: Optional[Tuple[np.ndarray, np.ndarray]] = None,
-    label_weights: Optional[np.ndarray] = None,
-) -> Tuple[np.ndarray, np.ndarray, Optional[np.ndarray], Optional[np.ndarray], float, Optional[np.ndarray], Optional[np.ndarray]]:
+    loc_l: Optional[npt.NDArray[np.floating]] = None,
+    loc_r: Optional[npt.NDArray[np.floating]] = None,
+    point_labels: Optional[Tuple[npt.NDArray[np.integer], npt.NDArray[np.integer]]] = None,
+    label_weights: Optional[npt.NDArray[np.floating]] = None,
+) -> Tuple[
+    npt.NDArray[np.floating],
+    npt.NDArray[np.floating],
+    Optional[npt.NDArray[np.floating]],
+    Optional[npt.NDArray[np.floating]],
+    float,
+    Optional[npt.NDArray[np.floating]],
+    Optional[npt.NDArray[np.floating]]
+]:
     """
     Perform maximum consensus matching between two point clouds.
-    
-    Args:
-        pointsl: Source point cloud (N x 3).
-        pointsr: Target point cloud (M x 3).
-        xyr_min: Minimum bounds for transformation search (dx, dy, dθ).
-        xyr_max: Maximum bounds for transformation search (dx, dy, dθ).
-        resolution: Resolution for transformation search.
-        radius: Search radius for nearest neighbor matching.
-        loc_l: Optional location of source point cloud.
-        loc_r: Optional location of target point cloud.
-        point_labels: Optional tuple of point labels for source and target.
-        label_weights: Optional weights for different point labels.
-        
-    Returns:
-        Tuple containing:
-            - Transformed source points
-            - Transformed target points
-            - Best transformation matrix
-            - Local transformation parameters
-            - Consensus score
-            - Matched source points
-            - Matched target points
+
+    Parameters
+    ----------
+    pointsl : np.ndarray
+        Source point cloud with shape (N, 3).
+    pointsr : np.ndarray
+        Target point cloud with shape (M, 3).
+    xyr_min : np.ndarray
+        Minimum bounds for transformation search (dx, dy, dθ).
+    xyr_max : np.ndarray
+        Maximum bounds for transformation search (dx, dy, dθ).
+    resolution : np.ndarray
+        Resolution for transformation search.
+    radius : float
+        Search radius for nearest neighbor matching.
+    loc_l : np.ndarray, optional
+        Location of source point cloud.
+    loc_r : np.ndarray, optional
+        Location of target point cloud.
+    point_labels : tuple of np.ndarray, optional
+        Tuple of point labels for source and target.
+    label_weights : np.ndarray, optional
+        Weights for different point labels.
+
+    Returns
+    -------
+    pointl_out : np.ndarray
+        Transformed source points.
+    pointr_out : np.ndarray
+        Transformed target points.
+    match_T : np.ndarray or None
+        Best transformation matrix.
+    match_tf_local : np.ndarray or None
+        Local transformation parameters.
+    cur_cons : float
+        Consensus score.
+    matched_pointsl : np.ndarray or None
+        Matched source points.
+    matched_pointsr : np.ndarray or None
+        Matched target points.
     """
-    tf_matrices, tf_params, tf_params_local = construct_tfs(xyr_min, xyr_max, resolotion, loc_l, loc_r)
-    rotl, _, _ = construct_tfs(xyr_min[2:], xyr_max[2:], resolotion[2:])
+    tf_matrices, tf_params, tf_params_local = construct_tfs(xyr_min, xyr_max, resolution, loc_l, loc_r)
+    rotl, _, _ = construct_tfs(xyr_min[2:], xyr_max[2:], resolution[2:])
     pointr_homo = np.concatenate([pointsr, np.ones((len(pointsr), 1))], axis=1).T
     # pointl_homo = np.concatenate([pointsl, np.ones((len(pointsl), 1))], axis=1).T
     pointr_transformed = np.einsum("...ij, ...jk", tf_matrices, np.tile(pointr_homo, (len(tf_matrices), 1, 1))).transpose(0, 2, 1)
@@ -149,21 +197,66 @@ def max_consensus2(
 
 
 def max_consensus1(
-    pointsl: np.ndarray,
-    pointsr: np.ndarray,
-    xyr_min: np.ndarray,
-    xyr_max: np.ndarray,
-    resolution: np.ndarray,
+    pointsl: npt.NDArray[np.floating],
+    pointsr: npt.NDArray[np.floating],
+    xyr_min: npt.NDArray[np.floating],
+    xyr_max: npt.NDArray[np.floating],
+    resolution: npt.NDArray[np.floating],
     radius: float,
-    loc_l: Optional[np.ndarray] = None,
-    loc_r: Optional[np.ndarray] = None,
-    point_labels: Optional[Tuple[np.ndarray, np.ndarray]] = None,
-    label_weights: Optional[np.ndarray] = None,
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray, float, np.ndarray, np.ndarray]:
+    loc_l: Optional[npt.NDArray[np.floating]] = None,
+    loc_r: Optional[npt.NDArray[np.floating]] = None,
+    point_labels: Optional[Tuple[npt.NDArray[np.integer], npt.NDArray[np.integer]]] = None,
+    label_weights: Optional[npt.NDArray[np.floating]] = None,
+) -> Tuple[
+    npt.NDArray[np.floating],
+    npt.NDArray[np.floating],
+    npt.NDArray[np.floating],
+    float,
+    npt.NDArray[np.floating],
+    npt.NDArray[np.floating]
+]:
     """
     Alternative implementation of maximum consensus matching.
+
+    Parameters
+    ----------
+    pointsl : np.ndarray
+        Source point cloud with shape (N, 3).
+    pointsr : np.ndarray
+        Target point cloud with shape (M, 3).
+    xyr_min : np.ndarray
+        Minimum bounds for transformation search.
+    xyr_max : np.ndarray
+        Maximum bounds for transformation search.
+    resolution : np.ndarray
+        Resolution for transformation search.
+    radius : float
+        Search radius for nearest neighbor matching.
+    loc_l : np.ndarray, optional
+        Location of source point cloud.
+    loc_r : np.ndarray, optional
+        Location of target point cloud.
+    point_labels : tuple of np.ndarray, optional
+        Tuple of point labels for source and target.
+    label_weights : np.ndarray, optional
+        Weights for different point labels.
+
+    Returns
+    -------
+    pointr_out : np.ndarray
+        Transformed target points.
+    match_T : np.ndarray
+        Best transformation matrix.
+    match_tf_local : np.ndarray
+        Local transformation parameters.
+    match_consensus : float
+        Consensus score.
+    matched_pointsl : np.ndarray
+        Matched source points.
+    matched_pointsr : np.ndarray
+        Matched target points.
     """
-    tf_matrices, tf_params, tf_params_local = construct_tfs(xyr_min, xyr_max, resolotion, loc_l, loc_r)
+    tf_matrices, tf_params, tf_params_local = construct_tfs(xyr_min, xyr_max, resolution, loc_l, loc_r)
     pointr_homo = np.concatenate([pointsr, np.ones((len(pointsr), 1))], axis=1).T
     pointr_transformed = np.einsum("...ij, ...jk", tf_matrices, np.tile(pointr_homo, (len(tf_matrices), 1, 1))).transpose(0, 2, 1)
     pointr_transformed_s = pointr_transformed.reshape(-1, 3)[:, :2]
@@ -196,27 +289,36 @@ def max_consensus1(
 
 
 def construct_tfs(
-    xyr_min: np.ndarray,
-    xyr_max: np.ndarray,
-    resolution: np.ndarray,
-    loc_l: Optional[np.ndarray] = None,
-    loc_r: Optional[np.ndarray] = None
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    xyr_min: npt.NDArray[np.floating],
+    xyr_max: npt.NDArray[np.floating],
+    resolution: npt.NDArray[np.floating],
+    loc_l: Optional[npt.NDArray[np.floating]] = None,
+    loc_r: Optional[npt.NDArray[np.floating]] = None
+) -> Tuple[npt.NDArray[np.floating], npt.NDArray[np.floating], npt.NDArray[np.floating]]:
     """
-    Construct transformation matrices for maximum consensus.
-    
-    Args:
-        xyr_min: Minimum bounds for transformation search.
-        xyr_max: Maximum bounds for transformation search.
-        resolution: Resolution for transformation search.
-        loc_l: Optional source location.
-        loc_r: Optional target location.
-        
-    Returns:
-        Tuple of:
-            - Transformation matrices
-            - Transformation parameters
-            - Local transformation parameters
+    Construct transformation matrices for maximum consensus search.
+
+    Parameters
+    ----------
+    xyr_min : np.ndarray
+        Minimum bounds for transformation search.
+    xyr_max : np.ndarray
+        Maximum bounds for transformation search.
+    resolution : np.ndarray
+        Resolution for transformation search.
+    loc_l : np.ndarray, optional
+        Source location.
+    loc_r : np.ndarray, optional
+        Target location.
+
+    Returns
+    -------
+    tfs : np.ndarray
+        Transformation matrices.
+    tf_parames : np.ndarray
+        Transformation parameters.
+    tf_parames_local : np.ndarray
+        Local transformation parameters.
     """
     input = [np.arange(xyr_min[i], xyr_max[i], resolution[i]) for i in range(len(xyr_min))]
     grid = np.meshgrid(*input)
@@ -237,24 +339,31 @@ def construct_tfs(
 
 
 def estimate_tf_2d(
-    pointsr: np.ndarray,
-    pointsl: np.ndarray,
-    pointsl_all: np.ndarray,
-    pointsr_all: np.ndarray
-) -> Tuple[np.ndarray, np.ndarray]:
+    pointsr: npt.NDArray[np.floating],
+    pointsl: npt.NDArray[np.floating],
+    pointsl_all: npt.NDArray[np.floating],
+    pointsr_all: npt.NDArray[np.floating]
+) -> Tuple[npt.NDArray[np.floating], npt.NDArray[np.floating]]:
     """
     Estimate 2D transformation between matched point sets.
-    
-    Args:
-        pointsr: Source points (N x 2 or 3).
-        pointsl: Target points (N x 2 or 3).
-        pointsl_all: All source points (unused, for API compatibility).
-        pointsr_all: All target points (unused, for API compatibility).
-        
-    Returns:
-        Tuple of:
-            - 3x3 homogeneous transformation matrix
-            - Transformation parameters [tx, ty, θ]
+
+    Parameters
+    ----------
+    pointsr : np.ndarray
+        Source points with shape (N, 2) or (N, 3).
+    pointsl : np.ndarray
+        Target points with shape (N, 2) or (N, 3).
+    pointsl_all : np.ndarray
+        All source points (unused, for API compatibility).
+    pointsr_all : np.ndarray
+        All target points (unused, for API compatibility).
+
+    Returns
+    -------
+    T : np.ndarray
+        Homogeneous transformation matrix with shape (3, 3).
+    tf_params : np.ndarray
+        Transformation parameters [tx, ty, θ].
     """
     # 1 reduce by the center of mass
     l_mean = pointsl.mean(axis=0)

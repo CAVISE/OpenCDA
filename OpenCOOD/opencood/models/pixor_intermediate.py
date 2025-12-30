@@ -17,7 +17,7 @@ class BackBoneIntermediate(BackBone):
         num_block: List[int], 
         geom: Dict[str, Any], 
         use_bn: bool = True
-    ) -> None:
+    ):
         super(BackBoneIntermediate, self).__init__(block, num_block, geom, use_bn)
 
         self.fusion_net3 = AttFusion(192)

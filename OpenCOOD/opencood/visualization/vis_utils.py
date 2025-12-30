@@ -1,11 +1,19 @@
+"""
+Visualization utilities for 3D object detection and point cloud data.
+
+This module provides functions for visualizing point clouds, bounding boxes,
+and predictions using Open3D and Matplotlib.
+"""
+
 import time
+from typing import List, Tuple, Optional, Any, Union
 
 import cv2
 import numpy as np
+import numpy.typing as npt
 import open3d as o3d
 import matplotlib
 import matplotlib.pyplot as plt
-
 from matplotlib import cm
 
 from opencood.utils import box_utils
@@ -15,25 +23,27 @@ VIRIDIS = np.array(cm.get_cmap("plasma").colors)
 VID_RANGE = np.linspace(0.0, 1.0, VIRIDIS.shape[0])
 
 
-def bbx2linset(bbx_corner, order="hwl", color=(0, 1, 0)):
+def bbx2linset(
+    bbx_corner: Union[npt.NDArray, Any],
+    order: str = "hwl",
+    color: Tuple[float, float, float] = (0, 1, 0)
+) -> List[o3d.geometry.LineSet]:
     """
     Convert the torch tensor bounding box to o3d lineset for visualization.
 
     Parameters
     ----------
-    bbx_corner : torch.Tensor
-        shape: (n, 8, 3).
-
-    order : str
-        The order of the bounding box if shape is (n, 7)
-
-    color : tuple
-        The bounding box color.
+    bbx_corner : torch.Tensor or np.ndarray
+        Bounding box corners with shape
+    order : str, optional
+        The order of the bounding box
+    color : tuple of float, optional
+        The bounding box color as RGB
 
     Returns
     -------
-    line_set : list
-        The list containing linsets.
+    list of o3d.geometry.LineSet
+        The list containing linesets.
     """
     if not isinstance(bbx_corner, np.ndarray):
         bbx_corner = common_utils.torch_tensor_to_numpy(bbx_corner)
@@ -62,24 +72,26 @@ def bbx2linset(bbx_corner, order="hwl", color=(0, 1, 0)):
     return bbx_linset
 
 
-def bbx2oabb(bbx_corner, order="hwl", color=(0, 0, 1)):
+def bbx2oabb(
+    bbx_corner: Union[npt.NDArray, Any],
+    order: str = "hwl",
+    color: Tuple[float, float, float] = (0, 0, 1)
+) -> List[o3d.geometry.OrientedBoundingBox]:
     """
     Convert the torch tensor bounding box to o3d oabb for visualization.
 
     Parameters
     ----------
-    bbx_corner : torch.Tensor
-        shape: (n, 8, 3).
-
-    order : str
-        The order of the bounding box if shape is (n, 7)
-
-    color : tuple
-        The bounding box color.
+    bbx_corner : torch.Tensor or np.ndarray
+        Bounding box corners with shape (n, 8, 3).
+    order : str, optional
+        The order of the bounding box if shape is (n, 7). Default is "hwl".
+    color : tuple of float, optional
+        The bounding box color as RGB. Default is (0, 0, 1).
 
     Returns
     -------
-    oabbs : list
+    list of o3d.geometry.OrientedBoundingBox
         The list containing all oriented bounding boxes.
     """
     if not isinstance(bbx_corner, np.ndarray):
@@ -104,22 +116,21 @@ def bbx2oabb(bbx_corner, order="hwl", color=(0, 0, 1)):
     return oabbs
 
 
-def bbx2aabb(bbx_center, order):
+def bbx2aabb(bbx_center: Union[npt.NDArray, Any], order: str) -> List[o3d.geometry.AxisAlignedBoundingBox]:
     """
     Convert the torch tensor bounding box to o3d aabb for visualization.
 
     Parameters
     ----------
-    bbx_center : torch.Tensor
-        shape: (n, 7).
-
-    order: str
-        hwl or lwh.
+    bbx_center : torch.Tensor or np.ndarray
+        Bounding box centers with shape (n, 7).
+    order : str
+        Bounding box order, either "hwl" or "lwh".
 
     Returns
     -------
-    aabbs : list
-        The list containing all o3d.aabb
+    list of o3d.geometry.AxisAlignedBoundingBox
+        The list containing all axis-aligned bounding boxes.
     """
     if not isinstance(bbx_center, np.ndarray):
         bbx_center = common_utils.torch_tensor_to_numpy(bbx_center)
@@ -142,17 +153,25 @@ def bbx2aabb(bbx_center, order):
     return aabbs
 
 
-def linset_assign_list(vis, lineset_list1, lineset_list2, update_mode="update"):
+def linset_assign_list(
+    vis: o3d.visualization.Visualizer,
+    lineset_list1: List[o3d.geometry.LineSet],
+    lineset_list2: List[o3d.geometry.LineSet],
+    update_mode: str = "update"
+):
     """
     Associate two lists of lineset.
 
     Parameters
     ----------
-    vis : open3d.Visualizer
-    lineset_list1 : list
-    lineset_list2 : list
-    update_mode : str
-        Add or update the geometry.
+    vis : o3d.visualization.Visualizer
+        Open3D visualizer instance.
+    lineset_list1 : list of o3d.geometry.LineSet
+        First list of linesets.
+    lineset_list2 : list of o3d.geometry.LineSet
+        Second list of linesets.
+    update_mode : str, optional
+        Mode for geometry update, either "add" or "update". Default is "update".
     """
     for j in range(len(lineset_list1)):
         index = j if j < len(lineset_list2) else -1
@@ -164,20 +183,22 @@ def linset_assign_list(vis, lineset_list1, lineset_list2, update_mode="update"):
             vis.update_geometry(lineset_list1[j])
 
 
-def lineset_assign(lineset1, lineset2):
+def lineset_assign(lineset1: o3d.geometry.LineSet, lineset2: o3d.geometry.LineSet) -> o3d.geometry.LineSet:
     """
     Assign the attributes of lineset2 to lineset1.
 
     Parameters
     ----------
-    lineset1 : open3d.LineSet
-    lineset2 : open3d.LineSet
+    lineset1 : o3d.geometry.LineSet
+        Target lineset to be updated.
+    lineset2 : o3d.geometry.LineSet
+        Source lineset with attributes to copy.
 
     Returns
     -------
-    The lineset1 object with 2's attributes.
+    o3d.geometry.LineSet
+        The lineset1 object with lineset2's attributes.
     """
-
     lineset1.points = lineset2.points
     lineset1.lines = lineset2.lines
     lineset1.colors = lineset2.colors
@@ -185,23 +206,22 @@ def lineset_assign(lineset1, lineset2):
     return lineset1
 
 
-def color_encoding(intensity, mode="intensity"):
+def color_encoding(intensity: npt.NDArray[np.floating], mode: str = "intensity") -> npt.NDArray[np.floating]:
     """
     Encode the single-channel intensity to 3 channels rgb color.
 
     Parameters
     ----------
     intensity : np.ndarray
-        Lidar intensity, shape (n,)
-
-    mode : str
-        The color rendering mode. intensity, z-value and constant are
-        supported.
+        Lidar intensity with shape (n,).
+    mode : str, optional
+        The color rendering mode. Options are "intensity", "z-value", or "constant".
+        Default is "intensity".
 
     Returns
     -------
-    color : np.ndarray
-        Encoded Lidar color, shape (n, 3)
+    np.ndarray
+        Encoded Lidar color with shape (n, 3).
     """
     assert mode in ["intensity", "z-value", "constant"]
 
@@ -235,31 +255,32 @@ def color_encoding(intensity, mode="intensity"):
     return int_color
 
 
-def visualize_single_sample_output_gt(pred_tensor, gt_tensor, pcd, show_vis=True, save_path="", mode="constant"):
+def visualize_single_sample_output_gt(
+    pred_tensor: Union[npt.NDArray, Any],
+    gt_tensor: Union[npt.NDArray, Any],
+    pcd: Union[npt.NDArray, Any],
+    show_vis: bool = True,
+    save_path: str = "",
+    mode: str = "constant"
+) -> None:
     """
     Visualize the prediction, groundtruth with point cloud together.
 
     Parameters
     ----------
-    pred_tensor : torch.Tensor
-        (N, 8, 3) prediction.
-
-    gt_tensor : torch.Tensor
-        (N, 8, 3) groundtruth bbx
-
-    pcd : torch.Tensor
-        PointCloud, (N, 4).
-
-    show_vis : bool
-        Whether to show visualization.
-
-    save_path : str
-        Save the visualization results to given path.
-
-    mode : str
-        Color rendering mode.
+    pred_tensor : torch.Tensor or np.ndarray
+        Prediction bounding boxes with shape (N, 8, 3).
+    gt_tensor : torch.Tensor or np.ndarray
+        Groundtruth bounding boxes with shape (N, 8, 3).
+    pcd : torch.Tensor or np.ndarray
+        PointCloud with shape (N, 4).
+    show_vis : bool, optional
+        Whether to show visualization. Default is True.
+    save_path : str, optional
+        Save the visualization results to given path. Default is "".
+    mode : str, optional
+        Color rendering mode. Default is "constant".
     """
-
     def custom_draw_geometry(pcd, pred, gt):
         vis = o3d.visualization.Visualizer()
         vis.create_window()
@@ -301,29 +322,32 @@ def visualize_single_sample_output_gt(pred_tensor, gt_tensor, pcd, show_vis=True
         save_o3d_visualization(visualize_elements, save_path)
 
 
-def visualize_single_sample_output_bev(pred_box, gt_box, pcd, dataset, show_vis=True, save_path=""):
+def visualize_single_sample_output_bev(
+    pred_box: Union[npt.NDArray, Any],
+    gt_box: Union[npt.NDArray, Any],
+    pcd: Union[npt.NDArray, Any],
+    dataset: Any,
+    show_vis: bool = True,
+    save_path: str = ""
+) -> None:
     """
-    Visualize the prediction, groundtruth with point cloud together in
-    a bev format.
+    Visualize the prediction, groundtruth with point cloud together in a bev format.
 
     Parameters
     ----------
-    pred_box : torch.Tensor
-        (N, 4, 2) prediction.
-
-    gt_box : torch.Tensor
-        (N, 4, 2) groundtruth bbx
-
-    pcd : torch.Tensor
-        PointCloud, (N, 4).
-
-    show_vis : bool
-        Whether to show visualization.
-
-    save_path : str
-        Save the visualization results to given path.
+    pred_box : torch.Tensor or np.ndarray
+        Prediction bounding boxes with shape (N, 4, 2).
+    gt_box : torch.Tensor or np.ndarray
+        Groundtruth bounding boxes with shape (N, 4, 2).
+    pcd : torch.Tensor or np.ndarray
+        PointCloud with shape (N, 4).
+    dataset : object
+        Dataset object containing preprocessing parameters.
+    show_vis : bool, optional
+        Whether to show visualization. Default is True.
+    save_path : str, optional
+        Save the visualization results to given path. Default is "".
     """
-
     if not isinstance(pcd, np.ndarray):
         pcd = common_utils.torch_tensor_to_numpy(pcd)
     if pred_box is not None and not isinstance(pred_box, np.ndarray):
@@ -366,34 +390,44 @@ def visualize_single_sample_output_bev(pred_box, gt_box, pcd, dataset, show_vis=
         plt.savefig(save_path)
 
 
-def visualize_single_sample_dataloader(batch_data, o3d_pcd, order, key="origin_lidar", visualize=False, save_path="", oabb=False, mode="constant"):
+def visualize_single_sample_dataloader(
+    batch_data: dict,
+    o3d_pcd: o3d.geometry.PointCloud,
+    order: str,
+    key: str = "origin_lidar",
+    visualize: bool = False,
+    save_path: str = "",
+    oabb: bool = False,
+    mode: str = "constant"
+) -> Tuple[o3d.geometry.PointCloud, List]:
     """
     Visualize a single frame of a single CAV for validation of data pipeline.
 
     Parameters
     ----------
-    o3d_pcd : o3d.PointCloud
-        Open3d PointCloud.
-
-    order : str
-        The bounding box order.
-
-    key : str
-        origin_lidar for late fusion and stacked_lidar for early fusion.
-
-    visualize : bool
-        Whether to visualize the sample.
-
     batch_data : dict
         The dictionary that contains current timestamp's data.
+    o3d_pcd : o3d.geometry.PointCloud
+        Open3D PointCloud object.
+    order : str
+        The bounding box order.
+    key : str, optional
+        Key for lidar data, "origin_lidar" for late fusion and "stacked_lidar" for early fusion.
+        Default is "origin_lidar".
+    visualize : bool, optional
+        Whether to visualize the sample. Default is False.
+    save_path : str, optional
+        If set, save the visualization image to the path. Default is "".
+    oabb : bool, optional
+        If oriented bounding box is used. Default is False.
+    mode : str, optional
+        Color rendering mode. Default is "constant".
 
-    save_path : str
-        If set, save the visualization image to the path.
-
-    oabb : bool
-        If oriented bounding box is used.
+    Returns
+    -------
+    tuple
+        A tuple containing (o3d_pcd, aabbs).
     """
-
     origin_lidar = batch_data[key]
     if not isinstance(origin_lidar, np.ndarray):
         origin_lidar = common_utils.torch_tensor_to_numpy(origin_lidar)
@@ -423,28 +457,34 @@ def visualize_single_sample_dataloader(batch_data, o3d_pcd, order, key="origin_l
     return o3d_pcd, aabbs
 
 
-def visualize_inference_sample_dataloader(pred_box_tensor, gt_box_tensor, origin_lidar, o3d_pcd, mode="constant"):
+def visualize_inference_sample_dataloader(
+    pred_box_tensor: Union[npt.NDArray, Any],
+    gt_box_tensor: Union[npt.NDArray, Any],
+    origin_lidar: Union[npt.NDArray, Any],
+    o3d_pcd: o3d.geometry.PointCloud,
+    mode: str = "constant"
+) -> Tuple[o3d.geometry.PointCloud, List[o3d.geometry.LineSet], List[o3d.geometry.LineSet]]:
     """
     Visualize a frame during inference for video stream.
 
     Parameters
     ----------
-    pred_box_tensor : torch.Tensor
-        (N, 8, 3) prediction.
+    pred_box_tensor : torch.Tensor or np.ndarray
+        Prediction bounding boxes with shape (N, 8, 3).
+    gt_box_tensor : torch.Tensor or np.ndarray
+        Groundtruth bounding boxes with shape (N, 8, 3).
+    origin_lidar : torch.Tensor or np.ndarray
+        PointCloud with shape (N, 4).
+    o3d_pcd : o3d.geometry.PointCloud
+        Open3D PointCloud used to visualize the point cloud.
+    mode : str, optional
+        Lidar point rendering mode. Default is "constant".
 
-    gt_box_tensor : torch.Tensor
-        (N, 8, 3) groundtruth bbx
-
-    origin_lidar : torch.Tensor
-        PointCloud, (N, 4).
-
-    o3d_pcd : open3d.PointCloud
-        Used to visualize the pcd.
-
-    mode : str
-        lidar point rendering mode.
+    Returns
+    -------
+    tuple
+        A tuple containing (o3d_pcd, pred_o3d_box, gt_o3d_box).
     """
-
     if not isinstance(origin_lidar, np.ndarray):
         origin_lidar = common_utils.torch_tensor_to_numpy(origin_lidar)
     # we only visualize the first cav for single sample
@@ -473,20 +513,18 @@ def visualize_inference_sample_dataloader(pred_box_tensor, gt_box_tensor, origin
     return o3d_pcd, pred_o3d_box, gt_o3d_box
 
 
-def visualize_sequence_dataloader(dataloader, order, color_mode="constant"):
+def visualize_sequence_dataloader(dataloader: Any, order: str, color_mode: str = "constant") -> None:
     """
     Visualize the batch data in animation.
 
     Parameters
     ----------
-    dataloader : torch.Dataloader
-        Pytorch dataloader
-
+    dataloader : torch.utils.data.DataLoader
+        Pytorch dataloader.
     order : str
-        Bounding box order(N, 7).
-
-    color_mode : str
-        Color rendering mode.
+        Bounding box order (N, 7).
+    color_mode : str, optional
+        Color rendering mode. Default is "constant".
     """
     vis = o3d.visualization.Visualizer()
     vis.create_window()
@@ -526,7 +564,7 @@ def visualize_sequence_dataloader(dataloader, order, color_mode="constant"):
     vis.destroy_window()
 
 
-def save_o3d_visualization(element, save_path):
+def save_o3d_visualization(element: List, save_path: str) -> None:
     """
     Save the open3d drawing to folder.
 
@@ -534,7 +572,6 @@ def save_o3d_visualization(element, save_path):
     ----------
     element : list
         List of o3d.geometry objects.
-
     save_path : str
         The save path.
     """
@@ -551,7 +588,15 @@ def save_o3d_visualization(element, save_path):
     vis.destroy_window()
 
 
-def visualize_bev(batch_data):
+def visualize_bev(batch_data: dict) -> None:
+    """
+    Visualize bird's eye view representation.
+
+    Parameters
+    ----------
+    batch_data : dict
+        Batch data containing processed lidar and label information.
+    """
     bev_input = batch_data["processed_lidar"]["bev_input"]
     label_map = batch_data["label_dict"]["label_map"]
     if not isinstance(bev_input, np.ndarray):
@@ -570,12 +615,30 @@ def visualize_bev(batch_data):
     plt.show()
 
 
-def draw_box_plt(boxes_dec, ax, color=None, linewidth_scale=1.0):
+def draw_box_plt(
+    boxes_dec: Union[npt.NDArray, Any],
+    ax: plt.Axes,
+    color: Optional[str] = None,
+    linewidth_scale: float = 1.0
+) -> plt.Axes:
     """
-    draw boxes in a given plt ax
-    :param boxes_dec: (N, 5) or (N, 7) in metric
-    :param ax:
-    :return: ax with drawn boxes
+    Draw boxes in a given plt ax.
+
+    Parameters
+    ----------
+    boxes_dec : np.ndarray or torch.Tensor
+        Bounding boxes with shape (N, 5) or (N, 7) in metric coordinates.
+    ax : matplotlib.axes.Axes
+        Matplotlib axes object to draw on.
+    color : str, optional
+        Color for the bounding boxes. Default is None.
+    linewidth_scale : float, optional
+        Scale factor for line width. Default is 1.0.
+
+    Returns
+    -------
+    matplotlib.axes.Axes
+        Axes with drawn boxes.
     """
     if not len(boxes_dec) > 0:
         return ax
@@ -607,17 +670,48 @@ def draw_box_plt(boxes_dec, ax, color=None, linewidth_scale=1.0):
 
 
 def draw_points_boxes_plt(
-    pc_range,
-    points=None,
-    boxes_pred=None,
-    boxes_gt=None,
-    save_path=None,
-    points_c="y.",
-    bbox_gt_c="green",
-    bbox_pred_c="red",
-    return_ax=False,
-    ax=None,
-):
+    pc_range: List[float],
+    points: Optional[npt.NDArray] = None,
+    boxes_pred: Optional[Union[npt.NDArray, Any]] = None,
+    boxes_gt: Optional[Union[npt.NDArray, Any]] = None,
+    save_path: Optional[str] = None,
+    points_c: str = "y.",
+    bbox_gt_c: str = "green",
+    bbox_pred_c: str = "red",
+    return_ax: bool = False,
+    ax: Optional[plt.Axes] = None,
+) -> Optional[plt.Axes]:
+    """
+    Draw points and bounding boxes in bird's eye view using matplotlib.
+
+    Parameters
+    ----------
+    pc_range : list of float
+        Point cloud range [x_min, y_min, z_min, x_max, y_max, z_max].
+    points : np.ndarray, optional
+        Point cloud data. Default is None.
+    boxes_pred : np.ndarray or torch.Tensor, optional
+        Predicted bounding boxes. Default is None.
+    boxes_gt : np.ndarray or torch.Tensor, optional
+        Ground truth bounding boxes. Default is None.
+    save_path : str, optional
+        Path to save the figure. Default is None.
+    points_c : str, optional
+        Color and marker style for points. Default is "y.".
+    bbox_gt_c : str, optional
+        Color for ground truth boxes. Default is "green".
+    bbox_pred_c : str, optional
+        Color for predicted boxes. Default is "red".
+    return_ax : bool, optional
+        Whether to return the axes object. Default is False.
+    ax : matplotlib.axes.Axes, optional
+        Existing axes to draw on. Default is None.
+
+    Returns
+    -------
+    matplotlib.axes.Axes or None
+        Axes object if return_ax is True, otherwise None.
+    """
     if ax is None:
         ax = plt.figure(figsize=(15, 6)).add_subplot(1, 1, 1)
         ax.set_aspect("equal", "box")

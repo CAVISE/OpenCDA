@@ -88,15 +88,6 @@ class BaseBEVBackbone(nn.Module):
     def forward(self, data_dict: Dict[str, Tensor]) -> Dict[str, Tensor]:
         """
         Forward pass for the base BEV backbone.
-        
-        Args:
-            data_dict: Dictionary containing input features with key: spatial_features
-                  
-        Returns:
-            Dictionary containing:
-                - spatial_features_2d: Output features Tensor of shape 
-                - spatial_features_{stride}x: Multi-scale intermediate 
-                  features stored in internal ret_dict
         """
         spatial_features = data_dict["spatial_features"]
 

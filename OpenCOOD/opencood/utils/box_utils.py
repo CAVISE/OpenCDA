@@ -4,13 +4,14 @@ Bounding box related utility functions
 
 import sys
 import numpy as np
+import numpy.typing as npt
 import torch
 import torch.nn.functional as F
 import opencood.utils.common_utils as common_utils
 from opencood.utils.transformation_utils import x1_to_x2
 
 
-def corner_to_center(corner3d, order="lwh"):
+def corner_to_center(corner3d: npt.NDArray[np.floating], order: str = "lwh") -> npt.NDArray[np.floating]:
     """
     Convert 8 corners to x, y, z, dx, dy, dz, yaw.
 
@@ -61,7 +62,7 @@ def corner_to_center(corner3d, order="lwh"):
         sys.exit("Unknown order")
 
 
-def boxes_to_corners2d(boxes3d, order):
+def boxes_to_corners2d(boxes3d: npt.NDArray[np.floating] | torch.Tensor, order: str) -> npt.NDArray[np.floating] | torch.Tensor:
     """
       0 -------- 1
       |          |
@@ -86,7 +87,7 @@ def boxes_to_corners2d(boxes3d, order):
     return corners2d
 
 
-def boxes2d_to_corners2d(boxes2d, order="lwh"):
+def boxes2d_to_corners2d(boxes2d: npt.NDArray[np.floating] | torch.Tensor, order: str = "lwh") -> torch.Tensor:
     """
       0 -------- 1
       |          |
@@ -118,7 +119,7 @@ def boxes2d_to_corners2d(boxes2d, order="lwh"):
     return corners2d
 
 
-def boxes_to_corners_3d(boxes3d, order):
+def boxes_to_corners_3d(boxes3d: npt.NDArray[np.floating] | torch.Tensor, order: str) -> npt.NDArray[np.floating] | torch.Tensor:
     """
         4 -------- 5
        /|         /|
@@ -176,7 +177,7 @@ def boxes_to_corners_3d(boxes3d, order):
     return corners3d.numpy() if is_numpy else corners3d
 
 
-def box3d_to_2d(box3d):
+def box3d_to_2d(box3d: npt.NDArray[np.floating]) -> npt.NDArray[np.floating]:
     """
     Convert 3D bounding box to 2D.
 
@@ -194,7 +195,7 @@ def box3d_to_2d(box3d):
     return box2d
 
 
-def corner2d_to_standup_box(box2d):
+def corner2d_to_standup_box(box2d: npt.NDArray[np.floating]) -> npt.NDArray[np.floating]:
     """
     Find the minmaxx, minmaxy for each 2d box. (N, 4, 2) -> (N, 4)
     x1, y1, x2, y2
@@ -220,7 +221,7 @@ def corner2d_to_standup_box(box2d):
     return standup_boxes2d
 
 
-def corner_to_standup_box_torch(box_corner):
+def corner_to_standup_box_torch(box_corner: torch.Tensor) -> torch.Tensor:
     """
     Find the minmax x and y for each bounding box.
 
@@ -247,7 +248,7 @@ def corner_to_standup_box_torch(box_corner):
     return standup_boxes2d
 
 
-def project_box3d(box3d, transformation_matrix):
+def project_box3d(box3d: npt.NDArray[np.floating] | torch.Tensor, transformation_matrix: npt.NDArray[np.floating] | torch.Tensor) -> npt.NDArray[np.floating] | torch.Tensor:
     """
     Project the 3d bounding box to another coordinate system based on the
     transfomration matrix.
@@ -284,7 +285,7 @@ def project_box3d(box3d, transformation_matrix):
     return projected_box3d if not is_numpy else projected_box3d.numpy()
 
 
-def get_mask_for_boxes_within_range_torch(boxes):
+def get_mask_for_boxes_within_range_torch(boxes: torch.Tensor) -> torch.Tensor:
     """
     Generate mask to remove the bounding boxes
     outside the range.
@@ -312,7 +313,7 @@ def get_mask_for_boxes_within_range_torch(boxes):
     return mask
 
 
-def mask_boxes_outside_range_numpy(boxes, limit_range, order, min_num_corners=8, return_mask=False):
+def mask_boxes_outside_range_numpy(boxes: npt.NDArray[np.floating], limit_range: list, order: str, min_num_corners: int = 8, return_mask: bool = False) -> npt.NDArray[np.floating] | tuple[npt.NDArray[np.floating], npt.NDArray[np.bool_]]:
     """
     Parameters
     ----------
@@ -350,7 +351,7 @@ def mask_boxes_outside_range_numpy(boxes, limit_range, order, min_num_corners=8,
     return boxes[mask]
 
 
-def create_bbx(extent):
+def create_bbx(extent: list) -> npt.NDArray[np.floating]:
     """
     Create bounding box with 8 corners under obstacle vehicle reference.
 
@@ -381,7 +382,7 @@ def create_bbx(extent):
     return bbx
 
 
-def project_world_objects(object_dict, output_dict, lidar_pose, lidar_range, order):
+def project_world_objects(object_dict: dict, output_dict: dict, lidar_pose: list, lidar_range: list, order: str) -> None:
     """
     Project the objects under world coordinates into another coordinate
     based on the provided extrinsic.
@@ -427,7 +428,7 @@ def project_world_objects(object_dict, output_dict, lidar_pose, lidar_range, ord
             output_dict.update({object_id: bbx_lidar})
 
 
-def get_points_in_rotated_box(p, box_corner):
+def get_points_in_rotated_box(p: npt.NDArray[np.floating], box_corner: npt.NDArray[np.floating]) -> npt.NDArray[np.floating]:
     """
     Get points within a rotated bounding box (2D version).
 
@@ -460,7 +461,7 @@ def get_points_in_rotated_box(p, box_corner):
     return p_in_box
 
 
-def get_points_in_rotated_box_3d(p, box_corner):
+def get_points_in_rotated_box_3d(p: npt.NDArray[np.floating], box_corner: npt.NDArray[np.floating]) -> npt.NDArray[np.floating]:
     """
     Get points within a rotated bounding box (3D version).
 
@@ -500,11 +501,11 @@ def get_points_in_rotated_box_3d(p, box_corner):
     return p_in_box
 
 
-def get_projection_length_for_vector_projection(a, b):
+def get_projection_length_for_vector_projection(a: npt.NDArray[np.floating], b: npt.NDArray[np.floating]) -> npt.NDArray[np.floating]:
     """
     Get projection length for the Vector projection of a onto b s.t.
     a_projected = length * b. (2D version) See
-    https://en.wikipedia.org/wiki/Vector_projection#Vector_projection_2
+    [https://en.wikipedia.org/wiki/Vector_projection#Vector_projection_2](https://en.wikipedia.org/wiki/Vector_projection#Vector_projection_2)
     for more details.
 
     Parameters
@@ -525,7 +526,7 @@ def get_projection_length_for_vector_projection(a, b):
     return length
 
 
-def nms_rotated(boxes, scores, threshold):
+def nms_rotated(boxes: torch.Tensor, scores: torch.Tensor, threshold: float) -> npt.NDArray[np.integer]:
     """Performs rorated non-maximum suppression and returns indices of kept
     boxes.
 
@@ -573,7 +574,7 @@ def nms_rotated(boxes, scores, threshold):
     return np.array(pick, dtype=np.int32)
 
 
-def nms_pytorch(boxes: torch.tensor, thresh_iou: float):
+def nms_pytorch(boxes: torch.Tensor, thresh_iou: float) -> list[int]:
     """
     Apply non-maximum suppression to avoid detecting too many
     overlapping bounding boxes for a given object.
@@ -670,7 +671,7 @@ def nms_pytorch(boxes: torch.tensor, thresh_iou: float):
     return keep
 
 
-def remove_large_pred_bbx(bbx_3d):
+def remove_large_pred_bbx(bbx_3d: torch.Tensor) -> torch.Tensor:
     """
     Remove large bounding box.
 
@@ -702,7 +703,7 @@ def remove_large_pred_bbx(bbx_3d):
     return index
 
 
-def remove_bbx_abnormal_z(bbx_3d):
+def remove_bbx_abnormal_z(bbx_3d: torch.Tensor) -> torch.Tensor:
     """
     Remove bounding box that has negative z axis.
 
@@ -723,7 +724,7 @@ def remove_bbx_abnormal_z(bbx_3d):
     return index
 
 
-def project_points_by_matrix_torch(points, transformation_matrix):
+def project_points_by_matrix_torch(points: npt.NDArray[np.floating] | torch.Tensor, transformation_matrix: npt.NDArray[np.floating] | torch.Tensor) -> npt.NDArray[np.floating] | torch.Tensor:
     """
     Project the points to another coordinate system based on the
     transformation matrix.
@@ -751,7 +752,7 @@ def project_points_by_matrix_torch(points, transformation_matrix):
     return projected_points[:, :3] if not is_numpy else projected_points[:, :3].numpy()
 
 
-def box_encode(boxes, anchors, encode_angle_to_vector=False, encode_angle_with_residual=False, smooth_dim=False, norm_velo=False):
+def box_encode(boxes: torch.Tensor, anchors: torch.Tensor, encode_angle_to_vector: bool = False, encode_angle_with_residual: bool = False, smooth_dim: bool = False, norm_velo: bool = False) -> torch.Tensor:
     """box encode for VoxelNet
     Args:
         boxes ([N, 7] Tensor): normal boxes: x, y, z, w, l, h, r.
@@ -811,14 +812,14 @@ def box_encode(boxes, anchors, encode_angle_to_vector=False, encode_angle_with_r
 
 
 def box_decode(
-    box_encodings,
-    anchors,
-    encode_angle_to_vector=False,
-    encode_angle_with_residual=False,
-    bin_loss=False,
-    smooth_dim=False,
-    norm_velo=False,
-):
+    box_encodings: torch.Tensor,
+    anchors: torch.Tensor,
+    encode_angle_to_vector: bool = False,
+    encode_angle_with_residual: bool = False,
+    bin_loss: bool = False,
+    smooth_dim: bool = False,
+    norm_velo: bool = False,
+) -> torch.Tensor:
     """box decode for VoxelNet in lidar
     Args:
         boxes ([N, 7] Tensor): normal boxes: x, y, z, w, l, h, r

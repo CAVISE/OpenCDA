@@ -12,17 +12,28 @@ from opencood.models.sub_modules.auto_encoder import AutoEncoder
 class AttBEVBackbone(nn.Module):
     """
     Attention-based BEV Backbone with multi-scale feature extraction and fusion.
-    Args:
-        model_cfg: Dictionary containing model configuration:
-            - layer_nums: List of integers, number of layers in each block
-            - layer_strides: List of integers, stride for each block
-            - num_filters: List of integers, number of filters for each block
-            - upsample_strides: List of integers, upsampling factors
-            - num_upsample_filter: List of integers, number of filters for upsampling
-            - compression: Optional integer, compression ratio for autoencoder
-        input_channels: Number of input channels
+    
+    Parameters
+    ----------
+    model_cfg : dict
+        Dictionary containing model configuration:
+        
+        - layer_nums : list of int
+            Number of layers in each block.
+        - layer_strides : list of int
+            Stride for each block.
+        - num_filters : list of int
+            Number of filters for each block.
+        - upsample_strides : list of int
+            Upsampling factors.
+        - num_upsample_filter : list of int
+            Number of filters for upsampling.
+        - compression : int, optional
+            Compression ratio for autoencoder.
+    input_channels : int
+        Number of input channels.
     """
-    def __init__(self, model_cfg: Dict[str, any], input_channels: int) -> None:
+    def __init__(self, model_cfg: Dict[str, any], input_channels: int):
         super().__init__()
         self.model_cfg = model_cfg
         self.compress = False
@@ -119,14 +130,6 @@ class AttBEVBackbone(nn.Module):
     def forward(self, data_dict: Dict[str, Tensor]) -> Dict[str, Tensor]:
         """
         Forward pass for the BEV backbone.
-        Args:
-            data_dict: Dictionary containing:
-                - spatial_features: Input features of shape (B*L, C, H, W)
-                - record_len: Tensor of shape (B,) containing number of agents per sample
-        Returns:
-            Dictionary containing:
-                - spatial_features_2d: Output features of shape (B*L, C', H', W')
-                - spatial_features_{stride}x: Multi-scale features at different strides
         """
         spatial_features = data_dict["spatial_features"]
         record_len = data_dict["record_len"]

@@ -1,6 +1,16 @@
+"""
+Visualization utilities for 3D object detection results.
+
+This module provides functions for visualizing predictions and ground truth
+bounding boxes with point clouds in both 3D and bird's eye view perspectives.
+"""
+
+from typing import Optional, List, Union, Any
+import logging
+
 from matplotlib import pyplot as plt
 import numpy as np
-import logging
+import numpy.typing as npt
 
 import opencood.visualization.simple_plot3d.canvas_3d as canvas_3d
 import opencood.visualization.simple_plot3d.canvas_bev as canvas_bev
@@ -9,36 +19,45 @@ logger = logging.getLogger("cavise.OpenCOOD.simple_vis")
 
 
 def visualize(
-    pred_box_tensor, gt_tensor, pcd, pc_range, save_path, method="3d", vis_gt_box=True, vis_pred_box=True, left_hand=False, uncertainty=None
-):
+    pred_box_tensor: Optional[Any],
+    gt_tensor: Any,
+    pcd: Union[List[Any], Any],
+    pc_range: List[float],
+    save_path: str,
+    method: str = "3d",
+    vis_gt_box: bool = True,
+    vis_pred_box: bool = True,
+    left_hand: bool = False,
+    uncertainty: Optional[Any] = None
+) -> None:
     """
     Visualize the prediction, ground truth with point cloud together.
+
     They may be flipped in y axis. Since carla is left hand coordinate, while kitti is right hand.
 
     Parameters
     ----------
-    pred_box_tensor : torch.Tensor
-        (N, 8, 3) prediction.
-
+    pred_box_tensor : torch.Tensor or None
+        Prediction bounding boxes with shape (N, 8, 3).
     gt_tensor : torch.Tensor
-        (N, 8, 3) groundtruth bbx
-
-    pcd : torch.Tensor
-        PointCloud, (N, 4).
-
-    pc_range : list
-        [xmin, ymin, zmin, xmax, ymax, zmax]
-
+        Groundtruth bounding boxes with shape (N, 8, 3).
+    pcd : torch.Tensor or list of torch.Tensor
+        PointCloud with shape (N, 4), or list of point clouds.
+    pc_range : list of float
+        Point cloud range as [xmin, ymin, zmin, xmax, ymax, zmax].
     save_path : str
         Save the visualization results to given path.
-
-    dataset : BaseDataset
-        opencood dataset object.
-
-    method: str, 'bev' or '3d'
-
+    method : str, optional
+        Visualization method, either "bev" or "3d". Default is "3d".
+    vis_gt_box : bool, optional
+        Whether to visualize ground truth boxes. Default is True.
+    vis_pred_box : bool, optional
+        Whether to visualize prediction boxes. Default is True.
+    left_hand : bool, optional
+        Whether to use left-hand coordinate system. Default is False.
+    uncertainty : torch.Tensor or None, optional
+        Uncertainty values for predictions. Default is None.
     """
-
     pc_range = [int(i) for i in pc_range]
     if isinstance(pcd, list):
         pcd_np = [x.cpu().numpy() for x in pcd]

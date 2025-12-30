@@ -7,6 +7,8 @@ import torch
 
 from opencood.utils import box_utils
 from typing import Dict, List, Optional, Tuple, Any
+
+
 class BasePostprocessor(object):
     """
     Template for Anchor generator.
@@ -25,7 +27,7 @@ class BasePostprocessor(object):
         coordinates (1, 7)
     """
 
-    def __init__(self, anchor_params: Dict[str, Any], train: bool = True) -> None:
+    def __init__(self, anchor_params: Dict[str, Any], train: bool = True):
         self.params = anchor_params
         self.bbx_dict = {}
         self.train = train

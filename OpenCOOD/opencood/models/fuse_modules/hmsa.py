@@ -6,18 +6,30 @@ from einops import rearrange
 from typing import Tuple
 from torch import nn, Tensor
 
+
 class HGTCavAttention(nn.Module):
     """
+    Hierarchical Graph Transformer CAV Attention module.
+    
     This module implements a hierarchical multi-head self-attention mechanism that handles
     different types of agents and their relationships.
-    Args:
-        dim: Input feature dimension
-        heads: Number of attention heads
-        num_types: Number of different agent types
-        num_relations: Number of possible relation types (num_types * num_types)
-        dim_head: Dimension of each attention head
-        dropout: Dropout probability
+    
+    Parameters
+    ----------
+    dim : int
+        Input feature dimension.
+    heads : int
+        Number of attention heads.
+    num_types : int, optional
+        Number of different agent types. Default is 2.
+    num_relations : int, optional
+        Number of possible relation types (num_types * num_types). Default is 4.
+    dim_head : int, optional
+        Dimension of each attention head. Default is 64.
+    dropout : float, optional
+        Dropout probability. Default is 0.1.
     """
+    
     def __init__(
         self,
         dim: int,
@@ -26,7 +38,7 @@ class HGTCavAttention(nn.Module):
         num_relations: int = 4,
         dim_head: int = 64,
         dropout: float = 0.1
-    ) -> None:
+    ):
         super().__init__()
         inner_dim = heads * dim_head
 
@@ -60,16 +72,28 @@ class HGTCavAttention(nn.Module):
     ) -> Tuple[Tensor, Tensor, Tensor]:
         """
         Transform input features into query, key, and value tensors.
-        Args:
-            x: Input tensor of shape (B, H, W, L, C)
-                B: batch size
-                H: height
-                W: width
-                L: sequence length (number of agents)
-                C: feature dimension
-            types: Agent type indices of shape (B, L)
-        Returns:
-            Tuple of (q, k, v) tensors, each of shape (B, H, W, L, inner_dim)
+        
+        Parameters
+        ----------
+        x : torch.Tensor
+            Input tensor of shape (B, H, W, L, C) where:
+            
+            - B : Batch size
+            - H : Height
+            - W : Width
+            - L : Sequence length (number of agents)
+            - C : Feature dimension
+        types : torch.Tensor
+            Agent type indices of shape (B, L).
+        
+        Returns
+        -------
+        q : torch.Tensor
+            Query tensor of shape (B, H, W, L, inner_dim).
+        k : torch.Tensor
+            Key tensor of shape (B, H, W, L, inner_dim).
+        v : torch.Tensor
+            Value tensor of shape (B, H, W, L, inner_dim).
         """
         # x: (B,H,W,L,C)
         # types: (B,L)
@@ -111,11 +135,20 @@ class HGTCavAttention(nn.Module):
     ) -> Tuple[Tensor, Tensor]:
         """
         Compute relation-specific attention and message weights.
-        Args:
-            x: Input tensor of shape (B, H, W, L, C)
-            types: Agent type indices of shape (B, L)
-        Returns:
-            Tuple of (w_att, w_msg) tensors, each of shape (B, M, L, L, C_head, C_head)
+        
+        Parameters
+        ----------
+        x : torch.Tensor
+            Input tensor of shape (B, H, W, L, C).
+        types : torch.Tensor
+            Agent type indices of shape (B, L).
+        
+        Returns
+        -------
+        w_att : torch.Tensor
+            Attention weights of shape (B, M, L, L, C_head, C_head).
+        w_msg : torch.Tensor
+            Message weights of shape (B, M, L, L, C_head, C_head).
         """
         w_att_batch = []
         w_msg_batch = []
@@ -150,11 +183,18 @@ class HGTCavAttention(nn.Module):
     ) -> Tensor:
         """
         Project the attention output back to the original dimension.
-        Args:
-            x: Input tensor of shape (B, H, W, L, inner_dim)
-            types: Agent type indices of shape (B, L)
-        Returns:
-            Output tensor of shape (B, H, W, L, C)
+        
+        Parameters
+        ----------
+        x : torch.Tensor
+            Input tensor of shape (B, H, W, L, inner_dim).
+        types : torch.Tensor
+            Agent type indices of shape (B, L).
+        
+        Returns
+        -------
+        torch.Tensor
+            Output tensor of shape (B, H, W, L, C).
         """
         out_batch = []
         for b in range(x.shape[0]):
@@ -173,13 +213,20 @@ class HGTCavAttention(nn.Module):
     ) -> Tensor:
         """
         Forward pass of the HGTCavAttention module.
-        Args:
-            x: Input features of shape (B, L, H, W, C)
-            mask: Attention mask of shape (B, H, W, L, 1)
-            prior_encoding: Prior encoding tensor of shape (B, L, H, W, 3)
-                           containing [velocities, dts, types] information
-        Returns:
-            Output tensor of shape (B, L, H, W, C)
+        
+        Parameters
+        ----------
+        x : torch.Tensor
+            Input tensor of shape (B, L, H, W, C).
+        mask : torch.Tensor
+            Attention mask of shape (B, H, W, L, 1).
+        prior_encoding : torch.Tensor
+            Prior encoding information of shape (B, L, H, W, 3).
+        
+        Returns
+        -------
+        torch.Tensor
+            Output tensor of shape (B, L, H, W, C).
         """
         # x: (B, L, H, W, C) -> (B, H, W, L, C)
         # mask: (B, H, W, L, 1)

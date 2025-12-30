@@ -21,7 +21,7 @@ class V2VNetFusion(nn.Module):
     spatial transformation and GRU-based feature updating for fusing features
     from multiple agents.
     """
-    def __init__(self, args: Dict[str, Union[int, float, str, Dict[str, int]]]) -> None:
+    def __init__(self, args: Dict[str, Union[int, float, str, Dict[str, int]]]):
         super(V2VNetFusion, self).__init__()
 
         in_channels = args["in_channels"]

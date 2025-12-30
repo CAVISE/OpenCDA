@@ -13,25 +13,36 @@ class FpvrcnnLoss(nn.Module):
     This loss combines the first stage detection loss (Ciassd) with the second
     stage refinement loss for 3D object detection.
     
-    Attributes:
-        ciassd_loss: First stage detection loss (CiassdLoss)
-        cls: Dictionary containing classification loss configuration
-        reg: Dictionary containing regression loss configuration
-        iou: Dictionary containing IoU loss configuration
-        loss_dict: Dictionary to store all loss components
+    Parameters
+    ----------
+    args : dict
+        Configuration dictionary containing:
+        - stage1 : dict
+            Configuration for first stage (Ciassd) loss
+        - stage2 : dict
+            Configuration for second stage loss with keys:
+            - cls : dict
+                Classification loss config
+            - reg : dict
+                Regression loss config
+            - iou : dict
+                IoU loss config
+    
+    Attributes
+    ----------
+    ciassd_loss : CiassdLoss
+        First stage detection loss module.
+    cls : dict
+        Dictionary containing classification loss configuration.
+    reg : dict
+        Dictionary containing regression loss configuration.
+    iou : dict
+        Dictionary containing IoU loss configuration.
+    loss_dict : dict
+        Dictionary to store all loss components.
     """
-    def __init__(self, args: Dict[str, Any]) -> None:
-        """
-        Initialize FpvrcnnLoss.
-        
-        Args:
-            args: Configuration dictionary containing:
-                - stage1: Configuration for first stage (Ciassd) loss
-                - stage2: Configuration for second stage loss with keys:
-                    - cls: Classification loss config
-                    - reg: Regression loss config
-                    - iou: IoU loss config
-        """
+
+    def __init__(self, args):
         super(FpvrcnnLoss, self).__init__()
         self.ciassd_loss = CiassdLoss(args["stage1"])
         self.cls: Dict[str, float] = args["stage2"]["cls"]
@@ -43,19 +54,31 @@ class FpvrcnnLoss(nn.Module):
         """
         Forward pass for FPVRCNN loss computation.
         
-        Args:
-            output_dict: Dictionary containing model outputs with keys:
-                - preds_dict_stage1: First stage predictions
-                - fvprcnn_out: Second stage predictions with keys:
-                    - rcnn_cls: Classification logits
-                    - rcnn_iou: IoU predictions
-                    - rcnn_reg: Regression predictions
-                - rcnn_label_dict: Dictionary with target values for second stage
-                - record_len: (Optional) Tensor with sequence lengths for batch processing
-            label_dict: Dictionary containing ground truth labels
-                
-        Returns:
-            torch.Tensor: Total loss value
+        Parameters
+        ----------
+        output_dict : dict
+            Dictionary containing model outputs with keys:
+            - preds_dict_stage1 : dict
+                First stage predictions
+            - fvprcnn_out : dict
+                Second stage predictions with keys:
+                - rcnn_cls : torch.Tensor
+                    Classification logits
+                - rcnn_iou : torch.Tensor
+                    IoU predictions
+                - rcnn_reg : torch.Tensor
+                    Regression predictions
+            - rcnn_label_dict : dict
+                Dictionary with target values for second stage
+            - record_len : torch.Tensor, optional
+                Tensor with sequence lengths for batch processing
+        label_dict : dict
+            Dictionary containing ground truth labels.
+        
+        Returns
+        -------
+        torch.Tensor
+            Total loss value (scalar tensor).
         """
         ciassd_loss = self.ciassd_loss(output_dict, label_dict)
 
@@ -129,13 +152,20 @@ class FpvrcnnLoss(nn.Module):
                 pbar: Optional[Any] = None) -> None:
         """
         Log training metrics and losses to console and TensorBoard.
-
-        Args:
-            epoch: Current epoch number
-            batch_id: Current batch index within the epoch
-            batch_len: Total number of batches in the dataset
-            writer: TensorBoard SummaryWriter for logging
-            pbar: Optional progress bar for display
+        
+        Parameters
+        ----------
+        epoch : int
+            Current epoch number.
+        batch_id : int
+            Current batch index within the epoch.
+        batch_len : int
+            Total number of batches in the dataset.
+        writer : SummaryWriter
+            TensorBoard SummaryWriter for logging.
+        pbar : Any, optional
+            Optional progress bar for display. If None, prints to console.
+            Default is None.
         """
         ciassd_loss_dict = self.ciassd_loss.loss_dict
         ciassd_total_loss = ciassd_loss_dict["total_loss"]
@@ -187,14 +217,21 @@ def weighted_sigmoid_binary_cross_entropy(
     """
     Compute weighted binary cross entropy with logits.
     
-    Args:
-        preds: Predicted logits with shape [batch_size, num_anchors, num_classes]
-        tgts: Target values with same shape as preds
-        weights: Optional weight tensor for each prediction
-        class_indices: Optional tensor of class indices to apply weights to
-        
-    Returns:
-        torch.Tensor: Computed binary cross entropy loss
+    Parameters
+    ----------
+    preds : torch.Tensor
+        Predicted logits with shape (batch_size, num_anchors, num_classes).
+    tgts : torch.Tensor
+        Target values with same shape as preds.
+    weights : torch.Tensor, optional
+        Optional weight tensor for each prediction. Default is None.
+    class_indices : torch.LongTensor, optional
+        Optional tensor of class indices to apply weights to. Default is None.
+    
+    Returns
+    -------
+    torch.Tensor
+        Computed binary cross entropy loss.
     """
     if weights is not None:
         weights = weights.unsqueeze(-1)
@@ -221,20 +258,29 @@ def indices_to_dense_vector(
     This is a PyTorch implementation that creates a dense vector where only the specified
     indices have the value `indices_value` and all others have `default_value`.
     
-    Args:
-        indices: 1D tensor containing integer indices to set to `indices_value`
-        size: Size of the output tensor
-        indices_value: Value to set at the specified indices
-        default_value: Value to set for all other indices
-        dtype: Data type of the output tensor
-        
-    Returns:
-        Tensor: 1D tensor of shape [size] with values set at specified indices
-        
-    Example:
-        >>> indices = torch.tensor([1, 3, 5])
-        >>> indices_to_dense_vector(indices, size=6)
-        tensor([0., 1., 0., 1., 0., 1.])
+    Parameters
+    ----------
+    indices : torch.LongTensor
+        1D tensor containing integer indices to set to `indices_value`.
+    size : int
+        Size of the output tensor.
+    indices_value : float, optional
+        Value to set at the specified indices. Default is 1.0.
+    default_value : float, optional
+        Value to set for all other indices. Default is 0.
+    dtype : torch.dtype, optional
+        Data type of the output tensor. Default is torch.float32.
+    
+    Returns
+    -------
+    torch.Tensor
+        1D tensor of shape (size,) with values set at specified indices.
+    
+    Examples
+    --------
+    >>> indices = torch.tensor([1, 3, 5])
+    >>> indices_to_dense_vector(indices, size=6)
+    tensor([0., 1., 0., 1., 0., 1.])
     """
     dense = torch.zeros(size, dtype=dtype, device=indices.device).fill_(default_value)
     dense[indices] = indices_value

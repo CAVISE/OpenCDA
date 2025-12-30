@@ -1,3 +1,12 @@
+"""
+SECOND with intermediate feature extraction for 3D object detection.
+
+This module implements the SECOND (Sparsely Embedded Convolutional Detection)
+architecture with an attention-based BEV backbone for cooperative perception.
+"""
+
+from typing import Any, Dict
+
 import torch
 import torch.nn as nn
 
@@ -5,30 +14,31 @@ from opencood.models.sub_modules.mean_vfe import MeanVFE
 from opencood.models.sub_modules.sparse_backbone_3d import VoxelBackBone8x
 from opencood.models.sub_modules.height_compression import HeightCompression
 from opencood.models.sub_modules.att_bev_backbone import AttBEVBackbone
-from typing import Dict, Any
-import torch
+
 
 class SecondIntermediate(nn.Module):
     """
     SECOND with intermediate feature extraction for 3D object detection.
+
     This model implements the SECOND (Sparsely Embedded Convolutional Detection)
     architecture with an attention-based BEV backbone for feature extraction,
     followed by detection heads for classification and regression.
+
+    Parameters
+    ----------
+    args : dict[str, Any]
+        Configuration dictionary containing:
+            - batch_size: Number of samples per batch
+            - mean_vfe: Configuration for MeanVoxelFeatureExtractor
+            - backbone_3d: Configuration for 3D sparse backbone
+            - grid_size: Grid size for 3D voxelization [X, Y, Z]
+            - height_compression: Configuration for height compression
+            - base_bev_backbone: Configuration for attention-based 2D BEV backbone
+            - anchor_number: Number of anchor boxes per position for classification
+            - anchor_num: Number of anchor boxes for regression head
     """
-    def __init__(self, args: Dict[str, Any]) -> None:
-        """
-        Initialize the SecondIntermediate model.
-        Args:
-            args: Configuration dictionary containing:
-                - batch_size: Number of samples per batch
-                - mean_vfe: Configuration for MeanVoxelFeatureExtractor
-                - backbone_3d: Configuration for 3D sparse backbone
-                - grid_size: Grid size for 3D voxelization [X, Y, Z]
-                - height_compression: Configuration for height compression
-                - base_bev_backbone: Configuration for 2D BEV backbone
-                - anchor_number: Number of anchor boxes per position
-                - anchor_num: Number of anchor boxes (used for regression head)
-        """
+
+    def __init__(self, args):
         super(SecondIntermediate, self).__init__()
 
         self.batch_size = args["batch_size"]
@@ -38,7 +48,7 @@ class SecondIntermediate(nn.Module):
         self.backbone_3d = VoxelBackBone8x(args["backbone_3d"], 4, args["grid_size"])
         # height compression
         self.height_compression = HeightCompression(args["height_compression"])
-        # base ben backbone
+        # attention-based bev backbone
         self.backbone_2d = AttBEVBackbone(args["base_bev_backbone"], 256)
 
         # head

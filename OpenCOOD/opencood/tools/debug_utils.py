@@ -15,10 +15,13 @@ from opencood.visualization import vis_utils
 def test_parser():
     """
     Parse command line arguments for testing.
-    Returns:
-        argparse.Namespace: Parsed command line arguments with the following attributes:
-            - model_dir (str): Directory containing the model checkpoint
-            - fusion_method (str): Fusion method to use, one of ['late', 'early', 'intermediate']
+
+    Returns
+    -------
+    argparse.Namespace
+        Parsed command line arguments with the following attributes:
+            - model_dir (str): Directory containing the model checkpoint.
+            - fusion_method (str): Fusion method to use, one of ['late', 'early', 'intermediate'].
     """
     parser = argparse.ArgumentParser(description="synthetic data generation")
     parser.add_argument("--model_dir", type=str, required=True, help="Continued training path")
@@ -27,20 +30,25 @@ def test_parser():
     return opt
 
 
-def test_bev_post_processing():
+def test_bev_post_processing() -> None:
     """
     Test function for BEV (Bird's Eye View) post-processing visualization.
-    Loads a trained model and dataset, then visualizes the BEV predictions.
-    
     The function will:
     1. Parse command line arguments
     2. Load the configuration from YAML
     3. Build the dataset
     4. Create and load the model
     5. Process one batch of data and visualize the results
-    
-    Raises:
-        AssertionError: If the fusion method is not one of ['late', 'early', 'intermediate']
+
+    Raises
+    ------
+    AssertionError
+        If the fusion method is not one of ['late', 'early', 'intermediate'].
+
+    Notes
+    -----
+    This function loads a trained model and dataset, then visualizes the BEV predictions
+    for debugging and validation purposes.
     """
     opt = test_parser()
     assert opt.fusion_method in ["late", "early", "intermediate"]

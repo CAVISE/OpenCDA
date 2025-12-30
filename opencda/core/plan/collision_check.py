@@ -90,25 +90,29 @@ class CollisionChecker:
 
     def adjacent_lane_collision_check(self, ego_loc, target_wpt, overtake, carla_map, world):
         """
-        Generate a straight line in the adjacent lane for collision detection
-        during overtake/lane change.
-
-        Args:
-            -ego_loc (carla.Location): Ego Location.
-            -target_wpt (carla.Waypoint): the check point in the adjacent
-             at a far distance.
-            -overtake (bool): indicate whether this is an overtake or normal
-             lane change behavior.
-            -world (carla.World): CARLA Simulation world,
-             used to draw debug lines.
-
-        Returns:
-            -rx (list): the x coordinates of the collision check line in
-             the adjacent lane
-            -ry (list): the y coordinates of the collision check line in
-             the adjacent lane
-            -ryaw (list): the yaw angle of the the collision check line in
-             the adjacent lane
+        Generate a straight line in the adjacent lane for collision detection during overtake/lane change.
+        
+        Parameters
+        ----------
+        ego_loc : carla.Location
+            Ego vehicle location.
+        target_wpt : carla.Waypoint
+            The check point in the adjacent lane at a far distance.
+        overtake : bool
+            Indicate whether this is an overtake or normal lane change behavior.
+        carla_map : carla.Map
+            CARLA map object.
+        world : carla.World
+            CARLA Simulation world, used to draw debug lines.
+        
+        Returns
+        -------
+        rx : list of float
+            The x coordinates of the collision check line in the adjacent lane.
+        ry : list of float
+            The y coordinates of the collision check line in the adjacent lane.
+        ryaw : list of float
+            The yaw angles of the collision check line in the adjacent lane.
         """
         # we first need to consider the vehicle on the other lane in front
         if overtake:
@@ -159,21 +163,30 @@ class CollisionChecker:
 
     def collision_circle_check(self, path_x, path_y, path_yaw, obstacle_vehicle, speed, carla_map, adjacent_check=False):
         """
-        Use circled collision check to see whether potential hazard on
-        the forwarding path.
-
-        Args:
-            -adjacent_check (boolean): Indicator of whether do adjacent check.
-             Note: always give full path for adjacent lane check.
-            -speed (float): ego vehicle speed in m/s.
-            -path_yaw (float): a list of yaw angles
-            -path_x (list): a list of x coordinates
-            -path_y (list): a list of y coordinates
-            -obstacle_vehicle (carla.vehicle): potention hazard vehicle
-             on the way
-        Returns:
-            -collision_free (boolean): Flag indicate whether the
-             current range is collision free.
+        Use circled collision check to see whether potential hazard on the forwarding path.
+        
+        Parameters
+        ----------
+        path_x : list of float
+            A list of x coordinates.
+        path_y : list of float
+            A list of y coordinates.
+        path_yaw : list of float
+            A list of yaw angles.
+        obstacle_vehicle : carla.Vehicle
+            Potential hazard vehicle on the way.
+        speed : float
+            Ego vehicle speed in m/s.
+        carla_map : carla.Map
+            CARLA map object.
+        adjacent_check : bool, optional
+            Indicator of whether to do adjacent check. 
+            Note: always give full path for adjacent lane check. Default is False.
+        
+        Returns
+        -------
+        collision_free : bool
+            Flag indicating whether the current range is collision free.
         """
         collision_free = True
         # detect x second ahead. in case the speed is very slow,

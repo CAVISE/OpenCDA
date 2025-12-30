@@ -3,14 +3,13 @@ import torch.nn as nn
 import torch.nn.functional as F
 from typing import Optional, Dict, Any
 
+
 class PixorLoss(nn.Module):
     """
     PIXOR loss function for 3D object detection.
-    
-    This loss combines classification and regression losses for the PIXOR model,
-    which predicts objects in a bird's eye view representation.
     """
-    def __init__(self, args: Dict[str, float]) -> None:
+
+    def __init__(self, args):
         super(PixorLoss, self).__init__()
         self.alpha = args["alpha"]
         self.beta = args["beta"]
@@ -20,26 +19,37 @@ class PixorLoss(nn.Module):
         """
         Get the default data type for the loss computation.
         
-        Returns:
-            torch.dtype: The default data type (float16)
+        Returns
+        -------
+        torch.dtype
+            The default data type (float16).
         """
         return torch.float16
 
     def forward(self, output_dict: Dict[str, torch.Tensor], 
                target_dict: Dict[str, torch.Tensor]) -> torch.Tensor:
         """
-        Compute loss for pixor network.
+        Compute loss for PIXOR network.
         
-        Args:
-            output_dict: Dictionary containing model outputs:
-                - cls: Classification predictions [B, 1, H, W]
-                - reg: Regression predictions [B, 6, H, W]
-            target_dict: Dictionary containing ground truth:
-                - label_map: Target tensor [B, 7, H, W] where channels are:
-                    - channel 0: classification target
-                    - channels 1-6: regression targets
-        Returns:
-            torch.Tensor: Total loss value
+        Parameters
+        ----------
+        output_dict : dict
+            Dictionary containing model outputs:
+            - cls : torch.Tensor
+                Classification predictions with shape (B, 1, H, W)
+            - reg : torch.Tensor
+                Regression predictions with shape (B, 6, H, W)
+        target_dict : dict
+            Dictionary containing ground truth:
+            - label_map : torch.Tensor
+                Target tensor with shape (B, 7, H, W) where channels are:
+                - channel 0: classification target
+                - channels 1-6: regression targets
+        
+        Returns
+        -------
+        torch.Tensor
+            Total loss value (scalar tensor).
         """
         targets = target_dict["label_map"]
         cls_preds, loc_preds = output_dict["cls"], output_dict["reg"]
@@ -80,20 +90,23 @@ class PixorLoss(nn.Module):
 
         return total_loss
 
-    def logging(self, epoch: int, batch_id: int, batch_len: int, writer, pbar: Optional[Any] = None) -> None:
+    def logging(self, epoch: int, batch_id: int, batch_len: int, writer: Any, pbar: Optional[Any] = None) -> None:
         """
-        Print out  the loss function for current iteration.
-
+        Print out the loss function for current iteration.
+        
         Parameters
         ----------
         epoch : int
             Current epoch for training.
         batch_id : int
-            The current batch.
+            The current batch index.
         batch_len : int
-            Total batch length in one iteration of training,
+            Total batch length in one iteration of training.
         writer : SummaryWriter
-            Used to visualize on tensorboard
+            TensorBoard SummaryWriter instance for visualization.
+        pbar : tqdm, optional
+            Progress bar instance. If None, prints to console instead.
+            Default is None.
         """
         total_loss = self.loss_dict["total_loss"]
         reg_loss = self.loss_dict["reg_loss"]
@@ -115,6 +128,12 @@ class PixorLoss(nn.Module):
 
 
 def test():
+    """
+    Test function for PixorLoss.
+    
+    Creates a simple test case with random predictions and zero labels
+    to verify the loss computation works correctly.
+    """
     torch.manual_seed(0)
     loss = PixorLoss(None)
     pred = torch.sigmoid(torch.randn(1, 7, 2, 3))

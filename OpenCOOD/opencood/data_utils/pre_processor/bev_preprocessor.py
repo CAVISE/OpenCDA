@@ -8,13 +8,14 @@ from opencood.data_utils.pre_processor.base_preprocessor import BasePreprocessor
 from typing import Dict, List, Union, Any
 
 class BevPreprocessor(BasePreprocessor):
-    def __init__(self, preprocess_params: Dict[str, Any], train: bool) -> None:
+    def __init__(self, preprocess_params: Dict[str, Any], train: bool):
         """
-        Initialize the BEV preprocessor.
-        Args:
-            preprocess_params: Configuration dictionary for preprocessing.
-            train: Boolean indicating training or evaluation mode.
-        """
+    Bird's Eye View (BEV) preprocessor for LiDAR point clouds.
+    
+    This preprocessor converts 3D LiDAR point clouds into 2D BEV representations
+    by projecting points onto a bird's eye view grid with occupancy and intensity
+    information.
+    """
         super(BevPreprocessor, self).__init__(preprocess_params, train)
         self.lidar_range = self.params["cav_lidar_range"]
         self.geometry_param = preprocess_params["geometry_param"]

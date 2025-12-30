@@ -73,7 +73,7 @@ Development: Prototype and validate CDA applications
 Benchmarking: Compare different planning and control strategies
 
    Contributing
-Contributions are welcome! Please see our Contributing Guidelines.
+Contributions are welcome! Please see the Contributing Guidelines.
 For the original project's contribution history, see the original repository.
    Citation
 If you use OpenCDA in your research, please cite the original paper:

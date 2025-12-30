@@ -12,28 +12,33 @@ import bisect
 
 class Spline:
     """
-    Cubic Spline class for calculte curvature
-     (Author: Atsushi Sakai(@Atsushi_twi)).
-
+    Cubic Spline class for calculating curvature.
+    
+    Author: Atsushi Sakai(@Atsushi_twi)
+    
     Parameters
-    -x : float
-        The x coordinate.
-    -y : float
-        The y coordinate.
-
+    ----------
+    x : array_like
+        The x coordinates.
+    y : array_like
+        The y coordinates.
+    
     Attributes
-    -b : float
+    ----------
+    a : list of float
+        The spline coefficient a.
+    b : list of float
         The spline coefficient b.
-    -c : float
+    c : list of float
         The spline coefficient c.
-    -d : float
+    d : list of float
         The spline coefficient d.
-    -w : float
-        The spline coefficient w.
-    -nx : float
+    x : array_like
+        The x coordinates.
+    y : array_like
+        The y coordinates.
+    nx : int
         The dimension of x.
-    -h : float
-        The n-th discrete difference along the x-axis.
     """
 
     def __init__(self, x, y):
@@ -62,14 +67,17 @@ class Spline:
 
     def calc(self, t):
         """
-        Calc position
-
-        Args:
-            - t (float): if t is outside of the input x, return None
-        Returns:
-            - result (float): The calcualtion result of position.
-              If t is outside the range of x, return None.
-
+        Calculate position at parameter t.
+        
+        Parameters
+        ----------
+        t : float
+            Parameter value. If t is outside of the input x range, returns None.
+        
+        Returns
+        -------
+        float or None
+            The calculated position. Returns None if t is outside the range of x.
         """
 
         if t < self.x[0]:
@@ -85,7 +93,17 @@ class Spline:
 
     def calcd(self, t):
         """
-        Calc first derivative. If t is outside of the input x, return None.
+        Calculate first derivative at parameter t.
+        
+        Parameters
+        ----------
+        t : float
+            Parameter value. If t is outside of the input x range, returns None.
+        
+        Returns
+        -------
+        float or None
+            The first derivative. Returns None if t is outside the range of x.
         """
 
         if t < self.x[0]:
@@ -100,7 +118,17 @@ class Spline:
 
     def calcdd(self, t):
         """
-        Calc second derivative, If t is outside of the input x, return None.
+        Calculate second derivative at parameter t.
+        
+        Parameters
+        ----------
+        t : float
+            Parameter value. If t is outside of the input x range, returns None.
+        
+        Returns
+        -------
+        float or None
+            The second derivative. Returns None if t is outside the range of x.
         """
 
         if t < self.x[0]:
@@ -116,12 +144,32 @@ class Spline:
     def __search_index(self, x):
         """
         Search data segment index.
+        
+        Parameters
+        ----------
+        x : float
+            Search value.
+        
+        Returns
+        -------
+        int
+            Segment index.
         """
         return bisect.bisect(self.x, x) - 1
 
     def __calc_A(self, h):
         """
-        Calculate matrix A for spline coefficient a.
+        Calculate matrix A for spline coefficient calculation.
+        
+        Parameters
+        ----------
+        h : numpy.ndarray
+            Discrete differences along the x-axis.
+        
+        Returns
+        -------
+        numpy.ndarray
+            Matrix A for solving spline coefficients.
         """
         A = np.zeros((self.nx, self.nx))
         A[0, 0] = 1.0
@@ -139,7 +187,17 @@ class Spline:
 
     def __calc_B(self, h):
         """
-        Calculate matrix B for spline coefficient b.
+        Calculate matrix B for spline coefficient calculation.
+        
+        Parameters
+        ----------
+        h : numpy.ndarray
+            Discrete differences along the x-axis.
+        
+        Returns
+        -------
+        numpy.ndarray
+            Matrix B for solving spline coefficients.
         """
         B = np.zeros(self.nx)
         for i in range(self.nx - 2):
@@ -149,29 +207,27 @@ class Spline:
 
 class Spline2D:
     """
-    2D Cubic Spline class for calculte curvature
-     (Author: Atsushi Sakai(@Atsushi_twi)).
-
+    2D Cubic Spline class for calculating curvature.
+    
+    Author: Atsushi Sakai(@Atsushi_twi)
+    
     Parameters
-    -x : float
-        The x coordinate.
-    -y : float
-        The y coordinate.
-
+    ----------
+    x : array_like
+        The x coordinates.
+    y : array_like
+        The y coordinates.
+    
     Attributes
-    -b : float
-        The spline coefficient b.
-    -c : float
-        The spline coefficient c.
-    -d : float
-        The spline coefficient d.
-    -w : float
-        The spline coefficient w.
-    -nx : float
-        The dimension of x.
-    -h : float
-        The n-th discrete difference along the x-axis.
-
+    ----------
+    s : list of float
+        Cumulative arc length along the curve.
+    sx : Spline
+        Spline for x coordinate as a function of s.
+    sy : Spline
+        Spline for y coordinate as a function of s.
+    ds : numpy.ndarray
+        Discrete arc length differences.
     """
 
     def __init__(self, x, y):
@@ -180,6 +236,21 @@ class Spline2D:
         self.sy = Spline(self.s, y)
 
     def __calc_s(self, x, y):
+        """
+        Calculate cumulative arc length.
+        
+        Parameters
+        ----------
+        x : array_like
+            The x coordinates.
+        y : array_like
+            The y coordinates.
+        
+        Returns
+        -------
+        list of float
+            Cumulative arc length values.
+        """
         dx = np.diff(x)
         dy = np.diff(y)
         self.ds = np.hypot(dx, dy)
@@ -189,7 +260,19 @@ class Spline2D:
 
     def calc_position(self, s):
         """
-        Calculate position.
+        Calculate position at arc length s.
+        
+        Parameters
+        ----------
+        s : float
+            Arc length parameter.
+        
+        Returns
+        -------
+        x : float
+            x coordinate.
+        y : float
+            y coordinate.
         """
         x = self.sx.calc(s)
         y = self.sy.calc(s)
@@ -198,7 +281,17 @@ class Spline2D:
 
     def calc_curvature(self, s):
         """
-        Calculate curvature.
+        Calculate curvature at arc length s.
+        
+        Parameters
+        ----------
+        s : float
+            Arc length parameter.
+        
+        Returns
+        -------
+        float
+            Curvature value.
         """
         dx = self.sx.calcd(s)
         ddx = self.sx.calcdd(s)
@@ -209,7 +302,17 @@ class Spline2D:
 
     def calc_yaw(self, s):
         """
-        Calculate yaw.
+        Calculate yaw angle at arc length s.
+        
+        Parameters
+        ----------
+        s : float
+            Arc length parameter.
+        
+        Returns
+        -------
+        float
+            Yaw angle in radians.
         """
         dx = self.sx.calcd(s)
         dy = self.sy.calcd(s)
@@ -219,19 +322,29 @@ class Spline2D:
 
 def calc_spline_course(x, y, ds=0.1):
     """
-    Caculate 2D splice course.
-
-    Args:
-        -x (float): The x coordinate of the input point.
-        -y (float): The y coordinate of the input point.
-        -ds (flost): The s step value. Default value equals to 0.1.
-
-    Returns:
-        -rx (list): List of spline course points' x coordinates.
-        -ry (list): List of spline course points' y coordinates.
-        -ryaw (list): List of spline course points' yaw angles.
-        -rk (list): List of spline course points' curvatures.
-        -s (list): List of spline course points' s values.
+    Calculate 2D spline course.
+    
+    Parameters
+    ----------
+    x : array_like
+        The x coordinates of the input points.
+    y : array_like
+        The y coordinates of the input points.
+    ds : float, optional
+        The arc length step value. Default is 0.1.
+    
+    Returns
+    -------
+    rx : list of float
+        List of spline course points' x coordinates.
+    ry : list of float
+        List of spline course points' y coordinates.
+    ryaw : list of float
+        List of spline course points' yaw angles.
+    rk : list of float
+        List of spline course points' curvatures.
+    s : list of float
+        List of spline course points' arc length values.
     """
     sp = Spline2D(x, y)
     s = list(np.arange(0, sp.s[-1], ds))
@@ -249,7 +362,7 @@ def calc_spline_course(x, y, ds=0.1):
 
 def main():
     """
-    Main function to calculate spline and visulize the results.
+    Main function to calculate spline and visualize the results.
     """
     print("Spline 2D test")
     import matplotlib.pyplot as plt

@@ -16,7 +16,7 @@ class PointPillarCoBEVT(nn.Module):
     PointPillarCoBEVT implements a collaborative 3D object detection model using
     PointPillar architecture with CoBEVT fusion for multi-agent perception.
     """
-    def __init__(self, args: Dict[str, Any]) -> None:
+    def __init__(self, args):
         super(PointPillarCoBEVT, self).__init__()
 
         self.max_cav = args["max_cav"]

@@ -14,7 +14,7 @@ class PointPillarintermediateV2VAM(nn.Module):
     F-Cooper implementation with point pillar backbone.
     """
 
-    def __init__(self, args: Dict[str, Any]) -> None:
+    def __init__(self, args: Dict[str, Any]):
         """
         Initialize the PointPillarintermediateV2VAM model.
         """

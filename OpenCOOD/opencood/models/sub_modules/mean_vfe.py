@@ -6,10 +6,10 @@ from torch import nn, Tensor
 class MeanVFE(nn.Module):
     def __init__(
         self,
-        model_cfg: Dict[str, Any],
-        num_point_features: int,
+        model_cfg: Dict,
+        num_point_features,
         **kwargs
-    ) -> None:
+    ):
         super().__init__()
         self.model_cfg = model_cfg
         self.num_point_features = num_point_features

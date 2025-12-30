@@ -1,27 +1,39 @@
+"""
+Inference utility functions for different fusion strategies in cooperative perception.
+"""
+
 import os
 from collections import OrderedDict
+from typing import Any, Tuple
 
 import numpy as np
+import numpy.typing as npt
+import torch
 
 from opencood.utils.common_utils import torch_tensor_to_numpy
 
 
-def inference_late_fusion(batch_data, model, dataset):
+def inference_late_fusion(batch_data: dict, model: torch.nn.Module, dataset: Any) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """
     Model inference for late fusion.
 
     Parameters
     ----------
     batch_data : dict
-    model : opencood.object
-    dataset : opencood.LateFusionDataset
+        Dictionary containing data for each CAV (Connected Autonomous Vehicle).
+    model : torch.nn.Module
+        The trained model for inference.
+    dataset : Any
+        Dataset object with post_process method (e.g., LateFusionDataset).
 
     Returns
     -------
     pred_box_tensor : torch.Tensor
         The tensor of prediction bounding box after NMS.
+    pred_score : torch.Tensor
+        The confidence scores for predictions.
     gt_box_tensor : torch.Tensor
-        The tensor of gt bounding box.
+        The tensor of ground truth bounding box.
     """
     output_dict = OrderedDict()
 
@@ -33,22 +45,27 @@ def inference_late_fusion(batch_data, model, dataset):
     return pred_box_tensor, pred_score, gt_box_tensor
 
 
-def inference_early_fusion(batch_data, model, dataset):
+def inference_early_fusion(batch_data: dict, model: torch.nn.Module, dataset: Any) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """
     Model inference for early fusion.
 
     Parameters
     ----------
     batch_data : dict
-    model : opencood.object
-    dataset : opencood.EarlyFusionDataset
+        Dictionary containing data for the ego vehicle.
+    model : torch.nn.Module
+        The trained model for inference.
+    dataset : Any
+        Dataset object with post_process method (e.g., EarlyFusionDataset).
 
     Returns
     -------
     pred_box_tensor : torch.Tensor
         The tensor of prediction bounding box after NMS.
+    pred_score : torch.Tensor
+        The confidence scores for predictions.
     gt_box_tensor : torch.Tensor
-        The tensor of gt bounding box.
+        The tensor of ground truth bounding box.
     """
     output_dict = OrderedDict()
     cav_content = batch_data["ego"]
@@ -60,29 +77,58 @@ def inference_early_fusion(batch_data, model, dataset):
     return pred_box_tensor, pred_score, gt_box_tensor
 
 
-def inference_intermediate_fusion(batch_data, model, dataset):
+def inference_intermediate_fusion(batch_data: dict, model: torch.nn.Module, dataset: Any) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """
-    Model inference for early fusion.
+    Model inference for intermediate fusion.
 
     Parameters
     ----------
     batch_data : dict
-    model : opencood.object
-    dataset : opencood.EarlyFusionDataset
+        Dictionary containing data for the ego vehicle.
+    model : torch.nn.Module
+        The trained model for inference.
+    dataset : Any
+        Dataset object with post_process method (e.g., IntermediateFusionDataset).
 
     Returns
     -------
     pred_box_tensor : torch.Tensor
         The tensor of prediction bounding box after NMS.
+    pred_score : torch.Tensor
+        The confidence scores for predictions.
     gt_box_tensor : torch.Tensor
-        The tensor of gt bounding box.
+        The tensor of ground truth bounding box.
+
+    Notes
+    -----
+    This function currently uses the same implementation as early fusion.
     """
     return inference_early_fusion(batch_data, model, dataset)
 
 
-def save_prediction_gt(pred_tensor, gt_tensor, pcd, timestamp, save_path):
+def save_prediction_gt(pred_tensor: torch.Tensor, gt_tensor: torch.Tensor, pcd: torch.Tensor, timestamp: int, save_path: str) -> None:
     """
-    Save prediction and gt tensor to txt file.
+    Save prediction and ground truth tensors to numpy files.
+
+    Parameters
+    ----------
+    pred_tensor : torch.Tensor or npt.NDArray
+        Predicted bounding boxes.
+    gt_tensor : torch.Tensor or npt.NDArray
+        Ground truth bounding boxes.
+    pcd : torch.Tensor or npt.NDArray
+        Point cloud data.
+    timestamp : int
+        Timestamp or frame number for filename.
+    save_path : str
+        Directory path where files will be saved.
+
+    Notes
+    -----
+    Saves three files:
+        - {timestamp:04d}_pcd.npy: Point cloud data
+        - {timestamp:04d}_pred.npy: Predicted bounding boxes
+        - {timestamp:04d}_gt.npy_test: Ground truth bounding boxes
     """
     pred_np = torch_tensor_to_numpy(pred_tensor)
     gt_np = torch_tensor_to_numpy(gt_tensor)

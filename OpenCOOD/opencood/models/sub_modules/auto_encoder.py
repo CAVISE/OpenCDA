@@ -8,14 +8,19 @@ import torch.nn as nn
 class AutoEncoder(nn.Module):
     """
     An autoencoder for feature compression.
+    
     The autoencoder reduces the spatial dimensions of the input features
     while maintaining the number of channels. It consists of multiple
     encoding and decoding layers with skip connections.
-    Args:
-        feature_num: Number of input/output channels.
-        layer_num: Number of encoding/decoding layers.
+    
+    Parameters
+    ----------
+    feature_num : int
+        Number of input/output channels.
+    layer_num : int
+        Number of encoding/decoding layers.
     """
-    def __init__(self, feature_num: int, layer_num: int) -> None:
+    def __init__(self, feature_num: int, layer_num: int):
         super().__init__()
         self.feature_num = feature_num
         self.feature_stride = 2

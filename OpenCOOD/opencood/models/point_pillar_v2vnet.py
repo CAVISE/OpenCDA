@@ -1,3 +1,12 @@
+"""
+PointPillar with V2VNet for multi-agent collaborative 3D object detection.
+
+This module implements PointPillar architecture integrated with V2VNet fusion
+for multi-agent cooperative perception with efficient feature sharing.
+"""
+
+from typing import Dict, Any
+import torch
 import torch.nn as nn
 
 from opencood.models.sub_modules.pillar_vfe import PillarVFE
@@ -6,14 +15,33 @@ from opencood.models.sub_modules.base_bev_backbone import BaseBEVBackbone
 from opencood.models.sub_modules.downsample_conv import DownsampleConv
 from opencood.models.sub_modules.naive_compress import NaiveCompressor
 from opencood.models.fuse_modules.v2v_fuse import V2VNetFusion
-from typing import Dict, Any
-import torch
+
 
 class PointPillarV2VNet(nn.Module):
     """
     PointPillar with V2VNet for multi-agent collaborative 3D object detection.
+
+    This model combines PointPillar architecture with V2VNet fusion mechanism
+    to enable multi-agent cooperative perception through efficient feature aggregation.
+
+    Parameters
+    ----------
+    args : Dict[str, Any]
+        Configuration dictionary containing:
+            - max_cav: Maximum number of connected automated vehicles
+            - pillar_vfe: Configuration for PillarVFE
+            - voxel_size: Voxel size [x, y, z]
+            - lidar_range: LiDAR range [x_min, y_min, z_min, x_max, y_max, z_max]
+            - point_pillar_scatter: Configuration for point pillar scatter
+            - base_bev_backbone: Configuration for BaseBEVBackbone
+            - shrink_header: Optional configuration for feature downsampling
+            - compression: Compression dimension (0 for no compression, >0 for compression)
+            - v2vfusion: Configuration for V2VNet fusion
+            - anchor_number: Number of anchor boxes per position
+            - backbone_fix: Whether to fix backbone parameters during training
     """
-    def __init__(self, args: Dict[str, Any]) -> None:
+
+    def __init__(self, args):
         super(PointPillarV2VNet, self).__init__()
 
         self.max_cav = args["max_cav"]
@@ -40,9 +68,9 @@ class PointPillarV2VNet(nn.Module):
         if args["backbone_fix"]:
             self.backbone_fix()
 
-    def backbone_fix(self):
+    def backbone_fix(self) -> None:
         """
-        Fix the parameters of backbone during finetune on timedelay。
+        Fix the parameters of backbone during finetune on timedelay.
         """
         for p in self.pillar_vfe.parameters():
             p.requires_grad = False

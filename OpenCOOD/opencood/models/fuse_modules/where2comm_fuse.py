@@ -16,14 +16,24 @@ from opencood.models.fuse_modules.self_attn import ScaledDotProductAttention
 class Communication(nn.Module):
     """
     Communication module for Where2comm that handles feature masking based on confidence.
-    Args:
-        args: Dictionary containing configuration:
-            - threshold: Confidence threshold for communication
-            - gaussian_smooth: Optional dictionary with:
-                - k_size: Kernel size for Gaussian smoothing
-                - c_sigma: Sigma value for Gaussian kernel
+    
+    Parameters
+    ----------
+    args : Dict[str, Any]
+        Dictionary containing configuration:
+        
+        - threshold : float
+            Confidence threshold for communication.
+        - gaussian_smooth : dict, optional
+            Dictionary with Gaussian smoothing parameters:
+            
+            - k_size : int
+                Kernel size for Gaussian smoothing.
+            - c_sigma : float
+                Sigma value for Gaussian kernel.
     """
-    def __init__(self, args: Dict[str, Any]) -> None:
+    
+    def __init__(self, args: Dict[str, Any]):
         super(Communication, self).__init__()
         # Threshold of objectiveness
         self.threshold = args["threshold"]
@@ -52,13 +62,21 @@ class Communication(nn.Module):
         B: int
     ) -> Tuple[Tensor, float]:
         """
-        Generate communication masks based on confidence maps
-        Args:
-            batch_confidence_maps: [(L1, H, W), (L2, H, W), ...]
-        Returns:
-            Tuple of:
-            - communication_masks: Binary masks for communication (sum(L), 1, H, W)
-            - communication_rate: Average communication rate across batch
+        Generate communication masks based on confidence maps.
+        
+        Parameters
+        ----------
+        batch_confidence_maps : list of torch.Tensor
+            List of confidence maps with shapes [(L1, H, W), (L2, H, W), ...].
+        B : int
+            Batch size.
+        
+        Returns
+        -------
+        communication_masks : torch.Tensor
+            Binary masks for communication of shape (sum(L), 1, H, W).
+        communication_rate : float
+            Average communication rate across batch.
         """
 
         _, _, H, W = batch_confidence_maps[0].shape
@@ -102,9 +120,13 @@ class Communication(nn.Module):
 class AttentionFusion(nn.Module):
     """
     Attention-based feature fusion module.
-    Args:
-        feature_dim: Dimension of input features
+    
+    Parameters
+    ----------
+    feature_dim : int
+        Dimension of input features.
     """
+    
     def __init__(self, feature_dim: int) -> None:
         super(AttentionFusion, self).__init__()
         self.att = ScaledDotProductAttention(feature_dim)
@@ -118,7 +140,7 @@ class AttentionFusion(nn.Module):
 
 
 class Where2comm(nn.Module):
-    def __init__(self, args: Dict[str, Any]) -> None:
+    def __init__(self, args: Dict[str, Any]):
         super(Where2comm, self).__init__()
         self.discrete_ratio = args["voxel_size"][0]
         self.downsample_rate = args["downsample_rate"]
@@ -158,83 +180,22 @@ class Where2comm(nn.Module):
     ) -> Tensor:
         """
         Fusion forwarding.
-
-        Parameters:
-            x: Input data, (sum(n_cav), C, H, W).
-            record_len: List, (B).
-            pairwise_t_matrix: The transformation matrix from each cav to ego, (B, L, L, 4, 4).
-
-        Returns:
+        
+        Parameters
+        ----------
+        x : torch.Tensor
+            Input data of shape (sum(n_cav), C, H, W).
+        psm_single : torch.Tensor
+            Single probability score map.
+        record_len : torch.Tensor
+            List of shape (B,) indicating number of CAVs per sample.
+        pairwise_t_matrix : torch.Tensor
+            The transformation matrix from each CAV to ego of shape (B, L, L, 4, 4).
+        backbone : nn.Module, optional
+            Backbone network. Default is None.
+        
+        Returns
+        -------
+        torch.Tensor
             Fused feature.
         """
-
-        _, C, H, W = x.shape
-        B = pairwise_t_matrix.shape[0]
-
-        if self.multi_scale:
-            ups = []
-
-            for i in range(self.num_levels):
-                x = backbone.blocks[i](x)
-
-                # 1. Communication (mask the features)
-                if i == 0:
-                    if self.fully:
-                        communication_rates = torch.tensor(1).to(x.device)
-                    else:
-                        # Prune
-                        batch_confidence_maps = self.regroup(psm_single, record_len)
-                        communication_masks, communication_rates = self.naive_communication(batch_confidence_maps, B)
-                        if x.shape[-1] != communication_masks.shape[-1]:
-                            communication_masks = F.interpolate(
-                                communication_masks, size=(x.shape[-2], x.shape[-1]), mode="bilinear", align_corners=False
-                            )
-                        x = x * communication_masks
-
-                # 2. Split the features
-                # split_x: [(L1, C, H, W), (L2, C, H, W), ...]
-                # For example [[2, 256, 48, 176], [1, 256, 48, 176], ...]
-                batch_node_features = self.regroup(x, record_len)
-
-                # 3. Fusion
-                x_fuse = []
-                for b in range(B):
-                    neighbor_feature = batch_node_features[b]
-                    x_fuse.append(self.fuse_modules[i](neighbor_feature))
-                x_fuse = torch.stack(x_fuse)
-
-                # 4. Deconv
-                if len(backbone.deblocks) > 0:
-                    ups.append(backbone.deblocks[i](x_fuse))
-                else:
-                    ups.append(x_fuse)
-
-            if len(ups) > 1:
-                x_fuse = torch.cat(ups, dim=1)
-            elif len(ups) == 1:
-                x_fuse = ups[0]
-
-            if len(backbone.deblocks) > self.num_levels:
-                x_fuse = backbone.deblocks[-1](x_fuse)
-        else:
-            # 1. Communication (mask the features)
-            if self.fully:
-                communication_rates = torch.tensor(1).to(x.device)
-            else:
-                # Prune
-                batch_confidence_maps = self.regroup(psm_single, record_len)
-                communication_masks, communication_rates = self.naive_communication(batch_confidence_maps, B)
-                x = x * communication_masks
-
-            # 2. Split the features
-            # split_x: [(L1, C, H, W), (L2, C, H, W), ...]
-            # For example [[2, 256, 48, 176], [1, 256, 48, 176], ...]
-            batch_node_features = self.regroup(x, record_len)
-
-            # 3. Fusion
-            x_fuse = []
-            for b in range(B):
-                neighbor_feature = batch_node_features[b]
-                x_fuse.append(self.fuse_modules(neighbor_feature))
-            x_fuse = torch.stack(x_fuse)
-        return x_fuse, communication_rates

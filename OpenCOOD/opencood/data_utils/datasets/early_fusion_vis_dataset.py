@@ -1,10 +1,12 @@
 """
 Visualization dataset class for early fusion scenarios.
+
 This module provides a dataset class specifically designed for visualizing
 early fusion scenarios in multi-agent perception systems.
 """
 
 from collections import OrderedDict
+from typing import Dict, Any, List, Union
 
 import numpy as np
 import torch
@@ -16,31 +18,41 @@ from opencood.data_utils.pre_processor import build_preprocessor
 from opencood.utils.pcd_utils import mask_points_by_range, mask_ego_points, shuffle_points, downsample_lidar_minimum
 from opencood.utils.transformation_utils import x1_to_x2
 
-from typing import Dict, Any, List, Tuple, Optional, Union
-from torch import Tensor
-# TODO: Вообше не понятно зачем он нужен, вроде нигде не используется
+
 class EarlyFusionVisDataset(basedataset.BaseDataset):
     """
     Dataset class for visualizing early fusion scenarios.
-    
+
     This class is designed for visualization purposes and inherits from BaseDataset.
     It processes and prepares data for visualization of early fusion in multi-agent
     perception systems.
+
     Attributes
     ----------
-    pre_processor : object
+    pre_processor : Any
         Preprocessor for point cloud data.
-    post_processor : object
+    post_processor : Any
         Postprocessor for generating visualization targets.
+
+    Parameters
+    ----------
+    params : dict
+        Dictionary containing configuration parameters.
+    visualize : bool
+        Whether to enable visualization.
+    train : bool, optional
+        Whether the dataset is used for training, by default True.
     """
+
     def __init__(
-        self, 
-        params: Dict[str, Any], 
-        visualize: bool, 
+        self,
+        params: Dict[str, Any],
+        visualize: bool,
         train: bool = True
-    ) -> None:
+    ):
         """
         Initialize the EarlyFusionVisDataset.
+
         Parameters
         ----------
         params : Dict[str, Any]
@@ -57,14 +69,20 @@ class EarlyFusionVisDataset(basedataset.BaseDataset):
     def __getitem__(self, idx: int) -> Dict[str, Any]:
         """
         Get a single data sample by index for visualization.
+
         Parameters
         ----------
         idx : int
             Index of the data sample.
+
         Returns
         -------
-        Dict[str, Any]
+        dict
             Dictionary containing the processed data for visualization.
+            Structure: {'ego': {'object_bbx_center': np.ndarray (max_num, 7),
+                               'object_bbx_mask': np.ndarray (max_num,),
+                               'object_ids': list of str,
+                               'origin_lidar': np.ndarray (N, 4)}}
         """
         base_data_dict = self.retrieve_base_data(idx)
 
@@ -137,10 +155,10 @@ class EarlyFusionVisDataset(basedataset.BaseDataset):
         return processed_data_dict
 
     def get_item_single_car(
-    self, 
-    selected_cav_base: Dict[str, Any], 
-    ego_pose: List[float]
-) -> Dict[str, Any]:
+        self,
+        selected_cav_base: Dict[str, Any],
+        ego_pose: List[float]
+    ) -> Dict[str, Any]:
         """
         Project the lidar and bbx to ego space first, and then do clipping.
 
@@ -148,13 +166,18 @@ class EarlyFusionVisDataset(basedataset.BaseDataset):
         ----------
         selected_cav_base : dict
             The dictionary contains a single CAV's raw information.
+            Structure: {'params': {'lidar_pose': list}, 'lidar_np': np.ndarray, ...}
         ego_pose : list
             The ego vehicle lidar pose under world coordinate.
+            Format: [x, y, z, roll, pitch, yaw]
 
         Returns
         -------
-        selected_cav_processed : dict
+        dict
             The dictionary contains the cav's processed information.
+            Structure: {'object_bbx_center': np.ndarray (M, 7),
+                       'object_ids': list of str,
+                       'projected_lidar': np.ndarray (N, 4)}
         """
         selected_cav_processed = {}
 
@@ -179,21 +202,25 @@ class EarlyFusionVisDataset(basedataset.BaseDataset):
         return selected_cav_processed
 
     def collate_batch_train(
-    self, 
-    batch: List[Dict[str, Any]]
-) -> Dict[str, Dict[str, Union[torch.Tensor, Dict[str, torch.Tensor]]]]:
+        self,
+        batch: List[Dict[str, Any]]
+    ) -> Dict[str, Dict[str, Union[torch.Tensor, Dict[str, torch.Tensor]]]]:
         """
-        Customized collate function for pytorch dataloader during training
-        for late fusion dataset.
+        Customized collate function for pytorch dataloader during training for late fusion dataset.
 
         Parameters
         ----------
-        batch : dict
+        batch : list of dict
+            List of data samples from __getitem__.
+            Each sample is a dict with structure: {'ego': {...}}
 
         Returns
         -------
-        batch : dict
-            Reformatted batch.
+        dict
+            Reformatted batch dictionary.
+            Structure: {'ego': {'object_bbx_center': torch.Tensor (B, max_num, 7),
+                               'object_bbx_mask': torch.Tensor (B, max_num),
+                               'origin_lidar': torch.Tensor (B, N, 4)}}
         """
         # during training, we only care about ego.
         output_dict = {"ego": {}}
