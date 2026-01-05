@@ -6,6 +6,19 @@
 
 import numpy as np
 
+
+VEHICLE_DECEL = 4.5
+VEHICLE_SIGMA = 0.5
+VEHICLE_LENGTH = 5
+VEHICLE_MAX_SPEED = 40
+VEHICLE_MIN_GAP = 2.5
+MAP_BOUNDARY = 100  # dont touch, because sumo net file build with this map boundary in x and y
+
+ALLIGN_INITIAL_DIRECTION_TO_X = True  # allign initial direction of motion to +X
+NUM_AUGMENTATION = 0
+NORMALIZE_DATA = True
+
+
 RAW_DATA_FORMAT = {
     "TIMESTAMP": 0,
     "TRACK_ID": 1,
@@ -46,7 +59,16 @@ PLT_WRITE = True
 
 FEATURE_COLUMN = 10
 
-CONTROL_AREA = ["511308706#1", "511308635", "511308639#1", "511308724#0", "511308714#1", "28672098#0", "23031879#1", "307704875#0"]
+CONTROL_AREA = [
+    "511308706#1",
+    "511308635",
+    "511308639#1",
+    "511308724#0",
+    "511308714#1",
+    "28672098#0",
+    "23031879#1",
+    "307704875#0",
+]
 
 FOCUS_AREA = [
     "511308639#1",

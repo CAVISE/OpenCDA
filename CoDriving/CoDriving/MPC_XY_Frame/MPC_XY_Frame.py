@@ -8,12 +8,17 @@ import math
 import cvxpy
 import yaml
 import numpy as np
+import os
 
 from typing import Union
 
 
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+config_path = os.path.join(CURRENT_DIR, "configuration", "MPC_config.yaml")
+
+
 def load_config():
-    with open("configuration\MPC_config.yaml") as f:
+    with open(config_path) as f:
         return yaml.safe_load(f)
 
 
@@ -366,14 +371,34 @@ def calc_linear_discrete_model(v, phi, delta):
         ]
     )
 
-    B = np.array([[0.0, 0.0], [0.0, 0.0], [P.dt, 0.0], [0.0, P_dt_v / (P.WB * math.cos(delta) ** 2)]])
+    B = np.array(
+        [
+            [0.0, 0.0],
+            [0.0, 0.0],
+            [P.dt, 0.0],
+            [0.0, P_dt_v / (P.WB * math.cos(delta) ** 2)],
+        ]
+    )
 
-    C = np.array([P_dt_v * sin_phi * phi, -P_dt_v * cos_phi * phi, 0.0, -P_dt_v * delta / (P.WB * math.cos(delta) ** 2)])
+    C = np.array(
+        [
+            P_dt_v * sin_phi * phi,
+            -P_dt_v * cos_phi * phi,
+            0.0,
+            -P_dt_v * delta / (P.WB * math.cos(delta) ** 2),
+        ]
+    )
 
     return A, B, C
 
 
-def solve_linear_mpc(z_ref: np.ndarray, z_bar: np.ndarray, z0: list, d_bar: np.ndarray, pred_len: int = P.T):
+def solve_linear_mpc(
+    z_ref: np.ndarray,
+    z_bar: np.ndarray,
+    z0: list,
+    d_bar: np.ndarray,
+    pred_len: int = P.T,
+):
     """
     solve the quadratic optimization problem using cvxpy, solver: OSQP
     :param z_ref: [4, 7], reference trajectory (desired trajectory: [x, y, v, yaw])
@@ -528,7 +553,13 @@ def pi_2_pi(angle):
     return angle
 
 
-def MPC_module(curr_state: Node, target_state: np.ndarray, a_old: list, delta_old: list, T: int = P.T) -> Union[list, list]:
+def MPC_module(
+    curr_state: Node,
+    target_state: np.ndarray,
+    a_old: list,
+    delta_old: list,
+    T: int = P.T,
+) -> Union[list, list]:
     """
     :param curr_state: Node[x, y, v, yaw]
     :param target_state: [4], [x, y, v, yaw]

@@ -3,13 +3,13 @@ import random
 import shutil
 import xml.dom.minidom
 from typing import NoReturn
-
 import numpy as np
 import pandas as pd
 import sumolib
 from tqdm import trange
-from utils.config import COLLECT_DATA_RADIUS, OBS_LEN, PRED_LEN, SAMPLE_RATE
-from utils.feature_utils import get_path_to_intention, get_center_coodinates
+
+from CoDriving.data_scripts.data_config.data_config import COLLECT_DATA_RADIUS, OBS_LEN, PRED_LEN, SAMPLE_RATE
+from CoDriving.data_scripts.utils.feature_utils import get_path_to_intention, get_center_coodinates
 
 
 def get_shortest_path(net_path: str, from_edge: str, to_edge: str) -> str:
@@ -66,6 +66,12 @@ def generate_routefile(
     num_seconds: int = 2000,
     create_new_vehicle_prob: float = 0.08,
     random_seed: int = 3,
+    max_vehicle_accel=2.5,
+    vehicle_decel=4.5,
+    vehicle_sigma=0.5,
+    vehicle_length=5,
+    vehicle_max_speed=40,
+    vehicle_minGap=2.5,
 ) -> NoReturn:
     """
     Generate *.rou.xml file. (for the separated road net)
@@ -90,8 +96,10 @@ def generate_routefile(
 
     file_path = os.path.join(route_path, f"{rou_xml_filename}.rou.xml")
     with open(file_path, "w") as route_file:
-        route_file.write("""<routes>
-    <vType id="typeWE" accel="2.5" decel="4.5" sigma="0.5" length="5" minGap="2.5" maxSpeed="40" guiShape="passenger"/>\n\n""")
+        route_file.write(
+            f"""<routes>
+    <vType id="typeWE" accel="{max_vehicle_accel}" decel="{vehicle_decel}" sigma="{vehicle_sigma}" length="{vehicle_length}" minGap="{vehicle_minGap}" maxSpeed="{vehicle_max_speed}" guiShape="passenger"/>\n\n"""
+        )
 
         possible_paths = {}
         paths = get_path_to_intention(intention_config_path).keys()
@@ -132,8 +140,14 @@ def generate_sumocfg(sumo_files_path: str, rou_xml_filename: str, net_filename: 
     return sumocfg_filename
 
 
-def generate_csv_from_fcd(fcd_file: str, intention_config_path: str, time_per_scene: int, split: str = "train"):
-    csv_dir = os.path.join("csv", split)
+def generate_csv_from_fcd(
+    fcd_file: str,
+    csv_dir: str,
+    intention_config_path: str,
+    time_per_scene: int,
+    split: str = "train",
+):
+    csv_dir = os.path.join(csv_dir, split)
     if os.path.exists(csv_dir):  # delete directory with old data if exists
         shutil.rmtree(csv_dir)
 
