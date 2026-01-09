@@ -218,7 +218,7 @@ class AIMModelManager:
                     intention = self.trajs[vehicle_id][-1][-1]
 
                 # Append current state to trajectory
-                self.trajs[vehicle_id]= [(rel_x, rel_y, speed, yaw_rad, yaw_deg_sumo, intention)]
+                self.trajs[vehicle_id] = [(rel_x, rel_y, speed, yaw_rad, yaw_deg_sumo, intention)]
 
         # Remove trajectories of vehicles that have left the scene
         for vehicle_id in list(self.trajs):
@@ -449,9 +449,7 @@ class AIMModelManager:
 
                     # Update intention in trajs
                     previous_traj = self.trajs[vehicle_id][-1]
-                    self.trajs[vehicle_id] = [
-                        (previous_traj[0], previous_traj[1], previous_traj[2], previous_traj[3], previous_traj[4], intention)
-                    ]
+                    self.trajs[vehicle_id] = [(previous_traj[0], previous_traj[1], previous_traj[2], previous_traj[3], previous_traj[4], intention)]
             route = self.yaw_id[vehicle_id][nearest_node]
         else:
             return None
