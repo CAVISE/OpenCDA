@@ -139,11 +139,7 @@ class Scenario:
             aim_model_name = aim_config.pop("model", "MTP")
             model = get_model(aim_model_name, **aim_config)
 
-            self.codriving_model_manager = AIMModelManager(
-                model=model,
-                nodes=nodes,
-                excluded_nodes=None
-            )            
+            self.codriving_model_manager = AIMModelManager(model=model, nodes=nodes, excluded_nodes=None)           
         # [CoDrivingInt]
 
         self.platoon_list, self.node_ids["platoon"] = self.scenario_manager.create_platoon_manager(
