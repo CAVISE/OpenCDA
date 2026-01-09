@@ -135,8 +135,8 @@ class Scenario:
             net = sumolib.net.readNet(f"opencda/sumo-assets/{self.scenario_name}/{self.scenario_name}.net.xml")
             nodes = net.getNodes()
 
-            aim_config = scenario_params.get('aim', {})
-            aim_model_name = aim_config.pop('model', 'MTP')
+            aim_config = scenario_params.get("aim", {})
+            aim_model_name = aim_config.pop("model", "MTP")
             model = get_model(aim_model_name, **aim_config)
 
             self.codriving_model_manager = AIMModelManager(
