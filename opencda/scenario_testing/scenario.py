@@ -142,8 +142,7 @@ class Scenario:
             self.codriving_model_manager = AIMModelManager(
                 model=model,
                 nodes=nodes,
-                excluded_nodes=None,
-            
+                excluded_nodes=None
             )            
         # [CoDrivingInt]
 
