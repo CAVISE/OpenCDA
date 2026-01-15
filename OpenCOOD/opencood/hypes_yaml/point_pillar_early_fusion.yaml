@@ -91,6 +91,6 @@ optimizer:
     weight_decay: 1e-4
 
 lr_scheduler:
-  core_method: multistep #step, multistep and Exponential support
+  core_method: multistep #step, multistep and exponential and cosineannealwarm support
   gamma: 0.1
   step_size: [10, 15]
