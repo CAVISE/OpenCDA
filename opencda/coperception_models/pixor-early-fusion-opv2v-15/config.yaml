@@ -1,0 +1,75 @@
+data_augment: []
+fusion:
+  args: []
+  core_method: EarlyFusionDataset
+loss:
+  args:
+    alpha: 1.0
+    beta: 1.0
+  core_method: pixor_loss
+lr_scheduler:
+  core_method: exponential
+  gamma: 0.99
+model:
+  args:
+    decode: false
+    geometry_param: &id001
+      H1: -3
+      H2: 1
+      L1: -160
+      L2: 160
+      W1: -40
+      W2: 40
+      downsample_rate: 4
+      input_shape: !!python/tuple
+      - 1600
+      - 400
+      - 21
+      label_shape: !!python/tuple
+      - 400
+      - 100
+      - 7
+      res: 0.2
+    use_bn: true
+  core_method: pixor
+name: pixor_early_fusion
+optimizer:
+  args:
+    eps: 1.0e-10
+    weight_decay: 0.0001
+  core_method: Adam
+  lr: 0.001
+postprocess:
+  anchor_args:
+    cav_lidar_range: &id002
+    - -160
+    - -40
+    - -3
+    - 160
+    - 40
+    - 1
+    downsample_rate: 4
+    res: 0.2
+  core_method: BevPostprocessor
+  geometry_param: *id001
+  gt_range: *id002
+  max_num: 100
+  nms_thresh: 0.15
+  order: lwh
+  target_args:
+    score_threshold: 0.5
+preprocess:
+  args:
+    downsample_rate: 4
+    res: 0.2
+  cav_lidar_range: *id002
+  core_method: BevPreprocessor
+  geometry_param: *id001
+root_dir: opv2v_data_dumping/train
+train_params:
+  batch_size: 2
+  epoches: 15
+  eval_freq: 1
+  save_freq: 1
+validate_dir: "simulation_output/data_dumping/sample"
+yaml_parser: load_bev_params
