@@ -10,6 +10,7 @@ import torch
 from torch import nn
 from typing import Dict, List, Union
 
+
 class SSFA(nn.Module):
     """
     Single-Stage Feature Aggregation module.

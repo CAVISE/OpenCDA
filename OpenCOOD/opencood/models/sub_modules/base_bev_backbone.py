@@ -10,7 +10,7 @@ import torch
 import torch.nn as nn
 
 from typing import Dict
-from torch import Tensor
+
 
 class BaseBEVBackbone(nn.Module):
     """
@@ -123,7 +123,7 @@ class BaseBEVBackbone(nn.Module):
 
         self.num_bev_features = c_in
 
-    def forward(self, data_dict: Dict[str, Tensor]) -> Dict[str, Tensor]:
+    def forward(self, data_dict: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
         """
         Forward pass for the base BEV backbone.
 

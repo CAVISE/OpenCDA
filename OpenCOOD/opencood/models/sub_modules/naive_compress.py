@@ -7,7 +7,6 @@ strategy for reducing communication bandwidth in multi-agent systems.
 
 from typing import Any, Dict, Optional, Tuple, Union
 import torch
-from torch import Tensor
 import torch.nn as nn
 
 
@@ -49,7 +48,7 @@ class NaiveCompressor(nn.Module):
             nn.ReLU(),
         )
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Compress and decompress input features.
 

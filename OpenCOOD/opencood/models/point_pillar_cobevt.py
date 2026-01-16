@@ -18,6 +18,7 @@ from opencood.models.fuse_modules.fuse_utils import regroup
 
 from typing import Dict, Any
 
+
 class PointPillarCoBEVT(nn.Module):
     """
     PointPillar with CoBEVT fusion for multi-agent collaborative 3D object detection.
@@ -68,7 +69,7 @@ class PointPillarCoBEVT(nn.Module):
         Regression head for predicting bounding box parameters.
     """
 
-    def __init__(self, args):
+    def __init__(self, args: Dict[str, Any]):
         super(PointPillarCoBEVT, self).__init__()
 
         self.max_cav = args["max_cav"]

@@ -8,10 +8,10 @@ feature extraction with multi-scale upsampling and feature fusion.
 import numpy as np
 import torch
 import torch.nn as nn
-from torch import Tensor
 from opencood.models.sub_modules.resblock import ResNetLayers
 
 from typing import Dict, Any, Tuple
+
 
 class ResBEVBackbone(nn.Module):
     """
@@ -150,7 +150,7 @@ class ResBEVBackbone(nn.Module):
         data_dict["spatial_features_2d"] = x
         return data_dict
 
-    def get_multiscale_feature(self, spatial_features: Tensor) -> Tuple[Tensor, ...]:
+    def get_multiscale_feature(self, spatial_features: torch.Tensor) -> Tuple[torch.Tensor, ...]:
         """
         Extract multi-scale features before intermediate fusion.
 
@@ -167,7 +167,7 @@ class ResBEVBackbone(nn.Module):
         x = self.resnet(spatial_features)  # tuple of features
         return x
 
-    def decode_multiscale_feature(self, x: Tuple[Tensor, ...]) -> Tensor:
+    def decode_multiscale_feature(self, x: Tuple[torch.Tensor, ...]) -> torch.Tensor:
         """
         Decode and fuse multi-scale features after intermediate fusion.
 
@@ -196,7 +196,7 @@ class ResBEVBackbone(nn.Module):
             x = self.deblocks[-1](x)
         return x
 
-    def get_layer_i_feature(self, spatial_features: Tensor, layer_i: int) -> Tensor:
+    def get_layer_i_feature(self, spatial_features: torch.Tensor, layer_i: int) -> torch.Tensor:
         """
         Extract features from a specific ResNet layer.
 

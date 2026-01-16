@@ -6,7 +6,8 @@ for feature compression in multi-agent perception systems.
 """
 
 import torch.nn as nn
-from torch import Tensor
+import torch
+
 
 class AutoEncoder(nn.Module):
     """
@@ -84,7 +85,7 @@ class AutoEncoder(nn.Module):
             self.decoder.append(nn.Sequential(*cur_layers))
             feature_num //= 2
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Forward pass through autoencoder.
 

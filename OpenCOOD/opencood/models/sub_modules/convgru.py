@@ -7,7 +7,7 @@ processing spatiotemporal data using gated recurrent units with convolutional op
 
 from typing import List, Any, Tuple, Union, Optional
 import torch
-from torch import nn, Tensor
+from torch import nn
 from torch.autograd import Variable
 
 
@@ -81,7 +81,7 @@ class ConvGRUCell(nn.Module):
             bias=self.bias,
         )
 
-    def init_hidden(self, batch_size: int) -> Tensor:
+    def init_hidden(self, batch_size: int) -> torch.Tensor:
         """
         Initialize hidden state with zeros.
 
@@ -97,7 +97,7 @@ class ConvGRUCell(nn.Module):
         """
         return Variable(torch.zeros(batch_size, self.hidden_dim, self.height, self.width))
 
-    def forward(self, input_tensor: Tensor, h_cur: Tensor) -> Tensor:
+    def forward(self, input_tensor: torch.Tensor, h_cur: torch.Tensor) -> torch.Tensor:
         """
         Forward pass through the ConvGRU cell.
 
@@ -227,9 +227,9 @@ class ConvGRU(nn.Module):
 
     def forward(
         self,
-        input_tensor: Tensor,
-        hidden_state: Optional[List[Tensor]] = None
-    ) -> Tuple[List[Tensor], List[Tensor]]:
+        input_tensor: torch.Tensor,
+        hidden_state: Optional[List[torch.Tensor]] = None
+    ) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
         """
         Forward pass through multi-layer ConvGRU.
 
@@ -300,7 +300,7 @@ class ConvGRU(nn.Module):
         batch_size: int,
         device: Optional[torch.device] = None,
         dtype: Optional[torch.dtype] = None
-    ) -> List[Tensor]:
+    ) -> List[torch.Tensor]:
         """
         Initialize hidden states for all layers.
 

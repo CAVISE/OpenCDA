@@ -8,7 +8,7 @@ features from multiple Connected and Autonomous Vehicles (CAVs).
 from typing import Dict, Any
 
 import torch
-from torch import nn, Tensor
+from torch import nn
 
 from einops import rearrange
 
@@ -40,7 +40,7 @@ class PreNormResidual(nn.Module):
         self.norm = nn.LayerNorm(dim)
         self.fn = fn
 
-    def forward(self, x: Tensor, **kwargs) -> Tensor:
+    def forward(self, x: torch.Tensor, **kwargs) -> torch.Tensor:
         """
         Forward pass with pre-normalization and residual connection.
 
@@ -86,7 +86,7 @@ class PreNorm(nn.Module):
         self.norm = nn.LayerNorm(dim)
         self.fn = fn
 
-    def forward(self, x: Tensor, **kwargs) -> Tensor:
+    def forward(self, x: torch.Tensor, **kwargs) -> torch.Tensor:
         """
         Forward pass with pre-normalization.
 
@@ -130,7 +130,7 @@ class FeedForward(nn.Module):
         super().__init__()
         self.net = nn.Sequential(nn.Linear(dim, hidden_dim), nn.GELU(), nn.Dropout(dropout), nn.Linear(hidden_dim, dim), nn.Dropout(dropout))
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: Ttorch.ensor) -> torch.Tensor:
         """
         Forward pass through feed-forward network.
 
@@ -191,7 +191,7 @@ class CavAttention(nn.Module):
 
         self.to_out = nn.Sequential(nn.Linear(inner_dim, dim), nn.Dropout(dropout))
 
-    def forward(self, x: Tensor, mask: Tensor, prior_encoding: Any = None) -> Tensor:
+    def forward(self, x: torch.Tensor, mask: torch.Tensor, prior_encoding: Any = None) -> torch.Tensor:
         """
         Forward pass through CAV attention.
 
@@ -277,7 +277,7 @@ class BaseEncoder(nn.Module):
                 )
             )
 
-    def forward(self, x: Tensor, mask: Tensor) -> Tensor:
+    def forward(self, x: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
         """
         Forward pass through transformer encoder.
 
@@ -337,7 +337,7 @@ class BaseTransformer(nn.Module):
 
         self.encoder = BaseEncoder(dim, depth, heads, dim_head, mlp_dim, dropout)
 
-    def forward(self, x: Tensor, mask: Tensor) -> Tensor:
+    def forward(self, x: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
         """
         Forward pass through transformer.
 

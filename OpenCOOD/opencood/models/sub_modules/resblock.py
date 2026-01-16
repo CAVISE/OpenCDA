@@ -5,7 +5,7 @@ This module implements ResNet basic blocks and layer construction utilities
 for building ResNet-style backbones for feature extraction.
 """
 
-from torch import Tensor
+import torch
 import torch.nn as nn
 from typing import Callable, List, Optional
 
@@ -137,7 +137,7 @@ class BasicBlock(nn.Module):
         self.downsample = downsample
         self.stride = stride
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Forward pass through basic block.
 
@@ -295,7 +295,7 @@ class ResNetLayers(nn.Module):
 
         return nn.Sequential(*layers)
 
-    def forward(self, x: Tensor):
+    def forward(self, x: torch.Tensor):
         interm_features = []
 
         for i in range(self.layernum):

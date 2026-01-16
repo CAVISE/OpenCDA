@@ -13,7 +13,8 @@ different control algorithms while maintaining a consistent interface.
 import importlib
 from typing import Any, Dict
 import numpy as np
-from numpy.typing import NDArray
+import numpy.typing as npt
+
 
 class ControlManager:
     """
@@ -35,7 +36,7 @@ class ControlManager:
         controller = getattr(importlib.import_module("opencda.core.actuation.%s" % controller_type), "Controller")
         self.controller = controller(control_config["args"])
 
-    def update_info(self, ego_pos: NDArray[np.float32], ego_speed: NDArray[np.float32]) -> None:
+    def update_info(self, ego_pos: npt.NDArray[np.float32], ego_speed: npt.NDArray[np.float32]) -> None:
         """
         Update ego vehicle information for controller.
 

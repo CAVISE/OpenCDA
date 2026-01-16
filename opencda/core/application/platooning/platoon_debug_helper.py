@@ -9,6 +9,7 @@ operations, including time gap and distance gap tracking between vehicles.
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
 from opencda.core.plan.planer_debug_helper import PlanDebugHelper
+from typing import Optional
 
 
 class PlatoonDebugHelper(PlanDebugHelper):

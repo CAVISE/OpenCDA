@@ -16,6 +16,7 @@ from opencood.pcdet_utils.pointnet2.pointnet2_stack import pointnet2_utils
 
 from typing import List, Optional, Tuple
 
+
 class StackSAModuleMSG(nn.Module):
     """
     Multi-scale grouping (MSG) set abstraction module.

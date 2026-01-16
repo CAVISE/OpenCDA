@@ -7,6 +7,7 @@ for efficient processing of spatial features.
 
 import torch
 import torch.nn as nn
+
 import numpy as np
 
 from einops import rearrange
@@ -108,6 +109,26 @@ class BaseWindowAttention(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Forward pass of the base window attention.
+
+        This method implements local window-based multi-head attention with optional
+        relative positional embeddings. The input feature map is divided into
+        non-overlapping windows, and attention is computed within each window.
+        
+        Parameters
+        ----------
+        x : torch.Tensor
+            Input tensor with shape (B, L, H, W, C) where:
+            - B: batch size
+            - L: sequence length (e.g., number of CAVs or time steps)
+            - H: height of feature map
+            - W: width of feature map
+            - C: number of channels
+        
+        Returns
+        -------
+        torch.Tensor
+            Output tensor with the same shape as input (B, L, H, W, C) after
+        applying window-based multi-head attention.
         """
         _, _, h, w, _, m = *x.shape, self.heads  # 1 -> b, 2 -> length, 5 -> c
 
@@ -214,7 +235,7 @@ class PyramidWindowAttention(nn.Module):
         if fuse_method == "split_attn":
             self.split_attn = SplitAttn(256)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Apply multi-scale window attention and fuse results.
 

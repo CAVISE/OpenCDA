@@ -7,12 +7,13 @@ for multi-agent cooperative perception using BEV representations.
 
 import math
 
+import torch
 import torch.nn as nn
 
 from opencood.models.fuse_modules.self_attn import AttFusion
 from opencood.models.pixor import Bottleneck, BackBone, Header
-from torch import Tensor
 from typing import Dict, Any, List, Type
+
 
 class BackBoneIntermediate(BackBone):
     """
@@ -55,20 +56,20 @@ class BackBoneIntermediate(BackBone):
         self.fusion_net4 = AttFusion(256)
         self.fusion_net5 = AttFusion(384)
 
-    def forward(self, x: Tensor, record_len: Tensor) -> Tensor:
+    def forward(self, x: torch.Tensor, record_len: torch.Tensor) -> torch.Tensor:
         """
         Forward pass through backbone with intermediate fusion.
 
         Parameters
         ----------
-        x : Tensor
+        x : torch.Tensor
             Input BEV tensor with shape (N, C, H, W).
-        record_len : Tensor
+        record_len : torch.Tensor
             Tensor indicating number of agents per batch sample.
 
         Returns
         -------
-        Tensor
+        torch.Tensor
             Multi-scale fused features with shape (N, 96, H/4, W/4).
         """
         c3, c4, c5 = self.encode(x)
@@ -122,7 +123,7 @@ class PIXORIntermediate(nn.Module):
         self.header.reghead.weight.data.fill_(0)
         self.header.reghead.bias.data.fill_(0)
 
-    def forward(self, data_dict: Dict[str, Any]) -> Dict[str, Any]:
+    def forward(self, data_dict: Dict[str, Any]) -> Dict[str, torch.Tensor]:
         """
         Forward pass through PIXOR Intermediate model.
 

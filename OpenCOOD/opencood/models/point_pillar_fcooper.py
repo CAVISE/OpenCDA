@@ -15,6 +15,7 @@ from opencood.models.sub_modules.naive_compress import NaiveCompressor
 from opencood.models.fuse_modules.f_cooper_fuse import SpatialFusion
 from typing import Dict, Any
 
+
 class PointPillarFCooper(nn.Module):
     """
      PointPillar with F-Cooper spatial fusion for multi-agent collaboration.
@@ -63,7 +64,7 @@ class PointPillarFCooper(nn.Module):
         Regression head for predicting bounding box parameters.
     """
 
-    def __init__(self, args):
+    def __init__(self, args: Dict[str, Any]):
         super(PointPillarFCooper, self).__init__()
 
         self.max_cav = args["max_cav"]

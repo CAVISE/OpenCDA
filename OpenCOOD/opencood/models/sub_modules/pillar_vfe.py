@@ -9,7 +9,7 @@ from typing import Dict, List, Any
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch import Tensor
+
 
 class PFNLayer(nn.Module):
     """
@@ -65,7 +65,7 @@ class PFNLayer(nn.Module):
 
         self.part = 50000
 
-    def forward(self, inputs: Tensor) -> Tensor:
+    def forward(self, inputs: torch.Tensor) -> torch.Tensor:
         """
         Forward pass through PFN layer.
 
@@ -192,10 +192,10 @@ class PillarVFE(nn.Module):
 
     @staticmethod
     def get_paddings_indicator(
-        actual_num: Tensor,
+        actual_num: torch.Tensor,
         max_num: int,
         axis: int = 0
-    ) -> Tensor:
+    ) -> torch.Tensor:
         """
         Generate padding mask for variable-length sequences.
 
@@ -220,7 +220,7 @@ class PillarVFE(nn.Module):
         paddings_indicator = actual_num.int() > max_num
         return paddings_indicator
 
-    def forward(self, batch_dict: Dict[str, Tensor]) -> Dict[str, Tensor]:
+    def forward(self, batch_dict: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
         """
         Encode pillar features from raw point features.
 

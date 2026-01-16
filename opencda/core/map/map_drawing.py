@@ -8,7 +8,8 @@ Rasterization drawing functions.
 
 import numpy as np
 import cv2
-from numpy.typing import NDArray, List
+import numpy.typing as npt
+from typing import List
 
 # sub-pixel drawing precision constants
 CV2_SUB_VALUES = {"shift": 9, "lineType": cv2.LINE_AA}
@@ -20,7 +21,7 @@ ROAD_COLOR = (17, 17, 31)
 Lane_COLOR = {"normal": (255, 217, 82), "red": (255, 0, 0), "yellow": (255, 255, 0), "green": (0, 255, 0)}
 
 
-def cv2_subpixel(coords: NDArray[np.float32]) -> NDArray[np.int64]:
+def cv2_subpixel(coords: npt.NDArray[np.float32]) -> npt.NDArray[np.int64]:
     """
     Cast coordinates to numpy.int but keep fractional part by previously multiplying by 2**CV2_SHIFT.
 
@@ -41,7 +42,7 @@ def cv2_subpixel(coords: NDArray[np.float32]) -> NDArray[np.int64]:
     return coords
 
 
-def draw_agent(agent_list: List[NDArray[np.float32]], image: NDArray[np.uint8]) -> NDArray[np.uint8]:
+def draw_agent(agent_list: List[npt.NDArray[np.float32]], image: npt.NDArray[np.uint8]) -> npt.NDArray[np.uint8]:
     """
     Draw agent mask on image.
 
@@ -63,7 +64,7 @@ def draw_agent(agent_list: List[NDArray[np.float32]], image: NDArray[np.uint8]) 
     return image
 
 
-def draw_road(lane_area_list: List[NDArray[np.float32]], image: NDArray[np.uint8]) -> NDArray[np.uint8]:
+def draw_road(lane_area_list: List[npt.NDArray[np.float32]], image: npt.NDArray[np.uint8]) -> npt.NDArray[np.uint8]:
     """
     Draw poly for road.
 
@@ -86,10 +87,10 @@ def draw_road(lane_area_list: List[NDArray[np.float32]], image: NDArray[np.uint8
 
 
 def draw_lane(
-    lane_area_list: List[NDArray[np.float32]],
+    lane_area_list: List[npt.NDArray[np.float32]],
     lane_type_list: List[str],
-    image: NDArray[np.uint8]
-) -> NDArray[np.uint8]:
+    image: npt.NDArray[np.uint8]
+) -> npt.NDArray[np.uint8]:
     """
     Draw lanes on image (polylines).
 

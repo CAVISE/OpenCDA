@@ -8,7 +8,7 @@ and ground truth data.
 
 import os
 from collections import OrderedDict
-from typing import Any, Tuple
+from typing import Any, Tuple, Dict
 
 import numpy as np
 import torch
@@ -16,7 +16,7 @@ import torch
 from opencood.utils.common_utils import torch_tensor_to_numpy
 
 
-def inference_late_fusion(batch_data: dict, model: torch.nn.Module, dataset: Any) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+def inference_late_fusion(batch_data: Dict, model: torch.nn.Module, dataset: Any) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """
     Model inference for late fusion.
 
@@ -48,7 +48,7 @@ def inference_late_fusion(batch_data: dict, model: torch.nn.Module, dataset: Any
     return pred_box_tensor, pred_score, gt_box_tensor
 
 
-def inference_early_fusion(batch_data: dict, model: torch.nn.Module, dataset: Any) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+def inference_early_fusion(batch_data: Dict, model: torch.nn.Module, dataset: Any) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """
     Model inference for early fusion.
 
@@ -80,7 +80,7 @@ def inference_early_fusion(batch_data: dict, model: torch.nn.Module, dataset: An
     return pred_box_tensor, pred_score, gt_box_tensor
 
 
-def inference_intermediate_fusion(batch_data: dict, model: torch.nn.Module, dataset: Any) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+def inference_intermediate_fusion(batch_data: Dict, model: torch.nn.Module, dataset: Any) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """
     Model inference for intermediate fusion.
 

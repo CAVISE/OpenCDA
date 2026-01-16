@@ -13,7 +13,6 @@ import carla
 import weakref
 import shapely
 from collections import deque
-from typing import List
 
 
 class CollisionSensor(object):

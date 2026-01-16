@@ -16,8 +16,10 @@ import concurrent
 from concurrent.futures import ThreadPoolExecutor
 from opencda.scenario_testing.utils.yaml_utils import load_yaml, save_yaml
 
+from typing import List, Dict
 
-def retrieve_future_params(yaml_params: list, index: int, seconds: int = 8) -> list:
+
+def retrieve_future_params(yaml_params: List, index: int, seconds: int = 8) -> List:
     """
     Retrieve YAML parameters for the next n seconds.
 
@@ -43,7 +45,7 @@ def retrieve_future_params(yaml_params: list, index: int, seconds: int = 8) -> l
     return future_params
 
 
-def retrieve_past_params(yaml_params: list, index: int, seconds: int = 1) -> list:
+def retrieve_past_params(yaml_params: List, index: int, seconds: int = 1) -> List:
     """
     Retrieve YAML parameters for the past n seconds.
 
@@ -69,7 +71,7 @@ def retrieve_past_params(yaml_params: list, index: int, seconds: int = 1) -> lis
     return past_params
 
 
-def extract_trajectories_by_id(object_id: str, yaml_param_list: list) -> list:
+def extract_trajectories_by_id(object_id: str, yaml_param_list: List) -> List:
     """
     Extract a vehicle's trajectory from YAML parameters.
 
@@ -109,7 +111,7 @@ def extract_trajectories_by_id(object_id: str, yaml_param_list: list) -> list:
     return trajectories
 
 
-def extract_trajectories_by_file(yaml_params: list, cur_index: int, past_seconds: int = 1, future_seconds: int = 8) -> dict:
+def extract_trajectories_by_file(yaml_params: List, cur_index: int, past_seconds: int = 1, future_seconds: int = 8) -> Dict:
     """
     Extract predictions and observations for all vehicles at the current timestamp.
 

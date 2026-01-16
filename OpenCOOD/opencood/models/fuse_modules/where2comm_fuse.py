@@ -13,7 +13,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from torch import Tensor 
 from opencood.models.fuse_modules.self_attn import ScaledDotProductAttention
 
 
@@ -81,9 +80,9 @@ class Communication(nn.Module):
 
     def forward(
         self, 
-        batch_confidence_maps: List[Tensor], 
+        batch_confidence_maps: List[torch.Tensor], 
         B: int
-    ) -> Tuple[Tensor, float]:
+    ) -> Tuple[torch.Tensor, float]:
         """
         Generate communication masks based on confidence maps.
         
@@ -158,11 +157,11 @@ class AttentionFusion(nn.Module):
         Scaled dot-product attention module.
     """
     
-    def __init__(self, feature_dim: int) -> None:
+    def __init__(self, feature_dim: int):
         super(AttentionFusion, self).__init__()
         self.att = ScaledDotProductAttention(feature_dim)
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Forward pass through attention fusion.
 
@@ -247,7 +246,7 @@ class Where2comm(nn.Module):
 
         self.naive_communication = Communication(args["communication"])
 
-    def regroup(x: Tensor, record_len: Tensor) -> List[Tensor]:
+    def regroup(x: torch.Tensor, record_len: torch.Tensor) -> List[torch.Tensor]:
         """
         Regroup features based on record lengths.
 
@@ -269,12 +268,12 @@ class Where2comm(nn.Module):
 
     def forward(
         self, 
-        x: Tensor, 
-        psm_single: Tensor, 
-        record_len: Tensor, 
-        pairwise_t_matrix: Tensor, 
+        x: torch.Tensor, 
+        psm_single: torch.Tensor, 
+        record_len: torch.Tensor, 
+        pairwise_t_matrix: torch.Tensor, 
         backbone: Optional[nn.Module] = None
-    ) -> Tensor:
+    ) -> torch.Tensor:
         """
         Forward pass for Where2comm fusion.
 

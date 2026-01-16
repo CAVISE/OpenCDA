@@ -29,7 +29,7 @@ class RadixSoftmax(nn.Module):
         Number of groups.
     """
     
-    def __init__(self, radix, cardinality):
+    def __init__(self, radix: int, cardinality: int):
         super(RadixSoftmax, self).__init__()
         self.radix = radix
         self.cardinality = cardinality

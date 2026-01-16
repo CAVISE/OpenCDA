@@ -279,11 +279,7 @@ def check_buld_for_utils(
     try:
         logger.info(f"Building {module_name} ...")
         result = subprocess.run(
-            ["python", f"{module_path}setup.py", "build_ext", "--inplace"], 
-            check=True, 
-            cwd=cwd.joinpath("OpenCOOD"), 
-            capture_output=True, 
-            text=True
+            ["python", f"{module_path}setup.py", "build_ext", "--inplace"], check=True, cwd=cwd.joinpath("OpenCOOD"), capture_output=True, text=True
         )
         os.close(os.open(str(marker_file), os.O_CREAT))
         logger.info(f"Complete building {module_name}")

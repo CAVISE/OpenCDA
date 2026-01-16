@@ -12,6 +12,7 @@ import torch
 import torch.nn.functional as F
 import opencood.utils.common_utils as common_utils
 from opencood.utils.transformation_utils import x1_to_x2
+from typing import Dict, List
 
 
 def corner_to_center(corner3d: npt.NDArray[np.floating], order: str = "lwh") -> npt.NDArray[np.floating]:
@@ -351,7 +352,7 @@ def get_mask_for_boxes_within_range_torch(boxes: torch.Tensor) -> torch.Tensor:
     return mask
 
 
-def mask_boxes_outside_range_numpy(boxes: npt.NDArray[np.floating], limit_range: list, order: str, min_num_corners: int = 8, return_mask: bool = False) -> npt.NDArray[np.floating] | tuple[npt.NDArray[np.floating], npt.NDArray[np.bool_]]:
+def mask_boxes_outside_range_numpy(boxes: npt.NDArray[np.floating], limit_range: List, order: str, min_num_corners: int = 8, return_mask: bool = False) -> npt.NDArray[np.floating] | tuple[npt.NDArray[np.floating], npt.NDArray[np.bool_]]:
     """
     Parameters
     ----------
@@ -389,7 +390,7 @@ def mask_boxes_outside_range_numpy(boxes: npt.NDArray[np.floating], limit_range:
     return boxes[mask]
 
 
-def create_bbx(extent: list) -> npt.NDArray[np.floating]:
+def create_bbx(extent: List) -> npt.NDArray[np.floating]:
     """
     Create bounding box with 8 corners under obstacle vehicle reference.
 
@@ -420,7 +421,7 @@ def create_bbx(extent: list) -> npt.NDArray[np.floating]:
     return bbx
 
 
-def project_world_objects(object_dict: dict, output_dict: dict, lidar_pose: list, lidar_range: list, order: str) -> None:
+def project_world_objects(object_dict: Dict, output_dict: Dict, lidar_pose: List, lidar_range: List, order: str) -> None:
     """
     Project the objects under world coordinates into another coordinate
     based on the provided extrinsic.
@@ -612,7 +613,7 @@ def nms_rotated(boxes: torch.Tensor, scores: torch.Tensor, threshold: float) -> 
     return np.array(pick, dtype=np.int32)
 
 
-def nms_pytorch(boxes: torch.Tensor, thresh_iou: float) -> list[int]:
+def nms_pytorch(boxes: torch.Tensor, thresh_iou: float) -> List[int]:
     """
     Apply non-maximum suppression to avoid detecting too many
     overlapping bounding boxes for a given object.

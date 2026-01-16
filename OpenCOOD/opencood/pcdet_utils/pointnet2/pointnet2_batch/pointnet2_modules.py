@@ -41,7 +41,7 @@ class _PointnetSAModuleBase(nn.Module):
         self.mlps = None
         self.pool_method = "max_pool"
 
-    def forward(self, xyz: torch.Tensor, features: torch.Tensor = None, new_xyz=None) -> Tuple(torch.Tensor, torch.Tensor):
+    def forward(self, xyz: torch.Tensor, features: torch.Tensor = None, new_xyz=None) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Set abstraction with multi-scale feature extraction.
 

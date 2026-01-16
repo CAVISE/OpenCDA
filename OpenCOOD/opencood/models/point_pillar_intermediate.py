@@ -13,6 +13,7 @@ from opencood.models.sub_modules.att_bev_backbone import AttBEVBackbone
 
 from typing import Dict, Any
 
+
 class PointPillarIntermediate(nn.Module):
     """
     PointPillar with intermediate attention-based feature extraction.
@@ -47,7 +48,7 @@ class PointPillarIntermediate(nn.Module):
         Regression head for predicting bounding box parameters.
     """
 
-    def __init__(self, args):
+    def __init__(self, args: Dict[str, Any]):
         super(PointPillarIntermediate, self).__init__()
 
         # PIllar VFE

@@ -7,7 +7,7 @@ from multiple agents based on IoU overlap and confidence scores.
 
 from typing import Dict, List, Tuple, Any
 import torch
-from torch import nn, Tensor
+from torch import nn
 
 from opencood.pcdet_utils.iou3d_nms.iou3d_nms_utils import boxes_iou3d_gpu
 
@@ -15,10 +15,10 @@ pi = 3.141592653
 
 
 def limit_period(
-    val: Tensor,
+    val: torch.Tensor,
     offset: float = 0.5,
     period: float = 2 * pi
-) -> Tensor:
+) -> torch.Tensor:
     """
     Limit angles to a specific period range.
 
@@ -92,7 +92,7 @@ class Matcher(nn.Module):
     def clustering(
         self,
         data_dict: Dict[str, Any]
-    ) -> Tuple[List[List[Tensor]], List[List[Tensor]]]:
+    ) -> Tuple[List[List[torch.Tensor]], List[List[torch.Tensor]]]:
         """
         Cluster predicted boxes based on IoU overlap.
 
@@ -148,9 +148,9 @@ class Matcher(nn.Module):
 
     def cluster_fusion(
         self,
-        clusters: List[List[Tensor]],
-        scores: List[List[Tensor]]
-    ) -> Tuple[List[Tensor], List[Tensor]]:
+        clusters: List[List[torch.Tensor]],
+        scores: List[List[torch.Tensor]]
+    ) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
         """
         Fuse boxes within each cluster using score-weighted averaging.
 

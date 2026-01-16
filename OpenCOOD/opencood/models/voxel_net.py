@@ -10,7 +10,6 @@ from typing import Any, Dict, Tuple
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch import Tensor
 from torch.autograd import Variable
 
 from opencood.models.sub_modules.pillar_vfe import PillarVFE
@@ -66,7 +65,7 @@ class Conv2d(nn.Module):
             self.bn = None
         self.activation = activation
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Forward pass of Conv2d layer.
 
@@ -124,7 +123,7 @@ class Conv3d(nn.Module):
         s: int | tuple[int, int, int],
         p: int | tuple[int, int, int],
         batch_norm: bool = True
-    ) -> None:
+    ):
         super(Conv3d, self).__init__()
         self.conv = nn.Conv3d(in_channels, out_channels, kernel_size=k, stride=s, padding=p)
         if batch_norm:
@@ -132,7 +131,7 @@ class Conv3d(nn.Module):
         else:
             self.bn = None
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Forward pass of Conv3d layer.
 
@@ -174,13 +173,13 @@ class FCN(nn.Module):
         Batch normalization layer.
     """
 
-    def __init__(self, cin: int, cout: int) -> None:
+    def __init__(self, cin: int, cout: int):
         super(FCN, self).__init__()
         self.cout = cout
         self.linear = nn.Linear(cin, cout)
         self.bn = nn.BatchNorm1d(cout)
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Forward pass of FCN layer.
 
@@ -224,14 +223,14 @@ class VFE(nn.Module):
         Maximum number of points per voxel.
     """
 
-    def __init__(self, cin: int, cout: int, T: int) -> None:
+    def __init__(self, cin: int, cout: int, T: int):
         super(VFE, self).__init__()
         assert cout % 2 == 0
         self.units = cout // 2
         self.fcn = FCN(cin, self.units)
         self.T = T
 
-    def forward(self, x: Tensor, mask: Tensor) -> Tensor:
+    def forward(self, x: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
         """
         Forward pass of VFE layer.
 
@@ -279,13 +278,13 @@ class SVFE(nn.Module):
         Fully connected network layer.
     """
 
-    def __init__(self, T: int) -> None:
+    def __init__(self, T: int):
         super(SVFE, self).__init__()
         self.vfe_1 = VFE(7, 32, T)
         self.vfe_2 = VFE(32, 128, T)
         self.fcn = FCN(128, 128)
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Forward pass of SVFE.
 
@@ -322,13 +321,13 @@ class CML(nn.Module):
         Third 3D convolution layer.
     """
 
-    def __init__(self) -> None:
+    def __init__(self):
         super(CML, self).__init__()
         self.conv3d_1 = Conv3d(64, 64, 3, s=(2, 1, 1), p=(1, 1, 1))
         self.conv3d_2 = Conv3d(64, 64, 3, s=(1, 1, 1), p=(0, 1, 1))
         self.conv3d_3 = Conv3d(64, 64, 3, s=(2, 1, 1), p=(1, 1, 1))
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Forward pass of CML.
 
@@ -379,7 +378,7 @@ class RPN(nn.Module):
         Regression head for bounding box parameters.
     """
 
-    def __init__(self, anchor_num: int = 2) -> None:
+    def __init__(self, anchor_num: int = 2):
         super(RPN, self).__init__()
         self.anchor_num = anchor_num
 
@@ -402,7 +401,7 @@ class RPN(nn.Module):
         self.score_head = Conv2d(768, self.anchor_num, 1, 1, 0, activation=False, batch_norm=False)
         self.reg_head = Conv2d(768, 7 * self.anchor_num, 1, 1, 0, activation=False, batch_norm=False)
 
-    def forward(self, x: Tensor) -> Tuple[Tensor, Tensor]:
+    def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Forward pass of RPN.
 
@@ -460,7 +459,7 @@ class VoxelNet(nn.Module):
         Number of anchor boxes per position.
     """
 
-    def __init__(self, args: Dict[str, Any]) -> None:
+    def __init__(self, args: Dict[str, Any]):
         super(VoxelNet, self).__init__()
         self.svfe = PillarVFE(args["pillar_vfe"], num_point_features=4, voxel_size=args["voxel_size"], point_cloud_range=args["lidar_range"])
 
@@ -475,7 +474,7 @@ class VoxelNet(nn.Module):
         self.T = args["T"]
         self.anchor_num = args["anchor_num"]
 
-    def voxel_indexing(self, sparse_features: Tensor, coords: Tensor) -> Tensor:
+    def voxel_indexing(self, sparse_features: torch.Tensor, coords: torch.Tensor) -> torch.Tensor:
         """
         Convert sparse voxel features to dense representation.
 
@@ -499,7 +498,7 @@ class VoxelNet(nn.Module):
 
         return dense_feature.transpose(0, 1)
 
-    def forward(self, data_dict: Dict[str, Any]) -> Dict[str, Tensor]:
+    def forward(self, data_dict: Dict[str, Any]) -> Dict[str, torch.Tensor]:
         """
         Forward pass of VoxelNet.
 

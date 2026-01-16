@@ -11,7 +11,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from typing import Dict, Any, List, Optional, Tuple, Type, Union
-from torch import Tensor
+import torch
+
 
 def conv3x3(in_planes: int, out_planes: int, stride: int = 1, bias: bool = False) -> nn.Conv2d:
     """
@@ -72,7 +73,7 @@ class BasicBlock(nn.Module):
     """
     expansion = 1
 
-    def __init__(self, in_planes: int, planes: int, stride: int = 1, downsample: Optional[nn.Module] = None) -> None:
+    def __init__(self, in_planes: int, planes: int, stride: int = 1, downsample: Optional[nn.Module] = None):
         super(BasicBlock, self).__init__()
         self.conv1 = conv3x3(in_planes, planes, stride, bias=True)
         self.bn1 = nn.BatchNorm2d(planes)
@@ -82,19 +83,19 @@ class BasicBlock(nn.Module):
         self.downsample = downsample
         self.stride = stride
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: torch.torch.Tensor) -> torch.torch.Tensor:
         """
         Forward pass of BasicBlock.
 
         Parameters
         ----------
-        x : Tensor
-            Input tensor with shape (N, in_planes, H, W).
+        x : torch.Tensor
+            Input torch.Tensor with shape (N, in_planes, H, W).
 
         Returns
         -------
-        Tensor
-            Output tensor with shape (N, planes, H/stride, W/stride).
+        torch.Tensor
+            Output torch.Tensor with shape (N, planes, H/stride, W/stride).
         """
         residual = x
 
@@ -169,17 +170,17 @@ class Bottleneck(nn.Module):
         self.downsample = downsample
         self.relu = nn.ReLU(inplace=True)
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Forward pass of residual block.
         Parameters
         ----------
-        x : torch.Tensor
+        x : torch.torch.Tensor
             Shape (N, C, W, L).
 
         Returns
         -------
-        out : torch.Tensor
+        out : torch.torch.Tensor
             Shape (N, self.expansion*planes, W/stride, L/stride).
         """
         residual = x
@@ -294,18 +295,18 @@ class BackBone(nn.Module):
         p = 0 if geom["label_shape"][1] == 175 else 1
         self.deconv2 = nn.ConvTranspose2d(128, 96, kernel_size=3, stride=2, padding=1, output_padding=(1, p))
 
-    def encode(self, x: Tensor) -> Tuple[Tensor, Tensor, Tensor]:
+    def encode(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Encode input through bottom-up pathway.
 
         Parameters
         ----------
-        x : Tensor
-            Input BEV tensor.
+        x : torch.Tensor
+            Input BEV torch.Tensor.
 
         Returns
         -------
-        tuple of Tensor
+        tuple of torch.Tensor
             Multi-scale features (c3, c4, c5) from different resolution levels.
         """
         x = self.conv1(x)
@@ -326,22 +327,22 @@ class BackBone(nn.Module):
 
         return c3, c4, c5
 
-    def decode(self, c3: Tensor, c4: Tensor, c5: Tensor) -> Tensor:
+    def decode(self, c3: torch.Tensor, c4: torch.Tensor, c5: torch.Tensor) -> torch.Tensor:
         """
         Decode multi-scale features through top-down pathway.
 
         Parameters
         ----------
-        c3 : Tensor
+        c3 : torch.Tensor
             Features from layer 3.
-        c4 : Tensor
+        c4 : torch.Tensor
             Features from layer 4.
-        c5 : Tensor
+        c5 : torch.Tensor
             Features from layer 5.
 
         Returns
         -------
-        Tensor
+        torch.Tensor
             Fused multi-scale features.
         """
         l5 = self.latlayer1(c5)
@@ -352,18 +353,18 @@ class BackBone(nn.Module):
 
         return p4
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Forward pass through backbone.
 
         Parameters
         ----------
-        x : Tensor
-            Input BEV tensor with shape (N, C, H, W).
+        x : torch.Tensor
+            Input BEV torch.Tensor with shape (N, C, H, W).
 
         Returns
         -------
-        Tensor
+        torch.Tensor
             Multi-scale fused features with shape (N, 96, H/4, W/4).
         """
         c3, c4, c5 = self.encode(x)
@@ -410,7 +411,7 @@ class BackBone(nn.Module):
             self.in_planes = planes * block.expansion
         return nn.Sequential(*layers)
 
-    def _upsample_add(self, x: Tensor, y: Tensor) -> Tensor:
+    def _upsample_add(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         """
     Upsample and add two feature maps.
     
@@ -420,14 +421,14 @@ class BackBone(nn.Module):
     
     Parameters
     ----------
-    x : torch.Tensor
+    x : torch.torch.Tensor
         Top feature map to be upsampled.
-    y : torch.Tensor
+    y : torch.torch.Tensor
         Lateral feature map that determines the target size.
     
     Returns
     -------
-    torch.Tensor
+    torch.torch.Tensor
         Added feature map with the same spatial dimensions as y.
     """
         _, _, H, W = y.size()
@@ -472,7 +473,7 @@ class Header(nn.Module):
         Regression head producing bounding box parameters.
     """
 
-    def __init__(self, use_bn: bool = True) -> None:
+    def __init__(self, use_bn: bool = True):
         super(Header, self).__init__()
 
         self.use_bn = use_bn
@@ -489,18 +490,18 @@ class Header(nn.Module):
         self.clshead = conv3x3(96, 1, bias=True)
         self.reghead = conv3x3(96, 6, bias=True)
 
-    def forward(self, x: Tensor) -> Tuple[Tensor, Tensor]:
+    def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Forward pass through prediction header.
 
         Parameters
         ----------
-        x : Tensor
+        x : torch.Tensor
             Input features with shape (N, 96, H, W).
 
         Returns
         -------
-        tuple of Tensor
+        tuple of torch.Tensor
             Classification scores with shape (N, 1, H, W) and
             regression parameters with shape (N, 6, H, W).
         """
@@ -525,9 +526,9 @@ class Header(nn.Module):
 
 class PIXOR(nn.Module):
     """
-    The Pixor backbone. The input of PIXOR nn module is a tensor of
+    The Pixor backbone. The input of PIXOR nn module is a torch.Tensor of
     [batch_size, height, weight, channel], The output of PIXOR nn module
-    is also a tensor of [batch_size, height/4, weight/4, channel].  Note that
+    is also a torch.Tensor of [batch_size, height/4, weight/4, channel].  Note that
      we convert the dimensions to [C, H, W] for PyTorch's nn.Conv2d functions
 
     Parameters
@@ -543,7 +544,7 @@ class PIXOR(nn.Module):
         Header used to predict the classification and coordinates.
     """
 
-    def __init__(self, args: Dict[str, Any]) -> None:
+    def __init__(self, args: Dict[str, Any]):
         super(PIXOR, self).__init__()
         geom = args["geometry_param"]
         use_bn = args["use_bn"]
@@ -564,7 +565,7 @@ class PIXOR(nn.Module):
         self.header.reghead.weight.data.fill_(0)
         self.header.reghead.bias.data.fill_(0)
 
-    def forward(self, data_dict: Dict[str, Any]) -> Dict[str, Any]:
+    def forward(self, data_dict: Dict[str, Any]) -> Dict[str, torch.Tensor]:
         """
         Forward pass through PIXOR model.
 
@@ -576,7 +577,7 @@ class PIXOR(nn.Module):
 
         Returns
         -------
-        dict of str to Tensor
+        dict of str to torch.Tensor
         """
         bev_input = data_dict["processed_lidar"]["bev_input"]
 

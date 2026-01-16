@@ -8,7 +8,7 @@ from typing import Dict, List, Union, Any
 import math
 
 import torch
-from torch import nn, Tensor
+from torch import nn
 
 from opencood.models.fuse_modules.hmsa import HGTCavAttention
 from opencood.models.fuse_modules.mswin import PyramidWindowAttention
@@ -50,10 +50,10 @@ class STTF(nn.Module):
 
     def forward(
         self, 
-        x: Tensor, 
-        mask: Tensor, 
-        spatial_correction_matrix: Tensor
-    ) -> Tensor:
+        x: torch.Tensor, 
+        mask: torch.Tensor, 
+        spatial_correction_matrix: torch.Tensor
+    ) -> torch.Tensor:
         """
         Forward pass applying spatial-temporal transformation.
 
@@ -127,7 +127,7 @@ class RelTemporalEncoding(nn.Module):
         self.emb = emb
         self.lin = nn.Linear(n_hid, n_hid)
 
-    def forward(self, x: Tensor, t: Tensor) -> Tensor:
+    def forward(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
         """
         Forward pass adding temporal encoding.
 
@@ -173,7 +173,7 @@ class RTE(nn.Module):
 
         self.emb = RelTemporalEncoding(dim, RTE_ratio=self.RTE_ratio)
 
-    def forward(self, x: Tensor, dts: Tensor) -> Tensor:
+    def forward(self, x: torch.Tensor, dts: torch.Tensor) -> torch.Tensor:
         """
         Forward pass for relative temporal encoding.
 
@@ -264,10 +264,10 @@ class V2XFusionBlock(nn.Module):
 
     def forward(
         self, 
-        x: Tensor, 
-        mask: Tensor, 
-        prior_encoding: Tensor
-    ) -> Tensor:
+        x: torch.Tensor, 
+        mask: torch.Tensor, 
+        prior_encoding: torch.Tensor
+    ) -> torch.Tensor:
         """
         Forward pass through V2X fusion block.
 
@@ -372,10 +372,10 @@ class V2XTEncoder(nn.Module):
 
     def forward(
         self, 
-        x: Tensor, 
-        mask: Tensor, 
-        spatial_correction_matrix: Tensor
-    ) -> Tensor:
+        x: torch.Tensor, 
+        mask: torch.Tensor, 
+        spatial_correction_matrix: torch.Tensor
+    ) -> torch.Tensor:
         """
         Forward pass through V2X encoder.
 
@@ -443,10 +443,10 @@ class V2XTransformer(nn.Module):
 
     def forward(
         self, 
-        x: Tensor, 
-        mask: Tensor, 
-        spatial_correction_matrix: Tensor
-    ) -> Tensor:
+        x: torch.Tensor, 
+        mask: torch.Tensor, 
+        spatial_correction_matrix: torch.Tensor
+    ) -> torch.Tensor:
         """
         Forward pass through V2X Transformer.
 

@@ -8,7 +8,6 @@ spatial feature map for downstream processing.
 from typing import Dict, Any
 import torch
 import torch.nn as nn
-from torch import Tensor
 
 
 class PointPillarScatter(nn.Module):
@@ -47,7 +46,7 @@ class PointPillarScatter(nn.Module):
         self.nx, self.ny, self.nz = model_cfg["grid_size"]
         assert self.nz == 1
 
-    def forward(self, batch_dict: Dict[str, Tensor]) -> Dict[str, Tensor]:
+    def forward(self, batch_dict: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
         """
         Scatter pillar features into dense BEV spatial feature map.
 

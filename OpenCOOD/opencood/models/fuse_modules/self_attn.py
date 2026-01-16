@@ -11,7 +11,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch import Tensor
+
 
 class ScaledDotProductAttention(nn.Module):
     """
@@ -35,7 +35,7 @@ class ScaledDotProductAttention(nn.Module):
         super(ScaledDotProductAttention, self).__init__()
         self.sqrt_dim = np.sqrt(dim)
 
-    def forward(self, query: Tensor, key: Tensor, value: Tensor) -> Tensor:
+    def forward(self, query: torch.Tensor, key: torch.Tensor, value: torch.Tensor) -> torch.Tensor:
         """
         Apply scaled dot-product attention.
 
@@ -81,7 +81,7 @@ class AttFusion(nn.Module):
         super(AttFusion, self).__init__()
         self.att = ScaledDotProductAttention(feature_dim)
 
-    def forward(self, x: Tensor, record_len: Tensor) -> Tensor:
+    def forward(self, x: torch.Tensor, record_len: torch.Tensor) -> torch.Tensor:
         """
         Forward pass for attention-based fusion.
 
@@ -108,7 +108,7 @@ class AttFusion(nn.Module):
             out.append(h)
         return torch.stack(out)
 
-    def regroup(x: Tensor, record_len: Tensor) -> List[Tensor]:
+    def regroup(x: torch.Tensor, record_len: torch.Tensor) -> List[torch.Tensor]:
         """
         Split input tensor into a list of tensors based on record_len.
 

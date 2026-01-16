@@ -17,6 +17,8 @@ from opencood.models.sub_modules.naive_compress import NaiveCompressor
 from opencood.models.fuse_modules.v2xvit_basic import V2XTransformer
 
 from typing import Dict, Any
+
+
 class PointPillarTransformer(nn.Module):
     """
     PointPillar with Transformer-based feature fusion for multi-agent collaboration.

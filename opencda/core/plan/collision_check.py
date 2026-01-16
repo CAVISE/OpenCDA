@@ -56,9 +56,9 @@ class CollisionChecker:
     def is_in_range(
         self,
         ego_pos: carla.Transform,
-        target_vehicle: Any,
-        candidate_vehicle: Any,
-        carla_map: Any,
+        target_vehicle: carla.Vehicle,
+        candidate_vehicle: carla.Vehicle,
+        carla_map: carla.Map,
     ) -> bool:
         """
         Check whether there is a obstacle vehicle between target_vehicle
@@ -66,18 +66,15 @@ class CollisionChecker:
 
         Parameters
         ----------
-        carla_map : carla.map
-            Carla map  of the current simulation world.
-
         ego_pos : carla.transform
             Ego vehicle position.
-
         target_vehicle : carla.vehicle
             The target vehicle that ego vehicle trying to catch up with.
-
         candidate_vehicle : carla.vehicle
             The possible obstacle vehicle blocking the ego vehicle
             and target vehicle.
+        carla_map : carla.map
+            Carla map  of the current simulation world.
 
         Returns
         -------

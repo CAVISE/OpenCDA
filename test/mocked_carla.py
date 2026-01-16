@@ -12,6 +12,8 @@ unit testing without requiring the full CARLA simulator.
 
 import numpy as np
 
+from typing import Dict
+
 
 class Location(object):
     """
@@ -38,7 +40,7 @@ class Location(object):
         Z-coordinate.
     """
 
-    def __init__(self, x: float, y: float, z: float) -> None:
+    def __init__(self, x: float, y: float, z: float):
         self.x = x
         self.y = y
         self.z = z
@@ -73,7 +75,7 @@ class Transform(object):
         3D rotation.
     """
 
-    def __init__(self, x: float, y: float, z: float, pitch: float = 0, yaw: float = 0, roll: float = 0) -> None:
+    def __init__(self, x: float, y: float, z: float, pitch: float = 0, yaw: float = 0, roll: float = 0):
         self.location = Location(x, y, z)
         self.rotation = Rotation(pitch, yaw, roll)
 
@@ -103,7 +105,7 @@ class Rotation(object):
         Roll rotation.
     """
 
-    def __init__(self, pitch: float, yaw: float, roll: float) -> None:
+    def __init__(self, pitch: float, yaw: float, roll: float):
         self.pitch = pitch
         self.yaw = yaw
         self.roll = roll
@@ -134,7 +136,7 @@ class Vector3D(object):
         Z component.
     """
 
-    def __init__(self, x: float, y: float, z: float) -> None:
+    def __init__(self, x: float, y: float, z: float):
         self.x = x
         self.y = y
         self.z = z
@@ -159,7 +161,7 @@ class Camera(object):
         Camera's current transform.
     """
 
-    def __init__(self, attributes: dict):
+    def __init__(self, attributes: Dict):
         self.attributes = attributes
         self.transform = Transform(x=10, y=10, z=10)
 
@@ -184,7 +186,7 @@ class Lidar(object):
         LiDAR's current transform.
     """
 
-    def __init__(self, attributes: dict):
+    def __init__(self, attributes: Dict):
         self.attributes = attributes
         self.transform = Transform(x=11, y=11, z=11)
 

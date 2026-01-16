@@ -20,7 +20,6 @@ import carla
 
 import numpy as np
 import matplotlib.pyplot as plt
-import numpy.typing as npt
 
 import opencda.core.plan.drive_profile_plotting as open_plt
 

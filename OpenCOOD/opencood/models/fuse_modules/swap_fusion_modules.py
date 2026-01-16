@@ -13,7 +13,7 @@ from einops.layers.torch import Rearrange, Reduce
 from opencood.models.sub_modules.base_transformer import FeedForward, PreNormResidual
 
 from typing import Optional
-from torch import nn, Tensor
+from torch import nn
 
 
 # swap attention -> max_vit
@@ -101,9 +101,9 @@ class Attention(nn.Module):
 
     def forward(
         self, 
-        x: Tensor, 
-        mask: Optional[Tensor] = None
-    ) -> Tensor:
+        x: torch.Tensor, 
+        mask: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
         """
         Apply multi-head attention with optional masking.
 
@@ -219,9 +219,9 @@ class SwapFusionBlockMask(nn.Module):
 
     def forward(
         self, 
-        x: Tensor, 
-        mask: Tensor
-    ) -> Tensor:
+        x: torch.Tensor, 
+        mask: torch.Tensor
+    ) -> torch.Tensor:
         """
         Apply window and grid attention with masking.
 
@@ -309,9 +309,9 @@ class SwapFusionBlock(nn.Module):
 
     def forward(
         self, 
-        x: Tensor, 
-        mask: Optional[Tensor] = None
-    ) -> Tensor:
+        x: torch.Tensor, 
+        mask: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
         # todo: add mask operation later for mulit-agents
         x = self.block(x)
         return x
@@ -393,9 +393,9 @@ class SwapFusionEncoder(nn.Module):
 
     def forward(
         self, 
-        x: Tensor, 
-        mask: Optional[Tensor] = None
-    ) -> Tensor:
+        x: torch.Tensor, 
+        mask: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
         """
         Apply swap fusion and aggregate across agents.
 

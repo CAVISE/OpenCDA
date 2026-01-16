@@ -8,7 +8,7 @@ for bounding box regression in the PointPillar architecture.
 import torch
 import torch.nn as nn
 import numpy as np
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Tuple
 
 
 class WeightedSmoothL1Loss(nn.Module):
@@ -272,7 +272,7 @@ class PointPillarLoss(nn.Module):
         return loss
 
     @staticmethod
-    def add_sin_difference(boxes1: torch.Tensor, boxes2: torch.Tensor, dim: int = 6) -> tuple[torch.Tensor, torch.Tensor]:
+    def add_sin_difference(boxes1: torch.Tensor, boxes2: torch.Tensor, dim: int = 6) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Add sine difference encoding for rotation angles.
         

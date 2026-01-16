@@ -14,6 +14,50 @@ from torch import Tensor
 
 
 class CiassdLoss(nn.Module):
+    """
+    Loss function for CIASSD object detection model.
+    
+    Combines classification, regression, direction, and IoU losses
+    for 3D object detection in cooperative perception scenarios.
+    
+    Parameters
+    ----------
+    args : Dict[str, Any]
+        Configuration dictionary containing:
+        - pos_cls_weight : float
+            Weight for positive class samples.
+        - encode_rad_error_by_sin : bool
+            Whether to encode rotation angle error using sin/cos.
+        - cls : Dict[str, Any]
+            Classification loss parameters (gamma, alpha, weight).
+        - reg : Dict[str, Any]
+            Regression loss parameters (sigma, weight).
+        - iou : Dict[str, Any]
+            IoU loss parameters (sigma, weight).
+        - dir : Dict[str, Any]
+            Direction loss parameters (weight).
+    
+    Attributes
+    ----------
+    pos_cls_weight : float
+        Weight for positive classification samples.
+    encode_rad_error_by_sin : bool
+        Flag to encode rotation error with trigonometric functions.
+    cls : Dict[str, Any]
+        Classification loss configuration.
+    reg : Dict[str, Any]
+        Regression loss configuration.
+    iou : Dict[str, Any]
+        IoU loss configuration.
+    dir : Dict[str, Any]
+        Direction loss configuration.
+    loss_dict : Dict[str, torch.Tensor]
+        Dictionary storing individual loss components.
+    num_cls : int
+        Number of classes (default 2 for binary classification).
+    box_codesize : int
+        Bounding box encoding size (7 for 3D boxes: x, y, z, l, w, h, yaw).
+    """
     def __init__(self, args: Dict[str, Any]):
         super(CiassdLoss, self).__init__()
         self.pos_cls_weight = args["pos_cls_weight"]

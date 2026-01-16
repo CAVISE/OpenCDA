@@ -19,7 +19,7 @@ import logging
 import shutil
 import subprocess
 import tempfile
-from typing import Optional, Dict, List, Set, Tuple
+from typing import Optional, List, Tuple
 
 import lxml.etree as ET
 
@@ -687,7 +687,7 @@ def _netconvert_carla_impl(xodr_file: str, output: str, tmpdir: str, guess_tls: 
     tree.write(output, pretty_print=True, encoding="UTF-8", xml_declaration=True)
 
 
-def netconvert_carla(xodr_file: str, output: str, guess_tls):
+def netconvert_carla(xodr_file: str, output: str, guess_tls: bool=False):
     """
     Generate a SUMO network file from an OpenDRIVE file.
 

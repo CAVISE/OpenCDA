@@ -42,7 +42,14 @@ class Canvas_BEV(object):
         Current canvas image with shape (height, width, 3) in BGR format.
     """
     
-    def __init__(self, canvas_shape=(1000, 1000), canvas_x_range=(-50, 50), canvas_y_range=(-50, 50), canvas_bg_color=(0, 0, 0), left_hand=False):
+    def __init__(
+        self, 
+        canvas_shape: Tuple[int, int]=(1000, 1000), 
+        canvas_x_range: Tuple[float, float]=(-50, 50), 
+        canvas_y_range: Tuple[float, float]=(-50, 50), 
+        canvas_bg_color: Tuple[int, int, int]=(0, 0, 0),
+        left_hand: bool=False
+        ):
 
         # Sanity check ratios
         if (canvas_shape[0] / canvas_shape[1]) != ((canvas_x_range[0] - canvas_x_range[1]) / (canvas_y_range[0] - canvas_y_range[1])):
@@ -103,12 +110,7 @@ class Canvas_BEV(object):
             y = -y
 
         # Get valid mask
-        valid_mask = (
-            (x > self.canvas_x_range[0])
-            & (x < self.canvas_x_range[1])
-            & (y > self.canvas_y_range[0])
-            & (y < self.canvas_y_range[1])
-        )
+        valid_mask = (x > self.canvas_x_range[0]) & (x < self.canvas_x_range[1]) & (y > self.canvas_y_range[0]) & (y < self.canvas_y_range[1])
 
         # Rescale points
         x = (x - self.canvas_x_range[0]) / (self.canvas_x_range[1] - self.canvas_x_range[0])
@@ -244,7 +246,7 @@ class Canvas_BEV(object):
         #   3 -------- 2
         bev_corners = boxes[:, :4, :2]
 
-        # Transform BEV 4 corners to canvas coords
+        ## Transform BEV 4 corners to canvas coords
         bev_corners_canvas, valid_mask = self.get_canvas_coords(bev_corners.reshape(-1, 2))
         bev_corners_canvas = bev_corners_canvas.reshape(*bev_corners.shape)
         valid_mask = valid_mask.reshape(*bev_corners.shape[:-1])
@@ -255,7 +257,7 @@ class Canvas_BEV(object):
         if texts is not None:
             texts = np.array(texts)[valid_mask]
 
-        # Draw onto canvas
+        ## Draw onto canvas
         # Draw the outer boundaries
         idx_draw_pairs = [(0, 1), (1, 2), (2, 3), (3, 0)]
         for i, (color, curr_box_corners) in enumerate(zip(colors.tolist(), bev_corners_canvas)):

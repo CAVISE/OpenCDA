@@ -12,6 +12,7 @@ import matplotlib
 
 from typing import Tuple, Optional, Union, List
 
+
 class Canvas_3D(object):
     """
     3D perspective canvas for visualizing point clouds and bounding boxes.
@@ -50,14 +51,14 @@ class Canvas_3D(object):
     
     def __init__(
         self,
-        canvas_shape=(500, 1000),
-        camera_center_coords=(-15, 0, 10),
-        camera_focus_coords=(-15 + 0.9396926, 0, 10 - 0.44202014),
+        canvas_shape: Tuple[int, int]=(500, 1000),
+        camera_center_coords: Tuple[float, float, float]=(-15, 0, 10),
+        camera_focus_coords: Tuple[float, float, float]=(-15 + 0.9396926, 0, 10 - 0.44202014),
         #  camera_center_coords=(-25, 0, 20),
         #  camera_focus_coords=(-25 + 0.9396926, 0, 20 - 0.64202014),
-        focal_length=None,
-        canvas_bg_color=(0, 0, 0),
-        left_hand=True,
+        focal_length: Optional[int]=None,
+        canvas_bg_color: Tuple[int, int, int]=(0, 0, 0),
+        left_hand: bool=True,
     ):
         self.canvas_shape = canvas_shape
         self.H, self.W = self.canvas_shape

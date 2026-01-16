@@ -11,7 +11,6 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch import Tensor
 from torch.autograd import Variable
 
 from opencood.models.voxel_net import RPN, CML
@@ -19,6 +18,7 @@ from opencood.models.sub_modules.pillar_vfe import PillarVFE
 from opencood.utils.common_utils import torch_tensor_to_numpy
 from opencood.models.fuse_modules.self_attn import AttFusion
 from opencood.models.sub_modules.auto_encoder import AutoEncoder
+
 
 class Conv2d(nn.Module):
     """
@@ -72,7 +72,7 @@ class Conv2d(nn.Module):
             self.bn = None
         self.activation = activation
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Forward pass of Conv2d layer.
 
@@ -115,7 +115,7 @@ class NaiveFusion(nn.Module):
         self.conv1 = Conv2d(128 * 5, 256, 3, 1, 1, batch_norm=False, bias=False)
         self.conv2 = Conv2d(256, 128, 3, 1, 1)
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Forward pass of NaiveFusion.
 
@@ -175,7 +175,7 @@ class VoxelNetIntermediate(nn.Module):
         Autoencoder for feature compression if compression is enabled.
     """
 
-    def __init__(self, args):
+    def __init__(self, args: Dict[str, Any]):
         super(VoxelNetIntermediate, self).__init__()
         self.svfe = PillarVFE(args["pillar_vfe"], num_point_features=4, voxel_size=args["voxel_size"], point_cloud_range=args["lidar_range"])
         self.cml = CML()
@@ -194,7 +194,7 @@ class VoxelNetIntermediate(nn.Module):
             self.compression = True
             self.compression_layer = AutoEncoder(128, args["compression"])
 
-    def voxel_indexing(self, sparse_features: Tensor, coords: Tensor) -> Tensor:
+    def voxel_indexing(self, sparse_features: torch.Tensor, coords: torch.Tensor) -> torch.Tensor:
         """
         Convert sparse voxel features to dense representation.
 
@@ -258,7 +258,7 @@ class VoxelNetIntermediate(nn.Module):
 
         return regroup_features
 
-    def forward(self, data_dict: Dict[str, Any]) -> Dict[str, Tensor]:
+    def forward(self, data_dict: Dict[str, Any]) -> Dict[str, torch.Tensor]:
         """
         Forward pass of the VoxelNetIntermediate model.
 

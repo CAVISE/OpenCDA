@@ -7,6 +7,7 @@ combining voxel-based and point-based representations for accurate 3D object det
 
 from torch import nn
 import numpy as np
+from typing import Dict, Any
 
 from opencood.models.sub_modules.mean_vfe import MeanVFE
 from opencood.models.sub_modules.sparse_backbone_3d import VoxelBackBone8x
@@ -75,7 +76,7 @@ class FPVRCNN(nn.Module):
         Flag indicating whether stage 2 refinement is active.
     """
 
-    def __init__(self, args):
+    def __init__(self, args: Dict[str, Any]):
         super(FPVRCNN, self).__init__()
         lidar_range = np.array(args["lidar_range"])
         grid_size = np.round((lidar_range[3:6] - lidar_range[:3]) / np.array(args["voxel_size"])).astype(np.int64)
@@ -90,7 +91,7 @@ class FPVRCNN(nn.Module):
         self.roi_head = RoIHead(args["roi_head"])
         self.train_stage2 = args["activate_stage2"]
 
-    def forward(self, batch_dict):
+    def forward(self, batch_dict: Dict[str, Any]) -> Dict[str, Any]:
         """
         Forward pass through FPV-RCNN two-stage detector.
 

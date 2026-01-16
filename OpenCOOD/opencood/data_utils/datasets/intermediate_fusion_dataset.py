@@ -11,6 +11,7 @@ import logging
 from collections import OrderedDict
 
 import numpy as np
+import numpy.typing as npt
 import torch
 
 import opencood.data_utils.datasets
@@ -83,7 +84,7 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
         self.module_name = "OpenCOOD.IntermediateFusionDataset"
 
     @staticmethod
-    def __wrap_ndarray(ndarray: np.ndarray) -> Dict[str, Any]:
+    def __wrap_ndarray(ndarray: npt.NDArray[np.float64]) -> Dict[str, Any]:
         """
         Convert a numpy array to a serializable dictionary.
         
@@ -216,8 +217,8 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
 
         return ego_id, ego_lidar_pose
 
-    def __prepare_object_stack(self, object_stack: List[np.ndarray], 
-                             object_id_stack: List[int]) -> Tuple[np.ndarray, np.ndarray, List[int]]:
+    def __prepare_object_stack(self, object_stack: List[npt.NDArray[np.float64]], 
+                             object_id_stack: List[int]) -> Tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], List[int]]:
         """
         Prepare object stack by removing duplicates and padding to fixed size.
         
@@ -252,7 +253,7 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
 
         return object_bbx_center, mask, filtered_object_ids
 
-    def __pad_spatial_matrix(self, matrix_list: List[np.ndarray]) -> np.ndarray:
+    def __pad_spatial_matrix(self, matrix_list: List[npt.NDArray[np.float64]]) -> npt.NDArray[np.float64]:
         """
         Pad a list of spatial transformation matrices to match max_cav.
         

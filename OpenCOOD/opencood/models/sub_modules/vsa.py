@@ -10,7 +10,6 @@ from typing import Dict, List, Optional
 
 import torch
 import torch.nn as nn
-from torch import Tensor
 
 from opencood.pcdet_utils.pointnet2.pointnet2_stack import pointnet2_modules as pointnet2_stack_modules
 from opencood.pcdet_utils.pointnet2.pointnet2_stack import pointnet2_utils as pointnet2_stack_utils
@@ -18,7 +17,7 @@ from opencood.pcdet_utils.roiaware_pool3d.roiaware_pool3d_utils import points_in
 from opencood.utils import common_utils
 
 
-def bilinear_interpolate_torch(im: Tensor, x: Tensor, y: Tensor) -> Tensor:
+def bilinear_interpolate_torch(im: torch.Tensor, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
     """
     Perform bilinear interpolation on 2D feature map.
 
@@ -175,11 +174,11 @@ class VoxelSetAbstraction(nn.Module):
 
     def interpolate_from_bev_features(
         self, 
-        keypoints: Tensor, 
-        bev_features: Tensor, 
+        keypoints: torch.Tensor, 
+        bev_features: torch.Tensor, 
         batch_size: int, 
         bev_stride: int
-    ) -> Tensor:
+    ) -> torch.Tensor:
         """
         Interpolate BEV features at keypoint locations.
 
@@ -215,7 +214,7 @@ class VoxelSetAbstraction(nn.Module):
         point_bev_features = torch.cat(point_bev_features_list, dim=0)  # (B, N, C0)
         return point_bev_features
 
-    def get_sampled_points(self, batch_dict: Dict[str, Tensor]) -> Tensor:
+    def get_sampled_points(self, batch_dict: Dict[str, torch.Tensor]) -> torch.Tensor:
         """
         Sample keypoints using Furthest Point Sampling (FPS).
 
@@ -270,7 +269,7 @@ class VoxelSetAbstraction(nn.Module):
         # keypoints = torch.cat(keypoints_list, dim=0)  # (B, M, 3)
         return keypoints_batch
 
-    def forward(self, batch_dict: Dict[str, Tensor]) -> Dict[str, Tensor]:
+    def forward(self, batch_dict: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
         """
         Forward pass for multi-scale feature aggregation.
 

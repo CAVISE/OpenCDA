@@ -49,10 +49,10 @@ cd /path/to/CARLA
 ./CarlaUE4.sh
 
 # Run a single vehicle scenario
-python opencda.py -t single_2lanefree_carla -v 0.9.12
+python opencda.py -t single_2lanefree_carla 
 
 # Run a platoon scenario  
-python opencda.py -t platoon_stability_2lanefree_carla -v 0.9.12
+python opencda.py -t platoon_stability_2lanefree_carla
 ```
 
 ## Documentation

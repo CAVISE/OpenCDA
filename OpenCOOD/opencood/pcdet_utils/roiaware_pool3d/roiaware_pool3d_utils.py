@@ -82,7 +82,7 @@ class RoIAwarePool3d(nn.Module):
         Maximum number of points per voxel, by default 128.
     """
 
-    def __init__(self, out_size: Union[int, Tuple[int, int, int]], max_pts_each_voxel: int = 128) -> None:
+    def __init__(self, out_size: Union[int, Tuple[int, int, int]], max_pts_each_voxel: int = 128):
         super().__init__()
         self.out_size = out_size
         self.max_pts_each_voxel = max_pts_each_voxel
@@ -165,10 +165,10 @@ class RoIAwarePool3dFunction(Function):
         pts_idx_of_voxels = pts_feature.new_zeros((num_rois, out_x, out_y, out_z, max_pts_each_voxel), dtype=torch.int)
 
         pool_method_map = {"max": 0, "avg": 1}
-        pool_method_int = pool_method_map[pool_method]
-        roiaware_pool3d_cuda.forward(rois, pts, pts_feature, argmax, pts_idx_of_voxels, pooled_features, pool_method_int)
+        pool_method = pool_method_map[pool_method]
+        roiaware_pool3d_cuda.forward(rois, pts, pts_feature, argmax, pts_idx_of_voxels, pooled_features, pool_method)
 
-        ctx.roiaware_pool3d_for_backward = (pts_idx_of_voxels, argmax, pool_method_int, num_pts, num_channels)
+        ctx.roiaware_pool3d_for_backward = (pts_idx_of_voxels, argmax, pool_method, num_pts, num_channels)
         return pooled_features
 
     @staticmethod

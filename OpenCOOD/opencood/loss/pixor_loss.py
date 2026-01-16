@@ -29,7 +29,7 @@ class PixorLoss(nn.Module):
         Dictionary to store individual loss components for logging
     """
 
-    def __init__(self, args):
+    def __init__(self, args: Dict[str, Any]):
         super(PixorLoss, self).__init__()
         self.alpha = args["alpha"]
         self.beta = args["beta"]

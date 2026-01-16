@@ -37,8 +37,8 @@ class GlobalRoutePlannerDAO(object):
     """
 
     def __init__(self, wmap: Any, sampling_resolution: float):
-        self._sampling_resolution: float = sampling_resolution
-        self._wmap: Any = wmap
+        self._sampling_resolution = sampling_resolution
+        self._wmap = wmap
 
     def get_topology(self) -> List[Dict[str, Any]]:
         """

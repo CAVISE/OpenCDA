@@ -7,7 +7,7 @@ using configurable kernel sizes, strides, and padding.
 
 from typing import Dict, List, Union, Tuple
 import torch.nn as nn
-from torch import Tensor
+import torch
 
 
 class DoubleConv(nn.Module):
@@ -52,7 +52,7 @@ class DoubleConv(nn.Module):
             nn.ReLU(inplace=True),
         )
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Forward pass through double convolution block.
 
@@ -104,7 +104,7 @@ class DownsampleConv(nn.Module):
             self.layers.append(DoubleConv(input_dim, dim, kernel_size=ksize, stride=stride, padding=padding))
             input_dim = dim
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Forward through all downsampling blocks.
         

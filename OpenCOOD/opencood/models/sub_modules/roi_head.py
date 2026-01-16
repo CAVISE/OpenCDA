@@ -7,7 +7,6 @@ IoU prediction, and bounding box regression.
 """
 
 from typing import Dict, List, Tuple, Optional, Any
-from torch import Tensor
 import copy
 
 import torch.nn as nn
@@ -166,8 +165,8 @@ class RoIHead(nn.Module):
         return fc_layers, pre_channel
 
     def get_global_grid_points_of_roi(
-        self, rois: Tensor
-    ) -> Tuple[Tensor, Tensor]:
+        self, rois: torch.Tensor
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Generate grid points for RoIs in global and local coordinates.
 
@@ -195,8 +194,8 @@ class RoIHead(nn.Module):
 
     @staticmethod
     def get_dense_grid_points(
-        rois: Tensor, batch_size_rcnn: int, grid_size: int
-    ) -> Tensor:
+        rois: torch.Tensor, batch_size_rcnn: int, grid_size: int
+    ) -> torch.Tensor:
         """
         Generate dense grid points within RoIs in local coordinates.
 

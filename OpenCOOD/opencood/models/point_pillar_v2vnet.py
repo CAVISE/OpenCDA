@@ -66,7 +66,7 @@ class PointPillarV2VNet(nn.Module):
         Regression head for predicting bounding box parameters.
     """
 
-    def __init__(self, args):
+    def __init__(self, args: Dict[str, Any]):
         super(PointPillarV2VNet, self).__init__()
 
         self.max_cav = args["max_cav"]
