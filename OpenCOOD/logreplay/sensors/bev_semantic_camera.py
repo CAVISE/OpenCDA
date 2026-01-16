@@ -1,13 +1,18 @@
 """
-CARLA Semantic Camera Sensor
+Bird's-eye view semantic camera sensor for CARLA simulation.
+
+This module provides a BEV semantic segmentation camera that captures top-down
+semantic views for cooperative perception applications.
 """
 
 import os.path
 import weakref
+from typing import Optional, Dict, List, Any
 
 import carla
 import cv2
 import numpy as np
+from numpy.typing import NDArray
 
 from opencood.hypes_yaml.yaml_utils import save_yaml_wo_overwriting
 from logreplay.sensors.utils import get_camera_intrinsic
@@ -34,14 +39,32 @@ class BEVSemanticCamera(BaseSensor):
 
     Attributes
     ----------
-    image : np.ndarray
-        Current received rgb image.
-    sensor : carla.sensor
-        The carla sensor that mounts at the vehicle.
-
+    sensor : carla.Actor
+        CARLA semantic camera sensor actor.
+    name : str
+        Sensor name identifier.
+    height : float
+        Camera mounting height above ground.
+    visualize : bool
+        Whether to display real-time visualization.
+    image : Optional[NDArray]
+        Current semantic label image (H, W).
+    vis_image : Optional[NDArray]
+        Colorized visualization image (H, W, 3).
+    image_width : int
+        Image width in pixels.
+    image_height : int
+        Image height in pixels.
     """
 
-    def __init__(self, agent_id, vehicle, world, config, global_position):
+    def __init__(
+        self,
+        agent_id: str,
+        vehicle: Optional[carla.Actor],
+        world: carla.World,
+        config: Dict[str, Any],
+        global_position: Optional[List[float]]
+    ) -> None:
         super().__init__(agent_id, vehicle, world, config, global_position)
         if vehicle is not None:
             world = vehicle.get_world()
@@ -73,7 +96,20 @@ class BEVSemanticCamera(BaseSensor):
         self.image_width = int(self.sensor.attributes["image_size_x"])
         self.image_height = int(self.sensor.attributes["image_size_y"])
 
-    def spawn_point_estimation(self, global_position):
+    def spawn_point_estimation(self, global_position: Optional[List[float]]) -> carla.Transform:
+        """
+        Calculate camera spawn point for top-down view.
+
+        Parameters
+        ----------
+        global_position : Optional[List[float]]
+            Global position [x, y, z] if not attached to vehicle.
+
+        Returns
+        -------
+        carla.Transform
+            Spawn point with downward-facing orientation.
+        """
         pitch = -90
         carla_location = carla.Location(x=0, y=0, z=self.height)
 
@@ -86,7 +122,7 @@ class BEVSemanticCamera(BaseSensor):
         return spawn_point
 
     @staticmethod
-    def labels_to_array(bgr_image):
+    def labels_to_array(bgr_image: NDArray) -> NDArray[np.int32]:
         """
         Convert an image containing CARLA semantic segmentation labels to a
         2D array containing the label of each pixel.
@@ -99,7 +135,7 @@ class BEVSemanticCamera(BaseSensor):
         return bgr_image[:, :, 2]
 
     @staticmethod
-    def labels_to_cityscapes_palette(label):
+    def labels_to_cityscapes_palette(label: NDArray) -> NDArray[np.uint8]:
         """
         Convert an image containing CARLA semantic segmentation labels to
         Cityscapes palette.
@@ -144,8 +180,17 @@ class BEVSemanticCamera(BaseSensor):
         return result
 
     @staticmethod
-    def _on_rgb_image_event(weak_self, event):
-        """CAMERA  method"""
+    def _on_rgb_image_event(weak_self: weakref.ref, event: carla.SensorData) -> None:
+        """
+        Callback for semantic camera data reception.
+
+        Parameters
+        ----------
+        weak_self : weakref.ref
+            Weak reference to the BEVSemanticCamera instance.
+        event : carla.SensorData
+            Camera data event from CARLA.
+        """
         self = weak_self()
         if not self:
             return
@@ -161,13 +206,29 @@ class BEVSemanticCamera(BaseSensor):
         self.timestamp = event.timestamp
 
     def visualize_data(self):
+        """
+        Display real-time camera visualization.
+
+        Shows colorized semantic segmentation in a window if visualization
+        is enabled in configuration.
+        """
         if self.visualize:
             while not hasattr(self, "vis_image") or self.vis_image is None:
                 continue
             cv2.imshow("bev seg camera agent %s" % self.agent_id, self.vis_image)
             cv2.waitKey(1)
 
-    def data_dump(self, output_root, cur_timestamp):
+    def data_dump(self, output_root: str, cur_timestamp: str) -> None:
+        """
+        Save semantic segmentation data and metadata to disk.
+
+        Parameters
+        ----------
+        output_root : str
+            Root directory for output files.
+        cur_timestamp : str
+            Current timestamp for file naming.
+        """
         while not hasattr(self, "vis_image") or self.vis_image is None:
             continue
         # dump visualization

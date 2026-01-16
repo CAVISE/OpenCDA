@@ -74,7 +74,7 @@ want to explore the tasks that the origin dataset do not support. Check [here](l
 All the data can be downloaded from [UCLA BOX](https://ucla.app.box.com/v/UCLA-MobilityLab-OPV2V). If you have a good internet, you can directly
 download the complete large zip file such as `train.zip`. In case you suffer from downloading large files, we also split each data set into small chunks, which can be found
 in the directory ending with `_chunks`, such as `train_chunks`. After downloading, please run the following command to each set to merge those chunks together:
-```python
+```bash
 cat train.zip.part* > train.zip
 unzip train.zip
 ```
@@ -89,7 +89,7 @@ data and install OpenCOOD. To see more details of OPV2V data, please check [our 
 To quickly visualize the LiDAR stream in the OPV2V dataset, first modify the `validate_dir`
 in your `opencood/hypes_yaml/visualization.yaml` to the opv2v data path on your local machine, e.g. `opv2v/validate`,
 and the run the following commond:
-```python
+```bash
 cd ~/OpenCOOD
 python opencood/visualization/vis_data_sequence.py [--color_mode ${COLOR_RENDERING_MODE}]
 ```
@@ -100,7 +100,7 @@ Arguments Explanation:
 ### Train your model
 OpenCOOD uses yaml file to configure all the parameters for training. To train your own model
 from scratch or a continued checkpoint, run the following commonds:
-```python
+```bash
 python opencood/tools/train.py --hypes_yaml ${CONFIG_FILE} [--model_dir  ${CHECKPOINT_FOLDER} --half]
 ```
 Arguments Explanation:
@@ -111,7 +111,7 @@ given, the trainer will discard the `hypes_yaml` and load the `config.yaml` in t
 - `half` (optional): If set, the model will be trained with half precision. It cannot be set with multi-gpu training togetger.
 
 To train on **multiple gpus**, run the following command:
-```
+```bash
 CUDA_VISIBLE_DEVICES=0,1,2,3 python -m torch.distributed.launch --nproc_per_node=4  --use_env opencood/tools/train.py --hypes_yaml ${CONFIG_FILE} [--model_dir  ${CHECKPOINT_FOLDER}]
 ```
 
@@ -120,7 +120,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 python -m torch.distributed.launch --nproc_per_node
 Before you run the following command, first make sure the `validation_dir` in config.yaml under your checkpoint folder
 refers to the testing dataset path, e.g. `opv2v_data_dumping/test`.
 
-```python
+```bash
 python opencood/tools/inference.py --model_dir ${CHECKPOINT_FOLDER} --fusion_method ${FUSION_STRATEGY} [--show_vis] [--show_sequence]
 ```
 Arguments Explanation:
@@ -203,17 +203,6 @@ To play with OPV2V camera data, please check here: https://github.com/DerrickXuN
 
 ## Tutorials
 We have a series of tutorials to help you understand OpenCOOD more. Please check the series of our [tutorials](https://opencood.readthedocs.io/en/latest/md_files/config_tutorial.html).
-
-
-## Citation
- If you are using the OpenCOOD framework or OPV2V dataset for your research, please cite the following paper:
- ```bibtex
-@inproceedings{xu2022opencood,
-  author = {Runsheng Xu, Hao Xiang, Xin Xia, Xu Han, Jinlong Li, Jiaqi Ma},
-  title = {OPV2V: An Open Benchmark Dataset and Fusion Pipeline for Perception with Vehicle-to-Vehicle Communication},
-  booktitle = {2022 IEEE International Conference on Robotics and Automation (ICRA)},
-  year = {2022}}
-```
 
 ## Supported Projects
 OpenCOOD has supported several top conference papers in cooperative perception field.

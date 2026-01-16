@@ -50,18 +50,6 @@ class EarlyFusionVisDataset(basedataset.BaseDataset):
         visualize: bool,
         train: bool = True
     ):
-        """
-        Initialize the EarlyFusionVisDataset.
-
-        Parameters
-        ----------
-        params : Dict[str, Any]
-            Dictionary containing configuration parameters.
-        visualize : bool
-            Whether to enable visualization.
-        train : bool, optional
-            Whether the dataset is used for training, by default True.
-        """
         super(EarlyFusionVisDataset, self).__init__(params, visualize, train)
         self.pre_processor = build_preprocessor(params["preprocess"], train)
         self.post_processor = build_postprocessor(params["postprocess"], train)

@@ -1,5 +1,9 @@
 """
-Dataset class for late fusion where each vehicle transmits detection outputs to the ego vehicle.
+Late fusion dataset for cooperative perception.
+
+This module provides dataset functionality for late fusion approaches where
+each connected autonomous vehicle (CAV) transmits detection outputs to the
+ego vehicle for collaborative 3D object detection.
 """
 
 import math
@@ -9,7 +13,6 @@ from collections import OrderedDict
 
 import numpy as np
 import torch
-from torch import Tensor
 import opencood.data_utils.datasets
 from opencood.data_utils.post_processor import build_postprocessor
 from opencood.data_utils.datasets import basedataset
@@ -49,6 +52,15 @@ class LateFusionDataset(basedataset.BaseDataset):
         Whether the dataset is used for training. Default is True.
     message_handler : Optional[Any], optional
         Handler for inter-vehicle communication. Default is None.
+
+    Attributes
+    ----------
+    pre_processor : object
+        Module for preprocessing LiDAR data.
+    post_processor : object
+        Module for post-processing detection results.
+    message_handler : Any or None
+        Handler for inter-vehicle communication.
     """
     
     def __init__(self, params: Dict[str, Any], visualize: bool, 
@@ -390,8 +402,22 @@ class LateFusionDataset(basedataset.BaseDataset):
         
         Returns
         -------
-        Dict[str, Any]
-            Dictionary containing the CAV's processed information.
+        selected_cav_processed : dict
+        Processed data in CAV's local frame:
+            - processed_lidar : dict
+                Preprocessed LiDAR (voxels/BEV).
+            - anchor_box : NDArray
+                Generated anchor boxes.
+            - object_bbx_center : NDArray
+                Object bounding boxes (max_num, 7).
+            - object_bbx_mask : NDArray
+                Valid object mask (max_num,).
+            - object_ids : list of str
+                Object IDs.
+            - label_dict : dict
+                Ground truth labels for training.
+            - origin_lidar : NDArray, optional
+                Raw point cloud (if visualize=True).
         """
         selected_cav_processed = {}
 
@@ -496,8 +522,21 @@ class LateFusionDataset(basedataset.BaseDataset):
         
         Returns
         -------
-        Dict[str, Any]
-            Dictionary containing batched test data with processed features for each CAV.
+        output_dict : dict of {str: dict}
+        Dictionary with data for each CAV:
+            - {cav_id} : dict
+                - object_bbx_center : torch.Tensor 
+                - object_bbx_mask : torch.Tensor 
+                - anchor_box : torch.Tensor, optional
+                - processed_lidar : dict of tensors
+                - label_dict : dict of tensors
+                - object_ids : list of str
+                - transformation_matrix : torch.Tensor 
+                - origin_lidar : torch.Tensor, optional (if visualize=True)
+            - ego : dict, optional (if visualize=True)
+                - origin_lidar : torch.Tensor
+                    Fused LiDAR from all CAVs projected to ego frame.
+
         """
         # currently, we only support batch size of 1 during testing
         assert len(batch) <= 1, "Batch size 1 is required during testing!"

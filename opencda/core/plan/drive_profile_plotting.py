@@ -1,21 +1,29 @@
 # -*- coding: utf-8 -*-
 
-"""Tools to plot velocity, acceleration, and curvation."""
+"""
+Visualization tools for vehicle dynamics profiles.
+
+This module provides plotting functions for velocity, acceleration, time-to-collision,
+time gap, and distance gap profiles for vehicle trajectory analysis.
+"""
 # Author: Runsheng Xu <rxx3386@ucla.edu>
 # License:  TDG-Attribution-NonCommercial-NoDistrib
 
+from typing import List
 import matplotlib.pyplot as plt
 import numpy as np
+import numpy.typing as npt
 
 
-def draw_velocity_profile_single_plot(velocity_list):
+def draw_velocity_profile_single_plot(velocity_list: List[npt.NDArray[np.float64]]) -> None:
     """
     Draw velocity profiles in a single plot.
 
     Parameters
     ----------
-    velocity_list : list
-         The vehicle velocity profile saved in a list.
+    velocity_list : List[npt.NDArray[np.float64]]
+        List of velocity profile arrays for each vehicle. Each array contains
+        velocity values sampled at 0.05s intervals.
     """
 
     for i, v in enumerate(velocity_list):
@@ -30,15 +38,15 @@ def draw_velocity_profile_single_plot(velocity_list):
     fig.set_size_inches(11, 5)
 
 
-def draw_acceleration_profile_single_plot(acceleration):
+def draw_acceleration_profile_single_plot(acceleration: List[npt.NDArray[np.float64]]) -> None:
     """
-    Draw velocity profiles in a single plot.
+    Draw acceleration profiles in a single plot.
 
     Parameters
     ----------
-    acceleration : list
-        The vehicle acceleration profile saved in a list.
-
+    acceleration : List[npt.NDArray[np.float64]]
+        List of acceleration profile arrays for each vehicle. Each array contains
+        acceleration values sampled at 0.05s intervals.
     """
 
     for i, v in enumerate(acceleration):
@@ -53,14 +61,15 @@ def draw_acceleration_profile_single_plot(acceleration):
     fig.set_size_inches(11, 5)
 
 
-def draw_ttc_profile_single_plot(ttc_list):
+def draw_ttc_profile_single_plot(ttc_list: List[npt.NDArray[np.float64]]) -> None:
     """
-    Draw ttc.
+    Draw time-to-collision (TTC) profiles in a single plot.
 
     Parameters
     ----------
-    ttc_list : list
-        The vehicle time to collision profile saved in a list.
+    ttc_list : List[npt.NDArray[np.float64]]
+        List of TTC profile arrays for each vehicle. Each array contains
+        TTC values sampled at 0.05s intervals.
     """
     # this is used to find the merging vehicle position since its inter gap
     # length is always smaller
@@ -76,15 +85,15 @@ def draw_ttc_profile_single_plot(ttc_list):
     fig.set_size_inches(11, 5)
 
 
-def draw_time_gap_profile_singel_plot(gap_list):
+def draw_time_gap_profile_singel_plot(gap_list: List[npt.NDArray[np.float64]]) -> None:
     """
-    Draw inter gap profiles in a single plot.
+    Draw time gap profiles in a single plot.
 
     Parameters
     ----------
-    gap_list : list
-        The vehicle front time gap profile saved in a list.
-
+    gap_list : List[npt.NDArray[np.float64]]
+        List of time gap profile arrays for each vehicle. Each array contains
+        front time gap values sampled at 0.05s intervals.
     """
 
     for i, v in enumerate(gap_list):
@@ -98,7 +107,7 @@ def draw_time_gap_profile_singel_plot(gap_list):
     fig.set_size_inches(11, 5)
 
 
-def draw_dist_gap_profile_singel_plot(gap_list):
+def draw_dist_gap_profile_singel_plot(gap_list: List[npt.NDArray[np.float64]]) -> None:
     """
     Draw distance gap profiles in a single plot.
 
@@ -118,7 +127,13 @@ def draw_dist_gap_profile_singel_plot(gap_list):
     fig.set_size_inches(11, 5)
 
 
-def draw_sub_plot(velocity_list, acceleration_list, time_gap_list, distance_gap_list, ttc_list):
+def draw_sub_plot(
+    velocity_list: List[npt.NDArray[np.float64]],
+    acceleration_list: List[npt.NDArray[np.float64]],
+    time_gap_list: List[npt.NDArray[np.float64]],
+    distance_gap_list: List[npt.NDArray[np.float64]],
+    ttc_list: List[npt.NDArray[np.float64]],
+) -> plt.Figure:
     """
     This is a specific function that draws 4 in 1 images
     for trajectory following task.
@@ -127,19 +142,14 @@ def draw_sub_plot(velocity_list, acceleration_list, time_gap_list, distance_gap_
     ----------
     velocity_list : list
         The vehicle velocity profile saved in a list.
-
     distance_gap_list : list
         The vehicle distance gap profile saved in a list.
-
     time_gap_list : list
         The vehicle time gap profile saved in a list.
-
     acceleration_list : list
         The vehicle acceleration profile saved in a list.
-
     ttc_list : list
         The ttc list.
-
     """
     fig = plt.figure()
     plt.subplot(511)

@@ -1,3 +1,9 @@
+"""
+Loss functions for PIXOR 3D object detection.
+
+This module implements the loss function for the PIXOR architecture. 
+"""
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -7,6 +13,20 @@ from typing import Optional, Dict, Any
 class PixorLoss(nn.Module):
     """
     PIXOR loss function for 3D object detection.
+
+    Parameters
+    ----------
+    args : Dict[str, Any]
+        Configuration dictionary containing loss parameters.
+
+    Attributes
+    ----------
+    alpha : float
+        Classification loss weight.
+    beta : float
+        Regression loss weight.
+    loss_dict : Dict[str, Any]
+        Dictionary to store individual loss components for logging
     """
 
     def __init__(self, args):

@@ -1,3 +1,11 @@
+"""
+PointNet++ modules for hierarchical point cloud feature learning.
+
+This module provides set abstraction and feature propagation modules for
+PointNet++ architecture, enabling multi-scale feature extraction and
+upsampling in point cloud processing networks.
+"""
+
 from typing import List
 
 import torch
@@ -6,17 +14,40 @@ import torch.nn.functional as F
 
 from opencood.pcdet_utils.pointnet2.pointnet2_stack import pointnet2_utils
 
+from typing import List, Optional, Tuple
 
 class StackSAModuleMSG(nn.Module):
+    """
+    Multi-scale grouping (MSG) set abstraction module.
+    
+    Performs hierarchical feature learning at multiple scales using
+    ball queries with different radii and MLP processing.
+
+    Parameters
+    ----------
+    radii : List[float]
+        List of ball query radii for each scale.
+    nsamples : List[int]
+        List of maximum sample counts per ball for each scale.
+    mlps : List[List[int]]
+        List of MLP specifications for each scale.
+        Each inner list defines layer dimensions [C_in, C_1, ..., C_out].
+    use_xyz : bool, optional
+        If True, concatenates xyz coordinates to features. Default is True.
+    pool_method : str, optional
+        Pooling method: 'max_pool' or 'avg_pool'. Default is 'max_pool'.
+
+    Attributes
+    ----------
+    groupers : nn.ModuleList
+        List of QueryAndGroup modules for each scale.
+    mlps : nn.ModuleList
+        List of MLP networks for each scale.
+    pool_method : str
+        Stored pooling method.
+    """
+
     def __init__(self, *, radii: List[float], nsamples: List[int], mlps: List[List[int]], use_xyz: bool = True, pool_method="max_pool"):
-        """
-        Args:
-            radii: list of float, list of radii to group with
-            nsamples: list of int, number of samples in each ball query
-            mlps: list of list of int, spec of the pointnet before the global pooling for each scale
-            use_xyz:
-            pool_method: max_pool / avg_pool
-        """
         super().__init__()
 
         assert len(radii) == len(nsamples) == len(mlps)
@@ -49,16 +80,42 @@ class StackSAModuleMSG(nn.Module):
                 nn.init.constant_(m.weight, 1.0)
                 nn.init.constant_(m.bias, 0)
 
-    def forward(self, xyz, xyz_batch_cnt, new_xyz, new_xyz_batch_cnt, features=None, empty_voxel_set_zeros=True):
+    def forward(
+        self,
+        xyz: torch.Tensor,
+        xyz_batch_cnt: torch.Tensor,
+        new_xyz: torch.Tensor,
+        new_xyz_batch_cnt: torch.Tensor,
+        features: Optional[torch.Tensor] = None,
+        empty_voxel_set_zeros: bool = True,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
-        :param xyz: (N1 + N2 ..., 3) tensor of the xyz coordinates of the features
-        :param xyz_batch_cnt: (batch_size), [N1, N2, ...]
-        :param new_xyz: (M1 + M2 ..., 3)
-        :param new_xyz_batch_cnt: (batch_size), [M1, M2, ...]
-        :param features: (N1 + N2 ..., C) tensor of the descriptors of the the features
-        :return:
-            new_xyz: (M1 + M2 ..., 3) tensor of the new features' xyz
-            new_features: (M1 + M2 ..., \sum_k(mlps[k][-1])) tensor of the new_features descriptors
+        Multi-scale feature extraction with set abstraction.
+
+        Parameters
+        ----------
+        xyz : torch.Tensor
+            Input point coordinates with shape (N1+N2+..., 3).
+        xyz_batch_cnt : torch.Tensor
+            Input point counts per batch with shape (batch_size,).
+            Format: [N1, N2, ...].
+        new_xyz : torch.Tensor
+            Sampled point coordinates with shape (M1+M2+..., 3).
+        new_xyz_batch_cnt : torch.Tensor
+            Sampled point counts per batch with shape (batch_size,).
+            Format: [M1, M2, ...].
+        features : torch.Tensor or None, optional
+            Input features with shape (N1+N2+..., C). Default is None.
+        empty_voxel_set_zeros : bool, optional
+            If True, sets empty voxel features to zero. Default is True.
+
+        Returns
+        -------
+        new_xyz : torch.Tensor
+            Output point coordinates with shape (M1+M2+..., 3).
+        new_features : torch.Tensor
+            Aggregated multi-scale features with shape (M1+M2+..., C_out).
+            C_out = sum(mlps[k][-1] for all scales k).
         """
         new_features_list = []
         for k in range(len(self.groupers)):
@@ -81,27 +138,63 @@ class StackSAModuleMSG(nn.Module):
 
 
 class StackPointnetFPModule(nn.Module):
+    """
+    Feature propagation module for upsampling point features.
+    
+    Propagates features from coarse to fine levels using inverse distance
+    weighted interpolation followed by MLP processing.
+
+    Parameters
+    ----------
+    mlp : List[int]
+        MLP specification defining layer dimensions [C_in, C_1, ..., C_out].
+
+    Attributes
+    ----------
+    mlp : nn.Sequential
+        MLP network with Conv2d, BatchNorm2d, and ReLU layers.
+    """
+
     def __init__(self, *, mlp: List[int]):
-        """
-        Args:
-            mlp: list of int
-        """
         super().__init__()
         shared_mlps = []
         for k in range(len(mlp) - 1):
             shared_mlps.extend([nn.Conv2d(mlp[k], mlp[k + 1], kernel_size=1, bias=False), nn.BatchNorm2d(mlp[k + 1]), nn.ReLU()])
         self.mlp = nn.Sequential(*shared_mlps)
 
-    def forward(self, unknown, unknown_batch_cnt, known, known_batch_cnt, unknown_feats=None, known_feats=None):
+    def forward(
+        self,
+        unknown: torch.Tensor,
+        unknown_batch_cnt: torch.Tensor,
+        known: torch.Tensor,
+        known_batch_cnt: torch.Tensor,
+        unknown_feats: Optional[torch.Tensor] = None,
+        known_feats: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
         """
-        Args:
-            unknown: (N1 + N2 ..., 3)
-            known: (M1 + M2 ..., 3)
-            unknow_feats: (N1 + N2 ..., C1)
-            known_feats: (M1 + M2 ..., C2)
+        Propagate features from known to unknown points via interpolation.
 
-        Returns:
-            new_features: (N1 + N2 ..., C_out)
+        Parameters
+        ----------
+        unknown : torch.Tensor
+            Target point coordinates with shape (N1+N2+..., 3).
+        unknown_batch_cnt : torch.Tensor
+            Target point counts per batch with shape (batch_size,).
+            Format: [N1, N2, ...].
+        known : torch.Tensor
+            Source point coordinates with shape (M1+M2+..., 3).
+        known_batch_cnt : torch.Tensor
+            Source point counts per batch with shape (batch_size,).
+            Format: [M1, M2, ...].
+        unknown_feats : torch.Tensor or None, optional
+            Target point features with shape (N1+N2+..., C1). Default is None.
+        known_feats : torch.Tensor or None, optional
+            Source point features with shape (M1+M2+..., C2). Default is None.
+
+        Returns
+        -------
+        new_features : torch.Tensor
+            Propagated features with shape (N1+N2+..., C_out).
         """
         dist, idx = pointnet2_utils.three_nn(unknown, unknown_batch_cnt, known, known_batch_cnt)
         dist_recip = 1.0 / (dist + 1e-8)

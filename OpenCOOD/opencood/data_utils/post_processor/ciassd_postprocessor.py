@@ -17,7 +17,22 @@ class CiassdPostprocessor(VoxelPostprocessor):
     """
     Post-processor for CIASSD (Cooperative Infrastructure-Assisted 3D Object Detection).
     Handles the conversion of model outputs to 3D bounding boxes with NMS.
+
+    Parameters
+    ----------
+    anchor_params : Dict[str, Any]
+        Dictionary containing anchor configuration parameters.
+    train : bool
+        Whether the processor is in training mode.
+
+    Attributes
+    ----------
+    train : bool
+        Training mode flag.
+    anchor_num : int
+        Number of anchor boxes per location.
     """
+    
     def __init__(self, anchor_params: Dict[str, Any], train: bool):
         super(CiassdPostprocessor, self).__init__(anchor_params, train)
         self.train = train

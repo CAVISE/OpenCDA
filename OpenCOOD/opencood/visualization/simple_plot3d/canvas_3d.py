@@ -6,11 +6,48 @@ alternative to mayavi for certain point cloud tasks.
 """
 
 import numpy as np
+import numpy.typing as npt
 import cv2
 import matplotlib
 
+from typing import Tuple, Optional, Union, List
 
 class Canvas_3D(object):
+    """
+    3D perspective canvas for visualizing point clouds and bounding boxes.
+    
+    Projects 3D points and boxes onto 2D canvas using virtual camera with
+    configurable extrinsic and intrinsic parameters.
+
+    Parameters
+    ----------
+    canvas_shape : tuple of int, optional
+        Canvas dimensions (height, width) in pixels. 
+    camera_center_coords : tuple of float, optional
+        Camera position in 3D world coordinates (x, y, z).
+    camera_focus_coords : tuple of float, optional
+        Point in 3D space the camera looks at (x, y, z).
+        Absolute coordinates, not relative to camera center.
+    focal_length : int or None, optional
+        Camera focal length in pixels:
+            - None: Auto-set to max(height, width) // 2
+            - int: Explicit value
+    canvas_bg_color : tuple of int, optional
+        Background RGB color (0-255). Default is (0, 0, 0) (black).
+    left_hand : bool, optional
+        If True, uses left-hand coordinate system (negates y-axis).
+
+    Attributes
+    ----------
+    canvas : np.ndarray
+        Current canvas image with shape (height, width, 3) in BGR format.
+    ext_matrix : np.ndarray
+        Camera extrinsic matrix (4, 4) for world-to-camera transformation.
+    int_matrix : np.ndarray
+        Camera intrinsic matrix (3, 4) for camera-to-image projection.
+
+    """
+    
     def __init__(
         self,
         canvas_shape=(500, 1000),
@@ -22,24 +59,6 @@ class Canvas_3D(object):
         canvas_bg_color=(0, 0, 0),
         left_hand=True,
     ):
-        """
-        Args:
-            canvas_shape (Tuple[Int]): Canvas image size - height & width.
-            camera_center_coords (Tuple[Float]): Location of camera center in
-                3D space.
-            camera_focus_coords (Tuple[Float]): Intuitively, what point in 3D
-                space is the camera pointed at? These are absolute coordinates,
-                *not* relative to camera center.
-            focal_length (None | Int):
-                None: Half of the max of height & width of canvas_shape. This
-                    seems to be a decent default.
-                Int: Specified directly.
-            canvas_bg_color (Tuple[Int]): RGB (0 ~ 255) of canvas background
-                color.
-            left_hand: bool
-                Since this algorithm is designed for right hand coord. We take -y if True
-        """
-
         self.canvas_shape = canvas_shape
         self.H, self.W = self.canvas_shape
         self.canvas_bg_color = canvas_bg_color
@@ -74,30 +93,55 @@ class Canvas_3D(object):
         self.clear_canvas()
 
     def get_canvas(self):
+        """
+        Get the current canvas image.
+
+        Returns
+        -------
+        canvas : np.ndarray
+        """
         return self.canvas
 
     def clear_canvas(self):
+        """
+        Clear canvas and reset to background color.
+        
+        Creates a new blank canvas filled with the background color.
+        """
         self.canvas = np.zeros((self.H, self.W, 3), dtype=np.uint8)
         self.canvas[..., :] = self.canvas_bg_color
 
-    def get_canvas_coords(self, xyz, depth_min=0.1, return_depth=False):
+    def get_canvas_coords(self, xyz: npt.NDArray[np.floating],
+        depth_min: float = 0.1,
+        return_depth: bool = False,
+    ) -> Union[
+        Tuple[npt.NDArray[np.int32], npt.NDArray[np.bool_]],
+        Tuple[npt.NDArray[np.int32], npt.NDArray[np.bool_], npt.NDArray[np.floating]],
+    ]:
         """
-        Projects XYZ points onto the canvas and returns the projected canvas
-        coordinates.
+        Project 3D points onto 2D canvas using perspective projection.
 
-        Args:
-            xyz (ndarray): (N, 3+) array of coordinates. Additional columns
-                beyond the first three are ignored.
-            depth_min (Float): Only points with a projected depth larger
-                than this value are "valid".
-            return_depth (Boolean): Whether to additionally return depth of
-                projected points.
-        Returns:
-            canvas_xy (ndarray): (N, 2) array of projected canvas coordinates.
-                "x" is dim0, "y" is dim1 of canvas.
-            valid_mask (ndarray): (N,) boolean mask indicating which of
-                canvas_xy fits into canvas (are visible from virtual camera).
-            depth (ndarray): Optionally returned (N,) array of depth values
+        Parameters
+        ----------
+        xyz : np.ndarray
+            3D coordinates with shape (N, 3+). Additional columns beyond
+            the first three are ignored.
+        depth_min : float, optional
+            Minimum depth threshold. Points with depth <= this value are
+            marked as invalid. Default is 0.1.
+        return_depth : bool, optional
+            If True, also returns depth values. Default is False.
+
+        Returns
+        -------
+        canvas_xy : np.ndarray
+            Projected canvas coordinates with shape (N, 2).
+            Format: [x_pixel, y_pixel] where x is height, y is width.
+        valid_mask : npt.ndarray
+            Boolean mask with shape (N,) indicating visible points
+            (positive depth and within canvas bounds).
+        depth : npt.ndarray, optional
+            Depth values with shape (N,). Only returned if return_depth=True.
         """
         if self.left_hand:
             xyz[:, 1] = -xyz[:, 1]
@@ -120,26 +164,37 @@ class Canvas_3D(object):
         else:
             return xy_int, valid_mask
 
-    def draw_canvas_points(self, canvas_xy, radius=-1, colors=None, colors_operand=None):
+    def draw_canvas_points(self, canvas_xy: npt.NDArray[np.int32],
+        radius: int = -1,
+        colors: Optional[Union[Tuple[int, int, int], npt.NDArray[np.uint8], str]] = None, colors_operand: Optional[npt.NDArray[np.floating]] = None) -> None:
         """
-        Draws canvas_xy onto self.canvas.
+        Draw points onto the canvas.
 
-        Args:
-            canvas_xy (ndarray): (N, 2) array of *valid* canvas coordinates.
-                "x" is dim0, "y" is dim1 of canvas.
-            radius (Int):
-                -1: Each point is visualized as a single pixel.
-                r: Each point is visualized as a circle with radius r.
-            colors:
-                None: colors all points white.
-                Tuple: RGB (0 ~ 255), indicating a single color for all points.
-                ndarray: (N, 3) array of RGB values for each point.
-                String: Such as "Spectral", uses a matplotlib cmap, with the
-                    operand (the value cmap is called on for each point) being
-                    colors_operand.
-            colors_operand (ndarray): (N,) array of values cooresponding to
-                canvas_xy, to be used only if colors is a cmap. Unlike
-                Canvas_BEV, cannot be None if colors is a String.
+        Parameters
+        ----------
+        canvas_xy : np.ndarray
+            Valid canvas coordinates with shape (N, 2).
+            Format: [x_pixel, y_pixel].
+        radius : int, optional
+            Point rendering radius:
+                - -1: Single pixel per point
+                - >0: Circle with specified radius
+            Default is -1.
+        colors : tuple or npt.NDArray[np.uint8] or str or None, optional
+            Point color specification:
+                - None: All points white (255, 255, 255)
+                - Tuple: Single RGB color (0-255) for all points
+                - ndarray: Per-point RGB colors with shape (N, 3)
+                - str: Matplotlib colormap name (requires colors_operand)
+            Default is None.
+        colors_operand : npt.NDArray[np.floating] or None, optional
+            Values with shape (N,) for colormap mapping. Required when
+            colors is a string. Default is None.
+
+        Raises
+        ------
+        AssertionError
+            If colors is a string but colors_operand is None.
         """
         if len(canvas_xy) == 0:
             return
@@ -174,24 +229,28 @@ class Canvas_3D(object):
             for color, (x, y) in zip(colors.tolist(), canvas_xy.tolist()):
                 self.canvas = cv2.circle(self.canvas, (y, x), radius, color, -1, lineType=cv2.LINE_AA)
 
-    def draw_lines(self, canvas_xy, start_xyz, end_xyz, colors=(255, 255, 255), thickness=1):
+    def draw_lines(self, canvas_xy: npt.NDArray[np.int32],
+        start_xyz: npt.NDArray[np.floating],
+        end_xyz: npt.NDArray[np.floating],
+        colors: Optional[Union[Tuple[int, int, int], npt.NDArray[np.uint8]]] = (255, 255, 255,), thickness: int = 1) -> None:
         """
-        Draws lines between provided 3D points.
+        Draw lines between 3D points on the canvas.
 
-        Args:
-            # added from original repo
-            canvas_xy (ndarray): (N, 2) array of *valid* canvas coordinates.
-                    "x" is dim0, "y" is dim1 of canvas.
-
-            start_xyz (ndarray): Shape (N, 3) of 3D points to start from.
-            end_xyz (ndarray): Shape (N, 3) of 3D points to end at. Same length
-                as start_xyz.
-            colors:
-                None: colors all points white.
-                Tuple: RGB (0 ~ 255), indicating a single color for all points.
-                ndarray: (N, 3) array of RGB values for each point.
-            thickness (Int):
-                Thickness of drawn cv2 line.
+        Parameters
+        ----------
+        canvas_xy : np.ndarray
+            Valid canvas coordinates with shape (N, 2).
+        start_xyz : np.ndarray
+            3D starting points with shape (N, 3).
+        end_xyz : np.ndarray
+            3D ending points with shape (N, 3). Same length as start_xyz.
+        colors : tuple or np.ndarray or None, optional
+            Line color specification:
+                - None: All lines white
+                - Tuple: Single RGB color (0-255) for all lines
+                - ndarray: Per-line RGB colors with shape (N, 3)
+        thickness : int, optional
+            Line thickness in pixels. D
         """
         if colors is None:
             colors = np.full((len(canvas_xy), 3), fill_value=255, dtype=np.uint8)
@@ -216,35 +275,45 @@ class Canvas_3D(object):
                 )
 
     def draw_boxes(
-        self, boxes, colors=None, texts=None, depth_min=0.1, draw_incomplete_boxes=False, box_line_thickness=2, box_text_size=0.5, text_corner=1
-    ):
+        self, boxes: npt.NDArray[np.floating],
+        colors: Optional[Union[Tuple[int, int, int], npt.NDArray[np.uint8]]] = None,
+        texts: Optional[List[str]] = None,
+        depth_min: float = 0.1,
+        draw_incomplete_boxes: bool = False,
+        box_line_thickness: int = 2,
+        box_text_size: float = 0.5,
+        text_corner: int = 1,
+    ) -> None:
         """
-        Draws 3D boxes.
+        Draw 3D bounding boxes on the canvas.
 
-        Args:
-            boxes (ndarray): Shape (N, 8, 3), corners in 3d
-                modified from original repo
-
-            colors:
-                None: colors all points white.
-                Tuple: RGB (0 ~ 255), indicating a single color for all points.
-                ndarray: (N, 3) array of RGB values for each point.
-
-            texts (List[String]): Length N; text to write next to boxes.
-
-            depth_min (Float): Only box corners with a projected depth larger
-                than this value are drawn if draw_incomplete_boxes is True.
-
-            draw_incomplete_boxes (Boolean): If any boxes are incomplete,
-                meaning it has a corner out of view based on depth_min, decide
-                whether to draw them at all.
-
-            thickness (Int):
-                Thickness of drawn cv2 box lines.
-
-            box_line_thickness (int): cv2 line/text thickness
-            box_text_size (float): cv2 putText size
-            text_corner (int): 0 ~ 7. Which corner of 3D box to write text at.
+        Parameters
+        ----------
+        boxes : np.ndarray
+            3D bounding box corners with shape (N, 8, 3).
+            Corner ordering:
+                4 -------- 5
+               /|         /|
+              7 -------- 6 .
+              | |        | |
+              . 0 -------- 1
+              |/         |/
+              3 -------- 2
+        colors : tuple or np.ndarray or None, optional
+            Box color specification. 
+        texts : list of str or None, optional
+            Text labels for each box (length N). 
+        depth_min : float, optional
+            Minimum depth threshold for corner visibility.
+        draw_incomplete_boxes : bool, optional
+            If False, only draws boxes with all 8 corners visible.
+            If True, draws partial boxes. 
+        box_line_thickness : int, optional
+            Line thickness for box edges.
+        box_text_size : float, optional
+            Text size scale factor. 
+        text_corner : int, optional
+            Corner index (0-7) where text is placed. 
         """
         # Setup colors
         if colors is None:
@@ -300,7 +369,28 @@ class Canvas_3D(object):
                     )
 
     @staticmethod
-    def cart2sph(xyz):
+    def cart2sph(xyz: npt.NDArray[np.floating]) -> Tuple[
+        npt.NDArray[np.floating], npt.NDArray[np.floating], npt.NDArray[np.floating]
+    ]:
+        """
+        Convert Cartesian coordinates to spherical coordinates.
+
+        Parameters
+        ----------
+        xyz : np.ndarray
+            Cartesian coordinates with shape (N, 3).
+
+        Returns
+        -------
+        az : np.ndarray
+            Azimuth angles in radians with shape (N,).
+            Measured from +x axis, counter-clockwise.
+        el : np.ndarray
+            Elevation angles in radians with shape (N,).
+            Measured from xy-plane.
+        depth : np.ndarray
+            Radial distances with shape (N,).
+        """
         x, y, z = xyz[:, 0], xyz[:, 1], xyz[:, 2]
 
         depth = np.linalg.norm(xyz, 2, axis=1)
@@ -310,19 +400,24 @@ class Canvas_3D(object):
 
     @staticmethod
     def get_extrinsic_matrix(
-        camera_center_coords,
-        camera_focus_coords,
-    ):
+        camera_center_coords: Tuple[float, float, float],
+        camera_focus_coords: Tuple[float, float, float],
+    ) -> npt.NDArray[np.floating]:
         """
-        Args:
-            camera_center_coords: (x, y, z) of where camera should be located
-                in 3D space.
-            camera_focus_coords: (x, y, z) of where camera should look at from
-                camera_center_coords
+        Compute camera extrinsic matrix from position and look-at point.
 
-        Thoughts:
-            Remember that in camera coordiantes, pos x is right, pos y is up,
-                pos z is forward.
+        Parameters
+        ----------
+        camera_center_coords : tuple of float
+            Camera position (x, y, z) in 3D world coordinates.
+        camera_focus_coords : tuple of float
+            Look-at point (x, y, z) in 3D world coordinates.
+
+        Returns
+        -------
+        ext_matrix : np.ndarray
+            Extrinsic matrix with shape (4, 4) for world-to-camera
+            transformation in homogeneous coordinates.
         """
         center_x, center_y, center_z = camera_center_coords
         focus_x, focus_y, focus_z = camera_focus_coords

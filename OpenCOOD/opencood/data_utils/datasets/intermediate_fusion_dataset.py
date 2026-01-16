@@ -1,5 +1,9 @@
 """
-Dataset class for intermediate fusion where each vehicle transmits deep features to the ego vehicle.
+Intermediate fusion dataset for cooperative perception.
+
+This module provides dataset functionality for intermediate fusion where each
+vehicle transmits deep features to the ego vehicle in cooperative autonomous
+driving scenarios.
 """
 
 import math
@@ -26,6 +30,32 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
     This class handles the processing of LiDAR data and object detection labels for multiple connected
     autonomous vehicles (CAVs) in a cooperative perception setting. It supports both synchronous and
     asynchronous data processing with message handling capabilities.
+
+    Parameters
+    ----------
+    params : Dict[str, Any]
+        Configuration dictionary containing dataset parameters.
+    visualize : bool
+        Whether to enable visualization features.
+    train : bool, optional
+        Whether the dataset is for training. Default is True.
+    message_handler : Any, optional
+        Handler for inter-vehicle message passing. Default is None.
+
+    Attributes
+    ----------
+    proj_first : bool
+        Whether to project LiDAR to ego frame first or project features.
+    cur_ego_pose_flag : bool
+        Whether there is time delay between CAV projection and ego reception.
+    pre_processor : BasePreprocessor
+        Preprocessor for LiDAR data.
+    post_processor : BasePostprocessor
+        Post-processor for object detection outputs.
+    message_handler : Any
+        Handler for message passing between vehicles.
+    module_name : str
+        Name identifier for the module.
     """
     
     def __init__(self, params: Dict[str, Any], visualize: bool, train: bool = True, 

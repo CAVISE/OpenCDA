@@ -1,6 +1,11 @@
 """
-Debugging utilities for OpenCOOD, including visualization and testing tools.
+Debugging utilities for OpenCOOD.
+
+This module provides visualization and testing tools for validating model
+outputs, particularly for Bird's Eye View (BEV) post-processing and debugging
+cooperative perception models.
 """
+
 import argparse
 
 import torch

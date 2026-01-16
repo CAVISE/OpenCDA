@@ -1,14 +1,39 @@
 """
-Class used to downsample features by 3*3 conv
+Downsampling Convolution Blocks.
+
+This module implements double convolution blocks and sequential downsampling
+using configurable kernel sizes, strides, and padding.
 """
-from typing import Dict, List, Union, Optional, Tuple
+
+from typing import Dict, List, Union, Tuple
 import torch.nn as nn
 from torch import Tensor
 
 
 class DoubleConv(nn.Module):
     """
-    Double convolution block.
+    Double convolution block with ReLU activations.
+
+    This block applies two consecutive 2D convolutions with ReLU activations.
+    The first convolution is configurable, while the second uses a fixed 3x3 kernel.
+
+    Parameters
+    ----------
+    in_channels : int
+        Number of input channels.
+    out_channels : int
+        Number of output channels.
+    kernel_size : int or tuple of int
+        Kernel size for the first convolution.
+    stride : int or tuple of int, optional
+        Stride for the first convolution. Default is 1.
+    padding : int or tuple of int, optional
+        Padding for the first convolution. Default is 0.
+
+    Attributes
+    ----------
+    double_conv : nn.Sequential
+        Sequential container with two Conv2d-ReLU pairs.
     """
 
     def __init__(
@@ -28,6 +53,19 @@ class DoubleConv(nn.Module):
         )
 
     def forward(self, x: Tensor) -> Tensor:
+        """
+        Forward pass through double convolution block.
+
+        Parameters
+        ----------
+        x : Tensor
+            Input features with shape (B, C_in, H, W).
+
+        Returns
+        -------
+        Tensor
+            Output features with shape (B, C_out, H', W').
+        """
         return self.double_conv(x)
 
 
@@ -50,7 +88,13 @@ class DownsampleConv(nn.Module):
             List of stride values for each block.
         - padding : list
             List of padding values for each block.
+
+    Attributes
+    ----------
+    layers : nn.ModuleList
+        List of DoubleConv blocks for sequential processing.
     """
+
     def __init__(self, config: Dict[str, List[Union[int, Tuple[int, int]]]]):
         super(DownsampleConv, self).__init__()
         self.layers = nn.ModuleList([])

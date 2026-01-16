@@ -1,5 +1,9 @@
 """
 Inference utility functions for different fusion strategies in cooperative perception.
+
+This module provides inference functions for late fusion, early fusion, and
+intermediate fusion strategies, along with utilities for saving predictions
+and ground truth data.
 """
 
 import os
@@ -7,7 +11,6 @@ from collections import OrderedDict
 from typing import Any, Tuple
 
 import numpy as np
-import numpy.typing as npt
 import torch
 
 from opencood.utils.common_utils import torch_tensor_to_numpy

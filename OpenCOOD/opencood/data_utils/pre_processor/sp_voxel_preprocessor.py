@@ -1,5 +1,8 @@
 """
-Transform points to voxels using sparse conv library
+Transform points to voxels using sparse conv library.
+
+This module provides a sparse voxel preprocessor for converting LiDAR point clouds
+to voxel representations using the spconv library (supports both v1.x and v2.x).
 """
 
 import sys
@@ -18,6 +21,37 @@ class SpVoxelPreprocessor(BasePreprocessor):
     This preprocessor uses the sparse convolution library (spconv) to efficiently
     generate voxel representations from point clouds. It supports both spconv v1.x
     and v2.x.
+    
+    Parameters
+    ----------
+    preprocess_params : Dict[str, Any]
+        Configuration dictionary containing:
+        - 'cav_lidar_range': LiDAR detection range [xmin, ymin, zmin, xmax, ymax, zmax]
+        - 'args': Dictionary with voxelization parameters
+            - 'voxel_size': [dx, dy, dz] dimensions of each voxel
+            - 'max_points_per_voxel': Maximum points allowed per voxel
+            - 'max_voxel_train': Maximum voxels for training
+            - 'max_voxel_test': Maximum voxels for testing/validation
+    train : bool
+        Whether the preprocessor is used for training (True) or testing (False).
+        Determines the maximum number of voxels to generate.
+    
+    Attributes
+    ----------
+    spconv : int
+        Version of spconv being used (1 for v1.x, 2 for v2.x).
+    lidar_range : List[float]
+        LiDAR detection range.
+    voxel_size : List[float]
+        Size of each voxel in [x, y, z] dimensions.
+    max_points_per_voxel : int
+        Maximum number of points per voxel.
+    max_voxels : int
+        Maximum number of voxels to generate.
+    grid_size : np.ndarray
+        Grid dimensions in voxel coordinates.
+    voxel_generator : VoxelGenerator
+        Spconv voxel generator instance.
     """
 
     def __init__(self, preprocess_params: Dict[str, Any], train: bool) -> None:

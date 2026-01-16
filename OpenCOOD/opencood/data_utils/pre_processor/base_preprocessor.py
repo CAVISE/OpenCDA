@@ -1,3 +1,9 @@
+"""
+Functionality for downsampling and projecting points to BEV maps.
+
+This module provides base preprocessor classes for lidar point cloud data.
+"""
+
 import numpy as np
 from numpy.typing import NDArray
 
@@ -14,19 +20,16 @@ class BasePreprocessor:
         The dictionary containing all parameters of the preprocessing.
     train : bool
         Train or test mode.
+    
+    Attributes
+    ----------
+    params : Dict[str, Any]
+        Configuration parameters for preprocessing operations.
+    train : bool
+        Boolean flag indicating training or evaluation mode.
     """
 
     def __init__(self, preprocess_params: Dict[str, Any], train: bool):
-        """
-        Initialize the base preprocessor.
-        
-        Parameters
-        ----------
-        preprocess_params : Dict[str, Any]
-            Configuration dictionary for preprocessing.
-        train : bool
-            Boolean indicating training or evaluation mode.
-        """
         self.params = preprocess_params
         self.train = train
 

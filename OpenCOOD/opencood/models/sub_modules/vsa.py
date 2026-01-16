@@ -1,25 +1,40 @@
+"""
+Voxel Set Abstraction module for 3D object detection.
+
+This module implements voxel-based set abstraction for processing multi-scale
+3D features in cooperative perception systems.
+"""
+
 import copy
+from typing import Dict, List, Optional
 
 import torch
 import torch.nn as nn
+from torch import Tensor
 
 from opencood.pcdet_utils.pointnet2.pointnet2_stack import pointnet2_modules as pointnet2_stack_modules
 from opencood.pcdet_utils.pointnet2.pointnet2_stack import pointnet2_utils as pointnet2_stack_utils
 from opencood.pcdet_utils.roiaware_pool3d.roiaware_pool3d_utils import points_in_boxes_gpu
 from opencood.utils import common_utils
 
-from typing import Dict, List, Optional
-from torch import Tensor
 
 def bilinear_interpolate_torch(im: Tensor, x: Tensor, y: Tensor) -> Tensor:
     """
-    Args:
-        im: (H, W, C) [y, x]
-        x: (N)
-        y: (N)
+    Perform bilinear interpolation on 2D feature map.
 
-    Returns:
+    Parameters
+    ----------
+    im : Tensor
+        Feature map with shape (H, W, C).
+    x : Tensor
+        X coordinates with shape (N,).
+    y : Tensor
+        Y coordinates with shape (N,).
 
+    Returns
+    -------
+    Tensor
+        Interpolated features with shape (N, C).
     """
     x0 = torch.floor(x).long()
     x1 = x0 + 1
@@ -46,13 +61,64 @@ def bilinear_interpolate_torch(im: Tensor, x: Tensor, y: Tensor) -> Tensor:
 
 
 class VoxelSetAbstraction(nn.Module):
+    """
+    Voxel Set Abstraction module for multi-scale 3D feature aggregation.
+
+    This module performs hierarchical feature aggregation from multi-scale voxel
+    features, BEV features, and raw points using PointNet++ set abstraction layers.
+
+    Parameters
+    ----------
+    model_cfg : dict
+        Model configuration dictionary containing:
+        - 'features_source': List of feature sources ['bev', 'raw_points', 'x_conv1', etc.].
+        - 'sa_layer': Set abstraction layer configuration per source.
+        - 'num_keypoints': Number of keypoints to sample.
+        - 'num_out_features': Output feature dimension.
+        - 'point_source': Source for sampling keypoints ('raw_points' or 'voxel_centers').
+        - 'enlarge_selection_boxes': Whether to enlarge detection boxes for selection.
+    voxel_size : list of float
+        Voxel size [vx, vy, vz].
+    point_cloud_range : list of float
+        Point cloud range [x_min, y_min, z_min, x_max, y_max, z_max].
+    num_bev_features : int, optional
+        Number of BEV feature channels.
+    num_rawpoint_features : int, optional
+        Number of raw point feature channels.
+    **kwargs
+        Additional keyword arguments.
+
+    Attributes
+    ----------
+    model_cfg : dict
+        Model configuration.
+    voxel_size : list of float
+        Voxel size for discretization.
+    point_cloud_range : list of float
+        Valid point cloud range.
+    SA_layers : nn.ModuleList
+        List of set abstraction layers for multi-scale features.
+    SA_layer_names : list of str
+        Names of set abstraction layers.
+    downsample_times_map : dict
+        Mapping from layer name to downsample factor.
+    SA_rawpoints : StackSAModuleMSG, optional
+        Set abstraction layer for raw points if used.
+    vsa_point_feature_fusion : nn.Sequential
+        Feature fusion module combining multi-scale features.
+    num_point_features : int
+        Output feature dimension.
+    num_point_features_before_fusion : int
+        Feature dimension before fusion.
+    """
+
     def __init__(
-        self, 
-        model_cfg: Dict[str, any], 
-        voxel_size: List[float], 
-        point_cloud_range: List[float], 
-        num_bev_features: Optional[int] = None, 
-        num_rawpoint_features: Optional[int] = None, 
+        self,
+        model_cfg: Dict[str, any],
+        voxel_size: List[float],
+        point_cloud_range: List[float],
+        num_bev_features: Optional[int] = None,
+        num_rawpoint_features: Optional[int] = None,
         **kwargs
     ) -> None:
         super().__init__()
@@ -114,6 +180,25 @@ class VoxelSetAbstraction(nn.Module):
         batch_size: int, 
         bev_stride: int
     ) -> Tensor:
+        """
+        Interpolate BEV features at keypoint locations.
+
+        Parameters
+        ----------
+        keypoints : Tensor
+            Keypoint coordinates with shape (B, N, 3).
+        bev_features : Tensor
+            BEV features with shape (B, C, H, W).
+        batch_size : int
+            Batch size.
+        bev_stride : int
+            Stride of BEV feature map.
+
+        Returns
+        -------
+        Tensor
+            Interpolated features with shape (B, N, C).
+        """
         x_idxs = (keypoints[:, :, 0] - self.point_cloud_range[0]) / self.voxel_size[0]
         y_idxs = (keypoints[:, :, 1] - self.point_cloud_range[1]) / self.voxel_size[1]
         x_idxs = x_idxs / bev_stride
@@ -130,9 +215,21 @@ class VoxelSetAbstraction(nn.Module):
         point_bev_features = torch.cat(point_bev_features_list, dim=0)  # (B, N, C0)
         return point_bev_features
 
-    def forward(self, batch_dict: Dict[str, Tensor]) -> Dict[str, Tensor]:
+    def get_sampled_points(self, batch_dict: Dict[str, Tensor]) -> Tensor:
         """
-        Forward pass of Voxel Set Abstraction.
+        Sample keypoints using Furthest Point Sampling (FPS).
+
+        Parameters
+        ----------
+        batch_dict : dict of str to Tensor
+            Batch dictionary containing:
+            - 'batch_size': Batch size.
+            - 'origin_lidar' or 'voxel_coords': Source points.
+
+        Returns
+        -------
+        Tensor
+            Sampled keypoints with shape (B, num_keypoints, 4).
         """
         batch_size = batch_dict["batch_size"]
         if self.model_cfg["point_source"] == "raw_points":
@@ -175,36 +272,26 @@ class VoxelSetAbstraction(nn.Module):
 
     def forward(self, batch_dict: Dict[str, Tensor]) -> Dict[str, Tensor]:
         """
-        Forward pass for processing batch data.
-        
+        Forward pass for multi-scale feature aggregation.
+
         Parameters
         ----------
-        batch_dict : Dict[str, torch.Tensor]
-            Dictionary containing batch data with the following keys:
-            
-            - batch_size : int
-                Number of samples in the batch.
-            - keypoints : torch.Tensor
-                Keypoints tensor of shape (B, num_keypoints, 3).
-            - multi_scale_3d_features : dict
-                Dictionary with multi-scale 3D features, e.g., {'x_conv4': ...}.
-            - points : torch.Tensor, optional
-                Points tensor of shape (N, 1 + 3 + C) with format [bs_idx, x, y, z, ...].
-            - spatial_features : torch.Tensor, optional
-                Spatial features tensor.
-            - spatial_features_stride : int, optional
-                Stride value for spatial features.
-        
+        batch_dict : dict of str to Tensor
+            Batch dictionary containing:
+            - 'batch_size': Number of samples.
+            - 'origin_lidar' or 'voxel_coords': Source points.
+            - 'spatial_features': BEV features (optional).
+            - 'spatial_features_stride': BEV stride (optional).
+            - 'multi_scale_3d_features': Multi-scale voxel features.
+            - 'det_boxes': Detection boxes for keypoint filtering (optional).
+
         Returns
         -------
-        Dict[str, torch.Tensor]
-            Dictionary containing:
-            
-            - point_features : torch.Tensor
-                Processed point features of shape (N, C).
-            - point_coords : torch.Tensor
-                Point coordinates of shape (N, 4).
-
+        dict of str to Tensor
+            Updated batch dictionary with:
+            - 'point_features': List of point features per sample.
+            - 'point_coords': List of point coordinates per sample.
+            - 'point_features_before_fusion': Features before fusion.
         """
         keypoints = self.get_sampled_points(batch_dict)  # BxNx4
         kpt_mask1 = torch.logical_and(keypoints[..., 2] > -2.8, keypoints[..., 2] < 1.0)

@@ -31,14 +31,6 @@ class ControlManager:
     """
 
     def __init__(self, control_config: Dict[str, Any]):
-        """
-        Initialize the control manager with the specified controller type.
-
-        Parameters
-        ----------
-        control_config : Dict[str, Any]
-            Dictionary containing controller configuration.
-        """
         controller_type = control_config["type"]
         controller = getattr(importlib.import_module("opencda.core.actuation.%s" % controller_type), "Controller")
         self.controller = controller(control_config["args"])

@@ -1,12 +1,16 @@
 # -*- coding: utf-8 -*-
 """
-Localization module
+Localization module for vehicle position and velocity estimation.
+
+This module provides GNSS and IMU sensor management with Kalman filtering
+for accurate vehicle localization in cooperative autonomous driving scenarios.
 """
 # Author: Runsheng Xu <rxx3386@ucla.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
 import weakref
 from collections import deque
+from typing import Dict, Any, Optional
 
 import carla
 import numpy as np
@@ -19,23 +23,30 @@ from opencda.core.sensing.localization.coordinate_transform import geo_to_transf
 
 class GnssSensor(object):
     """
-    The default GNSS sensor module.
+    GNSS sensor manager for vehicle localization.
 
     Parameters
     ----------
     vehicle : carla.Vehicle
-        The carla.Vehicle. We need this class to spawn our gnss and imu sensor.
-
-    config : dict
-        The configuration dictionary of the localization module.
+        The CARLA vehicle to attach the sensor to.
+    config : Dict[str, Any]
+        Configuration dictionary containing GNSS noise parameters.
 
     Attributes
     ----------
-    sensor : CARLA actor
-        The current sensor actors that will be attach to the vehicles.
+    sensor : carla.Sensor
+        The GNSS sensor actor attached to the vehicle.
+    lat : float
+        Current latitude in degrees.
+    lon : float
+        Current longitude in degrees.
+    alt : float
+        Current altitude in meters.
+    timestamp : float
+        Timestamp of the latest GNSS measurement.
     """
 
-    def __init__(self, vehicle, config):
+    def __init__(self, vehicle: Any, config: Dict[str, Any]):
         world = vehicle.get_world()
         blueprint = world.get_blueprint_library().find("sensor.other.gnss")
 
@@ -68,27 +79,26 @@ class GnssSensor(object):
 
 class ImuSensor(object):
     """
-    Default ImuSensor module.
+    IMU sensor manager for vehicle motion sensing.
 
     Parameters
+    ----------
     vehicle : carla.Vehicle
-        The carla.Vehicle. We need this class to spawn our gnss and imu sensor.
+        The CARLA vehicle to attach the sensor to.
 
     Attributes
-    world : carla.world
-        The caral world of the current vehicle.
-
-    blueprint : carla.blueprint
-        The current blueprint of the sensor actor.
-
-    weak_self : opencda Object
-        A weak reference point to avoid circular reference.
-
-    sensor : CARLA actor
-        The current sensor actors that will be attach to the vehicles.
+    ----------
+    sensor : carla.Sensor
+        The IMU sensor actor attached to the vehicle.
+    accelerometer : Tuple[float, float, float] or None
+        3D acceleration measurements (x, y, z) in m/s².
+    gyroscope : Tuple[float, float, float] or None
+        3D angular velocity measurements (x, y, z) in rad/s.
+    compass : float or None
+        Compass heading in radians.
     """
 
-    def __init__(self, vehicle):
+    def __init__(self, vehicle: Any):
         world = vehicle.get_world()
         blueprint = world.get_blueprint_library().find("sensor.other.imu")
         self.sensor = world.spawn_actor(blueprint, carla.Transform(), attach_to=vehicle)
@@ -100,8 +110,14 @@ class ImuSensor(object):
     @staticmethod
     def _IMU_callback(weak_self, sensor_data):
         """
-        IMU method that returns the 3-D (x,y,z)
-        acceleration and gyroscope values.
+        Callback for IMU measurement events.
+
+        Parameters
+        ----------
+        weak_self : weakref.ref
+            Weak reference to the ImuSensor instance.
+        sensor_data : carla.IMUMeasurement
+            IMU measurement event from CARLA.
         """
         self = weak_self()
         if not self:
@@ -124,32 +140,41 @@ class ImuSensor(object):
 
 class LocalizationManager(object):
     """
-    Default localization module.
+    Localization module with sensor fusion for vehicle pose estimation.
+
+    Combines GNSS and IMU measurements using Kalman filtering to estimate
+    accurate vehicle position, heading, and velocity.
 
     Parameters
+    ----------
     vehicle : carla.Vehicle
-        The carla.Vehicle. We need this class to spawn our gnss and imu sensor.
-    config_yaml : dict
-        The configuration dictionary of the localization module.
+        The CARLA vehicle for localization.
+    config_yaml : Dict[str, Any]
+        Configuration dictionary for localization parameters.
     carla_map : carla.Map
-        The carla HDMap. We need this to find the map origin to
-        convert wg84 to enu coordinate system.
+        CARLA HD map for coordinate transformations.
 
     Attributes
-    gnss : opencda object
-        GNSS sensor manager for spawning gnss sensor and listen to the data
-        transmission.
-    ImuSensor : opencda object
-        Imu sensor manager for spawning gnss sensor and listen to the data
-        transmission.
-    kf : opencda object
-        The filter used to fuse different sensors.
-    debug_helper : opencda object
-        The debug helper is used to visualize the accuracy of
-        the localization and provide evaluation functions.
+    ----------
+    vehicle : carla.Vehicle
+        The associated vehicle.
+    activate : bool
+        Whether sensor fusion is activated or using ground truth.
+    map : carla.Map
+        CARLA map instance.
+    geo_ref : carla.GeoLocation
+        Geographic reference point for coordinate conversion.
+    gnss : GnssSensor
+        GNSS sensor manager.
+    imu : ImuSensor
+        IMU sensor manager.
+    kf : KalmanFilter
+        Kalman filter for sensor fusion.
+    debug_helper : LocDebugHelper
+        Debug helper for visualization and evaluation.
     """
 
-    def __init__(self, vehicle, config_yaml, carla_map):
+    def __init__(self, vehicle: Any, config_yaml: Dict[str, Any], carla_map: Any):
         self.vehicle = vehicle
         self.activate = config_yaml["activate"]
         self.map = carla_map
@@ -179,7 +204,11 @@ class LocalizationManager(object):
 
     def localize(self):
         """
-        Currently implemented in a naive way.
+        Perform localization using sensor fusion or ground truth.
+
+        Updates ego vehicle position and speed using GNSS, IMU, and Kalman
+        filtering when activated, or retrieves ground truth from server when
+        deactivated.
         """
 
         if not self.activate:
@@ -221,47 +250,57 @@ class LocalizationManager(object):
             self._ego_pos_history.append(self._ego_pos)
             self._timestamp_history.append(self.gnss.timestamp)
 
-    def add_heading_direction_noise(self, heading_direction):
+    def add_heading_direction_noise(self, heading_direction: float) -> float:
         """
-        Add synthetic noise to heading direction.
+        Add synthetic Gaussian noise to heading direction.
 
         Parameters
-        __________
+        ----------
         heading_direction : float
-            groundtruth heading_direction obtained from the server.
+            Ground truth heading direction in degrees.
 
         Returns
         -------
-        heading_direction : float
-            heading direction with noise.
+        float
+            Heading direction with added noise in degrees.
         """
         return heading_direction + np.random.normal(0, self.heading_noise_std)
 
-    def add_speed_noise(self, speed):
+    def add_speed_noise(self, speed: float) -> float:
         """
-        Add gaussian white noise to the current speed.
+        Add Gaussian white noise to vehicle speed.
 
         Parameters
-        __________
+        ----------
         speed : float
-            m/s, current speed.
+            Ground truth speed in km/h.
 
         Returns
         -------
-        speed : float
-            the speed with noise.
+        float
+            Speed with added noise in km/h.
         """
         return speed + np.random.normal(0, self.speed_noise_std)
 
-    def get_ego_pos(self):
+    def get_ego_pos(self) -> Optional[carla.Transform]:
         """
-        Retrieve ego vehicle position
+        Get estimated ego vehicle position.
+
+        Returns
+        -------
+        carla.Transform or None
+            Estimated vehicle transform, or None if not initialized.
         """
         return self._ego_pos
 
-    def get_ego_spd(self):
+    def get_ego_spd(self) -> float:
         """
-        Retrieve ego vehicle speed
+        Get estimated ego vehicle speed.
+
+        Returns
+        -------
+        float
+            Estimated vehicle speed in km/h.
         """
         return self._speed
 

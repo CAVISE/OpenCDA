@@ -1,9 +1,13 @@
 """
-The safety manager is used to collect the AV's hazard status and give the
-control back to human if necessary
+Safety manager for monitoring autonomous vehicle hazards.
+
+This module provides safety monitoring functionality for autonomous vehicles,
+including collision detection, traffic light violations, stuck detection, and
+off-road detection with optional human takeover capabilities.
 """
 
 import logging
+from typing import Dict, Any
 
 from opencda.core.safety.sensors import CollisionSensor, TrafficLightDector, StuckDetector, OffRoadDetector
 
@@ -12,17 +16,41 @@ logger = logging.getLogger("cavise.safety_manager")
 
 class SafetyManager:
     """
-    A class that manages the safety of a given vehicle in a simulation environment.
+    Safety monitoring manager for autonomous vehicles.
+
+    Manages multiple safety sensors and monitors hazard status for a vehicle
+    in the simulation environment, providing warnings and control handover
+    capabilities when necessary.
 
     Parameters
     ----------
-    vehicle: carla.Actor
-        The vehicle that the SafetyManager is responsible for.
-    params: dict
-        A dictionary of parameters that are used to configure the SafetyManager.
+    vehicle : carla.Actor
+        The vehicle that the SafetyManager is responsible for monitoring.
+    params : Dict[str, Any]
+        Configuration dictionary containing parameters for safety sensors:
+        
+        - print_message : bool
+            Whether to print safety warnings.
+        - collision_sensor : dict
+            Configuration for collision sensor.
+        - stuck_dector : dict
+            Configuration for stuck detector.
+        - offroad_dector : dict
+            Configuration for off-road detector.
+        - traffic_light_detector : dict
+            Configuration for traffic light detector.
+
+    Attributes
+    ----------
+    vehicle : carla.Actor
+        The monitored vehicle.
+    print_message : bool
+        Flag indicating whether to print safety messages.
+    sensors : List[Any]
+        List of safety sensor instances.
     """
 
-    def __init__(self, vehicle, params):
+    def __init__(self, vehicle: Any, params: Dict[str, Any]):
         self.vehicle = vehicle
         self.print_message = params["print_message"]
         self.sensors = [
@@ -32,7 +60,25 @@ class SafetyManager:
             TrafficLightDector(params["traffic_light_detector"], vehicle),
         ]
 
-    def update_info(self, data_dict) -> dict:
+    def update_info(self, data_dict: Dict[str, Any]) -> Dict[str, bool]:
+        """
+        Update safety sensor information and return hazard status.
+
+        Collects status from all safety sensors and optionally prints warnings
+        when hazards are detected.
+
+        Parameters
+        ----------
+        data_dict : Dict[str, Any]
+            Dictionary containing current vehicle and environment data for
+            sensor updates.
+
+        Returns
+        -------
+        Dict[str, bool]
+            Dictionary mapping sensor names to their hazard status (True indicates
+            a hazard is detected).
+        """
         status_dict = {}
         for sensor in self.sensors:
             sensor.tick(data_dict)

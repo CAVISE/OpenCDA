@@ -1,3 +1,10 @@
+"""
+Bounding Box Matcher and Fusion Module.
+
+This module implements clustering and fusion of predicted bounding boxes
+from multiple agents based on IoU overlap and confidence scores.
+"""
+
 from typing import Dict, List, Tuple, Any
 import torch
 from torch import nn, Tensor
@@ -12,12 +19,46 @@ def limit_period(
     offset: float = 0.5,
     period: float = 2 * pi
 ) -> Tensor:
+    """
+    Limit angles to a specific period range.
+
+    Parameters
+    ----------
+    val : Tensor
+        Input angle values.
+    offset : float, optional
+        Offset for period wrapping. Default is 0.5.
+    period : float, optional
+        Period length (e.g., 2*pi for full rotation). Default is 2*pi.
+
+    Returns
+    -------
+    Tensor
+        Angle values wrapped to the period range.
+    """
     return val - torch.floor(val / period + offset) * period
 
 
 class Matcher(nn.Module):
-    """Correct localization error and use Algorithm 1:
-    BBox matching with scores to fuse the proposal BBoxes"""
+    """
+    Bounding box matcher and fusion module for multi-agent detection.
+
+    This module clusters predicted bounding boxes based on IoU overlap
+    and fuses boxes within each cluster using score-weighted averaging.
+    Implements Algorithm 1: BBox matching with scores.
+
+    Parameters
+    ----------
+    cfg : dict of str to Any
+        Configuration dictionary.
+    pc_range : list of float
+        Point cloud range [x_min, y_min, z_min, x_max, y_max, z_max].
+
+    Attributes
+    ----------
+    pc_range : list of float
+        Point cloud range.
+    """
 
     def __init__(self, cfg: Dict[str, Any], pc_range: List[float]) -> None:
         super(Matcher, self).__init__()
@@ -25,6 +66,24 @@ class Matcher(nn.Module):
 
     @torch.no_grad()
     def forward(self, data_dict: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Perform box clustering and fusion.
+
+        Parameters
+        ----------
+        data_dict : dict of str to Any
+            Data dictionary containing:
+            - 'det_boxes': List of detected boxes from all agents.
+            - 'det_scores': List of detection scores from all agents.
+            - 'record_len': Number of agents per scene.
+
+        Returns
+        -------
+        dict of str to Any
+            Updated data dictionary with:
+            - 'boxes_fused': List of fused boxes per scene.
+            - 'scores_fused': List of fused scores per scene.
+        """
         clusters, scores = self.clustering(data_dict)
         data_dict["boxes_fused"], data_dict["scores_fused"] = self.cluster_fusion(clusters, scores)
         self.merge_keypoints(data_dict)
@@ -35,7 +94,23 @@ class Matcher(nn.Module):
         data_dict: Dict[str, Any]
     ) -> Tuple[List[List[Tensor]], List[List[Tensor]]]:
         """
-        Assign predicted boxes to clusters according to their ious with each other
+        Cluster predicted boxes based on IoU overlap.
+
+        Boxes with IoU > 0.1 are assigned to the same cluster, representing
+        detections of the same object from different agents.
+
+        Parameters
+        ----------
+        data_dict : dict of str to Any
+            Data dictionary containing detection results.
+
+        Returns
+        -------
+        clusters_batch : list of list of Tensor
+            Clustered boxes for each scene. Each cluster contains boxes
+            that likely correspond to the same object.
+        scores_batch : list of list of Tensor
+            Corresponding scores for each cluster.
         """
         clusters_batch = []
         scores_batch = []
@@ -77,7 +152,21 @@ class Matcher(nn.Module):
         scores: List[List[Tensor]]
     ) -> Tuple[List[Tensor], List[Tensor]]:
         """
-        Merge boxes in each cluster with scores as weights for merging
+        Fuse boxes within each cluster using score-weighted averaging.
+
+        Parameters
+        ----------
+        clusters : list of list of Tensor
+            Clustered boxes for each scene.
+        scores : list of list of Tensor
+            Corresponding detection scores.
+
+        Returns
+        -------
+        boxes_fused : list of Tensor
+            Fused boxes for each scene with shape (N_clusters, 7).
+        scores_fused : list of Tensor
+            Fused confidence scores for each scene with shape (N_clusters,).
         """
         boxes_fused = []
         scores_fused = []

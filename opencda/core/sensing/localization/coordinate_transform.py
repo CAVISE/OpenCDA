@@ -1,49 +1,51 @@
 # -*- coding: utf-8 -*-
 """
-Functions to transfer coordinates under different coordinate system
+Coordinate system transformation utilities.
+
+This module provides functions for transforming coordinates between different
+coordinate systems, particularly WGS84 geodetic coordinates to East-North-Up
+(ENU) local coordinate system.
 """
 
 # Author: Runsheng Xu <rxx3386@ucla.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
 import numpy as np
+from typing import Tuple
 
 
-def geo_to_transform(lat, lon, alt, lat_0, lon_0, alt_0):
+def geo_to_transform(
+    lat: float, lon: float, alt: float, lat_0: float, lon_0: float, alt_0: float
+) -> Tuple[float, float, float]:
     """
-    Convert WG84 to ENU. The origin of the ENU should pass the geo reference.
-    Note this function is a writen by reversing the
-    official API transform_to_geo.
+    Convert WGS84 geodetic coordinates to ENU local coordinates.
+
+    The origin of the ENU (East-North-Up) coordinate system is defined by
+    the geographic reference point. This function reverses the official
+    transform_to_geo API.
 
     Parameters
     ----------
     lat : float
-        current latitude.
-
+        Current latitude in degrees.
     lon : float
-        current longitude.
-
+        Current longitude in degrees.
     alt : float
-        current altitude.
-
-    lat_0 : float)
-        geo_ref latitude.
-
+        Current altitude in meters.
+    lat_0 : float
+        Geographic reference latitude in degrees.
     lon_0 : float
-        geo_ref longitude.
-
+        Geographic reference longitude in degrees.
     alt_0 : float
-        geo_ref altitude.
+        Geographic reference altitude in meters.
 
     Returns
     -------
     x : float
-        The transformed x coordinate.
-
+        The transformed x coordinate (East) in meters.
     y : float
-        The transformed y coordinate.
-
+        The transformed y coordinate (North) in meters.
     z : float
-        The transformed z coordinate.
+        The transformed z coordinate (Up) in meters.
     """
     EARTH_RADIUS_EQUA = 6378137.0
     scale = np.cos(np.deg2rad(lat_0))

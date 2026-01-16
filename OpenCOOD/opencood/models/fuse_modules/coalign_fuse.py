@@ -1,3 +1,10 @@
+"""
+Attention-based feature fusion with spatial warping for multi-agent perception.
+
+This module provides utilities for warping agent features to a common coordinate
+frame and fusing them using spatial self-attention mechanisms.
+"""
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -6,6 +13,21 @@ from opencood.models.fuse_modules.self_attn import ScaledDotProductAttention
 from typing import List, Tuple
 
 def regroup(x: torch.Tensor, record_len: torch.Tensor) -> List[torch.Tensor]:
+    """
+    Split concatenated multi-agent features into per-sample tensors.
+
+    Parameters
+    ----------
+    x : Tensor
+        Concatenated features with shape (sum(record_len), C, H, W).
+    record_len : Tensor
+        Number of agents per sample with shape (B,).
+
+    Returns
+    -------
+    list of Tensor
+        Per-sample tensors [(N_1, C, H, W), (N_2, C, H, W), ...].
+    """
     cum_sum_len = torch.cumsum(record_len, dim=0)
     split_x = torch.tensor_split(x, cum_sum_len[:-1].cpu())
     return split_x
@@ -56,13 +78,54 @@ def warp_affine_simple(
     padding_mode: str = "zeros",
     align_corners: bool = False
 ) -> torch.Tensor:
-    """ """
+    """ 
+    Apply affine transformation to warp source features to target coordinate frame.
+    
+    Wrapper around F.grid_sample for spatial transformation of feature maps.
+
+    Parameters
+    ----------
+    src : Tensor
+        Source features (B, C, H, W).
+    M : Tensor
+        Affine transformation matrices (B, 2, 3).
+    dsize : tuple of int
+        Output size (height, width).
+    mode : str, optional
+        Interpolation mode ('bilinear' or 'nearest'). Default is 'bilinear'.
+    padding_mode : str, optional
+        Padding mode for out-of-bound values. Default is 'zeros'.
+    align_corners : bool, optional
+        Whether to align corner pixels. Default is False.
+
+    Returns
+    -------
+    warped : Tensor
+        Warped features (B, C, dsize[0], dsize[1]).
+    """
     B, C, H, W = src.size()
     grid = F.affine_grid(M, [B, C, dsize[0], dsize[1]], align_corners=align_corners).to(src)
     return F.grid_sample(src, grid, align_corners=align_corners)
 
 
 class Att_w_Warp(nn.Module):
+    """
+    Attention with Warp fusion module for multi-agent feature fusion.
+    
+    Warps all agent features to ego coordinate frame, then applies spatial
+    self-attention across agents at each spatial location.
+
+    Parameters
+    ----------
+    feature_dims : int
+        Feature channel dimension for attention.
+
+    Attributes
+    ----------
+    att : ScaledDotProductAttention
+        Self-attention module for cross-agent fusion.
+    """
+
     def __init__(self, feature_dims):
         super(Att_w_Warp, self).__init__()
         self.att = ScaledDotProductAttention(feature_dims)
@@ -100,6 +163,25 @@ class Att_w_Warp(nn.Module):
         record_len: torch.Tensor,
         normalized_affine_matrix: torch.Tensor
     ) -> torch.Tensor:
+        """
+        Debug version of forward with visualization of warped features.
+        
+        Saves warped feature maps as images for debugging spatial alignment.
+
+        Parameters
+        ----------
+        xx : Tensor
+            Concatenated features.
+        record_len : Tensor
+            Number of CAVs per sample.
+        normalized_affine_matrix : Tensor
+            Normalized affine transformations.
+
+        Returns
+        -------
+        out : Tensor
+            Fused ego features (B, C, H, W).
+        """
         import matplotlib.pyplot as plt
         import numpy as np
 

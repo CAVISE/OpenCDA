@@ -1,10 +1,15 @@
 # -*- coding: utf-8 -*-
 """
-Visualization tools for localization
+Visualization tools for localization debugging and analysis.
+
+This module provides utilities for visualizing and evaluating localization
+algorithms by comparing GNSS measurements, filtered estimates, and ground truth
+data through trajectory plots and error analysis.
 """
 # Author: Runsheng Xu <rxx3386@ucla.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
+from typing import Dict, Any, List, Tuple
 import numpy as np
 import matplotlib
 
@@ -13,54 +18,62 @@ import matplotlib.pyplot as plt
 
 class LocDebugHelper(object):
     """
-    This class aims to help users debugging their localization algorithms.
-    Users can apply this class to draw the x, y coordinate
-    trajectory, yaw angle and vehicle speed from GNSS raw measurements,
-    Kalman filter, and the groundtruth measurements.
-    Error plotting is also enabled.
+    Localization debugging and visualization helper.
+
+    This class helps debug localization algorithms by recording and visualizing
+    trajectory data from GNSS measurements, Kalman filter estimates, and ground
+    truth. Supports both real-time animation and post-processing analysis.
+
+    Parameters
+    ----------
+    config_yaml : Dict[str, Any]
+        Configuration dictionary containing visualization parameters.
+    actor_id : int
+        The actor ID for identification in plots.
 
     Attributes
-        show_animation : boolean
-            Indicator of whether to visulize animtion.
-        x_scale : float
-            The scale of x coordinates.
-        y_scale : float
-            The scale of y coordinates.
-        gnss_x : list
-            The list of recorded gnss x coordinates.
-        gnss_y : list
-            The list of recorded gnss y coordinates.
-        gnss_yaw : list
-            The list of recorded gnss yaw angles.
-        gnss_speed : list
-            The list of recorded gnss speed values.
-        filter_x : list
-            The list of filtered x coordinates.
-        filter_y : list
-            The list of filtered y coordinates.
-        filter_yaw : list
-            The list of filtered yaw angles.
-        filter_speed : list
-            The list of filtered speed values.
-        gt_x : list
-            The list of ground truth x coordinates.
-        gt_y : list
-            The list of ground truth y coordinates.
-        gt_yaw : list
-            The list of ground truth yaw angles.
-        gt_speed : list
-            The list of ground truth speed values.
-        hxEst : list
-            The filtered x y coordinates.
-        hTrue : list
-            The true x y coordinates.
-        hz : list
-            The gnss detected x y coordinates.
-        actor_id : int
-            The list of ground truth speed values.
+    ----------
+    show_animation : bool
+        Whether to display real-time animation.
+    x_scale : float
+        Scaling factor for x coordinates in visualization.
+    y_scale : float
+        Scaling factor for y coordinates in visualization.
+    gnss_x : List[float]
+        Recorded GNSS x coordinates.
+    gnss_y : List[float]
+        Recorded GNSS y coordinates.
+    gnss_yaw : List[float]
+        Recorded GNSS yaw angles in degrees.
+    gnss_spd : List[float]
+        Recorded GNSS speed values in m/s.
+    filter_x : List[float]
+        Filtered x coordinates.
+    filter_y : List[float]
+        Filtered y coordinates.
+    filter_yaw : List[float]
+        Filtered yaw angles in degrees.
+    filter_spd : List[float]
+        Filtered speed values in m/s.
+    gt_x : List[float]
+        Ground truth x coordinates.
+    gt_y : List[float]
+        Ground truth y coordinates.
+    gt_yaw : List[float]
+        Ground truth yaw angles in degrees.
+    gt_spd : List[float]
+        Ground truth speed values in m/s.
+    hxEst : npt.NDArray[np.float64]
+        History of filtered x-y coordinates for animation.
+    hTrue : npt.NDArray[np.float64]
+        History of ground truth x-y coordinates for animation.
+    hz : npt.NDArray[np.float64]
+        History of GNSS x-y coordinates for animation.
+    actor_id : int
+        Actor identifier for labeling plots.
     """
 
-    def __init__(self, config_yaml, actor_id):
+    def __init__(self, config_yaml: Dict[str, Any], actor_id: int):
         self.show_animation = config_yaml["show_animation"]
         self.x_scale = config_yaml["x_scale"]
         self.y_scale = config_yaml["y_scale"]
@@ -91,25 +104,50 @@ class LocDebugHelper(object):
 
         self.actor_id = actor_id
 
-    def run_step(self, gnss_x, gnss_y, gnss_yaw, gnss_spd, filter_x, filter_y, filter_yaw, filter_spd, gt_x, gt_y, gt_yaw, gt_spd):
+    def run_step(
+        self,
+        gnss_x: float,
+        gnss_y: float,
+        gnss_yaw: float,
+        gnss_spd: float,
+        filter_x: float,
+        filter_y: float,
+        filter_yaw: float,
+        filter_spd: float,
+        gt_x: float,
+        gt_y: float,
+        gt_yaw: float,
+        gt_spd: float,
+    ) -> None:
         """
-        Run a single step for DebugHelper to save and animate(optional)
-        the localization data.
+        Record and optionally animate one step of localization data.
 
-        Args:
-            -gnss_x (float): GNSS detected x coordinate.
-            -gnss_y (float): GNSS detected y coordinate.
-            -gnss_yaw (float): GNSS detected yaw angle.
-            -gnss_spd (float): GNSS detected speed value.
-            -filter_x (float): Filtered x coordinates.
-            -filter_y (float): Filtered y coordinates.
-            -filter_yaw (float): Filtered yaw angle.
-            -filter_spd (float): Filtered speed value.
-            -gt_x (float): The ground truth x coordinate.
-            -gt_y (float): The ground truth y coordinate.
-            -gt_yaw (float): The ground truth yaw angle.
-            -gt_spd (float): The ground truth speed value.
-
+        Parameters
+        ----------
+        gnss_x : float
+            GNSS detected x coordinate.
+        gnss_y : float
+            GNSS detected y coordinate.
+        gnss_yaw : float
+            GNSS detected yaw angle in degrees.
+        gnss_spd : float
+            GNSS detected speed in km/h.
+        filter_x : float
+            Filtered x coordinate.
+        filter_y : float
+            Filtered y coordinate.
+        filter_yaw : float
+            Filtered yaw angle in degrees.
+        filter_spd : float
+            Filtered speed in km/h.
+        gt_x : float
+            Ground truth x coordinate.
+        gt_y : float
+            Ground truth y coordinate.
+        gt_yaw : float
+            Ground truth yaw angle in degrees.
+        gt_spd : float
+            Ground truth speed in km/h.
         """
         self.gnss_x.append(gnss_x)
         self.gnss_y.append(gnss_y)
@@ -155,13 +193,19 @@ class LocDebugHelper(object):
             plt.legend()
             plt.pause(0.001)
 
-    def evaluate(self):
+    def evaluate(self) -> Tuple[plt.Figure, str]:
         """
-        Plot localization-related data and compute mean errors.
+        Generate visualization and compute localization error statistics.
 
-        Returns:
-            - figure (matplotlib.figure.Figure): Visualization of localization.
-            - perform_txt (str): Summary of mean errors.
+        Creates a comprehensive plot with trajectory, yaw, speed, and error curves.
+        Computes mean absolute errors for GNSS and filtered estimates.
+
+        Returns
+        -------
+        figure : matplotlib.figure.Figure
+            Figure containing six subplots showing localization performance.
+        perform_txt : str
+            Text summary of mean errors for GNSS and filtered data.
         """
         figure, axis = plt.subplots(3, 2)
         figure.set_size_inches(16, 12)
@@ -213,12 +257,61 @@ class LocDebugHelper(object):
 
         return figure, perform_txt
 
-    def _safe_mean_error(self, a, b):
+    def _safe_mean_error(self, a: List[float], b: List[float]) -> float:
+        """
+        Compute mean absolute error safely handling empty lists.
+
+        Parameters
+        ----------
+        a : List[float]
+            First list of values.
+        b : List[float]
+            Second list of values.
+
+        Returns
+        -------
+        float
+            Mean absolute error, or NaN if either list is empty.
+        """
         if len(a) == 0 or len(b) == 0:
             return float("nan")
         return np.mean(np.abs(np.array(a) - np.array(b)))
 
-    def _format_mean_error(self, label, x1, x2, y1, y2, yaw1, yaw2):
+    def _format_mean_error(
+        self,
+        label: str,
+        x1: List[float],
+        x2: List[float],
+        y1: List[float],
+        y2: List[float],
+        yaw1: List[float],
+        yaw2: List[float],
+    ) -> str:
+        """
+        Format mean error statistics as a text string.
+
+        Parameters
+        ----------
+        label : str
+            Label describing the data source (e.g., "GNSS raw data").
+        x1 : List[float]
+            Ground truth x coordinates.
+        x2 : List[float]
+            Estimated x coordinates.
+        y1 : List[float]
+            Ground truth y coordinates.
+        y2 : List[float]
+            Estimated y coordinates.
+        yaw1 : List[float]
+            Ground truth yaw angles.
+        yaw2 : List[float]
+            Estimated yaw angles.
+
+        Returns
+        -------
+        str
+            Formatted string with mean errors for x, y, and yaw.
+        """
         x_error = self._safe_mean_error(x1, x2)
         y_error = self._safe_mean_error(y1, y2)
         yaw_error = self._safe_mean_error(yaw1, yaw2)

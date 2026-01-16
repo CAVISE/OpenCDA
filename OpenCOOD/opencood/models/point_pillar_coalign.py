@@ -1,6 +1,8 @@
 """
-This file only contains CoAlign's multiscale intermediate feature fusion.
-If you want build the agent-object pose graph to correct pose error,
+PointPillar with CoAlign for multi-agent collaborative 3D object detection.
+
+This file contains CoAlign's multiscale intermediate feature fusion.
+If you want to build the agent-object pose graph to correct pose error,
 please refer to https://github.com/yifanlu0227/CoAlign
 """
 
@@ -17,10 +19,57 @@ from opencood.models.fuse_modules.coalign_fuse import Att_w_Warp, normalize_pair
 
 
 class PointPillarCoAlign(nn.Module):
+    """
+    PointPillar with CoAlign multiscale fusion for multi-agent collaboration.
+
+    This model implements PointPillar architecture with CoAlign's multiscale intermediate
+    feature fusion mechanism for robust multi-agent cooperative perception with pose
+    correction capabilities.
+
+    Parameters
+    ----------
+    args : dict of str to Any
+        Configuration dictionary containing:
+        - 'pillar_vfe': Configuration for PillarVFE.
+        - 'voxel_size': Voxel size [x, y, z].
+        - 'lidar_range': LiDAR range [x_min, y_min, z_min, x_max, y_max, z_max].
+        - 'point_pillar_scatter': Configuration for point pillar scatter.
+        - 'res_bev_backbone': Configuration for ResBEVBackbone with 'layer_nums',
+          'num_filters', and 'num_upsample_filter'.
+        - 'compression': Compression dimension (optional).
+        - 'shrink_header': Configuration for feature downsampling (optional).
+        - 'anchor_number': Number of anchor boxes per position for classification.
+        - 'anchor_num': Number of anchor boxes for regression head.
+
+    Attributes
+    ----------
+    pillar_vfe : PillarVFE
+        Pillar voxel feature encoder module.
+    scatter : PointPillarScatter
+        Scatter module to convert pillar features to pseudo-image.
+    backbone : ResBEVBackbone
+        Residual BEV backbone network for multiscale feature extraction.
+    voxel_size : list
+        Voxel size [x, y, z].
+    fusion_net : nn.ModuleList
+        List of multiscale fusion modules (Att_w_Warp) for each resolution level.
+    out_channel : int
+        Number of output channels after fusion and optional downsampling.
+    compression : bool
+        Flag indicating whether feature compression is enabled.
+    naive_compressor : NaiveCompressor, optional
+        Feature compression module if compression is enabled.
+    shrink_flag : bool
+        Flag indicating whether feature downsampling is enabled.
+    shrink_conv : DownsampleConv, optional
+        Downsampling convolution module if shrink_flag is True.
+    cls_head : nn.Conv2d
+        Classification head for predicting object scores.
+    reg_head : nn.Conv2d
+        Regression head for predicting bounding box parameters.
+    """
+    
     def __init__(self, args):
-        """
-        Initialize the PointPillarCoAlign model.
-        """
         super(PointPillarCoAlign, self).__init__()
 
         # PIllar VFE
@@ -55,6 +104,22 @@ class PointPillarCoAlign(nn.Module):
     def forward(self, data_dict: Dict[str, Any]) -> Dict[str, Any]:
         """
         Forward pass of the PointPillarCoAlign model.
+
+        Parameters
+        ----------
+        data_dict : dict of str to Any
+            Input data dictionary containing:
+            - 'processed_lidar': Dictionary with 'voxel_features', 'voxel_coords',
+              and 'voxel_num_points'.
+            - 'record_len': Tensor indicating number of agents per batch sample.
+            - 'pairwise_t_matrix': Pairwise transformation matrices between agents.
+
+        Returns
+        -------
+        dict of str to torch.Tensor
+            Output dictionary with keys:
+            - 'psm': Probability score map with shape (batch_size, anchor_number, H, W).
+            - 'rm': Regression map with shape (batch_size, 7*anchor_num, H, W).
         """
         voxel_features = data_dict["processed_lidar"]["voxel_features"]
         voxel_coords = data_dict["processed_lidar"]["voxel_coords"]

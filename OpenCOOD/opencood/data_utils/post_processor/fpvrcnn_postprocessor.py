@@ -21,6 +21,13 @@ class FpvrcnnPostprocessor(VoxelPostprocessor):
     Handles two-stage 3D object detection with region proposal and refinement.
     This class processes model outputs from both stages of FPV-RCNN to generate
     final 3D bounding box predictions.
+
+    Parameters
+    ----------
+    anchor_params : Dict[str, Any]
+        Dictionary containing anchor configuration parameters.
+    train : bool
+        Whether the processor is in training mode.
     """
     
     def __init__(self, anchor_params: Dict[str, Any], train: bool):

@@ -1,8 +1,13 @@
 """
-Sensors related to safety status check
+Safety status monitoring sensors for autonomous vehicles.
+
+This module provides sensors for detecting collisions, vehicle stuck conditions,
+off-road situations, and traffic light violations in CARLA simulator.
 """
 
 import math
+from typing import List, Dict, Any
+
 import numpy as np
 import carla
 import weakref
@@ -18,19 +23,25 @@ class CollisionSensor(object):
     Parameters
     ----------
     vehicle : carla.Vehicle
-        The carla.Vehicle, this is for cav.
-    params : dict
-        The dictionary containing sensor configurations.
+        The CARLA vehicle to attach the sensor to.
+    params : Dict[str, Any]
+        Dictionary containing sensor configurations with keys:
+        - history_size : int
+            Maximum size of collision history.
+        - col_thresh : float
+            Collision intensity threshold.
 
     Attributes
     ----------
-    image : np.ndarray
-        Current received rgb image.
-    sensor : carla.sensor
-        The carla sensor that mounts at the vehicle.
+    sensor : carla.Sensor
+        The CARLA collision sensor actor.
+    collided : bool
+        Flag indicating if a collision occurred.
+    collided_frame : int
+        Frame number when collision occurred, or -1 if no collision.
     """
 
-    def __init__(self, vehicle, params):
+    def __init__(self, vehicle: Any, params: Dict[str, Any]):
         world = vehicle.get_world()
 
         blueprint = world.get_blueprint_library().find("sensor.other.collision")
@@ -47,7 +58,17 @@ class CollisionSensor(object):
         self._threshold = params["col_thresh"]
 
     @staticmethod
-    def _on_collision(weak_self, event) -> None:
+    def _on_collision(weak_self: weakref.ref, event: Any) -> None:
+        """
+        Callback for collision events.
+
+        Parameters
+        ----------
+        weak_self : weakref.ref
+            Weak reference to the CollisionSensor instance.
+        event : carla.CollisionEvent
+            Collision event from CARLA.
+        """
         self = weak_self()
         if not self:
             return
@@ -81,8 +102,17 @@ class StuckDetector(object):
 
     Parameters
     ----------
-    params : dict
-        The dictionary containing sensor configurations.
+    params : Dict[str, Any]
+        Dictionary containing detector configurations with keys:
+        - len_thresh : int
+            Number of speed samples to consider.
+        - speed_thresh : float
+            Average speed threshold below which vehicle is considered stuck.
+
+    Attributes
+    ----------
+    stuck : bool
+        Flag indicating if vehicle is stuck.
     """
 
     def __init__(self, params):
@@ -121,12 +151,19 @@ class StuckDetector(object):
 
 class OffRoadDetector(object):
     """
-    A detector to monitor whether
+    Detector for monitoring off-road situations.
+
+    Uses BEV (Bird's Eye View) map to determine if vehicle is on the road.
 
     Parameters
     ----------
-    params : dict
-        The dictionary containing sensor configurations.
+    params : Dict[str, Any]
+        Dictionary containing detector configurations.
+
+    Attributes
+    ----------
+    off_road : bool
+        Flag indicating if vehicle is off the road.
     """
 
     def __init__(self, params):
@@ -162,12 +199,35 @@ class OffRoadDetector(object):
 
 class TrafficLightDector(object):
     """
-    Interface of traffic light detector and recorder. It detects next traffic light state,
-    calculates distance from hero vehicle to the end of this road, and if hero vehicle crosses
-    this line when correlated light is red, it will record running a red light
+    Traffic light violation detector and recorder.
+
+    Detects traffic light states, calculates distances, and records red light
+    violations when the vehicle crosses the stop line during a red light.
+
+    Parameters
+    ----------
+    params : Dict[str, Any]
+        Dictionary containing detector configurations with keys:
+        - light_dist_thresh : float
+            Distance threshold for traffic light detection.
+    vehicle : carla.Vehicle
+        The vehicle to monitor.
+
+    Attributes
+    ----------
+    ran_light : bool
+        Flag indicating if vehicle ran a red light in current tick.
+    total_lights_ran : int
+        Total count of red lights run.
+    total_lights : int
+        Total count of traffic lights encountered.
+    active_light_state : carla.TrafficLightState
+        State of the currently active traffic light.
+    active_light_dis : float
+        Distance to the active traffic light.
     """
 
-    def __init__(self, params, vehicle):
+    def __init__(self, params: Dict[str, Any], vehicle: Any):
         self.ran_light = False
         self._map = None
         self.veh_extent = vehicle.bounding_box.extent.x
@@ -182,7 +242,19 @@ class TrafficLightDector(object):
         self.active_light_state = carla.TrafficLightState.Off
         self.active_light_dis = 200
 
-    def tick(self, data_dict):
+    def tick(self, data_dict: Dict[str, Any]) -> None:
+        """
+        Update detector for current tick.
+
+        Parameters
+        ----------
+        data_dict : Dict[str, Any]
+            Data dictionary containing:
+            - objects : Dict with 'traffic_lights' key
+            - ego_pos : carla.Transform
+            - world : carla.World
+            - carla_map : carla.Map
+        """
         # Reset the "ran light" flag
         self.ran_light = False
 

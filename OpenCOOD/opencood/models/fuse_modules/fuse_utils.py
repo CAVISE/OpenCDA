@@ -12,21 +12,31 @@ def regroup(
     max_len: int
 ) -> torch.Tensor:
     """
-    Regroup the data based on the record_len.
+    Regroup concatenated CAV features into batched format with padding.
+    
+    Converts variable-length concatenated features into fixed-size batch
+    tensor by padding with zeros, enabling batched processing of multi-agent
+    data with different numbers of CAVs per sample.
 
     Parameters
     ----------
     dense_feature : torch.Tensor
-        N, C, H, W
-    record_len : list
-        [sample1_len, sample2_len, ...]
+        Concatenated features from all CAVs with shape (N_total, C, H, W),
+        where N_total = sum(record_len).
+    record_len : list of int
+        Number of CAVs in each sample, e.g., [3, 5, 2] for batch size 3.
     max_len : int
-        Maximum cav number
+        Maximum number of CAVs to pad to (typically 5 for V2V scenarios).
 
     Returns
     -------
-    regroup_feature : torch.Tensor
-        B, L, C, H, W
+    regroup_features : torch.Tensor
+        Regrouped and padded features with shape (B, max_len, C, H, W),
+        where B is batch size. Padded positions contain zeros.
+    mask : torch.Tensor
+        Binary mask with shape (B, max_len) indicating valid CAVs.
+        mask[i, j] = 1 if CAV j exists in sample i, else 0.
+
     """
     cum_sum_len = list(np.cumsum(torch_tensor_to_numpy(record_len)))
     split_features = torch.tensor_split(dense_feature, cum_sum_len[:-1])

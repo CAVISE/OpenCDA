@@ -1,3 +1,10 @@
+"""
+PointPillar with Transformer for multi-agent collaborative 3D object detection.
+
+This module implements PointPillar architecture integrated with Transformer-based
+fusion for multi-agent cooperative perception with efficient feature sharing.
+"""
+
 import torch
 import torch.nn as nn
 
@@ -13,7 +20,52 @@ from typing import Dict, Any
 class PointPillarTransformer(nn.Module):
     """
     PointPillar with Transformer-based feature fusion for multi-agent collaboration.
+
+    This model combines PointPillar architecture with Transformer-based fusion mechanism
+    to enable multi-agent cooperative perception through attention-based feature aggregation.
+
+    Parameters
+    ----------
+    args : dict of str to Any
+        Configuration dictionary containing:
+        - 'max_cav': Maximum number of connected automated vehicles.
+        - 'pillar_vfe': Configuration for PillarVFE.
+        - 'voxel_size': Voxel size [x, y, z].
+        - 'lidar_range': LiDAR range [x_min, y_min, z_min, x_max, y_max, z_max].
+        - 'point_pillar_scatter': Configuration for point pillar scatter.
+        - 'base_bev_backbone': Configuration for BaseBEVBackbone.
+        - 'shrink_header': Configuration for feature downsampling (optional).
+        - 'compression': Compression dimension (0 for no compression, >0 for compression).
+        - 'transformer': Configuration for V2XTransformer fusion.
+        - 'anchor_number': Number of anchor boxes per position.
+        - 'backbone_fix': Whether to fix backbone parameters during training.
+
+    Attributes
+    ----------
+    max_cav : int
+        Maximum number of connected automated vehicles.
+    pillar_vfe : PillarVFE
+        Pillar voxel feature encoder module.
+    scatter : PointPillarScatter
+        Scatter module to convert pillar features to pseudo-image.
+    backbone : BaseBEVBackbone
+        2D backbone network for BEV feature extraction.
+    shrink_flag : bool
+        Flag indicating whether feature downsampling is enabled.
+    shrink_conv : DownsampleConv, optional
+        Downsampling convolution module if shrink_flag is True.
+    compression : bool
+        Flag indicating whether feature compression is enabled.
+    naive_compressor : NaiveCompressor, optional
+        Feature compression module if compression is enabled.
+    fusion_net : V2XTransformer
+        Transformer-based fusion module for multi-agent feature fusion.
+    cls_head : nn.Conv2d
+        Classification head for predicting object scores.
+    reg_head : nn.Conv2d
+        Regression head for predicting bounding box parameters.
     """
+
     def __init__(self, args: Dict[str, Any]):
         super(PointPillarTransformer, self).__init__()
 
@@ -43,7 +95,10 @@ class PointPillarTransformer(nn.Module):
 
     def backbone_fix(self):
         """
-        Fix the parameters of backbone during finetune on timedelay。
+       Fix the parameters of backbone during fine-tuning on time delay.
+
+        This method freezes gradients for all backbone components including
+        pillar VFE, scatter, backbone, compressor, shrink conv, and detection heads.
         """
         for p in self.pillar_vfe.parameters():
             p.requires_grad = False
@@ -69,6 +124,24 @@ class PointPillarTransformer(nn.Module):
     def forward(self, data_dict: Dict[str, Any]) -> Dict[str, torch.Tensor]:
         """
         Forward pass of the PointPillarTransformer model.
+
+        Parameters
+        ----------
+        data_dict : dict of str to Any
+            Input data dictionary containing:
+            - 'processed_lidar': Dictionary with 'voxel_features', 'voxel_coords',
+              and 'voxel_num_points'.
+            - 'record_len': Tensor indicating number of agents per batch sample.
+            - 'spatial_correction_matrix': Spatial correction matrices for feature alignment.
+            - 'prior_encoding': Prior encoding with shape (B, max_cav, 3, 1, 1) containing
+              temporal delay, velocity, and infrastructure information.
+
+        Returns
+        -------
+        dict of str to torch.Tensor
+            Output dictionary with keys:
+            - 'psm': Probability score map with shape (batch_size, anchor_number, H, W).
+            - 'rm': Regression map with shape (batch_size, 7*anchor_number, H, W).
         """
         voxel_features = data_dict["processed_lidar"]["voxel_features"]
         voxel_coords = data_dict["processed_lidar"]["voxel_coords"]

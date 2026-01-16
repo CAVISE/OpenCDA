@@ -1,5 +1,8 @@
 """
-RoI-Aware pooling operations for 3D point clouds using CUDA acceleration.
+RoI-aware 3D pooling operations for point clouds with CUDA acceleration.
+
+Provides GPU-accelerated pooling of point cloud features within 3D regions of
+interest (RoIs) for object detection and segmentation tasks.
 """
 
 from typing import Any, Union, Tuple

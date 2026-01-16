@@ -1,5 +1,8 @@
 """
-3D Anchor Generator for Voxel
+Voxel-based 3D object detection post-processing module.
+
+This module provides functionality for anchor generation, label creation,
+and bounding box post-processing for voxel-based 3D object detection approaches.
 """
 
 import math

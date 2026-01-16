@@ -29,7 +29,7 @@ and construct the scenario through `opencda.sim_api`.
 
 The users need to first load the yaml file into a dictionary, and initialize the `ScenarioManager`.
 
-```python
+```bash
 import opencda.scenario_testing.utils.sim_api as sim_api
 
 # Aad yaml file into a dictionary
@@ -48,7 +48,7 @@ scenario_manager = sim_api.ScenarioManager(scenario_params,
 
 Afterwards, the platoons and single CAVs will be generated.
 
-```python
+```bash
 # create a list of platoon
 platoon_list = scenario_manager.create_platoon_manager(
         map_helper=map_api.spawn_helper_2lanefree,
@@ -60,13 +60,13 @@ single_cav_list = scenario_manager.create_vehicle_manager(application=['single']
 
 Next, the traffic flow is prodced. Check [CARLA Traffic Generation](traffic_generation.html#carla-traffic-manager) to see more details about CARLA traffic generation.
 
-```python
+```bash
 # create background traffic under Carla
 traffic_manager, bg_veh_list = scenario_manager.create_traffic_carla()
 ```
 
 Finally, create the `EvaluationManager`
-```python
+```bash
 from opencda.scenario_testing.evaluations.evaluate_manager import EvaluationManager
 eval_manager = \
     EvaluationManager(scenario_manager.cav_world,
@@ -81,7 +81,7 @@ in CARLA only. There are only two differences:
 2) Instead of using `ScenarioManager`, `CoScenarioManager` is used to control the traffic. Check
 [Traffic Generation under Sumo](traffic_generation.html#sumo-traffic-management-co-simulation) section to see more details.
 
-```python
+```bash
 import opencda.scenario_testing.utils.cosim_api as sim_api
 
 # there should be a Town06.sumocfg, a Town06.net.xml, and a Town06.rou.xml in
@@ -108,7 +108,7 @@ The core class in OpenCDA is `VehicleManager`, which is the base class for any c
 Based on whether certain cooperative driving application is activated,
 `VehicleManager` will choose different perception/localization/planning manager.
 
-```python
+```bash
 # vehicle_manager.py
 class VehicleManager:
     def __init__(self, vehicle, config_yaml, application, carla_map, cav_world):
@@ -124,7 +124,7 @@ During runtime, `VehicleManager` will first localize and detect the surrounding 
 and then pass the computed information to v2x stack, planner and controller. Then the donwstream
 modules will fuse information from different CAVs, generate trajectory and control commands.
 
-```python
+```bash
 class VehicleManager:
   	def update_info(self):
    	    # localization
@@ -148,7 +148,7 @@ class VehicleManager:
 ```
 
 ### Step4: Keep the simulation loop running
-```python
+```bash
 while True:
     world.tick()
     single_cav.update_info()
@@ -160,7 +160,7 @@ while True:
 When the simulation is over, the `EvaluationManager` will evaluate the performance,
 and save the results in `~/OpenCDA/evluation_outputs`
 
-```python
+```bash
 # create evaluation manager
 eval_manager = EvaluationManager(cav_world)
 eval_manager.evaluate()

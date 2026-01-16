@@ -1,3 +1,10 @@
+"""
+PIXOR Intermediate model for multi-agent collaborative 3D object detection.
+
+This module implements PIXOR with intermediate attention-based feature fusion
+for multi-agent cooperative perception using BEV representations.
+"""
+
 import math
 
 import torch.nn as nn
@@ -9,8 +16,32 @@ from typing import Dict, Any, List, Type
 
 class BackBoneIntermediate(BackBone):
     """
-    Intermediate backbone for PIXOR model with attention-based feature fusion.
+    Feature Pyramid Network backbone with intermediate attention-based fusion.
+
+    This backbone extends the standard PIXOR backbone by adding attention-based
+    fusion modules at multiple scales for multi-agent feature aggregation.
+
+    Parameters
+    ----------
+    block : type
+        Residual block type (typically Bottleneck).
+    num_block : list of int
+        Number of blocks in each layer.
+    geom : dict of str to Any
+        Geometry parameters containing 'input_shape' and 'label_shape'.
+    use_bn : bool, optional
+        Whether to use batch normalization. Default is True.
+
+    Attributes
+    ----------
+    fusion_net3 : AttFusion
+        Attention fusion module for layer 3 features.
+    fusion_net4 : AttFusion
+        Attention fusion module for layer 4 features.
+    fusion_net5 : AttFusion
+        Attention fusion module for layer 5 features.
     """
+
     def __init__(
         self, 
         block: Type[nn.Module], 
@@ -25,6 +56,21 @@ class BackBoneIntermediate(BackBone):
         self.fusion_net5 = AttFusion(384)
 
     def forward(self, x: Tensor, record_len: Tensor) -> Tensor:
+        """
+        Forward pass through backbone with intermediate fusion.
+
+        Parameters
+        ----------
+        x : Tensor
+            Input BEV tensor with shape (N, C, H, W).
+        record_len : Tensor
+            Tensor indicating number of agents per batch sample.
+
+        Returns
+        -------
+        Tensor
+            Multi-scale fused features with shape (N, 96, H/4, W/4).
+        """
         c3, c4, c5 = self.encode(x)
 
         c5 = self.fusion_net5(c5, record_len)
@@ -77,6 +123,23 @@ class PIXORIntermediate(nn.Module):
         self.header.reghead.bias.data.fill_(0)
 
     def forward(self, data_dict: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Forward pass through PIXOR Intermediate model.
+
+        Parameters
+        ----------
+        data_dict : dict of str to Any
+            Input data dictionary containing:
+            - 'processed_lidar': Dictionary with 'bev_input' BEV representation.
+            - 'record_len': Tensor indicating number of agents per batch sample.
+
+        Returns
+        -------
+        dict of str to Tensor
+            Output dictionary with keys:
+            - 'cls': Classification scores with shape (N, 1, H/4, W/4).
+            - 'reg': Regression parameters with shape (N, 6, H/4, W/4).
+        """
         bev_input = data_dict["processed_lidar"]["bev_input"]
         record_len = data_dict["record_len"]
 

@@ -1,7 +1,16 @@
+"""
+Cooperative perception model manager for multi-agent object detection.
+
+This module provides functionality for running cooperative perception models
+using OpenCOOD framework, including dataset building, inference, evaluation,
+and visualization capabilities.
+"""
+
 import os
 import re
 import shutil
 import logging
+from typing import Optional
 from tqdm import tqdm
 
 import torch  # type: ignore
@@ -18,7 +27,48 @@ logger = logging.getLogger("cavise.coperception_model_manager")
 
 
 class CoperceptionModelManager:
-    def __init__(self, opt, current_time, message_handler=None):
+    """
+    Cooperative perception model manager for multi-agent object detection.
+
+    Manages the entire pipeline for cooperative perception including model loading,
+    dataset creation, inference, evaluation, and visualization.
+
+    Parameters
+    ----------
+    opt : Any
+        Configuration options containing model paths and fusion methods.
+    current_time : str
+        Timestamp string for organizing output files.
+    message_handler : Any, optional
+        Handler for V2X message processing. Default is None.
+
+    Attributes
+    ----------
+    opt : Any
+        Configuration options.
+    hypes : Dict[str, Any]
+        Hyperparameters loaded from YAML configuration.
+    model : torch.nn.Module
+        Cooperative perception neural network model.
+    current_time : str
+        Timestamp for output organization.
+    vis : o3d.visualization.Visualizer or None
+        Open3D visualizer for sequence visualization.
+    device : torch.device
+        Computing device (CPU or CUDA).
+    saved_path : str
+        Path to saved model checkpoint.
+    opencood_dataset : Any or None
+        OpenCOOD dataset instance.
+    data_loader : DataLoader or None
+        PyTorch DataLoader for batch processing.
+    message_handler : Any or None
+        V2X message handler.
+    final_result_stat : Dict[float, Dict[str, Any]]
+        Accumulated evaluation statistics across all predictions.
+    """
+
+    def __init__(self, opt: Any, current_time: str, message_handler: Optional[Any] = None):
         self.opt = opt
         self.hypes = yaml_utils.load_yaml(None, self.opt)
         self.model = train_utils.create_model(self.hypes)
@@ -165,7 +215,32 @@ class CoperceptionModelManager:
 
 
 class DirectoryProcessor:
-    def __init__(self, source_directory="data_dumping", now_directory="data_dumping/sample/now"):
+    """
+    Directory processor for managing simulation data dumps.
+
+    Handles copying and organizing sensor data files from data dumping directory
+    to processing directory for cooperative perception inference.
+
+    Parameters
+    ----------
+    source_directory : str, optional
+        Source directory containing dumped simulation data. Default is "data_dumping".
+    now_directory : str, optional
+        Target directory for current processing data. Default is "data_dumping/sample/now".
+
+    Attributes
+    ----------
+    source_directory : str
+        Path to source data directory.
+    now_directory : str
+        Path to current processing directory.
+    """
+
+    def __init__(
+        self,
+        source_directory: str = "data_dumping",
+        now_directory: str = "data_dumping/sample/now",
+    ):
         self.source_directory = source_directory
         self.now_directory = now_directory
 

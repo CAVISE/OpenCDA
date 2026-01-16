@@ -1,5 +1,9 @@
 """
 Training utility functions for model setup, optimization, and data handling.
+
+This module provides utilities for creating models, loss functions, optimizers,
+and learning rate schedulers, as well as checkpoint management for training
+deep learning models.
 """
 
 import glob

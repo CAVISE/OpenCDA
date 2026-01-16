@@ -1,8 +1,10 @@
 """
 Inference script for cooperative perception models with visualization support.
-"""
 
-from __future__ import annotations
+This script evaluates trained cooperative perception models on test datasets,
+computing detection metrics and optionally visualizing predictions versus
+ground truth bounding boxes.
+"""
 
 import argparse
 import os

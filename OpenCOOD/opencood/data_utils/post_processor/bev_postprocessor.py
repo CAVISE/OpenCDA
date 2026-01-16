@@ -1,5 +1,9 @@
 """
-Anchor-free 2d Generator
+Anchor-free 2D BEV post-processor for object detection.
+
+This module provides anchor-free post-processing functionality for bird's-eye
+view (BEV) 2D object detection, including label generation, normalization,
+and bounding box conversion from regression maps.
 """
 
 import numpy as np
@@ -14,6 +18,25 @@ from typing import Dict, List, Tuple, Optional, Any, Union
 
 
 class BevPostprocessor(BasePostprocessor):
+    """
+    Anchor-free post-processor for BEV-based 2D object detection.
+
+    Parameters
+    ----------
+    anchor_params : Dict[str, Any]
+        Dictionary containing anchor and geometry configuration parameters.
+    train : bool, optional
+        Whether the processor is in training mode. Default is True.
+
+    Attributes
+    ----------
+    geometry_param : dict
+        Geometry parameters for BEV grid configuration.
+    target_mean : np.ndarray
+        Mean values for target normalization with shape (6,).
+    target_std_dev : np.ndarray
+        Standard deviation values for target normalization with shape (6,).
+    """
     def __init__(self, anchor_params: Dict[str, Any], train: bool = True):
         super(BevPostprocessor, self).__init__(anchor_params, train)
         # self.geometry_param = anchor_params["geometry"]

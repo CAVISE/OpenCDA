@@ -1,3 +1,10 @@
+"""
+Split Attention module for multi-scale feature fusion.
+
+This module implements split attention mechanism that adaptively weights
+features from multiple window sizes using radix softmax.
+"""
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -13,6 +20,13 @@ class RadixSoftmax(nn.Module):
         Number of splits (radix) for the input.
     cardinality : int
         Number of groups for grouped convolution.
+    
+    Attributes
+    ----------
+    radix : int
+        Number of splits.
+    cardinality : int
+        Number of groups.
     """
     
     def __init__(self, radix, cardinality):
@@ -21,6 +35,20 @@ class RadixSoftmax(nn.Module):
         self.cardinality = cardinality
 
     def forward(self, x):
+        """
+        Apply radix softmax to compute split attention weights.
+
+        Parameters
+        ----------
+        x : Tensor
+            Input features with shape.
+
+        Returns
+        -------
+        Tensor
+            Attention weights with shape (B, radix*L*C) if radix > 1,
+            or sigmoid activations with same shape as input if radix = 1.
+        """
         # x: (B, L, 1, 1, 3C)
         batch = x.size(0)
         cav_num = x.size(1)
@@ -37,6 +65,33 @@ class RadixSoftmax(nn.Module):
 
 
 class SplitAttn(nn.Module):
+    """
+    Split Attention module for adaptive multi-scale feature fusion.
+
+    This module fuses features from multiple window sizes (small, medium, big)
+    using learned attention weights computed via radix softmax.
+
+    Parameters
+    ----------
+    input_dim : int
+        Input feature dimension.
+
+    Attributes
+    ----------
+    input_dim : int
+        Feature dimension.
+    fc1 : nn.Linear
+        First fully connected layer for attention computation.
+    bn1 : nn.LayerNorm
+        Layer normalization after first FC layer.
+    act1 : nn.ReLU
+        ReLU activation.
+    fc2 : nn.Linear
+        Second fully connected layer producing attention logits.
+    rsoftmax : RadixSoftmax
+        Radix softmax module for computing attention weights.
+    """
+    
     def __init__(self, input_dim):
         super(SplitAttn, self).__init__()
         self.input_dim = input_dim
@@ -49,6 +104,20 @@ class SplitAttn(nn.Module):
         self.rsoftmax = RadixSoftmax(3, 1)
 
     def forward(self, window_list):
+        """
+        Fuse multi-scale window features using split attention.
+
+        Parameters
+        ----------
+        window_list : list of Tensor
+            List of 3 window features [small, medium, big], each with
+            shape (B, L, H, W, C).
+
+        Returns
+        -------
+        Tensor
+            Attention-weighted fused features with shape (B, L, H, W, C).
+        """
         # window list: [(B, L, H, W, C) * 3]
         assert len(window_list) == 3, "only 3 windows are supported"
 

@@ -1,11 +1,52 @@
+"""
+ResNet-based BEV Backbone with Multi-scale Feature Decoding.
+
+This module implements a ResNet-based backbone for Bird's Eye View (BEV)
+feature extraction with multi-scale upsampling and feature fusion.
+"""
+
 import numpy as np
 import torch
 import torch.nn as nn
+from torch import Tensor
 from opencood.models.sub_modules.resblock import ResNetLayers
 
+from typing import Dict, Any, Tuple
 
 class ResBEVBackbone(nn.Module):
-    def __init__(self, model_cfg, input_channels=64):
+    """
+    ResNet-based BEV backbone with multi-scale feature extraction.
+
+    This backbone processes BEV features through multiple ResNet layers
+    and upsamples them to a common resolution for feature fusion.
+
+    Parameters
+    ----------
+    model_cfg : dict
+        Model configuration dictionary containing:
+        - 'layer_nums': Number of blocks in each ResNet layer.
+        - 'layer_strides': Stride for each ResNet layer.
+        - 'num_filters': Output channels for each ResNet layer.
+        - 'upsample_strides': Upsampling strides for each layer (optional).
+        - 'num_upsample_filter': Output channels after upsampling (optional).
+    input_channels : int, optional
+        Number of input feature channels. Default is 64.
+
+    Attributes
+    ----------
+    model_cfg : dict
+        Model configuration.
+    resnet : ResNetLayers
+        ResNet layers for feature extraction.
+    num_levels : int
+        Number of ResNet layers.
+    deblocks : nn.ModuleList
+        List of upsampling/downsampling blocks for each layer.
+    num_bev_features : int
+        Total number of output BEV feature channels.
+    """
+
+    def __init__(self, model_cfg: Dict[str, Any], input_channels: int = 64):
         super().__init__()
         self.model_cfg = model_cfg
 
@@ -68,12 +109,24 @@ class ResBEVBackbone(nn.Module):
 
         self.num_bev_features = c_in
 
-    def forward(self, data_dict):
+    def forward(self, data_dict: Dict[str, Any]) -> Dict[str, Any]:
         """
-        This can be used in single agent detection (late fusion)
+        Forward pass for single-agent detection (late fusion).
 
         For intermediate fusion, use get_multiscale_feature and
-        decode_multiscale_feature.
+        decode_multiscale_feature instead.
+
+        Parameters
+        ----------
+        data_dict : dict of str to Any
+            Data dictionary containing:
+            - 'spatial_features': BEV features with shape (B, C, H, W).
+
+        Returns
+        -------
+        dict of str to Any
+            Updated data dictionary with:
+            - 'spatial_features_2d': Fused BEV features with shape (B, C_out, H', W').
         """
         spatial_features = data_dict["spatial_features"]
 
@@ -97,16 +150,36 @@ class ResBEVBackbone(nn.Module):
         data_dict["spatial_features_2d"] = x
         return data_dict
 
-    def get_multiscale_feature(self, spatial_features):
+    def get_multiscale_feature(self, spatial_features: Tensor) -> Tuple[Tensor, ...]:
         """
-        before multiscale intermediate fusion
+        Extract multi-scale features before intermediate fusion.
+
+        Parameters
+        ----------
+        spatial_features : Tensor
+            Input BEV features with shape (B, C, H, W).
+
+        Returns
+        -------
+        tuple of Tensor
+            Multi-scale features from each ResNet layer.
         """
         x = self.resnet(spatial_features)  # tuple of features
         return x
 
-    def decode_multiscale_feature(self, x):
+    def decode_multiscale_feature(self, x: Tuple[Tensor, ...]) -> Tensor:
         """
-        after multiscale interemediate fusion
+        Decode and fuse multi-scale features after intermediate fusion.
+
+        Parameters
+        ----------
+        x : tuple of Tensor
+            Multi-scale features from each ResNet layer.
+
+        Returns
+        -------
+        Tensor
+            Fused BEV features with shape (B, C_out, H', W').
         """
         ups = []
         for i in range(self.num_levels):
@@ -123,8 +196,20 @@ class ResBEVBackbone(nn.Module):
             x = self.deblocks[-1](x)
         return x
 
-    def get_layer_i_feature(self, spatial_features, layer_i):
+    def get_layer_i_feature(self, spatial_features: Tensor, layer_i: int) -> Tensor:
         """
-        before multiscale intermediate fusion
+        Extract features from a specific ResNet layer.
+
+        Parameters
+        ----------
+        spatial_features : Tensor
+            Input features with shape (B, C, H, W).
+        layer_i : int
+            Layer index to extract features from.
+
+        Returns
+        -------
+        Tensor
+            Features from the specified layer with shape (B, C_i, H_i, W_i).
         """
         return eval(f"self.resnet.layer{layer_i}")(spatial_features)  # tuple of features

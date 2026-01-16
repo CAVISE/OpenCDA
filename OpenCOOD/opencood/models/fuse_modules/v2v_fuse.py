@@ -1,6 +1,10 @@
 """
-Implementation of V2VNet Fusion module for multi-agent feature fusion.
+V2VNet fusion module for multi-agent feature aggregation.
+
+This module implements V2VNet fusion mechanism using spatial transformation
+and iterative GRU-based message passing for multi-agent cooperative perception.
 """
+
 from typing import Dict, List, Union
 import torch
 import torch.nn as nn
@@ -17,10 +21,56 @@ from opencood.models.sub_modules.convgru import ConvGRU
 
 class V2VNetFusion(nn.Module):
     """
-    This module implements the V2VNet fusion mechanism which uses a combination of
-    spatial transformation and GRU-based feature updating for fusing features
-    from multiple agents.
+    V2VNet fusion mechanism for multi-agent feature aggregation.
+    
+    Uses spatial transformation and iterative GRU-based message passing
+    to fuse features from multiple connected agents.
+
+    Parameters
+    ----------
+    args : dict:
+        Configuration containing:
+            - in_channels : int
+                Input feature dimension.
+            - conv_gru : dict
+                - H : int
+                    Feature map height.
+                - W : int
+                    Feature map width.
+                - kernel_size : int or tuple
+                    ConvGRU kernel size.
+                - num_layers : int
+                    Number of GRU layers.
+            - voxel_size : list of float
+                Voxel size [vx, vy, vz] for coordinate conversion.
+            - downsample_rate : int
+                Downsampling factor from voxel grid to feature map.
+            - num_iteration : int
+                Number of message passing iterations.
+            - gru_flag : bool
+                Whether to use GRU (True) or simple CNN (False).
+            - agg_operator : str
+                Aggregation method ('avg', 'max', or 'sum').
+    Attributes
+    ----------
+    discrete_ratio : float
+        Discretization ratio from voxel size.
+    downsample_rate : int
+        Feature downsampling rate.
+    num_iteration : int
+        Number of message passing iterations.
+    gru_flag : bool
+        Flag indicating whether to use GRU-based fusion.
+    agg_operator : str
+        Aggregation operator for combining features ('avg', 'max', or 'sum').
+    msg_cnn : nn.Conv2d
+        Convolutional layer for message processing.
+    conv_gru : ConvGRU
+        Convolutional GRU for iterative message passing.
+    mlp : nn.Linear
+        Multi-layer perceptron for final feature transformation.
     """
+
     def __init__(self, args: Dict[str, Union[int, float, str, Dict[str, int]]]):
         super(V2VNetFusion, self).__init__()
 
@@ -50,7 +100,19 @@ class V2VNetFusion(nn.Module):
 
     def regroup(x: Tensor, record_len: Tensor) -> List[Tensor]:
         """
-        Split input tensor into a list of tensors based on record_len.
+        Split concatenated tensor into per-sample list.
+
+        Parameters
+        ----------
+        x : Tensor
+            Concatenated features
+        record_len : Tensor
+            Number of agents per sample (B,).
+
+        Returns
+        -------
+        split_x : list of Tensor
+            List of B tensors with shapes (N_i, C, H, W).
         """
         cum_sum_len = torch.cumsum(record_len, dim=0)
         split_x = torch.tensor_split(x, cum_sum_len[:-1].cpu())

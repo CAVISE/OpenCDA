@@ -1,10 +1,18 @@
-"""HDMap utilities"""
+"""
+HDMap utilities for CARLA simulator.
+
+This module provides utility functions for handling HD map operations in CARLA,
+including coordinate transformations, waypoint processing, and city object
+retrieval for autonomous driving simulations.
+"""
 
 import carla
 import numpy as np
 import uuid
 import math
 from enum import IntEnum
+from typing import List, Dict, Union
+from numpy.typing import NDArray
 
 LABEL_TO_CARLA = {"building": carla.CityObjectLabel.Buildings, "terrain": carla.CityObjectLabel.Terrain, "sidewalk": carla.CityObjectLabel.Sidewalks}
 
@@ -14,12 +22,15 @@ class InterpolationMethod(IntEnum):
     INTER_ENSURE_LEN = 1  # ensure we always get the same number of elements
 
 
-def lateral_shift(transform, shift):
+def lateral_shift(
+    transform: carla.Transform, 
+    shift: float
+) -> carla.Location:
     transform.rotation.yaw += 90
     return transform.location + shift * transform.get_forward_vector()
 
 
-def list_loc2array(list_location):
+def list_loc2array(list_location: list[carla.Location]) -> NDArray:
     """
     Convert list of carla location to np.array
 
@@ -42,7 +53,7 @@ def list_loc2array(list_location):
     return loc_array
 
 
-def list_wpt2array(list_wpt):
+def list_wpt2array(list_wpt: list[carla.Waypoint]) -> NDArray:
     """
     Convert list of carla transform to np.array
 
@@ -65,7 +76,7 @@ def list_wpt2array(list_wpt):
     return loc_array
 
 
-def convert_tl_status(status):
+def convert_tl_status(status: carla.TrafficLightState) -> str:
     """
     Convert carla.TrafficLightState to str.
     
@@ -87,7 +98,7 @@ def convert_tl_status(status):
         return "normal"
 
 
-def x_to_world_transformation(transform):
+def x_to_world_transformation(transform: carla.Transform) -> NDArray:
     """
     Get the transformation matrix from x(it can be vehicle or sensor)
     coordinates to world coordinate.
@@ -134,7 +145,7 @@ def x_to_world_transformation(transform):
     return matrix
 
 
-def world_to_sensor(cords, sensor_transform):
+def world_to_sensor(cords: NDArray, sensor_transform: carla.Transform) -> NDArray:
     """
     Transform coordinates from world reference to sensor reference.
 
@@ -159,12 +170,15 @@ def world_to_sensor(cords, sensor_transform):
     return sensor_cords
 
 
-def exclude_off_road_agents(static_bev, dynamic_bev):
+def exclude_off_road_agents(static_bev: NDArray, dynamic_bev: NDArray) -> NDArray:
     dynamic_bev[static_bev == 0] = 0
     return dynamic_bev
 
 
-def retrieve_city_object_info(world, label_list):
+def retrieve_city_object_info(
+    world: carla.World, 
+    label_list: List[str]
+) -> Dict[str, Dict[str, Dict[str, Union[List[float], float, List[List[float]]]]]]:
     """
     A general function to retrieve object bbx in carla world except vehicle,
     lane, crosswalk and road.
@@ -216,7 +230,11 @@ def retrieve_city_object_info(world, label_list):
     return city_object_info
 
 
-def obj_in_range(center, radius, obj_info_dict):
+def obj_in_range(
+    center: carla.Transform,
+    radius: float,
+    obj_info_dict: Dict[str, Dict[str, Dict[str, Union[List[float], float, List[List[float]]]]]]
+) -> Dict[str, Dict[str, Dict[str, Union[List[float], float, List[List[float]]]]]]:
     """
     Retrieve the object in range.
 

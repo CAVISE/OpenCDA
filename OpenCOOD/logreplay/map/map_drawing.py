@@ -1,7 +1,15 @@
-"""Rasterization drawing functions"""
+"""
+Rasterization utilities for drawing map elements and agents on BEV images.
+
+This module provides functions for rendering various map elements (roads, lanes,
+crosswalks, buildings) and vehicle agents onto bird's-eye view (BEV) images using
+OpenCV with sub-pixel precision for smooth visualization.
+"""
 
 import numpy as np
+from numpy.typing import NDArray
 import cv2
+from typing import List, Dict, Any, Optional
 
 # sub-pixel drawing precision constants
 CV2_SUB_VALUES = {"shift": 9, "lineType": cv2.LINE_AA}
@@ -19,23 +27,29 @@ SideWalk_COLOR = (244, 35, 232)
 OBJ_COLOR_MAP = {"building": BUILD_COLOR, "terrain": Terrain_COLOR, "sidewalk": SideWalk_COLOR}
 
 
-def cv2_subpixel(coords: np.ndarray) -> np.ndarray:
+def cv2_subpixel(coords: NDArray) -> NDArray:
     """
-    Cast coordinates to numpy.int but keep fractional part by previously multiplying by 2**CV2_SHIFT
-    cv2 calls will use shift to restore original values with higher precision
+    Cast coordinates to int but keep fractional part.
+    
+    Multiplies by 2**CV2_SHIFT beforehand. cv2 calls will use shift 
+    to restore original values with higher precision.
 
-    Args:
-        coords (np.ndarray): XY coords as float
+    Parameters
+    ----------
+    coords : NDArray
+        XY coordinates as float.
 
-    Returns:
-        np.ndarray: XY coords as int for cv2 shift draw
+    Returns
+    -------
+    coords : NDArray
+        XY coordinates as int for cv2 shift draw.
     """
     coords = coords * CV2_SHIFT_VALUE
     coords = coords.astype(np.int)
     return coords
 
 
-def draw_agent(agent_list, image):
+def draw_agent(agent_list: List[NDArray], image: NDArray) -> NDArray:
     """
     Draw agent mask on image.
 
@@ -57,7 +71,11 @@ def draw_agent(agent_list, image):
     return image
 
 
-def draw_road(lane_area_list, image, visualize=False):
+def draw_road(
+    lane_area_list: List[NDArray], 
+    image: NDArray, 
+    visualize: bool = False
+) -> NDArray:
     """
     Draw poly for road.
 
@@ -84,7 +102,7 @@ def draw_road(lane_area_list, image, visualize=False):
     return image
 
 
-def road_exclude(static_road):
+def road_exclude(static_road: NDArray) -> NDArray:
     """
     Exclude the road segment that is not connected to the ego vehicle
     position.
@@ -107,7 +125,13 @@ def road_exclude(static_road):
     return static_road
 
 
-def draw_lane(lane_area_list, lane_type_list, image, intersection_list=None, vis=True):
+def draw_lane(
+    lane_area_list: List[NDArray],
+    lane_type_list: List[str],
+    image: NDArray,
+    intersection_list: Optional[List[bool]] = None,
+    vis: bool = True
+) -> NDArray:
     """
     Draw lanes on image (polylines).
 
@@ -141,7 +165,7 @@ def draw_lane(lane_area_list, lane_type_list, image, intersection_list=None, vis
     return image
 
 
-def draw_crosswalks(lane_area_list, image):
+def draw_crosswalks(lane_area_list: List[NDArray], image: NDArray) -> NDArray:
     """
     Draw lanes on image (polylines).
 
@@ -171,7 +195,11 @@ def draw_crosswalks(lane_area_list, image):
     return image
 
 
-def draw_city_objects(city_obj_info, image):
+def draw_city_objects(
+    city_obj_info: Dict[str, Dict[str, Any]], 
+    image: NDArray
+) -> NDArray:
+
     """
     Draw static objects other than lane, road, crosswalks on image.
 

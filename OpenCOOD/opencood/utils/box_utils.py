@@ -1,5 +1,8 @@
 """
-Bounding box related utility functions
+Bounding box utility functions for 3D object detection.
+
+This module provides comprehensive utilities for manipulating 3D bounding boxes
+in cooperative perception systems.
 """
 
 import sys
@@ -15,18 +18,24 @@ def corner_to_center(corner3d: npt.NDArray[np.floating], order: str = "lwh") -> 
     """
     Convert 8 corners to x, y, z, dx, dy, dz, yaw.
 
+    Computes the center position (x, y, z), dimensions (length, width, height),
+    and orientation (yaw) from 3D bounding box corner points.
+
     Parameters
     ----------
-    corner3d : np.ndarray
-        (N, 8, 3)
-
-    order : str
-        'lwh' or 'hwl'
+    corner3d : NDArray[np.floating]
+        3D corner coordinates with shape (N, 8, 3), where N is batch size,
+        8 corners per box, and 3 coordinates (x, y, z) per corner.
+    order : str, optional
+        Dimension ordering format. Either 'lwh' (length, width, height) or
+        'hwl' (height, width, length). Default is 'lwh'.
 
     Returns
     -------
-    box3d : np.ndarray
-        (N, 7)
+    NDArray[np.floating]
+        Box parameters with shape (N, 7) containing [x, y, z, length/height,
+        width, height/length, yaw], where dimension order depends on the
+        'order' parameter.
     """
     assert corner3d.ndim == 3
     batch_size = corner3d.shape[0]
@@ -64,22 +73,32 @@ def corner_to_center(corner3d: npt.NDArray[np.floating], order: str = "lwh") -> 
 
 def boxes_to_corners2d(boxes3d: npt.NDArray[np.floating] | torch.Tensor, order: str) -> npt.NDArray[np.floating] | torch.Tensor:
     """
+    Convert 3D bounding boxes to 2D bottom face corners.
+
+    Extracts the bottom 4 corners of 3D bounding boxes, representing
+    the 2D footprint on the ground plane.
+
+    Corner layout::
       0 -------- 1
       |          |
       |          |
       |          |
       3 -------- 2
+      
     Parameters
-    __________
-    boxes3d: np.ndarray or torch.Tensor
-        (N, 7) [x, y, z, dx, dy, dz, heading], (x, y, z) is the box center.
-
+    ----------
+    boxes3d : NDArray[np.floating] or torch.Tensor
+        3D bounding boxes with shape (N, 7) containing [x, y, z, dx, dy, dz,
+        heading], where (x, y, z) is the box center.
     order : str
-        'lwh' or 'hwl'
+        Dimension ordering format. Either 'lwh' (length, width, height) or
+        'hwl' (height, width, length).
 
-    Returns:
-        corners2d: np.ndarray or torch.Tensor
-        (N, 4, 3), the 4 corners of the bounding box.
+    Returns
+    -------
+    NDArray[np.floating] or torch.Tensor
+        2D corner coordinates with shape (N, 4, 3), representing the 4 bottom
+        corners of each bounding box.
 
     """
     corners3d = boxes_to_corners_3d(boxes3d, order)
@@ -89,22 +108,30 @@ def boxes_to_corners2d(boxes3d: npt.NDArray[np.floating] | torch.Tensor, order: 
 
 def boxes2d_to_corners2d(boxes2d: npt.NDArray[np.floating] | torch.Tensor, order: str = "lwh") -> torch.Tensor:
     """
-      0 -------- 1
-      |          |
-      |          |
-      |          |
-      3 -------- 2
+    Convert 3D bounding boxes to 2D bottom face corners.
+    
+    Extracts the bottom 4 corners from 3D box representation.
+
     Parameters
-    __________
-    boxes2d: np.ndarray or torch.Tensor
-        (..., 5) [x, y, dx, dy, heading], (x, y) is the box center.
+    ----------
+    boxes3d : npt.NDArray[np.floating] or torch.Tensor
+        3D bounding boxes with shape (N, 7).
+        Format: [x, y, z, dx, dy, dz, heading] where (x, y, z) is box center.
+    order : {'lwh', 'hwl'}
+        Dimension order:
+            - 'lwh': length, width, height
+            - 'hwl': height, width, length
 
-    order : str
-        'lwh' or 'hwl'
-
-    Returns:
-        corners2d: np.ndarray or torch.Tensor
-        (..., 4, 2), the 4 corners of the bounding box.
+    Returns
+    -------
+    corners2d : npt.NDArray[np.floating] or torch.Tensor
+        Bottom face corners with shape (N, 4, 3).
+        Corner ordering:
+            0 -------- 1
+            |          |
+            |          |
+            |          |
+            3 -------- 2
 
     """
     assert order == "lwh", "boxes2d_to_corners_2d only supports lwh order for now."
@@ -121,6 +148,25 @@ def boxes2d_to_corners2d(boxes2d: npt.NDArray[np.floating] | torch.Tensor, order
 
 def boxes_to_corners_3d(boxes3d: npt.NDArray[np.floating] | torch.Tensor, order: str) -> npt.NDArray[np.floating] | torch.Tensor:
     """
+    Convert 3D bounding boxes to 8 corner coordinates.
+    
+    Computes all 8 corners from box center, dimensions, and rotation.
+
+    Parameters
+    ----------
+    boxes3d : npt.NDArray[np.floating] or torch.Tensor
+        3D bounding boxes with shape (N, 7).
+        Format: [x, y, z, dx, dy, dz, heading] where (x, y, z) is box center.
+    order : {'lwh', 'hwl'}
+        Dimension order:
+            - 'lwh': dx=length, dy=width, dz=height
+            - 'hwl': dx=height, dy=width, dz=length
+
+    Returns
+    -------
+    corners3d : npt.NDArray[np.floating] or torch.Tensor
+        3D corners with shape (N, 8, 3).
+        Corner ordering (right-hand coordinate system):
         4 -------- 5
        /|         /|
       7 -------- 6 .
@@ -128,25 +174,17 @@ def boxes_to_corners_3d(boxes3d: npt.NDArray[np.floating] | torch.Tensor, order:
       . 0 -------- 1
       |/         |/
       3 -------- 2
-    Parameters
-    __________
-    boxes3d: np.ndarray or torch.Tensor
-        (N, 7) [x, y, z, dx, dy, dz, heading], (x, y, z) is the box center.
 
-    order : str
-        'lwh' or 'hwl'
-
-    Returns:
-        corners3d: np.ndarray or torch.Tensor
-        (N, 8, 3), the 8 corners of the bounding box.
-
+    Notes
+    -----
+    Coordinate system convention:
+      ^ z
+      |
+      |
+      | . x
+      |/
+      +-------> y
     """
-    # ^ z
-    # |
-    # |
-    # | . x
-    # |/
-    # +-------> y
 
     boxes3d, is_numpy = common_utils.check_numpy_to_torch(boxes3d)
     boxes3d_ = boxes3d
@@ -675,6 +713,9 @@ def remove_large_pred_bbx(bbx_3d: torch.Tensor) -> torch.Tensor:
     """
     Remove large bounding box.
 
+    Filters out bounding boxes whose length or width exceeds 6 meters,
+    typically used to remove false positive detections.
+
     Parameters
     ----------
     bbx_3d : torch.Tensor
@@ -707,6 +748,9 @@ def remove_bbx_abnormal_z(bbx_3d: torch.Tensor) -> torch.Tensor:
     """
     Remove bounding box that has negative z axis.
 
+    Filters out boxes with unrealistic z-axis positions, typically
+    underground objects or flying detections.
+
     Parameters
     ----------
     bbx_3d : torch.Tensor
@@ -729,12 +773,15 @@ def project_points_by_matrix_torch(points: npt.NDArray[np.floating] | torch.Tens
     Project the points to another coordinate system based on the
     transformation matrix.
 
+    Applies homogeneous transformation to 3D points, supporting both NumPy and PyTorch inputs.
+
     Parameters
     ----------
     points : torch.Tensor
         3D points, (N, 3)
     transformation_matrix : torch.Tensor
         Transformation matrix, (4, 4)
+
     Returns
     -------
     projected_points : torch.Tensor
@@ -753,10 +800,37 @@ def project_points_by_matrix_torch(points: npt.NDArray[np.floating] | torch.Tens
 
 
 def box_encode(boxes: torch.Tensor, anchors: torch.Tensor, encode_angle_to_vector: bool = False, encode_angle_with_residual: bool = False, smooth_dim: bool = False, norm_velo: bool = False) -> torch.Tensor:
-    """box encode for VoxelNet
-    Args:
-        boxes ([N, 7] Tensor): normal boxes: x, y, z, w, l, h, r.
-        anchors ([N, 7] Tensor): anchors.
+    """
+    Encode ground truth boxes relative to anchor boxes.
+    
+    Converts absolute bounding box coordinates to anchor-relative offsets
+    for regression targets in object detection networks like VoxelNet.
+
+    Parameters
+    ----------
+    boxes : torch.Tensor
+        Ground truth boxes with shape (N, 7) or (N, 9).
+        Format: (x, y, z, w, l, h, r) or (x, y, z, w, l, h, vx, vy, r).
+    anchors : torch.Tensor
+        Anchor boxes with same shape as boxes.
+    encode_angle_to_vector : bool, optional
+        If True, encode rotation angle as 2D vector (cos, sin).
+        Default is False (encode as scalar residual).
+    encode_angle_with_residual : bool, optional
+        If True and encode_angle_to_vector=True, encode angle vector residual.
+        Default is False (encode absolute angle vector).
+    smooth_dim : bool, optional
+        If True, use linear encoding for dimensions (ratio - 1).
+        If False, use logarithmic encoding. Default is False.
+    norm_velo : bool, optional
+        If True, normalize velocity by diagonal. Default is False.
+
+    Returns
+    -------
+    encoded : torch.Tensor
+        Encoded box parameters with shape (N, 7) or (N, 8+) depending on
+        encoding options. Format: (xt, yt, zt, wt, lt, ht, [vxt, vyt], [rt or rtx, rty]).
+
     """
 
     box_ndim = anchors.shape[-1]
@@ -820,10 +894,34 @@ def box_decode(
     smooth_dim: bool = False,
     norm_velo: bool = False,
 ) -> torch.Tensor:
-    """box decode for VoxelNet in lidar
-    Args:
-        boxes ([N, 7] Tensor): normal boxes: x, y, z, w, l, h, r
-        anchors ([N, 7] Tensor): anchors
+    """
+    Decode predicted box encodings to absolute coordinates.
+    
+    Converts anchor-relative offsets back to absolute bounding box coordinates
+    in LiDAR coordinate system for VoxelNet-based detectors.
+
+    Parameters
+    ----------
+    box_encodings : torch.Tensor
+        Encoded box predictions with shape (N, 7) or (N, 8+).
+        Format depends on encoding options.
+    anchors : torch.Tensor
+        Anchor boxes with shape (N, 7) or (N, 9).
+    encode_angle_to_vector : bool, optional
+        If True, rotation was encoded as 2D vector. Default is False.
+    encode_angle_with_residual : bool, optional
+        If True, angle vector was encoded as residual. Default is False.
+    bin_loss : bool, optional
+        Unused parameter, kept for compatibility. Default is False.
+    smooth_dim : bool, optional
+        If True, dimensions were encoded linearly. Default is False.
+    norm_velo : bool, optional
+        If True, velocity was normalized by diagonal. Default is False.
+
+    Returns
+    -------
+    boxes : torch.Tensor
+        Decoded absolute boxes with shape (N, 7) or (N, 9)..
     """
     box_ndim = anchors.shape[-1]
 

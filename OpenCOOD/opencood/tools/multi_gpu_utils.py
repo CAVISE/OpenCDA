@@ -1,5 +1,9 @@
 """
 Distributed training utilities for multi-GPU and multi-node training.
+
+This module provides helper functions for initializing and managing distributed
+PyTorch training across multiple GPUs and compute nodes, supporting both
+standard distributed environments and SLURM clusters.
 """
 
 import os

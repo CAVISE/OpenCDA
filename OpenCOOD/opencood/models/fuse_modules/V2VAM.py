@@ -1,3 +1,10 @@
+"""
+V2V Attention Fusion module for multi-agent feature aggregation.
+
+This module implements V2VNet fusion mechanism using criss-cross attention
+for capturing long-range dependencies in multi-agent cooperative perception.
+"""
+
 import torch
 import torch.nn as nn
 
@@ -9,15 +16,23 @@ from typing import List
 
 class V2V_AttFusion(nn.Module):
     """
-    Vehicle-to-Vehicle Attention Fusion module.
-    
-    This module implements attention-based fusion of features from multiple vehicles
-    using Criss-Cross Attention mechanism.
-    
+    V2VNet fusion mechanism for multi-agent feature aggregation.
+
+    This module uses criss-cross attention to fuse features from multiple
+    connected agents, capturing long-range dependencies in both horizontal
+    and vertical directions.
+
     Parameters
     ----------
     feature_dim : int
-        Dimension of input features.
+        Input feature dimension.
+
+    Attributes
+    ----------
+    cov_att : nn.Sequential
+        Convolutional attention module with conv, batch norm, and ReLU.
+    CCNet : CrissCrossAttention
+        Criss-cross attention module for feature fusion.
     """
     
     def __init__(self, feature_dim: int):
@@ -109,6 +124,21 @@ class CrissCrossAttention(nn.Module):
     ----------
     in_dim : int
         Number of input channels.
+
+    Attributes
+    ----------
+    query_conv : nn.Sequential
+        Query projection with conv, batch norm, and ReLU.
+    key_conv : nn.Sequential
+        Key projection with conv, batch norm, and ReLU.
+    value_conv : nn.Sequential
+        Value projection with conv, batch norm, and ReLU.
+    softmax : Softmax
+        Softmax activation for attention weights.
+    INF : function
+        Function to generate negative infinity mask.
+    gamma : nn.Parameter
+        Learnable scaling parameter for residual connection.
     
     References
     ----------
@@ -135,6 +165,20 @@ class CrissCrossAttention(nn.Module):
     def forward(self, query: Tensor, key: Tensor, value: Tensor) -> Tensor:
         """
         Forward pass through criss-cross attention.
+
+        Parameters
+        ----------
+        query : Tensor
+            Query features with shape (B, C, H, W).
+        key : Tensor
+            Key features with shape (B, C, H, W).
+        value : Tensor
+            Value features with shape (B, C, H, W).
+
+        Returns
+        -------
+        Tensor
+            Attention-weighted features with shape (B, C, H, W).
         """
         m_batchsize, _, height, width = query.size()
 

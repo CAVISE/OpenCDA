@@ -1,14 +1,22 @@
 # -*- coding: utf-8 -*-
 
-"""HDMap utilities"""
+"""
+HDMap utility functions.
+
+This module provides utility functions for handling high-definition map data,
+including coordinate conversions, waypoint transformations, and traffic light
+status conversions for CARLA simulation.
+"""
 
 
 # Author: Runsheng Xu <rxx3386@ucla.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
+from typing import List
 import carla
 import numpy as np
 from enum import IntEnum
+import numpy.typing as npt
 
 
 class InterpolationMethod(IntEnum):
@@ -16,14 +24,15 @@ class InterpolationMethod(IntEnum):
     INTER_ENSURE_LEN = 1  # ensure we always get the same number of elements
 
 
-def lateral_shift(transform, shift):
+def lateral_shift(transform: carla.Transform, shift: float) -> carla.Location:
     transform.rotation.yaw += 90
     return transform.location + shift * transform.get_forward_vector()
 
 
-def list_loc2array(list_location):
+def list_loc2array(list_location: List[carla.Location]) -> npt.NDArray[np.float64]:
     """
     Convert list of carla location to np.array
+
     Parameters
     ----------
     list_location : list
@@ -43,9 +52,10 @@ def list_loc2array(list_location):
     return loc_array
 
 
-def list_wpt2array(list_wpt):
+def list_wpt2array(list_wpt: List[carla.Waypoint]) -> npt.NDArray[np.float64]:
     """
     Convert list of carla transform to np.array
+
     Parameters
     ----------
     list_wpt : list
@@ -65,9 +75,10 @@ def list_wpt2array(list_wpt):
     return loc_array
 
 
-def convert_tl_status(status):
+def convert_tl_status(status: carla.TrafficLightState) -> str:
     """
     Convert carla.TrafficLightState to str.
+
     Parameters
     ----------
     status : carla.TrafficLightState

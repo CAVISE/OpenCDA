@@ -4,44 +4,65 @@
 # For a copy, see <https://opensource.org/licenses/MIT>.
 
 """
-This module provides implementation for GlobalRoutePlannerDAO
+Global route planner data access object.
+
+This module provides the data access layer for fetching topology and waypoint
+data from the CARLA server instance for use by the GlobalRoutePlanner.
 """
 
+from typing import List, Dict, Any
 import numpy as np
 
 
 class GlobalRoutePlannerDAO(object):
     """
-    This class is the data access layer for fetching data from the carla
-    server instance for GlobalRoutePlanner.
+    Data access layer for GlobalRoutePlanner.
+
+    This class fetches data from the CARLA server instance, including map
+    topology and waypoint information for route planning.
 
     Parameters
     ----------
-    -wmap : carla.world
-        The current carla simulation world.
-    -sampling_resolution : float
-        sampling distance between waypoints.
+    wmap : carla.Map
+        The CARLA world map object.
+    sampling_resolution : float
+        Sampling distance between waypoints in meters.
 
+    Attributes
+    ----------
+    _sampling_resolution : float
+        Sampling distance between consecutive waypoints.
+    _wmap : carla.Map
+        The CARLA world map reference.
     """
 
-    def __init__(self, wmap, sampling_resolution):
-        self._sampling_resolution = sampling_resolution
-        self._wmap = wmap
+    def __init__(self, wmap: Any, sampling_resolution: float):
+        self._sampling_resolution: float = sampling_resolution
+        self._wmap: Any = wmap
 
-    def get_topology(self):
+    def get_topology(self) -> List[Dict[str, Any]]:
         """
-        Accessor for topology.
-        This function retrieves topology from the server as a list of
-        road segments as pairs of waypoint objects, and processes the
-        topology into a list of dictionary objects.
+        Retrieve and process map topology.
 
-            :return topology:
-                entry   -   waypoint of entry point of road segment
-                entryxyz-   (x,y,z) of entry point of road segment
-                exit    -   waypoint of exit point of road segment
-                exitxyz -   (x,y,z) of exit point of road segment
-                path    -   list of waypoints separated by 1m from entry
-                            to exit
+        This function retrieves topology from the server as a list of road
+        segments (pairs of waypoint objects), and processes them into a list
+        of dictionary objects with detailed segment information.
+
+        Returns
+        -------
+        List[Dict[str, Any]]
+            List of topology dictionaries, each containing:
+            - entry : carla.Waypoint
+                Waypoint at entry point of road segment.
+            - entryxyz : Tuple[float, float, float]
+                (x, y, z) coordinates of entry point.
+            - exit : carla.Waypoint
+                Waypoint at exit point of road segment.
+            - exitxyz : Tuple[float, float, float]
+                (x, y, z) coordinates of exit point.
+            - path : List[carla.Waypoint]
+                List of waypoints separated by sampling_resolution meters
+                from entry to exit.
         """
         topology = []
         # Retrieving waypoints to construct a detailed topology
@@ -66,19 +87,30 @@ class GlobalRoutePlannerDAO(object):
             topology.append(seg_dict)
         return topology
 
-    def get_waypoint(self, location):
+    def get_waypoint(self, location: Any) -> Any:
         """
-        The method returns waypoint at given location.
+        Get waypoint at specified location.
 
-        Args:
-            -location (carla.lcoation): Vehicle location.
-        Returns:
-            -waypoint (carla.waypoint): Newly generated waypoint close
-            to location.
+        Parameters
+        ----------
+        location : carla.Location
+            Vehicle location in the world.
+
+        Returns
+        -------
+        carla.Waypoint
+            Waypoint object closest to the specified location.
         """
         waypoint = self._wmap.get_waypoint(location)
         return waypoint
 
-    def get_resolution(self):
-        """Return the sampling resolution."""
+    def get_resolution(self) -> float:
+        """
+        Get the sampling resolution.
+
+        Returns
+        -------
+        float
+            Sampling distance between waypoints in meters.
+        """
         return self._sampling_resolution

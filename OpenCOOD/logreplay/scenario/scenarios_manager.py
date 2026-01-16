@@ -1,3 +1,10 @@
+"""
+Scenario management for log replay operations.
+
+This module provides the ScenariosManager class for managing multiple scene
+replays from recorded cooperative driving scenarios.
+"""
+
 import os
 from collections import OrderedDict
 
@@ -16,7 +23,11 @@ class ScenariosManager:
 
     Attributes
     ----------
-
+    scene_params : Dict[str, Any]
+        Stored scenario parameters from initialization.
+    scenario_database : OrderedDict
+        Dictionary mapping scene names to their corresponding scene managers
+        and related data.
     """
 
     def __init__(self, scenario_params):
@@ -46,6 +57,10 @@ class ScenariosManager:
     def tick(self):
         """
         Tick for every scene manager to do the log replay.
+
+        Iterates through all loaded scenarios, starts the simulator for each,
+        and runs the replay loop until completion. Closes the simulator after
+        each scenario finishes.
         """
         for scene_name, scene_content in self.scenario_database.items():
             print("log replay %s" % scene_name)

@@ -1,13 +1,22 @@
 # -*- coding: utf-8 -*-
 """
-Use Kalman Filter on GPS + IMU for better localization.
-Reference: https://www.bzarg.com/p/how-a-kalman-filter-works-in-pictures/
+Kalman Filter implementation for GPS and IMU sensor fusion.
+
+This module implements a Kalman Filter for improved localization by fusing
+GPS position measurements with IMU yaw rate data to provide more accurate
+state estimation.
+
+Reference
+---------
+https://www.bzarg.com/p/how-a-kalman-filter-works-in-pictures/
 """
 # Author: Runsheng Xu <rxx3386@ucla.edu>, Xin Xia<x35xia@g.ucla.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
 import math
+from typing import Tuple
 import numpy as np
+import numpy.typing as npt
 
 
 class KalmanFilter(object):
@@ -37,7 +46,7 @@ class KalmanFilter(object):
         The estimated P values.
     """
 
-    def __init__(self, dt):
+    def __init__(self, dt: float):
         self.Q = (
             np.diag(
                 [
@@ -58,7 +67,9 @@ class KalmanFilter(object):
         self.xEst = np.zeros((4, 1))
         self.PEst = np.eye(4)
 
-    def motion_model(self, x, u):
+    def motion_model(
+        self, x: npt.NDArray[np.float64], u: npt.NDArray[np.float64]
+    ) -> npt.NDArray[np.float64]:
         """
         Predict current position and yaw based on
         previous result (X = F * X_prev + B * u).
@@ -84,20 +95,22 @@ class KalmanFilter(object):
 
         return x
 
-    def observation_model(self, x):
+    def observation_model(self, x: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
         """
-        Project the state matrix to sensor measurement matrix.
+        Map state space to measurement space.
+
+        Implements the measurement equation Z_k = H * X_k where H is the
+        observation matrix that projects the state to sensor measurements.
 
         Parameters
-        __________
-        x : np.array
-            [x, y, yaw, v], shape: (4. 1).
+        ----------
+        x : npt.NDArray[np.float64]
+            State vector [x, y, yaw, velocity] with shape (4, 1).
 
         Returns
         -------
-        z : np.array)
-            Predicted measurement.
-
+        npt.NDArray[np.float64]
+            Predicted measurement vector [x, y, yaw] with shape (3, 1).
         """
         H = np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0]])
 
@@ -105,7 +118,7 @@ class KalmanFilter(object):
 
         return z
 
-    def run_step_init(self, x, y, heading, velocity):
+    def run_step_init(self, x: float, y: float, heading: float, velocity: float) -> None:
         """
         Initial state filling.
 
@@ -129,7 +142,9 @@ class KalmanFilter(object):
         self.xEst[2] = heading
         self.xEst[3] = velocity
 
-    def run_step(self, x, y, heading, velocity, yaw_rate_imu):
+    def run_step(
+        self, x: float, y: float, heading: float, velocity: float, yaw_rate_imu: float
+    ) -> Tuple[float, float, float, float]:
         """
         Apply KF on current measurement and previous prediction.
 

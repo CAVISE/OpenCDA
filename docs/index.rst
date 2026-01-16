@@ -5,10 +5,10 @@ Welcome to OpenCDA's Documentation!
 
 .. note::
     **This is a fork of the original** `OpenCDA project <https://github.com/ucla-mobility/OpenCDA>`_ 
-   developed by UCLA Mobility Lab. We maintain compatibility with the original while providing 
-   updates and improvements.
+    developed by UCLA Mobility Lab. We maintain compatibility with the original while providing 
+    updates and improvements.
 
-   **Original Authors**: UCLA Mobility Lab | **Original Paper**: `arXiv:2107.06260 <https://arxiv.org/abs/2107.06260>`_
+    **Original Authors**: UCLA Mobility Lab | **Original Paper**: `arXiv:2107.06260 <https://arxiv.org/abs/2107.06260>`_
 
 Overview
 --------
@@ -24,25 +24,25 @@ supports both task-specific evaluation (e.g., object detection accuracy) and pip
 Key Features
 ------------
 
-   **Full-Stack CDA Pipeline**
+**Full-Stack CDA Pipeline**
    Complete autonomous driving stack from perception to control, with cooperative capabilities built-in.
 
-   **V2X Communication**
+**V2X Communication**
    Realistic vehicle-to-vehicle (V2V) and vehicle-to-infrastructure (V2I) communication simulation with 
    latency and packet loss modeling.
 
-   **Multi-Platform Integration**
+**Multi-Platform Integration**
    - **CARLA** (0.9.15, 0.9.16): High-fidelity 3D simulation
    - **SUMO** (1.18.0+): Large-scale traffic simulation
    - **Co-simulation**: Combined CARLA + SUMO
 
-    **Modular Design**
+**Modular Design**
    Easily replace any module (perception, planning, control) with custom implementations.
 
-    **Benchmark Scenarios**
+**Benchmark Scenarios**
    Pre-built scenarios for platooning, cooperative merging, urban navigation, and more.
 
-    **Research-Ready**
+**Research-Ready**
    Designed for academic research with extensive documentation, evaluation metrics, and data collection tools.
 
 Collaboration
@@ -57,19 +57,19 @@ for advanced simulation testing of CDA features.
 Quick Links
 -----------
 
-📚 **Documentation**
-   * :doc:`md_files/introduction` - Detailed overview of OpenCDA
-   * :doc:`md_files/installation` - Installation instructions
-   * :doc:`md_files/getstarted` - Quick start guide
+**Documentation**
+   * :doc:`OpenCDA/docs/md_files/introduction` - Detailed overview of OpenCDA
+   * :doc:`OpenCDA/docs/md_files/installation` - Installation instructions
+   * :doc:`OpenCDA/docs/md_files/getstarted` - Quick start guide
    * :doc:`modules` - API reference
 
-🔗 **External Resources**
-   * `OpenCDA GitHub Repository <https://github.com/YOUR_USERNAME/OpenCDA>`_
+**External Resources**
+   * `OpenCDA GitHub Repository <https://github.com/CAVISE/OpenCDA>`_
    * `Original OpenCDA <https://github.com/ucla-mobility/OpenCDA>`_
    * `CARLA Simulator <https://carla.org/>`_
    * `SUMO Traffic Simulator <https://eclipse.dev/sumo/>`_
 
-📖 **Getting Started**
+**Getting Started**
    New to OpenCDA? Start with our :doc:`md_files/installation` guide, then try the 
    :doc:`md_files/getstarted` tutorial to run your first simulation!
 
@@ -127,22 +127,6 @@ Advanced Topics
    Integrate your deep learning models for perception, prediction, or decision making. 
    PyTorch integration included.
 
-Citing OpenCDA
---------------
-
-If you use OpenCDA (original or this fork) in your research, please cite the original paper:
-
-.. code-block:: bibtex
-
-   @inproceedings{xu2021opencda,
-     title={OpenCDA: an open cooperative driving automation framework integrated with co-simulation},
-     author={Xu, Runsheng and Guo, Yi and Han, Xu and Xia, Xin and Xiang, Hao and Ma, Jiaqi},
-     booktitle={2021 IEEE International Intelligent Transportation Systems Conference (ITSC)},
-     pages={1155--1162},
-     year={2021},
-     organization={IEEE}
-   }
-
 **Paper Link**: https://arxiv.org/abs/2107.06260
 
 Related Publications
@@ -169,14 +153,6 @@ OpenCDA is released under the MIT License (see LICENSE file for details).
    OpenCDA is intended for **non-commercial research and educational use only**. 
    For commercial applications, please contact the original authors at UCLA Mobility Lab.
 
-Support & Community
--------------------
-
-.. list-table::
-   :widths: 30 70
-   :header-rows: 0
-==================
-
 * :ref:`genindex`
 * :ref:`modindex`
 * :ref:`search`
@@ -185,6 +161,6 @@ Support & Community
 
 .. note::
    **Work in Progress**: OpenCDA is actively maintained and continuously improved. 
-   Many features are being developed. 
+   Many features are being developed.
 
 ----

@@ -1,3 +1,10 @@
+"""
+CIA-SSD model for collaborative 3D object detection.
+
+This module implements CIA-SSD (Collaborative Image-Aware Single Shot Multibox Detector)
+for multi-agent cooperative 3D object detection using sparse voxel features.
+"""
+
 from torch import nn
 import numpy as np
 from typing import Dict, Any
@@ -9,8 +16,38 @@ from opencood.models.sub_modules.cia_ssd_utils import SSFA, Head
 
 class CIASSD(nn.Module):
     """
-    CIASSD (Collaborative Image-Aware Single Shot Multibox Detector) model for 3D object detection.
+    CIA-SSD model for collaborative 3D object detection.
+
+    This model implements CIA-SSD (Collaborative Image-Aware Single Shot Multibox
+    Detector) architecture combining sparse 3D convolutions, height compression,
+    and spatial-semantic feature aggregation for efficient 3D object detection.
+
+    Parameters
+    ----------
+    args : dict of str to Any
+        Model configuration dictionary containing:
+        - 'lidar_range': Detection range [x_min, y_min, z_min, x_max, y_max, z_max].
+        - 'voxel_size': Voxel dimensions [vx, vy, vz] in meters.
+        - 'mean_vfe': VFE configuration with 'num_point_features'.
+        - 'spconv': Sparse convolution backbone config with 'num_features_in'.
+        - 'map2bev': Height compression configuration.
+        - 'ssfa': SSFA (Spatial-Semantic Feature Aggregation) module configuration.
+        - 'head': Detection head configuration.
+
+    Attributes
+    ----------
+    vfe : MeanVFE
+        Mean voxel feature encoder module.
+    spconv_block : VoxelBackBone8x
+        3D sparse convolutional backbone with 8x downsampling.
+    map_to_bev : HeightCompression
+        Height compression module to convert 3D features to BEV representation.
+    ssfa : SSFA
+        Spatial-Semantic Feature Aggregation module.
+    head : Head
+        Detection head for predicting bounding boxes and classifications.
     """
+    
     def __init__(self, args):
         super(CIASSD, self).__init__()
         lidar_range = np.array(args["lidar_range"])
@@ -22,6 +59,26 @@ class CIASSD(nn.Module):
         self.head = Head(**args["head"])
 
     def forward(self, batch_dict: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Forward pass through CIA-SSD network.
+
+        Parameters
+        ----------
+        batch_dict : dict of str to Any
+            Input batch dictionary containing:
+            - 'object_bbx_center': Object bounding box centers for determining batch size.
+            - 'voxel_features': Voxel features from point cloud.
+            - 'voxel_coords': Voxel coordinates.
+            - 'voxel_num_points': Number of points per voxel.
+
+        Returns
+        -------
+        dict of str to torch.Tensor
+            Output dictionary with keys:
+            - 'preds_dict_stage1': Stage 1 predictions containing bounding boxes
+              and classification scores.
+            - All keys from input batch_dict are preserved.
+        """
         batch_dict["batch_size"] = batch_dict["object_bbx_center"].shape[0]
         batch_dict = self.vfe(batch_dict)
         batch_dict = self.spconv_block(batch_dict)

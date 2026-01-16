@@ -16,6 +16,31 @@ import matplotlib
 
 
 class Canvas_BEV(object):
+    """
+    Bird's eye view canvas for visualizing point clouds and bounding boxes.
+    
+    Provides rendering methods for top-down view with configurable coordinate ranges
+    and support for both left-hand and right-hand coordinate systems.
+
+    Parameters
+    ----------
+    canvas_shape : tuple of int, optional
+        Canvas dimensions (height, width) in pixels. Default is (1000, 1000).
+    canvas_x_range : tuple of float, optional
+        World x-axis range (min, max) in meters. Default is (-50, 50).
+    canvas_y_range : tuple of float, optional
+        World y-axis range (min, max) in meters. Default is (-50, 50).
+    canvas_bg_color : tuple of int, optional
+        Background RGB color (0-255). Default is (0, 0, 0) (black).
+    left_hand : bool, optional
+        If True, uses left-hand coordinate system (negates y).
+        Default is False (right-hand system).
+
+    Attributes
+    ----------
+    canvas : np.ndarray
+        Current canvas image with shape (height, width, 3) in BGR format.
+    """
     
     def __init__(self, canvas_shape=(1000, 1000), canvas_x_range=(-50, 50), canvas_y_range=(-50, 50), canvas_bg_color=(0, 0, 0), left_hand=False):
 
@@ -42,7 +67,11 @@ class Canvas_BEV(object):
         return self.canvas
 
     def clear_canvas(self) -> None:
-        """Clear the canvas and reset to background color."""
+        """
+        Clear canvas and reset to background color.
+        
+        Creates a new blank canvas filled with the background color.
+        """
         self.canvas = np.zeros((*self.canvas_shape, 3), dtype=np.uint8)
         self.canvas[..., :] = self.canvas_bg_color
 
@@ -252,6 +281,30 @@ class Canvas_BEV(object):
 
 
 class Canvas_BEV_heading_right(object):
+    """
+    BEV canvas optimized for forward-facing view (heading right).
+    
+    Similar to Canvas_BEV but with landscape orientation and adjusted
+    coordinate transformation for vehicle-centric visualization.
+
+    Parameters
+    ----------
+    canvas_shape : tuple of int, optional
+        Canvas dimensions (height, width) in pixels. 
+    canvas_x_range : tuple of float, optional
+        World x-axis range (min, max) in meters. 
+    canvas_y_range : tuple of float, optional
+        World y-axis range (min, max) in meters.
+    canvas_bg_color : tuple of int, optional
+        Background RGB color (0-255).
+    left_hand : bool, optional
+        If True, uses left-hand coordinate system. Default is True.
+
+    Attributes
+    ----------
+    canvas : np.ndarray
+        Current canvas image with shape (height, width, 3) in BGR format.
+    """
 
     def __init__(self, canvas_shape=(800, 2800), canvas_x_range=(-140, 140), canvas_y_range=(-40, 40), canvas_bg_color=(0, 0, 0), left_hand=True):
 
@@ -278,14 +331,19 @@ class Canvas_BEV_heading_right(object):
         return self.canvas
 
     def clear_canvas(self) -> None:
-        """Clear the canvas and reset to background color."""
+        """
+        Clear canvas and reset to background color.
+        
+        Creates a new blank canvas filled with the background color.
+        """
         self.canvas = np.zeros((*self.canvas_shape, 3), dtype=np.uint8)
         self.canvas[..., :] = self.canvas_bg_color
 
     def get_canvas_coords(
         self, xy: npt.NDArray[np.floating]
     ) -> Tuple[npt.NDArray[np.int32], npt.NDArray[np.bool_]]:
-        """Transform world coordinates to canvas coordinates.
+        """
+        Transform world coordinates to canvas coordinates.
 
         Parameters
         ----------
@@ -345,7 +403,8 @@ class Canvas_BEV_heading_right(object):
         colors: Optional[Union[Tuple[int, int, int], npt.NDArray[np.uint8], str]] = None,
         colors_operand: Optional[npt.NDArray[np.floating]] = None,
     ) -> None:
-        """Draw points onto the canvas.
+        """
+        Draw points onto the canvas.
 
         Parameters
         ----------
@@ -411,7 +470,8 @@ class Canvas_BEV_heading_right(object):
         box_text_size: float = 0.5,
         text_corner: int = 0,
     ) -> None:
-        """Draw bounding boxes onto the canvas.
+        """
+        Draw bounding boxes onto the canvas.
 
         Parameters
         ----------

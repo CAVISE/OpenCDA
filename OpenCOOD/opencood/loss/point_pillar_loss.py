@@ -1,3 +1,10 @@
+"""
+Loss functions for PointPillar 3D object detection.
+
+This module implements focal loss for classification and weighted smooth L1 loss
+for bounding box regression in the PointPillar architecture. 
+"""
+
 import torch
 import torch.nn as nn
 import numpy as np
@@ -24,6 +31,13 @@ class WeightedSmoothL1Loss(nn.Module):
     code_weights : list of float, optional
         Code-wise weights. If None, no weights are applied.
         Default is None.
+
+    Attributes
+    ----------
+    beta : float
+        Stored transition threshold.
+    code_weights : torch.Tensor or None
+        Per-dimension weight tensor on CUDA device.
     """
 
     def __init__(self, beta: float = 1.0 / 9.0, code_weights: Optional[List[float]] = None):
@@ -61,6 +75,25 @@ class WeightedSmoothL1Loss(nn.Module):
     def forward(self, input: torch.Tensor, target: torch.Tensor, weights: Optional[torch.Tensor] = None) -> torch.Tensor:
         """
         Forward pass for weighted smooth L1 loss computation.
+
+        Parameters
+        ----------
+        input : torch.Tensor
+            Predicted values with shape (B, N, C) where:
+            - B: batch size
+            - N: number of anchors/boxes
+            - C: number of code dimensions
+        target : torch.Tensor
+            Ground truth values with shape (B, N, C).
+            NaN values are ignored (replaced with predictions).
+        weights : torch.Tensor or None, optional
+            Anchor-wise weights with shape (B, N). Default is None.
+
+        Returns
+        -------
+        loss : torch.Tensor
+            Weighted smooth L1 loss with shape (B, N, C).
+            If weights provided, each anchor's loss is scaled accordingly.
         """
         target = torch.where(torch.isnan(target), input, target)  # ignore nan targets
 
@@ -78,6 +111,31 @@ class WeightedSmoothL1Loss(nn.Module):
 class PointPillarLoss(nn.Module):
     """
     Loss function for PointPillar object detection model.
+
+    This loss combines focal loss for classification and weighted smooth L1 loss
+    for bounding box regression, with sine encoding for rotation angles.
+
+    Parameters
+    ----------
+    args : dict of str to Any
+        Configuration dictionary containing:
+        - 'cls_weight': Weight for classification loss.
+        - 'reg': Weight coefficient for regression loss.
+
+    Attributes
+    ----------
+    reg_loss_func : WeightedSmoothL1Loss
+        Weighted smooth L1 loss for bounding box regression.
+    alpha : float
+        Alpha parameter for focal loss. Default is 0.25.
+    gamma : float
+        Gamma parameter for focal loss. Default is 2.0.
+    cls_weight : float
+        Weight for classification loss.
+    reg_coe : float
+        Weight coefficient for regression loss.
+    loss_dict : dict
+        Dictionary storing individual loss components.
     """
 
     def __init__(self, args: Dict[str, Any]):
@@ -93,6 +151,22 @@ class PointPillarLoss(nn.Module):
     def forward(self, output_dict: Dict[str, torch.Tensor], target_dict: Dict[str, torch.Tensor]) -> torch.Tensor:
         """
         Compute the total loss for PointPillar model.
+
+        Parameters
+        ----------
+        output_dict : dict of str to Tensor
+            Model outputs containing:
+            - 'rm': Regression map with shape (B, 7, H, W).
+            - 'psm': Probability score map with shape (B, 1, H, W).
+        target_dict : dict of str to Tensor
+            Ground truth targets containing:
+            - 'targets': Target bounding boxes with shape (B, N, 7).
+            - 'pos_equal_one': Positive anchor labels with shape (B, H, W).
+
+        Returns
+        -------
+        Tensor
+            Total loss (scalar).
         """
         rm = output_dict["rm"]
         psm = output_dict["psm"]

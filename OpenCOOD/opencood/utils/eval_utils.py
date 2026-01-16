@@ -11,7 +11,6 @@ import os
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
-import numpy.typing as npt
 import torch
 
 from opencood.hypes_yaml import yaml_utils

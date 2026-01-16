@@ -4,6 +4,7 @@ VoxelNet with intermediate feature fusion for 3D object detection.
 This module implements a VoxelNet variant that performs intermediate fusion
 of features from multiple agents using attention mechanisms.
 """
+
 from typing import Any, Dict
 
 import numpy as np
@@ -41,7 +42,17 @@ class Conv2d(nn.Module):
         Whether to use batch normalization, by default True.
     bias : bool, optional
         Whether to add bias to the convolution, by default True.
+
+    Attributes
+    ----------
+    conv : nn.Conv2d
+        2D convolution layer.
+    bn : nn.BatchNorm2d or None
+        Batch normalization layer if enabled, None otherwise.
+    activation : bool
+        Flag indicating whether to apply activation.
     """
+
     def __init__(
         self,
         in_channels: int,
@@ -90,6 +101,13 @@ class NaiveFusion(nn.Module):
 
     This module processes concatenated features from multiple agents through
     a series of convolutional layers to produce fused representations.
+
+    Attributes
+    ----------
+    conv1 : Conv2d
+        First convolutional layer reducing concatenated features.
+    conv2 : Conv2d
+        Second convolutional layer producing final fused features.
     """
 
     def __init__(self):
@@ -128,6 +146,33 @@ class VoxelNetIntermediate(nn.Module):
     ----------
     args : dict[str, Any]
         Configuration dictionary containing model hyperparameters.
+
+    Attributes
+    ----------
+    svfe : PillarVFE
+        Pillar-based voxel feature extraction module.
+    cml : CML
+        Convolutional middle layer.
+    fusion_net : AttFusion
+        Attention-based fusion network for multi-agent features.
+    rpn : RPN
+        Region proposal network.
+    N : int
+        Batch size or total number of samples.
+    D : int
+        Depth dimension of voxel grid.
+    H : int
+        Height dimension of voxel grid.
+    W : int
+        Width dimension of voxel grid.
+    T : int
+        Maximum number of points per voxel.
+    anchor_num : int
+        Number of anchor boxes per position.
+    compression : bool
+        Flag indicating whether compression is enabled.
+    compression_layer : AutoEncoder, optional
+        Autoencoder for feature compression if compression is enabled.
     """
 
     def __init__(self, args):
@@ -216,6 +261,20 @@ class VoxelNetIntermediate(nn.Module):
     def forward(self, data_dict: Dict[str, Any]) -> Dict[str, Tensor]:
         """
         Forward pass of the VoxelNetIntermediate model.
+
+        Parameters
+        ----------
+        data_dict : dict of str to Any
+            Input data dictionary containing:
+            - 'processed_lidar': Dictionary with voxel features, coordinates, and point counts.
+            - 'record_len': Tensor indicating number of agents per batch sample.
+
+        Returns
+        -------
+        dict of str to Tensor
+            Output dictionary with keys:
+            - 'psm': Probability score map with shape (B, anchor_num, H, W).
+            - 'rm': Regression map with shape (B, 7*anchor_num, H, W).
         """
         voxel_features = data_dict["processed_lidar"]["voxel_features"]
         voxel_coords = data_dict["processed_lidar"]["voxel_coords"]

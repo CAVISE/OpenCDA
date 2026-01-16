@@ -1,3 +1,9 @@
+"""
+PointNet++ CUDA operations for efficient point cloud processing.
+
+This module provides GPU-accelerated operations for PointNet++.
+"""
+
 from typing import Tuple
 
 import torch
@@ -8,16 +14,31 @@ from opencood.pcdet_utils.pointnet2.pointnet2_batch import pointnet2_batch_cuda 
 
 
 class FurthestPointSampling(Function):
+    """
+    Furthest point sampling for downsampling point clouds.
+    
+    CUDA-accelerated iterative farthest point selection for batched inputs.
+    """
+
     @staticmethod
     def forward(ctx, xyz: torch.Tensor, npoint: int) -> torch.Tensor:
         """
-        Uses iterative furthest point sampling to select a set of npoint features that have the largest
-        minimum distance
-        :param ctx:
-        :param xyz: (B, N, 3) where N > npoint
-        :param npoint: int, number of features in the sampled set
-        :return:
-             output: (B, npoint) tensor containing the set
+        Sample points by iteratively selecting farthest point.
+
+        Parameters
+        ----------
+        ctx : torch.autograd.function.FunctionCtx
+            Context for backward (unused).
+        xyz : torch.Tensor
+            Point coordinates with shape (B, N, 3) where N > npoint.
+        npoint : int
+            Number of points to sample per batch.
+
+        Returns
+        -------
+        output : torch.Tensor
+            Sampled point indices with shape (B, npoint).
+            Values in range [0, N-1].
         """
         assert xyz.is_contiguous()
 
@@ -37,14 +58,31 @@ furthest_point_sample = FurthestPointSampling.apply
 
 
 class GatherOperation(Function):
+    """
+    Gather features by indices for batched point clouds.
+    
+    CUDA-accelerated feature gathering with custom backward pass.
+    """
+
     @staticmethod
     def forward(ctx, features: torch.Tensor, idx: torch.Tensor) -> torch.Tensor:
         """
-        :param ctx:
-        :param features: (B, C, N)
-        :param idx: (B, npoint) index tensor of the features to gather
-        :return:
-            output: (B, C, npoint)
+        Gather features according to indices.
+
+        Parameters
+        ----------
+        ctx : torch.autograd.function.FunctionCtx
+            Context for saving backward information.
+        features : torch.Tensor
+            Input features with shape (B, C, N).
+        idx : torch.Tensor
+            Gather indices with shape (B, npoint).
+            Values in range [0, N-1].
+
+        Returns
+        -------
+        output : torch.Tensor
+            Gathered features with shape (B, C, npoint).
         """
         assert features.is_contiguous()
         assert idx.is_contiguous()
@@ -59,7 +97,24 @@ class GatherOperation(Function):
         return output
 
     @staticmethod
-    def backward(ctx, grad_out):
+    def backward(ctx, grad_out: torch.Tensor) -> Tuple[torch.Tensor, None]:
+        """
+        Compute gradient with respect to input features.
+
+        Parameters
+        ----------
+        ctx : torch.autograd.function.FunctionCtx
+            Context with saved forward information.
+        grad_out : torch.Tensor
+            Output gradient with shape (B, C, npoint).
+
+        Returns
+        -------
+        grad_features : torch.Tensor
+            Input features gradient with shape (B, C, N).
+        None
+            Placeholder for idx gradient.
+        """
         idx, C, N = ctx.for_backwards
         B, npoint = idx.size()
 
@@ -73,16 +128,33 @@ gather_operation = GatherOperation.apply
 
 
 class ThreeNN(Function):
+    """
+    Find three nearest neighbors for each query point.
+    
+    CUDA-accelerated k-NN search with k=3 for batched inputs.
+    """
+
     @staticmethod
     def forward(ctx, unknown: torch.Tensor, known: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """
-        Find the three nearest neighbors of unknown in known
-        :param ctx:
-        :param unknown: (B, N, 3)
-        :param known: (B, M, 3)
-        :return:
-            dist: (B, N, 3) l2 distance to the three nearest neighbors
-            idx: (B, N, 3) index of 3 nearest neighbors
+        Find 3 nearest neighbors in known set for each unknown point.
+
+        Parameters
+        ----------
+        ctx : torch.autograd.function.FunctionCtx
+            Context for backward (unused).
+        unknown : torch.Tensor
+            Query point coordinates with shape (B, N, 3).
+        known : torch.Tensor
+            Reference point coordinates with shape (B, M, 3).
+
+        Returns
+        -------
+        dist : torch.Tensor
+            L2 distances to 3 nearest neighbors with shape (B, N, 3).
+        idx : torch.Tensor
+            Indices of 3 nearest neighbors with shape (B, N, 3).
+            Values in range [0, M-1].
         """
         assert unknown.is_contiguous()
         assert known.is_contiguous()
@@ -104,16 +176,32 @@ three_nn = ThreeNN.apply
 
 
 class ThreeInterpolate(Function):
+    """
+    Interpolate features using inverse distance weighting from 3 neighbors.
+    
+    CUDA-accelerated feature upsampling with custom backward for batched inputs.
+    """
+
     @staticmethod
     def forward(ctx, features: torch.Tensor, idx: torch.Tensor, weight: torch.Tensor) -> torch.Tensor:
         """
-        Performs weight linear interpolation on 3 features
-        :param ctx:
-        :param features: (B, C, M) Features descriptors to be interpolated from
-        :param idx: (B, n, 3) three nearest neighbors of the target features in features
-        :param weight: (B, n, 3) weights
-        :return:
-            output: (B, C, N) tensor of the interpolated features
+        Interpolate features using weighted sum of 3 neighbors.
+
+        Parameters
+        ----------
+        ctx : torch.autograd.function.FunctionCtx
+            Context for saving backward information.
+        features : torch.Tensor
+            Source features with shape (B, C, M).
+        idx : torch.Tensor
+            Neighbor indices with shape (B, n, 3).
+        weight : torch.Tensor
+            Interpolation weights with shape (B, n, 3).
+
+        Returns
+        -------
+        output : torch.Tensor
+            Interpolated features with shape (B, C, n).
         """
         assert features.is_contiguous()
         assert idx.is_contiguous()
@@ -130,12 +218,23 @@ class ThreeInterpolate(Function):
     @staticmethod
     def backward(ctx, grad_out: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
-        :param ctx:
-        :param grad_out: (B, C, N) tensor with gradients of outputs
-        :return:
-            grad_features: (B, C, M) tensor with gradients of features
-            None:
-            None:
+        Compute gradient with respect to source features.
+
+        Parameters
+        ----------
+        ctx : torch.autograd.function.FunctionCtx
+            Context with saved forward information.
+        grad_out : torch.Tensor
+            Output gradient with shape (B, C, n).
+
+        Returns
+        -------
+        grad_features : torch.Tensor
+            Source features gradient with shape (B, C, M).
+        None
+            Placeholder for idx gradient.
+        None
+            Placeholder for weight gradient.
         """
         idx, weight, m = ctx.three_interpolate_for_backward
         B, c, n = grad_out.size()
@@ -151,14 +250,31 @@ three_interpolate = ThreeInterpolate.apply
 
 
 class GroupingOperation(Function):
+    """
+    Group features by indices for local feature aggregation.
+    
+    CUDA-accelerated grouping with custom backward for batched inputs.
+    """
+
     @staticmethod
     def forward(ctx, features: torch.Tensor, idx: torch.Tensor) -> torch.Tensor:
         """
-        :param ctx:
-        :param features: (B, C, N) tensor of features to group
-        :param idx: (B, npoint, nsample) tensor containing the indicies of features to group with
-        :return:
-            output: (B, C, npoint, nsample) tensor
+        Group features according to neighborhood indices.
+
+        Parameters
+        ----------
+        ctx : torch.autograd.function.FunctionCtx
+            Context for saving backward information.
+        features : torch.Tensor
+            Input features with shape (B, C, N).
+        idx : torch.Tensor
+            Grouping indices with shape (B, npoint, nsample).
+            Values in range [0, N-1].
+
+        Returns
+        -------
+        output : torch.Tensor
+            Grouped features with shape (B, C, npoint, nsample).
         """
         assert features.is_contiguous()
         assert idx.is_contiguous()
@@ -175,10 +291,21 @@ class GroupingOperation(Function):
     @staticmethod
     def backward(ctx, grad_out: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """
-        :param ctx:
-        :param grad_out: (B, C, npoint, nsample) tensor of the gradients of the output from forward
-        :return:
-            grad_features: (B, C, N) gradient of the features
+        Compute gradient with respect to input features.
+
+        Parameters
+        ----------
+        ctx : torch.autograd.function.FunctionCtx
+            Context with saved forward information.
+        grad_out : torch.Tensor
+            Output gradient with shape (B, C, npoint, nsample).
+
+        Returns
+        -------
+        grad_features : torch.Tensor
+            Input features gradient with shape (B, C, N).
+        None
+            Placeholder for idx gradient.
         """
         idx, N = ctx.for_backwards
 
@@ -194,16 +321,35 @@ grouping_operation = GroupingOperation.apply
 
 
 class BallQuery(Function):
+    """
+    Ball query operation for finding neighbors within a radius.
+    
+    CUDA-accelerated local neighborhood query for batched inputs.
+    """
+
     @staticmethod
     def forward(ctx, radius: float, nsample: int, xyz: torch.Tensor, new_xyz: torch.Tensor) -> torch.Tensor:
         """
-        :param ctx:
-        :param radius: float, radius of the balls
-        :param nsample: int, maximum number of features in the balls
-        :param xyz: (B, N, 3) xyz coordinates of the features
-        :param new_xyz: (B, npoint, 3) centers of the ball query
-        :return:
-            idx: (B, npoint, nsample) tensor with the indicies of the features that form the query balls
+        Find neighbors within radius for each query point.
+
+        Parameters
+        ----------
+        ctx : torch.autograd.function.FunctionCtx
+            Context for backward (unused).
+        radius : float
+            Search radius for ball query.
+        nsample : int
+            Maximum number of neighbors to sample per ball.
+        xyz : torch.Tensor
+            Point coordinates with shape (B, N, 3).
+        new_xyz : torch.Tensor
+            Query point coordinates with shape (B, npoint, 3).
+
+        Returns
+        -------
+        idx : torch.Tensor
+            Neighbor indices with shape (B, npoint, nsample).
+            Values in range [0, N-1].
         """
         assert new_xyz.is_contiguous()
         assert xyz.is_contiguous()
@@ -224,22 +370,54 @@ ball_query = BallQuery.apply
 
 
 class QueryAndGroup(nn.Module):
+    """
+    Query and group points within a ball radius.
+    
+    Combines ball query and grouping operations for local feature extraction
+    in batched point clouds.
+
+    Parameters
+    ----------
+    radius : float
+        Ball radius for neighborhood query.
+    nsample : int
+        Maximum number of points to sample per ball.
+    use_xyz : bool, optional
+        If True, concatenates relative xyz coordinates to features.
+        Default is True.
+
+    Attributes
+    ----------
+    radius : float
+        Stored ball radius.
+    nsample : int
+        Stored maximum sample count.
+    use_xyz : bool
+        Whether to concatenate xyz coordinates.
+    """
+
     def __init__(self, radius: float, nsample: int, use_xyz: bool = True):
-        """
-        :param radius: float, radius of ball
-        :param nsample: int, maximum number of features to gather in the ball
-        :param use_xyz:
-        """
         super().__init__()
         self.radius, self.nsample, self.use_xyz = radius, nsample, use_xyz
 
     def forward(self, xyz: torch.Tensor, new_xyz: torch.Tensor, features: torch.Tensor = None) -> Tuple[torch.Tensor]:
         """
-        :param xyz: (B, N, 3) xyz coordinates of the features
-        :param new_xyz: (B, npoint, 3) centroids
-        :param features: (B, C, N) descriptors of the features
-        :return:
-            new_features: (B, 3 + C, npoint, nsample)
+        Query neighbors and group their features.
+
+        Parameters
+        ----------
+        xyz : torch.Tensor
+            Point coordinates with shape (B, N, 3).
+        new_xyz : torch.Tensor
+            Query point coordinates with shape (B, npoint, 3).
+        features : torch.Tensor or None, optional
+            Point features with shape (B, C, N). Default is None.
+
+        Returns
+        -------
+        new_features : torch.Tensor
+            Grouped features with shape (B, C_out, npoint, nsample).
+            If use_xyz=True: C_out = C + 3, else C_out = C.
         """
         idx = ball_query(self.radius, self.nsample, xyz, new_xyz)
         xyz_trans = xyz.transpose(1, 2).contiguous()
@@ -260,17 +438,44 @@ class QueryAndGroup(nn.Module):
 
 
 class GroupAll(nn.Module):
+    """
+    Group all points into a single global feature.
+    
+    Aggregates all points without spatial partitioning for global context.
+
+    Parameters
+    ----------
+    use_xyz : bool, optional
+        If True, concatenates xyz coordinates to features. Default is True.
+
+    Attributes
+    ----------
+    use_xyz : bool
+        Whether to concatenate xyz coordinates.
+    """
+
     def __init__(self, use_xyz: bool = True):
         super().__init__()
         self.use_xyz = use_xyz
 
     def forward(self, xyz: torch.Tensor, new_xyz: torch.Tensor, features: torch.Tensor = None):
         """
-        :param xyz: (B, N, 3) xyz coordinates of the features
-        :param new_xyz: ignored
-        :param features: (B, C, N) descriptors of the features
-        :return:
-            new_features: (B, C + 3, 1, N)
+        Group all points into single feature.
+
+        Parameters
+        ----------
+        xyz : torch.Tensor
+            Point coordinates with shape (B, N, 3).
+        new_xyz : torch.Tensor
+            Ignored (for interface compatibility).
+        features : torch.Tensor or None, optional
+            Point features with shape (B, C, N). Default is None.
+
+        Returns
+        -------
+        new_features : torch.Tensor
+            Grouped features with shape (B, C_out, 1, N).
+            If use_xyz=True: C_out = C + 3, else C_out = C.
         """
         grouped_xyz = xyz.transpose(1, 2).unsqueeze(2)
         if features is not None:

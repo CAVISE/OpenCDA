@@ -1,7 +1,13 @@
+"""
+Loss functions for FPVRCNN (Frustum Point Voxel R-CNN) 3D object detection.
+
+This module implements the loss function for the FPVRCNN architecture.
+"""
+
 import torch
 from torch import nn, Tensor
 import numpy as np
-from typing import Dict, Any, Optional, List, Union, Tuple
+from typing import Dict, Any, Optional
 from torch.utils.tensorboard import SummaryWriter
 from opencood.loss.ciassd_loss import CiassdLoss, weighted_smooth_l1_loss
 

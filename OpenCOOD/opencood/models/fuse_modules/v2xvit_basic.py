@@ -22,6 +22,27 @@ from opencood.models.sub_modules.torch_transformation_utils import (
 
 
 class STTF(nn.Module):
+    """
+    Spatial-Temporal Transformation Fusion module.
+
+    This module applies spatial transformations to align features from different
+    agents across time and space using affine transformations.
+
+    Parameters
+    ----------
+    args : dict of str to Union[float, list of float, int]
+        Configuration dictionary containing:
+        - 'voxel_size': Voxel size [x, y, z].
+        - 'downsample_rate': Downsampling rate for features.
+
+    Attributes
+    ----------
+    discrete_ratio : float
+        Discretization ratio from voxel size.
+    downsample_rate : int
+        Feature downsampling rate.
+    """
+    
     def __init__(self, args: Dict[str, Union[float, List[float], int]]):
         super(STTF, self).__init__()
         self.discrete_ratio = args["voxel_size"][0]
@@ -33,6 +54,23 @@ class STTF(nn.Module):
         mask: Tensor, 
         spatial_correction_matrix: Tensor
     ) -> Tensor:
+        """
+        Forward pass applying spatial-temporal transformation.
+
+        Parameters
+        ----------
+        x : Tensor
+            Input features with shape (B, L, H, W, C).
+        mask : Tensor
+            Mask tensor for valid agents.
+        spatial_correction_matrix : Tensor
+            Spatial correction matrices for alignment.
+
+        Returns
+        -------
+        Tensor
+            Transformed features with shape (B, L, H, W, C).
+        """
         x = x.permute(0, 1, 4, 2, 3)
         dist_correction_matrix = get_discretized_transformation_matrix(spatial_correction_matrix, self.discrete_ratio, self.downsample_rate)
         # Only compensate non-ego vehicles
@@ -60,6 +98,15 @@ class RelTemporalEncoding(nn.Module):
         Maximum sequence length. Default is 100.
     dropout : float, optional
         Dropout probability. Default is 0.2.
+
+    Attributes
+    ----------
+    RTE_ratio : float
+        Temporal encoding scaling ratio.
+    emb : nn.Embedding
+        Embedding layer with sinusoidal weights.
+    lin : nn.Linear
+        Linear projection layer.
     """
 
     def __init__(
@@ -81,6 +128,21 @@ class RelTemporalEncoding(nn.Module):
         self.lin = nn.Linear(n_hid, n_hid)
 
     def forward(self, x: Tensor, t: Tensor) -> Tensor:
+        """
+        Forward pass adding temporal encoding.
+
+        Parameters
+        ----------
+        x : Tensor
+            Input features with shape (H, W, C).
+        t : Tensor
+            Time delay scalar.
+
+        Returns
+        -------
+        Tensor
+            Features with temporal encoding added, shape (H, W, C).
+        """
         # When t has unit of 50ms, rte_ratio=1.
         # So we can train on 100ms but test on 50ms
         return x + self.lin(self.emb(t * self.RTE_ratio)).unsqueeze(0).unsqueeze(1)
@@ -96,6 +158,13 @@ class RTE(nn.Module):
         Feature dimension.
     RTE_ratio : float, optional
         Ratio for temporal encoding. Default is 2.
+
+    Attributes
+    ----------
+    RTE_ratio : float
+        Temporal encoding scaling ratio.
+    emb : RelTemporalEncoding
+        Underlying temporal encoding module.
     """
     
     def __init__(self, dim: int, RTE_ratio: float = 2):
@@ -107,6 +176,18 @@ class RTE(nn.Module):
     def forward(self, x: Tensor, dts: Tensor) -> Tensor:
         """
         Forward pass for relative temporal encoding.
+
+        Parameters
+        ----------
+        x : Tensor
+            Input features with shape (B, L, H, W, C).
+        dts : Tensor
+            Time delays with shape (B, L).
+
+        Returns
+        -------
+        Tensor
+            Features with temporal encoding added, shape (B, L, H, W, C).
         """
         # x: (B,L,H,W,C)
         # dts: (B,L)
@@ -131,6 +212,13 @@ class V2XFusionBlock(nn.Module):
         Configuration for CAV attention.
     pwindow_config : Dict[str, Any]
         Configuration for pyramid window attention.
+
+    Attributes
+    ----------
+    layers : nn.ModuleList
+        List of attention layer pairs (CAV attention + pyramid window attention).
+    num_blocks : int
+        Number of attention blocks.
     """
     
     def __init__(
@@ -182,6 +270,20 @@ class V2XFusionBlock(nn.Module):
     ) -> Tensor:
         """
         Forward pass through V2X fusion block.
+
+        Parameters
+        ----------
+        x : Tensor
+            Input features with shape (B, L, H, W, C).
+        mask : Tensor
+            Attention mask for valid agents.
+        prior_encoding : Tensor
+            Prior encoding with temporal and infrastructure information.
+
+        Returns
+        -------
+        Tensor
+            Fused features with shape (B, L, H, W, C).
         """
         for cav_attn, pwindow_attn in self.layers:
             x = cav_attn(x, mask=mask, prior_encoding=prior_encoding) + x
@@ -195,7 +297,7 @@ class V2XTEncoder(nn.Module):
     
     Parameters
     ----------
-    args : Dict[str, Any]
+    Dict[str, Any]
         Dictionary containing encoder configuration:
         
         - cav_att_config : dict
@@ -212,6 +314,27 @@ class V2XTEncoder(nn.Module):
             Spatial-temporal transformation config.
         - use_roi_mask : bool
             Whether to use ROI masking.
+        
+    Attributes
+    ----------
+    downsample_rate : int
+        Feature downsampling rate.
+    discrete_ratio : float
+        Discretization ratio.
+    use_roi_mask : bool
+        Flag indicating whether ROI masking is used.
+    use_RTE : bool
+        Flag indicating whether relative temporal encoding is used.
+    RTE_ratio : float
+        Temporal encoding scaling ratio.
+    sttf : STTF
+        Spatial-temporal transformation fusion module.
+    prior_feed : nn.Linear
+        Linear layer to adjust channel numbers from C+3 to C.
+    layers : nn.ModuleList
+        List of encoder layers (fusion block + feed-forward).
+    rte : RTE, optional
+        Relative temporal encoding module if use_RTE is True.
     """
     
     def __init__(self, args: Dict[str, Any]) -> None:
@@ -255,6 +378,21 @@ class V2XTEncoder(nn.Module):
     ) -> Tensor:
         """
         Forward pass through V2X encoder.
+
+        Parameters
+        ----------
+        x : Tensor
+            Input features with shape (B, L, H, W, C+3) where last 3 channels
+            contain velocity, time_delay, and infrastructure information.
+        mask : Tensor
+            Mask indicating valid agents.
+        spatial_correction_matrix : Tensor
+            Spatial correction matrices for feature alignment.
+
+        Returns
+        -------
+        Tensor
+            Encoded features with shape (B, L, H, W, C).
         """
         # transform the features to the current timestamp
         # velocity, time_delay, infra
@@ -279,6 +417,24 @@ class V2XTEncoder(nn.Module):
 
 
 class V2XTransformer(nn.Module):
+    """
+    V2X Transformer for multi-agent feature fusion.
+
+    This is the main transformer architecture that combines spatial-temporal alignment,
+    relative temporal encoding, and multi-scale attention for robust cooperative perception.
+
+    Parameters
+    ----------
+    args : dict of str to Any
+        Configuration dictionary containing:
+        - 'encoder': Encoder configuration for V2XTEncoder.
+
+    Attributes
+    ----------
+    encoder : V2XTEncoder
+        Transformer encoder module.
+    """
+
     def __init__(self, args: Dict[str, Any]):
         super(V2XTransformer, self).__init__()
 
@@ -293,6 +449,20 @@ class V2XTransformer(nn.Module):
     ) -> Tensor:
         """
         Forward pass through V2X Transformer.
+
+        Parameters
+        ----------
+        x : Tensor
+            Input features with shape (B, L, H, W, C+3).
+        mask : Tensor
+            Mask indicating valid agents.
+        spatial_correction_matrix : Tensor
+            Spatial correction matrices for feature alignment.
+
+        Returns
+        -------
+        Tensor
+            Ego agent's fused features with shape (B, H, W, C).
         """
         output = self.encoder(x, mask, spatial_correction_matrix)
         output = output[:, 0]

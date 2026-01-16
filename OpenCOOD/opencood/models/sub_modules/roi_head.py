@@ -1,3 +1,11 @@
+"""
+RoI Head for 3D Object Detection Refinement.
+
+This module implements a Region of Interest (RoI) head that refines initial
+detections using RoI-aware pooling and multi-layer perceptrons for classification,
+IoU prediction, and bounding box regression.
+"""
+
 from typing import Dict, List, Tuple, Optional, Any
 from torch import Tensor
 import copy
@@ -12,6 +20,48 @@ from opencood.utils import box_utils
 
 
 class RoIHead(nn.Module):
+    """
+    RoI Head for second-stage 3D object detection refinement.
+
+    This module refines initial 3D detections by pooling features within
+    predicted RoIs and predicting refined classifications, IoU scores, and
+    bounding box corrections.
+
+    Parameters
+    ----------
+    model_cfg : dict of str to Any
+        Model configuration dictionary containing:
+        - 'in_channels': Input feature channels.
+        - 'roi_grid_pool': RoI grid pooling configuration with:
+          - 'pool_radius': Pooling radii for multi-scale sampling.
+          - 'n_sample': Number of samples per radius.
+          - 'mlps': MLP layer dimensions for feature extraction.
+          - 'pool_method': Pooling method ('max_pool' or 'avg_pool').
+          - 'grid_size': Grid size for RoI partitioning.
+        - 'n_fc_neurons': Number of neurons in FC layers.
+        - 'num_cls': Number of output classes.
+        - 'dp_ratio': Dropout ratio.
+
+    Attributes
+    ----------
+    model_cfg : dict
+        Model configuration.
+    code_size : int
+        Bounding box encoding size (7 for [x, y, z, l, w, h, heading]).
+    roi_grid_pool_layer : StackSAModuleMSG
+        RoI grid pooling layer using PointNet++.
+    grid_size : int
+        Grid size for partitioning RoIs.
+    shared_fc_layers : nn.Sequential
+        Shared fully connected layers.
+    cls_layers : nn.Sequential
+        Classification head layers.
+    iou_layers : nn.Sequential
+        IoU prediction head layers.
+    reg_layers : nn.Sequential
+        Regression head layers for box refinement.
+    """
+
     def __init__(self, model_cfg: Dict[str, Any]) -> None:
         super().__init__()
         self.model_cfg = model_cfg
@@ -44,6 +94,18 @@ class RoIHead(nn.Module):
         self._init_weights(weight_init="xavier")
 
     def _init_weights(self, weight_init: str = "xavier") -> None:
+        """
+        Initialize network weights.
+
+        Parameters
+        ----------
+        weight_init : str, 
+
+        Raises
+        ------
+        NotImplementedError
+            If weight_init is not one of the supported methods.
+        """
         if weight_init == "kaiming":
             init_func = nn.init.kaiming_normal_
         elif weight_init == "xavier":
@@ -66,6 +128,25 @@ class RoIHead(nn.Module):
     def _make_fc_layers(
         self, input_channels: int, fc_list: List[int], output_channels: Optional[int] = None
     ) -> Tuple[nn.Sequential, int]:
+        """
+        Create fully connected layers with optional dropout.
+
+        Parameters
+        ----------
+        input_channels : int
+            Number of input channels.
+        fc_list : list of int
+            List of hidden layer dimensions.
+        output_channels : int, optional
+            Number of output channels. If None, no output layer is added.
+
+        Returns
+        -------
+        fc_layers : nn.Sequential
+            Sequential FC layers.
+        pre_channel : int
+            Output channel dimension.
+        """
         fc_layers = []
         pre_channel = input_channels
         for k in range(len(fc_list)):
@@ -87,6 +168,21 @@ class RoIHead(nn.Module):
     def get_global_grid_points_of_roi(
         self, rois: Tensor
     ) -> Tuple[Tensor, Tensor]:
+        """
+        Generate grid points for RoIs in global and local coordinates.
+
+        Parameters
+        ----------
+        rois : Tensor
+            Region proposals.
+
+        Returns
+        -------
+        global_roi_grid_points : Tensor
+            Grid points in global coordinates.
+        local_roi_grid_points : Tensor
+            Grid points in local RoI coordinates.
+        """
         rois = rois.view(-1, rois.shape[-1])
         batch_size_rcnn = rois.shape[0]
 
@@ -102,8 +198,24 @@ class RoIHead(nn.Module):
         rois: Tensor, batch_size_rcnn: int, grid_size: int
     ) -> Tensor:
         """
-        Get the local coordinates of each grid point of a roi in the coordinate
-        system of the roi(origin lies in the center of this roi.
+        Generate dense grid points within RoIs in local coordinates.
+
+        Creates uniformly spaced grid points within each RoI, centered at
+        the RoI origin.
+
+        Parameters
+        ----------
+        rois : Tensor
+            Region proposals with shape (B*N, 7).
+        batch_size_rcnn : int
+            Total number of RoIs (B*N).
+        grid_size : int
+            Number of grid points per dimension.
+
+        Returns
+        -------
+        Tensor
+            Dense grid points
         """
         faked_features = rois.new_ones((grid_size, grid_size, grid_size))
         dense_idx = torch.stack(torch.where(faked_features), dim=1)  # (N, 3) [x_idx, y_idx, z_idx]
@@ -114,6 +226,30 @@ class RoIHead(nn.Module):
         return roi_grid_points
 
     def assign_targets(self, batch_dict: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Assign ground truth targets to RoI proposals.
+
+        Matches proposals to ground truth boxes using IoU, generates
+        classification labels, regression targets, and IoU targets.
+
+        Parameters
+        ----------
+        batch_dict : dict of str to Any
+            Batch dictionary containing:
+            - 'boxes_fused': Predicted boxes.
+            - 'object_bbx_center': Ground truth boxes.
+            - 'object_bbx_mask': Valid object masks.
+
+        Returns
+        -------
+        dict of str to Any
+            Updated batch dictionary with 'rcnn_label_dict' containing:
+            - 'rois': Region proposals.
+            - 'gt_of_rois': Matched ground truth boxes.
+            - 'cls_tgt': Classification targets.
+            - 'reg_tgt': Regression targets.
+            - 'iou_tgt': IoU targets.
+        """
         batch_dict["rcnn_label_dict"] = {
             "rois": [],
             "gt_of_rois": [],
@@ -189,6 +325,19 @@ class RoIHead(nn.Module):
         return batch_dict
 
     def roi_grid_pool(self, batch_dict: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Perform RoI-aware grid pooling using PointNet++ set abstraction.
+
+        Parameters
+        ----------
+        batch_dict : dict of str to Any
+            Batch dictionary containing point features and RoI labels.
+
+        Returns
+        -------
+        Tensor
+            Pooled features with shape (B*N, grid_size^3, C).
+        """
         batch_size = len(batch_dict["record_len"])
         rois = batch_dict["rcnn_label_dict"]["rois"]
         point_coords = batch_dict["point_coords"]
@@ -223,6 +372,22 @@ class RoIHead(nn.Module):
         return pooled_features
 
     def forward(self, batch_dict):
+        """
+        Forward pass through RoI head.
+
+        Parameters
+        ----------
+        batch_dict : dict of str to Any
+            Batch dictionary containing point features and initial detections.
+
+        Returns
+        -------
+        dict of str to Any
+            Updated batch dictionary with 'fpvrcnn_out' containing:
+            - 'rcnn_cls': Classification scores.
+            - 'rcnn_iou': IoU predictions.
+            - 'rcnn_reg': Regression offsets.
+        """
         batch_dict = self.assign_targets(batch_dict)
         # RoI aware pooling
         pooled_features = self.roi_grid_pool(batch_dict)  # (BxN, 6x6x6, C)

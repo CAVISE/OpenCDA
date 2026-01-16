@@ -1,5 +1,8 @@
 """
-Implementation of F-cooper maxout fusing.
+F-Cooper Maxout Fusion implementation.
+
+This module implements the spatial maxout fusion strategy from F-Cooper,
+which aggregates multi-agent features using element-wise max pooling.
 """
 
 import torch
@@ -9,10 +12,13 @@ from typing import List
 
 class SpatialFusion(nn.Module):
     """
-    Spatial Fusion module that performs maxout fusion across the batch dimension.
-    For each sample in the batch, it takes multiple feature maps and performs
-    element-wise max pooling across them.
+    Spatial Fusion module using maxout fusion across agents.
+
+    This module performs element-wise max pooling across multiple agent feature maps
+    to create a fused representation. For each batch sample, it takes features from
+    multiple agents and selects the maximum activation at each spatial location.
     """
+
     def __init__(self):
         super(SpatialFusion, self).__init__()
 
@@ -47,7 +53,19 @@ class SpatialFusion(nn.Module):
         record_len: torch.Tensor
     ) -> torch.Tensor:
         """
-        Forward pass of the spatial fusion module.
+        Forward pass performing maxout fusion across agents.
+
+        Parameters
+        ----------
+        x : Tensor
+            Input features from all agents with shape (sum(record_len), C, H, W).
+        record_len : Tensor
+            Number of agents per batch sample with shape (B,).
+
+        Returns
+        -------
+        Tensor
+            Fused features with shape (B, C, H, W) after max pooling across agents.
         """
         # x: B, C, H, W, split x:[(B1, C, W, H), (B2, C, W, H)]
         split_x = self.regroup(x, record_len)

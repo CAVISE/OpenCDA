@@ -10,7 +10,6 @@ import logging
 
 from matplotlib import pyplot as plt
 import numpy as np
-import numpy.typing as npt
 
 import opencood.visualization.simple_plot3d.canvas_3d as canvas_3d
 import opencood.visualization.simple_plot3d.canvas_bev as canvas_bev

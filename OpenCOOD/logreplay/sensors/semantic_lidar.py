@@ -1,9 +1,13 @@
 """
-This is mainly used to filter out objects that is not in the sight
-of cameras.
+Semantic LiDAR sensor for filtering objects within camera field of view.
+
+This module provides a semantic LiDAR sensor implementation that identifies
+and filters vehicles based on point cloud density, primarily used to determine
+which objects are visible to the vehicle's perception system.
 """
 
 import weakref
+from typing import List, Optional, Dict, Any
 
 import carla
 import numpy as np
@@ -11,7 +15,50 @@ from logreplay.sensors.base_sensor import BaseSensor
 
 
 class SemanticLidar(BaseSensor):
-    def __init__(self, agent_id, vehicle, world, config, global_position):
+    """
+    Semantic LiDAR sensor for vehicle detection and visibility filtering.
+
+    Captures semantic point cloud data and filters vehicles based on point
+    density to determine visibility.
+
+    Parameters
+    ----------
+    agent_id : str
+        Unique identifier for the agent.
+    vehicle : Optional[carla.Actor]
+        CARLA vehicle actor to attach sensor to. None for fixed position.
+    world : carla.World
+        CARLA world instance.
+    config : Dict[str, Any]
+        Sensor configuration with LiDAR parameters (fov, channels, range,
+        points_per_second, rotation_frequency, relative_pose, thresh).
+    global_position : Optional[List[float]]
+        Global position [x, y, z] if not attached to vehicle.
+
+    Attributes
+    ----------
+    sensor : carla.Actor
+        CARLA semantic LiDAR sensor actor.
+    name : str
+        Sensor name with relative position.
+    thresh : int
+        Minimum points required to consider a vehicle visible.
+    points : Optional[NDArray]
+        Point cloud data (N, 3) array of [x, y, z].
+    obj_idx : Optional[NDArray]
+        Object instance IDs for each point.
+    obj_tag : Optional[NDArray]
+        Semantic tags for each point (10 = vehicle).
+    """
+
+    def __init__(
+        self,
+        agent_id: str,
+        vehicle: Optional[carla.Actor],
+        world: carla.World,
+        config: Dict[str, Any],
+        global_position: Optional[List[float]]
+    ) -> None:
         super().__init__(agent_id, vehicle, world, config, global_position)
 
         if vehicle is not None:
@@ -50,8 +97,24 @@ class SemanticLidar(BaseSensor):
         self.sensor.listen(lambda event: SemanticLidar._on_data_event(weak_self, event))
 
     @staticmethod
-    def _on_data_event(weak_self, event):
-        """Semantic Lidar  method"""
+    def _on_data_event(weak_self: weakref.ref, event: carla.SensorData) -> None:
+        """
+        Callback for semantic LiDAR data reception.
+
+        Processes incoming semantic LiDAR data, extracting point coordinates,
+        object indices, and semantic tags.
+
+        Parameters
+        ----------
+        weak_self : weakref.ref
+            Weak reference to the SemanticLidar instance.
+        event : carla.SensorData
+            Semantic LiDAR data event from CARLA.
+
+        Returns
+        -------
+        None
+        """
         self = weak_self()
         if not self:
             return
@@ -74,7 +137,29 @@ class SemanticLidar(BaseSensor):
         self.timestamp = event.timestamp
 
     @staticmethod
-    def spawn_point_estimation(relative_position, global_position):
+    def spawn_point_estimation(
+        relative_position: str,
+        global_position: Optional[List[float]]
+    ) -> carla.Transform:
+        """
+        Calculate sensor spawn point based on mounting position.
+
+        Determines the sensor's location and orientation relative to the vehicle
+        or at a global position.
+
+        Parameters
+        ----------
+        relative_position : str
+            Mounting position: "front", "left", "right", or "back".
+        global_position : Optional[List[float]]
+            Global position [x, y, z] if not attached to vehicle. If None,
+            position is relative to vehicle origin.
+
+        Returns
+        -------
+        carla.Transform
+            Spawn point with location and rotation for the sensor.
+        """
         pitch = 0
         carla_location = carla.Location(x=0, y=0, z=0)
 
@@ -102,7 +187,19 @@ class SemanticLidar(BaseSensor):
 
         return spawn_point
 
-    def tick(self):
+    def tick(self) -> List[int]:
+        """
+        Process current LiDAR data and return visible vehicle IDs.
+
+        Filters vehicles based on point density threshold. Only vehicles with
+        sufficient LiDAR points (above thresh) are considered visible.
+
+        Returns
+        -------
+        List[int]
+            List of unique vehicle instance IDs that meet the visibility
+            threshold.
+        """
         while self.obj_idx is None or self.obj_tag is None or self.obj_idx.shape[0] != self.obj_tag.shape[0]:
             continue
 

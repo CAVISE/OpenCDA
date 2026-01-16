@@ -1,6 +1,8 @@
 """
-Multi-scale window transformer implementation for feature fusion in multi-agent systems.
-This module provides window-based attention mechanisms with support for multi-scale processing.
+Base Window Attention module for local self-attention.
+
+This module implements window-based attention with optional relative position embeddings
+for efficient processing of spatial features.
 """
 
 import torch
@@ -12,13 +14,25 @@ from opencood.models.sub_modules.split_attn import SplitAttn
 
 from typing import List
 
+
 def get_relative_distances(window_size: int) -> torch.Tensor:
     """
     Generate relative position indices for a square window.
-    Args:
-        window_size: Size of the square window (height/width)
-    Returns:
-        Tensor of shape (window_size^2, window_size^2, 2) containing relative positions
+    
+    Computes pairwise relative positions between all spatial locations
+    in a square window, used for relative position encoding in attention.
+
+    Parameters
+    ----------
+    window_size : int
+        Size of the square window (height and width).
+
+    Returns
+    -------
+    distances : torch.Tensor
+        Relative position indices with shape (window_size^2, window_size^2, 2).
+        distances[i, j, 0] is the relative row distance from position i to j.
+        distances[i, j, 1] is the relative column distance from position i to j.
     """
     indices = torch.tensor(np.array([[x, y] for x in range(window_size) for y in range(window_size)]))
     distances = indices[None, :, :] - indices[:, None, :]
@@ -43,7 +57,27 @@ class BaseWindowAttention(nn.Module):
         Size of the attention window.
     relative_pos_embedding : bool
         Whether to use relative position embeddings.
+    
+    Attributes
+    ----------
+    heads : int
+        Number of attention heads.
+    scale : float
+        Scaling factor for attention scores (1/sqrt(dim_head)).
+    window_size : int
+        Size of the attention window.
+    relative_pos_embedding : bool
+        Flag indicating whether relative position embeddings are used.
+    to_qkv : nn.Linear
+        Linear projection for queries, keys, and values.
+    relative_indices : Tensor, optional
+        Buffer storing relative position indices if relative_pos_embedding is True.
+    pos_embedding : nn.Parameter
+        Learnable position embedding parameters.
+    to_out : nn.Sequential
+        Output projection with dropout.
     """
+
     def __init__(
         self,
         dim: int,
@@ -122,6 +156,39 @@ class BaseWindowAttention(nn.Module):
 
 
 class PyramidWindowAttention(nn.Module):
+    """
+    Multi-scale window attention with multiple window sizes.
+    
+    Applies window-based self-attention at different scales (window sizes)
+    and fuses the results using naive averaging or split attention.
+
+    Parameters
+    ----------
+    dim : int
+        Input feature dimension.
+    heads : list of int
+        Number of attention heads for each window size.
+    dim_heads : list of int
+        Head dimension for each window size.
+    drop_out : float
+        Dropout probability.
+    window_size : list of int
+        Window sizes for multi-scale attention 
+    relative_pos_embedding : bool
+        Whether to use relative position embeddings.
+    fuse_method : str, optional
+        Fusion method: 'naive' (average) or 'split_attn'. Default is 'naive'.
+
+    Attributes
+    ----------
+    pwmsa : nn.ModuleList
+        List of BaseWindowAttention modules for each scale.
+    fuse_mehod : str
+        Fusion method being used.
+    split_attn : SplitAttn, optional
+        Split attention fusion module (if fuse_method='split_attn').
+    """
+
     def __init__(
         self,
         dim: int,
@@ -148,6 +215,19 @@ class PyramidWindowAttention(nn.Module):
             self.split_attn = SplitAttn(256)
 
     def forward(self, x):
+        """
+        Apply multi-scale window attention and fuse results.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Input features (B, C, H, W) or (B, H*W, C).
+
+        Returns
+        -------
+        output : torch.Tensor
+            Fused multi-scale attention output with same shape as input.
+        """
         output = None
         # naive fusion will just sum up all window attention output and do a
         # mean

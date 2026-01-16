@@ -1,3 +1,10 @@
+"""
+Hierarchical Graph Transformer CAV Attention module.
+
+This module implements a hierarchical multi-head attention mechanism for handling
+heterogeneous agents with different types and relationships in cooperative perception.
+"""
+
 import torch
 from torch import nn
 
@@ -28,6 +35,35 @@ class HGTCavAttention(nn.Module):
         Dimension of each attention head. Default is 64.
     dropout : float, optional
         Dropout probability. Default is 0.1.
+    
+     Attributes
+    ----------
+    heads : int
+        Number of attention heads.
+    scale : float
+        Scaling factor for attention scores (1/sqrt(dim_head)).
+    num_types : int
+        Number of different agent types.
+    attend : nn.Softmax
+        Softmax layer for computing attention weights.
+    drop_out : nn.Dropout
+        Dropout layer for regularization.
+    k_linears : nn.ModuleList
+        List of linear layers for key projections, one per agent type.
+    q_linears : nn.ModuleList
+        List of linear layers for query projections, one per agent type.
+    v_linears : nn.ModuleList
+        List of linear layers for value projections, one per agent type.
+    a_linears : nn.ModuleList
+        List of linear layers for output projections, one per agent type.
+    norms : nn.ModuleList
+        List of normalization layers (currently unused).
+    relation_att : nn.Parameter
+        Learnable relation-specific attention parameters with shape
+        (num_relations, heads, dim_head, dim_head).
+    relation_msg : nn.Parameter
+        Learnable relation-specific message parameters with shape
+        (num_relations, heads, dim_head, dim_head).
     """
     
     def __init__(

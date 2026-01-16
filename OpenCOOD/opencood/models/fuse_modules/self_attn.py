@@ -1,50 +1,58 @@
 """
-This module implements the scaled dot-product attention mechanism.
+Scaled Dot-Product Attention for multi-agent feature fusion.
+
+This module implements scaled dot-product attention mechanism for aggregating
+features from multiple agents in cooperative perception systems.
 """
+
+from typing import List
+
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
+from torch import Tensor
 
 class ScaledDotProductAttention(nn.Module):
     """
-    Scaled Dot-Product Attention proposed in "Attention Is All You Need".
-    
-    Compute the dot products of the query with all keys, divide each by sqrt(dim),
-    and apply a softmax function to obtain the weights on the values.
-    
+    Scaled Dot-Product Attention mechanism.
+
+    Computes attention weights by taking the dot product of queries with keys,
+    scaling by sqrt(dim), applying softmax, and aggregating values.
+
     Parameters
     ----------
     dim : int
-        Dimension of attention.
-    mask : torch.Tensor
-        Tensor containing indices to be masked.
-    
+        Dimension of attention features.
+
     Attributes
     ----------
-    query : torch.Tensor
-        Tensor of shape (batch, q_len, d_model) containing projection vector for decoder.
-    key : torch.Tensor
-        Tensor of shape (batch, k_len, d_model) containing projection vector for encoder.
-    value : torch.Tensor
-        Tensor of shape (batch, v_len, d_model) containing features of the encoded input sequence.
-    mask : torch.Tensor
-        Tensor containing indices to be masked.
-    
-    Returns
-    -------
-    context : torch.Tensor
-        Tensor containing the context vector from attention mechanism.
-    attn : torch.Tensor
-        Tensor containing the attention (alignment) from the encoder outputs.
+    sqrt_dim : float
+        Square root of dimension for scaling attention scores.
     """
 
     def __init__(self, dim: int):
         super(ScaledDotProductAttention, self).__init__()
         self.sqrt_dim = np.sqrt(dim)
 
-    def forward(self, query, key, value):
+    def forward(self, query: Tensor, key: Tensor, value: Tensor) -> Tensor:
+        """
+        Apply scaled dot-product attention.
+
+        Parameters
+        ----------
+        query : Tensor
+            Query tensor with shape (batch, q_len, d_model).
+        key : Tensor
+            Key tensor with shape (batch, k_len, d_model).
+        value : Tensor
+            Value tensor with shape (batch, v_len, d_model).
+
+        Returns
+        -------
+        Tensor
+            Context vector from attention mechanism with shape (batch, q_len, d_model).
+        """
         score = torch.bmm(query, key.transpose(1, 2)) / self.sqrt_dim
         attn = F.softmax(score, -1)
         context = torch.bmm(attn, value)
@@ -52,11 +60,43 @@ class ScaledDotProductAttention(nn.Module):
 
 
 class AttFusion(nn.Module):
-    def __init__(self, feature_dim):
+    """
+    Attention-based fusion module for multi-agent feature aggregation.
+    
+    Applies scaled dot-product attention across CAV features at each spatial
+    location to fuse information from multiple agents into ego vehicle's view.
+
+    Parameters
+    ----------
+    feature_dim : int
+        Feature channel dimension for attention computation.
+
+    Attributes
+    ----------
+    att : ScaledDotProductAttention
+        Self-attention module for cross-agent feature fusion.
+    """
+
+    def __init__(self, feature_dim: int):
         super(AttFusion, self).__init__()
         self.att = ScaledDotProductAttention(feature_dim)
 
-    def forward(self, x, record_len):
+    def forward(self, x: Tensor, record_len: Tensor) -> Tensor:
+        """
+        Forward pass for attention-based fusion.
+
+        Parameters
+        ----------
+        x : Tensor
+            Input features from all agents with shape (sum(n_cav), C, H, W).
+        record_len : Tensor
+            Number of agents per batch sample with shape (B,).
+
+        Returns
+        -------
+        Tensor
+            Fused ego vehicle features with shape (B, C, H, W).
+        """
         split_x = self.regroup(x, record_len)
         C, W, H = split_x[0].shape[1:]
         out = []
@@ -68,7 +108,22 @@ class AttFusion(nn.Module):
             out.append(h)
         return torch.stack(out)
 
-    def regroup(self, x, record_len):
+    def regroup(x: Tensor, record_len: Tensor) -> List[Tensor]:
+        """
+        Split input tensor into a list of tensors based on record_len.
+
+        Parameters
+        ----------
+        x : Tensor
+            Input tensor to be split with shape (sum(n_cav), C, H, W).
+        record_len : Tensor
+            Number of agents per sample with shape (B,).
+
+        Returns
+        -------
+        list of Tensor
+            List of tensors [(L1, C, H, W), (L2, C, H, W), ...], one per sample.
+        """
         cum_sum_len = torch.cumsum(record_len, dim=0)
         split_x = torch.tensor_split(x, cum_sum_len[:-1].cpu())
         return split_x

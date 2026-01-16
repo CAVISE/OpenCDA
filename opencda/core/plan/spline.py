@@ -1,12 +1,16 @@
 """
-Cubic spline planner
+Cubic spline planner for 2D path interpolation and curvature calculation.
+
+This module provides classes for creating smooth cubic splines from discrete
+waypoints and calculating geometric properties like position, yaw, and curvature.
 
 Author: Atsushi Sakai(@Atsushi_twi)
-
 """
 
 import math
+from typing import List, Tuple, Optional
 import numpy as np
+import numpy.typing as npt
 import bisect
 
 
@@ -65,7 +69,7 @@ class Spline:
             tb = (self.a[i + 1] - self.a[i]) / h[i] - h[i] * (self.c[i + 1] + 2.0 * self.c[i]) / 3.0
             self.b.append(tb)
 
-    def calc(self, t):
+    def calc(self, t: float) -> Optional[float]:
         """
         Calculate position at parameter t.
         
@@ -91,7 +95,7 @@ class Spline:
 
         return result
 
-    def calcd(self, t):
+    def calcd(self, t: float) -> Optional[float]:
         """
         Calculate first derivative at parameter t.
         
@@ -116,7 +120,7 @@ class Spline:
         result = self.b[i] + 2.0 * self.c[i] * dx + 3.0 * self.d[i] * dx**2.0
         return result
 
-    def calcdd(self, t):
+    def calcdd(self, t: float) -> Optional[float]:
         """
         Calculate second derivative at parameter t.
         
@@ -141,7 +145,7 @@ class Spline:
         result = 2.0 * self.c[i] + 6.0 * self.d[i] * dx
         return result
 
-    def __search_index(self, x):
+    def __search_index(self, x: float) -> int:
         """
         Search data segment index.
         
@@ -157,7 +161,7 @@ class Spline:
         """
         return bisect.bisect(self.x, x) - 1
 
-    def __calc_A(self, h):
+    def __calc_A(self, h: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
         """
         Calculate matrix A for spline coefficient calculation.
         
@@ -185,7 +189,7 @@ class Spline:
         #  print(A)
         return A
 
-    def __calc_B(self, h):
+    def __calc_B(self, h: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
         """
         Calculate matrix B for spline coefficient calculation.
         
@@ -235,7 +239,7 @@ class Spline2D:
         self.sx = Spline(self.s, x)
         self.sy = Spline(self.s, y)
 
-    def __calc_s(self, x, y):
+    def __calc_s(self, x: npt.ArrayLike, y: npt.ArrayLike) -> List[float]:
         """
         Calculate cumulative arc length.
         
@@ -258,7 +262,7 @@ class Spline2D:
         s.extend(np.cumsum(self.ds))
         return s
 
-    def calc_position(self, s):
+    def calc_position(self, s: float) -> Tuple[Optional[float], Optional[float]]:
         """
         Calculate position at arc length s.
         
@@ -279,7 +283,7 @@ class Spline2D:
 
         return x, y
 
-    def calc_curvature(self, s):
+    def calc_curvature(self, s: float) -> float:
         """
         Calculate curvature at arc length s.
         
@@ -300,7 +304,7 @@ class Spline2D:
         k = (ddy * dx - ddx * dy) / ((dx**2 + dy**2) ** (3 / 2))
         return k
 
-    def calc_yaw(self, s):
+    def calc_yaw(self, s: float) -> float:
         """
         Calculate yaw angle at arc length s.
         
@@ -320,7 +324,9 @@ class Spline2D:
         return yaw
 
 
-def calc_spline_course(x, y, ds=0.1):
+def calc_spline_course(
+    x: npt.ArrayLike, y: npt.ArrayLike, ds: float = 0.1
+) -> Tuple[List[float], List[float], List[float], List[float], List[float]]:
     """
     Calculate 2D spline course.
     

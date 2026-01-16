@@ -20,45 +20,56 @@ from opencood.models.sub_modules.point_pillar_scatter import PointPillarScatter
 class PointPillarWhere2comm(nn.Module):
     """
     PointPillar with Where2comm for communication-efficient multi-agent 3D object detection.
-    """
-    def __init__(self, args):
-        """
-        Initialize the PointPillarWhere2comm model.
 
-        Parameters
-        ----------
-        args : dict
-            Configuration dictionary containing the following keys:
-            
-            max_cav : int
-                Maximum number of connected automated vehicles.
-            pillar_vfe : dict
-                Configuration for PillarVFE module.
-            voxel_size : list of float
-                Voxel size [x, y, z].
-            lidar_range : list of float
-                LiDAR range [x_min, y_min, z_min, x_max, y_max, z_max].
-            point_pillar_scatter : dict
-                Configuration for point pillar scatter module.
-            base_bev_backbone : dict
-                Configuration for BaseBEVBackbone module.
-            shrink_header : dict, optional
-                Configuration for feature downsampling.
-            compression : dict
-                Configuration for feature compression module.
-            where2comm_fusion : dict
-                Configuration for Where2comm fusion module containing:
-                
-                multi_scale : bool
-                    Whether to use multi-scale features.
-            
-            head_dim : int
-                Dimension of the detection head.
-            anchor_number : int
-                Number of anchor boxes per position.
-            backbone_fix : bool
-                Whether to fix backbone parameters during training.
-        """
+    This module integrates PointPillar architecture with Where2comm fusion mechanism
+    to enable efficient multi-agent cooperative perception with adaptive communication.
+
+    Parameters
+    ----------
+    args : dict of str to Any
+        Configuration dictionary containing:
+        - 'max_cav': Maximum number of connected automated vehicles.
+        - 'pillar_vfe': Configuration for PillarVFE module.
+        - 'voxel_size': Voxel size [x, y, z].
+        - 'lidar_range': LiDAR range [x_min, y_min, z_min, x_max, y_max, z_max].
+        - 'point_pillar_scatter': Configuration for point pillar scatter module.
+        - 'base_bev_backbone': Configuration for BaseBEVBackbone module.
+        - 'shrink_header': Configuration for feature downsampling (optional).
+        - 'compression': Configuration for feature compression module.
+        - 'where2comm_fusion': Configuration for Where2comm fusion module with 'multi_scale' flag.
+        - 'head_dim': Dimension of the detection head.
+        - 'anchor_number': Number of anchor boxes per position.
+        - 'backbone_fix': Whether to fix backbone parameters during training.
+
+    Attributes
+    ----------
+    max_cav : int
+        Maximum number of connected automated vehicles.
+    pillar_vfe : PillarVFE
+        Pillar voxel feature encoder module.
+    scatter : PointPillarScatter
+        Scatter module to convert pillar features to pseudo-image.
+    backbone : BaseBEVBackbone
+        2D backbone network for BEV feature extraction.
+    shrink_flag : bool
+        Flag indicating whether feature downsampling is enabled.
+    shrink_conv : DownsampleConv, optional
+        Downsampling convolution module if shrink_flag is True.
+    compression : bool
+        Flag indicating whether feature compression is enabled.
+    naive_compressor : NaiveCompressor, optional
+        Feature compression module if compression is enabled.
+    fusion_net : Where2comm
+        Where2comm fusion module for multi-agent feature fusion.
+    multi_scale : bool
+        Flag indicating whether multi-scale features are used.
+    cls_head : nn.Conv2d
+        Classification head for predicting object scores.
+    reg_head : nn.Conv2d
+        Regression head for predicting bounding box parameters.
+    """
+    
+    def __init__(self, args):
         super(PointPillarWhere2comm, self).__init__()
         self.max_cav = args["max_cav"]
         # Pillar VFE
@@ -90,7 +101,10 @@ class PointPillarWhere2comm(nn.Module):
 
     def backbone_fix(self) -> None:
         """
-        Fix the parameters of backbone during finetune on timedelay.
+        Fix the parameters of backbone during fine-tuning on time delay.
+
+        This method freezes gradients for all backbone components including
+        pillar VFE, scatter, backbone, compressor, shrink conv, and detection heads.
         """
         for p in self.pillar_vfe.parameters():
             p.requires_grad = False
@@ -116,6 +130,23 @@ class PointPillarWhere2comm(nn.Module):
     def forward(self, data_dict: Dict[str, Any]) -> Dict[str, torch.Tensor]:
         """
         Forward pass of the PointPillarWhere2comm model.
+
+        Parameters
+        ----------
+        data_dict : dict of str to Any
+            Input data dictionary containing:
+            - 'processed_lidar': Dictionary with 'voxel_features', 'voxel_coords',
+              and 'voxel_num_points'.
+            - 'record_len': Tensor indicating number of agents per batch sample.
+            - 'pairwise_t_matrix': Pairwise transformation matrices between agents.
+
+        Returns
+        -------
+        dict of str to torch.Tensor
+            Output dictionary with keys:
+            - 'psm': Probability score map with shape (batch_size, anchor_number, H, W).
+            - 'rm': Regression map with shape (batch_size, 7*anchor_number, H, W).
+            - 'com': Communication rates indicating bandwidth usage per agent.
         """
         voxel_features = data_dict["processed_lidar"]["voxel_features"]
         voxel_coords = data_dict["processed_lidar"]["voxel_coords"]

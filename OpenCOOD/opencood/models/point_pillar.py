@@ -35,6 +35,19 @@ class PointPillar(nn.Module):
             - base_bev_backbone: Configuration for BaseBEVBackbone
             - anchor_number: Number of anchor boxes per position for classification
             - anchor_num: Number of anchor boxes for regression head
+
+    Attributes
+    ----------
+    pillar_vfe : PillarVFE
+        Pillar voxel feature encoder module.
+    scatter : PointPillarScatter
+        Scatter module to convert pillar features to pseudo-image.
+    backbone : BaseBEVBackbone
+        2D backbone network for BEV feature extraction.
+    cls_head : nn.Conv2d
+        Classification head for predicting object scores.
+    reg_head : nn.Conv2d
+        Regression head for predicting bounding box parameters.
     """
 
     def __init__(self, args):
@@ -51,6 +64,20 @@ class PointPillar(nn.Module):
     def forward(self, data_dict: Dict[str, Any]) -> Dict[str, torch.Tensor]:
         """
         Forward pass of the PointPillar model.
+
+        Parameters
+        ----------
+        data_dict : dict of str to Any
+            Input data dictionary containing:
+            - 'processed_lidar': Dictionary with 'voxel_features', 'voxel_coords',
+              and 'voxel_num_points'.
+
+        Returns
+        -------
+        dict of str to torch.Tensor
+            Output dictionary with keys:
+            - 'psm': Probability score map with shape (batch_size, anchor_number, H, W).
+            - 'rm': Regression map with shape (batch_size, 7*anchor_num, H, W).
         """
         voxel_features = data_dict["processed_lidar"]["voxel_features"]
         voxel_coords = data_dict["processed_lidar"]["voxel_coords"]

@@ -1,3 +1,10 @@
+"""
+FPV-RCNN model for two-stage 3D object detection.
+
+This module implements FPV-RCNN (Frustum Point-Voxel R-CNN), a two-stage detector
+combining voxel-based and point-based representations for accurate 3D object detection.
+"""
+
 from torch import nn
 import numpy as np
 
@@ -10,11 +17,64 @@ from opencood.models.sub_modules.roi_head import RoIHead
 from opencood.models.sub_modules.matcher import Matcher
 from opencood.data_utils.post_processor.fpvrcnn_postprocessor import FpvrcnnPostprocessor
 
-from typing import Dict, Any
+
 class FPVRCNN(nn.Module):
     """
     FPVRCNN (Frustum Point-Voxel R-CNN) model for 3D object detection.
+    
+    Parameters
+    ----------
+    args : dict
+        Model configuration containing:
+            - lidar_range : list of float
+                Detection range [x_min, y_min, z_min, x_max, y_max, z_max].
+            - voxel_size : list of float
+                Voxel dimensions [vx, vy, vz].
+            - mean_vfe : dict
+                VFE configuration.
+            - spconv : dict
+                Sparse convolution backbone config.
+            - map2bev : dict
+                Height compression config.
+            - ssfa : dict
+                SSFA module config.
+            - head : dict
+                Stage 1 detection head config.
+            - post_processer : dict
+                Postprocessor config (NMS, score threshold).
+            - vsa : dict
+                Voxel Set Abstraction config.
+            - matcher : dict
+                Proposal-GT matching config.
+            - roi_head : dict
+                Stage 2 RoI head config.
+            - activate_stage2 : bool
+                Whether to train/use stage 2 refinement.
+
+    Attributes
+    ----------
+    vfe : MeanVFE
+        Mean voxel feature encoder module.
+    spconv_block : VoxelBackBone8x
+        3D sparse convolutional backbone with 8x downsampling.
+    map_to_bev : HeightCompression
+        Height compression module to convert 3D features to BEV representation.
+    ssfa : SSFA
+        Spatial-Semantic Feature Aggregation module.
+    head : Head
+        Stage 1 detection head for initial proposals.
+    post_processor : FpvrcnnPostprocessor
+        Post-processor for NMS and filtering of stage 1 predictions.
+    vsa : VoxelSetAbstraction
+        Voxel Set Abstraction module for extracting point features from proposals.
+    matcher : Matcher
+        Module for matching proposals with ground truth boxes.
+    roi_head : RoIHead
+        Stage 2 RoI head for refining initial proposals.
+    train_stage2 : bool
+        Flag indicating whether stage 2 refinement is active.
     """
+
     def __init__(self, args):
         super(FPVRCNN, self).__init__()
         lidar_range = np.array(args["lidar_range"])
@@ -31,6 +91,28 @@ class FPVRCNN(nn.Module):
         self.train_stage2 = args["activate_stage2"]
 
     def forward(self, batch_dict):
+        """
+        Forward pass through FPV-RCNN two-stage detector.
+
+        Parameters
+        ----------
+        batch_dict : dict of str to Any
+            Input batch dictionary containing:
+            - 'processed_lidar': Dictionary with 'voxel_features', 'voxel_coords',
+              and 'voxel_num_points'.
+            - 'record_len': Tensor indicating number of samples per batch.
+            - 'object_bbx_center': Ground truth bounding box centers (training only).
+
+        Returns
+        -------
+        dict of str to torch.Tensor
+            Output dictionary with keys:
+            - 'preds_dict_stage1': Stage 1 predictions with bounding boxes and scores.
+            - 'det_boxes': List of detected bounding boxes after NMS.
+            - 'det_scores': List of detection scores.
+            - 'preds_dict_stage2': Stage 2 refined predictions (if stage 2 is active).
+            - Additional intermediate features from VSA and matcher modules.
+        """
         voxel_features = batch_dict["processed_lidar"]["voxel_features"]
         voxel_coords = batch_dict["processed_lidar"]["voxel_coords"]
         voxel_num_points = batch_dict["processed_lidar"]["voxel_num_points"]

@@ -1,11 +1,17 @@
 # -*- coding: utf-8 -*-
-"""This module is used to check collision possibility"""
+"""
+Collision detection and checking module.
 
+This module provides collision detection capabilities for autonomous vehicles,
+including range checking, adjacent lane collision detection, and circle-based
+collision checking along trajectories.
+"""
 # Author: Runsheng Xu <rxx3386@ucla.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
 import math
 from math import sin, cos
 from scipy import spatial
+from typing import List, Tuple, Optional, Any
 
 import carla
 import numpy as np
@@ -26,14 +32,34 @@ class CollisionChecker:
         The radius of the collision checking circle.
     circle_offsets : float
         The offset between collision checking circle and the trajectory point.
+
+    Attributes
+    ----------
+    time_ahead : float
+        Time horizon for collision checking in seconds.
+    _circle_offsets : List[float]
+        Offsets for collision checking circles.
+    _circle_radius : float
+        Radius of collision checking circles in meters.
     """
 
-    def __init__(self, time_ahead=1.2, circle_radius=1.0, circle_offsets=None):
+    def __init__(
+        self,
+        time_ahead: float = 1.2,
+        circle_radius: float = 1.0,
+        circle_offsets: Optional[List[float]] = None,
+    ):
         self.time_ahead = time_ahead
         self._circle_offsets = [-1.0, 0, 1.0] if circle_offsets is None else circle_offsets
         self._circle_radius = circle_radius
 
-    def is_in_range(self, ego_pos, target_vehicle, candidate_vehicle, carla_map):
+    def is_in_range(
+        self,
+        ego_pos: carla.Transform,
+        target_vehicle: Any,
+        candidate_vehicle: Any,
+        carla_map: Any,
+    ) -> bool:
         """
         Check whether there is a obstacle vehicle between target_vehicle
         and ego_vehicle during back_joining.
@@ -88,7 +114,14 @@ class CollisionChecker:
 
         return True if angle <= 3 else False
 
-    def adjacent_lane_collision_check(self, ego_loc, target_wpt, overtake, carla_map, world):
+    def adjacent_lane_collision_check(
+        self,
+        ego_loc: carla.Location,
+        target_wpt: Any,
+        overtake: bool,
+        carla_map: Any,
+        world: Any,
+    ) -> Tuple[List[float], List[float], List[float]]:
         """
         Generate a straight line in the adjacent lane for collision detection during overtake/lane change.
         
@@ -161,7 +194,16 @@ class CollisionChecker:
 
         return rx, ry, ryaw
 
-    def collision_circle_check(self, path_x, path_y, path_yaw, obstacle_vehicle, speed, carla_map, adjacent_check=False):
+    def collision_circle_check(
+        self,
+        path_x: List[float],
+        path_y: List[float],
+        path_yaw: List[float],
+        obstacle_vehicle: Any,
+        speed: float,
+        carla_map: Any,
+        adjacent_check: bool = False,
+    ) -> bool:
         """
         Use circled collision check to see whether potential hazard on the forwarding path.
         

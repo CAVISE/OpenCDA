@@ -1,5 +1,9 @@
 """
-Template for AnchorGenerator
+Base post-processor for 3D object detection.
+
+This module provides the foundational post-processing functionality for anchor-based
+3D object detection, including anchor generation, label creation, and ground truth
+bounding box processing.
 """
 
 import numpy as np
@@ -40,15 +44,25 @@ class BasePostprocessor(object):
         -------
         Optional[torch.Tensor]
             Tensor containing anchor boxes, or None if not implemented.
+            
+        Raises
+        ------
+        NotImplementedError
+            This method should be overridden by subclasses.
         """
         # needs to be overloaded
-        return None
+        raise NotImplementedError
 
     def generate_label(self, *argv: Any) -> Any:
         """
         Generate labels for training.
+        
+        Raises
+        ------
+        NotImplementedError
+            This method should be overridden by subclasses.
         """
-        return None
+        raise NotImplementedError
 
     def generate_gt_bbx(self, data_dict: Dict[str, Any]) -> torch.Tensor:
         """

@@ -45,6 +45,7 @@ def bbx2linset(
     list of o3d.geometry.LineSet
         The list containing linesets.
     """
+
     if not isinstance(bbx_corner, np.ndarray):
         bbx_corner = common_utils.torch_tensor_to_numpy(bbx_corner)
 
@@ -94,6 +95,7 @@ def bbx2oabb(
     list of o3d.geometry.OrientedBoundingBox
         The list containing all oriented bounding boxes.
     """
+    
     if not isinstance(bbx_corner, np.ndarray):
         bbx_corner = common_utils.torch_tensor_to_numpy(bbx_corner)
 

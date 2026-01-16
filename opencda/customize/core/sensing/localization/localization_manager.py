@@ -1,31 +1,51 @@
 # -*- coding: utf-8 -*-
 """
-Customized Localization Module.
+Customized localization module for sensor fusion-based positioning.
+
+This module extends the default OpenCDA localization manager with a customized
+Extended Kalman Filter implementation for improved position estimation.
 """
 # Author: Runsheng Xu <rxx3386@ucla.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
+
+from typing import Dict, Any
+import carla
 
 from opencda.core.sensing.localization.localization_manager import LocalizationManager
 from opencda.customize.core.sensing.localization.extented_kalman_filter import ExtentedKalmanFilter
 
 
 class CustomizedLocalizationManager(LocalizationManager):
-    """Customized Localization module to replace the default module.
+    """
+    Customized localization module with Extended Kalman Filter.
+
+    Extends the default OpenCDA localization manager to use a custom
+    Extended Kalman Filter for sensor fusion and position estimation.
 
     Parameters
-    -vehicle : carla.Vehicle
-        The carla.Vehicle. We need this class to spawn our gnss and imu sensor.
-    -config_yaml: dict
-        The configuration dictionary of the localization module.
-    -carla_map: carla.Map
-        The carla HDMap. We need this to find the map origin
-        to convert wg84 to enu coordinate system.
+    ----------
+    vehicle : carla.Vehicle
+        CARLA vehicle object for spawning GNSS and IMU sensors.
+    config_yaml : Dict[str, Any]
+        Configuration dictionary for the localization module.
+    carla_map : carla.Map
+        CARLA HD map for coordinate system conversion (WGS84 to ENU).
 
     Attributes
-    -kf : opencda object
-        The filter used to fuse different sensors.
+    ----------
+    kf : ExtentedKalmanFilter
+        Extended Kalman Filter for sensor fusion.
+    dt : float
+        Time step for filter updates (inherited from parent).
+    vehicle : carla.Vehicle
+        CARLA vehicle instance (inherited from parent).
     """
 
-    def __init__(self, vehicle, config_yaml, carla_map):
+    def __init__(
+        self,
+        vehicle: carla.Vehicle,
+        config_yaml: Dict[str, Any],
+        carla_map: carla.Map,
+    ):
         super(CustomizedLocalizationManager, self).__init__(vehicle, config_yaml, carla_map)
         self.kf = ExtentedKalmanFilter(self.dt)

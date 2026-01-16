@@ -1,6 +1,9 @@
 """
-Convert lidar to voxel. This class was manually designed, and we recommend
-to use sp_voxel_preprocessor.
+Voxel preprocessor for LiDAR point cloud conversion.
+
+This module provides manual voxelization of LiDAR point clouds for 3D object
+detection in cooperative autonomous driving. For improved performance, consider
+using sp_voxel_preprocessor instead.
 """
 
 import sys

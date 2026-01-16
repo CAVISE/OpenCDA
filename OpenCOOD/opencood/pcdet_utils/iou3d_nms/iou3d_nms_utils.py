@@ -1,23 +1,43 @@
 """
-3D IoU Calculation and Rotated NMS
-Written by Shaoshuai Shi
+3D IoU calculation and rotated NMS operations.
+
+Provides CUDA-accelerated functions for computing 3D intersection over union (IoU),
+generalized IoU (GIoU), and non-maximum suppression (NMS) for 3D bounding boxes.
+
+Author: Shaoshuai Shi
 All Rights Reserved 2019-2020.
 """
 
 import torch
 import numpy as np
+import numpy.typing as npt
 
 from opencood.utils.common_utils import check_numpy_to_torch
 from opencood.pcdet_utils.iou3d_nms import iou3d_nms_cuda
 
+from typing import Tuple, Optional, Union, List
 
-def boxes_bev_iou_cpu(boxes_a, boxes_b):
+def boxes_bev_iou_cpu(
+    boxes_a: Union[torch.Tensor, npt.NDArray],
+    boxes_b: Union[torch.Tensor, npt.NDArray],
+) -> Union[torch.Tensor, npt.NDArray]:
     """
-    Args:
-        boxes_a: (N, 7) [x, y, z, dx, dy, dz, heading]
-        boxes_b: (N, 7) [x, y, z, dx, dy, dz, heading]
+    Compute bird's eye view (BEV) IoU between two sets of boxes on CPU.
 
-    Returns:
+    Parameters
+    ----------
+    boxes_a : torch.Tensor or npt.NDArray
+        First set of boxes with shape (N, 7).
+        Format: [x, y, z, dx, dy, dz, heading].
+    boxes_b : torch.Tensor or npt.NDArray
+        Second set of boxes with shape (M, 7).
+        Format: [x, y, z, dx, dy, dz, heading].
+
+    Returns
+    -------
+    ans_iou : torch.Tensor or npt.NDArray
+        IoU matrix with shape (N, M).
+        Returns same type as input (numpy or torch).
 
     """
     boxes_a, is_numpy = check_numpy_to_torch(boxes_a)
@@ -30,14 +50,23 @@ def boxes_bev_iou_cpu(boxes_a, boxes_b):
     return ans_iou.numpy() if is_numpy else ans_iou
 
 
-def boxes_iou_bev(boxes_a, boxes_b):
+def boxes_iou_bev(boxes_a: torch.Tensor, boxes_b: torch.Tensor) -> torch.Tensor:
     """
-    Args:
-        boxes_a: (N, 7) [x, y, z, dx, dy, dz, heading]
-        boxes_b: (N, 7) [x, y, z, dx, dy, dz, heading]
+    Compute bird's eye view (BEV) IoU between two sets of boxes on GPU.
 
-    Returns:
-        ans_iou: (N, M)
+    Parameters
+    ----------
+    boxes_a : torch.Tensor
+        First set of boxes with shape (N, 7).
+        Format: [x, y, z, dx, dy, dz, heading].
+    boxes_b : torch.Tensor
+        Second set of boxes with shape (M, 7).
+        Format: [x, y, z, dx, dy, dz, heading].
+
+    Returns
+    -------
+    ans_iou : torch.Tensor
+        IoU matrix with shape (N, M)
     """
     assert boxes_a.shape[1] == boxes_b.shape[1] == 7
     ans_iou = torch.cuda.FloatTensor(torch.Size((boxes_a.shape[0], boxes_b.shape[0]))).zero_()
@@ -47,14 +76,34 @@ def boxes_iou_bev(boxes_a, boxes_b):
     return ans_iou
 
 
-def decode_boxes_and_iou3d(boxes_a, boxes_b, pc_range, box_mean, box_std):
+def decode_boxes_and_iou3d(
+    boxes_a: torch.Tensor,
+    boxes_b: torch.Tensor,
+    pc_range: Union[List[float], torch.Tensor],
+    box_mean: Union[List[float], torch.Tensor],
+    box_std: Union[List[float], torch.Tensor],
+) -> torch.Tensor:
     """
-    Transform the boxes format back to [x, y, z, dx, dy, dz, heading] and calculate iou
-    :param boxes_a: (N, 7) [x_n, y_n, z_n, dx_n, dy_n, dz_n, heading_n] normalized
-    :param boxes_b: (M, 7) [x_n, y_n, z_n, dx_n, dy_n, dz_n, heading_n]
-    :param pc_range: point cloud range
-    :param object_ave_size: average object size
-    :return: ans_iou: (N, M)
+    Decode normalized boxes and compute 3D IoU.
+
+    Parameters
+    ----------
+    boxes_a : torch.Tensor
+        First set of normalized boxes with shape (N, 8).
+        Format: [x_n, y_n, z_n, dx_n, dy_n, dz_n, sin_h, cos_h].
+    boxes_b : torch.Tensor
+        Second set of normalized boxes with shape (M, 8).
+    pc_range : List[float] or torch.Tensor
+        Point cloud range [x_min, y_min, z_min, x_max, y_max, z_max].
+    box_mean : List[float] or torch.Tensor
+        Box normalization mean with length 8.
+    box_std : List[float] or torch.Tensor
+        Box normalization standard deviation with length 8.
+
+    Returns
+    -------
+    iou : torch.Tensor
+        3D IoU matrix with shape (N, M).
     """
     boxes_a_dec = decode_boxes(boxes_a, pc_range, box_mean, box_std)
     boxes_b_dec = decode_boxes(boxes_b, pc_range, box_mean, box_std)
@@ -63,7 +112,33 @@ def decode_boxes_and_iou3d(boxes_a, boxes_b, pc_range, box_mean, box_std):
     return iou
 
 
-def decode_boxes(boxes, pc_range, box_mean, box_std):
+def decode_boxes(
+    boxes: torch.Tensor,
+    pc_range: Union[List[float], torch.Tensor],
+    box_mean: Union[List[float], torch.Tensor],
+    box_std: Union[List[float], torch.Tensor],
+) -> torch.Tensor:
+    """
+    Decode normalized boxes to standard format.
+
+    Parameters
+    ----------
+    boxes : torch.Tensor
+        Normalized boxes with shape (N, 8).
+        Format: [x_n, y_n, z_n, log(dx), log(dy), log(dz), sin_h, cos_h].
+    pc_range : List[float] or torch.Tensor
+        Point cloud range [x_min, y_min, z_min, x_max, y_max, z_max].
+    box_mean : List[float] or torch.Tensor
+        Box normalization mean with length 8.
+    box_std : List[float] or torch.Tensor
+        Box normalization standard deviation with length 8.
+
+    Returns
+    -------
+    boxes_out : torch.Tensor
+        Decoded boxes with shape (N, 7).
+        Format: [x, y, z, dx, dy, dz, heading].
+    """
     assert len(boxes.shape) == 2
     assert boxes.shape[1] == 8
     if isinstance(box_mean, list):
@@ -79,7 +154,34 @@ def decode_boxes(boxes, pc_range, box_mean, box_std):
     return boxes_out
 
 
-def decode_boxes_and_giou3d(boxes_a, boxes_b, pc_range, box_mean, box_std):
+def decode_boxes_and_giou3d(
+    boxes_a: torch.Tensor,
+    boxes_b: torch.Tensor,
+    pc_range: Union[List[float], torch.Tensor],
+    box_mean: Union[List[float], torch.Tensor],
+    box_std: Union[List[float], torch.Tensor],
+) -> torch.Tensor:
+    """
+    Decode normalized boxes and compute 3D Generalized IoU (GIoU).
+
+    Parameters
+    ----------
+    boxes_a : torch.Tensor
+        First set of normalized boxes with shape (N, 8).
+    boxes_b : torch.Tensor
+        Second set of normalized boxes with shape (M, 8).
+    pc_range : List[float] or torch.Tensor
+        Point cloud range [x_min, y_min, z_min, x_max, y_max, z_max].
+    box_mean : List[float] or torch.Tensor
+        Box normalization mean with length 8.
+    box_std : List[float] or torch.Tensor
+        Box normalization standard deviation with length 8.
+
+    Returns
+    -------
+    giou : torch.Tensor
+        GIoU matrix with shape (N, M). Values in range [-1, 1].
+    """
     boxes_a_dec = decode_boxes(boxes_a, pc_range, box_mean, box_std)
     boxes_b_dec = decode_boxes(boxes_b, pc_range, box_mean, box_std)
     corners_a = centroid_to_corners(boxes_a_dec)
@@ -95,7 +197,23 @@ def decode_boxes_and_giou3d(boxes_a, boxes_b, pc_range, box_mean, box_std):
     return giou
 
 
-def giou3d(boxes_a_dec, boxes_b_dec):
+def giou3d(boxes_a_dec: torch.Tensor, boxes_b_dec: torch.Tensor) -> torch.Tensor:
+    """
+    Compute 3D Generalized IoU (GIoU) for decoded boxes.
+
+    Parameters
+    ----------
+    boxes_a_dec : torch.Tensor
+        First set of decoded boxes with shape (N, 7).
+        Format: [x, y, z, dx, dy, dz, heading].
+    boxes_b_dec : torch.Tensor
+        Second set of decoded boxes with shape (M, 7).
+
+    Returns
+    -------
+    giou : torch.Tensor
+        GIoU matrix with shape (N, M). 
+    """
     corners_a = centroid_to_corners(boxes_a_dec)
     corners_b = centroid_to_corners(boxes_b_dec)
     iou, union = boxes_iou3d_gpu(boxes_a_dec, boxes_b_dec, return_union=True)
@@ -109,14 +227,30 @@ def giou3d(boxes_a_dec, boxes_b_dec):
     return giou
 
 
-def aligned_boxes_iou3d_gpu(boxes_a, boxes_b, return_union=False):
+def aligned_boxes_iou3d_gpu(
+    boxes_a: torch.Tensor,
+    boxes_b: torch.Tensor,
+    return_union: bool = False,
+) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
     """
-    Args:
-        boxes_a: (N, 7) [x, y, z, dx, dy, dz, heading]
-        boxes_b: (N, 7) [x, y, z, dx, dy, dz, heading]
+    Compute 3D IoU for aligned box pairs (element-wise).
 
-    Returns:
-        ans_iou: (N, 1)
+    Parameters
+    ----------
+    boxes_a : torch.Tensor
+        First set of boxes with shape (N, 7).
+        Format: [x, y, z, dx, dy, dz, heading].
+    boxes_b : torch.Tensor
+        Second set of boxes with shape (N, 7).
+    return_union : bool, optional
+        If True, returns (iou, union). Default is False.
+
+    Returns
+    -------
+    iou3d : torch.Tensor
+        IoU values with shape (N, 1).
+    union : torch.Tensor, optional
+        Union volumes with shape (N, 1). Only if return_union=True.
     """
     assert boxes_a.shape[1] == boxes_b.shape[1] == 7
     assert boxes_a.shape[0] == boxes_b.shape[0]
@@ -147,14 +281,31 @@ def aligned_boxes_iou3d_gpu(boxes_a, boxes_b, return_union=False):
     return iou3d
 
 
-def boxes_iou3d_gpu(boxes_a, boxes_b, return_union=False):
+def boxes_iou3d_gpu(
+    boxes_a: torch.Tensor,
+    boxes_b: torch.Tensor,
+    return_union: bool = False,
+) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
     """
-    Args:
-        boxes_a: (N, 7) [x, y, z, dx, dy, dz, heading]
-        boxes_b: (N, 7) [x, y, z, dx, dy, dz, heading]
+    Compute 3D IoU between two sets of boxes on GPU.
 
-    Returns:
-        ans_iou: (N, M)
+    Parameters
+    ----------
+    boxes_a : torch.Tensor
+        First set of boxes with shape (N, 7).
+        Format: [x, y, z, dx, dy, dz, heading].
+    boxes_b : torch.Tensor
+        Second set of boxes with shape (M, 7).
+        Format: [x, y, z, dx, dy, dz, heading].
+    return_union : bool, optional
+        If True, returns (iou, union). Default is False.
+
+    Returns
+    -------
+    iou3d : torch.Tensor
+        IoU matrix with shape (N, M).
+    union : torch.Tensor, optional
+        Union volumes with shape (N, M). 
     """
     assert boxes_a.shape[1] == boxes_b.shape[1] == 7
 
@@ -184,7 +335,24 @@ def boxes_iou3d_gpu(boxes_a, boxes_b, return_union=False):
     return iou3d
 
 
-def centroid_to_corners(boxes):
+def centroid_to_corners(
+    boxes: Union[npt.NDArray, torch.Tensor]
+) -> Union[npt.NDArray, torch.Tensor]:
+    """
+    Convert boxes from centroid format to 8 corners.
+
+    Parameters
+    ----------
+    boxes : npt.NDArray or torch.Tensor
+        Boxes with shape (N, 7).
+        Format: [x, y, z, dx, dy, dz, heading].
+
+    Returns
+    -------
+    corners : npt.NDArray or torch.Tensor
+        Box corners with shape (N, 8, 3).
+        Returns same type as input.
+    """
     if isinstance(boxes, np.ndarray):
         corners = _centroid_to_corners_np(boxes)
     elif isinstance(boxes, torch.Tensor):
@@ -195,10 +363,20 @@ def centroid_to_corners(boxes):
     return corners
 
 
-def _centroid_to_corners_torch(boxes):
-    """Convert boxes from centroid format to corners
-    :param boxes: [N, 7]
-    :return: corners: [N, 8, 3]
+def _centroid_to_corners_torch(boxes: torch.Tensor) -> torch.Tensor:
+    """
+    Convert boxes from centroid format to corners (PyTorch).
+
+    Parameters
+    ----------
+    boxes : torch.Tensor
+        Boxes with shape (N, 7).
+        Format: [x, y, z, dx, dy, dz, heading].
+
+    Returns
+    -------
+    corners : torch.Tensor
+        Box corners with shape (N, 8, 3).
     """
     corners = torch.zeros((boxes.shape[0], 8, 3), dtype=boxes.dtype, device=boxes.device)
     sin_t = torch.sin(boxes[:, -1])
@@ -218,10 +396,20 @@ def _centroid_to_corners_torch(boxes):
     return corners
 
 
-def _centroid_to_corners_np(boxes):
-    """Convert boxes from centroid format to corners
-    :param boxes: [N, 7]
-    :return: corners: [N, 8, 3]
+def _centroid_to_corners_np(boxes: npt.NDArray) -> npt.NDArray:
+    """
+    Convert boxes from centroid format to corners (NumPy).
+
+    Parameters
+    ----------
+    boxes : npt.NDArray
+        Boxes with shape (N, 7).
+        Format: [x, y, z, dx, dy, dz, heading].
+
+    Returns
+    -------
+    corners : npt.NDArray
+        Box corners with shape (N, 8, 3).
     """
     corners = np.zeros((boxes.shape[0], 8, 3), dtype=boxes.dtype)
     sin_t = np.sin(boxes[:, -1])
@@ -258,13 +446,36 @@ def rotate_weighted_nms_gpu(
         _ = scores.shape[0]  # num_keeped_scores
 
 
-def nms_gpu(boxes, scores, thresh, pre_maxsize=None, **kwargs):
+def nms_gpu(
+    boxes: torch.Tensor,
+    scores: torch.Tensor,
+    thresh: float,
+    pre_maxsize: Optional[int] = None,
+    **kwargs
+) -> Tuple[torch.Tensor, None]:
     """
-    Operate on rotated bev boxes[x,y,dx,dy,heading]
-    :param boxes: (N, 7) [x, y, z, dx, dy, dz, heading]
-    :param scores: (N)
-    :param thresh:
-    :return:
+    Perform rotated NMS on GPU for BEV boxes.
+
+    Parameters
+    ----------
+    boxes : torch.Tensor
+        Boxes with shape (N, 7).
+        Format: [x, y, z, dx, dy, dz, heading].
+    scores : torch.Tensor
+        Confidence scores with shape (N,).
+    thresh : float
+        IoU threshold for suppression.
+    pre_maxsize : int or None, optional
+        Maximum boxes to consider before NMS. Default is None.
+    **kwargs
+        Additional unused arguments for compatibility.
+
+    Returns
+    -------
+    keep : torch.Tensor
+        Indices of kept boxes after NMS.
+    None
+        Placeholder for compatibility.
     """
     assert boxes.shape[1] == 7
     order = scores.sort(0, descending=True)[1]
@@ -277,13 +488,33 @@ def nms_gpu(boxes, scores, thresh, pre_maxsize=None, **kwargs):
     return order[keep[:num_out].cuda()].contiguous(), None
 
 
-def nms_normal_gpu(boxes, scores, thresh, **kwargs):
+def nms_normal_gpu(
+    boxes: torch.Tensor,
+    scores: torch.Tensor,
+    thresh: float,
+    **kwargs
+) -> Tuple[torch.Tensor, None]:
     """
-    Ignore heading and operate on bev boxes[x,y,dx,dy]
-    :param boxes: (N, 7) [x, y, z, dx, dy, dz, heading]
-    :param scores: (N)
-    :param thresh:
-    :return:
+    Perform axis-aligned NMS on GPU (ignores heading).
+
+    Parameters
+    ----------
+    boxes : torch.Tensor
+        Boxes with shape (N, 7).
+        Format: [x, y, z, dx, dy, dz, heading].
+    scores : torch.Tensor
+        Confidence scores with shape (N,).
+    thresh : float
+        IoU threshold for suppression.
+    **kwargs
+        Additional unused arguments for compatibility.
+
+    Returns
+    -------
+    keep : torch.Tensor
+        Indices of kept boxes after NMS.
+    None
+        Placeholder for compatibility.
     """
     assert boxes.shape[1] == 7
     order = scores.sort(0, descending=True)[1]

@@ -57,6 +57,17 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
         Whether the dataset is used for training. Default is True.
     message_handler : Optional[Any], optional
         Handler for inter-vehicle communication. Default is None.
+
+    Attributes
+    ----------
+    pre_processor : object
+        Module for preprocessing LiDAR data.
+    post_processor : object
+        Module for post-processing detection results.
+    message_handler : Optional[object]
+        Handler for inter-vehicle communication.
+    module_name : str
+        Identifier for the module.
     """
 
     def __init__(

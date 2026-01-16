@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-PID Control Class
+PID controller implementation for vehicle control.
+
+This module provides a PID (Proportional-Integral-Derivative) controller
+for both longitudinal and lateral vehicle control in CARLA simulation.
 """
 
 # Copyright (c) # Copyright (c) 2018-2020 CVC.
@@ -10,6 +13,7 @@ PID Control Class
 
 from collections import deque
 
+from typing import Dict, Any, Optional
 import math
 import numpy as np
 
@@ -18,33 +22,67 @@ import carla
 
 class Controller:
     """
-    PID Controller implementation.
+    PID controller for vehicle longitudinal and lateral control.
+
+    Implements a dual PID controller system for managing vehicle acceleration
+    and steering to achieve target speeds and waypoints.
 
     Parameters
     ----------
-    args : dict
-        The configuration dictionary parsed from yaml file.
+    args : Dict[str, Any]
+        Configuration dictionary parsed from YAML file containing:
+        - max_brake : float
+            Maximum brake value.
+        - max_throttle : float
+            Maximum throttle value.
+        - max_steering : float
+            Maximum steering angle.
+        - lon : Dict[str, float]
+            Longitudinal PID gains (k_p, k_d, k_i).
+        - lat : Dict[str, float]
+            Lateral PID gains (k_p, k_d, k_i).
+        - dt : float
+            Simulation time-step in seconds.
+        - dynamic : bool
+            Enable dynamic PID gain adjustment.
 
     Attributes
     ----------
+    max_brake : float
+        Maximum brake value.
+    max_throttle : float
+        Maximum throttle value.
+    max_steering : float
+        Maximum steering angle.
+    _lon_k_p : float
+        Longitudinal proportional gain.
+    _lon_k_d : float
+        Longitudinal derivative gain.
+    _lon_k_i : float
+        Longitudinal integral gain.
     _lon_ebuffer : deque
-        A deque buffer that stores longitudinal control errors.
-
+        Deque buffer storing longitudinal control errors.
+    _lat_k_p : float
+        Lateral proportional gain.
+    _lat_k_d : float
+        Lateral derivative gain.
+    _lat_k_i : float
+        Lateral integral gain.
     _lat_ebuffer : deque
-        A deque buffer that stores latitudinal control errors.
-
-    current_transform : carla.transform
+        Deque buffer storing lateral control errors.
+    dt : float
+        Simulation time-step in seconds.
+    current_transform : carla.Transform or None
         Current ego vehicle transformation in CARLA world.
-
     current_speed : float
-        Current ego vehicle speed.
-
+        Current ego vehicle speed in m/s.
     past_steering : float
-        Sterring angle from previous control step.
-
+        Steering angle from previous control step.
+    dynamic : bool
+        Flag for dynamic PID gain adjustment.
     """
 
-    def __init__(self, args):
+    def __init__(self, args: Dict[str, Any]):
         # longitudinal related
         self.max_brake = args["max_brake"]
         self.max_throttle = args["max_throttle"]
@@ -75,26 +113,25 @@ class Controller:
 
         self.dynamic = args["dynamic"]
 
-    def dynamic_pid(self):
+    def dynamic_pid(self) -> None:
         """
-        Compute kp, kd, ki based on current speed.
+        Compute PID gains based on current speed.
+
+        Adjusts k_p, k_d, k_i parameters dynamically according to vehicle
+        speed for improved control performance.
         """
         pass
 
-    def update_info(self, ego_pos, ego_spd):
+    def update_info(self, ego_pos: carla.Transform, ego_spd: float) -> None:
         """
-        Update ego position and speed to controller.
+        Update ego vehicle position and speed in controller.
 
         Parameters
         ----------
-        ego_pos : carla.location
-            Position of the ego vehicle.
-
+        ego_pos : carla.Transform
+            Current transform of the ego vehicle.
         ego_spd : float
-            Speed of the ego vehicle
-
-        Returns
-        -------
+            Current speed of the ego vehicle in m/s.
 
         """
 
@@ -103,20 +140,22 @@ class Controller:
         if self.dynamic:
             self.dynamic_pid()
 
-    def lon_run_step(self, target_speed):
+    def lon_run_step(self, target_speed: float) -> float:
         """
+        Execute longitudinal PID control step.
+
+        Computes desired acceleration to achieve target speed using PID
+        control with error buffering.
 
         Parameters
         ----------
         target_speed : float
-            Target speed of the ego vehicle.
+            Target speed of the ego vehicle in m/s.
 
         Returns
         -------
-        acceleration : float
-            Desired acceleration value for the current step
-            to achieve target speed.
-
+        float
+            Desired acceleration value clipped to [-1.0, 1.0] range.
         """
         error = target_speed - self.current_speed
         self._lat_ebuffer.append(error)
@@ -130,21 +169,22 @@ class Controller:
 
         return np.clip((self._lat_k_p * error) + (self._lat_k_d * _de) + (self._lat_k_i * _ie), -1.0, 1.0)
 
-    def lat_run_step(self, target_location):
+    def lat_run_step(self, target_location: carla.Location) -> float:
         """
-        Generate the throttle command based on current speed and target speed
+        Execute lateral PID control step.
+
+        Computes desired steering angle to reach target location using PID
+        control based on angular error between vehicle heading and target.
 
         Parameters
         ----------
-        target_location : carla.location
-            Target location.
+        target_location : carla.Location
+            Target location in CARLA world coordinates.
 
         Returns
         -------
-        current_steering : float
-        Desired steering angle value for the current step to
-        achieve target location.
-
+        float
+            Desired steering angle value clipped to [-1.0, 1.0] range.
         """
         v_begin = self.current_transform.location
         v_end = v_begin + carla.Location(
@@ -168,24 +208,26 @@ class Controller:
 
         return np.clip((self._lat_k_p * _dot) + (self._lat_k_d * _de) + (self._lat_k_i * _ie), -1.0, 1.0)
 
-    def run_step(self, target_speed, waypoint):
+    def run_step(self, target_speed: float, waypoint: Optional[carla.Location]) -> carla.VehicleControl:
         """
-        Execute one step of control invoking both lateral and longitudinal
-        PID controllers to reach a target waypoint at a given target_speed.
+        Execute complete control step with both longitudinal and lateral PID.
+
+        Combines longitudinal and lateral PID controllers to generate vehicle
+        control commands (throttle, brake, steering) to reach target waypoint
+        at target speed.
 
         Parameters
         ----------
         target_speed : float
-            Target speed of the ego vehicle.
-
-        waypoint : carla.loaction
-            Target location.
+            Target speed of the ego vehicle in m/s.
+        waypoint : carla.Location or None
+            Target location. None triggers emergency stop.
 
         Returns
         -------
-        control : carla.VehicleControl
-            Desired vehicle control command for the current step.
-
+        carla.VehicleControl
+            Vehicle control command containing throttle, brake, steering,
+            and other control flags.
         """
         # control class for carla vehicle
         control = carla.VehicleControl()

@@ -1,3 +1,9 @@
+"""
+Loss functions for CIASSD (Collaborative Intermediate Aggregation Single Shot Detector).
+
+This module implements the loss function for the CIASSD architecture.
+"""
+
 import torch
 import torch.nn as nn
 
@@ -5,8 +11,10 @@ from opencood.data_utils.post_processor.voxel_postprocessor import VoxelPostproc
 from opencood.pcdet_utils.iou3d_nms.iou3d_nms_utils import aligned_boxes_iou3d_gpu
 from typing import Dict, Any, Optional, Tuple
 from torch import Tensor
+
+
 class CiassdLoss(nn.Module):
-    def __init__(self, args: Dict[str, Any]) -> None:
+    def __init__(self, args: Dict[str, Any]):
         super(CiassdLoss, self).__init__()
         self.pos_cls_weight = args["pos_cls_weight"]
         self.encode_rad_error_by_sin = args["encode_rad_error_by_sin"]
@@ -21,10 +29,39 @@ class CiassdLoss(nn.Module):
 
     def forward(self, output_dict: Dict[str, Any], label_dict: Dict[str, Any]) -> Tensor:
         """
+        Compute total loss from model predictions and ground truth labels.
+
         Parameters
         ----------
-        output_dict : Dict[str, Any]
-        target_dict : Dict[str, Any]
+        output_dict : dict
+            Model predictions containing:
+                - preds_dict_stage1 : dict
+                    - cls_preds : Tensor (B, C, H, W)
+                        Classification predictions.
+                    - box_preds : Tensor (B, 7, H, W)
+                        Bounding box regression predictions.
+                    - dir_cls_preds : Tensor (B, 2, H, W)
+                        Direction classification predictions.
+                    - iou_preds : Tensor (B, 1, H, W)
+                        IoU predictions.
+                - anchor_box : Tensor
+                    Anchor boxes.
+                - record_len : Tensor, optional
+                    Number of CAVs per sample (for batch size calculation).
+        label_dict : dict
+            Ground truth labels containing:
+                - stage1 : dict
+                    - pos_equal_one : Tensor
+                        Positive sample mask.
+                    - neg_equal_one : Tensor
+                        Negative sample mask.
+                    - targets : Tensor
+                        Regression targets.
+
+        Returns
+        -------
+        loss : Tensor
+            Total loss (scalar).
         """
         preds_dict = output_dict["preds_dict_stage1"]
         target_dict = label_dict["stage1"]
@@ -154,7 +191,24 @@ class CiassdLoss(nn.Module):
 
 def add_sin_difference(boxes1: Tensor, boxes2: Tensor) -> Tuple[Tensor, Tensor]:
     """
-    Add sine difference for angle regression.
+    Encode rotation angle error using sine-cosine difference.
+    
+    Converts rotation angle regression to sin(pred)*cos(gt) and cos(pred)*sin(gt)
+    for better gradient flow near angle boundaries (e.g., 0° and 360°).
+
+    Parameters
+    ----------
+    boxes1 : Tensor
+        Predicted bounding boxes (..., 7) where last dim is rotation angle.
+    boxes2 : Tensor
+        Ground truth bounding boxes (..., 7) where last dim is rotation angle.
+
+    Returns
+    -------
+    res_boxes1 : Tensor
+        Predicted boxes with angle encoded as sin(pred)*cos(gt).
+    res_boxes2 : Tensor
+        GT boxes with angle encoded as cos(pred)*sin(gt).
     """
     rad_pred_encoding = torch.sin(boxes1[..., -1:]) * torch.cos(boxes2[..., -1:])  # ry -> sin(pred_ry)*cos(gt_ry)
     rad_gt_encoding = torch.cos(boxes1[..., -1:]) * torch.sin(boxes2[..., -1:])  # ry -> cos(pred_ry)*sin(gt_ry)
@@ -196,6 +250,27 @@ def one_hot_f(tensor: Tensor,
               dim: int = -1, 
               on_value: float = 1.0, 
               dtype: torch.dtype = torch.float32) -> Tensor:
+    """
+    Convert integer tensor to one-hot encoding.
+
+    Parameters
+    ----------
+    tensor : Tensor
+        Input tensor with integer class indices.
+    depth : int
+        Number of classes (one-hot vector length).
+    dim : int, optional
+        Dimension along which to add one-hot encoding. Default is -1.
+    on_value : float, optional
+        Value for the "on" position. Default is 1.0.
+    dtype : torch.dtype, optional
+        Output tensor dtype. Default is torch.float32.
+
+    Returns
+    -------
+    tensor_onehot : Tensor
+        One-hot encoded tensor with shape (*tensor.shape, depth).
+    """
     tensor_onehot = torch.zeros(*list(tensor.shape), depth, dtype=dtype, device=tensor.device)  # [4, 70400, 2]
     tensor_onehot.scatter_(dim, tensor.unsqueeze(dim).long(), on_value)  # [4, 70400, 2]
     return tensor_onehot
@@ -205,6 +280,28 @@ def sigmoid_focal_loss(preds: Tensor,
                        targets: Tensor, 
                        weights: Optional[Tensor] = None, 
                        **kwargs) -> Tensor:
+    """
+    Compute focal loss with sigmoid activation.
+    
+    Focal loss down-weights easy examples and focuses on hard negatives,
+    reducing class imbalance impact.
+
+    Parameters
+    ----------
+    preds : Tensor
+        Raw logits (before sigmoid).
+    targets : Tensor
+        Binary targets (0 or 1).
+    weights : Tensor, optional
+        Per-sample weights.
+    **kwargs
+        Must contain 'gamma' (focusing parameter) and 'alpha' (balancing factor).
+
+    Returns
+    -------
+    loss : Tensor
+        Focal loss per sample.
+    """
     assert "gamma" in kwargs and "alpha" in kwargs
     # sigmoid cross entropy with logits
     # more details: https://www.tensorflow.org/api_docs/python/tf/nn/sigmoid_cross_entropy_with_logits
@@ -223,6 +320,21 @@ def sigmoid_focal_loss(preds: Tensor,
 
 
 def softmax_cross_entropy_with_logits(logits: Tensor, labels: Tensor) -> Tensor:
+    """
+    Compute cross-entropy loss with softmax.
+
+    Parameters
+    ----------
+    logits : Tensor
+        Raw logits (..., num_classes).
+    labels : Tensor
+        One-hot encoded labels (..., num_classes).
+
+    Returns
+    -------
+    loss : Tensor
+        Cross-entropy loss per sample.
+    """
     param = list(range(len(logits.shape)))
     transpose_param = [0] + [param[-1]] + param[1:-1]
     logits = logits.permute(*transpose_param)
@@ -236,7 +348,26 @@ def weighted_smooth_l1_loss(preds: Tensor,
                             sigma: float = 3.0, 
                             weights: Optional[Tensor] = None) -> Tensor:
     """
-    Compute weighted smooth L1 loss.
+    Compute weighted smooth L1 loss (Huber loss variant).
+    
+    Smooth L1 is less sensitive to outliers than L2 loss, with quadratic
+    behavior near zero and linear behavior for large errors.
+
+    Parameters
+    ----------
+    preds : Tensor
+        Predicted values.
+    targets : Tensor
+        Ground truth values.
+    sigma : float, optional
+        Smoothness parameter. Higher sigma = more like L2 loss. Default is 3.0.
+    weights : Tensor, optional
+        Per-sample weights.
+
+    Returns
+    -------
+    loss : Tensor
+        Smooth L1 loss per sample.
     """
     diff = preds - targets
     abs_diff = torch.abs(diff)

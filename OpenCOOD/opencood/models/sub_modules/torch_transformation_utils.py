@@ -1,5 +1,9 @@
 """
-torch_transformation_utils.py
+Torch Transformation Utilities for Spatial Feature Warping.
+
+This module provides utilities for spatial transformation and warping of features
+in cooperative perception, including affine transformations, homography operations,
+and ROI masking.
 """
 
 import os
@@ -143,20 +147,21 @@ def get_discretized_transformation_matrix(
 
 
 def _torch_inverse_cast(input: Tensor) -> Tensor:
-    r"""
-    Helper function to make torch.inverse work with other than fp32/64.
-    The function torch.inverse is only implemented for fp32/64 which makes
-    impossible to be used by fp16 or others. What this function does,
-    is cast input data type to fp32, apply torch.inverse,
-    and cast back to the input dtype.
-    Args:
-        input : torch.Tensor
-            Tensor to be inversed.
+    """
+    Compute matrix inverse with automatic dtype casting.
 
-    Returns:
-        out : torch.Tensor
-            Inversed Tensor.
+    torch.inverse only supports fp32/fp64, so this function handles
+    casting for other dtypes like fp16.
 
+    Parameters
+    ----------
+    input : Tensor
+        Input tensor to be inverted.
+
+    Returns
+    -------
+    Tensor
+        Inverted tensor with original dtype.
     """
     dtype = input.dtype
     if dtype not in (torch.float32, torch.float64):
@@ -172,23 +177,26 @@ def normal_transform_pixel(
     dtype: DType, 
     eps: float = 1e-14
 ) -> Tensor:
-    r"""
-    Compute the normalization matrix from image size in pixels to [-1, 1].
-    Args:
-        height : int
-            Image height.
-        width : int
-            Image width.
-        device : torch.device
-            Output tensor devices.
-        dtype : torch.dtype
-            Output tensor data type.
-        eps : float
-            Epsilon to prevent divide-by-zero errors.
+    """
+    Compute normalization matrix from pixel coordinates to [-1, 1].
 
-    Returns:
-        tr_mat : torch.Tensor
-            Normalized transform with shape :math:`(1, 3, 3)`.
+    Parameters
+    ----------
+    height : int
+        Image height in pixels.
+    width : int
+        Image width in pixels.
+    device : torch.device or str
+        Output tensor device.
+    dtype : torch.dtype
+        Output tensor data type.
+    eps : float, optional
+        Epsilon to prevent divide-by-zero. Default is 1e-14.
+
+    Returns
+    -------
+    Tensor
+        Normalization matrix with shape (1, 3, 3).
     """
     tr_mat = torch.tensor([[1.0, 0.0, -1.0], [0.0, 1.0, -1.0], [0.0, 0.0, 1.0]], device=device, dtype=dtype)  # 3x3
 
@@ -208,21 +216,24 @@ def eye_like(
     device: Union[Device, str], 
     dtype: DType
 ) -> Tensor:
-    r"""
-    Return a 2-D tensor with ones on the diagonal and
-    zeros elsewhere with the same batch size as the input.
-    Args:
-        n : int
-            The number of rows :math:`(n)`.
-        B : int
-            Btach size.
-        device : torch.device
-            Devices of the output tensor.
-        dtype : torch.dtype
-            Data type of the output tensor.
+    """
+    Create batched identity matrices.
 
-    Returns:
-       The identity matrix with the shape :math:`(B, n, n)`.
+    Parameters
+    ----------
+    n : int
+        Matrix dimension (n x n).
+    B : int
+        Batch size.
+    device : torch.device or str
+        Output tensor device.
+    dtype : torch.dtype
+        Output tensor data type.
+
+    Returns
+    -------
+    Tensor
+        Batched identity matrices with shape (B, n, n).
     """
 
     identity = torch.eye(n, device=device, dtype=dtype)
@@ -234,20 +245,22 @@ def normalize_homography(
     dsize_src: Tuple[int, int], 
     dsize_dst: Optional[Tuple[int, int]] = None
 ) -> Tensor:
-    r"""
-    Normalize a given homography in pixels to [-1, 1].
-    Args:
-        dst_pix_trans_src_pix : torch.Tensor
-            Homography/ies from source to destination to be normalized with
-            shape :math:`(B, 3, 3)`.
-        dsize_src : Tuple[int, int]
-            Size of the source image (height, width).
-        dsize_dst : Tuple[int, int]
-            Size of the destination image (height, width).
+    """
+    Normalize homography from pixel coordinates to [-1, 1].
 
-    Returns:
-        dst_norm_trans_src_norm : torch.Tensor
-            The normalized homography of shape :math:`(B, 3, 3)`.
+    Parameters
+    ----------
+    dst_pix_trans_src_pix : Tensor
+        Homography matrices from source to destination with shape (B, 3, 3).
+    dsize_src : tuple of int
+        Source image size (height, width).
+    dsize_dst : tuple of int, optional
+        Destination image size (height, width). If None, uses dsize_src.
+
+    Returns
+    -------
+    Tensor
+        Normalized homography matrices with shape (B, 3, 3).
     """
     if dsize_dst is None:
         dsize_dst = dsize_src
@@ -267,17 +280,20 @@ def normalize_homography(
 
 
 def get_rotation_matrix2d(M: Tensor, dsize: Tuple[int, int]) -> Tensor:
-    r"""
-    Return rotation matrix for torch.affine_grid based on transformation matrix.
-    Args:
-        M : torch.Tensor
-            Transformation matrix with shape :math:`(B, 2, 3)`.
-        dsize : Tuple[int, int]
-            Size of the source image (height, width).
+    """
+    Extract rotation component from affine transformation matrix.
 
-    Returns:
-        R : torch.Tensor
-            Rotation matrix with shape :math:`(B, 2, 3)`.
+    Parameters
+    ----------
+    M : Tensor
+        Affine transformation matrices with shape (B, 2, 3).
+    dsize : tuple of int
+        Image size (height, width).
+
+    Returns
+    -------
+    Tensor
+        Rotation matrices with shape (B, 2, 3).
     """
     H, W = dsize
     B = M.shape[0]
@@ -295,17 +311,20 @@ def get_rotation_matrix2d(M: Tensor, dsize: Tuple[int, int]) -> Tensor:
 
 
 def get_transformation_matrix(M: Tensor, dsize: Tuple[int, int]) -> Tensor:
-    r"""
-    Return transformation matrix for torch.affine_grid.
-    Args:
-        M : torch.Tensor
-            Transformation matrix with shape :math:`(N, 2, 3)`.
-        dsize : Tuple[int, int]
-            Size of the source image (height, width).
+    """
+    Get full transformation matrix for torch.affine_grid.
 
-    Returns:
-        T : torch.Tensor
-            Transformation matrix with shape :math:`(N, 2, 3)`.
+    Parameters
+    ----------
+    M : Tensor
+        Affine transformation matrices with shape (N, 2, 3).
+    dsize : tuple of int
+        Image size (height, width).
+
+    Returns
+    -------
+    Tensor
+        Transformation matrices with shape (N, 2, 3).
     """
     T = get_rotation_matrix2d(M, dsize)
     T[..., 2] += M[..., 2]
@@ -313,15 +332,18 @@ def get_transformation_matrix(M: Tensor, dsize: Tuple[int, int]) -> Tensor:
 
 
 def convert_affinematrix_to_homography(A: Tensor) -> Tensor:
-    r"""
-    Convert to homography coordinates
-    Args:
-        A : torch.Tensor
-            The affine matrix with shape :math:`(B,2,3)`.
+    """
+    Convert 2x3 affine matrix to 3x3 homography matrix.
 
-    Returns:
-        H : torch.Tensor
-            The homography matrix with shape of :math:`(B,3,3)`.
+    Parameters
+    ----------
+    A : Tensor
+        Affine matrices with shape (B, 2, 3).
+
+    Returns
+    -------
+    Tensor
+        Homography matrices with shape (B, 3, 3).
     """
     H: torch.Tensor = torch.nn.functional.pad(A, [0, 0, 0, 1], "constant", value=0.0)
     H[..., -1, -1] += 1.0
@@ -336,24 +358,28 @@ def warp_affine(
     padding_mode: str = "zeros",
     align_corners: bool = True
 ) -> Tensor:
-    r"""
-    Transform the src based on transformation matrix M.
-    Args:
-        src : torch.Tensor
-            Input feature map with shape :math:`(B,C,H,W)`.
-        M : torch.Tensor
-            Transformation matrix with shape :math:`(B,2,3)`.
-        dsize : tuple
-            Tuple of output image H_out and W_out.
-        mode : str
-            Interpolation methods for F.grid_sample.
-        padding_mode : str
-            Padding methods for F.grid_sample.
-        align_corners : boolean
-            Parameter of F.affine_grid.
+    """
+    Apply affine transformation to feature maps.
 
-    Returns:
-        Transformed features with shape :math:`(B,C,H,W)`.
+    Parameters
+    ----------
+    src : Tensor
+        Input features with shape (B, C, H, W).
+    M : Tensor
+        Affine transformation matrices with shape (B, 2, 3).
+    dsize : tuple of int
+        Output size (H_out, W_out).
+    mode : str, optional
+        Interpolation mode for grid_sample. Default is 'bilinear'.
+    padding_mode : str, optional
+        Padding mode for grid_sample. Default is 'zeros'.
+    align_corners : bool, optional
+        Align corners parameter for affine_grid. Default is True.
+
+    Returns
+    -------
+    Tensor
+        Transformed features with shape (B, C, H_out, W_out).
     """
 
     B, C, H, W = src.size()
@@ -371,8 +397,10 @@ def warp_affine(
 
 class Test:
     """
-    Test the transformation in this file.
-    The methods in this class are not supposed to be used outside of this file.
+    Test utilities for transformation functions.
+
+    This class contains static methods for testing and visualizing
+    spatial transformations. Not intended for production use.
     """
 
     def __init__(self) -> None:

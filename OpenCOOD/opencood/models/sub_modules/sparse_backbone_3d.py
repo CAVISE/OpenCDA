@@ -1,7 +1,13 @@
+"""
+Sparse 3D Convolutional Backbone for Voxel-based 3D Detection.
+
+This module implements a sparse 3D CNN backbone with 8x downsampling
+for efficient processing of voxelized point cloud data.
+"""
+
 from functools import partial
 
 from typing import Dict, List, Tuple, Optional, Union, Any
-import torch
 import torch.nn as nn
 
 try:  # spconv1
@@ -21,7 +27,36 @@ def post_act_block(
     norm_fn: Optional[callable] = None
 ) -> SparseSequential:
     """
-    Create a sparse convolution block with post-activation.
+    Create sparse convolution block with post-activation.
+
+    Parameters
+    ----------
+    in_channels : int
+        Number of input channels.
+    out_channels : int
+        Number of output channels.
+    kernel_size : int or tuple of int
+        Convolution kernel size.
+    indice_key : str, optional
+        Index key for sparse convolution.
+    stride : int or tuple of int, optional
+        Convolution stride. Default is 1.
+    padding : int or tuple of int, optional
+        Convolution padding. Default is 0.
+    conv_type : str, optional
+        Type of convolution ('subm', 'spconv', 'inverseconv'). Default is 'subm'.
+    norm_fn : callable, optional
+        Normalization function (e.g., BatchNorm1d).
+
+    Returns
+    -------
+    SparseSequential
+        Sequential sparse convolution block with normalization and ReLU.
+
+    Raises
+    ------
+    NotImplementedError
+        If conv_type is not one of 'subm', 'spconv', or 'inverseconv'.
     """
     if conv_type == "subm":
         conv = SubMConv3d(in_channels, out_channels, kernel_size, bias=False, indice_key=indice_key)
@@ -42,6 +77,48 @@ def post_act_block(
 
 
 class VoxelBackBone8x(nn.Module):
+    """
+    Sparse 3D CNN backbone with 8x downsampling.
+
+    This backbone processes voxelized point cloud data using sparse 3D convolutions,
+    producing multi-scale features for 3D object detection.
+
+    Parameters
+    ----------
+    model_cfg : dict of str to Any
+        Model configuration dictionary containing:
+        - 'num_features_out': Output feature dimension (optional).
+    input_channels : int
+        Number of input feature channels from voxel feature encoder.
+    grid_size : list of int
+        Voxel grid size [X, Y, Z].
+    **kwargs
+        Additional keyword arguments.
+
+    Attributes
+    ----------
+    model_cfg : dict
+        Model configuration.
+    sparse_shape : list of int
+        Sparse tensor spatial shape [Z, Y, X, 1, 0, 0].
+    conv_input : SparseSequential
+        Input convolution block.
+    conv1 : SparseSequential
+        First convolution stage (stride 1).
+    conv2 : SparseSequential
+        Second convolution stage (stride 2, 2x downsample).
+    conv3 : SparseSequential
+        Third convolution stage (stride 2, 4x downsample).
+    conv4 : SparseSequential
+        Fourth convolution stage (stride 2, 8x downsample).
+    conv_out : SparseSequential
+        Output convolution for detection head.
+    num_point_features : int
+        Output feature dimension.
+    backbone_channels : dict
+        Channel dimensions for each convolution stage.
+    """
+    
     def __init__(
         self, 
         model_cfg: Dict[str, Any], 
@@ -103,14 +180,25 @@ class VoxelBackBone8x(nn.Module):
 
     def forward(self, batch_dict: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Args:
-            batch_dict:
-                batch_size: int
-                vfe_features: (num_voxels, C)
-                voxel_coords: (num_voxels, 4), [batch_idx, z_idx, y_idx, x_idx]
-        Returns:
-            batch_dict:
-                encoded_spconv_tensor: sparse tensor
+        Forward pass through sparse 3D backbone.
+
+        Parameters
+        ----------
+        batch_dict : dict of str to Any
+            Batch dictionary containing:
+            - 'batch_size': Batch size (int).
+            - 'voxel_features': Voxel features with shape (N_voxels, C).
+            - 'voxel_coords': Voxel coordinates with shape (N_voxels, 4)
+              in format [batch_idx, z_idx, y_idx, x_idx].
+
+        Returns
+        -------
+        dict of str to Any
+            Updated batch dictionary with:
+            - 'encoded_spconv_tensor': Final sparse tensor for detection head.
+            - 'encoded_spconv_tensor_stride': Downsampling stride (8).
+            - 'multi_scale_3d_features': Dictionary of multi-scale sparse features.
+            - 'multi_scale_3d_strides': Dictionary of strides for each scale.
         """
         voxel_features, voxel_coords = batch_dict["voxel_features"], batch_dict["voxel_coords"]
         batch_size = batch_dict["batch_size"]

@@ -34,37 +34,6 @@ OpenCDA GitHub</a>
 
 ---
 
-## Citation
-
-If you use OpenCDA in your research, please cite the original paper:
-
-@inproceedings{xu2021opencda,
-title={OpenCDA: an open cooperative driving automation framework integrated with co-simulation},
-author={Xu, Runsheng and Guo, Yi and Han, Xu and Xia, Xin and Xiang, Hao and Ma, Jiaqi},
-booktitle={2021 IEEE International Intelligent Transportation Systems Conference (ITSC)},
-pages={1155--1162},
-year={2021},
-organization={IEEE}
-}
-
-text
-
-**Paper**: [https://arxiv.org/abs/2107.06260](https://arxiv.org/abs/2107.06260)
-
-For the OpenCDA ecosystem paper:
-
-@article{xu2023opencda,
-title={The OpenCDA Open-source Ecosystem for Cooperative Driving Automation Research},
-author={Xu, Runsheng and others},
-journal={IEEE Transactions on Intelligent Vehicles},
-year={2023},
-publisher={IEEE}
-}
-
-text
-
----
-
 ## Acknowledgments
 
 This fork is based on the original OpenCDA project developed by UCLA Mobility Lab.

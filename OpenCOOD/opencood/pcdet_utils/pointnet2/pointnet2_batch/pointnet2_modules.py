@@ -1,4 +1,12 @@
-from typing import List
+"""
+PointNet++ set abstraction and feature propagation modules.
+
+This module provides PyTorch implementations of PointNet++ layers including
+multi-scale set abstraction (MSG), single-scale set abstraction (SA), and
+feature propagation (FP) for hierarchical point cloud processing.
+"""
+
+from typing import List, Tuple
 
 import torch
 import torch.nn as nn
@@ -8,6 +16,24 @@ from opencood.pcdet_utils.pointnet2.pointnet2_batch import pointnet2_utils
 
 
 class _PointnetSAModuleBase(nn.Module):
+    """
+    Base class for PointNet++ set abstraction modules.
+    
+    Provides common forward pass logic for set abstraction with
+    multi-scale grouping and pooling.
+
+    Attributes
+    ----------
+    npoint : int or None
+        Number of points to sample. None means use all points.
+    groupers : nn.ModuleList or None
+        List of grouping modules for each scale.
+    mlps : nn.ModuleList or None
+        List of MLP networks for each scale.
+    pool_method : str
+        Pooling method: 'max_pool' or 'avg_pool'.
+    """
+
     def __init__(self):
         super().__init__()
         self.npoint = None
@@ -15,14 +41,27 @@ class _PointnetSAModuleBase(nn.Module):
         self.mlps = None
         self.pool_method = "max_pool"
 
-    def forward(self, xyz: torch.Tensor, features: torch.Tensor = None, new_xyz=None) -> (torch.Tensor, torch.Tensor):
+    def forward(self, xyz: torch.Tensor, features: torch.Tensor = None, new_xyz=None) -> Tuple(torch.Tensor, torch.Tensor):
         """
-        :param xyz: (B, N, 3) tensor of the xyz coordinates of the features
-        :param features: (B, N, C) tensor of the descriptors of the the features
-        :param new_xyz:
-        :return:
-            new_xyz: (B, npoint, 3) tensor of the new features' xyz
-            new_features: (B, npoint, \sum_k(mlps[k][-1])) tensor of the new_features descriptors
+        Set abstraction with multi-scale feature extraction.
+
+        Parameters
+        ----------
+        xyz : torch.Tensor
+            Input point coordinates with shape (B, N, 3).
+        features : torch.Tensor or None, optional
+            Input features with shape (B, N, C). Default is None.
+        new_xyz : torch.Tensor or None, optional
+            Pre-sampled point coordinates with shape (B, npoint, 3).
+            If None, performs furthest point sampling. Default is None.
+
+        Returns
+        -------
+        new_xyz : torch.Tensor
+            Sampled point coordinates with shape (B, npoint, 3).
+        new_features : torch.Tensor
+            Aggregated features with shape (B, npoint, C_out).
+            C_out = sum(mlps[k][-1] for all scales k).
         """
         new_features_list = []
 
@@ -52,7 +91,41 @@ class _PointnetSAModuleBase(nn.Module):
 
 
 class PointnetSAModuleMSG(_PointnetSAModuleBase):
-    """Pointnet set abstraction layer with multiscale grouping"""
+    """
+    PointNet++ set abstraction layer with multi-scale grouping (MSG).
+    
+    Extracts features at multiple scales using different ball query radii
+    and sample counts, then concatenates results.
+
+    Parameters
+    ----------
+    npoint : int
+        Number of points to sample via furthest point sampling.
+    radii : List[float]
+        List of ball query radii for each scale.
+    nsamples : List[int]
+        List of maximum sample counts per ball for each scale.
+    mlps : List[List[int]]
+        List of MLP specifications for each scale.
+        Each inner list defines layer dimensions [C_in, C_1, ..., C_out].
+    bn : bool, optional
+        Whether to use batch normalization. Default is True.
+    use_xyz : bool, optional
+        If True, concatenates xyz coordinates to features. Default is True.
+    pool_method : str, optional
+        Pooling method: 'max_pool' or 'avg_pool'. Default is 'max_pool'.
+
+    Attributes
+    ----------
+    npoint : int
+        Stored number of points to sample.
+    groupers : nn.ModuleList
+        List of QueryAndGroup modules for each scale.
+    mlps : nn.ModuleList
+        List of MLP networks for each scale.
+    pool_method : str
+        Stored pooling method.
+    """
 
     def __init__(
         self,
@@ -65,15 +138,6 @@ class PointnetSAModuleMSG(_PointnetSAModuleBase):
         use_xyz: bool = True,
         pool_method="max_pool",
     ):
-        """
-        :param npoint: int
-        :param radii: list of float, list of radii to group with
-        :param nsamples: list of int, number of samples in each ball query
-        :param mlps: list of list of int, spec of the pointnet before the global pooling for each scale
-        :param bn: whether to use batchnorm
-        :param use_xyz:
-        :param pool_method: max_pool / avg_pool
-        """
         super().__init__()
 
         assert len(radii) == len(nsamples) == len(mlps)
@@ -100,7 +164,33 @@ class PointnetSAModuleMSG(_PointnetSAModuleBase):
 
 
 class PointnetSAModule(PointnetSAModuleMSG):
-    """Pointnet set abstraction layer"""
+    """
+    PointNet++ set abstraction layer with single-scale grouping.
+    
+    Simplified version of MSG with a single radius and sample count.
+    Inherits from PointnetSAModuleMSG with single-element lists.
+
+    Parameters
+    ----------
+    mlp : List[int]
+        MLP specification defining layer dimensions [C_in, C_1, ..., C_out].
+    npoint : int or None, optional
+        Number of points to sample. None means use all points. Default is None.
+    radius : float or None, optional
+        Ball query radius. Default is None.
+    nsample : int or None, optional
+        Maximum number of samples per ball. Default is None.
+    bn : bool, optional
+        Whether to use batch normalization. Default is True.
+    use_xyz : bool, optional
+        If True, concatenates xyz coordinates to features. Default is True.
+    pool_method : str, optional
+        Pooling method: 'max_pool' or 'avg_pool'. Default is 'max_pool'.
+
+    Attributes
+    ----------
+    Inherits all attributes from PointnetSAModuleMSG.
+    """
 
     def __init__(
         self,
@@ -113,26 +203,30 @@ class PointnetSAModule(PointnetSAModuleMSG):
         use_xyz: bool = True,
         pool_method="max_pool",
     ):
-        """
-        :param mlp: list of int, spec of the pointnet before the global max_pool
-        :param npoint: int, number of features
-        :param radius: float, radius of ball
-        :param nsample: int, number of samples in the ball query
-        :param bn: whether to use batchnorm
-        :param use_xyz:
-        :param pool_method: max_pool / avg_pool
-        """
         super().__init__(mlps=[mlp], npoint=npoint, radii=[radius], nsamples=[nsample], bn=bn, use_xyz=use_xyz, pool_method=pool_method)
 
 
 class PointnetFPModule(nn.Module):
-    r"""Propigates the features of one set to another"""
+    """
+    Feature propagation module for upsampling point features.
+    
+    Propagates features from coarse to fine levels using inverse distance
+    weighted interpolation followed by MLP processing.
+
+    Parameters
+    ----------
+    mlp : List[int]
+        MLP specification defining layer dimensions [C_in, C_1, ..., C_out].
+    bn : bool, optional
+        Whether to use batch normalization. Default is True.
+
+    Attributes
+    ----------
+    mlp : nn.Sequential
+        MLP network with Conv2d, BatchNorm2d, and ReLU layers.
+    """
 
     def __init__(self, *, mlp: List[int], bn: bool = True):
-        """
-        :param mlp: list of int
-        :param bn: whether to use batchnorm
-        """
         super().__init__()
 
         shared_mlps = []
@@ -142,12 +236,23 @@ class PointnetFPModule(nn.Module):
 
     def forward(self, unknown: torch.Tensor, known: torch.Tensor, unknow_feats: torch.Tensor, known_feats: torch.Tensor) -> torch.Tensor:
         """
-        :param unknown: (B, n, 3) tensor of the xyz positions of the unknown features
-        :param known: (B, m, 3) tensor of the xyz positions of the known features
-        :param unknow_feats: (B, C1, n) tensor of the features to be propigated to
-        :param known_feats: (B, C2, m) tensor of features to be propigated
-        :return:
-            new_features: (B, mlp[-1], n) tensor of the features of the unknown features
+        Propagate features from known to unknown points via interpolation.
+
+        Parameters
+        ----------
+        unknown : torch.Tensor
+            Target point coordinates with shape (B, n, 3).
+        known : torch.Tensor
+            Source point coordinates with shape (B, m, 3).
+        unknow_feats : torch.Tensor or None
+            Target point features with shape (B, C1, n).
+        known_feats : torch.Tensor
+            Source point features with shape (B, C2, m).
+
+        Returns
+        -------
+        new_features : torch.Tensor
+            Propagated features with shape (B, mlp[-1], n).
         """
         if known is not None:
             dist, idx = pointnet2_utils.three_nn(unknown, known)

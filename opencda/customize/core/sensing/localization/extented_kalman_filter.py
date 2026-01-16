@@ -1,36 +1,47 @@
 # -*- coding: utf-8 -*-
 """
-Use Extended Kalman Filter on GPS + IMU for better localization.
+Extended Kalman Filter for GPS and IMU sensor fusion.
+
+This module implements an Extended Kalman Filter (EKF) for improved vehicle
+localization by fusing GPS position measurements with IMU angular rate data.
 """
 # Author: Runsheng Xu <rxx3386@ucla.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
 import math
+from typing import Tuple
 import numpy as np
+import numpy.typing as npt
+
 
 
 class ExtentedKalmanFilter(object):
     """
-    Extended Kalman Filter implementation for gps and imu.
+    Extended Kalman Filter for GPS and IMU sensor fusion.
+
+    Implements EKF for state estimation of vehicle position, heading, and
+    velocity using GPS measurements and IMU yaw rate data.
 
     Parameters
-    -dt : float
-        The step time for kalman filter calculation.
+    ----------
+    dt : float
+        Time step for Kalman filter calculations in seconds.
 
     Attributes
-    -Q : numpy.array
-        predict state covariance.
-    -R : numpy.array
-        Observation x,y position covariance.
-    -time_step : float
-        The step time for kalman filter calculation.
-    -xEst : numpy.array
-        Estimated x values.
-    -PEst : numpy.array
-        The estimated P values.
+    ----------
+    Q : npt.NDArray[np.float64]
+        Process noise covariance matrix (4x4) for state prediction.
+    R : npt.NDArray[np.float64]
+        Measurement noise covariance matrix (3x3) for observations.
+    time_step : float
+        Time step for filter calculations in seconds.
+    xEst : npt.NDArray[np.float64]
+        Estimated state vector [x, y, yaw, velocity] with shape (4, 1).
+    PEst : npt.NDArray[np.float64]
+        Estimated state covariance matrix (4x4).
     """
 
-    def __init__(self, dt):
+    def __init__(self, dt: float):
         self.Q = (
             np.diag(
                 [
@@ -50,17 +61,25 @@ class ExtentedKalmanFilter(object):
         self.xEst = np.zeros((4, 1))
         self.PEst = np.eye(4)
 
-    def motion_model(self, x, u):
+    def motion_model(
+        self, x: npt.NDArray[np.float64], u: npt.NDArray[np.float64]
+    ) -> npt.NDArray[np.float64]:
         """
-        Predict current position and yaw based on previous result
-        (X = F * X_prev + B * u).
+        Predict current state based on previous state and control input.
 
-        Args:
-            -x (np.array): [x_prev, y_prev, yaw_prev, v_prev], shape: (4, 1).
-            -u (np.array): [v_current, imu_yaw_rate], shape:(2, 1).
+        Uses the motion model: X = F * X_prev + B * u
 
-        Returns:
-          x (np.array): predicted state.
+        Parameters
+        ----------
+        x : npt.NDArray[np.float64]
+            Previous state vector [x_prev, y_prev, yaw_prev, v_prev] with shape (4, 1).
+        u : npt.NDArray[np.float64]
+            Control input vector [v_current, imu_yaw_rate] with shape (2, 1).
+
+        Returns
+        -------
+        npt.NDArray[np.float64]
+            Predicted state vector with shape (4, 1).
         """
         F = np.array([[1.0, 0, 0, 0], [0, 1.0, 0, 0], [0, 0, 1.0, 0], [0, 0, 0, 0]])
 
@@ -70,15 +89,23 @@ class ExtentedKalmanFilter(object):
 
         return x
 
-    def jacob_f(self, x, u):
+    def jacob_f(
+        self, x: npt.NDArray[np.float64], u: npt.NDArray[np.float64]
+    ) -> npt.NDArray[np.float64]:
         """
-        Jacobian of Motion Model motion model
+        Calculate Jacobian matrix of the motion model.
 
-        Args:
-            -x (np.array): Input X array.
-        Returns:
-            -jF (np.array):  Jacobian of Motion Model motion model.
+        Parameters
+        ----------
+        x : npt.NDArray[np.float64]
+            Current state vector [x, y, yaw, v] with shape (4, 1).
+        u : npt.NDArray[np.float64]
+            Control input vector [v_current, imu_yaw_rate] with shape (2, 1).
 
+        Returns
+        -------
+        npt.NDArray[np.float64]
+            Jacobian matrix of motion model with shape (4, 4).
         """
         yaw = x[2, 0]
         v = u[0, 0]
@@ -93,16 +120,19 @@ class ExtentedKalmanFilter(object):
 
         return jF
 
-    def observation_model(self, x):
+    def observation_model(self, x: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
         """
-        Project the state.array to sensor measurement.array.
+        Project state vector to measurement space.
 
-        Args:
-            -x (np.array): [x, y, yaw, v], shape: (4. 1).
+        Parameters
+        ----------
+        x : npt.NDArray[np.float64]
+            State vector [x, y, yaw, v] with shape (4, 1).
 
-        Returns:
-            -z (np.array): predicted measurement.
-
+        Returns
+        -------
+        npt.NDArray[np.float64]
+            Predicted measurement vector [x, y, yaw] with shape (3, 1).
         """
         H = np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0]])
 
@@ -110,37 +140,58 @@ class ExtentedKalmanFilter(object):
 
         return z
 
-    def run_step_init(self, x, y, heading, velocity):
+    def run_step_init(self, x: float, y: float, heading: float, velocity: float) -> None:
         """
-        Initalization for states.
+        Initialize filter state with initial measurements.
 
-        Args:
-            -x (float): The X coordinate.
-            -y (float): Tehe y coordinate.
-            -heading (float): The heading direction.
-            -velocity (float): The velocity.
-
+        Parameters
+        ----------
+        x : float
+            Initial x coordinate in meters.
+        y : float
+            Initial y coordinate in meters.
+        heading : float
+            Initial heading direction in radians.
+        velocity : float
+            Initial velocity in m/s.
         """
         self.xEst[0] = x
         self.xEst[1] = y
         self.xEst[2] = heading
         self.xEst[3] = velocity
 
-    def run_step(self, x, y, heading, velocity, yaw_rate_imu):
+    def run_step(
+        self, x: float, y: float, heading: float, velocity: float, yaw_rate_imu: float
+    ) -> Tuple[float, float, float, float]:
         """
-        Apply EKF on current measurement and previous prediction.
+        Execute one EKF prediction and correction step.
 
-        Args:
-            -x (float): x(esu) coordinate from
-             gnss sensor at current timestamp.
-            -y (float): y(esu) coordinate from
-             gnss sensor at current timestamp.
-            -heading (float): heading direction at current timestamp.
-            -velocity (float): current speed.
-            -yaw_rate_imu (float): yaw rate rad/s from IMU sensor.
-        Returns:
-            - xEST (np.array): The corrected x, y, heading,
-              and velocity information.
+        Performs Extended Kalman Filter prediction using motion model and
+        correction using GPS and IMU measurements.
+
+        Parameters
+        ----------
+        x : float
+            X coordinate from GNSS sensor in meters.
+        y : float
+            Y coordinate from GNSS sensor in meters.
+        heading : float
+            Heading direction in radians.
+        velocity : float
+            Current speed in m/s.
+        yaw_rate_imu : float
+            Yaw rate from IMU sensor in rad/s.
+
+        Returns
+        -------
+        x_est : float
+            Corrected x coordinate in meters.
+        y_est : float
+            Corrected y coordinate in meters.
+        heading_est : float
+            Corrected heading in radians.
+        velocity_est : float
+            Corrected velocity in m/s.
         """
 
         # gps observation

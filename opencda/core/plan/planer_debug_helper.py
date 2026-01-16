@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-Analysis + Visualization functions for planning
+Analysis and visualization functions for planning behavior.
+
+This module provides debugging and evaluation tools for vehicle planning,
+including speed, acceleration, and time-to-collision tracking and visualization.
 """
 
 # Author: Runsheng Xu <rxx3386@ucla.edu>
@@ -36,7 +39,7 @@ class PlanDebugHelper(object):
         Used to count how many simulation steps have been executed.
     """
 
-    def __init__(self, actor_id):
+    def __init__(self, actor_id: int):
         self.actor_id = actor_id
         self.speed_list = [[]]
         self.acc_list = [[]]
@@ -44,7 +47,7 @@ class PlanDebugHelper(object):
 
         self.count = 0
 
-    def update(self, ego_speed, ttc):
+    def update(self, ego_speed: float, ttc: float) -> None:
         """
         Update the speed info.
         

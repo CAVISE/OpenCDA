@@ -2,7 +2,7 @@
 
 OpenCDA provides benchmark scenarios that researchers can use directly without any modification. We will also be adding new testing scenarios in future releases. Running these
 scenario testings only need one line of command:
-```she
+```bash
 cd ~/OpenCDA
 python opencda.py -t scenario_name -v carla_version --apply_ml --record
 ```
@@ -20,7 +20,7 @@ Below we will demonstrate some examples of running the benchmark testings in Ope
 ---
 ### Single Vehicle Test
 ####  1. Two-lane highway test
-```sh
+```bash
 python opencda.py -t single_2lanefree_carla -v 0.9.11
 ```
 In this scenario , a single Connected Automated Vehicle will be spawned at a 2-lane highway customized map.  This
@@ -36,7 +36,7 @@ If you want to activate the perception module, please check [Yaml Defining Rules
  projected to the sensor space</strong>
 
 #### 2. Town06 test (Pytorch required)
-```sh
+```bash
 python opencda.py -t single_town06_carla  -v 0.9.16 --apply_ml
 ```
 The apply_ml flag will import the pytorch library and load Yolov5 model (<strong>Thus Pytorch is required</strong>) for object detection. Thus, in this
@@ -46,7 +46,7 @@ scenario, the <strong>perception</strong>, localization, planning and control mo
 <strong>Note: The bounding box draw here comes from the detection model.</strong>
 
 #### 3. Town06 Co-simulation test (Pytorch and Sumo required)
-```sh
+```bash
 python opencda.py -t single_town06_cosim  -v 0.9.16 --apply_ml
 ```
 This scenario applies <strong>Sumo</strong> to generate the traffic flow instead of using Carla traffic manager.
@@ -57,7 +57,7 @@ Pytorch and Sumo are required to install to run this benchmark test.
 ---
 ### Cooperative Driving Test
 #### 1. Platooning stability test
-```sh
+```bash
 python opencda.py -t platoon_stability_2lanefree_carla -v 0.9.16
 ```
 In this scenario, a platoon with 4 members will be placed at the 2-lane highway map. The platoon leader will dramatically increases
@@ -65,7 +65,7 @@ and decreases its speed to test whether the members can still keep the desired t
 stability is verified.
 
 #### 2. Cooperative merge and joining a platoon
-```sh
+```bash
 python opencda.py -t platoon_joining_2lanefree_carla -v 0.9.16
 ```
 In this scenario, a platoon will drive on the mainline together with a mixed traffic flow. A single CAV will come from the
@@ -74,13 +74,13 @@ merging lane, communicate with the platoon to cooperatively merge into the mainl
 ![](images/platoon_joining_2lanefree.gif)
 
 #### 3. Cooperative merge and joining a platoon under co-simulation (SUMO required)
-```sh
+```bash
 python opencda.py -t platoon_joining_2lanefree_cosim -v 0.9.16
 ```
 ![](images/platoon_joining_cosim.gif)
 
 #### 4. Platoon back-join (Pytorch required)
-```sh
+```bash
 python opencda.py -t platoon_joining_town06_carla  -v 0.9.16 --apply_ml
 ```
 A single CAV will try to overtake several human-driven vehicles to join the platoon from the back.

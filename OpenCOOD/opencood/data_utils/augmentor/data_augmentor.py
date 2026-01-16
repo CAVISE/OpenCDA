@@ -18,26 +18,20 @@ class DataAugmentor:
 
     Parameters
     ----------
-    augment_config : list
-        A list of augmentation configuration.
+    augment_config : List[Dict[str, Any]]
+        A list of augmentation configuration dictionaries.
+    train : bool, optional
+        Whether to apply augmentations. Default is True.
 
     Attributes
     ----------
-    data_augmentor_queue : list
-        The list of data augmented functions.
+    data_augmentor_queue : List[Callable]
+        The list of data augmentation functions.
+    train : bool
+        Training mode flag.
     """
 
     def __init__(self, augment_config: List[Dict[str, Any]], train: bool = True) -> None:
-        """
-        Initialize the data augmentor with the given configuration.
-
-        Parameters
-        ----------
-        augment_config : list
-            List of augmentation configurations.
-        train : bool, optional
-            Whether to apply augmentations (default: True).
-        """
         self.data_augmentor_queue = []
         self.train = train
 

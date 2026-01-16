@@ -1,19 +1,113 @@
+"""
+ResNet Building Blocks and Layer Construction.
+
+This module implements ResNet basic blocks and layer construction utilities
+for building ResNet-style backbones for feature extraction.
+"""
+
 from torch import Tensor
 import torch.nn as nn
 from typing import Callable, List, Optional
 
 
 def conv3x3(in_planes: int, out_planes: int, stride: int = 1, groups: int = 1, dilation: int = 1) -> nn.Conv2d:
-    """3x3 convolution with padding"""
+    """
+    Create 3x3 convolution with padding.
+
+    Parameters
+    ----------
+    in_planes : int
+        Number of input channels.
+    out_planes : int
+        Number of output channels.
+    stride : int, optional
+        Convolution stride. Default is 1.
+    groups : int, optional
+        Number of groups for grouped convolution. Default is 1.
+    dilation : int, optional
+        Dilation rate. Default is 1.
+
+    Returns
+    -------
+    nn.Conv2d
+        3x3 convolutional layer.
+    """
     return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride, padding=dilation, groups=groups, bias=False, dilation=dilation)
 
 
 def conv1x1(in_planes: int, out_planes: int, stride: int = 1) -> nn.Conv2d:
-    """1x1 convolution"""
+    """
+    Create 1x1 convolution.
+
+    Parameters
+    ----------
+    in_planes : int
+        Number of input channels.
+    out_planes : int
+        Number of output channels.
+    stride : int, optional
+        Convolution stride. Default is 1.
+
+    Returns
+    -------
+    nn.Conv2d
+        1x1 convolutional layer.
+    """
     return nn.Conv2d(in_planes, out_planes, kernel_size=1, stride=stride, bias=False)
 
 
 class BasicBlock(nn.Module):
+    """
+    Basic residual block for ResNet.
+
+    This block consists of two 3x3 convolutions with batch normalization
+    and ReLU activation, plus a residual connection.
+
+    Parameters
+    ----------
+    inplanes : int
+        Number of input channels.
+    planes : int
+        Number of output channels (before expansion).
+    stride : int, optional
+        Stride for first convolution. Default is 1.
+    downsample : nn.Module, optional
+        Downsampling layer for residual connection if needed.
+    groups : int, optional
+        Number of groups for grouped convolution. Default is 1.
+    base_width : int, optional
+        Base width for computing number of channels. Default is 64.
+    dilation : int, optional
+        Dilation rate. Default is 1.
+    norm_layer : callable, optional
+        Normalization layer constructor. Default is nn.BatchNorm2d.
+
+    Attributes
+    ----------
+    expansion : int
+        Channel expansion factor (always 1 for BasicBlock).
+    conv1 : nn.Conv2d
+        First 3x3 convolution.
+    bn1 : nn.Module
+        Batch normalization after first convolution.
+    relu : nn.ReLU
+        ReLU activation.
+    conv2 : nn.Conv2d
+        Second 3x3 convolution.
+    bn2 : nn.Module
+        Batch normalization after second convolution.
+    downsample : nn.Module or None
+        Downsampling layer for residual connection.
+    stride : int
+        Stride value.
+
+    Raises
+    ------
+    ValueError
+        If groups != 1 or base_width != 64.
+    NotImplementedError
+        If dilation > 1.
+    """
     expansion: int = 1
 
     def __init__(
@@ -44,6 +138,19 @@ class BasicBlock(nn.Module):
         self.stride = stride
 
     def forward(self, x: Tensor) -> Tensor:
+        """
+        Forward pass through basic block.
+
+        Parameters
+        ----------
+        x : Tensor
+            Input features with shape (B, C, H, W).
+
+        Returns
+        -------
+        Tensor
+            Output features with shape (B, C', H', W').
+        """
         identity = x
 
         out = self.conv1(x)
@@ -63,6 +170,58 @@ class BasicBlock(nn.Module):
 
 
 class ResNetLayers(nn.Module):
+    """
+    ResNet layer construction module.
+
+    Builds multiple ResNet stages with configurable number of blocks,
+    strides, and channel dimensions.
+
+    Parameters
+    ----------
+    layers : list of int
+        Number of blocks in each layer.
+    layer_strides : list of int
+        Stride after each layer.
+    num_filters : list of int
+        Output channel dimensions for each layer.
+    zero_init_residual : bool, optional
+        Whether to zero-initialize final BN in residual branches. Default is False.
+    groups : int, optional
+        Number of groups for grouped convolution. Default is 1.
+    width_per_group : int, optional
+        Width per group for grouped convolution. Default is 64.
+    replace_stride_with_dilation : list of bool, optional
+        Whether to replace stride with dilation for each layer. Default is None.
+    norm_layer : callable, optional
+        Normalization layer constructor. Default is nn.BatchNorm2d.
+    inplanes : int, optional
+        Initial number of input channels. Default is 64.
+
+    Attributes
+    ----------
+    inplanes : int
+        Current number of input channels (updated during layer construction).
+    dilation : int
+        Current dilation rate.
+    groups : int
+        Number of groups for grouped convolution.
+    base_width : int
+        Base width per group.
+    layernum : int
+        Number of ResNet layers.
+    layer0, layer1, ... : nn.Sequential
+        Individual ResNet layers (dynamically created).
+
+    Raises
+    ------
+    ValueError
+        If replace_stride_with_dilation is not None or a 3-element tuple.
+
+    References
+    ----------
+           https://arxiv.org/abs/1706.02677
+    """
+    
     def __init__(
         self,
         layers: List[int],  # number of block in one layer

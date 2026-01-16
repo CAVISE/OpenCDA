@@ -1,6 +1,10 @@
 # -*- coding: utf-8 -*-
 """
-Mock Carla for unit tests.
+Mock CARLA classes for unit testing.
+
+This module provides lightweight mock implementations of CARLA classes
+(Location, Transform, Rotation, Camera, LiDAR, Vehicle, etc.) to enable
+unit testing without requiring the full CARLA simulator.
 """
 
 # Author: Runsheng Xu <rxx3386@ucla.edu>
@@ -10,13 +14,30 @@ import numpy as np
 
 
 class Location(object):
-    """A mock class for CARLA's Location.
-    This class represents a 3D point in the simulation world.
-    Args:
-        x: X-coordinate (forward/backward)
-        y: Y-coordinate (left/right)
-        z: Z-coordinate (up/down)
     """
+    Mock class for CARLA's Location.
+
+    Represents a 3D point in the simulation world.
+
+    Parameters
+    ----------
+    x : float
+        X-coordinate (forward/backward).
+    y : float
+        Y-coordinate (left/right).
+    z : float
+        Z-coordinate (up/down).
+
+    Attributes
+    ----------
+    x : float
+        X-coordinate.
+    y : float
+        Y-coordinate.
+    z : float
+        Z-coordinate.
+    """
+
     def __init__(self, x: float, y: float, z: float) -> None:
         self.x = x
         self.y = y
@@ -24,29 +45,64 @@ class Location(object):
 
 
 class Transform(object):
-    """A mock class for CARLA's Transform.
-    This class combines location and rotation into a single transform.
-    Args:
-        x: X-coordinate
-        y: Y-coordinate
-        z: Z-coordinate
-        pitch: Rotation around Y axis (default: 0)
-        yaw: Rotation around Z axis (default: 0)
-        roll: Rotation around X axis (default: 0)
     """
+    Mock class for CARLA's Transform.
+
+    Combines location and rotation into a single transform.
+
+    Parameters
+    ----------
+    x : float
+        X-coordinate.
+    y : float
+        Y-coordinate.
+    z : float
+        Z-coordinate.
+    pitch : float, optional
+        Rotation around Y axis. Default is 0.
+    yaw : float, optional
+        Rotation around Z axis. Default is 0.
+    roll : float, optional
+        Rotation around X axis. Default is 0.
+
+    Attributes
+    ----------
+    location : Location
+        3D position.
+    rotation : Rotation
+        3D rotation.
+    """
+
     def __init__(self, x: float, y: float, z: float, pitch: float = 0, yaw: float = 0, roll: float = 0) -> None:
         self.location = Location(x, y, z)
         self.rotation = Rotation(pitch, yaw, roll)
 
 
 class Rotation(object):
-    """A mock class for CARLA's Rotation.
-    This class represents a 3D rotation in the simulation world.
-    Args:
-        pitch: Rotation around Y axis
-        yaw: Rotation around Z axis
-        roll: Rotation around X axis
     """
+    Mock class for CARLA's Rotation.
+
+    Represents a 3D rotation in the simulation world.
+
+    Parameters
+    ----------
+    pitch : float
+        Rotation around Y axis in degrees.
+    yaw : float
+        Rotation around Z axis in degrees.
+    roll : float
+        Rotation around X axis in degrees.
+
+    Attributes
+    ----------
+    pitch : float
+        Pitch rotation.
+    yaw : float
+        Yaw rotation.
+    roll : float
+        Roll rotation.
+    """
+
     def __init__(self, pitch: float, yaw: float, roll: float) -> None:
         self.pitch = pitch
         self.yaw = yaw
@@ -54,13 +110,30 @@ class Rotation(object):
 
 
 class Vector3D(object):
-    """A mock class for CARLA's Vector3D.
-        This class represents a 3D vector.
-        Args:
-            x: X component
-            y: Y component
-            z: Z component
-        """
+    """
+    Mock class for CARLA's Vector3D.
+
+    Represents a 3D vector.
+
+    Parameters
+    ----------
+    x : float
+        X component.
+    y : float
+        Y component.
+    z : float
+        Z component.
+
+    Attributes
+    ----------
+    x : float
+        X component.
+    y : float
+        Y component.
+    z : float
+        Z component.
+    """
+
     def __init__(self, x: float, y: float, z: float) -> None:
         self.x = x
         self.y = y
@@ -68,11 +141,24 @@ class Vector3D(object):
 
 
 class Camera(object):
-    """A mock class for CARLA's Camera.
-    This class represents a camera sensor in the simulation world.
-    Args:
-        attributes: Dictionary of camera attributes
     """
+    Mock class for CARLA's Camera sensor.
+
+    Represents a camera sensor in the simulation world.
+
+    Parameters
+    ----------
+    attributes : Dict[str, any]
+        Camera configuration (image_size_x, image_size_y, fov).
+
+    Attributes
+    ----------
+    attributes : Dict[str, any]
+        Camera attributes.
+    transform : Transform
+        Camera's current transform.
+    """
+
     def __init__(self, attributes: dict):
         self.attributes = attributes
         self.transform = Transform(x=10, y=10, z=10)
@@ -82,32 +168,60 @@ class Camera(object):
 
 
 class Lidar(object):
-    """A mock class for CARLA's LiDAR sensor.
-    Args:
-        attributes: Dictionary containing LiDAR attributes
     """
+    Mock class for CARLA's LiDAR sensor.
+
+    Parameters
+    ----------
+    attributes : Dict[str, any]
+        LiDAR configuration (channels, range).
+
+    Attributes
+    ----------
+    attributes : Dict[str, any]
+        LiDAR attributes.
+    transform : Transform
+        LiDAR's current transform.
+    """
+
     def __init__(self, attributes: dict):
         self.attributes = attributes
         self.transform = Transform(x=11, y=11, z=11)
 
     def get_transform(self):
-        """Get the current transform of the LiDAR.
-        Returns:
-            Transform: The current transform of the LiDAR
+        """
+        Get the current transform of the LiDAR.
+
+        Returns
+        -------
+        Transform
+            Current LiDAR transform.
         """
         return self.transform
 
 
 class BoundingBox(object):
-    """A mock class for CARLA's bounding box.
+    """
+    Mock class for CARLA's bounding box.
+
+    Computes center location and extents from corner points.
+
+    Parameters
+    ----------
+    corners : nd.nparray
+        Eight corners of the bounding box with shape (8, 3).
+
+    Attributes
+    ----------
+    location : Location
+        Center location of the bounding box.
+    transform : Transform
+        Transform at the center of the bounding box.
+    extent : Vector3D
+        Half-extents (width, length, height) of the bounding box.
     """
 
     def __init__(self, corners):
-        """
-        Construct class.
-        Args:
-            corners (nd.nparray): Eight corners of the bounding box. shape:(8, 3)
-        """
         center_x = np.mean(corners[:, 0])
         center_y = np.mean(corners[:, 1])
         center_z = np.mean(corners[:, 2])
@@ -122,8 +236,17 @@ class BoundingBox(object):
 
 
 class Vehicle(object):
-    """A mock class for CARLA's vehicle.
-    This class represents a vehicle in the simulation with a transform and bounding box.
+    """
+    Mock class for CARLA's vehicle.
+
+    Represents a vehicle with a transform and bounding box.
+
+    Attributes
+    ----------
+    transform : Transform
+        Vehicle's current transform.
+    bounding_box : BoundingBox
+        Vehicle's bounding box.
     """
 
     def __init__(self):
@@ -131,6 +254,13 @@ class Vehicle(object):
         self.transform = Transform(x=12, y=12, z=12)
         self.bounding_box = BoundingBox(corner)
 
-    def get_transform(self):
-        """Get the current transform of the vehicle."""
+    def get_transform(self) -> Transform:
+        """
+        Get the current transform of the vehicle.
+
+        Returns
+        -------
+        Transform
+            Current vehicle transform.
+        """
         return self.transform

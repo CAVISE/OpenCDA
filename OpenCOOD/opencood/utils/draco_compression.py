@@ -18,7 +18,6 @@ import numpy as np
 import torch
 from glob import glob
 import subprocess
-import numpy.typing as npt
 from typing import List
 draco = "/media/hdd/yuan/draco/build_dir/draco_encoder"
 

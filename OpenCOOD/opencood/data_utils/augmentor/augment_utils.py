@@ -1,3 +1,11 @@
+"""
+Data augmentation utilities for 3D object detection.
+
+This module provides geometric transformation functions for augmenting LiDAR
+point clouds and 3D bounding boxes, including flipping, rotation, and scaling
+operations.
+"""
+
 import numpy as np
 from numpy.typing import NDArray
 from opencood.utils import common_utils

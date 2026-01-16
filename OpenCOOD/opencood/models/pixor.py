@@ -1,3 +1,10 @@
+"""
+PIXOR model for BEV-based 3D object detection.
+
+This module implements PIXOR, a bird's-eye-view based single-stage detector for
+3D object detection using Feature Pyramid Networks and residual blocks.
+"""
+
 import math
 
 import torch.nn as nn
@@ -7,11 +14,62 @@ from typing import Dict, Any, List, Optional, Tuple, Type, Union
 from torch import Tensor
 
 def conv3x3(in_planes: int, out_planes: int, stride: int = 1, bias: bool = False) -> nn.Conv2d:
-    """3x3 convolution with padding"""
+    """
+    Create a 3x3 convolution with padding.
+
+    Parameters
+    ----------
+    in_planes : int
+        Number of input channels.
+    out_planes : int
+        Number of output channels.
+    stride : int, optional
+        Convolution stride. Default is 1.
+    bias : bool, optional
+        Whether to include bias term. Default is False.
+
+    Returns
+    -------
+    nn.Conv2d
+        2D convolution layer with kernel size 3 and padding 1.
+    """
     return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride, padding=1, bias=bias)
 
 
 class BasicBlock(nn.Module):
+    """
+    Basic residual block for ResNet architecture.
+
+    Parameters
+    ----------
+    in_planes : int
+        Number of input channels.
+    planes : int
+        Number of output channels.
+    stride : int, optional
+        Convolution stride. Default is 1.
+    downsample : nn.Module, optional
+        Downsampling layer for residual connection. Default is None.
+
+    Attributes
+    ----------
+    expansion : int
+        Channel expansion factor (always 1 for BasicBlock).
+    conv1 : nn.Conv2d
+        First 3x3 convolution layer.
+    bn1 : nn.BatchNorm2d
+        First batch normalization layer.
+    relu : nn.ReLU
+        ReLU activation function.
+    conv2 : nn.Conv2d
+        Second 3x3 convolution layer.
+    bn2 : nn.BatchNorm2d
+        Second batch normalization layer.
+    downsample : nn.Module or None
+        Downsampling layer for residual connection.
+    stride : int
+        Convolution stride.
+    """
     expansion = 1
 
     def __init__(self, in_planes: int, planes: int, stride: int = 1, downsample: Optional[nn.Module] = None) -> None:
@@ -25,6 +83,19 @@ class BasicBlock(nn.Module):
         self.stride = stride
 
     def forward(self, x: Tensor) -> Tensor:
+        """
+        Forward pass of BasicBlock.
+
+        Parameters
+        ----------
+        x : Tensor
+            Input tensor with shape (N, in_planes, H, W).
+
+        Returns
+        -------
+        Tensor
+            Output tensor with shape (N, planes, H/stride, W/stride).
+        """
         residual = x
 
         out = self.conv1(x)
@@ -44,6 +115,45 @@ class BasicBlock(nn.Module):
 
 
 class Bottleneck(nn.Module):
+    """
+    Bottleneck residual block for ResNet architecture.
+
+    Parameters
+    ----------
+    in_planes : int
+        Number of input channels.
+    planes : int
+        Number of intermediate channels.
+    stride : int, optional
+        Convolution stride. Default is 1.
+    downsample : nn.Module, optional
+        Downsampling layer for residual connection. Default is None.
+    use_bn : bool, optional
+        Whether to use batch normalization. Default is True.
+
+    Attributes
+    ----------
+    expansion : int
+        Channel expansion factor (always 4 for Bottleneck).
+    use_bn : bool
+        Flag indicating whether batch normalization is used.
+    conv1 : nn.Conv2d
+        First 1x1 convolution layer.
+    bn1 : nn.BatchNorm2d
+        First batch normalization layer.
+    conv2 : nn.Conv2d
+        Second 3x3 convolution layer.
+    bn2 : nn.BatchNorm2d
+        Second batch normalization layer.
+    conv3 : nn.Conv2d
+        Third 1x1 convolution layer.
+    bn3 : nn.BatchNorm2d
+        Third batch normalization layer.
+    downsample : nn.Module or None
+        Downsampling layer for residual connection.
+    relu : nn.ReLU
+        ReLU activation function.
+    """
     expansion = 4
 
     def __init__(self, in_planes: int, planes: int, stride: int = 1, downsample: Optional[nn.Module] = None, use_bn: bool = True):
@@ -62,7 +172,6 @@ class Bottleneck(nn.Module):
     def forward(self, x: Tensor) -> Tensor:
         """
         Forward pass of residual block.
-        
         Parameters
         ----------
         x : torch.Tensor
@@ -97,6 +206,59 @@ class Bottleneck(nn.Module):
 
 
 class BackBone(nn.Module):
+    """
+    Feature Pyramid Network backbone for PIXOR.
+
+    This backbone extracts multi-scale features using residual blocks and
+    combines them using a top-down pathway with lateral connections.
+
+    Parameters
+    ----------
+    block : type
+        Residual block type (BasicBlock or Bottleneck).
+    num_block : list of int
+        Number of blocks in each layer.
+    geom : dict of str to Any
+        Geometry parameters containing 'input_shape' and 'label_shape'.
+    use_bn : bool, optional
+        Whether to use batch normalization. Default is True.
+
+    Attributes
+    ----------
+    use_bn : bool
+        Flag indicating whether batch normalization is used.
+    conv1 : nn.Conv2d
+        First 3x3 convolution layer.
+    conv2 : nn.Conv2d
+        Second 3x3 convolution layer.
+    bn1 : nn.BatchNorm2d
+        First batch normalization layer.
+    bn2 : nn.BatchNorm2d
+        Second batch normalization layer.
+    relu : nn.ReLU
+        ReLU activation function.
+    in_planes : int
+        Current number of input channels for layer construction.
+    block2 : nn.Sequential
+        Second residual block layer.
+    block3 : nn.Sequential
+        Third residual block layer.
+    block4 : nn.Sequential
+        Fourth residual block layer.
+    block5 : nn.Sequential
+        Fifth residual block layer.
+    latlayer1 : nn.Conv2d
+        Lateral connection for highest resolution features.
+    latlayer2 : nn.Conv2d
+        Lateral connection for middle resolution features.
+    latlayer3 : nn.Conv2d
+        Lateral connection for lower resolution features.
+    deconv1 : nn.ConvTranspose2d
+        First deconvolution layer for upsampling.
+    deconv2 : nn.ConvTranspose2d
+        Second deconvolution layer for upsampling.
+    """
+
     def __init__(
         self,
         block: Type[Union[BasicBlock, Bottleneck]],
@@ -132,7 +294,20 @@ class BackBone(nn.Module):
         p = 0 if geom["label_shape"][1] == 175 else 1
         self.deconv2 = nn.ConvTranspose2d(128, 96, kernel_size=3, stride=2, padding=1, output_padding=(1, p))
 
-    def encode(self, x):
+    def encode(self, x: Tensor) -> Tuple[Tensor, Tensor, Tensor]:
+        """
+        Encode input through bottom-up pathway.
+
+        Parameters
+        ----------
+        x : Tensor
+            Input BEV tensor.
+
+        Returns
+        -------
+        tuple of Tensor
+            Multi-scale features (c3, c4, c5) from different resolution levels.
+        """
         x = self.conv1(x)
         if self.use_bn:
             x = self.bn1(x)
@@ -152,6 +327,23 @@ class BackBone(nn.Module):
         return c3, c4, c5
 
     def decode(self, c3: Tensor, c4: Tensor, c5: Tensor) -> Tensor:
+        """
+        Decode multi-scale features through top-down pathway.
+
+        Parameters
+        ----------
+        c3 : Tensor
+            Features from layer 3.
+        c4 : Tensor
+            Features from layer 4.
+        c5 : Tensor
+            Features from layer 5.
+
+        Returns
+        -------
+        Tensor
+            Fused multi-scale features.
+        """
         l5 = self.latlayer1(c5)
         l4 = self.latlayer2(c4)
         p5 = l4 + self.deconv1(l5)
@@ -161,6 +353,19 @@ class BackBone(nn.Module):
         return p4
 
     def forward(self, x: Tensor) -> Tensor:
+        """
+        Forward pass through backbone.
+
+        Parameters
+        ----------
+        x : Tensor
+            Input BEV tensor with shape (N, C, H, W).
+
+        Returns
+        -------
+        Tensor
+            Multi-scale fused features with shape (N, 96, H/4, W/4).
+        """
         c3, c4, c5 = self.encode(x)
         p4 = self.decode(c3, c4, c5)
 
@@ -172,6 +377,23 @@ class BackBone(nn.Module):
         planes: int,
         num_blocks: int
     ) -> nn.Sequential:
+        """
+        Construct a residual layer with multiple blocks.
+
+        Parameters
+        ----------
+        block : type
+            Residual block type (BasicBlock or Bottleneck).
+        planes : int
+            Number of output channels.
+        num_blocks : int
+            Number of blocks in this layer.
+
+        Returns
+        -------
+        nn.Sequential
+            Sequential container of residual blocks.
+        """
         if self.use_bn:
             # downsample the H*W by 1/2
             downsample = nn.Sequential(
@@ -214,9 +436,42 @@ class BackBone(nn.Module):
 
 class Header(nn.Module):
     """
-    Prediction header for PIXOR that takes backbone features and produces
-    classification and regression outputs.
+    Prediction header for PIXOR.
+
+    This header takes backbone features and produces classification and
+    regression outputs for object detection.
+
+    Parameters
+    ----------
+    use_bn : bool, optional
+        Whether to use batch normalization. Default is True.
+
+    Attributes
+    ----------
+    use_bn : bool
+        Flag indicating whether batch normalization is used.
+    conv1 : nn.Conv2d
+        First 3x3 convolution layer.
+    bn1 : nn.BatchNorm2d
+        First batch normalization layer.
+    conv2 : nn.Conv2d
+        Second 3x3 convolution layer.
+    bn2 : nn.BatchNorm2d
+        Second batch normalization layer.
+    conv3 : nn.Conv2d
+        Third 3x3 convolution layer.
+    bn3 : nn.BatchNorm2d
+        Third batch normalization layer.
+    conv4 : nn.Conv2d
+        Fourth 3x3 convolution layer.
+    bn4 : nn.BatchNorm2d
+        Fourth batch normalization layer.
+    clshead : nn.Conv2d
+        Classification head producing object confidence scores.
+    reghead : nn.Conv2d
+        Regression head producing bounding box parameters.
     """
+
     def __init__(self, use_bn: bool = True) -> None:
         super(Header, self).__init__()
 
@@ -235,6 +490,20 @@ class Header(nn.Module):
         self.reghead = conv3x3(96, 6, bias=True)
 
     def forward(self, x: Tensor) -> Tuple[Tensor, Tensor]:
+        """
+        Forward pass through prediction header.
+
+        Parameters
+        ----------
+        x : Tensor
+            Input features with shape (N, 96, H, W).
+
+        Returns
+        -------
+        tuple of Tensor
+            Classification scores with shape (N, 1, H, W) and
+            regression parameters with shape (N, 6, H, W).
+        """
         x = self.conv1(x)
         if self.use_bn:
             x = self.bn1(x)
@@ -296,6 +565,19 @@ class PIXOR(nn.Module):
         self.header.reghead.bias.data.fill_(0)
 
     def forward(self, data_dict: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Forward pass through PIXOR model.
+
+        Parameters
+        ----------
+        data_dict : dict of str to Any
+            Input data dictionary containing:
+            - 'processed_lidar': Dictionary with 'bev_input' BEV representation.
+
+        Returns
+        -------
+        dict of str to Tensor
+        """
         bev_input = data_dict["processed_lidar"]["bev_input"]
 
         features = self.backbone(bev_input)

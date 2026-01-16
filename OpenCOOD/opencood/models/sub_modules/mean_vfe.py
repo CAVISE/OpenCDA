@@ -1,9 +1,40 @@
+"""
+Mean Voxel Feature Encoder (VFE).
+
+This module implements a simple mean-pooling strategy for encoding point
+features within voxels by averaging all points in each voxel.
+"""
+
 from typing import Dict, Any
 import torch
-from torch import nn, Tensor
+from torch import nn
 
 
 class MeanVFE(nn.Module):
+    """
+    Mean-pooling Voxel Feature Encoder.
+
+    This encoder aggregates point features within each voxel by computing
+    the mean of all points, providing a simple and efficient feature
+    representation for voxelized point clouds.
+
+    Parameters
+    ----------
+    model_cfg : dict
+        Model configuration dictionary.
+    num_point_features : int
+        Number of input point feature channels.
+    **kwargs
+        Additional keyword arguments.
+
+    Attributes
+    ----------
+    model_cfg : dict
+        Model configuration.
+    num_point_features : int
+        Number of point feature channels (also output dimension).
+    """
+
     def __init__(
         self,
         model_cfg: Dict,
@@ -16,7 +47,12 @@ class MeanVFE(nn.Module):
 
     def get_output_feature_dim(self) -> int:
         """
-        Get the output feature dimension.
+        Get output feature dimension.
+
+        Returns
+        -------
+        int
+            Number of output feature channels (same as input).
         """
         return self.num_point_features
 
@@ -26,14 +62,23 @@ class MeanVFE(nn.Module):
         **kwargs
     ) -> Dict[str, Any]:
         """
-        Args:
-            batch_dict:
-                voxels: (num_voxels, max_points_per_voxel, C)
-                voxel_num_points: optional (num_voxels)
-            **kwargs:
+        Encode voxel features by computing mean of points within each voxel.
 
-        Returns:
-            vfe_features: (num_voxels, C)
+        Parameters
+        ----------
+        batch_dict : dict of str to Any
+            Batch dictionary containing:
+            - 'voxel_features': Point features with shape (N_voxels, N_points, C).
+            - 'voxel_num_points': Number of valid points per voxel with
+              shape (N_voxels,).
+        **kwargs
+            Additional keyword arguments.
+
+        Returns
+        -------
+        dict of str to Any
+            Updated batch dictionary with:
+            - 'voxel_features': Mean-pooled voxel features with shape (N_voxels, C).
         """
         voxel_features, voxel_num_points = batch_dict["voxel_features"], batch_dict["voxel_num_points"]
         points_mean = voxel_features[:, :, :].sum(dim=1, keepdim=False)

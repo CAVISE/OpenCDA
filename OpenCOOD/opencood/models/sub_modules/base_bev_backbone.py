@@ -1,3 +1,10 @@
+"""
+Base BEV Backbone for 2D Feature Extraction.
+
+This module implements a basic Bird's Eye View (BEV) backbone with
+multi-scale feature extraction and upsampling for 2D object detection.
+"""
+
 import numpy as np
 import torch
 import torch.nn as nn
@@ -6,6 +13,37 @@ from typing import Dict
 from torch import Tensor
 
 class BaseBEVBackbone(nn.Module):
+    """
+    Base BEV backbone with multi-scale feature extraction.
+
+    This backbone processes BEV features through multiple convolutional
+    blocks with downsampling, then upsamples and fuses features at different
+    scales for detection.
+
+    Parameters
+    ----------
+    model_cfg : dict
+        Model configuration dictionary containing:
+        - 'layer_nums': Number of conv blocks per stage (list of int).
+        - 'layer_strides': Stride for each stage (list of int).
+        - 'num_filters': Output channels for each stage (list of int).
+        - 'upsample_strides': Upsampling strides (list of int, optional).
+        - 'num_upsample_filter': Output channels after upsampling (list of int, optional).
+    input_channels : int
+        Number of input feature channels.
+
+    Attributes
+    ----------
+    model_cfg : dict
+        Model configuration.
+    blocks : nn.ModuleList
+        List of convolutional blocks for downsampling.
+    deblocks : nn.ModuleList
+        List of deconvolution/upsampling blocks.
+    num_bev_features : int
+        Total number of output BEV feature channels.
+    """
+
     def __init__(self, model_cfg, input_channels):
         super().__init__()
         self.model_cfg = model_cfg
@@ -88,6 +126,19 @@ class BaseBEVBackbone(nn.Module):
     def forward(self, data_dict: Dict[str, Tensor]) -> Dict[str, Tensor]:
         """
         Forward pass for the base BEV backbone.
+
+        Parameters
+        ----------
+        data_dict : dict of str to Tensor
+            Data dictionary containing:
+            - 'spatial_features': Input BEV features with shape (B, C, H, W).
+
+        Returns
+        -------
+        dict of str to Tensor
+            Updated data dictionary with:
+            - 'spatial_features_2d': Fused multi-scale features with shape (B, C_out, H', W').
+            - 'spatial_features_Nx': Intermediate features at each scale
         """
         spatial_features = data_dict["spatial_features"]
 

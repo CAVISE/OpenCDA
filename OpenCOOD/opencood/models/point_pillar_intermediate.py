@@ -1,5 +1,11 @@
-import torch.nn as nn
+"""
+PointPillar with intermediate attention-based fusion for 3D object detection.
 
+This module implements PointPillar architecture with an attention-based BEV backbone
+for intermediate feature extraction and multi-agent cooperative perception.
+"""
+
+import torch.nn as nn
 
 from opencood.models.sub_modules.pillar_vfe import PillarVFE
 from opencood.models.sub_modules.point_pillar_scatter import PointPillarScatter
@@ -9,15 +15,39 @@ from typing import Dict, Any
 
 class PointPillarIntermediate(nn.Module):
     """
+    PointPillar with intermediate attention-based feature extraction.
+
     This module implements a PointPillar-based architecture with an attention-based
     BEV backbone for feature extraction, followed by detection heads for classification
     and regression.
-    """
-    def __init__(self, args):
-        """
-        Initialize the PointPillarIntermediate model.
 
-        """
+    Parameters
+    ----------
+    args : dict of str to Any
+        Configuration dictionary containing:
+        - 'pillar_vfe': Configuration for PillarVFE.
+        - 'voxel_size': Voxel size [x, y, z].
+        - 'lidar_range': LiDAR range [x_min, y_min, z_min, x_max, y_max, z_max].
+        - 'point_pillar_scatter': Configuration for point pillar scatter.
+        - 'base_bev_backbone': Configuration for attention-based BEV backbone.
+        - 'anchor_number': Number of anchor boxes per position for classification.
+        - 'anchor_num': Number of anchor boxes for regression head.
+
+    Attributes
+    ----------
+    pillar_vfe : PillarVFE
+        Pillar voxel feature encoder module.
+    scatter : PointPillarScatter
+        Scatter module to convert pillar features to pseudo-image.
+    backbone : AttBEVBackbone
+        Attention-based 2D BEV backbone for feature extraction.
+    cls_head : nn.Conv2d
+        Classification head for predicting object scores.
+    reg_head : nn.Conv2d
+        Regression head for predicting bounding box parameters.
+    """
+
+    def __init__(self, args):
         super(PointPillarIntermediate, self).__init__()
 
         # PIllar VFE
@@ -31,6 +61,21 @@ class PointPillarIntermediate(nn.Module):
     def forward(self, data_dict: Dict[str, Any]) -> Dict[str, Any]:
         """
         Forward pass of the PointPillarIntermediate model.
+
+        Parameters
+        ----------
+        data_dict : dict of str to Any
+            Input data dictionary containing:
+            - 'processed_lidar': Dictionary with 'voxel_features', 'voxel_coords',
+              and 'voxel_num_points'.
+            - 'record_len': Tensor indicating number of agents per batch sample.
+
+        Returns
+        -------
+        dict of str to torch.Tensor
+            Output dictionary with keys:
+            - 'psm': Probability score map with shape (batch_size, anchor_number, H, W).
+            - 'rm': Regression map with shape (batch_size, 7*anchor_num, H, W).
         """
         voxel_features = data_dict["processed_lidar"]["voxel_features"]
         voxel_coords = data_dict["processed_lidar"]["voxel_coords"]

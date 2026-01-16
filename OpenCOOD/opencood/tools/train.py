@@ -1,5 +1,8 @@
 """
 Training script for cooperative perception models.
+
+This module provides the main training loop for cooperative perception models,
+supporting distributed training, mixed precision, and learning rate scheduling.
 """
 
 import argparse

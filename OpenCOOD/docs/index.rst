@@ -24,16 +24,16 @@ for the latest release.
    :maxdepth: 1
    :caption: Getting Started
 
-   md_files/data_intro.md
-   md_files/installation.md
+   OpenCDA/OpenCOOD/docs/md_files/data_intro.md
+   OpenCDA/OpenCOOD/setup.py
 
 .. toctree::
    :maxdepth: 1
    :caption: Tutorials
 
-   md_files/config_tutorial.md
-   md_files/data_annotation_tutorial.md
-   md_files/logic_flow.md
+   OpenCDA/OpenCOOD/docs/md_files/config_tutorial.md
+   OpenCDA/OpenCOOD/docs/md_files/data_annotation_tutorial.md
+   OpenCDA/OpenCOOD/docs/md_files/logic_flow.md
 
 .. toctree::
    :maxdepth: 1
@@ -41,17 +41,10 @@ for the latest release.
 
    md_files/contributor.md
 
-**Citing OpenCOOD**\ :
+License
+=======
 
-If you are using the OpenCOOD framework or codes for your development, please cite the following paper::
-
-    @inproceedings{xu2022opencood,
-      author = {Runsheng Xu, Hao Xiang, Xin Xia, Xu Han, Jinlong Li, Jiaqi Ma},
-      title = {OPV2V: An Open Benchmark Dataset and Fusion Pipeline for Perception with Vehicle-to-Vehicle Communication},
-      booktitle = {2022 IEEE International Conference on Robotics and Automation (ICRA)},
-      year = {2022}}
-
-Also, under this LICENSE, OpenCOOD is for non-commercial research only. Researchers can modify the source code for their own research only.
+Under the project LICENSE, OpenCOOD is for non-commercial research only. Researchers can modify the source code for their own research purposes.
 
 Indices and tables
 ==================

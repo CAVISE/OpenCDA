@@ -1,6 +1,10 @@
 # -*- coding: utf-8 -*-
 """
-Script to run different scenarios.
+Main entry point script for running OpenCDA simulation scenarios.
+
+This module provides the command-line interface and initialization logic for
+OpenCDA simulations, including argument parsing, logging setup, configuration
+loading, and scenario execution.
 """
 
 # Author: Runsheng Xu <rxx3386@ucla.edu>

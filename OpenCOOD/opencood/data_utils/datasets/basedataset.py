@@ -1,5 +1,9 @@
 """
-Basedataset class for all kinds of fusion.
+Base dataset class for cooperative perception.
+
+This module provides the foundational dataset class for all types of fusion
+approaches (early, intermediate, and late fusion) in cooperative autonomous
+driving, handling data loading, preprocessing, and augmentation.
 """
 
 import os
@@ -39,6 +43,27 @@ class BaseDataset(Dataset):
         for visualization.
     train : bool, optional
         Whether the dataset is used for training. Default is True.
+
+    Attributes
+    ----------
+    params : Dict[str, Any]
+        Configuration parameters for the dataset.
+    visualize : bool
+        Flag for visualization mode.
+    train : bool
+        Training mode indicator.
+    pre_processor : Optional[Any]
+        Preprocessor instance for point cloud processing.
+    post_processor : Optional[Any]
+        Postprocessor instance for output processing.
+    data_augmentor : DataAugmentor
+        Data augmentation handler.
+    max_cav : int
+        Maximum number of connected autonomous vehicles.
+    scenario_database : OrderedDict
+        Database containing all scenario data.
+    len_record : List[int]
+        Cumulative length record for indexing.
     """
 
     def __init__(self, params: Dict[str, Any], visualize: bool, train: bool = True):
