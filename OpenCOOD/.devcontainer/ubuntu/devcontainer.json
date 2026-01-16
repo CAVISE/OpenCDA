@@ -1,0 +1,14 @@
+{
+  "build": {
+    "args": {
+      "USER": "devcontainer"
+    },
+    "context": "${localWorkspaceFolder}",
+    "dockerfile": "${localWorkspaceFolder}/.devcontainer/ubuntu/Dockerfile"
+  },
+  "containerUser": "devcontainer",
+  "name": "OpenCOOD DevContainer",
+  "runArgs": [
+    "--shm-size=8g"
+  ]
+}
