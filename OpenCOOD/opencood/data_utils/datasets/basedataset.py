@@ -191,7 +191,8 @@ class BaseDataset(Dataset):
         Dict[str, Any]
             Data dictionary.
         """
-        pass
+        # TODO: Implement this function
+        raise NotImplementedError
 
     def retrieve_base_data(self, idx: int, cur_ego_pose_flag: bool = True) -> Dict[str, Any]:
         """
