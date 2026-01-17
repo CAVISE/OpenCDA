@@ -50,8 +50,8 @@ class BasePostprocessor(object):
         NotImplementedError
             This method should be overridden by subclasses.
         """
-        # needs to be overloaded
-        raise NotImplementedError
+        # TODO: needs to be overloaded
+        return None
 
     def generate_label(self, *argv: Any) -> Any:
         """

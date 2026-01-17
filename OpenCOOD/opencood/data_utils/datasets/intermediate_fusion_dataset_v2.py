@@ -194,13 +194,9 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
                 ego_lidar_pose = cav_content["params"]["lidar_pose"]
                 break
 
-        cav_id_check = list(base_data_dict.keys())[0]
-        if cav_id_check != ego_id:
-            raise NotImplementedError("The first element in the OrderedDict must be ego")
-        if ego_id == -1:
-            raise NotImplementedError("No ego vehicle found")
-        if len(ego_lidar_pose) == 0:
-            raise NotImplementedError("Ego lidar pose is empty")
+        assert cav_id == list(base_data_dict.keys())[0], "The first element in the OrderedDict must be ego"
+        assert ego_id != -1
+        assert len(ego_lidar_pose) > 0
 
         return ego_id, ego_lidar_pose
 
