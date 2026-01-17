@@ -3,6 +3,7 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import argparse
 
 from data_path_config import DATA_PATH, DATA_VIZUALIZATION_PATH
 
@@ -124,5 +125,14 @@ def vizualize_data(pkl=False):
         plt.cla()
 
 
+def main():
+    parser = argparse.ArgumentParser(description="")
+
+    parser.add_argument("--after_preprocessing", action="store_true", help="visualize data after preprocessing")
+
+    args = parser.parse_args()
+    vizualize_data(args.after_preprocessing)
+
+
 if __name__ == "__main__":
-    vizualize_data(pkl=True)
+    main()

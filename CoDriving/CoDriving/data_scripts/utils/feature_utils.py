@@ -37,13 +37,14 @@ def get_center_coodinates(
     return config["center_coordinates"]
 
 
-def get_intention_from_vehicle_id(vehicle_id: str, intention_config_path: str) -> np.ndarray:
+def get_intention_from_vehicle_id(vehicle_id: str, intention_config_path: str, start_position_config_path: str) -> np.ndarray:
     """
     Parse the vehicle id to distinguish its intention.
     """
     path_to_intention = get_path_to_intention(intention_config_path)
+    path_to_start_position = get_path_to_intention(start_position_config_path)
 
-    intention = np.zeros(4)
+    intention = np.zeros(3)
 
     from_path, to_path, _ = vehicle_id.split("_")
     intention_str = path_to_intention[f"{from_path}_{to_path}"]
@@ -57,4 +58,18 @@ def get_intention_from_vehicle_id(vehicle_id: str, intention_config_path: str) -
     else:
         raise Exception(f'There is no "{from_path}_{to_path}" vehicle id in config')
 
-    return intention
+    start_position = np.zeros(4)
+    start_positin_str = path_to_start_position[from_path]
+
+    if start_positin_str == "left":
+        start_position[0] = 1
+    elif start_positin_str == "up":
+        start_position[1] = 1
+    elif start_positin_str == "right":
+        start_position[2] = 1
+    elif start_positin_str == "down":
+        start_position[3] = 1
+    else:
+        raise Exception(f'There is no "{from_path}" vehicle id in start position config')
+
+    return intention, start_position

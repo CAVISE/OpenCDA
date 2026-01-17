@@ -13,10 +13,14 @@ VEHICLE_LENGTH = 5
 VEHICLE_MAX_SPEED = 40
 VEHICLE_MIN_GAP = 2.5
 MAP_BOUNDARY = 100  # dont touch, because sumo net file build with this map boundary in x and y
+CONTROLL_RADIUS = 35  # dont touch, ...
 
 ALLIGN_INITIAL_DIRECTION_TO_X = True  # allign initial direction of motion to +X
 NUM_AUGMENTATION = 0
-NORMALIZE_DATA = True
+NORMALIZE_DATA = False
+
+INPUT_VECTOR_SIZE = 7
+PREDICT_VECTOR_SIZE = 2
 
 
 RAW_DATA_FORMAT = {
@@ -42,8 +46,10 @@ OBJ_RADIUS = 30000
 
 DATA_DIR = "./csv"
 OBS_LEN = 20
-PRED_LEN = 30
-NUM_PREDICT = 30
+PRED_LEN = 1  # len of seq to be predicted by model
+NUM_PREDICT_ON_PREDICT = 29  # number of predictions based on prediteced by model before
+NUM_PREDICT = PRED_LEN + NUM_PREDICT_ON_PREDICT  # number of data needed to be generated
+
 COLLECT_DATA_RADIUS = 35  # once the current pos of the vehicle is within this radius, the track of this vehicle will be written in csv
 HIDDEN_SIZE = 20
 INTERMEDIATE_DATA_DIR = "./csv"

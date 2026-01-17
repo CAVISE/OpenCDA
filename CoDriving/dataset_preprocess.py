@@ -46,6 +46,12 @@ if __name__ == "__main__":
         help="Name of file with routes and intentins. It must be in sumo/intentions/ directory",
         default="simple_separate_10m_intentions.json",
     )
+    parser.add_argument(
+        "--start_position_config",
+        type=str,
+        help="Name of file with strart positions. It must be in sumo/intentions/ directory",
+        default="start_positions.json",
+    )
     args = parser.parse_args()
 
     csv_folder = args.csv_folder
@@ -60,12 +66,14 @@ if __name__ == "__main__":
 
     processes = args.processes
     intention_config = args.intention_config
+    start_position_config = args.start_position_config
 
     completed_tasks_amount = Value("i", 0)
     lock = Lock()
 
     csv_files = [i for i in os.listdir(csv_folder_path) if os.path.splitext(i)[1] == ".csv"]
     intention_config_path = os.path.join(DATA_PATH, "sumo", "intentions", intention_config)
+    start_position_config_path = os.path.join(DATA_PATH, "sumo", "intentions", start_position_config)
 
     print("Processing started")
     executor = concurrent.futures.ProcessPoolExecutor(max_workers=processes)
@@ -77,6 +85,7 @@ if __name__ == "__main__":
                 file,
                 preprocess_folder_path,
                 intention_config_path,
+                start_position_config_path,
             )
             for file in csv_files
         ]

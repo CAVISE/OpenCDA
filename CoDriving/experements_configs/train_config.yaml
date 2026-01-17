@@ -1,18 +1,18 @@
-lr: 0.0001
-epoch: 1000
 batch_size: 256
-optimizer: adam
-weight_decay: 0.0001
-collision_penalty: true
-collision_penalty_factor: 500
-step_weights_factor: 5
-dist_threshold: 4
-mr_threshold: 4
-
-metrics_log_epoch_frequency: 2
 clear_exp_checkpoints: true
+collision_penalty: true
+collision_penalty_factor: 800
+dist_threshold: 4
+epoch: 2000
+hf_project_path: kijjjj/test-model1
+lr: 5.0e-03
+metrics_log_epoch_frequency: 2
+mr_threshold: 2
+optimizer: adamw
+push_to_hf: false
+step_weights_factor: 7
 train_data_dir: csv/train_pre
 val_data_dir: csv/val_pre
-
-push_to_hf: true
-hf_project_path: kijjjj/test-model1
+weight_decay: 0.0001
+speed_penalty: 1
+start_prediction_time: 0.3

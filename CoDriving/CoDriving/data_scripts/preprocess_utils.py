@@ -6,12 +6,11 @@ import os
 
 
 from CoDriving.data_scripts.data_config.data_config import (
-    NUM_PREDICT,
     OBS_LEN,
-    PRED_LEN,
+    NUM_PREDICT,
     ALLIGN_INITIAL_DIRECTION_TO_X,
     NUM_AUGMENTATION,
-    MAP_BOUNDARY,
+    CONTROLL_RADIUS,
     VEHICLE_MAX_SPEED,
     NORMALIZE_DATA,
 )
@@ -30,6 +29,7 @@ def rotation_matrix_with_allign_to_Y(yaw):
             [np.sin(np.pi / 2 - yaw), np.cos(np.pi / 2 - yaw)],
         ]
     )
+    rotation = torch.tensor(rotation).float()
     return rotation
 
 
@@ -59,6 +59,7 @@ def rotation_matrix_with_allign_to_X(yaw):
             [np.sin(-yaw), np.cos(-yaw)],
         ]
     )
+    rotation = torch.tensor(rotation).float()
     return rotation
 
 
@@ -77,7 +78,7 @@ def rotation_matrix_back_with_allign_to_X(yaw):
     return rotation
 
 
-def adjust_future_deltas(curr_states, future_states) -> None:
+def adjust_future_deltas(curr_states, future_states):
     """
     The range of delta angle is [-180, 180], in order to avoid the jump, adjust the future delta angles.
 
@@ -96,30 +97,152 @@ def adjust_future_deltas(curr_states, future_states) -> None:
             elif (future_states[i_vehicle, i_step, 3] - curr_states[i_vehicle, 3]) > np.pi:
                 future_states[i_vehicle, i_step, 3] -= 2 * np.pi
 
-    return None
+    return future_states
 
 
-def transform_sumo2carla(states: np.ndarray):
+def transform_coords(coords):
     """
-    In-place transform from sumo to carla: [x_carla, y_carla, yaw_carla] = [x_sumo, -y_sumo, yaw_sumo-90]. \
+    In-place. Transform coords in both directions: sumo <-> carla \
+        ([x_sumo, y_sumo] = [x_carla, -y_carla]).
+    expected coords on last dim 
+    """
+    coords[..., 1] = -coords[..., 1]
+    return coords
+
+
+def transform_sumo2carla_yaw(yaw):
+    """
+    In-place. In RAD transform yaw from sumo to carla
+    """
+    yaw -= float(np.deg2rad(90))
+    mask = yaw > float(np.deg2rad(180))
+    yaw[mask] -= float(np.deg2rad(360))
+    return yaw
+
+
+def transform_carla2sumo_yaw(yaw):
+    """
+    In-place. In RAD transform yaw from carla to sumo
+    """
+    yaw += float(np.deg2rad(90))
+    mask = yaw < 0
+    yaw[mask] += float(np.deg2rad(360))
+    return yaw
+
+
+def transform_sumo2carla(states):
+    """
+    In-place. In RAD transform from sumo to carla: [x_carla, y_carla, velosity, yaw_carla] = [x_sumo, -y_sumo, velosity, yaw_sumo-90]. \
         yaw_carla in [-90, 270] so if > 180 yaw_carla = yaw_carla - 360. After that yaw_carla in [-180, 180]
     Note:
         - the coordinate system in Carla is more convenient since the angle increases in the direction of rotation from +x to +y, while in sumo this is from +y to +x.
         - the coordinate system in Carla is a left-handed Cartesian coordinate system.
-    """
-    if states.ndim == 1:
-        states[1] = -states[1]
-        states[3] -= np.deg2rad(90)
-        if states[3] > np.deg2rad(180):
-            states[3] = states[3] - np.deg2rad(360)
 
-    elif states.ndim == 2:
-        states[:, 1] = -states[:, 1]
-        states[:, 3] -= np.deg2rad(90)
-        mask = states[:, 3] > np.deg2rad(180)
-        states[mask, 3] -= np.deg2rad(360)
-    else:
-        raise NotImplementedError
+    expected arraylike of size [..., 4]
+    """
+    transform_coords(states[..., :2])
+    transform_sumo2carla_yaw(states[..., 3])
+    return states
+
+
+def transform_carla2sumo(states):
+    """
+    In-place. In RAD transform from carla to sumo: [x_sumo, y_sumo, velosity, yaw_sumo] = [x_carla, -y_carla, velosity, yaw_carla+90]. \
+        yaw_sumo in [-90, 270] so if < 0 yaw_sumo = yaw_sumo + 360. After that yaw_sumo in [0, 360]
+
+    expected arraylike of size [..., 4]
+    """
+    transform_coords(states[..., :2])
+    transform_carla2sumo_yaw(states[..., 3])
+    return states
+
+
+# def transform_coords(coords: np.ndarray):
+#     """
+#     Transform coords in both directions: sumo <-> carla \
+#         ([x_sumo, y_sumo] = [x_carla, -y_carla])
+#     """
+#     if coords.ndim == 1:
+#         coords[1] = -coords[1]
+
+#     elif coords.ndim == 2:
+#         coords[:, 1] = -coords[:, 1]
+#     else:
+#         raise NotImplementedError
+
+#     return coords
+
+
+# def transform_carla2sumo_yaw(yaw):
+#     """
+#     In RAD transform yaw from carla to sumo
+#     """
+#     yaw += np.deg2rad(90)
+#     yaw[yaw < np.deg2rad(0)] += np.deg2rad(360)
+#     return yaw
+
+
+# def transform_sumo2carla_yaw(yaw):
+#     """
+#     In RAD transform yaw from sumo to carla
+#     """
+#     yaw -= np.deg2rad(90)
+#     yaw[yaw > np.deg2rad(180)] -= np.deg2rad(360)
+#     return yaw
+
+
+# def transform_sumo2carla(states: np.ndarray):
+#     """
+#     In RAD transform from sumo to carla: [x_carla, y_carla, yaw_carla] = [x_sumo, -y_sumo, yaw_sumo-90]. \
+#         yaw_carla in [-90, 270] so if > 180 yaw_carla = yaw_carla - 360. After that yaw_carla in [-180, 180]
+#     Note:
+#         - the coordinate system in Carla is more convenient since the angle increases in the direction of rotation from +x to +y, while in sumo this is from +y to +x.
+#         - the coordinate system in Carla is a left-handed Cartesian coordinate system.
+#     """
+#     if states.ndim == 1:
+#         states[:3] = transform_coords(states[:3])
+#         states[3] = transform_sumo2carla_yaw(states[3])
+
+#     elif states.ndim == 2:
+#         states[:, :3] = transform_coords(states[:, :3])
+#         states[:, 3] = transform_sumo2carla_yaw(states[:, 3])
+#     else:
+#         raise NotImplementedError
+
+#     return states
+
+
+# def transform_carla2sumo(states: np.ndarray):
+#     """
+#     In RAD transform from carla to sumo: [x_sumo, y_sumo, yaw_sumo] = [x_carla, -y_carla, yaw_carla+90]. \
+#         yaw_sumo in [-90, 270] so if < 0 yaw_sumo = yaw_sumo + 360. After that yaw_sumo in [0, 360]
+#     """
+#     if states.ndim == 1:
+#         states[:3] = transform_coords(states[:3])
+#         states[3] = transform_carla2sumo_yaw(states[3])
+
+#     elif states.ndim == 2:
+#         states[:, :3] = transform_coords(states[:, :3])
+#         states[:, 3] = transform_carla2sumo_yaw(states[:, 3])
+#     else:
+#         raise NotImplementedError
+
+#     return states
+
+
+# def transform_sumo2carla_yaw_torch(yaw: torch.Tensor):
+#     """
+#     Transform yaw from SUMO to CARLA format
+
+#     :param yaw: tensor in radians
+#     """
+#     yaw_carla = yaw.clone()
+
+#     yaw_carla -= torch.deg2rad(torch.tensor(90.0, device=yaw_carla.device))
+#     mask = yaw_carla > torch.deg2rad(torch.tensor(180.0, device=yaw_carla.device))
+#     yaw_carla[mask] -= torch.deg2rad(torch.tensor(360.0, device=yaw_carla.device))
+
+#     return yaw_carla
 
 
 def MPC_Block(
@@ -199,78 +322,125 @@ def MPC_module(
     return curr_state_v.reshape(-1), mpc_output
 
 
-def min_max_normalize(x: np.ndarray, mmin, mmax, new_mmin, new_mmax):
+def normalize(x, circle_boundary: float, new_circle_boundary: float):
     """
-    Normalizing x data from [mmin, mmax] to [new_mmin, new_mmax]
+    In-place. Normalizing x data from [-circle_boundary, circle_boundary] to [-new_circle_boundary, new_circle_boundary]
 
-    :param x: data - tensor
-    :param mmin: min boundary of given data
-    :param mmax: max boundary of given data
-    :param new_mmin: min boundary of given data
-    :param new_mmax: max boundary of given data
+    :param x: data
+    :param circle_boundary: circle_boundary of given data, circle_boundary is symmetric
+    :param new_circle_boundary: new_circle_boundary of given data, new_circle_boundary is symmetric
     """
-    if mmin >= mmax:
-        raise ValueError("Expected mmin < mmax")
-    if new_mmin >= new_mmax:
-        raise ValueError("Expected new_mmin < new_mmax")
-
-    diff = mmax - mmin
-    new_diff = new_mmax - new_mmin
-    diff_ratio = new_diff / diff
-
-    return new_mmin + (x - mmin) * diff_ratio
+    diff_ratio = new_circle_boundary / circle_boundary
+    x *= diff_ratio
+    return x
 
 
-def normalize_input_data(x: np.ndarray):
+def normalize_yaw(yaw):
     """
-    Normalizing x - input data to [-1, 1] in coords, yaw [0, 1] in speed
+    In-place. Normalizing yaw from [-pi, pi] to [-1, 1]
 
-    :param x: np.ndarray with shape [vehicle, 7] - for each vehicle [x_0, y_0, speed_0, yaw_0, intent, intent, intent]
+    :param yaw
     """
-    x[:, 0] = min_max_normalize(x[:, 0], -MAP_BOUNDARY, MAP_BOUNDARY, -1, 1)
-    x[:, 1] = min_max_normalize(x[:, 1], -MAP_BOUNDARY, MAP_BOUNDARY, -1, 1)
-    x[:, 2] = min_max_normalize(x[:, 2], 0, VEHICLE_MAX_SPEED, 0, 1)
-    x[:, 3] = min_max_normalize(x[:, 3], -np.pi, np.pi, -1, 1)
+    return normalize(yaw, float(np.pi), 1)
 
 
-def normalize_target_data(y: np.ndarray):
+def denormalize_yaw(yaw):
     """
-    Normalizing y - input data to [-1, 1] in coords, yaw [0, 1] in speed
+    In-place. DEnormalizing yaw from [-1, 1] to [-pi, pi]
 
-    :param y: np.ndarray with shape [vehicle, PRED_LEN, 6] - for each vehicle [[x_1, y_1, v_1, yaw_1, acc_1, delta_1], ...]
+    :param yaw
     """
-    y[:, :, 0] = min_max_normalize(y[:, :, 0], -MAP_BOUNDARY, MAP_BOUNDARY, -1, 1)
-    y[:, :, 1] = min_max_normalize(y[:, :, 1], -MAP_BOUNDARY, MAP_BOUNDARY, -1, 1)
-    y[:, :, 2] = min_max_normalize(y[:, :, 2], 0, VEHICLE_MAX_SPEED, 0, 1)
-    y[:, :, 3] = min_max_normalize(y[:, :, 3], -np.pi, np.pi, -1, 1)
+    return normalize(yaw, 1, float(np.pi))
 
 
-def de_normalize_input_data(x: np.ndarray):
+def normalize_coords(coords, circle_boundary: float):
     """
-    Normalizing x - input data from [-1, 1] in coords, yaw [0, 1] in speed
+    In-place. Normalizing coords from [-circle_boundary, circle_boundary] to [-1, 1]
 
-    :param x: np.ndarray with shape [vehicle, 7] - for each vehicle [x_0, y_0, speed_0, yaw_0, intent, intent, intent]
+    :param coords
+    :param circle_boundary: boundary of circle on which cars are controlled on intersection
     """
-    x[:, 0] = min_max_normalize(x[:, 0], -1, 1, -MAP_BOUNDARY, MAP_BOUNDARY)
-    x[:, 1] = min_max_normalize(x[:, 1], -1, 1, -MAP_BOUNDARY, MAP_BOUNDARY)
-    x[:, 2] = min_max_normalize(x[:, 2], 0, 1, 0, VEHICLE_MAX_SPEED)
-    x[:, 3] = min_max_normalize(x[:, 3], -1, 1, -np.pi, np.pi)
+    return normalize(coords, circle_boundary, 1)
 
 
-def de_normalize_target_data(y: np.ndarray):
+def denormalize_coords(coords, circle_boundary: float):
     """
-    De normalizing y - input data from [-1, 1] in coords, yaw [0, 1] in speed
+    In-place. DEnormalizing coords from to [-1, 1] to [-circle_boundary, circle_boundary]
 
-    :param y: np.ndarray with shape [vehicle, PRED_LEN, 6] - for each vehicle [[x_1, y_1, v_1, yaw_1, acc_1, delta_1], ...]
+    :param coords
+    :param circle_boundary: boundary of circle on which cars are controlled on intersection
     """
-    y[:, :, 0] = min_max_normalize(y[:, :, 0], -1, 1, -MAP_BOUNDARY, MAP_BOUNDARY)
-    y[:, :, 1] = min_max_normalize(y[:, :, 1], -1, 1, -MAP_BOUNDARY, MAP_BOUNDARY)
-    y[:, :, 2] = min_max_normalize(y[:, :, 2], 0, 1, 0, VEHICLE_MAX_SPEED)
-    y[:, :, 3] = min_max_normalize(y[:, :, 3], -1, 1, -np.pi, np.pi)
+    return normalize(coords, 1, circle_boundary)
 
 
-def de_nomalize_yaw(yaw):
-    yaw = min_max_normalize(yaw, -1, 1, -np.pi, np.pi)
+def normalize_speed(speed, vechicle_max_speed: float):
+    """
+    In-place. Normalizing speed from [0, vechicle_max_speed] to [0, 1]
+
+    :param speed
+    :param vechicle_max_speed: max speed of vechicle on intersection (in current intersection coordinate system)
+    """
+    return normalize(speed, vechicle_max_speed, 1)
+
+
+def denormalize_speed(speed, vechicle_max_speed: float):
+    """
+    In-place. DEnormalizing speed from [0, 1] to [0, vechicle_max_speed]
+
+    :param speed
+    :param vechicle_max_speed: max speed of vechicle on intersection (in current intersection coordinate system)
+    """
+    return normalize(speed, 1, vechicle_max_speed)
+
+
+def normalize_input_data(x, circle_boundary: float, vechicle_max_speed: float):
+    """
+    In-place. Normalizing x - input data to [-1, 1] in coords, yaw; [0, 1] in speed
+
+    :param x with shape [vehicle, 7] - for each vehicle [x_0, y_0, speed_0, yaw_0, intent, intent, intent]
+    """
+    normalize_coords(x[:, :2], circle_boundary)
+    normalize_speed(x[:, 2], vechicle_max_speed)
+    normalize_yaw(x[:, 3])
+    return x
+
+
+def de_normalize_input_data(x, circle_boundary: float, vechicle_max_speed: float):
+    """
+    In-place. De normalizing x - input data from [-1, 1] in coords, yaw; [0, 1] in speed
+
+    :param x with shape [vehicle, 7] - for each vehicle [x_0, y_0, speed_0, yaw_0, intent, intent, intent]
+    """
+    denormalize_coords(x[:, :2], circle_boundary)
+    denormalize_speed(x[:, 2], vechicle_max_speed)
+    denormalize_yaw(x[:, 3])
+    return x
+
+
+def normalize_target_data(y, circle_boundary: float, vechicle_max_speed: float):
+    """
+    In-place. Normalizing y - input data to [-1, 1] in coords, yaw; [0, 1] in speed
+
+    :param y with shape [vehicle, NUM_PREDICT, 6] - for each vehicle [[x_1, y_1, v_1, yaw_1, acc_1, delta_1], ...]
+    :param circle_boundary: boundary of circle on which cars are controlled on intersection
+    :param vechicle_max_speed: max speed of vechicle on intersection (in current intersection coordinate system)
+    """
+    normalize_coords(y[:, :, :2], circle_boundary)
+    normalize_speed(y[:, :, 2], vechicle_max_speed)
+    normalize_yaw(y[:, :, 3])
+    return y
+
+
+def de_normalize_target_data(y, circle_boundary, vechicle_max_speed):
+    """
+    De normalizing y - input data from [-1, 1] in coords, yaw; [0, 1] in speed
+
+    :param y with shape [vehicle, NUM_PREDICT, 6] - for each vehicle [[x_1, y_1, v_1, yaw_1, acc_1, delta_1], ...]
+    """
+    denormalize_coords(y[:, :, :2], circle_boundary)
+    denormalize_speed(y[:, :, 2], vechicle_max_speed)
+    denormalize_yaw(y[:, :, 3])
+    return y
 
 
 def preprocess_file(
@@ -278,6 +448,7 @@ def preprocess_file(
     csv_file: str,
     preprocess_folder_path: str,
     intentuion_config,
+    start_position_config,
 ):
     """
     Preprocesses csv file and save several pkl files
@@ -289,20 +460,18 @@ def preprocess_file(
     :param preprocess_folder_path: folder for storing preprocessed data in pkls path
     :type preprocess_folder_path: str
     :param intentuion_config: path to intention config file
-    :param n_mpc_aug: number of mpc augmentations
-    :param normalize: True if normalization needed
-    :param allign_initial_direction_to_x: if True: in carla coordinate system rotate coordanate system so +X to be direction of motion of car \
-          else rotate coordanate system so +Y to be direction of motion of car
+    :param start_position_config: path to start positions config
     """
     df = pd.read_csv(os.path.join(csv_folder_path, csv_file))
     all_features = list()
+
     for track_id, remain_df in df.groupby("TRACK_ID"):
-        if len(remain_df) >= (OBS_LEN + PRED_LEN):
+        if len(remain_df) >= (OBS_LEN + NUM_PREDICT):
             coords = remain_df[["X", "Y", "speed", "yaw"]].values
             coords[:, 3] = np.deg2rad(coords[:, 3])
-            transform_sumo2carla(coords)
-            intention = get_intention_from_vehicle_id(track_id, intentuion_config)[:3]
-            features = np.hstack((coords, intention * np.ones((coords.shape[0], 3))))
+            coords = transform_sumo2carla(coords)
+            intention, start_position = get_intention_from_vehicle_id(track_id, intentuion_config, start_position_config)
+            features = np.hstack((coords, intention * np.ones((coords.shape[0], 3)), start_position * np.ones((coords.shape[0], 4))))
             all_features.append(features)
 
     num_rows = features.shape[0]
@@ -320,53 +489,58 @@ def preprocess_file(
 
     # for each timestep, create an interaction graph
     for row in range(0, num_rows - NUM_PREDICT):
-        x = all_features[:, row, :7]  # [vehicle, 7]
+        x = all_features[:, row, :11]  # [vehicle, 11]
 
         # translate and then rotate Gt
         y = (all_features[:, row + 1 : row + 1 + NUM_PREDICT, :2] - all_features[:, row : row + 1, :2]).transpose(
             0, 2, 1
-        )  # [vehicle, PRED_LEN, 2] -> [vehicle, 2, PRED_LEN]
+        )  # [vehicle, NUM_PREDICT, 2] -> [vehicle, 2, NUM_PREDICT]
 
         if ALLIGN_INITIAL_DIRECTION_TO_X:
             rotations = np.array([rotation_matrix_with_allign_to_X(x[i][3]) for i in range(x.shape[0])])  # [vehicle, 2, 2]
         else:
             rotations = np.array([rotation_matrix_with_allign_to_Y(x[i][3]) for i in range(x.shape[0])])  # [vehicle, 2, 2]
 
-        # [vehicle, 2, PRED_LEN], transform y into local coordinate system
+        # [vehicle, 2, NUM_PREDICT], transform y into local coordinate system
         y = rotations @ y
-        y = y.transpose(0, 2, 1)  # [vehicle, PRED_LEN, 2]
+        y = y.transpose(0, 2, 1)  # [vehicle, NUM_PREDICT, 2]
 
         # use MPC to compute acc and delta
         curr_states = all_features[:, row, :4]  # [vehicle, 4]
-        # [vehicle, PRED_LEN, 4], [x, y, speed, yaw]
+        # [vehicle, NUM_PREDICT, 4], [x, y, speed, yaw]
         future_states = all_features[:, row + 1 : row + 1 + NUM_PREDICT, :4]
-        adjust_future_deltas(curr_states, future_states)
-        # [vehicle, PRED_LEN, 2], [acc, delta]
+        future_states = adjust_future_deltas(curr_states, future_states)
+
+        # [vehicle, NUM_PREDICT, 2], [acc, delta]
         acc_delta_old = all_features[:, row + 1 : row + 1 + NUM_PREDICT, -2:]
         shifted_curr, mpc_output = MPC_Block(
             curr_states, future_states, acc_delta_old, noise_range=0
-        )  # [vehicle, 4], [vehicle, PRED_LEN, 6]: [x, y, v, yaw, acc, delta]
+        )  # [vehicle, 4], [vehicle, NUM_PREDICT, 6]: [x, y, v, yaw, acc, delta]
         # store the control vector to accelerate future MPC opt
         all_features[:, row + 1 : row + 1 + NUM_PREDICT, -2:] = mpc_output[:, :, -2:]
-        speed = all_features[:, row + 1 : row + 1 + NUM_PREDICT, 2:3]  # [vehicle, PRED_LEN, 1]
+
+        # speed = all_features[:, row + 1 : row + 1 + NUM_PREDICT, 2:3]  # [vehicle, NUM_PREDICT, 1]
+        speed = (
+            all_features[:, row + 1 : row + 1 + NUM_PREDICT, 2:3] - all_features[:, row : row + 1, 2:3]
+        )  # [vehicle, NUM_PREDICT, 1]
 
         # this is not an angle in local coordinate system this is a yaw with which data point was rotated. BUT for +X allignment theese yaws are the same
         if ALLIGN_INITIAL_DIRECTION_TO_X:
             yaw = (
                 all_features[:, row + 1 : row + 1 + NUM_PREDICT, 3:4] - all_features[:, row : row + 1, 3:4]
-            )  # [vehicle, PRED_LEN, 1], align the initial direction to +X
+            )  # [vehicle, NUM_PREDICT, 1], align the initial direction to +X
         else:
             yaw = (
                 all_features[:, row + 1 : row + 1 + NUM_PREDICT, 3:4] - all_features[:, row : row + 1, 3:4] + np.pi / 2
-            )  # [vehicle, PRED_LEN, 1], align the initial direction to +Y
+            )  # [vehicle, NUM_PREDICT, 1], align the initial direction to +Y
 
-        # [vehicle, PRED_LEN, 6]
+        # [vehicle, NUM_PREDICT, 6]
         y = np.concatenate((y, speed, yaw, mpc_output[:, :, -2:]), axis=2)
         if NORMALIZE_DATA:
-            normalize_target_data(y)
-            normalize_input_data(x)
+            normalize_target_data(y, CONTROLL_RADIUS, VEHICLE_MAX_SPEED)
+            normalize_input_data(x, CONTROLL_RADIUS, VEHICLE_MAX_SPEED)
 
-        # [vehicle, PRED_LEN*6]
+        # [vehicle, NUM_PREDICT*6]
         y = y.reshape(num_cars, -1)
 
         data = (
@@ -375,8 +549,8 @@ def preprocess_file(
             edge_index,
             torch.tensor([row]),
         )
-        # x: [vehicle, 7]: [x_0, y_0, speed_0, yaw_0, intent, intent, intent]
-        # y: [vehicle, PRED_LEN * 6]: [[x_1, y_1, v_1, yaw_1, acc_1, delta_1, x_2, y_2...], ...]
+        # x: [vehicle, 11]: [x_0, y_0, speed_0, yaw_0, intent, intent, intent, start_pos, start_pos, start_pos, start_pos]
+        # y: [vehicle, NUM_PREDICT * 6]: [[x_1, y_1, v_1, yaw_1, acc_1, delta_1, x_2, y_2...], ...]
         with open(
             f"{preprocess_folder_path}/{os.path.splitext(csv_file)[0]}-{str(row).zfill(3)}-0.pkl",
             "wb",
@@ -388,19 +562,19 @@ def preprocess_file(
         for a in range(NUM_AUGMENTATION):
             shifted_curr, mpc_output = MPC_Block(
                 curr_states, future_states, acc_delta_old, noise_range=noise_range
-            )  # [vehicle, 4], [vehicle, PRED_LEN, 6]: [x, y, v, yaw, acc, delta]
+            )  # [vehicle, 4], [vehicle, NUM_PREDICT, 6]: [x, y, v, yaw, acc, delta]
             x_argumented = x.copy()
             x_argumented[:, :2] = shifted_curr[:, :2]
-            y = (mpc_output[:, :, :2] - np.expand_dims(shifted_curr[:, :2], axis=1)).transpose(0, 2, 1)  # [vehicle, 2, PRED_LEN]
+            y = (mpc_output[:, :, :2] - np.expand_dims(shifted_curr[:, :2], axis=1)).transpose(0, 2, 1)  # [vehicle, 2, NUM_PREDICT]
             y = rotations @ y
-            y = y.transpose(0, 2, 1)  # [vehicle, PRED_LEN, 2]
+            y = y.transpose(0, 2, 1)  # [vehicle, NUM_PREDICT, 2]
 
             if ALLIGN_INITIAL_DIRECTION_TO_X:
                 mpc_output[:, :, 3:4] = mpc_output[:, :, 3:4] - all_features[:, row : row + 1, 3:4]
             else:
                 mpc_output[:, :, 3:4] = mpc_output[:, :, 3:4] - all_features[:, row : row + 1, 3:4] + np.pi / 2
 
-            # [vehicle, PRED_LEN, 6]
+            # [vehicle, NUM_PREDICT, 6]
             y = np.concatenate((y, mpc_output[:, :, 2:]), axis=-1)
             y = y.reshape(num_cars, -1)
 

@@ -8,7 +8,7 @@ import pandas as pd
 import sumolib
 from tqdm import trange
 
-from CoDriving.data_scripts.data_config.data_config import COLLECT_DATA_RADIUS, OBS_LEN, PRED_LEN, SAMPLE_RATE
+from CoDriving.data_scripts.data_config.data_config import COLLECT_DATA_RADIUS, OBS_LEN, NUM_PREDICT, SAMPLE_RATE
 from CoDriving.data_scripts.utils.feature_utils import get_path_to_intention, get_center_coodinates
 
 
@@ -41,9 +41,15 @@ def generate_fcd(
     total_time: int,
     step_length: float = 0.1,
     traffic_scale: float = 0.5,
+    precision: int = 6,
+    is_ballistic_mode=False,
 ) -> NoReturn:
     cmd = f"sumo -c {sumocfg_path} --fcd-output {fcd_path} --begin {begin_time} --end {begin_time + offset_time + total_time} \
-            --step-length {step_length} --scale {traffic_scale}"
+            --step-length {step_length} --scale {traffic_scale} --precision {precision}"
+
+    if is_ballistic_mode:
+        cmd = f"{cmd} --step-method.ballistic"
+
     os.system(cmd)
 
 
@@ -187,7 +193,7 @@ def generate_csv_from_fcd(
         if len(df) == 0:
             continue
 
-        curr_time = df["TIMESTAMP"].max() - (PRED_LEN / SAMPLE_RATE)
+        curr_time = df["TIMESTAMP"].max() - (NUM_PREDICT / SAMPLE_RATE)
         max_time = int(df["TIMESTAMP"].max())
         min_time = max_time - time_per_scene
 
@@ -195,8 +201,16 @@ def generate_csv_from_fcd(
             nearby_data = remain_df.loc[np.isclose(remain_df["TIMESTAMP"], curr_time)]
             if len(nearby_data) == 0:
                 continue
-            if len(remain_df) < PRED_LEN + OBS_LEN:
+
+            # norm = np.sqrt(remain_df["X"] ** 2 + remain_df["Y"] ** 2)
+            # mask = norm < COLLECT_DATA_RADIUS
+            # norm_remain_df = remain_df.loc[mask][["X", "Y"]].values
+
+            # if len(norm_remain_df) < NUM_PREDICT + OBS_LEN:
+            #     continue
+            if len(remain_df) < NUM_PREDICT + OBS_LEN:
                 continue
+
             x, y = nearby_data[["X", "Y"]].values.reshape(-1)
             if (-COLLECT_DATA_RADIUS < x - center_coordinates["x"] < COLLECT_DATA_RADIUS) and (
                 -COLLECT_DATA_RADIUS < y - center_coordinates["y"] < COLLECT_DATA_RADIUS
@@ -206,6 +220,11 @@ def generate_csv_from_fcd(
         if len(tgt_agent_ids) > 0:
             df = df.drop(df[df.TIMESTAMP < (df["TIMESTAMP"].max() - time_per_scene)].index)  # make sure each scene is exactly time_per_scene length
             csv_df = df.loc[[id in tgt_agent_ids for id in df["TRACK_ID"].values.tolist()]]
+
+            # norm = np.sqrt(csv_df["X"] ** 2 + csv_df["Y"] ** 2)
+            # mask = norm < COLLECT_DATA_RADIUS
+            # csv_df = csv_df.loc[mask]
+
             csv_name = f"{(min_time):0>5}-{(max_time):0>5}"
             save_csv(csv_df, csv_name, csv_dir)
             df = df.drop(

@@ -9,7 +9,7 @@ from datetime import datetime
 from data_path_config import DATA_PATH
 
 
-from CoDriving.data_scripts.data_config.data_config import DT, OBS_LEN, PRED_LEN, SAMPLE_RATE, VEHICLE_MAX_SPEED
+from CoDriving.data_scripts.data_config.data_config import DT, OBS_LEN, NUM_PREDICT, SAMPLE_RATE, VEHICLE_MAX_SPEED
 from CoDriving.data_scripts.generate_csv_utils import (
     generate_csv_from_fcd,
     generate_fcd,
@@ -22,7 +22,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="")
 
     parser.add_argument("--num_seconds", type=int, help="", default=1000)
-    parser.add_argument("--create_new_vehicle_prob", type=float, help="", default=0.05)
+    parser.add_argument("--create_new_vehicle_prob", type=float, help="", default=0.08)
     parser.add_argument("--split", type=str, help="train, val or test", default="train")
     parser.add_argument("--random_seed", type=int, help="", default=7)
     parser.add_argument(
@@ -50,7 +50,7 @@ if __name__ == "__main__":
     now = datetime.now().strftime("%m-%d-%H-%M")
     route_filename = f"{now}-{num_seconds:0>5}-{create_new_vehicle_prob}-{split}-{random_seed}"
     TRAFFIC_SCALE = 1.0  # regulate the traffic flow
-    LENGTH_PER_SCENE = (PRED_LEN + OBS_LEN) // SAMPLE_RATE
+    LENGTH_PER_SCENE = (NUM_PREDICT + OBS_LEN) // SAMPLE_RATE
 
     logging.basicConfig(format="%(asctime)s - %(levelname)s: %(message)s", level=logging.INFO)
     sumo_files_path = os.path.join(DATA_PATH, "sumo")

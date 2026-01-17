@@ -8,13 +8,39 @@ import torch.optim as optim
 from torch_geometric.loader import DataLoader
 import numpy as np
 import pandas as pd
+import pickle as pkl
+import random
+from torch.nn.utils.rnn import pad_sequence
 
-from CoDriving.data_scripts.data_config.data_config import ALLIGN_INITIAL_DIRECTION_TO_X, NUM_AUGMENTATION, NORMALIZE_DATA, MAP_BOUNDARY
+from CoDriving.data_scripts.data_config.data_config import (
+    ALLIGN_INITIAL_DIRECTION_TO_X,
+    NUM_AUGMENTATION,
+    NORMALIZE_DATA,
+    MAP_BOUNDARY,
+    NUM_PREDICT,
+    PRED_LEN,
+    NUM_PREDICT_ON_PREDICT,
+    SAMPLE_RATE,
+    PREDICT_VECTOR_SIZE,
+    # VEHICLE_MAX_SPEED,
+    COLLECT_DATA_RADIUS,
+)
 from CoDriving.models.model_factory import ModelFactory
 from CoDriving.data_scripts.dataset import CarDataset
-from CoDriving.data_scripts.preprocess_utils import rotation_matrix_back_with_allign_to_X, rotation_matrix_back_with_allign_to_Y
+from CoDriving.data_scripts.preprocess_utils import (
+    rotation_matrix_back_with_allign_to_X,
+    rotation_matrix_with_allign_to_X,
+    rotation_matrix_back_with_allign_to_Y,
+    rotation_matrix_with_allign_to_Y,
+    transform_sumo2carla_yaw,
+    transform_coords,
+    normalize_yaw,
+    # normalize_speed,
+    normalize_coords,
+    denormalize_coords,
+    denormalize_yaw,
+)
 from CoDriving.data_scripts.metrics_logger import MetricLogger
-from CoDriving.data_scripts.preprocess_utils import de_nomalize_yaw
 
 
 class Dict2Class(object):
@@ -68,26 +94,6 @@ def read_config_file(config_file_path: str):
         print(error)
 
 
-def remove_files_in_directory(directory_path: str):
-    """
-    Removes all files within a specified directory,
-    leaving subdirectories and the main directory intact.
-    """
-    if not os.path.isdir(directory_path):
-        print(f"Error: '{directory_path}' is not a valid directory.")
-        return
-
-    for filename in os.listdir(directory_path):
-        file_path = os.path.join(directory_path, filename)
-        if os.path.isfile(file_path):
-            try:
-                os.remove(file_path)
-                print(f"Removed file: {file_path}")
-
-            except OSError as e:
-                print(f"Error removing file {file_path}: {e}")
-
-
 def copy_file(src_file_path_str: str, dest_file_path_str: str):
     src = Path(src_file_path_str)
     dst = Path(dest_file_path_str)
@@ -138,7 +144,437 @@ def init_model(model_config_path: str, optimizer_str: str, device: str, lr, weig
     return model, optimizer
 
 
-def train_one_epoch(
+# def vec_angular_loss(gt_dspeed_dyaw: torch.Tensor, out_dspeed_dyaw: torch.Tensor):
+#     vout = torch.cat((torch.cos(out_dspeed_dyaw).unsqueeze(-1), torch.sin(out_dspeed_dyaw).unsqueeze(-1)), dim=-1)
+#     vgt = torch.cat((torch.cos(gt_dspeed_dyaw).unsqueeze(-1), torch.sin(gt_dspeed_dyaw).unsqueeze(-1)), dim=-1)
+#     return torch.pow(torch.pow(vout - vgt, 2).sum(dim=-1), 0.5)
+
+
+# def atan_angular_loss(gt_dspeed_dyaw: torch.Tensor, out_dspeed_dyaw: torch.Tensor):
+#     angular_loss = torch.atan2(torch.sin(gt_dspeed_dyaw - out_dspeed_dyaw), torch.cos(gt_dspeed_dyaw - out_dspeed_dyaw))
+#     return torch.pow(angular_loss, 2)
+
+
+# def cosine_angular_loss(gt_dspeed_dyaw: torch.Tensor, out_dspeed_dyaw: torch.Tensor):
+#     angular_loss = 1 - torch.cos(gt_dspeed_dyaw - out_dspeed_dyaw)
+#     return angular_loss
+
+
+# def angular_loss_func(gt_dspeed_dyaw: torch.Tensor, out_dspeed_dyaw: torch.Tensor):
+#     return atan_angular_loss(gt_dspeed_dyaw, out_dspeed_dyaw)
+
+
+# def capture_pi(out_yaw: torch.Tensor):
+#     pi = np.pi
+#     if NORMALIZE_DATA:
+#         pi = normalize_yaw(np.pi)
+
+#     out_yaw[:] = (out_yaw + pi) % (2 * pi) - pi
+
+
+# def calc_dx_taylor(speed: torch.Tensor, dspeed: torch.Tensor, dyaw: torch.Tensor):
+#     sec_res = (speed + dspeed * SAMPLE_RATE / 2) - (speed / 6 + dspeed * SAMPLE_RATE / 8) * torch.pow(
+#         dyaw * SAMPLE_RATE, 2
+#     )  # calculus for 1 second period
+#     return sec_res / SAMPLE_RATE
+
+
+# def calc_dy_taylor(speed: torch.Tensor, dspeed: torch.Tensor, dyaw: torch.Tensor):
+#     sec_res = (speed / 2 + dspeed * SAMPLE_RATE / 3) * dyaw * SAMPLE_RATE - (speed / 24 + dspeed * SAMPLE_RATE / 30) * torch.pow(
+#         dyaw * SAMPLE_RATE, 3
+#     )
+#     return sec_res / SAMPLE_RATE
+
+
+# def calc_dx_exact(speed: torch.Tensor, dspeed: torch.Tensor, dyaw: torch.Tensor, eps=1e-8):
+#     sec_res = (
+#         dyaw * SAMPLE_RATE * (speed + dspeed * SAMPLE_RATE) * torch.sin(dyaw * SAMPLE_RATE)
+#         + dspeed * SAMPLE_RATE * torch.cos(dyaw * SAMPLE_RATE)
+#         - dspeed * SAMPLE_RATE
+#     ) / (torch.pow(dyaw * SAMPLE_RATE, 2) + eps)
+#     return sec_res / SAMPLE_RATE
+
+
+# def calc_dy_exact(speed: torch.Tensor, dspeed: torch.Tensor, dyaw: torch.Tensor, eps=1e-8):
+#     sec_res = (
+#         -dyaw * SAMPLE_RATE * (speed + dspeed * SAMPLE_RATE) * torch.cos(dyaw * SAMPLE_RATE)
+#         + dspeed * SAMPLE_RATE * torch.sin(dyaw * SAMPLE_RATE)
+#         + speed * dyaw * SAMPLE_RATE
+#     ) / (torch.pow(dyaw * SAMPLE_RATE, 2) + eps)
+#     return sec_res / SAMPLE_RATE
+
+
+# def calc_dx(speed: torch.Tensor, dspeed: torch.Tensor, dyaw: torch.Tensor, eps=1e-4):
+#     small = torch.abs(dyaw) < eps
+
+#     dx_exact = calc_dx_exact(speed, dspeed, dyaw)
+#     dx_taylor = calc_dx_taylor(speed, dspeed, dyaw)
+
+#     dx = torch.empty_like(dyaw)
+#     dx[small] = dx_taylor[small]
+#     dx[~small] = dx_exact[~small]
+#     return dx
+
+
+# def calc_dy(speed: torch.Tensor, dspeed: torch.Tensor, dyaw: torch.Tensor, eps=1e-4):
+#     small = torch.abs(dyaw) < eps
+
+#     dy_exact = calc_dy_exact(speed, dspeed, dyaw)
+#     dy_taylor = calc_dy_taylor(speed, dspeed, dyaw)
+
+#     dy = torch.empty_like(dyaw)
+#     dy[small] = dy_taylor[small]
+#     dy[~small] = dy_exact[~small]
+#     return dy
+
+
+# def train_one_epoch(
+#     model,
+#     device,
+#     data_loader,
+#     optimizer,
+#     step_weights_factor,
+#     dist_threshold,
+#     collision_penalty,
+#     collision_penalty_factor,
+#     cos_sim_penalty,
+#     speed_penalty,
+# ):
+#     """Performs an epoch of model training.
+
+#     Parameters:
+#     model (nn.Module): Model to be trained.
+#     device (torch.Device): Device used for training.
+#     data_loader (torch.utils.data.DataLoader): Data loader containing all batches.
+#     optimizer (torch.optim.Optimizer): Optimizer used to update model.
+#     train_config: object of config of train process.
+
+#     Returns:
+#     float: Avg loss for epoch.
+#     """
+#     step_weights = torch.ones(PRED_LEN, device=device)
+#     step_weights[:5] *= step_weights_factor
+#     step_weights[0] *= step_weights_factor
+
+#     model.train()
+#     total_loss = 0
+
+#     for batch in data_loader:
+#         batch = batch.to(device)
+#         out = None
+#         out_dspeed_dyaw = None
+
+#         for idx in range(NUM_PREDICT_ON_PREDICT + 1):
+#             optimizer.zero_grad()
+#             # [x, y, v, yaw, intention(3-bit)] -> [x, y, intention]
+#             # out = model(batch.x[:, [0, 1, 4, 5, 6]], batch.edge_index)
+#             # out = out.reshape(-1, PRED_LEN, 2)  # [v, pred, 2]
+
+#             if idx == 0:
+#                 x = batch.x
+#             else:
+#                 # out - already new coords from last prediction
+#                 # out_dspeed_dyaw - deltas in speed and yaw
+#                 x = torch.cat((out[:, 0, :].detach(), x[:, [2, 3]] + out_dspeed_dyaw[:, 0, :].detach(), x[:, [4, 5, 6]]), dim=1)
+#                 # capture_pi(x[:, 3])
+
+#             out_dspeed_dyaw = model(x, batch.edge_index)
+#             out_dspeed_dyaw = out_dspeed_dyaw.reshape(-1, PRED_LEN, 2)  # [v, pred, 2]
+#             # capture_pi(out_dspeed_dyaw[:, :, 1]) <<<<<<<<<<<<<< не надо так делаеть если что))))
+
+#             # по что лосс взрывается так что clamp
+#             # out_dspeed_dyaw = torch.stack([torch.clamp(out_dspeed_dyaw[:, :, 0], -15, 15), torch.clamp(out_dspeed_dyaw[:, :, 1], -2, 2)], dim=2)
+
+#             # dx = (x[:, 2].unsqueeze(-1) + out_dspeed_dyaw[:, :, 0]) * torch.cos(out_dspeed_dyaw[:, :, 1] / 2)
+#             # dy = (x[:, 2].unsqueeze(-1) + out_dspeed_dyaw[:, :, 0]) * torch.sin(out_dspeed_dyaw[:, :, 1] / 2)
+#             dx = calc_dx(x[:, 2].unsqueeze(-1), out_dspeed_dyaw[:, :, 0], out_dspeed_dyaw[:, :, 1])
+#             dy = calc_dy(x[:, 2].unsqueeze(-1), out_dspeed_dyaw[:, :, 0], out_dspeed_dyaw[:, :, 1])
+#             dout = torch.cat((dx.unsqueeze(-1), dy.unsqueeze(-1)), dim=-1)
+
+#             yaw = x[:, 3].detach().cpu().numpy()
+
+#             if NORMALIZE_DATA:
+#                 de_normalize_yaw(yaw)
+
+#             if ALLIGN_INITIAL_DIRECTION_TO_X:
+#                 rotations = torch.stack([rotation_matrix_back_with_allign_to_X(yaw[i]) for i in range(batch.x.shape[0])]).to(dout.device)
+#             else:
+#                 rotations = torch.stack([rotation_matrix_back_with_allign_to_Y(yaw[i]) for i in range(batch.x.shape[0])]).to(dout.device)
+
+#             # [x, y, v, yaw, acc, steering]
+#             # gt = batch.y.reshape(-1, PRED_LEN, 6)[:, :, [0, 1]]
+
+#             gt_dspeed_dyaw_correction = (batch.x[:, [2, 3]] - x[:, [2, 3]]).unsqueeze(1)
+#             gt_dspeed_dyaw = batch.y.reshape(-1, NUM_PREDICT, 6)[:, :, [2, 3]] + gt_dspeed_dyaw_correction
+#             gt_dspeed_dyaw = gt_dspeed_dyaw[:, idx : PRED_LEN + idx, :]
+#             # capture_pi(gt_dspeed_dyaw[:, :, 1])
+
+#             # gt_dx = (x[:, 2].unsqueeze(-1) + gt_dspeed_dyaw[:, :, 0]) * torch.cos(gt_dspeed_dyaw[:, :, 1] / 2)
+#             # gt_dy = (x[:, 2].unsqueeze(-1) + gt_dspeed_dyaw[:, :, 0]) * torch.sin(gt_dspeed_dyaw[:, :, 1] / 2)
+#             gt_dx = calc_dx(x[:, 2].unsqueeze(-1), gt_dspeed_dyaw[:, :, 0], gt_dspeed_dyaw[:, :, 1])
+#             gt_dy = calc_dy(x[:, 2].unsqueeze(-1), gt_dspeed_dyaw[:, :, 0], gt_dspeed_dyaw[:, :, 1])
+#             dgt = torch.cat((gt_dx.unsqueeze(-1), gt_dy.unsqueeze(-1)), dim=-1)
+
+#             if NORMALIZE_DATA:
+#                 denom = dgt.detach().abs().clamp(min=1e-5)
+#                 error = (((dgt - dout) / denom).square().sum(-1) * step_weights).sum(-1)
+#             else:
+#                 error = ((dgt - dout).square().sum(-1) * step_weights).sum(-1)
+
+#             # yaw_loss = torch.atan2(
+#             #     torch.sin(out_dspeed_dyaw[:, :, 1] - gt_dspeed_dyaw[:, :, 1]),
+#             #     torch.cos(out_dspeed_dyaw[:, :, 1] - gt_dspeed_dyaw[:, :, 1]),
+#             # )
+#             yaw_loss = angular_loss_func(gt_dspeed_dyaw[:, :, 1], out_dspeed_dyaw[:, :, 1])
+#             yaw_loss = (yaw_loss * step_weights).sum(-1)
+#             error = error + yaw_loss * cos_sim_penalty
+
+#             speed_loss = ((gt_dspeed_dyaw[:, :, 0] - out_dspeed_dyaw[:, :, 0]).square() * step_weights).sum(-1)
+#             error = speed_loss * speed_penalty + error
+
+#             # косинусная близость теоретически думал на шум в предикте координат
+#             # cos_sim = torch.nn.functional.cosine_similarity(dout, dgt, dim=-1)
+#             # direction_loss = 1 - cos_sim.mean(dim=-1)
+#             # error = error + cos_sim_penalty * direction_loss
+
+#             # лосс на шумы в координатах
+#             # error = error + cos_sim_penalty * torch.sum(torch.relu(-dgt * dout), dim=(-1))[:, 0]
+
+#             loss = (batch.weights * error).nanmean()
+
+#             # get back from deltas to plain coordinates in predictions
+#             dout = dout.permute(0, 2, 1)  # [v, 2, pred]
+#             dout = torch.bmm(rotations, dout).permute(0, 2, 1)  # [v, pred, 2]
+#             out = dout + x[:, [0, 1]].unsqueeze(1)
+
+#             if collision_penalty:
+#                 mask = batch.edge_index[0, :] < batch.edge_index[1, :]
+#                 _edge = batch.edge_index[:, mask].T  # [edge',2]
+#                 dist = torch.linalg.norm(out[_edge[:, 0]] - out[_edge[:, 1]], dim=-1)
+#                 dist = dist_threshold - dist[dist < dist_threshold]
+
+#                 if dist.numel():  # there are can be no cars with small distanses so it will be empty
+#                     _collision_penalty = dist.square().mean()
+#                     loss += _collision_penalty * collision_penalty_factor
+
+#             loss.backward()
+#             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+#             optimizer.step()
+#             total_loss += loss.item() / (NUM_PREDICT_ON_PREDICT + 1)
+
+#     return total_loss / len(data_loader)
+
+
+# def evaluate(model, device, data_loader, step_weights_factor, dist_threshold, mr_threshold, collision_penalty_factor, cos_sim_penalty, speed_penalty):
+#     """Performs an epoch of model training.
+
+#     Parameters:
+#     model (nn.Module): Model to be trained.
+#     device (torch.Device): Device used for training.
+#     data_loader (torch.utils.data.DataLoader): Data loader containing all batches.
+
+#     Returns:
+#     list of evaluation metrics (including ADE, FDE, etc.).
+#     """
+#     step_weights = torch.ones(PRED_LEN, device=device)
+#     step_weights[:5] *= step_weights_factor
+#     step_weights[0] *= step_weights_factor
+
+#     model.eval()
+#     ade, fde = [], []
+#     n_edge, n_collision = [], []
+#     val_losses, collision_penalties = [], []
+
+#     with torch.no_grad():
+#         for batch in data_loader:
+#             batch = batch.to(device)
+#             out = None
+#             out_dspeed_dyaw = None
+
+#             for idx in range(NUM_PREDICT_ON_PREDICT + 1):
+#                 # out = model(batch.x[:, [0, 1, 4, 5, 6]], batch.edge_index)
+#                 # out = out.reshape(-1, PRED_LEN, 2)  # [v, PRED_LEN, 2]
+
+#                 if idx == 0:
+#                     x = batch.x
+#                 else:
+#                     x = torch.cat((out[:, 0, :].detach(), x[:, [2, 3]] + out_dspeed_dyaw[:, 0, :].detach(), x[:, [4, 5, 6]]), dim=1)
+#                     # capture_pi(x[:, 3])
+
+#                 out_dspeed_dyaw = model(x, batch.edge_index)
+#                 out_dspeed_dyaw = out_dspeed_dyaw.reshape(-1, PRED_LEN, 2)  # [v, pred, 2]
+#                 # capture_pi(out_dspeed_dyaw[:, :, 1]) <<<<<<<<<<<<<< не надо так делаеть если что))))
+
+#                 # по что лосс взрывается так что clamp
+#                 # out_dspeed_dyaw = torch.stack([torch.clamp(out_dspeed_dyaw[:, :, 0], -15, 15), torch.clamp(out_dspeed_dyaw[:, :, 1], -2, 2)], dim=2)
+
+#                 # dx = (x[:, 2].unsqueeze(-1) + out_dspeed_dyaw[:, :, 0]) * torch.cos(out_dspeed_dyaw[:, :, 1] / 2)
+#                 # dy = (x[:, 2].unsqueeze(-1) + out_dspeed_dyaw[:, :, 0]) * torch.sin(out_dspeed_dyaw[:, :, 1] / 2)
+#                 dx = calc_dx(x[:, 2].unsqueeze(-1), out_dspeed_dyaw[:, :, 0], out_dspeed_dyaw[:, :, 1])
+#                 dy = calc_dy(x[:, 2].unsqueeze(-1), out_dspeed_dyaw[:, :, 0], out_dspeed_dyaw[:, :, 1])
+#                 dout = torch.cat((dx.unsqueeze(-1), dy.unsqueeze(-1)), dim=-1)
+
+#                 yaw = x[:, 3].detach().cpu().numpy()
+
+#                 if NORMALIZE_DATA:
+#                     de_normalize_yaw(yaw)
+
+#                 if ALLIGN_INITIAL_DIRECTION_TO_X:
+#                     rotations = torch.stack([rotation_matrix_back_with_allign_to_X(yaw[i]) for i in range(batch.x.shape[0])]).to(dout.device)
+#                 else:
+#                     rotations = torch.stack([rotation_matrix_back_with_allign_to_Y(yaw[i]) for i in range(batch.x.shape[0])]).to(dout.device)
+
+#                 # gt = batch.y.reshape(-1, PRED_LEN, 6)[:, :, [0, 1]]
+
+#                 gt_dspeed_dyaw_correction = (batch.x[:, [2, 3]] - x[:, [2, 3]]).unsqueeze(1)
+#                 gt_dspeed_dyaw = batch.y.reshape(-1, NUM_PREDICT, 6)[:, :, [2, 3]] + gt_dspeed_dyaw_correction
+#                 gt_dspeed_dyaw = gt_dspeed_dyaw[:, idx : PRED_LEN + idx, :]
+#                 # capture_pi(gt_dspeed_dyaw[:, :, 1])
+
+#                 # gt_dx = (x[:, 2].unsqueeze(-1) + gt_dspeed_dyaw[:, :, 0]) * torch.cos(gt_dspeed_dyaw[:, :, 1] / 2)
+#                 # gt_dy = (x[:, 2].unsqueeze(-1) + gt_dspeed_dyaw[:, :, 0]) * torch.sin(gt_dspeed_dyaw[:, :, 1] / 2)
+#                 gt_dx = calc_dx(x[:, 2].unsqueeze(-1), gt_dspeed_dyaw[:, :, 0], gt_dspeed_dyaw[:, :, 1])
+#                 gt_dy = calc_dy(x[:, 2].unsqueeze(-1), gt_dspeed_dyaw[:, :, 0], gt_dspeed_dyaw[:, :, 1])
+#                 dgt = torch.cat((gt_dx.unsqueeze(-1), gt_dy.unsqueeze(-1)), dim=-1)
+
+#                 _error = (dgt - dout).square().sum(-1)
+#                 error = _error.clone() ** 0.5
+#                 _error = (_error * step_weights).sum(-1)
+
+#                 # yaw_loss = torch.atan2(
+#                 #     torch.sin(out_dspeed_dyaw[:, :, 1] - gt_dspeed_dyaw[:, :, 1]), torch.cos(out_dspeed_dyaw[:, :, 1] - gt_dspeed_dyaw[:, :, 1])
+#                 # )
+#                 yaw_loss = angular_loss_func(gt_dspeed_dyaw[:, :, 1], out_dspeed_dyaw[:, :, 1])
+#                 yaw_loss = (yaw_loss * step_weights).sum(-1)
+#                 _error = _error + yaw_loss * cos_sim_penalty
+
+#                 speed_loss = ((gt_dspeed_dyaw[:, :, 0] - out_dspeed_dyaw[:, :, 0]).square() * step_weights).sum(-1)
+#                 _error = speed_loss * speed_penalty + _error
+
+#                 # cos_sim = torch.nn.functional.cosine_similarity(dout, dgt, dim=-1)
+#                 # direction_loss = 1 - cos_sim.mean(dim=-1)
+#                 # _error = _error + cos_sim_penalty * direction_loss
+
+#                 # _error = _error + cos_sim_penalty * torch.sum(torch.relu(-dgt * dout), dim=(-1))[:, 0]
+
+#                 val_loss = (batch.weights * _error).nanmean()
+#                 val_losses.append(val_loss)
+#                 fde.append(error[:, -1])
+#                 ade.append(error.mean(dim=-1))
+
+#                 dout = dout.permute(0, 2, 1)  # [v, 2, pred]
+#                 dout = torch.bmm(rotations, dout).permute(0, 2, 1)  # [v, pred, 2]
+#                 out = dout + x[:, [0, 1]].unsqueeze(1)
+
+#                 mask = batch.edge_index[0, :] < batch.edge_index[1, :]
+#                 _edge = batch.edge_index[:, mask].T  # [edge',2]
+#                 dist = torch.linalg.norm(out[_edge[:, 0]] - out[_edge[:, 1]], dim=-1)  # [edge, 30]
+
+#                 collision_penalty = dist_threshold - dist[dist < dist_threshold]
+#                 if collision_penalty.numel():  # there are can be no cars with small distanses so it will be empty
+#                     collision_penalty = collision_penalty.square().mean() * collision_penalty_factor
+#                     collision_penalties.append(collision_penalty)
+
+#                 dist = torch.min(dist, dim=-1)[0]
+#                 n_edge.append(len(dist))
+#                 n_collision.append((dist < dist_threshold).sum().item())
+
+#                 # out = out.permute(0,2,1)    # [v, 2, pred]
+#                 # yaw = batch.x[:,3].detach().cpu().numpy()
+#                 # rotations = torch.stack([rotation_matrix_back(yaw[i])  for i in range(batch.x.shape[0])]).to(out.device)
+#                 # out = torch.bmm(rotations, out).permute(0,2,1)       # [v, pred, 2]
+#                 # out += batch.x[:,[7,8]].unsqueeze(1)
+#                 # # gt = batch.y.reshape(-1,50,6)[:,:,[0,1]]
+#                 # # error = ((gt-out).square().sum(-1) * step_weights).sum(-1)
+#                 # # loss = (batch.weights * error).nanmean()
+
+#                 # mask = (batch.edge_index[0,:] < batch.edge_index[1,:])
+#                 # _edge = batch.edge_index[:, mask].T   # [edge',2]
+#                 # # pos1 = torch.stack([out[_edge[i, 0]] for i in range(_edge.shape[0])])
+#                 # # pos2 = torch.stack([out[_edge[i, 1]] for i in range(_edge.shape[0])])
+#                 # # dist = torch.linalg.norm(pos1 - pos2, dim=-1)
+#                 # dist = torch.linalg.norm(out[_edge[:,0]] - out[_edge[:,1]], dim=-1) # [edge, 50]
+
+#     ade = torch.cat(ade).mean()
+#     fde = torch.cat(fde)
+#     mr = ((fde > mr_threshold).sum() / len(fde)).item()
+#     fde = fde.mean()
+#     collision_rate = sum(n_collision) / sum(n_edge)
+#     collision_penalties = torch.tensor(collision_penalties)
+#     collision_penalty = collision_penalties.mean().item() if collision_penalties.numel() > 0 else 0.0
+
+#     val_losses = torch.tensor(val_losses).mean()
+
+#     return (
+#         ade.item(),
+#         fde.item(),
+#         mr,
+#         collision_rate,
+#         val_losses.item(),
+#         collision_penalty,
+#     )
+
+
+def load_yaw_dict():
+    with open("../opencda/assets/yaw_dict_10m.pkl", "rb") as f:
+        yaw_dict = pkl.load(f)
+        rename = {
+            "left_up": 10 * 0 + 0,
+            "left_right": 10 * 0 + 1,
+            "left_down": 10 * 0 + 2,
+            "up_right": 10 * 1 + 0,
+            "up_down": 10 * 1 + 1,
+            "up_left": 10 * 1 + 2,
+            "right_down": 10 * 2 + 0,
+            "right_left": 10 * 2 + 1,
+            "right_up": 10 * 2 + 2,
+            "down_left": 10 * 3 + 0,
+            "down_up": 10 * 3 + 1,
+            "down_right": 10 * 3 + 2,
+        }
+
+        yaw_dict = {rename.get(k, k): v for k, v in yaw_dict.items()}
+        return yaw_dict
+
+
+def my_get_yaw(start_positions: torch.Tensor, intentions: torch.Tensor, pos: torch.Tensor, yaw_keys: torch.Tensor, yaw_vals: torch.Tensor):
+    start_positions_nums = torch.argmax(start_positions, dim=-1)
+    intentions_nums = torch.argmax(intentions, dim=-1)
+
+    idxs = 10 * start_positions_nums + intentions_nums
+    mask = idxs.unsqueeze(1) == yaw_keys.unsqueeze(0)
+    positions = mask.nonzero()[:, 1]
+    route = yaw_vals[positions]
+
+    carla_pos = pos.clone()  # carla coords
+    if NORMALIZE_DATA:
+        carla_pos = denormalize_coords(carla_pos, COLLECT_DATA_RADIUS)
+
+    sumo_pos = transform_coords(carla_pos)
+    deltas = sumo_pos.unsqueeze(1) - route.float()[:, :, :-1]
+    dists = torch.norm(deltas, dim=-1)
+
+    min_idx = torch.argmin(dists, dim=-1)
+    batch_idx = torch.arange(route.size(0), device=route.device)
+    yaws_deg = route[batch_idx, min_idx, -1].to(torch.float32)
+
+    yaws_rad = torch.deg2rad(yaws_deg)
+    yaws_rad_carla = transform_sumo2carla_yaw(yaws_rad)
+
+    if NORMALIZE_DATA:
+        yaws_rad_carla = normalize_yaw(yaws_rad_carla)
+    return yaws_rad_carla
+
+
+def my_get_speed(dx: torch.Tensor, dy: torch.Tensor):
+    speed = (dx**2 + dy**2) ** 0.5 * SAMPLE_RATE
+    # vehicle_max_speed = VEHICLE_MAX_SPEED if not NORMALIZE_DATA else normalize_speed(VEHICLE_MAX_SPEED, VEHICLE_MAX_SPEED)
+    # mask = (speed > vehicle_max_speed)
+    # speed[mask] = vehicle_max_speed
+    return speed
+
+
+def gnn_train_one_epoch(
     model,
     device,
     data_loader,
@@ -147,20 +583,31 @@ def train_one_epoch(
     dist_threshold,
     collision_penalty,
     collision_penalty_factor,
+    epoch,
+    epochs,
+    yaw_keys,
+    yaw_values,
+    start_prediction_time=0.2,
 ):
-    """Performs an epoch of model training.
+    """Performs an epoch of GNN model training with rollout
 
-    Parameters:
-    model (nn.Module): Model to be trained.
-    device (torch.Device): Device used for training.
-    data_loader (torch.utils.data.DataLoader): Data loader containing all batches.
-    optimizer (torch.optim.Optimizer): Optimizer used to update model.
-    train_config: object of config of train process.
+    :param model (nn.Module): Model to be trained.
+    :param device (torch.Device): Device used for training.
+    :param data_loader (torch.utils.data.DataLoader): Data loader containing all batches.
+    :param optimizer (torch.optim.Optimizer): Optimizer used to update model.
+    :param step_weights_factor: multiplication factor for each step of trajectory prediction
+    :param dist_threshold: distence of collition
+    :param collision_penalty: flag to use collition in loss
+    :param collision_penalty_factor: multiplcation factor of collition to apply to loss
+    :param epoch: current epoch
+    :param epochs: total number of epochs
+    :param yaw_keys: yaw dictionary keys of yaw dict calculated before
+    :param yaw_values: yaw dictionary values of yaw dict calculated before
+    :param start_prediction_time: number of epoch / epochs to start making predictions on prediction (set maximum of 0.5 for correct calculus)
 
-    Returns:
-    float: Avg loss for epoch.
+    :return float: Avg loss for epoch.
     """
-    step_weights = torch.ones(30, device=device)
+    step_weights = torch.ones(PRED_LEN, device=device)
     step_weights[:5] *= step_weights_factor
     step_weights[0] *= step_weights_factor
 
@@ -169,48 +616,112 @@ def train_one_epoch(
 
     for batch in data_loader:
         batch = batch.to(device)
-        optimizer.zero_grad()
-        # [x, y, v, yaw, intention(3-bit)] -> [x, y, intention]
-        out = model(batch.x[:, [0, 1, 4, 5, 6]], batch.edge_index)
-        out = out.reshape(-1, 30, 2)  # [v, pred, 2]
-        yaw = batch.x[:, 3].detach().cpu().numpy()
+        out_coords = None
+        dout_coords = None
 
-        if NORMALIZE_DATA:
-            de_nomalize_yaw(yaw)
+        on_predictions = False
+        idx = 0
+        batch_loss = 0
 
-        if ALLIGN_INITIAL_DIRECTION_TO_X:
-            rotations = torch.stack([rotation_matrix_back_with_allign_to_X(yaw[i]) for i in range(batch.x.shape[0])]).to(out.device)
-        else:
-            rotations = torch.stack([rotation_matrix_back_with_allign_to_Y(yaw[i]) for i in range(batch.x.shape[0])]).to(out.device)
+        while idx < (NUM_PREDICT_ON_PREDICT + 1):
+            if (
+                random.random() < epoch / epochs and epoch / epochs > start_prediction_time + (idx / NUM_PREDICT_ON_PREDICT) / 2
+            ):  # max of (idx / NUM_PREDICT_ON_PREDICT / 2) = 0.5
+                on_predictions = True
+            else:
+                on_predictions = False
 
-        # [x, y, v, yaw, acc, steering]
-        gt = batch.y.reshape(-1, 30, 6)[:, :, [0, 1]]
-        error = ((gt - out).square().sum(-1) * step_weights).sum(-1)
-        loss = (batch.weights * error).nanmean()
+            optimizer.zero_grad()
 
-        # get back from deltas to plain coordinates in predictions
-        out = out.permute(0, 2, 1)  # [v, 2, pred]
-        out = torch.bmm(rotations, out).permute(0, 2, 1)  # [v, pred, 2]
-        out += batch.x[:, [0, 1]].unsqueeze(1)
+            if idx == 0:
+                x = batch.x[:, [0, 1, 2, 3, 4, 5, 6]]
+            else:
+                yaws = my_get_yaw(batch.x[:, [7, 8, 9, 10]], batch.x[:, [4, 5, 6]], out_coords[:, 0, :].detach(), yaw_keys, yaw_values)
+                speed = my_get_speed(dout_coords[:, 0, 0].detach(), dout_coords[:, 0, 1].detach())
+                x = torch.cat(
+                    (
+                        out_coords[:, 0, :].detach(),
+                        speed.unsqueeze(-1),
+                        yaws.unsqueeze(-1),
+                        batch.x[:, [4, 5, 6]],
+                    ),
+                    dim=-1,
+                )
 
-        if collision_penalty:
-            mask = batch.edge_index[0, :] < batch.edge_index[1, :]
-            _edge = batch.edge_index[:, mask].T  # [edge',2]
-            dist = torch.linalg.norm(out[_edge[:, 0]] - out[_edge[:, 1]], dim=-1)
-            dist = dist_threshold - dist[dist < dist_threshold]
+            dout_coords = model(x, batch.edge_index)
+            dout_coords = dout_coords.reshape(-1, PRED_LEN, PREDICT_VECTOR_SIZE)  # [v, PRED_LEN, PREDICT_VECTOR_SIZE]
 
-            if dist.numel():  # there are can be no cars with small distanses so it will be empty
-                _collision_penalty = dist.square().mean()
-                loss += _collision_penalty * collision_penalty_factor
+            yaw_cur = x[:, 3].detach().cpu().numpy()
+            yaw_base = batch.x[:, 3].detach().cpu().numpy()
+            if NORMALIZE_DATA:
+                denormalize_yaw(yaw_cur)
+                denormalize_yaw(yaw_base)
 
-        loss.backward()
-        optimizer.step()
-        total_loss += loss.item()
+            # [x, y, v, yaw, acc, steering]
+            dgt_coords = batch.y.reshape(-1, NUM_PREDICT, 6)[:, :, [0, 1]]
 
+            if ALLIGN_INITIAL_DIRECTION_TO_X:
+                rotations_back_current = torch.stack([rotation_matrix_back_with_allign_to_X(yaw_cur[i]) for i in range(batch.x.shape[0])]).to(device)
+            else:
+                rotations_back_current = torch.stack([rotation_matrix_back_with_allign_to_Y(yaw_cur[i]) for i in range(batch.x.shape[0])]).to(device)
+
+            if idx > 0:
+                if ALLIGN_INITIAL_DIRECTION_TO_X:
+                    rotations_back_base = torch.stack([rotation_matrix_back_with_allign_to_X(yaw_base[i]) for i in range(batch.x.shape[0])]).to(
+                        device
+                    )
+                    rotation_current = torch.stack([rotation_matrix_with_allign_to_X(yaw_cur[i]) for i in range(batch.x.shape[0])]).to(device)
+                else:
+                    rotations_back_base = torch.stack([rotation_matrix_back_with_allign_to_Y(yaw_base[i]) for i in range(batch.x.shape[0])]).to(
+                        device
+                    )
+                    rotation_current = torch.stack([rotation_matrix_with_allign_to_Y(yaw_cur[i]) for i in range(batch.x.shape[0])]).to(device)
+
+                dgt_coords = dgt_coords.permute(0, 2, 1)  # [v, 2, NUM_PREDICT]
+                dgt_coords = torch.bmm(rotations_back_base, dgt_coords)
+                dgt_coords = dgt_coords + (batch.x[:, [0, 1]].unsqueeze(1) - x[:, [0, 1]].unsqueeze(1)).permute(0, 2, 1)
+                dgt_coords = torch.bmm(rotation_current, dgt_coords).permute(0, 2, 1)
+            dgt_coords = dgt_coords[:, idx : PRED_LEN + idx, :]  # [v, PRED_LEN, 2]
+
+            # if NORMALIZE_DATA:
+            #     denom = dgt_coords.detach().abs().clamp(min=1e-5)
+            #     error = (((dgt_coords - dout_coords) / denom).square().sum(-1) * step_weights).sum(-1)
+            # else:
+            #     error = ((dgt_coords - dout_coords).square().sum(-1) * step_weights).sum(-1)
+            error = ((dgt_coords - dout_coords).square().sum(-1) * step_weights).sum(-1)
+
+            loss = (batch.weights * error).nanmean()
+
+            # get back from deltas to plain coordinates in predictions
+            dout_coords = dout_coords.permute(0, 2, 1)  # [v, 2, PRED_LEN]
+            dout_coords = torch.bmm(rotations_back_current, dout_coords).permute(0, 2, 1)  # [v, PRED_LEN, 2]
+            out_coords = dout_coords + x[:, [0, 1]].unsqueeze(1)
+
+            if collision_penalty:
+                mask = batch.edge_index[0, :] < batch.edge_index[1, :]
+                _edge = batch.edge_index[:, mask].T  # [edge',2]
+                dist = torch.linalg.norm(out_coords[_edge[:, 0]] - out_coords[_edge[:, 1]], dim=-1)
+                dist = dist_threshold - dist[dist < dist_threshold]
+
+                if dist.numel():  # there are can be no cars with small distanses so it will be empty
+                    _collision_penalty = dist.square().mean()
+                    loss += _collision_penalty * collision_penalty_factor
+
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            optimizer.step()
+
+            batch_loss += loss.item()
+            idx += 1
+
+            if not on_predictions:
+                break
+
+        total_loss += batch_loss / idx
     return total_loss / len(data_loader)
 
 
-def evaluate(
+def gnn_evaluate(
     model,
     device,
     data_loader,
@@ -218,18 +729,30 @@ def evaluate(
     dist_threshold,
     mr_threshold,
     collision_penalty_factor,
+    epoch,
+    epochs,
+    yaw_keys,
+    yaw_values,
+    start_prediction_time=0.2,
 ):
     """Performs an epoch of model training.
 
-    Parameters:
-    model (nn.Module): Model to be trained.
-    device (torch.Device): Device used for training.
-    data_loader (torch.utils.data.DataLoader): Data loader containing all batches.
+    :param model (nn.Module): Model to be trained.
+    :param device (torch.Device): Device used for training.
+    :param data_loader (torch.utils.data.DataLoader): Data loader containing all batches.
+    :param step_weights_factor: multiplication factor for each step of trajectory prediction
+    :param dist_threshold: distance of collition
+    :param mr_threshold: bad difference in last step prediction
+    :param collision_penalty_factor: multiplcation factor of collition to apply to loss
+    :param epoch: current epoch
+    :param epochs: total number of epochs
+    :param yaw_keys: yaw dictionary keys of yaw dict calculated before
+    :param yaw_values: yaw dictionary values of yaw dict calculated before
+    :param start_prediction_time: number of epoch / epochs to start making predictions on prediction (set maximum of 0.5 for correct calculus)
 
-    Returns:
-    list of evaluation metrics (including ADE, FDE, etc.).
+    :return list of evaluation metrics (including ADE, FDE, etc.).
     """
-    step_weights = torch.ones(30, device=device)
+    step_weights = torch.ones(PRED_LEN, device=device)
     step_weights[:5] *= step_weights_factor
     step_weights[0] *= step_weights_factor
 
@@ -241,67 +764,119 @@ def evaluate(
     with torch.no_grad():
         for batch in data_loader:
             batch = batch.to(device)
-            out = model(batch.x[:, [0, 1, 4, 5, 6]], batch.edge_index)
-            out = out.reshape(-1, 30, 2)  # [v, 30, 2]
+            out_coords = None
+            dout_coords = None
 
-            yaw = batch.x[:, 3].detach().cpu().numpy()
+            on_predictions = False
+            idx = 0
+            while idx < (NUM_PREDICT_ON_PREDICT + 1):
+                if (
+                    random.random() < epoch / epochs and epoch / epochs > start_prediction_time + (idx / NUM_PREDICT_ON_PREDICT) / 2
+                ):  # max of (idx / NUM_PREDICT_ON_PREDICT / 2) = 0.5
+                    on_predictions = True
+                else:
+                    on_predictions = False
 
-            if NORMALIZE_DATA:
-                de_nomalize_yaw(yaw)
+                if idx == 0:
+                    x = batch.x[:, [0, 1, 2, 3, 4, 5, 6]]
+                else:
+                    yaws = my_get_yaw(batch.x[:, [7, 8, 9, 10]], batch.x[:, [4, 5, 6]], out_coords[:, 0, :], yaw_keys, yaw_values)
+                    speed = my_get_speed(dout_coords[:, 0, 0], dout_coords[:, 0, 1])
+                    x = torch.cat(
+                        (
+                            out_coords[:, 0, :],
+                            speed.unsqueeze(-1),
+                            yaws.unsqueeze(-1),
+                            batch.x[:, [4, 5, 6]],
+                        ),
+                        dim=-1,
+                    )
 
-            if ALLIGN_INITIAL_DIRECTION_TO_X:
-                rotations = torch.stack([rotation_matrix_back_with_allign_to_X(yaw[i]) for i in range(batch.x.shape[0])]).to(out.device)
-            else:
-                rotations = torch.stack([rotation_matrix_back_with_allign_to_Y(yaw[i]) for i in range(batch.x.shape[0])]).to(out.device)
+                dout_coords = model(x, batch.edge_index)
+                dout_coords = dout_coords.reshape(-1, PRED_LEN, PREDICT_VECTOR_SIZE)  # [v, PRED_LEN, PREDICT_VECTOR_SIZE]
 
-            gt = batch.y.reshape(-1, 30, 6)[:, :, [0, 1]]
-            _error = (gt - out).square().sum(-1)
-            error = _error.clone() ** 0.5
-            _error = (_error * step_weights).sum(-1)
-            val_loss = (batch.weights * _error).nanmean()
-            val_losses.append(val_loss)
-            fde.append(error[:, -1])
-            ade.append(error.mean(dim=-1))
+                yaw_cur = x[:, 3].cpu().numpy()
+                yaw_base = batch.x[:, 3].cpu().numpy()
+                if NORMALIZE_DATA:
+                    denormalize_yaw(yaw_cur)
+                    denormalize_yaw(yaw_base)
 
-            out = out.permute(0, 2, 1)  # [v, 2, pred]
-            out = torch.bmm(rotations, out).permute(0, 2, 1)  # [v, pred, 2]
-            out += batch.x[:, [0, 1]].unsqueeze(1)
+                # [x, y, v, yaw, acc, steering]
+                dgt_coords = batch.y.reshape(-1, NUM_PREDICT, 6)[:, :, [0, 1]]
 
-            mask = batch.edge_index[0, :] < batch.edge_index[1, :]
-            _edge = batch.edge_index[:, mask].T  # [edge',2]
-            dist = torch.linalg.norm(out[_edge[:, 0]] - out[_edge[:, 1]], dim=-1)  # [edge, 30]
+                if ALLIGN_INITIAL_DIRECTION_TO_X:
+                    rotations_back_current = torch.stack([rotation_matrix_back_with_allign_to_X(yaw_cur[i]) for i in range(batch.x.shape[0])]).to(
+                        device
+                    )
+                else:
+                    rotations_back_current = torch.stack([rotation_matrix_back_with_allign_to_Y(yaw_cur[i]) for i in range(batch.x.shape[0])]).to(
+                        device
+                    )
 
-            collision_penalty = dist_threshold - dist[dist < dist_threshold]
-            if collision_penalty.numel():  # there are can be no cars with small distanses so it will be empty
-                collision_penalty = collision_penalty.square().mean() * collision_penalty_factor
-                collision_penalties.append(collision_penalty)
+                if idx > 0:
+                    if ALLIGN_INITIAL_DIRECTION_TO_X:
+                        rotations_back_base = torch.stack([rotation_matrix_back_with_allign_to_X(yaw_base[i]) for i in range(batch.x.shape[0])]).to(
+                            device
+                        )
+                        rotation_current = torch.stack([rotation_matrix_with_allign_to_X(yaw_cur[i]) for i in range(batch.x.shape[0])]).to(device)
+                    else:
+                        rotations_back_base = torch.stack([rotation_matrix_back_with_allign_to_Y(yaw_base[i]) for i in range(batch.x.shape[0])]).to(
+                            device
+                        )
+                        rotation_current = torch.stack([rotation_matrix_with_allign_to_Y(yaw_cur[i]) for i in range(batch.x.shape[0])]).to(device)
 
-            dist = torch.min(dist, dim=-1)[0]
-            n_edge.append(len(dist))
-            n_collision.append((dist < dist_threshold).sum().item())
+                    dgt_coords = dgt_coords.permute(0, 2, 1)  # [v, 2, NUM_PREDICT]
+                    dgt_coords = torch.bmm(rotations_back_base, dgt_coords)
+                    dgt_coords = dgt_coords + (batch.x[:, [0, 1]].unsqueeze(1) - x[:, [0, 1]].unsqueeze(1)).permute(0, 2, 1)
+                    dgt_coords = torch.bmm(rotation_current, dgt_coords).permute(0, 2, 1)
+                dgt_coords = dgt_coords[:, idx : PRED_LEN + idx, :]  # [v, PRED_LEN, 2]
 
-            # out = out.permute(0,2,1)    # [v, 2, pred]
-            # yaw = batch.x[:,3].detach().cpu().numpy()
-            # rotations = torch.stack([rotation_matrix_back(yaw[i])  for i in range(batch.x.shape[0])]).to(out.device)
-            # out = torch.bmm(rotations, out).permute(0,2,1)       # [v, pred, 2]
-            # out += batch.x[:,[7,8]].unsqueeze(1)
-            # # gt = batch.y.reshape(-1,50,6)[:,:,[0,1]]
-            # # error = ((gt-out).square().sum(-1) * step_weights).sum(-1)
-            # # loss = (batch.weights * error).nanmean()
+                # if NORMALIZE_DATA:
+                #     denom = dgt_coords.detach().abs().clamp(min=1e-5)
+                #     _error = (((dgt_coords - dout_coords) / denom).square().sum(-1) * step_weights).sum(-1)
+                # else:
+                #     _error = ((dgt_coords - dout_coords).square().sum(-1) * step_weights).sum(-1)
+                _error = ((dgt_coords - dout_coords).square().sum(-1) * step_weights).sum(-1)
 
-            # mask = (batch.edge_index[0,:] < batch.edge_index[1,:])
-            # _edge = batch.edge_index[:, mask].T   # [edge',2]
-            # # pos1 = torch.stack([out[_edge[i, 0]] for i in range(_edge.shape[0])])
-            # # pos2 = torch.stack([out[_edge[i, 1]] for i in range(_edge.shape[0])])
-            # # dist = torch.linalg.norm(pos1 - pos2, dim=-1)
-            # dist = torch.linalg.norm(out[_edge[:,0]] - out[_edge[:,1]], dim=-1) # [edge, 50]
+                _error = (_error * step_weights).sum(-1)
+                error = (dgt_coords - dout_coords).square().sum(-1) ** 0.5
+
+                val_loss = (batch.weights * _error).nanmean()
+                val_losses.append(val_loss)
+                fde.append(error[:, -1])
+                ade.append(error.mean(dim=-1))
+
+                # get back from deltas to plain coordinates in predictions
+                dout_coords = dout_coords.permute(0, 2, 1)  # [v, 2, PRED_LEN]
+                dout_coords = torch.bmm(rotations_back_current, dout_coords).permute(0, 2, 1)  # [v, PRED_LEN, 2]
+                out_coords = dout_coords + x[:, [0, 1]].unsqueeze(1)
+
+                mask = batch.edge_index[0, :] < batch.edge_index[1, :]
+                _edge = batch.edge_index[:, mask].T  # [edge',2]
+                dist = torch.linalg.norm(out_coords[_edge[:, 0]] - out_coords[_edge[:, 1]], dim=-1)  # [edge, PRED_LEN]
+
+                collision_penalty = dist_threshold - dist[dist < dist_threshold]
+                if collision_penalty.numel():  # there are can be no cars with small distanses so it will be empty
+                    collision_penalty = collision_penalty.square().mean() * collision_penalty_factor
+                    collision_penalties.append(collision_penalty)
+
+                dist = torch.min(dist, dim=-1)[0]
+                n_edge.append(len(dist))
+                n_collision.append((dist < dist_threshold).sum().item())
+
+                idx += 1
+
+                if not on_predictions:
+                    break
 
     ade = torch.cat(ade).mean()
     fde = torch.cat(fde)
     mr = ((fde > mr_threshold).sum() / len(fde)).item()
     fde = fde.mean()
     collision_rate = sum(n_collision) / sum(n_edge)
-    collision_penalties = torch.tensor(collision_penalties).mean()
+    collision_penalties = torch.tensor(collision_penalties)
+    collision_penalty = collision_penalties.mean().item() if collision_penalties.numel() > 0 else 0.0
+
     val_losses = torch.tensor(val_losses).mean()
 
     return (
@@ -310,7 +885,7 @@ def evaluate(
         mr,
         collision_rate,
         val_losses.item(),
-        collision_penalties.item(),
+        collision_penalty,
     )
 
 
@@ -318,7 +893,14 @@ METRICS = ["ade", "fde", "mr", "collision_rate", "val_loss", "collision_penaltie
 
 
 def train_one_config(
-    train_config_path: str, model_config_path: str, expirements_path: str, data_path: str, logs_dir_name: str, device_str: str, save_checkpoints=True
+    process_conection,
+    train_config_path: str,
+    model_config_path: str,
+    expirements_path: str,
+    data_path: str,
+    logs_dir_name: str,
+    device_str: str,
+    save_last_checkpoints=True,
 ):
     torch.set_num_threads(1)
     torch.set_num_interop_threads(1)
@@ -356,10 +938,11 @@ def train_one_config(
     collision_penalty_factor = train_config.collision_penalty_factor
     dist_threshold = train_config.dist_threshold
     mr_threshold = train_config.mr_threshold
+    start_prediction_time = train_config.start_prediction_time
 
     if NORMALIZE_DATA:
-        dist_threshold = dist_threshold / MAP_BOUNDARY
-        mr_threshold = mr_threshold / MAP_BOUNDARY
+        dist_threshold = normalize_coords(dist_threshold, COLLECT_DATA_RADIUS)
+        mr_threshold = normalize_coords(mr_threshold, COLLECT_DATA_RADIUS)
 
     push_to_hf = train_config.push_to_hf
     hf_project_path = train_config.hf_project_path
@@ -372,8 +955,6 @@ def train_one_config(
         train_config.lr,
         train_config.weight_decay,
     )
-    if train_config.clear_exp_checkpoints:
-        remove_files_in_directory(path_config.model_checkpoints_dir)
 
     min_ade = 1e6
     min_fde = 1e6
@@ -393,8 +974,17 @@ def train_one_config(
         )
         metric_loggers[metric].clear_file()
 
+    yaw_dict = load_yaw_dict()
+    yaw_keys = torch.tensor(list(yaw_dict.keys()), device=device)
+    values_list = list(yaw_dict.values())
+    values_list = [torch.tensor(v, device=device) for v in values_list]
+    yaw_values = pad_sequence(values_list, batch_first=True, padding_value=MAP_BOUNDARY)
+
+    process_conection.send(1)  # tells parent process that everything is inited
+    process_conection.close()
+
     for epoch in tqdm(range(0, epochs)):
-        epoch_loss = train_one_epoch(
+        epoch_loss = gnn_train_one_epoch(
             model,
             device,
             train_loader,
@@ -403,11 +993,16 @@ def train_one_config(
             dist_threshold,
             collision_penalty,
             collision_penalty_factor,
+            epoch,
+            epochs,
+            yaw_keys,
+            yaw_values,
+            start_prediction_time,
         )
         loss_logger.add_metric_points([epoch], [epoch * len(train_loader)], [epoch_loss])
 
         if epoch % metrics_log_epoch_frequency == 0:
-            ade, fde, mr, collision_rate, val_loss, collision_penalties = evaluate(
+            ade, fde, mr, collision_rate, val_loss, collision_penalties = gnn_evaluate(
                 model,
                 device,
                 val_loader,
@@ -415,6 +1010,11 @@ def train_one_config(
                 dist_threshold,
                 mr_threshold,
                 collision_penalty_factor,
+                epoch,
+                epochs,
+                yaw_keys,
+                yaw_values,
+                start_prediction_time,
             )
             epoch_metrics = {
                 "ade": ade,
@@ -425,15 +1025,6 @@ def train_one_config(
                 "collision_penalties": collision_penalties,
             }
             record.append(epoch_metrics)
-
-            if save_checkpoints:
-                torch.save(
-                    model.state_dict(),
-                    os.path.join(
-                        path_config.model_checkpoints_dir,
-                        f"model_{'wp' if collision_penalty else 'np'}_{exp_id}_{str(epoch).zfill(4)}.pth",
-                    ),
-                )
 
             if fde < min_fde:
                 min_ade, min_fde = ade, fde
@@ -446,6 +1037,15 @@ def train_one_config(
                 else:
                     optimizer.param_groups[0]["lr"] *= 0.5
                     patience *= 2
+
+        if save_last_checkpoints and epoch == epochs - 1:
+            torch.save(
+                model.state_dict(),
+                os.path.join(
+                    path_config.model_checkpoints_dir,
+                    f"model_{'wp' if collision_penalty else 'np'}_{exp_id}_{str(epoch).zfill(4)}.pth",
+                ),
+            )
 
     loss_logger.plot_metric()
 
@@ -462,10 +1062,10 @@ def train_one_config(
         )
         metric_loggers[metric].plot_metric()
 
-    if save_checkpoints and push_to_hf:
+    if push_to_hf:
         best_model_path = os.path.join(
             path_config.model_checkpoints_dir,
-            f"model_{'wp' if collision_penalty else 'np'}_{exp_id}_{str(best_epoch).zfill(4)}.pth",
+            f"model_{'wp' if collision_penalty else 'np'}_{exp_id}_{str(epochs - 1).zfill(4)}.pth",
         )
         best_state_dict = torch.load(best_model_path)
         model.load_state_dict(best_state_dict)
@@ -473,8 +1073,3 @@ def train_one_config(
 
     if "cuda" in device_str:
         torch.cuda.empty_cache()
-
-    # pkl_file = f"model_{'mlp' if mlp else 'gnn'}_{'wp' if collision_penalty else 'np'}_{exp_id}_e3.pkl"
-    # # pkl_file = f"model_{'mlp' if mlp else 'gnn'}_mtl_sumo_0911_e3.pkl"
-    # with open(f"{model_path}/{pkl_file}", "wb") as handle:
-    #   pickle.dump(record, handle, protocol=pickle.HIGHEST_PROTOCOL)

@@ -6,6 +6,7 @@ import itertools
 import time
 import psutil
 from collections import deque
+import argparse
 
 # nvidia-ml-py package
 from pynvml import nvmlInit, nvmlDeviceGetHandleByIndex, nvmlDeviceGetMemoryInfo
@@ -43,7 +44,7 @@ def get_dir_config_files(dir_path: str):
     return dir_config_paths
 
 
-def train_many_configs(max_needed_gpu_usage=0.7, max_mem_usage=0.7, max_processes=7, wait_time=4):
+def train_many_configs(max_needed_gpu_usage: float, max_mem_usage: float, max_processes: int, wait_time=4):
     nvmlInit()
 
     main_device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -70,12 +71,15 @@ def train_many_configs(max_needed_gpu_usage=0.7, max_mem_usage=0.7, max_processe
                 device_str = f"{device_str}:{gpu_devices[ind]}"
 
             config_pair = task_queue.popleft()
+            parent_conn, child_conn = mp.Pipe()
+
             p = mp.Process(
-                target=train_one_config, args=(config_pair[0], config_pair[1], EXPIREMENTS_PATH, DATA_PATH, LOGS_DIR_NAME, device_str, True)
+                target=train_one_config,
+                args=(child_conn, config_pair[0], config_pair[1], EXPIREMENTS_PATH, DATA_PATH, LOGS_DIR_NAME, device_str, True),
             )
             p.start()
             active_processes.append(p)
-            time.sleep(wait_time)
+            parent_conn.recv()  # waiting for child process to initialize everything
 
         for p in active_processes[:]:
             if not p.is_alive():
@@ -85,7 +89,19 @@ def train_many_configs(max_needed_gpu_usage=0.7, max_mem_usage=0.7, max_processe
         time.sleep(0.1)
 
 
-if __name__ == "__main__":
+def main():
+    parser = argparse.ArgumentParser(description="")
+
+    parser.add_argument("--max_needed_gpu_usage", type=float, help="max needed gpu usage", default=0.85)
+    parser.add_argument("--max_mem_usage", type=float, help="max mem usage", default=0.7)
+    parser.add_argument("--max_processes", type=float, help="max processes number to be runned", default=7)
+
+    args = parser.parse_args()
+
     mp.set_start_method("spawn", force=True)
     torch.cuda.empty_cache()
-    train_many_configs()
+    train_many_configs(args.max_needed_gpu_usage, args.max_mem_usage, args.max_processes)
+
+
+if __name__ == "__main__":
+    main()

@@ -15,3 +15,5 @@ data_visualizations_backup
 experements_configs/*
 !experements_configs/model_config.yaml
 !experements_configs/train_config.yaml
+
+tests.py
