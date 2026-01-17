@@ -49,24 +49,25 @@ class CustomziedPeceptionManager(PerceptionManager):
     def detect(self, ego_pos):
         def detect(self, ego_pos: Any) -> Dict[str, List[Any]]:
             """
-        Perform object detection using sensor data.
+            Perform object detection using sensor data.
 
-        Processes RGB camera images and LiDAR data to detect vehicles,
-        traffic lights, and other objects in the environment.
+            Processes RGB camera images and LiDAR data to detect vehicles,
+            traffic lights, and other objects in the environment.
 
-        Parameters
-        ----------
-        ego_pos : Any
-            Ego vehicle position for coordinate transformations.
+            Parameters
+            ----------
+            ego_pos : Any
+                Ego vehicle position for coordinate transformations.
 
-        Returns
-        -------
-        Dict[str, List[Any]]
-            Dictionary containing detected objects with keys:
-            - 'vehicles': List of ObstacleVehicle objects
-            - 'traffic_lights': List of TrafficLight objects
-            - 'other_objects_you_wanna_add': List of additional detected objects
-        """
+            Returns
+            -------
+            Dict[str, List[Any]]
+                Dictionary containing detected objects with keys:
+                - 'vehicles': List of ObstacleVehicle objects
+                - 'traffic_lights': List of TrafficLight objects
+                - 'other_objects_you_wanna_add': List of additional detected objects
+            """
+
         objects = {"vehicles": [], "traffic_lights": [], "other_objects_you_wanna_add": []}
 
         # retrieve current rgb images from all cameras

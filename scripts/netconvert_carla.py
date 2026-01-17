@@ -312,11 +312,11 @@ class SumoTrafficLight(object):
     tlid : str
         Traffic light ID.
     program_id : str, optional
-        Program ID for the traffic light. 
+        Program ID for the traffic light.
     offset : int, optional
         Time offset for the program.
     tltype : str, optional
-        Traffic light type. 
+        Traffic light type.
 
     Attributes
     ----------
@@ -400,9 +400,7 @@ class SumoTrafficLight(object):
             tl.add_phase(SumoTrafficLight.DEFAULT_DURATION_YELLOW_PHASE, "".join(phase_yellow))
             tl.add_phase(SumoTrafficLight.DEFAULT_DURATION_RED_PHASE, "".join(phase_red))
 
-    def add_phase(
-        self, duration: int, state: str, min_dur: int = -1, max_dur: int = -1, next_phase: Optional[int] = None, name: str = ""
-    ):
+    def add_phase(self, duration: int, state: str, min_dur: int = -1, max_dur: int = -1, next_phase: Optional[int] = None, name: str = ""):
         """
          Add a signal phase to the traffic light program.
 
@@ -413,11 +411,11 @@ class SumoTrafficLight(object):
         state : str
             Signal state string
         min_dur : int, optional
-            Minimum duration for actuated control. 
+            Minimum duration for actuated control.
         max_dur : int, optional
-            Maximum duration for actuated control. 
+            Maximum duration for actuated control.
         next_phase : int, optional
-            Index of next phase. 
+            Index of next phase.
         name : str, optional
             Phase name. Default is empty string
         """
@@ -447,9 +445,7 @@ class SumoTrafficLight(object):
         """
         self.connections.add(connection)
 
-    def add_landmark(
-        self, landmark_id: str, tlid: str, from_road: str, to_road: str, from_lane: int, to_lane: int, link_index: int = -1
-    ) -> bool:
+    def add_landmark(self, landmark_id: str, tlid: str, from_road: str, to_road: str, from_lane: int, to_lane: int, link_index: int = -1) -> bool:
         """
         Add an OpenDRIVE landmark to the traffic light.
 
@@ -687,7 +683,7 @@ def _netconvert_carla_impl(xodr_file: str, output: str, tmpdir: str, guess_tls: 
     tree.write(output, pretty_print=True, encoding="UTF-8", xml_declaration=True)
 
 
-def netconvert_carla(xodr_file: str, output: str, guess_tls: bool=False):
+def netconvert_carla(xodr_file: str, output: str, guess_tls: bool = False):
     """
     Generate a SUMO network file from an OpenDRIVE file.
 

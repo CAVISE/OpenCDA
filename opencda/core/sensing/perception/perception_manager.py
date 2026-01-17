@@ -89,9 +89,7 @@ class CameraSensor:
         self.image_height = int(self.sensor.attributes["image_size_y"])
 
     @staticmethod
-    def spawn_point_estimation(
-        relative_position: Tuple[float, float, float, float], global_position: Optional[List[float]]
-    ) -> carla.Transform:
+    def spawn_point_estimation(relative_position: Tuple[float, float, float, float], global_position: Optional[List[float]]) -> carla.Transform:
         """
         Calculate camera spawn point based on relative or global position.
 

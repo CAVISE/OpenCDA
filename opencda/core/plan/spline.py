@@ -17,16 +17,16 @@ import bisect
 class Spline:
     """
     Cubic Spline class for calculating curvature.
-    
+
     Author: Atsushi Sakai(@Atsushi_twi)
-    
+
     Parameters
     ----------
     x : array_like
         The x coordinates.
     y : array_like
         The y coordinates.
-    
+
     Attributes
     ----------
     a : list of float
@@ -72,12 +72,12 @@ class Spline:
     def calc(self, t: float) -> Optional[float]:
         """
         Calculate position at parameter t.
-        
+
         Parameters
         ----------
         t : float
             Parameter value. If t is outside of the input x range, returns None.
-        
+
         Returns
         -------
         float or None
@@ -98,12 +98,12 @@ class Spline:
     def calcd(self, t: float) -> Optional[float]:
         """
         Calculate first derivative at parameter t.
-        
+
         Parameters
         ----------
         t : float
             Parameter value. If t is outside of the input x range, returns None.
-        
+
         Returns
         -------
         float or None
@@ -123,12 +123,12 @@ class Spline:
     def calcdd(self, t: float) -> Optional[float]:
         """
         Calculate second derivative at parameter t.
-        
+
         Parameters
         ----------
         t : float
             Parameter value. If t is outside of the input x range, returns None.
-        
+
         Returns
         -------
         float or None
@@ -148,12 +148,12 @@ class Spline:
     def __search_index(self, x: float) -> int:
         """
         Search data segment index.
-        
+
         Parameters
         ----------
         x : float
             Search value.
-        
+
         Returns
         -------
         int
@@ -164,12 +164,12 @@ class Spline:
     def __calc_A(self, h: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
         """
         Calculate matrix A for spline coefficient calculation.
-        
+
         Parameters
         ----------
         h : numpy.ndarray
             Discrete differences along the x-axis.
-        
+
         Returns
         -------
         numpy.ndarray
@@ -192,12 +192,12 @@ class Spline:
     def __calc_B(self, h: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
         """
         Calculate matrix B for spline coefficient calculation.
-        
+
         Parameters
         ----------
         h : numpy.ndarray
             Discrete differences along the x-axis.
-        
+
         Returns
         -------
         numpy.ndarray
@@ -212,16 +212,16 @@ class Spline:
 class Spline2D:
     """
     2D Cubic Spline class for calculating curvature.
-    
+
     Author: Atsushi Sakai(@Atsushi_twi)
-    
+
     Parameters
     ----------
     x : array_like
         The x coordinates.
     y : array_like
         The y coordinates.
-    
+
     Attributes
     ----------
     s : list of float
@@ -242,14 +242,14 @@ class Spline2D:
     def __calc_s(self, x: npt.ArrayLike, y: npt.ArrayLike) -> List[float]:
         """
         Calculate cumulative arc length.
-        
+
         Parameters
         ----------
         x : array_like
             The x coordinates.
         y : array_like
             The y coordinates.
-        
+
         Returns
         -------
         list of float
@@ -265,12 +265,12 @@ class Spline2D:
     def calc_position(self, s: float) -> Tuple[Optional[float], Optional[float]]:
         """
         Calculate position at arc length s.
-        
+
         Parameters
         ----------
         s : float
             Arc length parameter.
-        
+
         Returns
         -------
         x : float
@@ -286,12 +286,12 @@ class Spline2D:
     def calc_curvature(self, s: float) -> float:
         """
         Calculate curvature at arc length s.
-        
+
         Parameters
         ----------
         s : float
             Arc length parameter.
-        
+
         Returns
         -------
         float
@@ -307,12 +307,12 @@ class Spline2D:
     def calc_yaw(self, s: float) -> float:
         """
         Calculate yaw angle at arc length s.
-        
+
         Parameters
         ----------
         s : float
             Arc length parameter.
-        
+
         Returns
         -------
         float
@@ -324,12 +324,10 @@ class Spline2D:
         return yaw
 
 
-def calc_spline_course(
-    x: npt.ArrayLike, y: npt.ArrayLike, ds: float = 0.1
-) -> Tuple[List[float], List[float], List[float], List[float], List[float]]:
+def calc_spline_course(x: npt.ArrayLike, y: npt.ArrayLike, ds: float = 0.1) -> Tuple[List[float], List[float], List[float], List[float], List[float]]:
     """
     Calculate 2D spline course.
-    
+
     Parameters
     ----------
     x : array_like
@@ -338,7 +336,7 @@ def calc_spline_course(
         The y coordinates of the input points.
     ds : float, optional
         The arc length step value. Default is 0.1.
-    
+
     Returns
     -------
     rx : list of float

@@ -10,7 +10,7 @@ Used to reduce the dependency on CARLA api by mocking them in the same structure
 class Vector3D(object):
     """
     Represents a 3D vector and provides useful helper functions.
-    
+
     Parameters
     ----------
     x : float, optional
@@ -19,7 +19,7 @@ class Vector3D(object):
         The value of the second axis. Default is 0.
     z : float, optional
         The value of the third axis. Default is 0.
-    
+
     Attributes
     ----------
     x : float
@@ -37,12 +37,12 @@ class Vector3D(object):
     def from_simulator_vector(cls, vector):
         """
         Creates a pylot Vector3D from a simulator 3D vector.
-        
+
         Parameters
         ----------
         vector : carla.Vector3D
             An instance of a simulator 3D vector.
-        
+
         Returns
         -------
         Vector3D
@@ -58,7 +58,7 @@ class Vector3D(object):
 class Location(Vector3D):
     """
     Stores a 3D location, and provides useful helper methods.
-    
+
     Parameters
     ----------
     x : float, optional
@@ -67,7 +67,7 @@ class Location(Vector3D):
         The value of the y-axis. Default is 0.
     z : float, optional
         The value of the z-axis. Default is 0.
-    
+
     Attributes
     ----------
     x : float
@@ -85,12 +85,12 @@ class Location(Vector3D):
     def from_simulator_location(cls, location):
         """
         Creates a pylot Location from a simulator location.
-        
+
         Parameters
         ----------
         location : carla.Location or carla.Vector3D
             An instance of a simulator location.
-        
+
         Returns
         -------
         Location
@@ -106,12 +106,12 @@ class Location(Vector3D):
 class Rotation(object):
     """
     Used to represent the rotation of an actor or obstacle.
-    
+
     Rotations are applied in the order: Roll (X), Pitch (Y), Yaw (Z).
     A 90-degree "Roll" maps the positive Z-axis to the positive Y-axis.
     A 90-degree "Pitch" maps the positive X-axis to the positive Z-axis.
     A 90-degree "Yaw" maps the positive X-axis to the positive Y-axis.
-    
+
     Parameters
     ----------
     pitch : float, optional
@@ -120,7 +120,7 @@ class Rotation(object):
         Rotation about Z-axis. Default is 0.
     roll : float, optional
         Rotation about X-axis. Default is 0.
-    
+
     Attributes
     ----------
     pitch : float
@@ -140,12 +140,12 @@ class Rotation(object):
     def from_simulator_rotation(cls, rotation):
         """
         Creates a pylot Rotation from a simulator rotation.
-        
+
         Parameters
         ----------
         rotation : carla.Rotation
             An instance of a simulator rotation.
-        
+
         Returns
         -------
         Rotation
@@ -161,20 +161,20 @@ class Rotation(object):
 class Transform(object):
     """
     A class that stores the location and rotation of an obstacle.
-    
+
     It can be created from a simulator transform, defines helper functions
     needed in Pylot, and makes the simulator transform serializable.
-    
+
     A transform object is instantiated with either a location and a rotation,
     or using a matrix.
-    
+
     Parameters
     ----------
     location : Location, optional
         The location of the object represented by the transform.
     rotation : Rotation, optional
         The rotation (in degrees) of the object represented by the transform.
-    
+
     Attributes
     ----------
     location : Location
@@ -191,12 +191,12 @@ class Transform(object):
     def from_simulator_transform(cls, transform):
         """
         Creates a pylot transform from a simulator transform.
-        
+
         Parameters
         ----------
         transform : carla.Transform
             A simulator transform.
-        
+
         Returns
         -------
         Transform

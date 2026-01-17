@@ -13,9 +13,7 @@ import numpy as np
 from typing import Tuple
 
 
-def geo_to_transform(
-    lat: float, lon: float, alt: float, lat_0: float, lon_0: float, alt_0: float
-) -> Tuple[float, float, float]:
+def geo_to_transform(lat: float, lon: float, alt: float, lat_0: float, lon_0: float, alt_0: float) -> Tuple[float, float, float]:
     """
     Convert WGS84 geodetic coordinates to ENU local coordinates.
 

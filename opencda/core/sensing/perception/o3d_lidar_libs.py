@@ -56,10 +56,7 @@ LABEL_COLORS = (
 )  # normalize each channel [0-1] since is what Open3D uses
 
 
-def o3d_pointcloud_encode(
-    raw_data: npt.NDArray[np.float32], 
-    point_cloud: o3d.geometry.PointCloud
-) -> None:
+def o3d_pointcloud_encode(raw_data: npt.NDArray[np.float32], point_cloud: o3d.geometry.PointCloud) -> None:
     """
     Encode the raw point cloud(np.array) to Open3d PointCloud object.
 
@@ -113,12 +110,7 @@ def o3d_visualizer_init(actor_id: int) -> o3d.visualization.Visualizer:
     return vis
 
 
-def o3d_visualizer_show(
-    vis: o3d.visualization.Visualizer, 
-    count: int, 
-    point_cloud: o3d.geometry.PointCloud, 
-    objects: Dict[str, List[Any]]
-) -> None:
+def o3d_visualizer_show(vis: o3d.visualization.Visualizer, count: int, point_cloud: o3d.geometry.PointCloud, objects: Dict[str, List[Any]]) -> None:
     """
     Visualize the point cloud at runtime.
 
@@ -164,7 +156,7 @@ def o3d_camera_lidar_fusion(
     yolo_bbx: torch.Tensor,
     lidar_3d: npt.NDArray[np.float32],
     projected_lidar: npt.NDArray[np.float32],
-    lidar_sensor: Any  # carla.Sensor type
+    lidar_sensor: Any,  # carla.Sensor type
 ) -> Dict[str, List[Union[ObstacleVehicle, StaticObstacle]]]:
     """
     Utilize the 3D lidar points to extend the 2D bounding box

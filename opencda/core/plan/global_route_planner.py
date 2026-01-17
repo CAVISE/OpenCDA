@@ -72,9 +72,9 @@ class GlobalRoutePlanner(object):
     def _build_graph(self):
         """
         This function builds a networkx graph representation of topology.
-        
+
         The topology is read from self._topology.
-        
+
         Parameters
         ----------
         vertex : tuple
@@ -87,7 +87,7 @@ class GlobalRoutePlanner(object):
             Graph edge: unit vector of the chord from entry to exit.
         intersection : bool
             Graph edge: boolean indicating if the edge belongs to an intersection.
-        
+
         Returns
         -------
         graph : nx.DiGraph
@@ -202,12 +202,12 @@ class GlobalRoutePlanner(object):
     def _localize(self, location: carla.Location) -> Optional[Tuple[int, int]]:
         """
         This function finds the road segment closest to given location.
-        
+
         Parameters
         ----------
         location : carla.Location
             Location to be localized in the graph.
-        
+
         Returns
         -------
         edge : tuple or None
@@ -307,16 +307,16 @@ class GlobalRoutePlanner(object):
     def _path_search(self, origin, destination):
         """
         This function finds the shortest path connecting origin and destination.
-        
+
         Uses A* search with distance heuristic.
-        
+
         Parameters
         ----------
         origin : carla.Location
             Object of start position.
         destination : carla.Location
             Object of end position.
-        
+
         Returns
         -------
         route : list of int
@@ -329,9 +329,7 @@ class GlobalRoutePlanner(object):
         route.append(end[1])
         return route
 
-    def _successive_last_intersection_edge(
-        self, index: int, route: List[int]
-    ) -> Tuple[Optional[int], Optional[Dict[str, Any]]]:
+    def _successive_last_intersection_edge(self, index: int, route: List[int]) -> Tuple[Optional[int], Optional[Dict[str, Any]]]:
         """
         Find last successive intersection edge from starting index.
 
@@ -454,14 +452,14 @@ class GlobalRoutePlanner(object):
     def abstract_route_plan(self, origin: carla.Location, destination: carla.Location) -> List[RoadOption]:
         """
         The function that generates the route plan based on origin and destination.
-        
+
         Parameters
         ----------
         origin : carla.Location
             Object of the route's start position.
         destination : carla.Location
             Object of the route's end position.
-        
+
         Returns
         -------
         plan : list
@@ -503,9 +501,7 @@ class GlobalRoutePlanner(object):
 
         return closest_index
 
-    def trace_route(
-        self, origin: carla.Location, destination: carla.Location
-    ) -> List[Tuple[carla.Waypoint, RoadOption]]:
+    def trace_route(self, origin: carla.Location, destination: carla.Location) -> List[Tuple[carla.Waypoint, RoadOption]]:
         """
         Generate detailed route with waypoints and navigation decisions.
 

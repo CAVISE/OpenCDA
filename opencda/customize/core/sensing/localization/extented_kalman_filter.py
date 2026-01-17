@@ -14,7 +14,6 @@ import numpy as np
 import numpy.typing as npt
 
 
-
 class ExtentedKalmanFilter(object):
     """
     Extended Kalman Filter for GPS and IMU sensor fusion.
@@ -61,9 +60,7 @@ class ExtentedKalmanFilter(object):
         self.xEst = np.zeros((4, 1))
         self.PEst = np.eye(4)
 
-    def motion_model(
-        self, x: npt.NDArray[np.float64], u: npt.NDArray[np.float64]
-    ) -> npt.NDArray[np.float64]:
+    def motion_model(self, x: npt.NDArray[np.float64], u: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
         """
         Predict current state based on previous state and control input.
 
@@ -89,9 +86,7 @@ class ExtentedKalmanFilter(object):
 
         return x
 
-    def jacob_f(
-        self, x: npt.NDArray[np.float64], u: npt.NDArray[np.float64]
-    ) -> npt.NDArray[np.float64]:
+    def jacob_f(self, x: npt.NDArray[np.float64], u: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
         """
         Calculate Jacobian matrix of the motion model.
 
@@ -160,9 +155,7 @@ class ExtentedKalmanFilter(object):
         self.xEst[2] = heading
         self.xEst[3] = velocity
 
-    def run_step(
-        self, x: float, y: float, heading: float, velocity: float, yaw_rate_imu: float
-    ) -> Tuple[float, float, float, float]:
+    def run_step(self, x: float, y: float, heading: float, velocity: float, yaw_rate_imu: float) -> Tuple[float, float, float, float]:
         """
         Execute one EKF prediction and correction step.
 

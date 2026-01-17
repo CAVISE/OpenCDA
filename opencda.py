@@ -24,6 +24,7 @@ import omegaconf
 import subprocess
 
 from opencda.version import __version__
+
 try:
     from rich.traceback import install as rich_traceback_install
 except ModuleNotFoundError:
@@ -53,16 +54,13 @@ class VerbosityLevel(enum.IntEnum):
     FULL : int
         All available output, primarily used for development purposes.
     """
+
     SILENT = 1  # minimal output: important info, warnings and errors
-    INFO = 2    # more info: might include some specific information about services, simulators' state
-    FULL = 3    # all output, use this for development
+    INFO = 2  # more info: might include some specific information about services, simulators' state
+    FULL = 3  # all output, use this for development
 
 
-def create_logger(
-    level: int, 
-    fmt: str = "- [%(asctime)s][%(name)s] %(message)s", 
-    datefmt: str = "%H:%M:%S"
-) -> logging.Logger:
+def create_logger(level: int, fmt: str = "- [%(asctime)s][%(name)s] %(message)s", datefmt: str = "%H:%M:%S") -> logging.Logger:
     """
     Create and configure a logger for the CAVISE project.
 
@@ -82,8 +80,8 @@ def create_logger(
 
     Notes
     -----
-    This logger is specifically for CAVISE code and should be obtained using 
-    logging.getLogger('cavise'). It uses colored logs if the coloredlogs package 
+    This logger is specifically for CAVISE code and should be obtained using
+    logging.getLogger('cavise'). It uses colored logs if the coloredlogs package
     is available, otherwise falls back to basic logging.
     """
     logger = logging.getLogger("cavise")
@@ -98,10 +96,7 @@ def create_logger(
     return logger
 
 
-def install_traceback_handler(
-    verbose: bool = True, 
-    suppress_modules: typing.Collection[str] = ()
-):
+def install_traceback_handler(verbose: bool = True, suppress_modules: typing.Collection[str] = ()):
     """
     Install a rich traceback handler with module filtering.
 
@@ -115,7 +110,7 @@ def install_traceback_handler(
 
     Notes
     -----
-    The following modules are filtered by default: numpy, scipy, pandas, matplotlib, 
+    The following modules are filtered by default: numpy, scipy, pandas, matplotlib,
     seaborn, torch, torchvision, scikit-learn, scikit-image, omegaconf.
     Requires the 'rich' package to be installed for rich traceback support.
     """
@@ -149,7 +144,7 @@ def arg_parse() -> argparse.Namespace:
     -------
     argparse.Namespace
         An object containing the parsed command line arguments with the following attributes:
-        
+
         - test_scenario : str - Name of the scenario to test (required)
         - record : bool - Record simulation process to .log file
         - version : str - CARLA simulator version
@@ -237,12 +232,7 @@ def arg_parse() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def check_buld_for_utils(
-    module_path: str, 
-    cwd: pathlib.PurePath, 
-    verbose: bool, 
-    logger: logging.Logger
-) -> bool:
+def check_buld_for_utils(module_path: str, cwd: pathlib.PurePath, verbose: bool, logger: logging.Logger) -> bool:
     """
     Check if a Python extension module has been built and build it if necessary.
 
@@ -300,7 +290,7 @@ def main() -> None:
 
     This function serves as the main entry point for the OpenCDA application.
     It performs the following operations:
-    
+
     1. Parses command line arguments
     2. Sets up logging based on verbosity level
     3. Installs traceback handler

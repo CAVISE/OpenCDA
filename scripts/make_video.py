@@ -16,13 +16,7 @@ import tempfile
 from typing import Optional
 
 
-def create_video(
-    input_dir: str,
-    output_path: str,
-    framerate: int = 20,
-    rotate: int = 0,
-    pattern: str = "*.png"
-):
+def create_video(input_dir: str, output_path: str, framerate: int = 20, rotate: int = 0, pattern: str = "*.png"):
     """
     Create a video from a sequence of images using FFmpeg.
 

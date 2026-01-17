@@ -86,11 +86,7 @@ def draw_road(lane_area_list: List[npt.NDArray[np.float32]], image: npt.NDArray[
     return image
 
 
-def draw_lane(
-    lane_area_list: List[npt.NDArray[np.float32]],
-    lane_type_list: List[str],
-    image: npt.NDArray[np.uint8]
-) -> npt.NDArray[np.uint8]:
+def draw_lane(lane_area_list: List[npt.NDArray[np.float32]], lane_type_list: List[str], image: npt.NDArray[np.uint8]) -> npt.NDArray[np.uint8]:
     """
     Draw lanes on image (polylines).
 

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Utilize scenario manager to manage CARLA simulation construction. 
+Utilize scenario manager to manage CARLA simulation construction.
 
 This script is used for carla simulation only, and if you want to manage the Co-simulation,
 please use cosim_api.py.

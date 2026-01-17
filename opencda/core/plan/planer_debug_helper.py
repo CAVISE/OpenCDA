@@ -19,12 +19,12 @@ import opencda.core.plan.drive_profile_plotting as open_plt
 class PlanDebugHelper(object):
     """
     This class aims to save statistics for planner behaviour.
-    
+
     Parameters
     ----------
     actor_id : int
         The actor ID of the target vehicle for debugging.
-    
+
     Attributes
     ----------
     actor_id : int
@@ -50,7 +50,7 @@ class PlanDebugHelper(object):
     def update(self, ego_speed: float, ttc: float) -> None:
         """
         Update the speed info.
-        
+
         Parameters
         ----------
         ego_speed : float
@@ -73,7 +73,7 @@ class PlanDebugHelper(object):
     def evaluate(self):
         """
         Evaluate the target vehicle and visualize the plot.
-        
+
         Returns
         -------
         figure : matplotlib.pyplot.Figure

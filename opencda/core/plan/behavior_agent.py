@@ -591,7 +591,7 @@ class BehaviorAgent(object):
         vehicle_state, _, _ = self.collision_manager(rx, ry, ryaw, self._map.get_waypoint(self._ego_pos.location), adjacent_check=True)
         return not vehicle_state
 
-    def car_following_manager(self, vehicle: carla.Vehicle, distance: float, target_speed: Optional[float]=None) -> float:
+    def car_following_manager(self, vehicle: carla.Vehicle, distance: float, target_speed: Optional[float] = None) -> float:
         """
         Module in charge of car-following behaviors when there's
         someone in front of us.
@@ -711,7 +711,7 @@ class BehaviorAgent(object):
 
         return lane_change_allowed
 
-    def get_push_destination(self, ego_vehicle_wp: carla.Waypoint , is_intersection: bool) -> carla.Waypoint:
+    def get_push_destination(self, ego_vehicle_wp: carla.Waypoint, is_intersection: bool) -> carla.Waypoint:
         """
         Get the destination for push operation.
 
@@ -744,7 +744,9 @@ class BehaviorAgent(object):
             )
         return reset_target
 
-    def run_step(self, target_speed: Optional[float]=None, collision_detector_enabled: bool =True, lane_change_allowed: bool=True) -> carla.VehicleControl:
+    def run_step(
+        self, target_speed: Optional[float] = None, collision_detector_enabled: bool = True, lane_change_allowed: bool = True
+    ) -> carla.VehicleControl:
         """
         Execute one step of navigation
 

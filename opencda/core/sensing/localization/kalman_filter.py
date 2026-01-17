@@ -67,9 +67,7 @@ class KalmanFilter(object):
         self.xEst = np.zeros((4, 1))
         self.PEst = np.eye(4)
 
-    def motion_model(
-        self, x: npt.NDArray[np.float64], u: npt.NDArray[np.float64]
-    ) -> npt.NDArray[np.float64]:
+    def motion_model(self, x: npt.NDArray[np.float64], u: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
         """
         Predict current position and yaw based on
         previous result (X = F * X_prev + B * u).
@@ -142,9 +140,7 @@ class KalmanFilter(object):
         self.xEst[2] = heading
         self.xEst[3] = velocity
 
-    def run_step(
-        self, x: float, y: float, heading: float, velocity: float, yaw_rate_imu: float
-    ) -> Tuple[float, float, float, float]:
+    def run_step(self, x: float, y: float, heading: float, velocity: float, yaw_rate_imu: float) -> Tuple[float, float, float, float]:
         """
         Apply KF on current measurement and previous prediction.
 

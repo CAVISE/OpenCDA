@@ -28,7 +28,7 @@ class SafetyManager:
         The vehicle that the SafetyManager is responsible for monitoring.
     params : Dict[str, Any]
         Configuration dictionary containing parameters for safety sensors:
-        
+
         - print_message : bool
             Whether to print safety warnings.
         - collision_sensor : dict

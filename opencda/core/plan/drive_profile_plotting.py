@@ -109,12 +109,12 @@ def draw_time_gap_profile_singel_plot(gap_list: List[npt.NDArray[np.float64]]) -
 
 def draw_dist_gap_profile_singel_plot(gap_list: List[npt.NDArray[np.float64]]) -> None:
     """
-    Draw distance gap profiles in a single plot.
+     Draw distance gap profiles in a single plot.
 
-   Parameters
-   ----------
-    gap_list : list
-        The vehicle front distance gap profile saved in a list.
+    Parameters
+    ----------
+     gap_list : list
+         The vehicle front distance gap profile saved in a list.
     """
     for i, v in enumerate(gap_list):
         x_s = np.arange(len(v)) * 0.05

@@ -6,6 +6,7 @@ This module provides collision detection capabilities for autonomous vehicles,
 including range checking, adjacent lane collision detection, and circle-based
 collision checking along trajectories.
 """
+
 # Author: Runsheng Xu <rxx3386@ucla.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
 import math
@@ -121,7 +122,7 @@ class CollisionChecker:
     ) -> Tuple[List[float], List[float], List[float]]:
         """
         Generate a straight line in the adjacent lane for collision detection during overtake/lane change.
-        
+
         Parameters
         ----------
         ego_loc : carla.Location
@@ -134,7 +135,7 @@ class CollisionChecker:
             CARLA map object.
         world : carla.World
             CARLA Simulation world, used to draw debug lines.
-        
+
         Returns
         -------
         rx : list of float
@@ -203,7 +204,7 @@ class CollisionChecker:
     ) -> bool:
         """
         Use circled collision check to see whether potential hazard on the forwarding path.
-        
+
         Parameters
         ----------
         path_x : list of float
@@ -219,9 +220,9 @@ class CollisionChecker:
         carla_map : carla.Map
             CARLA map object.
         adjacent_check : bool, optional
-            Indicator of whether to do adjacent check. 
+            Indicator of whether to do adjacent check.
             Note: always give full path for adjacent lane check. Default is False.
-        
+
         Returns
         -------
         collision_free : bool
