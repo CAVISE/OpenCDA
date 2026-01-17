@@ -73,7 +73,7 @@ class SumoTopology(object):
         # Mapped ids between sumo and opendrive.
         self._odr2sumo_ids = odr2sumo_ids
 
-    # [http://sumo.sourceforge.net/userdoc/Networks/Import/OpenDRIVE.html#dealing_with_lane_sections](http://sumo.sourceforge.net/userdoc/Networks/Import/OpenDRIVE.html#dealing_with_lane_sections)
+    # [http://sumo.sourceforge.net/userdoc/Networks/Import/OpenDRIVE.html#dealing_with_lane_sections
     def get_sumo_id(self, odr_road_id: str, odr_lane_id: int, s: float = 0) -> Optional[Tuple[str, int]]:
         """
         Get SUMO edge and lane index from OpenDRIVE road and lane IDs.
