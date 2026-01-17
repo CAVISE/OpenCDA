@@ -1,0 +1,211 @@
+data_augment:
+- ALONG_AXIS_LIST:
+  - x
+  NAME: random_world_flip
+- NAME: random_world_rotation
+  WORLD_ROT_ANGLE:
+  - -0.78539816
+  - 0.78539816
+- NAME: random_world_scaling
+  WORLD_SCALE_RANGE:
+  - 0.95
+  - 1.05
+fusion:
+  args:
+    cur_ego_pose_flag: false
+  core_method: IntermediateFusionDataset
+loss:
+  args:
+    cls_weight: 1.0
+    reg: 2.0
+  core_method: point_pillar_loss
+lr_scheduler:
+  core_method: multistep
+  gamma: 0.1
+  step_size:
+  - 15
+  - 50
+model:
+  args:
+    anchor_number: 2
+    backbone_fix: false
+    base_bev_backbone:
+      layer_nums:
+      - 3
+      - 5
+      - 8
+      layer_strides:
+      - 2
+      - 2
+      - 2
+      num_filters:
+      - 64
+      - 128
+      - 256
+      num_upsample_filter:
+      - 128
+      - 128
+      - 128
+      upsample_strides:
+      - 1
+      - 2
+      - 4
+    compression: 0
+    lidar_range: &id002
+    - -140.8
+    - -38.4
+    - -8
+    - 140.8
+    - 38.4
+    - 8
+    max_cav: 10
+    pillar_vfe:
+      num_filters:
+      - 64
+      use_absolute_xyz: true
+      use_norm: true
+      with_distance: false
+    point_pillar_scatter:
+      grid_size: !!python/object/apply:numpy.core.multiarray._reconstruct
+        args:
+        - !!python/name:numpy.ndarray ''
+        - !!python/tuple
+          - 0
+        - !!binary |
+          Yg==
+        state: !!python/tuple
+        - 1
+        - !!python/tuple
+          - 3
+        - !!python/object/apply:numpy.dtype
+          args:
+          - i8
+          - false
+          - true
+          state: !!python/tuple
+          - 3
+          - <
+          - null
+          - null
+          - null
+          - -1
+          - -1
+          - 0
+        - false
+        - !!binary |
+          wAIAAAAAAADAAAAAAAAAAAEAAAAAAAAA
+      num_features: 64
+    shrink_header:
+      dim:
+      - 256
+      input_dim: 384
+      kernal_size:
+      - 3
+      padding:
+      - 1
+      stride:
+      - 2
+    transformer:
+      encoder:
+        RTE_ratio: 2
+        cav_att_config:
+          RTE_ratio: 2
+          dim: 256
+          dim_head: 32
+          dropout: 0.3
+          heads: 8
+          use_RTE: true
+          use_hetero: true
+        depth: 3
+        feed_forward:
+          dropout: 0.3
+          mlp_dim: 256
+        num_blocks: 1
+        pwindow_att_config:
+          dim: 256
+          dim_head:
+          - 16
+          - 32
+          - 64
+          dropout: 0.3
+          fusion_method: split_attn
+          heads:
+          - 16
+          - 8
+          - 4
+          relative_pos_embedding: true
+          window_size:
+          - 4
+          - 8
+          - 16
+        sttf:
+          downsample_rate: 4
+          voxel_size: &id001
+          - 0.4
+          - 0.4
+          - 16
+        use_RTE: true
+        use_roi_mask: true
+    voxel_size: *id001
+  core_method: point_pillar_transformer
+name: point_pillar_v2xvit
+optimizer:
+  args:
+    eps: 1.0e-10
+    weight_decay: 0.0001
+  core_method: Adam
+  lr: 0.001
+postprocess:
+  gt_range: *id002
+  anchor_args:
+    D: 1
+    H: 192
+    W: 704
+    cav_lidar_range: *id002
+    feature_stride: 4
+    h: 1.56
+    l: 3.9
+    num: 2
+    r:
+    - 0
+    - 90
+    vd: 16
+    vh: 0.4
+    vw: 0.4
+    w: 1.6
+  core_method: VoxelPostprocessor
+  max_num: 100
+  nms_thresh: 0.15
+  order: hwl
+  target_args:
+    neg_threshold: 0.45
+    pos_threshold: 0.6
+    score_threshold: 0.27
+preprocess:
+  args:
+    max_points_per_voxel: 32
+    max_voxel_test: 70000
+    max_voxel_train: 32000
+    voxel_size: *id001
+  cav_lidar_range: *id002
+  core_method: SpVoxelPreprocessor
+root_dir: opv2v_data_dumping/train
+train_params:
+  batch_size: 1
+  epoches: 60
+  eval_freq: 1
+  max_cav: 10
+  save_freq: 1
+validate_dir: simulation_output/data_dumping/sample
+wild_setting:
+  async: false
+  async_mode: sim
+  async_overhead: 100
+  backbone_delay: 10
+  data_size: 1.06
+  loc_err: false
+  ryp_std: 0.2
+  seed: 25
+  transmission_speed: 27
+  xyz_std: 0.2
+yaml_parser: load_point_pillar_params
