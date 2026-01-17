@@ -118,7 +118,7 @@ class VoxelSetAbstraction(nn.Module):
         point_cloud_range: List[float],
         num_bev_features: Optional[int] = None,
         num_rawpoint_features: Optional[int] = None,
-        **kwargs
+        **kwargs,
     ) -> None:
         super().__init__()
         self.model_cfg = model_cfg
@@ -172,13 +172,7 @@ class VoxelSetAbstraction(nn.Module):
         self.num_point_features = self.model_cfg["num_out_features"]
         self.num_point_features_before_fusion = c_in
 
-    def interpolate_from_bev_features(
-        self, 
-        keypoints: torch.Tensor, 
-        bev_features: torch.Tensor, 
-        batch_size: int, 
-        bev_stride: int
-    ) -> torch.Tensor:
+    def interpolate_from_bev_features(self, keypoints: torch.Tensor, bev_features: torch.Tensor, batch_size: int, bev_stride: int) -> torch.Tensor:
         """
         Interpolate BEV features at keypoint locations.
 

@@ -30,8 +30,8 @@ OBJ_COLOR_MAP = {"building": BUILD_COLOR, "terrain": Terrain_COLOR, "sidewalk": 
 def cv2_subpixel(coords: NDArray) -> NDArray:
     """
     Cast coordinates to int but keep fractional part.
-    
-    Multiplies by 2**CV2_SHIFT beforehand. cv2 calls will use shift 
+
+    Multiplies by 2**CV2_SHIFT beforehand. cv2 calls will use shift
     to restore original values with higher precision.
 
     Parameters
@@ -71,11 +71,7 @@ def draw_agent(agent_list: List[NDArray], image: NDArray) -> NDArray:
     return image
 
 
-def draw_road(
-    lane_area_list: List[NDArray], 
-    image: NDArray, 
-    visualize: bool = False
-) -> NDArray:
+def draw_road(lane_area_list: List[NDArray], image: NDArray, visualize: bool = False) -> NDArray:
     """
     Draw poly for road.
 
@@ -126,11 +122,7 @@ def road_exclude(static_road: NDArray) -> NDArray:
 
 
 def draw_lane(
-    lane_area_list: List[NDArray],
-    lane_type_list: List[str],
-    image: NDArray,
-    intersection_list: Optional[List[bool]] = None,
-    vis: bool = True
+    lane_area_list: List[NDArray], lane_type_list: List[str], image: NDArray, intersection_list: Optional[List[bool]] = None, vis: bool = True
 ) -> NDArray:
     """
     Draw lanes on image (polylines).
@@ -195,11 +187,7 @@ def draw_crosswalks(lane_area_list: List[NDArray], image: NDArray) -> NDArray:
     return image
 
 
-def draw_city_objects(
-    city_obj_info: Dict[str, Dict[str, Any]], 
-    image: NDArray
-) -> NDArray:
-
+def draw_city_objects(city_obj_info: Dict[str, Dict[str, Any]], image: NDArray) -> NDArray:
     """
     Draw static objects other than lane, road, crosswalks on image.
 

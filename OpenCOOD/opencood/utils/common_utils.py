@@ -68,8 +68,7 @@ def check_contain_nan(x: Union[Dict[str, Any], List[Any], int, float, ndarray]) 
     return torch.any(x.isnan()).detach().cpu().item()
 
 
-def rotate_points_along_z(points: Union[np.ndarray, torch.Tensor],
-                          angle: Union[np.ndarray, torch.Tensor]) -> Union[np.ndarray, torch.Tensor]:
+def rotate_points_along_z(points: Union[np.ndarray, torch.Tensor], angle: Union[np.ndarray, torch.Tensor]) -> Union[np.ndarray, torch.Tensor]:
     """
     Rotate points around the z-axis by given angles.
 
@@ -111,8 +110,7 @@ def rotate_points_along_z(points: Union[np.ndarray, torch.Tensor],
     return points_rot.numpy() if is_numpy else points_rot
 
 
-def rotate_points_along_z_2d(points: Union[np.ndarray, torch.Tensor],
-                             angle: Union[np.ndarray, torch.Tensor]) -> Union[np.ndarray, torch.Tensor]:
+def rotate_points_along_z_2d(points: Union[np.ndarray, torch.Tensor], angle: Union[np.ndarray, torch.Tensor]) -> Union[np.ndarray, torch.Tensor]:
     """
     Rotate the points along z-axis in 2D.
 

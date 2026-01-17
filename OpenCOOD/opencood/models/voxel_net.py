@@ -47,16 +47,7 @@ class Conv2d(nn.Module):
         Flag indicating whether to apply activation.
     """
 
-    def __init__(
-        self,
-        in_channels: int,
-        out_channels: int,
-        k: int,
-        s: int,
-        p: int,
-        activation: bool = True,
-        batch_norm: bool = True
-    ):
+    def __init__(self, in_channels: int, out_channels: int, k: int, s: int, p: int, activation: bool = True, batch_norm: bool = True):
         super(Conv2d, self).__init__()
         self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=k, stride=s, padding=p)
         if batch_norm:
@@ -114,7 +105,7 @@ class Conv3d(nn.Module):
     bn : nn.BatchNorm3d or None
         Batch normalization layer if enabled, None otherwise.
     """
-    
+
     def __init__(
         self,
         in_channels: int,
@@ -122,7 +113,7 @@ class Conv3d(nn.Module):
         k: int | tuple[int, int, int],
         s: int | tuple[int, int, int],
         p: int | tuple[int, int, int],
-        batch_norm: bool = True
+        batch_norm: bool = True,
     ):
         super(Conv3d, self).__init__()
         self.conv = nn.Conv3d(in_channels, out_channels, kernel_size=k, stride=s, padding=p)

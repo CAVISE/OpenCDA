@@ -18,7 +18,7 @@ from opencood.pcdet_utils.pointnet2.pointnet2_batch import pointnet2_utils
 class _PointnetSAModuleBase(nn.Module):
     """
     Base class for PointNet++ set abstraction modules.
-    
+
     Provides common forward pass logic for set abstraction with
     multi-scale grouping and pooling.
 
@@ -93,7 +93,7 @@ class _PointnetSAModuleBase(nn.Module):
 class PointnetSAModuleMSG(_PointnetSAModuleBase):
     """
     PointNet++ set abstraction layer with multi-scale grouping (MSG).
-    
+
     Extracts features at multiple scales using different ball query radii
     and sample counts, then concatenates results.
 
@@ -166,7 +166,7 @@ class PointnetSAModuleMSG(_PointnetSAModuleBase):
 class PointnetSAModule(PointnetSAModuleMSG):
     """
     PointNet++ set abstraction layer with single-scale grouping.
-    
+
     Simplified version of MSG with a single radius and sample count.
     Inherits from PointnetSAModuleMSG with single-element lists.
 
@@ -209,7 +209,7 @@ class PointnetSAModule(PointnetSAModuleMSG):
 class PointnetFPModule(nn.Module):
     """
     Feature propagation module for upsampling point features.
-    
+
     Propagates features from coarse to fine levels using inverse distance
     weighted interpolation followed by MLP processing.
 

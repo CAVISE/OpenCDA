@@ -6,7 +6,6 @@ This module implements the loss function for the FPVRCNN architecture.
 
 import torch
 from torch import nn, Tensor
-import numpy as np
 from typing import Dict, Any, Optional
 from torch.utils.tensorboard import SummaryWriter
 from opencood.loss.ciassd_loss import CiassdLoss, weighted_smooth_l1_loss
@@ -15,10 +14,10 @@ from opencood.loss.ciassd_loss import CiassdLoss, weighted_smooth_l1_loss
 class FpvrcnnLoss(nn.Module):
     """
     FPVRCNN (Frustum Point Voxel R-CNN) loss function.
-    
+
     This loss combines the first stage detection loss (Ciassd) with the second
     stage refinement loss for 3D object detection.
-    
+
     Parameters
     ----------
     args : dict
@@ -33,7 +32,7 @@ class FpvrcnnLoss(nn.Module):
                 Regression loss config
             - iou : dict
                 IoU loss config
-    
+
     Attributes
     ----------
     ciassd_loss : CiassdLoss
@@ -59,7 +58,7 @@ class FpvrcnnLoss(nn.Module):
     def forward(self, output_dict: Dict[str, Any], label_dict: Dict[str, Any]) -> Tensor:
         """
         Forward pass for FPVRCNN loss computation.
-        
+
         Parameters
         ----------
         output_dict : dict
@@ -80,7 +79,7 @@ class FpvrcnnLoss(nn.Module):
                 Tensor with sequence lengths for batch processing
         label_dict : dict
             Dictionary containing ground truth labels.
-        
+
         Returns
         -------
         torch.Tensor
@@ -150,15 +149,10 @@ class FpvrcnnLoss(nn.Module):
 
         return loss
 
-    def logging(self, 
-                epoch: int, 
-                batch_id: int, 
-                batch_len: int, 
-                writer: SummaryWriter, 
-                pbar: Optional[Any] = None) -> None:
+    def logging(self, epoch: int, batch_id: int, batch_len: int, writer: SummaryWriter, pbar: Optional[Any] = None) -> None:
         """
         Log training metrics and losses to console and TensorBoard.
-        
+
         Parameters
         ----------
         epoch : int
@@ -215,14 +209,11 @@ class FpvrcnnLoss(nn.Module):
 
 
 def weighted_sigmoid_binary_cross_entropy(
-    preds: Tensor, 
-    tgts: Tensor, 
-    weights: Optional[Tensor] = None, 
-    class_indices: Optional[torch.LongTensor] = None
+    preds: Tensor, tgts: Tensor, weights: Optional[Tensor] = None, class_indices: Optional[torch.LongTensor] = None
 ) -> Tensor:
     """
     Compute weighted binary cross entropy with logits.
-    
+
     Parameters
     ----------
     preds : torch.Tensor
@@ -233,7 +224,7 @@ def weighted_sigmoid_binary_cross_entropy(
         Optional weight tensor for each prediction. Default is None.
     class_indices : torch.LongTensor, optional
         Optional tensor of class indices to apply weights to. Default is None.
-    
+
     Returns
     -------
     torch.Tensor
@@ -242,28 +233,20 @@ def weighted_sigmoid_binary_cross_entropy(
     if weights is not None:
         weights = weights.unsqueeze(-1)
     if class_indices is not None:
-        weights = weights * indices_to_dense_vector(
-            class_indices, preds.shape[2]
-        ).view(1, 1, -1).type_as(preds)
-    per_entry_cross_ent = nn.functional.binary_cross_entropy_with_logits(
-        preds, tgts, weight=weights, reduction='none'
-    )
+        weights = weights * indices_to_dense_vector(class_indices, preds.shape[2]).view(1, 1, -1).type_as(preds)
+    per_entry_cross_ent = nn.functional.binary_cross_entropy_with_logits(preds, tgts, weight=weights, reduction="none")
     return per_entry_cross_ent
 
 
 def indices_to_dense_vector(
-    indices: torch.LongTensor,
-    size: int,
-    indices_value: float = 1.0,
-    default_value: float = 0,
-    dtype: torch.dtype = torch.float32
+    indices: torch.LongTensor, size: int, indices_value: float = 1.0, default_value: float = 0, dtype: torch.dtype = torch.float32
 ) -> Tensor:
     """
     Creates a dense vector with specified indices set to a given value and the rest to default.
-    
+
     This is a PyTorch implementation that creates a dense vector where only the specified
     indices have the value `indices_value` and all others have `default_value`.
-    
+
     Parameters
     ----------
     indices : torch.LongTensor
@@ -276,12 +259,12 @@ def indices_to_dense_vector(
         Value to set for all other indices. Default is 0.
     dtype : torch.dtype, optional
         Data type of the output tensor. Default is torch.float32.
-    
+
     Returns
     -------
     torch.Tensor
         1D tensor of shape (size,) with values set at specified indices.
-    
+
     Examples
     --------
     >>> indices = torch.tensor([1, 3, 5])

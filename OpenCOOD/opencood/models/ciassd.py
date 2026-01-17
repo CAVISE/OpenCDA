@@ -47,7 +47,7 @@ class CIASSD(nn.Module):
     head : Head
         Detection head for predicting bounding boxes and classifications.
     """
-    
+
     def __init__(self, args):
         super(CIASSD, self).__init__()
         lidar_range = np.array(args["lidar_range"])

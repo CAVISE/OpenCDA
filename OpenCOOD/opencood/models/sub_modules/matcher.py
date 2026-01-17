@@ -14,11 +14,7 @@ from opencood.pcdet_utils.iou3d_nms.iou3d_nms_utils import boxes_iou3d_gpu
 pi = 3.141592653
 
 
-def limit_period(
-    val: torch.Tensor,
-    offset: float = 0.5,
-    period: float = 2 * pi
-) -> torch.Tensor:
+def limit_period(val: torch.Tensor, offset: float = 0.5, period: float = 2 * pi) -> torch.Tensor:
     """
     Limit angles to a specific period range.
 
@@ -89,10 +85,7 @@ class Matcher(nn.Module):
         self.merge_keypoints(data_dict)
         return data_dict
 
-    def clustering(
-        self,
-        data_dict: Dict[str, Any]
-    ) -> Tuple[List[List[torch.Tensor]], List[List[torch.Tensor]]]:
+    def clustering(self, data_dict: Dict[str, Any]) -> Tuple[List[List[torch.Tensor]], List[List[torch.Tensor]]]:
         """
         Cluster predicted boxes based on IoU overlap.
 
@@ -146,11 +139,7 @@ class Matcher(nn.Module):
 
         return clusters_batch, scores_batch
 
-    def cluster_fusion(
-        self,
-        clusters: List[List[torch.Tensor]],
-        scores: List[List[torch.Tensor]]
-    ) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
+    def cluster_fusion(self, clusters: List[List[torch.Tensor]], scores: List[List[torch.Tensor]]) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
         """
         Fuse boxes within each cluster using score-weighted averaging.
 
@@ -212,23 +201,23 @@ class Matcher(nn.Module):
 
     def merge_keypoints(self, data_dict: Dict[str, Any]) -> None:
         """
-       Merge keypoint features and coordinates across samples.
-        
-        Parameters
-        ----------
-        data_dict : Dict[str, Any]
-            Dictionary containing:
-            
-            - point_features : list
-                List of point features.
-            - point_coords : list
-                List of point coordinates.
-            - record_len : list of int
-                List of integers indicating number of points per sample.
-        
-        Notes
-        -----
-        Modifies data_dict in-place to update:
+        Merge keypoint features and coordinates across samples.
+
+         Parameters
+         ----------
+         data_dict : Dict[str, Any]
+             Dictionary containing:
+
+             - point_features : list
+                 List of point features.
+             - point_coords : list
+                 List of point coordinates.
+             - record_len : list of int
+                 List of integers indicating number of points per sample.
+
+         Notes
+         -----
+         Modifies data_dict in-place to update:
         """
         # merge keypoints
         kpts_feat_out = []

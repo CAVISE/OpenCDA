@@ -1,7 +1,7 @@
 """
 Loss functions for PIXOR 3D object detection.
 
-This module implements the loss function for the PIXOR architecture. 
+This module implements the loss function for the PIXOR architecture.
 """
 
 import torch
@@ -38,7 +38,7 @@ class PixorLoss(nn.Module):
     def dtype(self) -> torch.dtype:
         """
         Get the default data type for the loss computation.
-        
+
         Returns
         -------
         torch.dtype
@@ -46,11 +46,10 @@ class PixorLoss(nn.Module):
         """
         return torch.float16
 
-    def forward(self, output_dict: Dict[str, torch.Tensor], 
-               target_dict: Dict[str, torch.Tensor]) -> torch.Tensor:
+    def forward(self, output_dict: Dict[str, torch.Tensor], target_dict: Dict[str, torch.Tensor]) -> torch.Tensor:
         """
         Compute loss for PIXOR network.
-        
+
         Parameters
         ----------
         output_dict : dict
@@ -65,7 +64,7 @@ class PixorLoss(nn.Module):
                 Target tensor with shape (B, 7, H, W) where channels are:
                 - channel 0: classification target
                 - channels 1-6: regression targets
-        
+
         Returns
         -------
         torch.Tensor
@@ -113,7 +112,7 @@ class PixorLoss(nn.Module):
     def logging(self, epoch: int, batch_id: int, batch_len: int, writer: Any, pbar: Optional[Any] = None) -> None:
         """
         Print out the loss function for current iteration.
-        
+
         Parameters
         ----------
         epoch : int
@@ -150,7 +149,7 @@ class PixorLoss(nn.Module):
 def test():
     """
     Test function for PixorLoss.
-    
+
     Creates a simple test case with random predictions and zero labels
     to verify the loss computation works correctly.
     """

@@ -18,7 +18,7 @@ import matplotlib
 class Canvas_BEV(object):
     """
     Bird's eye view canvas for visualizing point clouds and bounding boxes.
-    
+
     Provides rendering methods for top-down view with configurable coordinate ranges
     and support for both left-hand and right-hand coordinate systems.
 
@@ -41,16 +41,15 @@ class Canvas_BEV(object):
     canvas : np.ndarray
         Current canvas image with shape (height, width, 3) in BGR format.
     """
-    
-    def __init__(
-        self, 
-        canvas_shape: Tuple[int, int]=(1000, 1000), 
-        canvas_x_range: Tuple[float, float]=(-50, 50), 
-        canvas_y_range: Tuple[float, float]=(-50, 50), 
-        canvas_bg_color: Tuple[int, int, int]=(0, 0, 0),
-        left_hand: bool=False
-        ):
 
+    def __init__(
+        self,
+        canvas_shape: Tuple[int, int] = (1000, 1000),
+        canvas_x_range: Tuple[float, float] = (-50, 50),
+        canvas_y_range: Tuple[float, float] = (-50, 50),
+        canvas_bg_color: Tuple[int, int, int] = (0, 0, 0),
+        left_hand: bool = False,
+    ):
         # Sanity check ratios
         if (canvas_shape[0] / canvas_shape[1]) != ((canvas_x_range[0] - canvas_x_range[1]) / (canvas_y_range[0] - canvas_y_range[1])):
             print("Not an error, but the x & y ranges are not proportional to canvas height & width.")
@@ -76,15 +75,13 @@ class Canvas_BEV(object):
     def clear_canvas(self) -> None:
         """
         Clear canvas and reset to background color.
-        
+
         Creates a new blank canvas filled with the background color.
         """
         self.canvas = np.zeros((*self.canvas_shape, 3), dtype=np.uint8)
         self.canvas[..., :] = self.canvas_bg_color
 
-    def get_canvas_coords(
-        self, xy: npt.NDArray[np.floating]
-    ) -> Tuple[npt.NDArray[np.int32], npt.NDArray[np.bool_]]:
+    def get_canvas_coords(self, xy: npt.NDArray[np.floating]) -> Tuple[npt.NDArray[np.int32], npt.NDArray[np.bool_]]:
         """Transform world coordinates to canvas coordinates.
 
         Parameters
@@ -285,16 +282,16 @@ class Canvas_BEV(object):
 class Canvas_BEV_heading_right(object):
     """
     BEV canvas optimized for forward-facing view (heading right).
-    
+
     Similar to Canvas_BEV but with landscape orientation and adjusted
     coordinate transformation for vehicle-centric visualization.
 
     Parameters
     ----------
     canvas_shape : tuple of int, optional
-        Canvas dimensions (height, width) in pixels. 
+        Canvas dimensions (height, width) in pixels.
     canvas_x_range : tuple of float, optional
-        World x-axis range (min, max) in meters. 
+        World x-axis range (min, max) in meters.
     canvas_y_range : tuple of float, optional
         World y-axis range (min, max) in meters.
     canvas_bg_color : tuple of int, optional
@@ -309,7 +306,6 @@ class Canvas_BEV_heading_right(object):
     """
 
     def __init__(self, canvas_shape=(800, 2800), canvas_x_range=(-140, 140), canvas_y_range=(-40, 40), canvas_bg_color=(0, 0, 0), left_hand=True):
-
         # Sanity check ratios
         if (canvas_shape[1] / canvas_shape[0]) != ((canvas_x_range[0] - canvas_x_range[1]) / (canvas_y_range[0] - canvas_y_range[1])):
             print("Not an error, but the x & y ranges are not proportional to canvas height & width.")
@@ -335,15 +331,13 @@ class Canvas_BEV_heading_right(object):
     def clear_canvas(self) -> None:
         """
         Clear canvas and reset to background color.
-        
+
         Creates a new blank canvas filled with the background color.
         """
         self.canvas = np.zeros((*self.canvas_shape, 3), dtype=np.uint8)
         self.canvas[..., :] = self.canvas_bg_color
 
-    def get_canvas_coords(
-        self, xy: npt.NDArray[np.floating]
-    ) -> Tuple[npt.NDArray[np.int32], npt.NDArray[np.bool_]]:
+    def get_canvas_coords(self, xy: npt.NDArray[np.floating]) -> Tuple[npt.NDArray[np.int32], npt.NDArray[np.bool_]]:
         """
         Transform world coordinates to canvas coordinates.
 
@@ -370,12 +364,7 @@ class Canvas_BEV_heading_right(object):
             y = -y
 
         # Get valid mask
-        valid_mask = (
-            (x > self.canvas_x_range[0])
-            & (x < self.canvas_x_range[1])
-            & (y > self.canvas_y_range[0])
-            & (y < self.canvas_y_range[1])
-        )
+        valid_mask = (x > self.canvas_x_range[0]) & (x < self.canvas_x_range[1]) & (y > self.canvas_y_range[0]) & (y < self.canvas_y_range[1])
 
         # Rescale points
         # They are exactly lidar point coordinate

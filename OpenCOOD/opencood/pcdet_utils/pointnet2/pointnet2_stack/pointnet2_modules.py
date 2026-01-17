@@ -6,8 +6,6 @@ PointNet++ architecture, enabling multi-scale feature extraction and
 upsampling in point cloud processing networks.
 """
 
-from typing import List
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -20,7 +18,7 @@ from typing import List, Optional, Tuple
 class StackSAModuleMSG(nn.Module):
     """
     Multi-scale grouping (MSG) set abstraction module.
-    
+
     Performs hierarchical feature learning at multiple scales using
     ball queries with different radii and MLP processing.
 
@@ -141,7 +139,7 @@ class StackSAModuleMSG(nn.Module):
 class StackPointnetFPModule(nn.Module):
     """
     Feature propagation module for upsampling point features.
-    
+
     Propagates features from coarse to fine levels using inverse distance
     weighted interpolation followed by MLP processing.
 

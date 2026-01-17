@@ -20,12 +20,12 @@ from opencood.models.sub_modules.auto_encoder import AutoEncoder
 class AttBEVBackbone(nn.Module):
     """
     Attention-based BEV Backbone with multi-scale feature extraction and fusion.
-    
+
     Parameters
     ----------
     model_cfg : dict
         Dictionary containing model configuration:
-        
+
         - layer_nums : list of int
             Number of layers in each block.
         - layer_strides : list of int

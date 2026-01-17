@@ -97,10 +97,10 @@ class PointPillarTransformer(nn.Module):
 
     def backbone_fix(self):
         """
-       Fix the parameters of backbone during fine-tuning on time delay.
+        Fix the parameters of backbone during fine-tuning on time delay.
 
-        This method freezes gradients for all backbone components including
-        pillar VFE, scatter, backbone, compressor, shrink conv, and detection heads.
+         This method freezes gradients for all backbone components including
+         pillar VFE, scatter, backbone, compressor, shrink conv, and detection heads.
         """
         for p in self.pillar_vfe.parameters():
             p.requires_grad = False

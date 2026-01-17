@@ -17,11 +17,11 @@ from typing import Dict, List, Union, Any
 class SpVoxelPreprocessor(BasePreprocessor):
     """
     Sparse voxel preprocessor for converting LiDAR point clouds to voxel representation.
-    
+
     This preprocessor uses the sparse convolution library (spconv) to efficiently
     generate voxel representations from point clouds. It supports both spconv v1.x
     and v2.x.
-    
+
     Parameters
     ----------
     preprocess_params : Dict[str, Any]
@@ -35,7 +35,7 @@ class SpVoxelPreprocessor(BasePreprocessor):
     train : bool
         Whether the preprocessor is used for training (True) or testing (False).
         Determines the maximum number of voxels to generate.
-    
+
     Attributes
     ----------
     spconv : int
@@ -94,12 +94,12 @@ class SpVoxelPreprocessor(BasePreprocessor):
     def preprocess(self, pcd_np: np.ndarray) -> Dict[str, np.ndarray]:
         """
         Convert point cloud to sparse voxel representation.
-        
+
         Parameters
         ----------
         pcd_np : np.ndarray
             Input point cloud with shape (N, 4) where columns are (x, y, z, intensity).
-        
+
         Returns
         -------
         dict
@@ -136,13 +136,13 @@ class SpVoxelPreprocessor(BasePreprocessor):
     def collate_batch(self, batch: Union[List[Dict[str, np.ndarray]], Dict[str, List[np.ndarray]]]) -> Dict[str, torch.Tensor]:
         """
         Customized PyTorch data loader collate function.
-        
+
         Parameters
         ----------
         batch : list or dict
             Either a list of dictionaries (each representing a frame) or
             a dictionary with lists as values.
-        
+
         Returns
         -------
         dict
@@ -153,7 +153,7 @@ class SpVoxelPreprocessor(BasePreprocessor):
                 Concatenated voxel coordinates with batch indices
             - voxel_num_points : torch.Tensor
                 Concatenated number of points per voxel
-        
+
         Raises
         ------
         SystemExit
@@ -170,13 +170,13 @@ class SpVoxelPreprocessor(BasePreprocessor):
     def collate_batch_list(batch: List[Dict[str, np.ndarray]]) -> Dict[str, torch.Tensor]:
         """
         Collate batch when input is a list of dictionaries.
-        
+
         Parameters
         ----------
         batch : list of dict
             List of dictionaries, where each dictionary represents a single frame
             containing 'voxel_features', 'voxel_coords', and 'voxel_num_points'.
-        
+
         Returns
         -------
         dict
@@ -208,14 +208,14 @@ class SpVoxelPreprocessor(BasePreprocessor):
     def collate_batch_dict(batch: Dict[str, List[np.ndarray]]) -> Dict[str, torch.Tensor]:
         """
         Collate batch when input is a dictionary with lists as values.
-        
+
         Parameters
         ----------
         batch : dict
             Dictionary with keys 'voxel_features', 'voxel_coords', and 'voxel_num_points',
             where values are lists of numpy arrays.
             Example: {'voxel_features': [feature1, feature2, ..., feature_n]}
-        
+
         Returns
         -------
         dict

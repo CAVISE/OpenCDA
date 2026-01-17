@@ -169,12 +169,7 @@ class MapManager(object):
         self.lane_bev = 255 * np.zeros(shape=(self.raster_size[1], self.raster_size[0], 3), dtype=np.uint8)
         self.vis_bev = 255 * np.ones(shape=(self.raster_size[1], self.raster_size[0], 3), dtype=np.uint8)
 
-    def run_step(
-        self, 
-        cav_id: str, 
-        cav_content: Dict[str, Any], 
-        veh_dict: Dict[str, Any]
-    ) -> None:
+    def run_step(self, cav_id: str, cav_content: Dict[str, Any], veh_dict: Dict[str, Any]) -> None:
         """
         Rasterization + Visualize the bev map if needed.
 
@@ -215,11 +210,7 @@ class MapManager(object):
             cv2.waitKey(1)
         self.data_dump()
 
-    def check_visibility_corp(
-        self, 
-        veh_dict: Dict[str, Any], 
-        vis_corp_mask_list: List[int]
-    ) -> List[int]:
+    def check_visibility_corp(self, veh_dict: Dict[str, Any], vis_corp_mask_list: List[int]) -> List[int]:
         for _, veh_contnet in veh_dict.items():
             if "cav" in veh_contnet:
                 vis_corp_mask_list += self.check_visibility_single(veh_contnet, vis_corp_mask_list)
@@ -228,10 +219,7 @@ class MapManager(object):
 
     # check visibility agent list for ego vehicle
     @staticmethod
-    def check_visibility_single(
-        cav_content: Dict[str, Any], 
-        vis_mask_list: List[int]
-    ) -> List[int]:
+    def check_visibility_single(cav_content: Dict[str, Any], vis_mask_list: List[int]) -> List[int]:
         """
         Retrieve visible objects in the ego camera.
 
@@ -282,11 +270,7 @@ class MapManager(object):
 
         return bounds
 
-    def agents_in_range(
-        self, 
-        radius: float, 
-        agents_dict: Dict[int, Dict[str, Any]]
-    ) -> Dict[int, Dict[str, Any]]:
+    def agents_in_range(self, radius: float, agents_dict: Dict[int, Dict[str, Any]]) -> Dict[int, Dict[str, Any]]:
         """
         Filter out all agents out of the radius.
 

@@ -19,10 +19,10 @@ from typing import Dict, List, Union, Any
 class VoxelPreprocessor(BasePreprocessor):
     """
     Voxel preprocessor for converting LiDAR point clouds to voxel representation.
-    
+
     This class performs voxelization of raw LiDAR data. For better performance,
     consider using sp_voxel_preprocessor instead.
-    
+
     Parameters
     ----------
     preprocess_params : Dict[str, Any]
@@ -41,7 +41,7 @@ class VoxelPreprocessor(BasePreprocessor):
                 Maximum number of points per voxel
     train : bool
         Boolean indicating training or evaluation mode.
-    
+
     Attributes
     ----------
     lidar_range : list
@@ -69,12 +69,12 @@ class VoxelPreprocessor(BasePreprocessor):
     def preprocess(self, pcd_np: NDArray[np.float64]) -> Dict[str, NDArray]:
         """
         Preprocess the lidar points by voxelization.
-        
+
         Parameters
         ----------
         pcd_np : NDArray[np.float64]
             The raw lidar point cloud with shape (N, 4) where N is number of points.
-        
+
         Returns
         -------
         Dict[str, NDArray]
@@ -116,13 +116,13 @@ class VoxelPreprocessor(BasePreprocessor):
     def collate_batch(self, batch: Union[List[Dict[str, NDArray]], Dict[str, List[NDArray]]]) -> Dict[str, torch.Tensor]:
         """
         Customized PyTorch data loader collate function.
-        
+
         Parameters
         ----------
         batch : Union[List[Dict[str, NDArray]], Dict[str, List[NDArray]]]
             Either a list of dictionaries (each representing a frame) or
             a dictionary with lists as values.
-        
+
         Returns
         -------
         Dict[str, torch.Tensor]
@@ -131,7 +131,7 @@ class VoxelPreprocessor(BasePreprocessor):
                 Concatenated voxel features
             - voxel_coords : torch.Tensor
                 Concatenated voxel coordinates with batch indices
-        
+
         Raises
         ------
         SystemExit
@@ -148,13 +148,13 @@ class VoxelPreprocessor(BasePreprocessor):
     def collate_batch_list(batch: List[Dict[str, NDArray]]) -> Dict[str, torch.Tensor]:
         """
         Collate batch when input is a list of dictionaries.
-        
+
         Parameters
         ----------
         batch : List[Dict[str, NDArray]]
             List of dictionaries, where each dictionary represents a single frame
             containing 'voxel_features' and 'voxel_coords'.
-        
+
         Returns
         -------
         Dict[str, torch.Tensor]
@@ -181,14 +181,14 @@ class VoxelPreprocessor(BasePreprocessor):
     def collate_batch_dict(batch: Dict[str, List[NDArray]]) -> Dict[str, torch.Tensor]:
         """
         Collate batch when input is a dictionary with lists as values.
-        
+
         Parameters
         ----------
         batch : Dict[str, List[NDArray]]
             Dictionary with keys 'voxel_features' and 'voxel_coords',
             where values are lists of numpy arrays.
             Example: {'voxel_features': [feature1, feature2, ..., feature_n]}
-        
+
         Returns
         -------
         Dict[str, torch.Tensor]

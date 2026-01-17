@@ -21,7 +21,7 @@ def max_consunsus_hierarchical(
     radius: float = 1,
     point_labels: Optional[Tuple[npt.NDArray[np.integer], npt.NDArray[np.integer]]] = None,
     label_weights: Optional[npt.NDArray[np.floating]] = None,
-    **kwargs: Any
+    **kwargs: Any,
 ) -> Tuple[Optional[npt.NDArray[np.floating]], Optional[npt.NDArray[np.floating]], Optional[npt.NDArray[np.floating]]]:
     """
     Perform hierarchical maximum consensus for point cloud registration.
@@ -107,7 +107,7 @@ def max_consensus2(
     Optional[npt.NDArray[np.floating]],
     float,
     Optional[npt.NDArray[np.floating]],
-    Optional[npt.NDArray[np.floating]]
+    Optional[npt.NDArray[np.floating]],
 ]:
     """
     Perform maximum consensus matching between two point clouds.
@@ -207,14 +207,7 @@ def max_consensus1(
     loc_r: Optional[npt.NDArray[np.floating]] = None,
     point_labels: Optional[Tuple[npt.NDArray[np.integer], npt.NDArray[np.integer]]] = None,
     label_weights: Optional[npt.NDArray[np.floating]] = None,
-) -> Tuple[
-    npt.NDArray[np.floating],
-    npt.NDArray[np.floating],
-    npt.NDArray[np.floating],
-    float,
-    npt.NDArray[np.floating],
-    npt.NDArray[np.floating]
-]:
+) -> Tuple[npt.NDArray[np.floating], npt.NDArray[np.floating], npt.NDArray[np.floating], float, npt.NDArray[np.floating], npt.NDArray[np.floating]]:
     """
     Alternative implementation of maximum consensus matching.
 
@@ -293,7 +286,7 @@ def construct_tfs(
     xyr_max: npt.NDArray[np.floating],
     resolution: npt.NDArray[np.floating],
     loc_l: Optional[npt.NDArray[np.floating]] = None,
-    loc_r: Optional[npt.NDArray[np.floating]] = None
+    loc_r: Optional[npt.NDArray[np.floating]] = None,
 ) -> Tuple[npt.NDArray[np.floating], npt.NDArray[np.floating], npt.NDArray[np.floating]]:
     """
     Construct transformation matrices for maximum consensus search.
@@ -339,10 +332,7 @@ def construct_tfs(
 
 
 def estimate_tf_2d(
-    pointsr: npt.NDArray[np.floating],
-    pointsl: npt.NDArray[np.floating],
-    pointsl_all: npt.NDArray[np.floating],
-    pointsr_all: npt.NDArray[np.floating]
+    pointsr: npt.NDArray[np.floating], pointsl: npt.NDArray[np.floating], pointsl_all: npt.NDArray[np.floating], pointsr_all: npt.NDArray[np.floating]
 ) -> Tuple[npt.NDArray[np.floating], npt.NDArray[np.floating]]:
     """
     Estimate 2D transformation between matched point sets.

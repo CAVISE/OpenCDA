@@ -2,7 +2,7 @@
 Loss functions for PointPillar 3D object detection.
 
 This module implements focal loss for classification and weighted smooth L1 loss
-for bounding box regression in the PointPillar architecture. 
+for bounding box regression in the PointPillar architecture.
 """
 
 import torch
@@ -15,13 +15,13 @@ class WeightedSmoothL1Loss(nn.Module):
     """
     Code-wise Weighted Smooth L1 Loss modified based on fvcore.nn.smooth_l1_loss
     https://github.com/facebookresearch/fvcore/blob/master/fvcore/nn/smooth_l1_loss.py
-    
+
                   | 0.5 * x ** 2 / beta   if abs(x) < beta
     smoothl1(x) = |
                   | abs(x) - 0.5 * beta   otherwise,
-    
+
     where x = input - target.
-    
+
     Parameters
     ----------
     beta : float, optional
@@ -51,14 +51,14 @@ class WeightedSmoothL1Loss(nn.Module):
     def smooth_l1_loss(diff: torch.Tensor, beta: float) -> torch.Tensor:
         """
         Compute the smooth L1 loss of differences.
-        
+
         Parameters
         ----------
         diff : torch.Tensor
             The difference between predictions and targets.
         beta : float
             The L1 to L2 change point.
-        
+
         Returns
         -------
         torch.Tensor
@@ -217,7 +217,7 @@ class PointPillarLoss(nn.Module):
     def cls_loss_func(self, input: torch.Tensor, target: torch.Tensor, weights: torch.Tensor) -> torch.Tensor:
         """
         Compute focal loss for classification.
-        
+
         Parameters
         ----------
         input : torch.Tensor
@@ -226,7 +226,7 @@ class PointPillarLoss(nn.Module):
             Shape (B, #anchors, #classes). One-hot encoded classification targets.
         weights : torch.Tensor
             Shape (B, #anchors). Anchor-wise weights.
-        
+
         Returns
         -------
         torch.Tensor
@@ -252,17 +252,17 @@ class PointPillarLoss(nn.Module):
     def sigmoid_cross_entropy_with_logits(input: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
         """
         PyTorch Implementation for tf.nn.sigmoid_cross_entropy_with_logits.
-        
+
         Computes: max(x, 0) - x * z + log(1 + exp(-abs(x)))
         Reference: https://www.tensorflow.org/api_docs/python/tf/nn/sigmoid_cross_entropy_with_logits
-        
+
         Parameters
         ----------
         input : torch.Tensor
             Shape (B, #anchors, #classes). Predicted logits for each class.
         target : torch.Tensor
             Shape (B, #anchors, #classes). One-hot encoded classification targets.
-        
+
         Returns
         -------
         torch.Tensor
@@ -275,10 +275,10 @@ class PointPillarLoss(nn.Module):
     def add_sin_difference(boxes1: torch.Tensor, boxes2: torch.Tensor, dim: int = 6) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Add sine difference encoding for rotation angles.
-        
+
         Converts rotation angle difference to sine representation for better
         gradient properties during training.
-        
+
         Parameters
         ----------
         boxes1 : torch.Tensor
@@ -287,7 +287,7 @@ class PointPillarLoss(nn.Module):
             Target bounding boxes with rotation angles.
         dim : int, optional
             Dimension index of the rotation angle. Default is 6.
-        
+
         Returns
         -------
         boxes1_encoded : torch.Tensor
@@ -306,7 +306,7 @@ class PointPillarLoss(nn.Module):
     def logging(self, epoch: int, batch_id: int, batch_len: int, writer: Any, pbar: Optional[Any] = None) -> None:
         """
         Print out the loss function for current iteration.
-        
+
         Parameters
         ----------
         epoch : int

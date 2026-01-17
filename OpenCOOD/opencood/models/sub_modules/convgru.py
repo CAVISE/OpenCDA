@@ -49,14 +49,7 @@ class ConvGRUCell(nn.Module):
         Convolution for computing candidate hidden state.
     """
 
-    def __init__(
-        self,
-        input_size: Tuple[int, int],
-        input_dim: int,
-        hidden_dim: int,
-        kernel_size: Tuple[int, int],
-        bias: bool
-    ):
+    def __init__(self, input_size: Tuple[int, int], input_dim: int, hidden_dim: int, kernel_size: Tuple[int, int], bias: bool):
         super(ConvGRUCell, self).__init__()
         self.height, self.width = input_size
         self.padding = kernel_size[0] // 2, kernel_size[1] // 2
@@ -189,7 +182,7 @@ class ConvGRU(nn.Module):
         num_layers: int,
         batch_first: bool = False,
         bias: bool = True,
-        return_all_layers: bool = False
+        return_all_layers: bool = False,
     ):
         super(ConvGRU, self).__init__()
 
@@ -225,11 +218,7 @@ class ConvGRU(nn.Module):
         # convert python list to pytorch module
         self.cell_list = nn.ModuleList(cell_list)
 
-    def forward(
-        self,
-        input_tensor: torch.Tensor,
-        hidden_state: Optional[List[torch.Tensor]] = None
-    ) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
+    def forward(self, input_tensor: torch.Tensor, hidden_state: Optional[List[torch.Tensor]] = None) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
         """
         Forward pass through multi-layer ConvGRU.
 
@@ -295,12 +284,7 @@ class ConvGRU(nn.Module):
 
         return layer_output_list, last_state_list
 
-    def _init_hidden(
-        self,
-        batch_size: int,
-        device: Optional[torch.device] = None,
-        dtype: Optional[torch.dtype] = None
-    ) -> List[torch.Tensor]:
+    def _init_hidden(self, batch_size: int, device: Optional[torch.device] = None, dtype: Optional[torch.dtype] = None) -> List[torch.Tensor]:
         """
         Initialize hidden states for all layers.
 

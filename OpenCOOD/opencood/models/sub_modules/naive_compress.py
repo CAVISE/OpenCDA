@@ -5,7 +5,6 @@ This module implements a simple channel-wise compression and decompression
 strategy for reducing communication bandwidth in multi-agent systems.
 """
 
-from typing import Any, Dict, Optional, Tuple, Union
 import torch
 import torch.nn as nn
 

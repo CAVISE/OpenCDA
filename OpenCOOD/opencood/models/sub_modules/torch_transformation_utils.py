@@ -22,11 +22,11 @@ def get_roi_and_cav_mask(
     cav_mask: torch.Tensor,
     spatial_correction_matrix: torch.Tensor,
     discrete_ratio: float,
-    downsample_rate: float
+    downsample_rate: float,
 ) -> torch.Tensor:
     """
     Get mask for the combination of cav_mask and rorated ROI mask.
-    
+
     Parameters
     ----------
     shape : tuple
@@ -115,11 +115,7 @@ def get_rotated_roi(shape: Tuple[int, int, int, int, int], correction_matrix: to
     return roi_mask
 
 
-def get_discretized_transformation_matrix(
-    matrix: torch.Tensor, 
-    discrete_ratio: float, 
-    downsample_rate: float
-) -> torch.Tensor:
+def get_discretized_transformation_matrix(matrix: torch.Tensor, discrete_ratio: float, downsample_rate: float) -> torch.Tensor:
     """
     Get disretized transformation matrix.
 
@@ -171,13 +167,7 @@ def _torch_inverse_cast(input: torch.Tensor) -> torch.Tensor:
     return out
 
 
-def normal_transform_pixel(
-    height: int, 
-    width: int, 
-    device: Union[torch.device, str], 
-    dtype: torch.dtype, 
-    eps: float = 1e-14
-) -> torch.Tensor:
+def normal_transform_pixel(height: int, width: int, device: Union[torch.device, str], dtype: torch.dtype, eps: float = 1e-14) -> torch.Tensor:
     """
     Compute normalization matrix from pixel coordinates to [-1, 1].
 
@@ -211,12 +201,7 @@ def normal_transform_pixel(
     return tr_mat.unsqueeze(0)  # 1x3x3
 
 
-def eye_like(
-    n: int, 
-    B: int, 
-    device: Union[Device, str], 
-    dtype: DType
-) -> torch.Tensor:
+def eye_like(n: int, B: int, device: Union[Device, str], dtype: DType) -> torch.Tensor:
     """
     Create batched identity matrices.
 
@@ -242,9 +227,7 @@ def eye_like(
 
 
 def normalize_homography(
-    dst_pix_trans_src_pix: torch.Tensor, 
-    dsize_src: Tuple[int, int], 
-    dsize_dst: Optional[Tuple[int, int]] = None
+    dst_pix_trans_src_pix: torch.Tensor, dsize_src: Tuple[int, int], dsize_dst: Optional[Tuple[int, int]] = None
 ) -> torch.Tensor:
     """
     Normalize homography from pixel coordinates to [-1, 1].
@@ -352,12 +335,7 @@ def convert_affinematrix_to_homography(A: torch.Tensor) -> torch.Tensor:
 
 
 def warp_affine(
-    src: torch.Tensor,
-    M: torch.Tensor,
-    dsize: Tuple[int, int],
-    mode: str = "bilinear",
-    padding_mode: str = "zeros",
-    align_corners: bool = True
+    src: torch.Tensor, M: torch.Tensor, dsize: Tuple[int, int], mode: str = "bilinear", padding_mode: str = "zeros", align_corners: bool = True
 ) -> torch.Tensor:
     """
     Apply affine transformation to feature maps.

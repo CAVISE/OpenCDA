@@ -19,17 +19,17 @@ from opencood.models.fuse_modules.self_attn import ScaledDotProductAttention
 class Communication(nn.Module):
     """
     Communication module for Where2comm that handles feature masking based on confidence.
-    
+
     Parameters
     ----------
     args : Dict[str, Any]
         Dictionary containing configuration:
-        
+
         - threshold : float
             Confidence threshold for communication.
         - gaussian_smooth : dict, optional
             Dictionary with Gaussian smoothing parameters:
-            
+
             - k_size : int
                 Kernel size for Gaussian smoothing.
             - c_sigma : float
@@ -44,7 +44,7 @@ class Communication(nn.Module):
     gaussian_filter : nn.Conv2d, optional
         Gaussian filter for smoothing confidence maps if smoothing is enabled.
     """
-    
+
     def __init__(self, args: Dict[str, Any]):
         super(Communication, self).__init__()
         # Threshold of objectiveness
@@ -67,9 +67,9 @@ class Communication(nn.Module):
         Parameters
         ----------
         k_size : int, optional
-            Kernel size for Gaussian filter. 
+            Kernel size for Gaussian filter.
         sigma : float, optional
-            Standard deviation for Gaussian kernel. 
+            Standard deviation for Gaussian kernel.
         """
         center = k_size // 2
         x, y = np.mgrid[0 - center : k_size - center, 0 - center : k_size - center]
@@ -78,21 +78,17 @@ class Communication(nn.Module):
         self.gaussian_filter.weight.data = torch.Tensor(gaussian_kernel).to(self.gaussian_filter.weight.device).unsqueeze(0).unsqueeze(0)
         self.gaussian_filter.bias.data.zero_()
 
-    def forward(
-        self, 
-        batch_confidence_maps: List[torch.Tensor], 
-        B: int
-    ) -> Tuple[torch.Tensor, float]:
+    def forward(self, batch_confidence_maps: List[torch.Tensor], B: int) -> Tuple[torch.Tensor, float]:
         """
         Generate communication masks based on confidence maps.
-        
+
         Parameters
         ----------
         batch_confidence_maps : list of torch.Tensor
             List of confidence maps with shapes [(L1, H, W), (L2, H, W), ...].
         B : int
             Batch size.
-        
+
         Returns
         -------
         communication_masks : torch.Tensor
@@ -145,18 +141,18 @@ class AttentionFusion(nn.Module):
 
     This module applies self-attention across spatial dimensions to fuse features
     from multiple agents at each pixel location.
-    
+
     Parameters
     ----------
     feature_dim : int
         Dimension of input features
-    
+
     Attributes
     ----------
     att : ScaledDotProductAttention
         Scaled dot-product attention module.
     """
-    
+
     def __init__(self, feature_dim: int):
         super(AttentionFusion, self).__init__()
         self.att = ScaledDotProductAttention(feature_dim)
@@ -267,12 +263,12 @@ class Where2comm(nn.Module):
         return split_x
 
     def forward(
-        self, 
-        x: torch.Tensor, 
-        psm_single: torch.Tensor, 
-        record_len: torch.Tensor, 
-        pairwise_t_matrix: torch.Tensor, 
-        backbone: Optional[nn.Module] = None
+        self,
+        x: torch.Tensor,
+        psm_single: torch.Tensor,
+        record_len: torch.Tensor,
+        pairwise_t_matrix: torch.Tensor,
+        backbone: Optional[nn.Module] = None,
     ) -> torch.Tensor:
         """
         Forward pass for Where2comm fusion.

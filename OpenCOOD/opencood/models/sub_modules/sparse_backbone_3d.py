@@ -24,7 +24,7 @@ def post_act_block(
     stride: Union[int, Tuple[int, int, int]] = 1,
     padding: Union[int, Tuple[int, int, int]] = 0,
     conv_type: str = "subm",
-    norm_fn: Optional[callable] = None
+    norm_fn: Optional[callable] = None,
 ) -> SparseSequential:
     """
     Create sparse convolution block with post-activation.
@@ -118,14 +118,8 @@ class VoxelBackBone8x(nn.Module):
     backbone_channels : dict
         Channel dimensions for each convolution stage.
     """
-    
-    def __init__(
-        self, 
-        model_cfg: Dict[str, Any], 
-        input_channels: int, 
-        grid_size: List[int], 
-        **kwargs
-    ) -> None:
+
+    def __init__(self, model_cfg: Dict[str, Any], input_channels: int, grid_size: List[int], **kwargs) -> None:
         super().__init__()
         self.model_cfg = model_cfg
         norm_fn = partial(nn.BatchNorm1d, eps=1e-3, momentum=0.01)

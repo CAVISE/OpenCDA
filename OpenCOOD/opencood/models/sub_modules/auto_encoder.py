@@ -12,11 +12,11 @@ import torch
 class AutoEncoder(nn.Module):
     """
     An autoencoder for feature compression.
-    
+
     The autoencoder reduces the spatial dimensions of the input features
     while maintaining the number of channels. It consists of multiple
     encoding and decoding layers with skip connections.
-    
+
     Parameters
     ----------
     feature_num : int

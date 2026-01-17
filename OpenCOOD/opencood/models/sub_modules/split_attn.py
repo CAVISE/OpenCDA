@@ -13,14 +13,14 @@ import torch.nn.functional as F
 class RadixSoftmax(nn.Module):
     """
     Radix Softmax module that applies softmax along the radix dimension.
-    
+
     Parameters
     ----------
     radix : int
         Number of splits (radix) for the input.
     cardinality : int
         Number of groups for grouped convolution.
-    
+
     Attributes
     ----------
     radix : int
@@ -28,7 +28,7 @@ class RadixSoftmax(nn.Module):
     cardinality : int
         Number of groups.
     """
-    
+
     def __init__(self, radix: int, cardinality: int):
         super(RadixSoftmax, self).__init__()
         self.radix = radix
@@ -91,7 +91,7 @@ class SplitAttn(nn.Module):
     rsoftmax : RadixSoftmax
         Radix softmax module for computing attention weights.
     """
-    
+
     def __init__(self, input_dim):
         super(SplitAttn, self).__init__()
         self.input_dim = input_dim

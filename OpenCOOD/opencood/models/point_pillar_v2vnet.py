@@ -39,7 +39,7 @@ class PointPillarV2VNet(nn.Module):
             - v2vfusion: Configuration for V2VNet fusion
             - anchor_number: Number of anchor boxes per position
             - backbone_fix: Whether to fix backbone parameters during training
-    
+
     Attributes
     ----------
     max_cav : int

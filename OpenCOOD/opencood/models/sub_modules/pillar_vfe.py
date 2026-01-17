@@ -42,14 +42,8 @@ class PFNLayer(nn.Module):
     part : int
         Batch partition size for large inputs.
     """
-    
-    def __init__(
-        self,
-        in_channels: int,
-        out_channels: int,
-        use_norm: bool = True,
-        last_layer: bool = False
-    ):
+
+    def __init__(self, in_channels: int, out_channels: int, use_norm: bool = True, last_layer: bool = False):
         super().__init__()
 
         self.last_vfe = last_layer
@@ -151,13 +145,7 @@ class PillarVFE(nn.Module):
         Z coordinate offset to voxel center.
     """
 
-    def __init__(
-        self,
-        model_cfg: Dict[str, Any],
-        num_point_features: int,
-        voxel_size: List[float],
-        point_cloud_range: List[float]
-    ):
+    def __init__(self, model_cfg: Dict[str, Any], num_point_features: int, voxel_size: List[float], point_cloud_range: List[float]):
         super().__init__()
         self.model_cfg = model_cfg
 
@@ -191,11 +179,7 @@ class PillarVFE(nn.Module):
         return self.num_filters[-1]
 
     @staticmethod
-    def get_paddings_indicator(
-        actual_num: torch.Tensor,
-        max_num: int,
-        axis: int = 0
-    ) -> torch.Tensor:
+    def get_paddings_indicator(actual_num: torch.Tensor, max_num: int, axis: int = 0) -> torch.Tensor:
         """
         Generate padding mask for variable-length sequences.
 

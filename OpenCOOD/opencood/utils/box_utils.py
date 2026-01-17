@@ -85,7 +85,7 @@ def boxes_to_corners2d(boxes3d: npt.NDArray[np.floating] | torch.Tensor, order: 
       |          |
       |          |
       3 -------- 2
-      
+
     Parameters
     ----------
     boxes3d : NDArray[np.floating] or torch.Tensor
@@ -110,7 +110,7 @@ def boxes_to_corners2d(boxes3d: npt.NDArray[np.floating] | torch.Tensor, order: 
 def boxes2d_to_corners2d(boxes2d: npt.NDArray[np.floating] | torch.Tensor, order: str = "lwh") -> torch.Tensor:
     """
     Convert 3D bounding boxes to 2D bottom face corners.
-    
+
     Extracts the bottom 4 corners from 3D box representation.
 
     Parameters
@@ -150,7 +150,7 @@ def boxes2d_to_corners2d(boxes2d: npt.NDArray[np.floating] | torch.Tensor, order
 def boxes_to_corners_3d(boxes3d: npt.NDArray[np.floating] | torch.Tensor, order: str) -> npt.NDArray[np.floating] | torch.Tensor:
     """
     Convert 3D bounding boxes to 8 corner coordinates.
-    
+
     Computes all 8 corners from box center, dimensions, and rotation.
 
     Parameters
@@ -287,7 +287,9 @@ def corner_to_standup_box_torch(box_corner: torch.Tensor) -> torch.Tensor:
     return standup_boxes2d
 
 
-def project_box3d(box3d: npt.NDArray[np.floating] | torch.Tensor, transformation_matrix: npt.NDArray[np.floating] | torch.Tensor) -> npt.NDArray[np.floating] | torch.Tensor:
+def project_box3d(
+    box3d: npt.NDArray[np.floating] | torch.Tensor, transformation_matrix: npt.NDArray[np.floating] | torch.Tensor
+) -> npt.NDArray[np.floating] | torch.Tensor:
     """
     Project the 3d bounding box to another coordinate system based on the
     transfomration matrix.
@@ -352,7 +354,9 @@ def get_mask_for_boxes_within_range_torch(boxes: torch.Tensor) -> torch.Tensor:
     return mask
 
 
-def mask_boxes_outside_range_numpy(boxes: npt.NDArray[np.floating], limit_range: List, order: str, min_num_corners: int = 8, return_mask: bool = False) -> npt.NDArray[np.floating] | tuple[npt.NDArray[np.floating], npt.NDArray[np.bool_]]:
+def mask_boxes_outside_range_numpy(
+    boxes: npt.NDArray[np.floating], limit_range: List, order: str, min_num_corners: int = 8, return_mask: bool = False
+) -> npt.NDArray[np.floating] | tuple[npt.NDArray[np.floating], npt.NDArray[np.bool_]]:
     """
     Parameters
     ----------
@@ -769,7 +773,9 @@ def remove_bbx_abnormal_z(bbx_3d: torch.Tensor) -> torch.Tensor:
     return index
 
 
-def project_points_by_matrix_torch(points: npt.NDArray[np.floating] | torch.Tensor, transformation_matrix: npt.NDArray[np.floating] | torch.Tensor) -> npt.NDArray[np.floating] | torch.Tensor:
+def project_points_by_matrix_torch(
+    points: npt.NDArray[np.floating] | torch.Tensor, transformation_matrix: npt.NDArray[np.floating] | torch.Tensor
+) -> npt.NDArray[np.floating] | torch.Tensor:
     """
     Project the points to another coordinate system based on the
     transformation matrix.
@@ -800,10 +806,17 @@ def project_points_by_matrix_torch(points: npt.NDArray[np.floating] | torch.Tens
     return projected_points[:, :3] if not is_numpy else projected_points[:, :3].numpy()
 
 
-def box_encode(boxes: torch.Tensor, anchors: torch.Tensor, encode_angle_to_vector: bool = False, encode_angle_with_residual: bool = False, smooth_dim: bool = False, norm_velo: bool = False) -> torch.Tensor:
+def box_encode(
+    boxes: torch.Tensor,
+    anchors: torch.Tensor,
+    encode_angle_to_vector: bool = False,
+    encode_angle_with_residual: bool = False,
+    smooth_dim: bool = False,
+    norm_velo: bool = False,
+) -> torch.Tensor:
     """
     Encode ground truth boxes relative to anchor boxes.
-    
+
     Converts absolute bounding box coordinates to anchor-relative offsets
     for regression targets in object detection networks like VoxelNet.
 
@@ -897,7 +910,7 @@ def box_decode(
 ) -> torch.Tensor:
     """
     Decode predicted box encodings to absolute coordinates.
-    
+
     Converts anchor-relative offsets back to absolute bounding box coordinates
     in LiDAR coordinate system for VoxelNet-based detectors.
 

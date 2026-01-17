@@ -62,7 +62,7 @@ class ScaledDotProductAttention(nn.Module):
 class AttFusion(nn.Module):
     """
     Attention-based fusion module for multi-agent feature aggregation.
-    
+
     Applies scaled dot-product attention across CAV features at each spatial
     location to fuse information from multiple agents into ego vehicle's view.
 

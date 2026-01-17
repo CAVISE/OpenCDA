@@ -43,13 +43,7 @@ class BackBoneIntermediate(BackBone):
         Attention fusion module for layer 5 features.
     """
 
-    def __init__(
-        self, 
-        block: Type[nn.Module], 
-        num_block: List[int], 
-        geom: Dict[str, Any], 
-        use_bn: bool = True
-    ):
+    def __init__(self, block: Type[nn.Module], num_block: List[int], geom: Dict[str, Any], use_bn: bool = True):
         super(BackBoneIntermediate, self).__init__(block, num_block, geom, use_bn)
 
         self.fusion_net3 = AttFusion(192)

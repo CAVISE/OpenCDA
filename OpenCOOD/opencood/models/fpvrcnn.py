@@ -22,7 +22,7 @@ from opencood.data_utils.post_processor.fpvrcnn_postprocessor import FpvrcnnPost
 class FPVRCNN(nn.Module):
     """
     FPVRCNN (Frustum Point-Voxel R-CNN) model for 3D object detection.
-    
+
     Parameters
     ----------
     args : dict

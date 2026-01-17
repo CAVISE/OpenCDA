@@ -5,6 +5,7 @@ This module provides functions for transforming coordinates between different
 reference frames, including conversions between vehicle coordinate systems
 and continuous/discretized coordinate spaces.
 """
+
 from typing import List
 
 import numpy as np
@@ -80,10 +81,7 @@ def x1_to_x2(x1: List[float], x2: List[float]) -> npt.NDArray[np.floating]:
 
 
 def dist_to_continuous(
-    p_dist: npt.NDArray[np.floating],
-    displacement_dist: npt.NDArray[np.floating],
-    res: float,
-    downsample_rate: int
+    p_dist: npt.NDArray[np.floating], displacement_dist: npt.NDArray[np.floating], res: float, downsample_rate: int
 ) -> npt.NDArray[np.floating]:
     """
     Convert points from discretized format to continuous space for BEV representation.

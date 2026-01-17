@@ -213,7 +213,7 @@ def giou3d(boxes_a_dec: torch.Tensor, boxes_b_dec: torch.Tensor) -> torch.Tensor
     Returns
     -------
     giou : torch.Tensor
-        GIoU matrix with shape (N, M). 
+        GIoU matrix with shape (N, M).
     """
     corners_a = centroid_to_corners(boxes_a_dec)
     corners_b = centroid_to_corners(boxes_b_dec)
@@ -306,7 +306,7 @@ def boxes_iou3d_gpu(
     iou3d : torch.Tensor
         IoU matrix with shape (N, M).
     union : torch.Tensor, optional
-        Union volumes with shape (N, M). 
+        Union volumes with shape (N, M).
     """
     assert boxes_a.shape[1] == boxes_b.shape[1] == 7
 
@@ -336,9 +336,7 @@ def boxes_iou3d_gpu(
     return iou3d
 
 
-def centroid_to_corners(
-    boxes: Union[npt.NDArray, torch.Tensor]
-) -> Union[npt.NDArray, torch.Tensor]:
+def centroid_to_corners(boxes: Union[npt.NDArray, torch.Tensor]) -> Union[npt.NDArray, torch.Tensor]:
     """
     Convert boxes from centroid format to 8 corners.
 
@@ -447,13 +445,7 @@ def rotate_weighted_nms_gpu(
         _ = scores.shape[0]  # num_keeped_scores
 
 
-def nms_gpu(
-    boxes: torch.Tensor,
-    scores: torch.Tensor,
-    thresh: float,
-    pre_maxsize: Optional[int] = None,
-    **kwargs
-) -> Tuple[torch.Tensor, None]:
+def nms_gpu(boxes: torch.Tensor, scores: torch.Tensor, thresh: float, pre_maxsize: Optional[int] = None, **kwargs) -> Tuple[torch.Tensor, None]:
     """
     Perform rotated NMS on GPU for BEV boxes.
 
@@ -489,12 +481,7 @@ def nms_gpu(
     return order[keep[:num_out].cuda()].contiguous(), None
 
 
-def nms_normal_gpu(
-    boxes: torch.Tensor,
-    scores: torch.Tensor,
-    thresh: float,
-    **kwargs
-) -> Tuple[torch.Tensor, None]:
+def nms_normal_gpu(boxes: torch.Tensor, scores: torch.Tensor, thresh: float, **kwargs) -> Tuple[torch.Tensor, None]:
     """
     Perform axis-aligned NMS on GPU (ignores heading).
 

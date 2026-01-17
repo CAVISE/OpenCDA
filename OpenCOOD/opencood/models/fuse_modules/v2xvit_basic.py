@@ -4,6 +4,7 @@ V2X Transformer implementation for multi-agent feature fusion.
 This module implements the V2X Transformer architecture for fusing features
 from multiple agents using attention mechanisms and temporal encoding.
 """
+
 from typing import Dict, List, Union, Any
 import math
 
@@ -42,18 +43,13 @@ class STTF(nn.Module):
     downsample_rate : int
         Feature downsampling rate.
     """
-    
+
     def __init__(self, args: Dict[str, Union[float, List[float], int]]):
         super(STTF, self).__init__()
         self.discrete_ratio = args["voxel_size"][0]
         self.downsample_rate = args["downsample_rate"]
 
-    def forward(
-        self, 
-        x: torch.Tensor, 
-        mask: torch.Tensor, 
-        spatial_correction_matrix: torch.Tensor
-    ) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, mask: torch.Tensor, spatial_correction_matrix: torch.Tensor) -> torch.Tensor:
         """
         Forward pass applying spatial-temporal transformation.
 
@@ -87,7 +83,7 @@ class STTF(nn.Module):
 class RelTemporalEncoding(nn.Module):
     """
     Implement the Temporal Encoding (Sinusoid) function.
-    
+
     Parameters
     ----------
     n_hid : int
@@ -109,13 +105,7 @@ class RelTemporalEncoding(nn.Module):
         Linear projection layer.
     """
 
-    def __init__(
-        self, 
-        n_hid: int, 
-        RTE_ratio: float, 
-        max_len: int = 100, 
-        dropout: float = 0.2
-    ) -> None:
+    def __init__(self, n_hid: int, RTE_ratio: float, max_len: int = 100, dropout: float = 0.2) -> None:
         super(RelTemporalEncoding, self).__init__()
         position = torch.arange(0.0, max_len).unsqueeze(1)
         div_term = torch.exp(torch.arange(0, n_hid, 2) * -(math.log(10000.0) / n_hid))
@@ -151,7 +141,7 @@ class RelTemporalEncoding(nn.Module):
 class RTE(nn.Module):
     """
     Relative Temporal Encoding wrapper for batched processing.
-    
+
     Parameters
     ----------
     dim : int
@@ -166,7 +156,7 @@ class RTE(nn.Module):
     emb : RelTemporalEncoding
         Underlying temporal encoding module.
     """
-    
+
     def __init__(self, dim: int, RTE_ratio: float = 2):
         super(RTE, self).__init__()
         self.RTE_ratio = RTE_ratio
@@ -203,7 +193,7 @@ class RTE(nn.Module):
 class V2XFusionBlock(nn.Module):
     """
     V2X Fusion Block combining multi-agent attention and pyramid window attention.
-    
+
     Parameters
     ----------
     num_blocks : int
@@ -220,13 +210,8 @@ class V2XFusionBlock(nn.Module):
     num_blocks : int
         Number of attention blocks.
     """
-    
-    def __init__(
-        self, 
-        num_blocks: int, 
-        cav_att_config: Dict[str, Any],
-        pwindow_config: Dict[str, Any]
-    ):
+
+    def __init__(self, num_blocks: int, cav_att_config: Dict[str, Any], pwindow_config: Dict[str, Any]):
         super().__init__()
         # first multi-agent attention and then multi-window attention
         self.layers = nn.ModuleList([])
@@ -262,12 +247,7 @@ class V2XFusionBlock(nn.Module):
                 )
             )
 
-    def forward(
-        self, 
-        x: torch.Tensor, 
-        mask: torch.Tensor, 
-        prior_encoding: torch.Tensor
-    ) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, mask: torch.Tensor, prior_encoding: torch.Tensor) -> torch.Tensor:
         """
         Forward pass through V2X fusion block.
 
@@ -294,12 +274,12 @@ class V2XFusionBlock(nn.Module):
 class V2XTEncoder(nn.Module):
     """
     V2X Transformer Encoder module.
-    
+
     Parameters
     ----------
     Dict[str, Any]
         Dictionary containing encoder configuration:
-        
+
         - cav_att_config : dict
             Configuration for CAV attention.
         - pwindow_att_config : dict
@@ -314,7 +294,7 @@ class V2XTEncoder(nn.Module):
             Spatial-temporal transformation config.
         - use_roi_mask : bool
             Whether to use ROI masking.
-        
+
     Attributes
     ----------
     downsample_rate : int
@@ -336,7 +316,7 @@ class V2XTEncoder(nn.Module):
     rte : RTE, optional
         Relative temporal encoding module if use_RTE is True.
     """
-    
+
     def __init__(self, args: Dict[str, Any]) -> None:
         super().__init__()
 
@@ -370,12 +350,7 @@ class V2XTEncoder(nn.Module):
                 )
             )
 
-    def forward(
-        self, 
-        x: torch.Tensor, 
-        mask: torch.Tensor, 
-        spatial_correction_matrix: torch.Tensor
-    ) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, mask: torch.Tensor, spatial_correction_matrix: torch.Tensor) -> torch.Tensor:
         """
         Forward pass through V2X encoder.
 
@@ -441,12 +416,7 @@ class V2XTransformer(nn.Module):
         encoder_args = args["encoder"]
         self.encoder = V2XTEncoder(encoder_args)
 
-    def forward(
-        self, 
-        x: torch.Tensor, 
-        mask: torch.Tensor, 
-        spatial_correction_matrix: torch.Tensor
-    ) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, mask: torch.Tensor, spatial_correction_matrix: torch.Tensor) -> torch.Tensor:
         """
         Forward pass through V2X Transformer.
 

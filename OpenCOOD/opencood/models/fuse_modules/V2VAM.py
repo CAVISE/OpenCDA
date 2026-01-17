@@ -34,7 +34,7 @@ class V2V_AttFusion(nn.Module):
     CCNet : CrissCrossAttention
         Criss-cross attention module for feature fusion.
     """
-    
+
     def __init__(self, feature_dim: int):
         super(V2V_AttFusion, self).__init__()
 
@@ -49,14 +49,14 @@ class V2V_AttFusion(nn.Module):
     def forward(self, x: Tensor, record_len: Tensor) -> Tensor:
         """
         Forward pass of the V2V attention fusion.
-        
+
         Parameters
         ----------
         x : torch.Tensor
             Input features from all vehicles.
         record_len : torch.Tensor
             Number of vehicles per batch sample.
-        
+
         Returns
         -------
         torch.Tensor
@@ -90,14 +90,14 @@ class V2V_AttFusion(nn.Module):
     def regroup(x: Tensor, record_len: Tensor) -> List[Tensor]:
         """
         Split input tensor into a list of tensors based on record_len.
-        
+
         Parameters
         ----------
         x : torch.Tensor
             Input tensor to be split.
         record_len : torch.Tensor
             Number of agents per sample.
-        
+
         Returns
         -------
         list of torch.Tensor
@@ -116,10 +116,10 @@ def INF(B: int, H: int, W: int) -> Tensor:
 class CrissCrossAttention(nn.Module):
     """
     Criss-Cross Attention Module.
-    
+
     This module implements criss-cross attention for capturing long-range dependencies
     in both horizontal and vertical directions.
-    
+
     Parameters
     ----------
     in_dim : int
@@ -139,7 +139,7 @@ class CrissCrossAttention(nn.Module):
         Function to generate negative infinity mask.
     gamma : nn.Parameter
         Learnable scaling parameter for residual connection.
-    
+
     References
     ----------
     .. [1] https://github.com/speedinghzl/CCNet

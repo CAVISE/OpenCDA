@@ -16,7 +16,7 @@ from opencood.pcdet_utils.pointnet2.pointnet2_batch import pointnet2_batch_cuda 
 class FurthestPointSampling(Function):
     """
     Furthest point sampling for downsampling point clouds.
-    
+
     CUDA-accelerated iterative farthest point selection for batched inputs.
     """
 
@@ -60,7 +60,7 @@ furthest_point_sample = FurthestPointSampling.apply
 class GatherOperation(Function):
     """
     Gather features by indices for batched point clouds.
-    
+
     CUDA-accelerated feature gathering with custom backward pass.
     """
 
@@ -130,7 +130,7 @@ gather_operation = GatherOperation.apply
 class ThreeNN(Function):
     """
     Find three nearest neighbors for each query point.
-    
+
     CUDA-accelerated k-NN search with k=3 for batched inputs.
     """
 
@@ -178,7 +178,7 @@ three_nn = ThreeNN.apply
 class ThreeInterpolate(Function):
     """
     Interpolate features using inverse distance weighting from 3 neighbors.
-    
+
     CUDA-accelerated feature upsampling with custom backward for batched inputs.
     """
 
@@ -252,7 +252,7 @@ three_interpolate = ThreeInterpolate.apply
 class GroupingOperation(Function):
     """
     Group features by indices for local feature aggregation.
-    
+
     CUDA-accelerated grouping with custom backward for batched inputs.
     """
 
@@ -323,7 +323,7 @@ grouping_operation = GroupingOperation.apply
 class BallQuery(Function):
     """
     Ball query operation for finding neighbors within a radius.
-    
+
     CUDA-accelerated local neighborhood query for batched inputs.
     """
 
@@ -372,7 +372,7 @@ ball_query = BallQuery.apply
 class QueryAndGroup(nn.Module):
     """
     Query and group points within a ball radius.
-    
+
     Combines ball query and grouping operations for local feature extraction
     in batched point clouds.
 
@@ -440,7 +440,7 @@ class QueryAndGroup(nn.Module):
 class GroupAll(nn.Module):
     """
     Group all points into a single global feature.
-    
+
     Aggregates all points without spatial partitioning for global context.
 
     Parameters

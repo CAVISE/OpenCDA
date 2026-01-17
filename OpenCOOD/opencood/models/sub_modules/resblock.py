@@ -108,6 +108,7 @@ class BasicBlock(nn.Module):
     NotImplementedError
         If dilation > 1.
     """
+
     expansion: int = 1
 
     def __init__(
@@ -221,7 +222,7 @@ class ResNetLayers(nn.Module):
     ----------
            https://arxiv.org/abs/1706.02677
     """
-    
+
     def __init__(
         self,
         layers: List[int],  # number of block in one layer

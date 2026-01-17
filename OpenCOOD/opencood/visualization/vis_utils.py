@@ -23,11 +23,7 @@ VIRIDIS = np.array(cm.get_cmap("plasma").colors)
 VID_RANGE = np.linspace(0.0, 1.0, VIRIDIS.shape[0])
 
 
-def bbx2linset(
-    bbx_corner: Union[npt.NDArray, Any],
-    order: str = "hwl",
-    color: Tuple[float, float, float] = (0, 1, 0)
-) -> List[o3d.geometry.LineSet]:
+def bbx2linset(bbx_corner: Union[npt.NDArray, Any], order: str = "hwl", color: Tuple[float, float, float] = (0, 1, 0)) -> List[o3d.geometry.LineSet]:
     """
     Convert the torch tensor bounding box to o3d lineset for visualization.
 
@@ -74,9 +70,7 @@ def bbx2linset(
 
 
 def bbx2oabb(
-    bbx_corner: Union[npt.NDArray, Any],
-    order: str = "hwl",
-    color: Tuple[float, float, float] = (0, 0, 1)
+    bbx_corner: Union[npt.NDArray, Any], order: str = "hwl", color: Tuple[float, float, float] = (0, 0, 1)
 ) -> List[o3d.geometry.OrientedBoundingBox]:
     """
     Convert the torch tensor bounding box to o3d oabb for visualization.
@@ -95,7 +89,7 @@ def bbx2oabb(
     list of o3d.geometry.OrientedBoundingBox
         The list containing all oriented bounding boxes.
     """
-    
+
     if not isinstance(bbx_corner, np.ndarray):
         bbx_corner = common_utils.torch_tensor_to_numpy(bbx_corner)
 
@@ -159,7 +153,7 @@ def linset_assign_list(
     vis: o3d.visualization.Visualizer,
     lineset_list1: List[o3d.geometry.LineSet],
     lineset_list2: List[o3d.geometry.LineSet],
-    update_mode: str = "update"
+    update_mode: str = "update",
 ):
     """
     Associate two lists of lineset.
@@ -263,7 +257,7 @@ def visualize_single_sample_output_gt(
     pcd: Union[npt.NDArray, Any],
     show_vis: bool = True,
     save_path: str = "",
-    mode: str = "constant"
+    mode: str = "constant",
 ) -> None:
     """
     Visualize the prediction, groundtruth with point cloud together.
@@ -283,6 +277,7 @@ def visualize_single_sample_output_gt(
     mode : str, optional
         Color rendering mode. Default is "constant".
     """
+
     def custom_draw_geometry(pcd, pred, gt):
         vis = o3d.visualization.Visualizer()
         vis.create_window()
@@ -330,7 +325,7 @@ def visualize_single_sample_output_bev(
     pcd: Union[npt.NDArray, Any],
     dataset: Any,
     show_vis: bool = True,
-    save_path: str = ""
+    save_path: str = "",
 ) -> None:
     """
     Visualize the prediction, groundtruth with point cloud together in a bev format.
@@ -400,7 +395,7 @@ def visualize_single_sample_dataloader(
     visualize: bool = False,
     save_path: str = "",
     oabb: bool = False,
-    mode: str = "constant"
+    mode: str = "constant",
 ) -> Tuple[o3d.geometry.PointCloud, List]:
     """
     Visualize a single frame of a single CAV for validation of data pipeline.
@@ -464,7 +459,7 @@ def visualize_inference_sample_dataloader(
     gt_box_tensor: Union[npt.NDArray, Any],
     origin_lidar: Union[npt.NDArray, Any],
     o3d_pcd: o3d.geometry.PointCloud,
-    mode: str = "constant"
+    mode: str = "constant",
 ) -> Tuple[o3d.geometry.PointCloud, List[o3d.geometry.LineSet], List[o3d.geometry.LineSet]]:
     """
     Visualize a frame during inference for video stream.
@@ -617,12 +612,7 @@ def visualize_bev(batch_data: dict) -> None:
     plt.show()
 
 
-def draw_box_plt(
-    boxes_dec: Union[npt.NDArray, Any],
-    ax: plt.Axes,
-    color: Optional[str] = None,
-    linewidth_scale: float = 1.0
-) -> plt.Axes:
+def draw_box_plt(boxes_dec: Union[npt.NDArray, Any], ax: plt.Axes, color: Optional[str] = None, linewidth_scale: float = 1.0) -> plt.Axes:
     """
     Draw boxes in a given plt ax.
 

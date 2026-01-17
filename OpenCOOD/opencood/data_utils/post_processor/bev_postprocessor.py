@@ -14,7 +14,7 @@ from opencood.utils.transformation_utils import dist_to_continuous
 from opencood.data_utils.post_processor.base_postprocessor import BasePostprocessor
 from opencood.utils import box_utils
 from opencood.visualization import vis_utils
-from typing import Dict, List, Tuple, Optional, Any, Union
+from typing import Dict, Tuple, Optional, Any, Union
 
 
 class BevPostprocessor(BasePostprocessor):
@@ -37,6 +37,7 @@ class BevPostprocessor(BasePostprocessor):
     target_std_dev : np.ndarray
         Standard deviation values for target normalization with shape (6,).
     """
+
     def __init__(self, anchor_params: Dict[str, Any], train: bool = True):
         super(BevPostprocessor, self).__init__(anchor_params, train)
         # self.geometry_param = anchor_params["geometry"]
@@ -99,8 +100,7 @@ class BevPostprocessor(BasePostprocessor):
         }
         return label_dict
 
-    def update_label_map(self, label_map: np.ndarray, bev_corners: np.ndarray, 
-                        reg_targets: np.ndarray) -> None:
+    def update_label_map(self, label_map: np.ndarray, bev_corners: np.ndarray, reg_targets: np.ndarray) -> None:
         """
         Update label_map based on bbx and regression targets.
 
@@ -220,8 +220,9 @@ class BevPostprocessor(BasePostprocessor):
         }
         return processed_batch
 
-    def post_process(self, data_dict: Dict[str, Any], 
-                output_dict: Dict[str, Dict[str, torch.Tensor]]) -> Tuple[Optional[torch.Tensor], Optional[torch.Tensor]]:
+    def post_process(
+        self, data_dict: Dict[str, Any], output_dict: Dict[str, Dict[str, torch.Tensor]]
+    ) -> Tuple[Optional[torch.Tensor], Optional[torch.Tensor]]:
         """
         Process the outputs of the model to 2D bounding box.
         Step1: convert each cav's output to bounding box format
@@ -336,8 +337,7 @@ class BevPostprocessor(BasePostprocessor):
 
         return corners
 
-    def post_process_debug(self, data_dict: Dict[str, Any], 
-                      output_dict: Dict[str, torch.Tensor]) -> torch.Tensor:
+    def post_process_debug(self, data_dict: Dict[str, Any], output_dict: Dict[str, torch.Tensor]) -> torch.Tensor:
         """
         Process the outputs of the model to 2D bounding box for debug purpose.
         Step1: convert each cav's output to bounding box format
@@ -404,12 +404,9 @@ class BevPostprocessor(BasePostprocessor):
         return pred_box2ds
 
     @staticmethod
-    def visualize(pred_box_tensor: torch.Tensor, 
-             gt_tensor: torch.Tensor, 
-             pcd: torch.Tensor, 
-             show_vis: bool, 
-             save_path: str, 
-             dataset: Optional[Any] = None) -> None:
+    def visualize(
+        pred_box_tensor: torch.Tensor, gt_tensor: torch.Tensor, pcd: torch.Tensor, show_vis: bool, save_path: str, dataset: Optional[Any] = None
+    ) -> None:
         """
         Visualize the BEV 2D prediction, ground truth with point cloud together.
 

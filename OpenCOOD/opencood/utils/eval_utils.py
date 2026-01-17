@@ -1,8 +1,8 @@
 """
 Evaluation utilities for object detection metrics.
 
-This module provides functions for calculating average precision (AP), 
-true positives (TP), false positives (FP), and other evaluation metrics 
+This module provides functions for calculating average precision (AP),
+true positives (TP), false positives (FP), and other evaluation metrics
 for object detection tasks.
 """
 
@@ -66,7 +66,7 @@ def caluclate_tp_fp(
     det_score: Optional[torch.Tensor],
     gt_boxes: torch.Tensor,
     result_stat: Dict[float, Dict[str, List[Any]]],
-    iou_thresh: float
+    iou_thresh: float,
 ) -> None:
     """
     Calculate true positive and false positive numbers for current frames.
@@ -128,11 +128,7 @@ def caluclate_tp_fp(
     result_stat[iou_thresh]["gt"] += gt
 
 
-def calculate_ap(
-    result_stat: Dict[float, Dict[str, List[Any]]],
-    iou: float,
-    global_sort_detections: bool
-) -> Tuple[float, List[float], List[float]]:
+def calculate_ap(result_stat: Dict[float, Dict[str, List[Any]]], iou: float, global_sort_detections: bool) -> Tuple[float, List[float], List[float]]:
     """
     Calculate average precision and recall values.
 
@@ -199,11 +195,7 @@ def calculate_ap(
     return ap, mrec, mprec
 
 
-def eval_final_results(
-    result_stat: Dict[float, Dict[str, List[Any]]],
-    save_path: str,
-    global_sort_detections: bool
-) -> None:
+def eval_final_results(result_stat: Dict[float, Dict[str, List[Any]]], save_path: str, global_sort_detections: bool) -> None:
     """
     Evaluate and save final detection results.
 

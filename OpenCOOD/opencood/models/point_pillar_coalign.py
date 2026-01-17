@@ -68,7 +68,7 @@ class PointPillarCoAlign(nn.Module):
     reg_head : nn.Conv2d
         Regression head for predicting bounding box parameters.
     """
-    
+
     def __init__(self, args):
         super(PointPillarCoAlign, self).__init__()
 

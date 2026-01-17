@@ -10,14 +10,15 @@ import torch
 from opencood.data_utils.pre_processor.base_preprocessor import BasePreprocessor
 from typing import Dict, List, Union, Any
 
+
 class BevPreprocessor(BasePreprocessor):
     """
     Bird's Eye View (BEV) preprocessor for LiDAR point clouds.
-    
+
     This preprocessor converts 3D LiDAR point clouds into 2D BEV representations
     by projecting points onto a bird's eye view grid with occupancy and intensity
     information across multiple height bins.
-    
+
     Parameters
     ----------
     preprocess_params : Dict[str, Any]
@@ -29,7 +30,7 @@ class BevPreprocessor(BasePreprocessor):
             - 'res': float - Resolution (voxel size) in meters
     train : bool
         Whether the preprocessor is used for training (True) or testing (False).
-    
+
     Attributes
     ----------
     lidar_range : List[float]
@@ -37,7 +38,7 @@ class BevPreprocessor(BasePreprocessor):
     geometry_param : Dict[str, Any]
         BEV grid geometry parameters.
     """
-    
+
     def __init__(self, preprocess_params: Dict[str, Any], train: bool):
         super(BevPreprocessor, self).__init__(preprocess_params, train)
         self.lidar_range = self.params["cav_lidar_range"]
@@ -46,7 +47,7 @@ class BevPreprocessor(BasePreprocessor):
     def preprocess(self, pcd_raw: np.ndarray) -> Dict[str, np.ndarray]:
         """
         Preprocess the LiDAR point cloud to BEV representation.
-        
+
         Converts raw 3D point cloud with intensity values into a 2D BEV grid
         where each cell contains occupancy information across height bins and
         averaged intensity values.
@@ -155,11 +156,11 @@ class BevPreprocessor(BasePreprocessor):
         ----------
         batch : list of dict or dict of lists
             Batched data in one of two formats:
-            
+
             Format 1 (list of dict): Single-frame batch
                 List of dictionaries, each containing:
                     - bev_input : NDArray with shape (C, H, W)
-            
+
             Format 2 (dict of lists): Multi-CAV batch
                 Dictionary containing:
                     - bev_input : list of NDArray, each with shape (C, H, W)

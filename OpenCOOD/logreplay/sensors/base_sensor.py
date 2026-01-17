@@ -8,6 +8,7 @@ defining the common interface for sensor data collection, visualization, and cle
 from typing import Optional, Dict, List, Any
 
 import cv2
+import carla
 
 
 class BaseSensor:
@@ -37,12 +38,7 @@ class BaseSensor:
     """
 
     def __init__(
-        self,
-        agent_id: str,
-        vehicle: Optional[carla.Actor],
-        world: carla.World,
-        config: Dict[str, Any],
-        global_position: Optional[List[float]]
+        self, agent_id: str, vehicle: Optional[carla.Actor], world: carla.World, config: Dict[str, Any], global_position: Optional[List[float]]
     ):
         return
 

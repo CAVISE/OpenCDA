@@ -17,7 +17,7 @@ from typing import Dict, List, Tuple, Optional, Any, Union
 class FpvrcnnPostprocessor(VoxelPostprocessor):
     """
     Post-processor for FPV-RCNN (Frustum Point-Voxel R-CNN).
-    
+
     Handles two-stage 3D object detection with region proposal and refinement.
     This class processes model outputs from both stages of FPV-RCNN to generate
     final 3D bounding box predictions.
@@ -29,20 +29,16 @@ class FpvrcnnPostprocessor(VoxelPostprocessor):
     train : bool
         Whether the processor is in training mode.
     """
-    
+
     def __init__(self, anchor_params: Dict[str, Any], train: bool):
         super(FpvrcnnPostprocessor, self).__init__(anchor_params, train)
 
-    def post_process(self, 
-                    data_dict: Dict[str, Any], 
-                    output_dict: Dict[str, Any], 
-                    stage1: bool = False) -> Union[
-                        Tuple[torch.Tensor, torch.Tensor],
-                        Tuple[List[torch.Tensor], List[torch.Tensor]]
-                    ]:
+    def post_process(
+        self, data_dict: Dict[str, Any], output_dict: Dict[str, Any], stage1: bool = False
+    ) -> Union[Tuple[torch.Tensor, torch.Tensor], Tuple[List[torch.Tensor], List[torch.Tensor]]]:
         """
         Process model outputs through the appropriate stage.
-        
+
         Parameters
         ----------
         data_dict : Dict[str, Any]
@@ -51,7 +47,7 @@ class FpvrcnnPostprocessor(VoxelPostprocessor):
             Dictionary containing model outputs.
         stage1 : bool, optional
             Whether to use stage1 processing. Default is False.
-        
+
         Returns
         -------
         Union[Tuple[torch.Tensor, torch.Tensor], Tuple[List[torch.Tensor], List[torch.Tensor]]]
@@ -62,23 +58,21 @@ class FpvrcnnPostprocessor(VoxelPostprocessor):
         else:
             return self.post_process_stage2(data_dict)
 
-    def post_process_stage1(self, 
-                          data_dict: Dict[str, Any], 
-                          output_dict: Dict[str, Any]) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
+    def post_process_stage1(self, data_dict: Dict[str, Any], output_dict: Dict[str, Any]) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
         """
         Process the first stage outputs of the model to 3D bounding boxes.
-        
+
         Step 1: Convert each CAV's output to bounding box format.
         Step 2: Project the bounding boxes to ego space.
         Step 3: Apply NMS to remove duplicates.
-        
+
         Parameters
         ----------
         data_dict : Dict[str, Any]
             Dictionary containing the origin input data of model.
         output_dict : Dict[str, Any]
             Dictionary containing the output of the model.
-        
+
         Returns
         -------
         batch_pred_boxes3d : List[torch.Tensor]
@@ -201,16 +195,15 @@ class FpvrcnnPostprocessor(VoxelPostprocessor):
 
         return batch_pred_boxes3d, batch_scores
 
-    def post_process_stage2(self, 
-                          data_dict: Dict[str, Any]) -> Tuple[Optional[torch.Tensor], Optional[torch.Tensor]]:
+    def post_process_stage2(self, data_dict: Dict[str, Any]) -> Tuple[Optional[torch.Tensor], Optional[torch.Tensor]]:
         """
         Process second stage model outputs to generate final detections.
-        
+
         Parameters
         ----------
         data_dict : Dict[str, Any]
             Dictionary containing input data and stage1 outputs.
-        
+
         Returns
         -------
         projected_boxes3d : Optional[torch.Tensor]

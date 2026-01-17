@@ -50,7 +50,7 @@ class SSFA(nn.Module):
     w_1 : nn.Sequential
         Weight prediction layer for scale 1.
     """
-    
+
     def __init__(self, args: Dict):
         super(SSFA, self).__init__()
         self._num_input_features = args["feature_num"]  # 128
@@ -112,16 +112,18 @@ class SSFA(nn.Module):
         return x_output.contiguous()
 
 
-def get_conv_layers(conv_name: str, 
-                   in_channels: int, 
-                   out_channels: int, 
-                   n_layers: int, 
-                   kernel_size: List[int], 
-                   stride: List[int], 
-                   padding: List[int], 
-                   relu_last: bool = True, 
-                   sequential: bool = True, 
-                   **kwargs) -> Union[nn.Sequential, List[nn.Module]]:
+def get_conv_layers(
+    conv_name: str,
+    in_channels: int,
+    out_channels: int,
+    n_layers: int,
+    kernel_size: List[int],
+    stride: List[int],
+    padding: List[int],
+    relu_last: bool = True,
+    sequential: bool = True,
+    **kwargs,
+) -> Union[nn.Sequential, List[nn.Module]]:
     """
     Build convolutional layers with batch normalization and ReLU.
 
@@ -217,13 +219,7 @@ class Head(nn.Module):
         Convolution layer for direction prediction (if use_dir=True).
     """
 
-    def __init__(self, 
-                num_input: int, 
-                num_pred: int, 
-                num_cls: int, 
-                num_iou: int = 2, 
-                use_dir: bool = False, 
-                num_dir: int = 1):
+    def __init__(self, num_input: int, num_pred: int, num_cls: int, num_iou: int = 2, use_dir: bool = False, num_dir: int = 1):
         super(Head, self).__init__()
         self.use_dir = use_dir
 

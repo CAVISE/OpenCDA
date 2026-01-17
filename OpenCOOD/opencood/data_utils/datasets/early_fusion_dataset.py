@@ -68,9 +68,7 @@ class EarlyFusionDataset(basedataset.BaseDataset):
         self.message_handler = message_handler
         self.module_name = "OpenCOOD.EarlyFusionDataset"
 
-    def __find_ego_vehicle(
-        self, base_data_dict: Dict[str, Dict[str, Any]]
-    ) -> Tuple[int, List[float]]:
+    def __find_ego_vehicle(self, base_data_dict: Dict[str, Dict[str, Any]]) -> Tuple[int, List[float]]:
         """
         Find the ego vehicle in the base data dictionary.
 
@@ -329,10 +327,7 @@ class EarlyFusionDataset(basedataset.BaseDataset):
 
         return processed_data_dict
 
-    def get_item_single_car(self, 
-        selected_cav_base: Dict[str, Any], 
-        ego_pose: List[float]
-    ) -> Dict[str, Any]:
+    def get_item_single_car(self, selected_cav_base: Dict[str, Any], ego_pose: List[float]) -> Dict[str, Any]:
         """
         Project the lidar and bbx to ego space first, and then do clipping.
 
@@ -445,9 +440,7 @@ class EarlyFusionDataset(basedataset.BaseDataset):
 
         return output_dict
 
-    def post_process(self, data_dict: Dict[str, Any], 
-        output_dict: Dict[str, torch.Tensor]
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    def post_process(self, data_dict: Dict[str, Any], output_dict: Dict[str, torch.Tensor]) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Process the outputs of the model to 2D/3D bounding box.
 

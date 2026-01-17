@@ -32,18 +32,15 @@ class CiassdPostprocessor(VoxelPostprocessor):
     anchor_num : int
         Number of anchor boxes per location.
     """
-    
+
     def __init__(self, anchor_params: Dict[str, Any], train: bool):
         super(CiassdPostprocessor, self).__init__(anchor_params, train)
         self.train = train
         self.anchor_num = self.params["anchor_args"]["num"]
 
-    def post_process(self, 
-                   data_dict: Dict[str, Dict[str, torch.Tensor]], 
-                   output_dict: Dict[str, Dict[str, torch.Tensor]]) -> Union[
-                       Tuple[torch.Tensor, torch.Tensor], 
-                       Tuple[List[torch.Tensor], List[torch.Tensor]]
-                   ]:
+    def post_process(
+        self, data_dict: Dict[str, Dict[str, torch.Tensor]], output_dict: Dict[str, Dict[str, torch.Tensor]]
+    ) -> Union[Tuple[torch.Tensor, torch.Tensor], Tuple[List[torch.Tensor], List[torch.Tensor]]]:
         """
         Process the outputs of the model to 2D/3D bounding box.
 

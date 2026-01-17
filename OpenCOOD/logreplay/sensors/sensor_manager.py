@@ -13,11 +13,12 @@ from collections import OrderedDict
 from typing import Dict, Any
 import carla
 
+
 class SensorManager:
     """
     The manager controls all sensor data streaming and dumping for each cav.
     todo: rsu not considered yet.
-    
+
     Parameters
     ----------
     agent_id : str

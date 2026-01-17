@@ -58,12 +58,7 @@ class BEVSemanticCamera(BaseSensor):
     """
 
     def __init__(
-        self,
-        agent_id: str,
-        vehicle: Optional[carla.Actor],
-        world: carla.World,
-        config: Dict[str, Any],
-        global_position: Optional[List[float]]
+        self, agent_id: str, vehicle: Optional[carla.Actor], world: carla.World, config: Dict[str, Any], global_position: Optional[List[float]]
     ) -> None:
         super().__init__(agent_id, vehicle, world, config, global_position)
         if vehicle is not None:

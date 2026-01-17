@@ -12,13 +12,10 @@ from opencood.utils import common_utils
 from typing import Tuple
 
 
-def random_flip_along_x(
-    gt_boxes: NDArray[np.float64], 
-    points: NDArray[np.float64]
-) -> Tuple[NDArray[np.float64], NDArray[np.float64]]:
+def random_flip_along_x(gt_boxes: NDArray[np.float64], points: NDArray[np.float64]) -> Tuple[NDArray[np.float64], NDArray[np.float64]]:
     """
     Randomly flip the point cloud and bounding boxes along the X-axis.
-    
+
     Parameters
     ----------
     gt_boxes : NDArray[np.float64]
@@ -31,7 +28,7 @@ def random_flip_along_x(
         - M : number of points
         - 3 : x, y, z coordinates
         - C : additional features per point
-    
+
     Returns
     -------
     Tuple[NDArray[np.float64], NDArray[np.float64]]
@@ -52,20 +49,17 @@ def random_flip_along_x(
     return gt_boxes, points
 
 
-def random_flip_along_y(
-    gt_boxes: NDArray[np.float64], 
-    points: NDArray[np.float64]
-) -> Tuple[NDArray[np.float64], NDArray[np.float64]]:
+def random_flip_along_y(gt_boxes: NDArray[np.float64], points: NDArray[np.float64]) -> Tuple[NDArray[np.float64], NDArray[np.float64]]:
     """
     Flip the point cloud and bounding boxes along the Y-axis.
-    
+
     Parameters
     ----------
     gt_boxes : NDArray[np.float64]
         Ground truth boxes of shape (N, 7 + C), [x, y, z, dx, dy, dz, heading, [vx], [vy]].
     points : NDArray[np.float64]
         Point cloud of shape (M, 3 + C).
-    
+
     Returns
     -------
     Tuple[NDArray[np.float64], NDArray[np.float64]]
@@ -87,13 +81,11 @@ def random_flip_along_y(
 
 
 def global_rotation(
-    gt_boxes: NDArray[np.float64], 
-    points: NDArray[np.float64], 
-    rot_range: Tuple[float, float]
+    gt_boxes: NDArray[np.float64], points: NDArray[np.float64], rot_range: Tuple[float, float]
 ) -> Tuple[NDArray[np.float64], NDArray[np.float64]]:
     """
     Apply global rotation to point cloud and bounding boxes.
-    
+
     Parameters
     ----------
     gt_boxes : NDArray[np.float64]
@@ -102,7 +94,7 @@ def global_rotation(
         Point cloud of shape (M, 3 + C).
     rot_range : Tuple[float, float]
         Rotation angle range [min, max].
-    
+
     Returns
     -------
     Tuple[NDArray[np.float64], NDArray[np.float64]]
@@ -127,13 +119,11 @@ def global_rotation(
 
 
 def global_scaling(
-    gt_boxes: NDArray[np.float64], 
-    points: NDArray[np.float64], 
-    scale_range: Tuple[float, float]
+    gt_boxes: NDArray[np.float64], points: NDArray[np.float64], scale_range: Tuple[float, float]
 ) -> Tuple[NDArray[np.float64], NDArray[np.float64]]:
     """
     Apply global scaling to point cloud and bounding boxes.
-    
+
     Parameters
     ----------
     gt_boxes : NDArray[np.float64]
@@ -142,7 +132,7 @@ def global_scaling(
         Point cloud of shape (M, 3 + C).
     scale_range : Tuple[float, float]
         Scale factor range [min, max].
-    
+
     Returns
     -------
     Tuple[NDArray[np.float64], NDArray[np.float64]]

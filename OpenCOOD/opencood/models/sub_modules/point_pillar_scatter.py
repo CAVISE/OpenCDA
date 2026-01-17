@@ -5,7 +5,7 @@ This module scatters pillar features into a dense 2D Bird's Eye View (BEV)
 spatial feature map for downstream processing.
 """
 
-from typing import Dict, Any
+from typing import Dict
 import torch
 import torch.nn as nn
 
@@ -37,7 +37,7 @@ class PointPillarScatter(nn.Module):
     nz : int
         Grid size along Z axis.
     """
-        
+
     def __init__(self, model_cfg):
         super().__init__()
 

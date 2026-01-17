@@ -44,12 +44,7 @@ class EarlyFusionVisDataset(basedataset.BaseDataset):
         Whether the dataset is used for training, by default True.
     """
 
-    def __init__(
-        self,
-        params: Dict[str, Any],
-        visualize: bool,
-        train: bool = True
-    ):
+    def __init__(self, params: Dict[str, Any], visualize: bool, train: bool = True):
         super(EarlyFusionVisDataset, self).__init__(params, visualize, train)
         self.pre_processor = build_preprocessor(params["preprocess"], train)
         self.post_processor = build_postprocessor(params["postprocess"], train)
@@ -142,11 +137,7 @@ class EarlyFusionVisDataset(basedataset.BaseDataset):
 
         return processed_data_dict
 
-    def get_item_single_car(
-        self,
-        selected_cav_base: Dict[str, Any],
-        ego_pose: List[float]
-    ) -> Dict[str, Any]:
+    def get_item_single_car(self, selected_cav_base: Dict[str, Any], ego_pose: List[float]) -> Dict[str, Any]:
         """
         Project the lidar and bbx to ego space first, and then do clipping.
 
@@ -189,10 +180,7 @@ class EarlyFusionVisDataset(basedataset.BaseDataset):
 
         return selected_cav_processed
 
-    def collate_batch_train(
-        self,
-        batch: List[Dict[str, Any]]
-    ) -> Dict[str, Dict[str, Union[torch.Tensor, Dict[str, torch.Tensor]]]]:
+    def collate_batch_train(self, batch: List[Dict[str, Any]]) -> Dict[str, Dict[str, Union[torch.Tensor, Dict[str, torch.Tensor]]]]:
         """
         Customized collate function for pytorch dataloader during training for late fusion dataset.
 

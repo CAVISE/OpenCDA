@@ -98,7 +98,7 @@ class RoIHead(nn.Module):
 
         Parameters
         ----------
-        weight_init : str, 
+        weight_init : str,
 
         Raises
         ------
@@ -124,9 +124,7 @@ class RoIHead(nn.Module):
                     nn.init.constant_(m.bias, 0)
         nn.init.normal_(self.reg_layers[-1].weight, mean=0, std=0.001)
 
-    def _make_fc_layers(
-        self, input_channels: int, fc_list: List[int], output_channels: Optional[int] = None
-    ) -> Tuple[nn.Sequential, int]:
+    def _make_fc_layers(self, input_channels: int, fc_list: List[int], output_channels: Optional[int] = None) -> Tuple[nn.Sequential, int]:
         """
         Create fully connected layers with optional dropout.
 
@@ -164,9 +162,7 @@ class RoIHead(nn.Module):
         fc_layers = nn.Sequential(*fc_layers)
         return fc_layers, pre_channel
 
-    def get_global_grid_points_of_roi(
-        self, rois: torch.Tensor
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    def get_global_grid_points_of_roi(self, rois: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Generate grid points for RoIs in global and local coordinates.
 
@@ -193,9 +189,7 @@ class RoIHead(nn.Module):
         return global_roi_grid_points, local_roi_grid_points
 
     @staticmethod
-    def get_dense_grid_points(
-        rois: torch.Tensor, batch_size_rcnn: int, grid_size: int
-    ) -> torch.Tensor:
+    def get_dense_grid_points(rois: torch.Tensor, batch_size_rcnn: int, grid_size: int) -> torch.Tensor:
         """
         Generate dense grid points within RoIs in local coordinates.
 

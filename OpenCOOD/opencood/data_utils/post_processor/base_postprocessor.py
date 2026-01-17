@@ -39,12 +39,12 @@ class BasePostprocessor(object):
     def generate_anchor_box(self) -> Optional[torch.Tensor]:
         """
         Generate anchor boxes for object detection.
-        
+
         Returns
         -------
         Optional[torch.Tensor]
             Tensor containing anchor boxes, or None if not implemented.
-            
+
         Raises
         ------
         NotImplementedError
@@ -56,7 +56,7 @@ class BasePostprocessor(object):
     def generate_label(self, *argv: Any) -> Any:
         """
         Generate labels for training.
-        
+
         Raises
         ------
         NotImplementedError
@@ -112,9 +112,7 @@ class BasePostprocessor(object):
         return gt_box3d_tensor
 
     def generate_object_center(
-        self,
-        cav_contents: List[Dict[str, Any]],
-        reference_lidar_pose: List[float]
+        self, cav_contents: List[Dict[str, Any]], reference_lidar_pose: List[float]
     ) -> Tuple[np.ndarray, np.ndarray, List[Any]]:
         """
         Retrieve all objects in a format of (n, 7), where 7 represents

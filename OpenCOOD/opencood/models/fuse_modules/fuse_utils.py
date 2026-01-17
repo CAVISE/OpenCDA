@@ -6,14 +6,11 @@ from opencood.utils.common_utils import torch_tensor_to_numpy
 
 from typing import List
 
-def regroup(
-    dense_feature: torch.Tensor,
-    record_len: List[int],
-    max_len: int
-) -> torch.Tensor:
+
+def regroup(dense_feature: torch.Tensor, record_len: List[int], max_len: int) -> torch.Tensor:
     """
     Regroup concatenated CAV features into batched format with padding.
-    
+
     Converts variable-length concatenated features into fixed-size batch
     tensor by padding with zeros, enabling batched processing of multi-agent
     data with different numbers of CAVs per sample.

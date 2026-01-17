@@ -45,9 +45,9 @@ class SceneManager:
     scene_name : str
         Current scene name.
     town_name : str
-        CARLA town name 
+        CARLA town name
     database : OrderedDict
-        Nested dict 
+        Nested dict
     timestamps : list of str
         Sorted list of all timestamps in the scene.
     cav_id_list : list of str
@@ -113,7 +113,7 @@ class SceneManager:
     def start_simulator(self):
         """
         Connect to the CARLA simulator and initialize world for log replay.
-        
+
         Establishes client connection, loads the appropriate map, configures
         synchronous mode with fixed time step, applies weather settings, and
         initializes the HD map manager.
@@ -303,7 +303,7 @@ class SceneManager:
             }
         )
 
-    def spawn_bg_vehicles(self, bg_veh_id: str,  bg_veh_content: Dict[str, Any], cur_timestamp: str):
+    def spawn_bg_vehicles(self, bg_veh_id: str, bg_veh_content: Dict[str, Any], cur_timestamp: str):
         """
         Spawn the background vehicle.
 

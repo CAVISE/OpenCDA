@@ -16,24 +16,24 @@ from opencood.data_utils.post_processor.base_postprocessor import BasePostproces
 from opencood.utils import box_utils
 from opencood.utils.box_overlaps import bbox_overlaps
 from opencood.visualization import vis_utils
-from typing import Dict, List, Tuple, Optional, Any, Union
+from typing import Dict, List, Tuple, Optional, Any
 
 
 class VoxelPostprocessor(BasePostprocessor):
     """
     Base class for voxel-based 3D object detection post-processing.
-    
+
     This class provides common functionality for processing 3D object detection
     predictions in voxel-based approaches, including anchor generation and
     box decoding.
-    
+
     Parameters
     ----------
     anchor_params : dict
         Dictionary containing anchor configuration parameters.
     train : bool
         Whether the processor is in training mode.
-    
+
     Attributes
     ----------
     anchor_num : int
@@ -47,7 +47,7 @@ class VoxelPostprocessor(BasePostprocessor):
     def generate_anchor_box(self) -> torch.Tensor:
         """
         Generate anchor boxes for voxel-based detection.
-        
+
         Returns
         -------
         torch.Tensor
@@ -104,7 +104,7 @@ class VoxelPostprocessor(BasePostprocessor):
     def generate_label(self, **kwargs) -> Dict[str, torch.Tensor]:
         """
         Generate targets for training.
-        
+
         Parameters
         ----------
         **kwargs : dict
@@ -115,7 +115,7 @@ class VoxelPostprocessor(BasePostprocessor):
                 Anchor boxes with shape (H, W, anchor_num, 7)
             - mask : np.ndarray
                 Valid ground truth mask with shape (max_num,)
-        
+
         Returns
         -------
         dict
@@ -213,12 +213,12 @@ class VoxelPostprocessor(BasePostprocessor):
     def collate_batch(label_batch_list: List[Dict[str, np.ndarray]]) -> Dict[str, torch.Tensor]:
         """
         Customized collate function for target label generation.
-        
+
         Parameters
         ----------
         label_batch_list : list of dict
             List of dictionaries that contain all labels for several frames.
-        
+
         Returns
         -------
         dict
@@ -245,23 +245,23 @@ class VoxelPostprocessor(BasePostprocessor):
 
         return {"targets": targets, "pos_equal_one": pos_equal_one, "neg_equal_one": neg_equal_one}
 
-    def post_process(self, 
-                data_dict: Dict[str, Dict[str, Any]], 
-                output_dict: Dict[str, Dict[str, torch.Tensor]]) -> Tuple[Optional[torch.Tensor], Optional[torch.Tensor]]:
+    def post_process(
+        self, data_dict: Dict[str, Dict[str, Any]], output_dict: Dict[str, Dict[str, torch.Tensor]]
+    ) -> Tuple[Optional[torch.Tensor], Optional[torch.Tensor]]:
         """
         Process the outputs of the model to 2D/3D bounding box.
-        
+
         Step 1: Convert each CAV's output to bounding box format
         Step 2: Project the bounding boxes to ego space
         Step 3: Apply NMS
-        
+
         Parameters
         ----------
         data_dict : dict
             Dictionary containing the origin input data of model.
         output_dict : dict
             Dictionary containing the output of the model.
-        
+
         Returns
         -------
         pred_box3d_tensor : torch.Tensor or None
@@ -351,12 +351,10 @@ class VoxelPostprocessor(BasePostprocessor):
         return pred_box3d_tensor, scores
 
     @staticmethod
-    def delta_to_boxes3d(deltas: torch.Tensor, 
-                    anchors: torch.Tensor, 
-                    channel_swap: bool = True) -> torch.Tensor:
+    def delta_to_boxes3d(deltas: torch.Tensor, anchors: torch.Tensor, channel_swap: bool = True) -> torch.Tensor:
         """
         Convert the output delta to 3D bounding boxes.
-        
+
         Parameters
         ----------
         deltas : torch.Tensor
@@ -366,7 +364,7 @@ class VoxelPostprocessor(BasePostprocessor):
         channel_swap : bool, optional
             Whether to swap the channel of deltas. Set to False when using FPV-RCNN.
             Default is True.
-        
+
         Returns
         -------
         torch.Tensor
@@ -402,15 +400,12 @@ class VoxelPostprocessor(BasePostprocessor):
         return boxes3d
 
     @staticmethod
-    def visualize(pred_box_tensor: torch.Tensor,
-             gt_tensor: torch.Tensor,
-             pcd: torch.Tensor,
-             show_vis: bool,
-             save_path: str,
-             dataset: Optional[Any] = None) -> None:
+    def visualize(
+        pred_box_tensor: torch.Tensor, gt_tensor: torch.Tensor, pcd: torch.Tensor, show_vis: bool, save_path: str, dataset: Optional[Any] = None
+    ) -> None:
         """
         Visualize the prediction, ground truth with point cloud together.
-        
+
         Parameters
         ----------
         pred_box_tensor : torch.Tensor

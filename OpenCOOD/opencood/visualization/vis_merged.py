@@ -41,7 +41,7 @@ v2x_path: Dict[str, str] = {
 def load_img(root_dir: str, img_id: int, mode: str) -> Optional[np.ndarray]:
     """
     Load and crop an image from the specified directory.
-    
+
     Reads image file and applies mode-specific cropping to remove borders.
 
     Parameters
@@ -82,11 +82,10 @@ if not os.path.exists(root_save_path):
     os.mkdir(root_save_path)
 
 
-def merge_img(img_id: int, picked_model: List[str], align: str = "row", 
-             mode: str = "3d") -> Optional[np.ndarray]:
+def merge_img(img_id: int, picked_model: List[str], align: str = "row", mode: str = "3d") -> Optional[np.ndarray]:
     """
     Merge multiple images into a single image.
-    
+
     Loads images from different models and concatenates them either
     horizontally (row) or vertically (column).
 

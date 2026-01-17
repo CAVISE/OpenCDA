@@ -40,9 +40,7 @@ class DataAugmentor:
             self.data_augmentor_queue.append(cur_augmentor)
 
     def random_world_flip(
-        self,
-        data_dict: Optional[Dict[str, Any]] = None,
-        config: Optional[Dict[str, Any]] = None
+        self, data_dict: Optional[Dict[str, Any]] = None, config: Optional[Dict[str, Any]] = None
     ) -> Union[Dict[str, Any], Callable[[Optional[Dict[str, Any]]], Dict[str, Any]]]:
         """
         Randomly flip the world along specified axes.
@@ -86,9 +84,7 @@ class DataAugmentor:
         return data_dict
 
     def random_world_rotation(
-        self,
-        data_dict: Optional[Dict[str, Any]] = None,
-        config: Optional[Dict[str, Any]] = None
+        self, data_dict: Optional[Dict[str, Any]] = None, config: Optional[Dict[str, Any]] = None
     ) -> Union[Dict[str, Any], Callable[[Optional[Dict[str, Any]]], Dict[str, Any]]]:
         """
         Apply random rotation to the world.
@@ -130,9 +126,7 @@ class DataAugmentor:
         return data_dict
 
     def random_world_scaling(
-        self,
-        data_dict: Optional[Dict[str, Any]] = None,
-        config: Optional[Dict[str, Any]] = None
+        self, data_dict: Optional[Dict[str, Any]] = None, config: Optional[Dict[str, Any]] = None
     ) -> Union[Dict[str, Any], Callable[[Optional[Dict[str, Any]]], Dict[str, Any]]]:
         """
         Apply random scaling to the world.

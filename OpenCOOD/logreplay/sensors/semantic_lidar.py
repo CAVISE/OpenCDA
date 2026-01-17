@@ -52,12 +52,7 @@ class SemanticLidar(BaseSensor):
     """
 
     def __init__(
-        self,
-        agent_id: str,
-        vehicle: Optional[carla.Actor],
-        world: carla.World,
-        config: Dict[str, Any],
-        global_position: Optional[List[float]]
+        self, agent_id: str, vehicle: Optional[carla.Actor], world: carla.World, config: Dict[str, Any], global_position: Optional[List[float]]
     ) -> None:
         super().__init__(agent_id, vehicle, world, config, global_position)
 
@@ -137,10 +132,7 @@ class SemanticLidar(BaseSensor):
         self.timestamp = event.timestamp
 
     @staticmethod
-    def spawn_point_estimation(
-        relative_position: str,
-        global_position: Optional[List[float]]
-    ) -> carla.Transform:
+    def spawn_point_estimation(relative_position: str, global_position: Optional[List[float]]) -> carla.Transform:
         """
         Calculate sensor spawn point based on mounting position.
 

@@ -71,6 +71,7 @@ class BasicBlock(nn.Module):
     stride : int
         Convolution stride.
     """
+
     expansion = 1
 
     def __init__(self, in_planes: int, planes: int, stride: int = 1, downsample: Optional[nn.Module] = None):
@@ -155,6 +156,7 @@ class Bottleneck(nn.Module):
     relu : nn.ReLU
         ReLU activation function.
     """
+
     expansion = 4
 
     def __init__(self, in_planes: int, planes: int, stride: int = 1, downsample: Optional[nn.Module] = None, use_bn: bool = True):
@@ -260,13 +262,7 @@ class BackBone(nn.Module):
         Second deconvolution layer for upsampling.
     """
 
-    def __init__(
-        self,
-        block: Type[Union[BasicBlock, Bottleneck]],
-        num_block: List[int],
-        geom: Dict[str, Any],
-        use_bn: bool = True
-    ):
+    def __init__(self, block: Type[Union[BasicBlock, Bottleneck]], num_block: List[int], geom: Dict[str, Any], use_bn: bool = True):
         super(BackBone, self).__init__()
 
         self.use_bn = use_bn
@@ -372,12 +368,7 @@ class BackBone(nn.Module):
 
         return p4
 
-    def _make_layer(
-        self,
-        block: Type[Union[BasicBlock, Bottleneck]],
-        planes: int,
-        num_blocks: int
-    ) -> nn.Sequential:
+    def _make_layer(self, block: Type[Union[BasicBlock, Bottleneck]], planes: int, num_blocks: int) -> nn.Sequential:
         """
         Construct a residual layer with multiple blocks.
 
@@ -413,24 +404,24 @@ class BackBone(nn.Module):
 
     def _upsample_add(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         """
-    Upsample and add two feature maps.
-    
-    This method upsamples the top feature map x to match the size of the lateral
-    feature map y, then adds them together. Bilinear upsampling is used to support
-    arbitrary output sizes, which is necessary when input dimensions are odd.
-    
-    Parameters
-    ----------
-    x : torch.torch.Tensor
-        Top feature map to be upsampled.
-    y : torch.torch.Tensor
-        Lateral feature map that determines the target size.
-    
-    Returns
-    -------
-    torch.torch.Tensor
-        Added feature map with the same spatial dimensions as y.
-    """
+        Upsample and add two feature maps.
+
+        This method upsamples the top feature map x to match the size of the lateral
+        feature map y, then adds them together. Bilinear upsampling is used to support
+        arbitrary output sizes, which is necessary when input dimensions are odd.
+
+        Parameters
+        ----------
+        x : torch.torch.Tensor
+            Top feature map to be upsampled.
+        y : torch.torch.Tensor
+            Lateral feature map that determines the target size.
+
+        Returns
+        -------
+        torch.torch.Tensor
+            Added feature map with the same spatial dimensions as y.
+        """
         _, _, H, W = y.size()
         return F.upsample(x, size=(H, W), mode="bilinear") + y
 

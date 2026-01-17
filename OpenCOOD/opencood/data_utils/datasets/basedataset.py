@@ -30,7 +30,7 @@ logger = logging.getLogger("cavise.OpenCOOD.opencood.data_utils.datasets.basedat
 class BaseDataset(Dataset):
     """
     Base dataset for all kinds of fusion.
-    
+
     Mainly used to initialize the database and associate the __get_item__ index
     with the correct timestamp and scenario.
 
@@ -280,7 +280,7 @@ class BaseDataset(Dataset):
     def return_timestamp_key(scenario_database: Dict[str, Any], timestamp_index: int) -> str:
         """
         Given the timestamp index, return the correct timestamp key.
-        
+
         For example: 2 --> '000078'.
 
         Parameters
@@ -317,7 +317,7 @@ class BaseDataset(Dataset):
         -------
         Dict[str, Any]
             The ego vehicle's content with updated distance information.
-            
+
         Raises
         ------
         ValueError
@@ -382,21 +382,21 @@ class BaseDataset(Dataset):
 
     def add_loc_noise(self, pose: NDArray[np.float64], xyz_std: float, ryp_std: float) -> NDArray[np.float64]:
         """
-            Add localization noise to the pose.
+        Add localization noise to the pose.
 
-            Parameters
-            ----------
-            pose : NDArray[np.float64]
-                Pose parameters [x, y, z, roll, yaw, pitch].
-            xyz_std : float
-                Standard deviation of Gaussian noise for xyz coordinates.
-            ryp_std : float
-                Standard deviation of Gaussian noise for roll, yaw, pitch.
+        Parameters
+        ----------
+        pose : NDArray[np.float64]
+            Pose parameters [x, y, z, roll, yaw, pitch].
+        xyz_std : float
+            Standard deviation of Gaussian noise for xyz coordinates.
+        ryp_std : float
+            Standard deviation of Gaussian noise for roll, yaw, pitch.
 
-            Returns
-            -------
-            NDArray[np.float64]
-                Noisy pose with the same shape as input.
+        Returns
+        -------
+        NDArray[np.float64]
+            Noisy pose with the same shape as input.
         """
 
         np.random.seed(self.seed)
@@ -405,12 +405,9 @@ class BaseDataset(Dataset):
         noise_pose = [pose[0] + xyz_noise[0], pose[1] + xyz_noise[1], pose[2] + xyz_noise[2], pose[3], pose[4] + ryp_std[1], pose[5]]
         return noise_pose
 
-    def reform_param(self, 
-                    cav_content: Dict[str, Any], 
-                    ego_content: Dict[str, Any], 
-                    timestamp_cur: str, 
-                    timestamp_delay: str, 
-                    cur_ego_pose_flag: bool) -> Dict[str, Any]:
+    def reform_param(
+        self, cav_content: Dict[str, Any], ego_content: Dict[str, Any], timestamp_cur: str, timestamp_delay: str, cur_ego_pose_flag: bool
+    ) -> Dict[str, Any]:
         """
         Reform the data params with current timestamp object groundtruth and delay timestamp LiDAR pose for other CAVs.
 
@@ -511,10 +508,9 @@ class BaseDataset(Dataset):
         """
         return self.pre_processor.project_points_to_bev_map(points, ratio)
 
-    def augment(self, 
-               lidar_np: NDArray[np.float64], 
-               object_bbx_center: NDArray[np.float64], 
-               object_bbx_mask: NDArray[np.float64]) -> Tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]]:
+    def augment(
+        self, lidar_np: NDArray[np.float64], object_bbx_center: NDArray[np.float64], object_bbx_mask: NDArray[np.float64]
+    ) -> Tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]]:
         """
         Given the raw point cloud, augment by flipping and rotation.
 
@@ -607,13 +603,15 @@ class BaseDataset(Dataset):
 
         return output_dict
 
-    def visualize_result(self, 
-                        pred_box_tensor: torch.Tensor, 
-                        gt_tensor: torch.Tensor, 
-                        pcd: NDArray[np.float64], 
-                        show_vis: bool, 
-                        save_path: str, 
-                        dataset: Optional[Any] = None) -> None:
+    def visualize_result(
+        self,
+        pred_box_tensor: torch.Tensor,
+        gt_tensor: torch.Tensor,
+        pcd: NDArray[np.float64],
+        show_vis: bool,
+        save_path: str,
+        dataset: Optional[Any] = None,
+    ) -> None:
         """
         Visualize the model output.
 

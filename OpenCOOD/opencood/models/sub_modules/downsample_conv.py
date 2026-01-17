@@ -42,7 +42,7 @@ class DoubleConv(nn.Module):
         out_channels: int,
         kernel_size: Union[int, Tuple[int, int]],
         stride: Union[int, Tuple[int, int]] = 1,
-        padding: Union[int, Tuple[int, int]] = 0
+        padding: Union[int, Tuple[int, int]] = 0,
     ):
         super().__init__()
         self.double_conv = nn.Sequential(
@@ -72,12 +72,12 @@ class DoubleConv(nn.Module):
 class DownsampleConv(nn.Module):
     """
     A sequence of downsampling convolution blocks.
-    
+
     Parameters
     ----------
     config : Dict[str, List[Union[int, Tuple[int, int]]]]
         Configuration dictionary containing:
-        
+
         - input_dim : int
             Number of input channels.
         - kernal_size : list
@@ -107,12 +107,12 @@ class DownsampleConv(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Forward through all downsampling blocks.
-        
+
         Parameters
         ----------
         x : torch.Tensor
             Input tensor of shape (batch_size, in_channels, height, width).
-        
+
         Returns
         -------
         torch.Tensor

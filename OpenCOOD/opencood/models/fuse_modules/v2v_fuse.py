@@ -22,7 +22,7 @@ from opencood.models.sub_modules.convgru import ConvGRU
 class V2VNetFusion(nn.Module):
     """
     V2VNet fusion mechanism for multi-agent feature aggregation.
-    
+
     Uses spatial transformation and iterative GRU-based message passing
     to fuse features from multiple connected agents.
 
@@ -118,12 +118,7 @@ class V2VNetFusion(nn.Module):
         split_x = torch.tensor_split(x, cum_sum_len[:-1].cpu())
         return split_x
 
-    def forward(
-        self, 
-        x: Tensor, 
-        record_len: Tensor, 
-        pairwise_t_matrix: Tensor
-    ) -> Tensor:
+    def forward(self, x: Tensor, record_len: Tensor, pairwise_t_matrix: Tensor) -> Tensor:
         """
         Fusion forwarding.
 

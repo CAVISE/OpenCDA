@@ -4,6 +4,7 @@ PointPillar with Where2comm for communication-efficient multi-agent 3D object de
 This module implements PointPillar architecture integrated with Where2comm fusion
 for efficient communication and feature sharing among multiple agents.
 """
+
 from typing import Any, Dict
 
 import torch
@@ -68,7 +69,7 @@ class PointPillarWhere2comm(nn.Module):
     reg_head : nn.Conv2d
         Regression head for predicting bounding box parameters.
     """
-    
+
     def __init__(self, args: Dict[str, Any]):
         super(PointPillarWhere2comm, self).__init__()
         self.max_cav = args["max_cav"]

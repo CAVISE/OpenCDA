@@ -17,7 +17,7 @@ from opencood.pcdet_utils.pointnet2.pointnet2_stack import pointnet2_stack_cuda 
 class BallQuery(Function):
     """
     Ball query operation for finding neighbors within a radius.
-    
+
     CUDA-accelerated autograd function for local neighborhood queries.
     """
 
@@ -73,10 +73,10 @@ ball_query = BallQuery.apply
 class GroupingOperation(Function):
     """
     Group features by indices for local feature aggregation.
-    
+
     CUDA-accelerated autograd function with custom backward pass.
     """
-    
+
     @staticmethod
     def forward(ctx, features: torch.Tensor, features_batch_cnt: torch.Tensor, idx: torch.Tensor, idx_batch_cnt: torch.Tensor):
         """
@@ -124,25 +124,25 @@ class GroupingOperation(Function):
     @staticmethod
     def backward(ctx, grad_out: torch.Tensor):
         """
-       Compute gradient with respect to input features.
+        Compute gradient with respect to input features.
 
-        Parameters
-        ----------
-        ctx : torch.autograd.function.FunctionCtx
-            Context with saved forward information.
-        grad_out : torch.Tensor
-            Output gradient with shape (M1+M2+..., C, nsample).
+         Parameters
+         ----------
+         ctx : torch.autograd.function.FunctionCtx
+             Context with saved forward information.
+         grad_out : torch.Tensor
+             Output gradient with shape (M1+M2+..., C, nsample).
 
-        Returns
-        -------
-        grad_features : torch.Tensor
-            Input features gradient with shape (N1+N2+..., C).
-        None
-            Placeholder for features_batch_cnt gradient.
-        None
-            Placeholder for idx gradient.
-        None
-            Placeholder for idx_batch_cnt gradient.
+         Returns
+         -------
+         grad_features : torch.Tensor
+             Input features gradient with shape (N1+N2+..., C).
+         None
+             Placeholder for features_batch_cnt gradient.
+         None
+             Placeholder for idx gradient.
+         None
+             Placeholder for idx_batch_cnt gradient.
         """
         B, N, idx, features_batch_cnt, idx_batch_cnt = ctx.for_backwards
 
@@ -160,7 +160,7 @@ grouping_operation = GroupingOperation.apply
 class QueryAndGroup(nn.Module):
     """
     Query and group points within a ball radius.
-    
+
     Combines ball query and grouping operations for local feature extraction.
     Core building block for PointNet++ set abstraction layers.
 
@@ -244,7 +244,7 @@ class QueryAndGroup(nn.Module):
 class FurthestPointSampling(Function):
     """
     Furthest point sampling for downsampling point clouds.
-    
+
     CUDA-accelerated iterative farthest point selection algorithm.
     Selects diverse subset of points by maximizing minimum distances.
     """
@@ -288,12 +288,14 @@ furthest_point_sample = FurthestPointSampling.apply
 class ThreeNN(Function):
     """
     Find three nearest neighbors for each query point.
-    
+
     CUDA-accelerated k-NN search with k=3 for feature interpolation.
     """
 
     @staticmethod
-    def forward(ctx, unknown: torch.Tensor, unknown_batch_cnt: torch.Tensor, known: torch.Tensor, known_batch_cnt: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    def forward(
+        ctx, unknown: torch.Tensor, unknown_batch_cnt: torch.Tensor, known: torch.Tensor, known_batch_cnt: torch.Tensor
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Find 3 nearest neighbors in known set for each unknown point.
 
@@ -338,7 +340,7 @@ three_nn = ThreeNN.apply
 class ThreeInterpolate(Function):
     """
     Interpolate features using inverse distance weighting from 3 neighbors.
-    
+
     CUDA-accelerated feature upsampling with custom backward pass.
     Implements differentiable weighted sum based on neighbor distances.
     """

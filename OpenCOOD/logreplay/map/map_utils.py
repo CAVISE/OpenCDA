@@ -22,10 +22,7 @@ class InterpolationMethod(IntEnum):
     INTER_ENSURE_LEN = 1  # ensure we always get the same number of elements
 
 
-def lateral_shift(
-    transform: carla.Transform, 
-    shift: float
-) -> carla.Location:
+def lateral_shift(transform: carla.Transform, shift: float) -> carla.Location:
     transform.rotation.yaw += 90
     return transform.location + shift * transform.get_forward_vector()
 
@@ -79,7 +76,7 @@ def list_wpt2array(list_wpt: list[carla.Waypoint]) -> NDArray:
 def convert_tl_status(status: carla.TrafficLightState) -> str:
     """
     Convert carla.TrafficLightState to str.
-    
+
     Parameters
     ----------
     status : carla.TrafficLightState
@@ -176,8 +173,7 @@ def exclude_off_road_agents(static_bev: NDArray, dynamic_bev: NDArray) -> NDArra
 
 
 def retrieve_city_object_info(
-    world: carla.World, 
-    label_list: List[str]
+    world: carla.World, label_list: List[str]
 ) -> Dict[str, Dict[str, Dict[str, Union[List[float], float, List[List[float]]]]]]:
     """
     A general function to retrieve object bbx in carla world except vehicle,
@@ -231,9 +227,7 @@ def retrieve_city_object_info(
 
 
 def obj_in_range(
-    center: carla.Transform,
-    radius: float,
-    obj_info_dict: Dict[str, Dict[str, Dict[str, Union[List[float], float, List[List[float]]]]]]
+    center: carla.Transform, radius: float, obj_info_dict: Dict[str, Dict[str, Dict[str, Union[List[float], float, List[List[float]]]]]]
 ) -> Dict[str, Dict[str, Dict[str, Union[List[float], float, List[List[float]]]]]]:
     """
     Retrieve the object in range.

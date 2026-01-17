@@ -120,7 +120,15 @@ class RoIAwarePool3dFunction(Function):
     """Custom autograd function for RoI-aware 3D pooling with CUDA acceleration."""
 
     @staticmethod
-    def forward(ctx: Any, rois: torch.Tensor, pts: torch.Tensor, pts_feature: torch.Tensor, out_size: Union[int, Tuple[int, int, int]], max_pts_each_voxel: int, pool_method: str) -> torch.Tensor:
+    def forward(
+        ctx: Any,
+        rois: torch.Tensor,
+        pts: torch.Tensor,
+        pts_feature: torch.Tensor,
+        out_size: Union[int, Tuple[int, int, int]],
+        max_pts_each_voxel: int,
+        pool_method: str,
+    ) -> torch.Tensor:
         """
         Forward pass for RoI-aware pooling.
 

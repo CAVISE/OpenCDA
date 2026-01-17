@@ -16,10 +16,10 @@ from torch import Tensor
 class CiassdLoss(nn.Module):
     """
     Loss function for CIASSD object detection model.
-    
+
     Combines classification, regression, direction, and IoU losses
     for 3D object detection in cooperative perception scenarios.
-    
+
     Parameters
     ----------
     args : Dict[str, Any]
@@ -36,7 +36,7 @@ class CiassdLoss(nn.Module):
             IoU loss parameters (sigma, weight).
         - dir : Dict[str, Any]
             Direction loss parameters (weight).
-    
+
     Attributes
     ----------
     pos_cls_weight : float
@@ -58,6 +58,7 @@ class CiassdLoss(nn.Module):
     box_codesize : int
         Bounding box encoding size (7 for 3D boxes: x, y, z, l, w, h, yaw).
     """
+
     def __init__(self, args: Dict[str, Any]):
         super(CiassdLoss, self).__init__()
         self.pos_cls_weight = args["pos_cls_weight"]
@@ -195,12 +196,7 @@ class CiassdLoss(nn.Module):
 
         return loss
 
-    def logging(self, 
-               epoch: int, 
-               batch_id: int, 
-               batch_len: int, 
-               writer, 
-               pbar: Optional[Any] = None) -> None:
+    def logging(self, epoch: int, batch_id: int, batch_len: int, writer, pbar: Optional[Any] = None) -> None:
         """
         Print out  the loss function for current iteration.
 
@@ -236,7 +232,7 @@ class CiassdLoss(nn.Module):
 def add_sin_difference(boxes1: Tensor, boxes2: Tensor) -> Tuple[Tensor, Tensor]:
     """
     Encode rotation angle error using sine-cosine difference.
-    
+
     Converts rotation angle regression to sin(pred)*cos(gt) and cos(pred)*sin(gt)
     for better gradient flow near angle boundaries (e.g., 0° and 360°).
 
@@ -261,10 +257,7 @@ def add_sin_difference(boxes1: Tensor, boxes2: Tensor) -> Tuple[Tensor, Tensor]:
     return res_boxes1, res_boxes2
 
 
-def get_direction_target(reg_targets: Tensor, 
-                        anchors: Tensor, 
-                        one_hot: bool = True, 
-                        dir_offset: float = 0.0) -> Tensor:
+def get_direction_target(reg_targets: Tensor, anchors: Tensor, one_hot: bool = True, dir_offset: float = 0.0) -> Tensor:
     """
     Generate targets for bounding box direction classification.
 
@@ -289,11 +282,7 @@ def get_direction_target(reg_targets: Tensor,
     return dir_cls_targets
 
 
-def one_hot_f(tensor: Tensor, 
-              depth: int, 
-              dim: int = -1, 
-              on_value: float = 1.0, 
-              dtype: torch.dtype = torch.float32) -> Tensor:
+def one_hot_f(tensor: Tensor, depth: int, dim: int = -1, on_value: float = 1.0, dtype: torch.dtype = torch.float32) -> Tensor:
     """
     Convert integer tensor to one-hot encoding.
 
@@ -320,13 +309,10 @@ def one_hot_f(tensor: Tensor,
     return tensor_onehot
 
 
-def sigmoid_focal_loss(preds: Tensor, 
-                       targets: Tensor, 
-                       weights: Optional[Tensor] = None, 
-                       **kwargs) -> Tensor:
+def sigmoid_focal_loss(preds: Tensor, targets: Tensor, weights: Optional[Tensor] = None, **kwargs) -> Tensor:
     """
     Compute focal loss with sigmoid activation.
-    
+
     Focal loss down-weights easy examples and focuses on hard negatives,
     reducing class imbalance impact.
 
@@ -387,13 +373,10 @@ def softmax_cross_entropy_with_logits(logits: Tensor, labels: Tensor) -> Tensor:
     return loss
 
 
-def weighted_smooth_l1_loss(preds: Tensor, 
-                            targets: Tensor, 
-                            sigma: float = 3.0, 
-                            weights: Optional[Tensor] = None) -> Tensor:
+def weighted_smooth_l1_loss(preds: Tensor, targets: Tensor, sigma: float = 3.0, weights: Optional[Tensor] = None) -> Tensor:
     """
     Compute weighted smooth L1 loss (Huber loss variant).
-    
+
     Smooth L1 is less sensitive to outliers than L2 loss, with quadratic
     behavior near zero and linear behavior for large errors.
 

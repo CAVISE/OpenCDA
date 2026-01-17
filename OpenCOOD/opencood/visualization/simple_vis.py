@@ -27,7 +27,7 @@ def visualize(
     vis_gt_box: bool = True,
     vis_pred_box: bool = True,
     left_hand: bool = False,
-    uncertainty: Optional[Any] = None
+    uncertainty: Optional[Any] = None,
 ) -> None:
     """
     Visualize the prediction, ground truth with point cloud together.

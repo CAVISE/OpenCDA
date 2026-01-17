@@ -16,14 +16,14 @@ from typing import Tuple, Optional, Union, List
 class Canvas_3D(object):
     """
     3D perspective canvas for visualizing point clouds and bounding boxes.
-    
+
     Projects 3D points and boxes onto 2D canvas using virtual camera with
     configurable extrinsic and intrinsic parameters.
 
     Parameters
     ----------
     canvas_shape : tuple of int, optional
-        Canvas dimensions (height, width) in pixels. 
+        Canvas dimensions (height, width) in pixels.
     camera_center_coords : tuple of float, optional
         Camera position in 3D world coordinates (x, y, z).
     camera_focus_coords : tuple of float, optional
@@ -48,17 +48,17 @@ class Canvas_3D(object):
         Camera intrinsic matrix (3, 4) for camera-to-image projection.
 
     """
-    
+
     def __init__(
         self,
-        canvas_shape: Tuple[int, int]=(500, 1000),
-        camera_center_coords: Tuple[float, float, float]=(-15, 0, 10),
-        camera_focus_coords: Tuple[float, float, float]=(-15 + 0.9396926, 0, 10 - 0.44202014),
+        canvas_shape: Tuple[int, int] = (500, 1000),
+        camera_center_coords: Tuple[float, float, float] = (-15, 0, 10),
+        camera_focus_coords: Tuple[float, float, float] = (-15 + 0.9396926, 0, 10 - 0.44202014),
         #  camera_center_coords=(-25, 0, 20),
         #  camera_focus_coords=(-25 + 0.9396926, 0, 20 - 0.64202014),
-        focal_length: Optional[int]=None,
-        canvas_bg_color: Tuple[int, int, int]=(0, 0, 0),
-        left_hand: bool=True,
+        focal_length: Optional[int] = None,
+        canvas_bg_color: Tuple[int, int, int] = (0, 0, 0),
+        left_hand: bool = True,
     ):
         self.canvas_shape = canvas_shape
         self.H, self.W = self.canvas_shape
@@ -106,13 +106,15 @@ class Canvas_3D(object):
     def clear_canvas(self):
         """
         Clear canvas and reset to background color.
-        
+
         Creates a new blank canvas filled with the background color.
         """
         self.canvas = np.zeros((self.H, self.W, 3), dtype=np.uint8)
         self.canvas[..., :] = self.canvas_bg_color
 
-    def get_canvas_coords(self, xyz: npt.NDArray[np.floating],
+    def get_canvas_coords(
+        self,
+        xyz: npt.NDArray[np.floating],
         depth_min: float = 0.1,
         return_depth: bool = False,
     ) -> Union[
@@ -165,9 +167,13 @@ class Canvas_3D(object):
         else:
             return xy_int, valid_mask
 
-    def draw_canvas_points(self, canvas_xy: npt.NDArray[np.int32],
+    def draw_canvas_points(
+        self,
+        canvas_xy: npt.NDArray[np.int32],
         radius: int = -1,
-        colors: Optional[Union[Tuple[int, int, int], npt.NDArray[np.uint8], str]] = None, colors_operand: Optional[npt.NDArray[np.floating]] = None) -> None:
+        colors: Optional[Union[Tuple[int, int, int], npt.NDArray[np.uint8], str]] = None,
+        colors_operand: Optional[npt.NDArray[np.floating]] = None,
+    ) -> None:
         """
         Draw points onto the canvas.
 
@@ -230,10 +236,18 @@ class Canvas_3D(object):
             for color, (x, y) in zip(colors.tolist(), canvas_xy.tolist()):
                 self.canvas = cv2.circle(self.canvas, (y, x), radius, color, -1, lineType=cv2.LINE_AA)
 
-    def draw_lines(self, canvas_xy: npt.NDArray[np.int32],
+    def draw_lines(
+        self,
+        canvas_xy: npt.NDArray[np.int32],
         start_xyz: npt.NDArray[np.floating],
         end_xyz: npt.NDArray[np.floating],
-        colors: Optional[Union[Tuple[int, int, int], npt.NDArray[np.uint8]]] = (255, 255, 255,), thickness: int = 1) -> None:
+        colors: Optional[Union[Tuple[int, int, int], npt.NDArray[np.uint8]]] = (
+            255,
+            255,
+            255,
+        ),
+        thickness: int = 1,
+    ) -> None:
         """
         Draw lines between 3D points on the canvas.
 
@@ -276,7 +290,8 @@ class Canvas_3D(object):
                 )
 
     def draw_boxes(
-        self, boxes: npt.NDArray[np.floating],
+        self,
+        boxes: npt.NDArray[np.floating],
         colors: Optional[Union[Tuple[int, int, int], npt.NDArray[np.uint8]]] = None,
         texts: Optional[List[str]] = None,
         depth_min: float = 0.1,
@@ -301,20 +316,20 @@ class Canvas_3D(object):
               |/         |/
               3 -------- 2
         colors : tuple or np.ndarray or None, optional
-            Box color specification. 
+            Box color specification.
         texts : list of str or None, optional
-            Text labels for each box (length N). 
+            Text labels for each box (length N).
         depth_min : float, optional
             Minimum depth threshold for corner visibility.
         draw_incomplete_boxes : bool, optional
             If False, only draws boxes with all 8 corners visible.
-            If True, draws partial boxes. 
+            If True, draws partial boxes.
         box_line_thickness : int, optional
             Line thickness for box edges.
         box_text_size : float, optional
-            Text size scale factor. 
+            Text size scale factor.
         text_corner : int, optional
-            Corner index (0-7) where text is placed. 
+            Corner index (0-7) where text is placed.
         """
         # Setup colors
         if colors is None:
@@ -370,9 +385,7 @@ class Canvas_3D(object):
                     )
 
     @staticmethod
-    def cart2sph(xyz: npt.NDArray[np.floating]) -> Tuple[
-        npt.NDArray[np.floating], npt.NDArray[np.floating], npt.NDArray[np.floating]
-    ]:
+    def cart2sph(xyz: npt.NDArray[np.floating]) -> Tuple[npt.NDArray[np.floating], npt.NDArray[np.floating], npt.NDArray[np.floating]]:
         """
         Convert Cartesian coordinates to spherical coordinates.
 

@@ -13,10 +13,7 @@ import matplotlib.pyplot as plt
 
 
 def draw_box_plt(
-    boxes_dec: Union[npt.NDArray[np.floating], Any],
-    ax: plt.Axes,
-    color: Optional[Any] = None,
-    linewidth_scale: float = 1.0
+    boxes_dec: Union[npt.NDArray[np.floating], Any], ax: plt.Axes, color: Optional[Any] = None, linewidth_scale: float = 1.0
 ) -> plt.Axes:
     """
     Draw bounding boxes in a given matplotlib axes.
@@ -71,7 +68,7 @@ def draw_points_pred_gt_boxes_plt_2d(
     pc_range: List[float],
     points: Optional[npt.NDArray[np.floating]] = None,
     boxes_pred: Optional[Union[npt.NDArray[np.floating], Any]] = None,
-    boxes_gt: Optional[Union[npt.NDArray[np.floating], Any]] = None
+    boxes_gt: Optional[Union[npt.NDArray[np.floating], Any]] = None,
 ) -> None:
     """
     Draw points, predicted boxes, and ground truth boxes in a 2D plot.
@@ -108,7 +105,7 @@ def draw_points_boxes_plt_2d(
     pc_range: List[float],
     points: Optional[npt.NDArray[np.floating]] = None,
     boxes: Optional[Union[npt.NDArray[np.floating], Any]] = None,
-    color: Optional[Any] = None
+    color: Optional[Any] = None,
 ) -> plt.Axes:
     """
     Draw points and boxes in a given matplotlib axes.

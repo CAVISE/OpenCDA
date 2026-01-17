@@ -12,6 +12,7 @@ from opencood.models.fuse_modules.self_attn import ScaledDotProductAttention
 
 from typing import List, Tuple
 
+
 def regroup(x: torch.Tensor, record_len: torch.Tensor) -> List[torch.Tensor]:
     """
     Split concatenated multi-agent features into per-sample tensors.
@@ -33,13 +34,7 @@ def regroup(x: torch.Tensor, record_len: torch.Tensor) -> List[torch.Tensor]:
     return split_x
 
 
-def normalize_pairwise_tfm(
-    pairwise_t_matrix: torch.Tensor,
-    H: int,
-    W: int,
-    discrete_ratio: float,
-    downsample_rate: int = 1
-) -> torch.Tensor:
+def normalize_pairwise_tfm(pairwise_t_matrix: torch.Tensor, H: int, W: int, discrete_ratio: float, downsample_rate: int = 1) -> torch.Tensor:
     """
     normalize the pairwise transformation matrix to affine matrix need by torch.nn.functional.affine_grid()
 
@@ -71,16 +66,11 @@ def normalize_pairwise_tfm(
 
 
 def warp_affine_simple(
-    src: torch.Tensor,
-    M: torch.Tensor,
-    dsize: Tuple[int, int],
-    mode: str = "bilinear",
-    padding_mode: str = "zeros",
-    align_corners: bool = False
+    src: torch.Tensor, M: torch.Tensor, dsize: Tuple[int, int], mode: str = "bilinear", padding_mode: str = "zeros", align_corners: bool = False
 ) -> torch.Tensor:
-    """ 
+    """
     Apply affine transformation to warp source features to target coordinate frame.
-    
+
     Wrapper around F.grid_sample for spatial transformation of feature maps.
 
     Parameters
@@ -111,7 +101,7 @@ def warp_affine_simple(
 class Att_w_Warp(nn.Module):
     """
     Attention with Warp fusion module for multi-agent feature fusion.
-    
+
     Warps all agent features to ego coordinate frame, then applies spatial
     self-attention across agents at each spatial location.
 
@@ -130,12 +120,7 @@ class Att_w_Warp(nn.Module):
         super(Att_w_Warp, self).__init__()
         self.att = ScaledDotProductAttention(feature_dims)
 
-    def forward(
-        self,
-        xx: torch.Tensor,
-        record_len: torch.Tensor,
-        normalized_affine_matrix: torch.Tensor
-    ) -> torch.Tensor:
+    def forward(self, xx: torch.Tensor, record_len: torch.Tensor, normalized_affine_matrix: torch.Tensor) -> torch.Tensor:
         _, C, H, W = xx.shape
         B, L = normalized_affine_matrix.shape[:2]
         split_x = regroup(xx, record_len)
@@ -157,15 +142,10 @@ class Att_w_Warp(nn.Module):
         out = torch.stack(out)
         return out
 
-    def forward_debug(
-        self,
-        xx: torch.Tensor,
-        record_len: torch.Tensor,
-        normalized_affine_matrix: torch.Tensor
-    ) -> torch.Tensor:
+    def forward_debug(self, xx: torch.Tensor, record_len: torch.Tensor, normalized_affine_matrix: torch.Tensor) -> torch.Tensor:
         """
         Debug version of forward with visualization of warped features.
-        
+
         Saves warped feature maps as images for debugging spatial alignment.
 
         Parameters

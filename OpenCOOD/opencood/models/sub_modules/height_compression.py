@@ -8,6 +8,7 @@ to create a 2D Bird's Eye View (BEV) representation.
 from typing import Dict, Any
 from torch import nn
 
+
 class HeightCompression(nn.Module):
     """
     Height compression for converting 3D features to 2D BEV.

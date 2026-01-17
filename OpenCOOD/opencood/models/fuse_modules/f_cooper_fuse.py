@@ -10,6 +10,7 @@ import torch.nn as nn
 
 from typing import List
 
+
 class SpatialFusion(nn.Module):
     """
     Spatial Fusion module using maxout fusion across agents.
@@ -22,21 +23,17 @@ class SpatialFusion(nn.Module):
     def __init__(self):
         super(SpatialFusion, self).__init__()
 
-    def regroup(
-        self,
-        x: torch.Tensor,
-        record_len: torch.Tensor
-    ) -> List[torch.Tensor]:
+    def regroup(self, x: torch.Tensor, record_len: torch.Tensor) -> List[torch.Tensor]:
         """
         Split the input tensor into a list of tensors based on record_len.
-        
+
         Parameters
         ----------
         x : torch.Tensor
             Input tensor of shape [sum(record_len), C, H, W].
         record_len : torch.Tensor
             Number of features per sample in the batch, shape [B].
-        
+
         Returns
         -------
         list of torch.Tensor
@@ -47,11 +44,7 @@ class SpatialFusion(nn.Module):
         split_x = torch.tensor_split(x, cum_sum_len[:-1].cpu())
         return split_x
 
-    def forward(
-        self,
-        x: torch.Tensor,
-        record_len: torch.Tensor
-    ) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, record_len: torch.Tensor) -> torch.Tensor:
         """
         Forward pass performing maxout fusion across agents.
 

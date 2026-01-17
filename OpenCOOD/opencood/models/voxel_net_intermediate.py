@@ -54,15 +54,7 @@ class Conv2d(nn.Module):
     """
 
     def __init__(
-        self,
-        in_channels: int,
-        out_channels: int,
-        k: int,
-        s: int,
-        p: int,
-        activation: bool = True,
-        batch_norm: bool = True,
-        bias: bool = True
+        self, in_channels: int, out_channels: int, k: int, s: int, p: int, activation: bool = True, batch_norm: bool = True, bias: bool = True
     ):
         super(Conv2d, self).__init__()
         self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=k, stride=s, padding=p, bias=bias)

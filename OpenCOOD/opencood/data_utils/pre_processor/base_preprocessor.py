@@ -10,6 +10,7 @@ from numpy.typing import NDArray
 from opencood.utils import pcd_utils
 from typing import Dict, Any
 
+
 class BasePreprocessor:
     """
     Basic Lidar pre-processor.
@@ -20,7 +21,7 @@ class BasePreprocessor:
         The dictionary containing all parameters of the preprocessing.
     train : bool
         Train or test mode.
-    
+
     Attributes
     ----------
     params : Dict[str, Any]
@@ -55,9 +56,7 @@ class BasePreprocessor:
 
         return data_dict
 
-    def project_points_to_bev_map(self, 
-                                points: NDArray[np.float64], 
-                                ratio: float = 0.1) -> NDArray[np.float64]:
+    def project_points_to_bev_map(self, points: NDArray[np.float64], ratio: float = 0.1) -> NDArray[np.float64]:
         """
         Project points to BEV occupancy map with default ratio=0.1.
 

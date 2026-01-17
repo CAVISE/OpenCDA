@@ -19,7 +19,7 @@ from typing import List
 def get_relative_distances(window_size: int) -> torch.Tensor:
     """
     Generate relative position indices for a square window.
-    
+
     Computes pairwise relative positions between all spatial locations
     in a square window, used for relative position encoding in attention.
 
@@ -43,7 +43,7 @@ def get_relative_distances(window_size: int) -> torch.Tensor:
 class BaseWindowAttention(nn.Module):
     """
     Base window attention module that applies self-attention within local windows.
-    
+
     Parameters
     ----------
     dim : int
@@ -58,7 +58,7 @@ class BaseWindowAttention(nn.Module):
         Size of the attention window.
     relative_pos_embedding : bool
         Whether to use relative position embeddings.
-    
+
     Attributes
     ----------
     heads : int
@@ -79,15 +79,7 @@ class BaseWindowAttention(nn.Module):
         Output projection with dropout.
     """
 
-    def __init__(
-        self,
-        dim: int,
-        heads: int,
-        dim_head: int,
-        drop_out: float,
-        window_size: int,
-        relative_pos_embedding: bool
-    ):
+    def __init__(self, dim: int, heads: int, dim_head: int, drop_out: float, window_size: int, relative_pos_embedding: bool):
         super().__init__()
         inner_dim = dim_head * heads
 
@@ -113,7 +105,7 @@ class BaseWindowAttention(nn.Module):
         This method implements local window-based multi-head attention with optional
         relative positional embeddings. The input feature map is divided into
         non-overlapping windows, and attention is computed within each window.
-        
+
         Parameters
         ----------
         x : torch.Tensor
@@ -123,7 +115,7 @@ class BaseWindowAttention(nn.Module):
             - H: height of feature map
             - W: width of feature map
             - C: number of channels
-        
+
         Returns
         -------
         torch.Tensor
@@ -179,7 +171,7 @@ class BaseWindowAttention(nn.Module):
 class PyramidWindowAttention(nn.Module):
     """
     Multi-scale window attention with multiple window sizes.
-    
+
     Applies window-based self-attention at different scales (window sizes)
     and fuses the results using naive averaging or split attention.
 
@@ -194,7 +186,7 @@ class PyramidWindowAttention(nn.Module):
     drop_out : float
         Dropout probability.
     window_size : list of int
-        Window sizes for multi-scale attention 
+        Window sizes for multi-scale attention
     relative_pos_embedding : bool
         Whether to use relative position embeddings.
     fuse_method : str, optional
@@ -218,7 +210,7 @@ class PyramidWindowAttention(nn.Module):
         drop_out: float,
         window_size: List[int],
         relative_pos_embedding: bool,
-        fuse_method: str = "naive"
+        fuse_method: str = "naive",
     ):
         super().__init__()
 

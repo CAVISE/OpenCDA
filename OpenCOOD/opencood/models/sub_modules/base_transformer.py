@@ -130,7 +130,7 @@ class FeedForward(nn.Module):
         super().__init__()
         self.net = nn.Sequential(nn.Linear(dim, hidden_dim), nn.GELU(), nn.Dropout(dropout), nn.Linear(hidden_dim, dim), nn.Dropout(dropout))
 
-    def forward(self, x: Ttorch.ensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Forward pass through feed-forward network.
 
@@ -264,7 +264,7 @@ class BaseEncoder(nn.Module):
         List of transformer layers, each containing attention and feed-forward.
     """
 
-    def __init__(self, dim: int, depth: int, heads: int, dim_head: int, mlp_dim: int, dropout: float=0.0):
+    def __init__(self, dim: int, depth: int, heads: int, dim_head: int, mlp_dim: int, dropout: float = 0.0):
         super().__init__()
         self.layers = nn.ModuleList([])
         for _ in range(depth):
@@ -323,7 +323,7 @@ class BaseTransformer(nn.Module):
     encoder : BaseEncoder
         Transformer encoder module.
     """
-    
+
     def __init__(self, args: Dict[str, Any]):
         super().__init__()
 
