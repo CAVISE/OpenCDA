@@ -1,11 +1,18 @@
 # -*- coding: utf-8 -*-
-"""This module is used to check collision possibility"""
+"""
+Collision detection and checking module.
+
+This module provides collision detection capabilities for autonomous vehicles,
+including range checking, adjacent lane collision detection, and circle-based
+collision checking along trajectories.
+"""
 
 # Author: Runsheng Xu <rxx3386@ucla.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
 import math
 from math import sin, cos
 from scipy import spatial
+from typing import List, Tuple, Optional, Any
 
 import carla
 import numpy as np
@@ -26,32 +33,49 @@ class CollisionChecker:
         The radius of the collision checking circle.
     circle_offsets : float
         The offset between collision checking circle and the trajectory point.
+
+    Attributes
+    ----------
+    time_ahead : float
+        Time horizon for collision checking in seconds.
+    _circle_offsets : List[float]
+        Offsets for collision checking circles.
+    _circle_radius : float
+        Radius of collision checking circles in meters.
     """
 
-    def __init__(self, time_ahead=1.2, circle_radius=1.0, circle_offsets=None):
+    def __init__(
+        self,
+        time_ahead: float = 1.2,
+        circle_radius: float = 1.0,
+        circle_offsets: Optional[List[float]] = None,
+    ):
         self.time_ahead = time_ahead
         self._circle_offsets = [-1.0, 0, 1.0] if circle_offsets is None else circle_offsets
         self._circle_radius = circle_radius
 
-    def is_in_range(self, ego_pos, target_vehicle, candidate_vehicle, carla_map):
+    def is_in_range(
+        self,
+        ego_pos: carla.Transform,
+        target_vehicle: carla.Vehicle,
+        candidate_vehicle: carla.Vehicle,
+        carla_map: carla.Map,
+    ) -> bool:
         """
         Check whether there is a obstacle vehicle between target_vehicle
         and ego_vehicle during back_joining.
 
         Parameters
         ----------
-        carla_map : carla.map
-            Carla map  of the current simulation world.
-
         ego_pos : carla.transform
             Ego vehicle position.
-
         target_vehicle : carla.vehicle
             The target vehicle that ego vehicle trying to catch up with.
-
         candidate_vehicle : carla.vehicle
             The possible obstacle vehicle blocking the ego vehicle
             and target vehicle.
+        carla_map : carla.map
+            Carla map  of the current simulation world.
 
         Returns
         -------
@@ -88,27 +112,38 @@ class CollisionChecker:
 
         return True if angle <= 3 else False
 
-    def adjacent_lane_collision_check(self, ego_loc, target_wpt, overtake, carla_map, world):
+    def adjacent_lane_collision_check(
+        self,
+        ego_loc: carla.Location,
+        target_wpt: Any,
+        overtake: bool,
+        carla_map: Any,
+        world: Any,
+    ) -> Tuple[List[float], List[float], List[float]]:
         """
-        Generate a straight line in the adjacent lane for collision detection
-        during overtake/lane change.
+        Generate a straight line in the adjacent lane for collision detection during overtake/lane change.
 
-        Args:
-            -ego_loc (carla.Location): Ego Location.
-            -target_wpt (carla.Waypoint): the check point in the adjacent
-             at a far distance.
-            -overtake (bool): indicate whether this is an overtake or normal
-             lane change behavior.
-            -world (carla.World): CARLA Simulation world,
-             used to draw debug lines.
+        Parameters
+        ----------
+        ego_loc : carla.Location
+            Ego vehicle location.
+        target_wpt : carla.Waypoint
+            The check point in the adjacent lane at a far distance.
+        overtake : bool
+            Indicate whether this is an overtake or normal lane change behavior.
+        carla_map : carla.Map
+            CARLA map object.
+        world : carla.World
+            CARLA Simulation world, used to draw debug lines.
 
-        Returns:
-            -rx (list): the x coordinates of the collision check line in
-             the adjacent lane
-            -ry (list): the y coordinates of the collision check line in
-             the adjacent lane
-            -ryaw (list): the yaw angle of the the collision check line in
-             the adjacent lane
+        Returns
+        -------
+        rx : list of float
+            The x coordinates of the collision check line in the adjacent lane.
+        ry : list of float
+            The y coordinates of the collision check line in the adjacent lane.
+        ryaw : list of float
+            The yaw angles of the collision check line in the adjacent lane.
         """
         # we first need to consider the vehicle on the other lane in front
         if overtake:
@@ -157,23 +192,41 @@ class CollisionChecker:
 
         return rx, ry, ryaw
 
-    def collision_circle_check(self, path_x, path_y, path_yaw, obstacle_vehicle, speed, carla_map, adjacent_check=False):
+    def collision_circle_check(
+        self,
+        path_x: List[float],
+        path_y: List[float],
+        path_yaw: List[float],
+        obstacle_vehicle: Any,
+        speed: float,
+        carla_map: Any,
+        adjacent_check: bool = False,
+    ) -> bool:
         """
-        Use circled collision check to see whether potential hazard on
-        the forwarding path.
+        Use circled collision check to see whether potential hazard on the forwarding path.
 
-        Args:
-            -adjacent_check (boolean): Indicator of whether do adjacent check.
-             Note: always give full path for adjacent lane check.
-            -speed (float): ego vehicle speed in m/s.
-            -path_yaw (float): a list of yaw angles
-            -path_x (list): a list of x coordinates
-            -path_y (list): a list of y coordinates
-            -obstacle_vehicle (carla.vehicle): potention hazard vehicle
-             on the way
-        Returns:
-            -collision_free (boolean): Flag indicate whether the
-             current range is collision free.
+        Parameters
+        ----------
+        path_x : list of float
+            A list of x coordinates.
+        path_y : list of float
+            A list of y coordinates.
+        path_yaw : list of float
+            A list of yaw angles.
+        obstacle_vehicle : carla.Vehicle
+            Potential hazard vehicle on the way.
+        speed : float
+            Ego vehicle speed in m/s.
+        carla_map : carla.Map
+            CARLA map object.
+        adjacent_check : bool, optional
+            Indicator of whether to do adjacent check.
+            Note: always give full path for adjacent lane check. Default is False.
+
+        Returns
+        -------
+        collision_free : bool
+            Flag indicating whether the current range is collision free.
         """
         collision_free = True
         # detect x second ahead. in case the speed is very slow,

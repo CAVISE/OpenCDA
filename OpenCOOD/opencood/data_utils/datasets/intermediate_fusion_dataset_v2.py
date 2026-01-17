@@ -1,5 +1,9 @@
 """
-Dataset class for 2-stage backbone intermediate fusion
+Dataset class for intermediate fusion with version 2 enhancements.
+
+This module provides an implementation of an intermediate fusion dataset that
+handles multi-agent perception data with support for various fusion strategies
+and message passing between agents.
 """
 
 import math
@@ -16,6 +20,9 @@ from opencood.data_utils.pre_processor import build_preprocessor
 from opencood.utils.pcd_utils import mask_points_by_range, mask_ego_points, shuffle_points
 from opencood.utils.transformation_utils import x1_to_x2
 from opencood.pcdet_utils.roiaware_pool3d.roiaware_pool3d_utils import points_in_boxes_cpu
+from typing import Dict, List, Any, Tuple, Optional, Union
+from torch import Tensor
+from numpy.typing import NDArray
 
 
 # TODO: У модели fpvrcnn_intermediate_fusion в этом датасете возникает проблема с весами
@@ -25,11 +32,46 @@ from opencood.pcdet_utils.roiaware_pool3d.roiaware_pool3d_utils import points_in
 # Надо будет переобучить модель и обновить код
 class IntermediateFusionDatasetV2(basedataset.BaseDataset):
     """
-    This class is for intermediate fusion where each vehicle transmit the
-    deep features to ego.
+    Dataset class for intermediate fusion where each vehicle transmits deep features to ego.
+
+    This version includes enhancements for multi-stage processing and improved handling
+    of cooperative perception data with support for message passing between agents.
+
+    Attributes
+    ----------
+    pre_processor : object
+        Module for preprocessing LiDAR data.
+    post_processor : object
+        Module for post-processing detection results.
+    message_handler : Optional[object]
+        Handler for inter-vehicle communication.
+    module_name : str
+        Identifier for the module.
+
+    Parameters
+    ----------
+    params : Dict[str, Any]
+        Configuration dictionary containing dataset parameters.
+    visualize : bool
+        Whether to include visualization data.
+    train : bool, optional
+        Whether the dataset is used for training. Default is True.
+    message_handler : Optional[Any], optional
+        Handler for inter-vehicle communication. Default is None.
+
+    Attributes
+    ----------
+    pre_processor : object
+        Module for preprocessing LiDAR data.
+    post_processor : object
+        Module for post-processing detection results.
+    message_handler : Optional[object]
+        Handler for inter-vehicle communication.
+    module_name : str
+        Identifier for the module.
     """
 
-    def __init__(self, params, visualize, train=True, message_handler=None):
+    def __init__(self, params: Dict[str, Any], visualize: bool, train: bool = True, message_handler: Optional[Any] = None):
         super(IntermediateFusionDatasetV2, self).__init__(params, visualize, train)
         self.pre_processor = build_preprocessor(params["preprocess"], train)
         self.post_processor = post_processor.build_postprocessor(params["postprocess"], train)
@@ -38,10 +80,31 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
         self.module_name = "OpenCOOD.IntermediateFusionDatasetV2"
 
     @staticmethod
-    def __wrap_ndarray(ndarray):
+    def __wrap_ndarray(ndarray: NDArray[np.float32]) -> Dict[str, Any]:
+        """
+        Convert a NumPy array to a serializable dictionary.
+
+        Parameters
+        ----------
+        ndarray : NDArray[np.float32]
+            Input NumPy array.
+
+        Returns
+        -------
+        Dict[str, Any]
+            Dictionary containing the array data, shape, and dtype.
+        """
         return {"data": ndarray.tobytes(), "shape": ndarray.shape, "dtype": str(ndarray.dtype)}
 
-    def extract_data(self, idx):
+    def extract_data(self, idx: int) -> None:
+        """
+        Extract and prepare data for a given index.
+
+        Parameters
+        ----------
+        idx : int
+            Index of the data to extract.
+        """
         base_data_dict = self.retrieve_base_data(idx, cur_ego_pose_flag=self.cur_ego_pose_flag)
         _, ego_lidar_pose = self.__find_ego_vehicle(base_data_dict)
 
@@ -92,7 +155,27 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
                         "data": self.__wrap_ndarray(selected_cav_processed["projected_lidar"]),
                     }
 
-    def __find_ego_vehicle(self, base_data_dict):
+    def __find_ego_vehicle(self, base_data_dict: Dict[str, Any]) -> Tuple[int, List[float]]:
+        """
+        Find the ego vehicle in the base data dictionary.
+
+        Parameters
+        ----------
+        base_data_dict : Dict[str, Any]
+            Dictionary containing data for all CAVs.
+
+        Returns
+        -------
+        ego_id : int
+            ID of the ego vehicle.
+        ego_lidar_pose : List[float]
+            Lidar pose of the ego vehicle.
+
+        Raises
+        ------
+        NotImplementedError
+            If no ego vehicle is found or if the first element is not ego.
+        """
         ego_id = -1
         ego_lidar_pose = []
 
@@ -109,7 +192,34 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
 
         return ego_id, ego_lidar_pose
 
-    def __process_with_messages(self, ego_id, ego_lidar_pose, base_data_dict):
+    def __process_with_messages(
+        self, ego_id: int, ego_lidar_pose: List[float], base_data_dict: Dict[str, Any]
+    ) -> Dict[str, Union[List[Any], NDArray[np.float32]]]:
+        """
+        Process data with message handling for inter-vehicle communication.
+
+        This method handles the processing of data from multiple CAVs when message
+        passing is enabled. It collects and processes data from the ego vehicle and
+        other CAVs within communication range.
+
+        Parameters
+        ----------
+        ego_id : int
+            ID of the ego vehicle.
+        ego_lidar_pose : List[float]
+            Lidar pose of the ego vehicle in world coordinates.
+        base_data_dict : Dict[str, Any]
+            Dictionary containing base data for all CAVs.
+
+        Returns
+        -------
+        Dict[str, Union[List[Any], NDArray[np.float32]]]
+            Dictionary containing:
+            - processed_features: List of processed feature dictionaries
+            - object_stack: List of object bounding boxes
+            - object_id_stack: List of object IDs
+            - projected_lidar_stack: List of projected LiDAR point clouds
+        """
         processed_features = []
         object_stack = []
         object_id_stack = []
@@ -159,7 +269,24 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
             "projected_lidar_stack": projected_lidar_stack,
         }
 
-    def __process_without_messages(self, ego_lidar_pose, base_data_dict):
+    def __process_without_messages(
+        self, ego_lidar_pose: List[float], base_data_dict: Dict[str, Any]
+    ) -> Dict[str, Union[List[Any], NDArray[np.float32]]]:
+        """
+        Process data without using message passing.
+
+        Parameters
+        ----------
+        ego_lidar_pose : List[float]
+            Lidar pose of the ego vehicle in world coordinates.
+        base_data_dict : Dict[str, Any]
+            Dictionary containing base data for all CAVs.
+
+        Returns
+        -------
+        Dict[str, Union[List[Any], NDArray[np.float32]]]
+            Dictionary containing processed data (same structure as __process_with_messages).
+        """
         processed_features = []
         object_stack = []
         object_id_stack = []
@@ -189,7 +316,20 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
             "projected_lidar_stack": projected_lidar_stack,
         }
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx: int) -> Dict[str, Any]:
+        """
+        Get a single data sample by index.
+
+        Parameters
+        ----------
+        idx : int
+            Index of the data sample to retrieve.
+
+        Returns
+        -------
+        Dict[str, Any]
+            Dictionary containing the processed data sample with ego vehicle information.
+        """
         # put here to avoid initialization error
         base_data_dict = self.retrieve_base_data(idx)
 
@@ -271,21 +411,21 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
         processed_data_dict["ego"].update({"origin_lidar": data["projected_lidar_stack"]})
         return processed_data_dict
 
-    def get_item_single_car(self, selected_cav_base, ego_pose):
+    def get_item_single_car(self, selected_cav_base: Dict[str, Any], ego_pose: List[float]) -> Dict[str, Any]:
         """
         Project the lidar and bbx to ego space first, and then do clipping.
 
         Parameters
         ----------
-        selected_cav_base : dict
-            The dictionary contains a single CAV's raw information.
-        ego_pose : list
-            The ego vehicle lidar pose under world coordinate.
+        selected_cav_base : Dict[str, Any]
+            Dictionary containing a single CAV's raw information.
+        ego_pose : List[float]
+            Ego vehicle lidar pose under world coordinate.
 
         Returns
         -------
-        selected_cav_processed : dict
-            The dictionary contains the cav's processed information.
+        Dict[str, Any]
+            Dictionary containing the CAV's processed information.
         """
         selected_cav_processed = {}
 
@@ -317,23 +457,22 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
         return selected_cav_processed
 
     @staticmethod
-    def merge_features_to_dict(processed_feature_list):
+    def merge_features_to_dict(
+        processed_feature_list: List[Dict[str, Union[List[NDArray[np.float32]], NDArray[np.float32]]]],
+    ) -> Dict[str, List[NDArray[np.float32]]]:
         """
-        Merge the preprocessed features from different cavs to the same
-        dictionary.
+        Merge the preprocessed features from different cavs to the same dictionary.
 
         Parameters
         ----------
-        processed_feature_list : list
-            A list of dictionary containing all processed features from
-            different cavs.
+        processed_feature_list : List[Dict[str, Union[List[NDArray[np.float32]], NDArray[np.float32]]]]
+            List of dictionaries containing all processed features from different cavs.
 
         Returns
         -------
-        merged_feature_dict: dict
-            key: feature names, value: list of features.
+        Dict[str, List[NDArray[np.float32]]]
+            Dictionary where key is feature name and value is list of features.
         """
-
         merged_feature_dict = OrderedDict()
 
         for i in range(len(processed_feature_list)):
@@ -347,7 +486,20 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
 
         return merged_feature_dict
 
-    def collate_batch_train(self, batch):
+    def collate_batch_train(self, batch: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        Collate a batch of training samples.
+
+        Parameters
+        ----------
+        batch : List[Dict[str, Any]]
+            List of data samples to collate.
+
+        Returns
+        -------
+        Dict[str, Any]
+            Dictionary containing batched data with ego vehicle information.
+        """
         # Intermediate fusion is different the other two
         output_dict = {"ego": {}}
 
@@ -424,7 +576,28 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
 
         return output_dict
 
-    def collate_batch_test(self, batch):
+    def collate_batch_test(self, batch: List[Dict[str, Dict[str, Any]]]) -> Dict[str, Dict[str, Union[Tensor, Dict[str, Tensor]]]]:
+        """
+        Collate function for test data batches.
+
+        This method processes a batch of test data, ensuring batch size is 1 and
+        adding necessary tensors like anchor boxes and transformation matrices.
+
+        Parameters
+        ----------
+        batch : List[Dict[str, Dict[str, Any]]]
+            List containing a single test sample's data dictionary.
+
+        Returns
+        -------
+        Dict[str, Dict[str, Union[Tensor, Dict[str, Tensor]]]]
+            Dictionary containing the collated test batch with ego vehicle information.
+
+        Raises
+        ------
+        NotImplementedError
+            If batch size is greater than 1.
+        """
         assert len(batch) <= 1, "Batch size 1 is required during testing!"
         output_dict = self.collate_batch_train(batch)
 
@@ -438,31 +611,55 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
 
         return output_dict
 
-    def post_process(self, data_dict, output_dict):
+    def post_process(self, data_dict: Dict[str, Any], output_dict: Dict[str, Any]) -> Tuple[Tensor, Tensor, Tensor]:
         """
         Process the outputs of the model to 2D/3D bounding box.
 
         Parameters
         ----------
-        data_dict : dict
-            The dictionary containing the origin input data of model.
-
-        output_dict :dict
-            The dictionary containing the output of the model.
+        data_dict : Dict[str, Any]
+            Dictionary containing the origin input data of model.
+        output_dict : Dict[str, Any]
+            Dictionary containing the output of the model.
 
         Returns
         -------
-        pred_box_tensor : torch.Tensor
-            The tensor of prediction bounding box after NMS.
-        gt_box_tensor : torch.Tensor
-            The tensor of gt bounding box.
+        pred_box_tensor : Tensor
+            Tensor of prediction bounding boxes after NMS.
+        pred_score : Tensor
+            Tensor of confidence scores for predicted boxes.
+        gt_box_tensor : Tensor
+            Tensor of ground truth bounding boxes.
         """
         pred_box_tensor, pred_score = self.post_processor.post_process(data_dict, output_dict)
         gt_box_tensor = self.post_processor.generate_gt_bbx(data_dict)
 
         return pred_box_tensor, pred_score, gt_box_tensor
 
-    def visualize_result(self, pred_box_tensor, gt_tensor, pcd, show_vis, save_path, dataset=None):
+    def visualize_result(
+        self, pred_box_tensor: Tensor, gt_tensor: Tensor, pcd: NDArray[np.float32], show_vis: bool, save_path: str, dataset: Optional[Any] = None
+    ) -> None:
+        """
+        Visualize the model's predictions and ground truth.
+
+        This method processes the point cloud data and visualizes the predicted
+        and ground truth bounding boxes.
+
+        Parameters
+        ----------
+        pred_box_tensor : Tensor
+            Tensor containing predicted bounding boxes.
+        gt_tensor : Tensor
+            Tensor containing ground truth bounding boxes.
+        pcd : NDArray[np.float32]
+            Point cloud data in shape (n, 5), where the first column is intensity.
+        show_vis : bool
+            Whether to display the visualization.
+        save_path : str
+            Path where to save the visualization.
+        dataset : Optional[Any], optional
+            Optional dataset object for additional context in visualization. Default is None.
+        """
         # we need to convert the pcd from [n, 5] -> [n, 4]
         pcd = pcd[:, 1:]
         # visualize the model output

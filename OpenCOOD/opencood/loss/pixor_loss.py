@@ -1,34 +1,74 @@
+"""
+Loss functions for PIXOR 3D object detection.
+
+This module implements the loss function for the PIXOR architecture.
+"""
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from typing import Optional, Dict, Any
 
 
 class PixorLoss(nn.Module):
-    def __init__(self, args):
+    """
+    PIXOR loss function for 3D object detection.
+
+    Parameters
+    ----------
+    args : Dict[str, Any]
+        Configuration dictionary containing loss parameters.
+
+    Attributes
+    ----------
+    alpha : float
+        Classification loss weight.
+    beta : float
+        Regression loss weight.
+    loss_dict : Dict[str, Any]
+        Dictionary to store individual loss components for logging
+    """
+
+    def __init__(self, args: Dict[str, Any]):
         super(PixorLoss, self).__init__()
         self.alpha = args["alpha"]
         self.beta = args["beta"]
         self.loss_dict = {}
 
-    def dtype(self):
-        return torch.float16
-
-    def forward(self, output_dict, target_dict):
+    def dtype(self) -> torch.dtype:
         """
-        Compute loss for pixor network
-        Parameters
-        ----------
-        output_dict : dict
-           The dictionary that contains the output.
-
-        target_dict : dict
-           The dictionary that contains the target.
+        Get the default data type for the loss computation.
 
         Returns
         -------
-        total_loss : torch.Tensor
-            Total loss.
+        torch.dtype
+            The default data type (float16).
+        """
+        return torch.float16
 
+    def forward(self, output_dict: Dict[str, torch.Tensor], target_dict: Dict[str, torch.Tensor]) -> torch.Tensor:
+        """
+        Compute loss for PIXOR network.
+
+        Parameters
+        ----------
+        output_dict : dict
+            Dictionary containing model outputs:
+            - cls : torch.Tensor
+                Classification predictions with shape (B, 1, H, W)
+            - reg : torch.Tensor
+                Regression predictions with shape (B, 6, H, W)
+        target_dict : dict
+            Dictionary containing ground truth:
+            - label_map : torch.Tensor
+                Target tensor with shape (B, 7, H, W) where channels are:
+                - channel 0: classification target
+                - channels 1-6: regression targets
+
+        Returns
+        -------
+        torch.Tensor
+            Total loss value (scalar tensor).
         """
         targets = target_dict["label_map"]
         cls_preds, loc_preds = output_dict["cls"], output_dict["reg"]
@@ -69,20 +109,23 @@ class PixorLoss(nn.Module):
 
         return total_loss
 
-    def logging(self, epoch, batch_id, batch_len, writer, pbar=None):
+    def logging(self, epoch: int, batch_id: int, batch_len: int, writer: Any, pbar: Optional[Any] = None) -> None:
         """
-        Print out  the loss function for current iteration.
+        Print out the loss function for current iteration.
 
         Parameters
         ----------
         epoch : int
             Current epoch for training.
         batch_id : int
-            The current batch.
+            The current batch index.
         batch_len : int
-            Total batch length in one iteration of training,
+            Total batch length in one iteration of training.
         writer : SummaryWriter
-            Used to visualize on tensorboard
+            TensorBoard SummaryWriter instance for visualization.
+        pbar : tqdm, optional
+            Progress bar instance. If None, prints to console instead.
+            Default is None.
         """
         total_loss = self.loss_dict["total_loss"]
         reg_loss = self.loss_dict["reg_loss"]
@@ -104,6 +147,12 @@ class PixorLoss(nn.Module):
 
 
 def test():
+    """
+    Test function for PixorLoss.
+
+    Creates a simple test case with random predictions and zero labels
+    to verify the loss computation works correctly.
+    """
     torch.manual_seed(0)
     loss = PixorLoss(None)
     pred = torch.sigmoid(torch.randn(1, 7, 2, 3))

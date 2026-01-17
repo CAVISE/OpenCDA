@@ -1,12 +1,18 @@
 """
-Dataset class for early fusion
+Early fusion dataset for cooperative perception.
+
+This module provides the dataset implementation for early fusion approaches in
+cooperative autonomous driving, where LiDAR point clouds from multiple vehicles
+are fused before feature extraction.
 """
 
 import math
 import logging
 from collections import OrderedDict
+from typing import Dict, List, Tuple, Any, Optional
 
 import numpy as np
+from numpy.typing import NDArray
 import torch
 
 import opencood.data_utils.datasets
@@ -22,19 +28,60 @@ logger = logging.getLogger("cavise.OpenCOOD.opencood.data_utils.datasets.early_f
 
 class EarlyFusionDataset(basedataset.BaseDataset):
     """
-    This dataset is used for early fusion, where each CAV transmit the raw
-    point cloud to the ego vehicle.
+    Dataset class for early fusion cooperative perception.
+
+    Parameters
+    ----------
+    params : Dict[str, Any]
+        Configuration dictionary containing dataset parameters.
+    visualize : bool
+        Whether to include visualization data.
+    train : bool
+        Whether the dataset is used for training. Default is True.
+    message_handler : Optional[Any]
+        Handler for inter-vehicle communication. Default is None.
+
+    Attributes
+    ----------
+    pre_processor : Any
+        Preprocessor for point cloud data.
+    post_processor : Any
+        Postprocessor for generating labels and bounding boxes.
+    message_handler : Optional[Any]
+        Handler for inter-vehicle communication.
+    module_name : str
+        Identifier for the module.
     """
 
-    def __init__(self, params, visualize, train=True, message_handler=None):
-        super(EarlyFusionDataset, self).__init__(params, visualize, train)
+    def __init__(
+        self,
+        params: Dict[str, Any],
+        visualize: bool,
+        train: bool = True,
+        message_handler: Optional[Any] = None,
+    ):
+        super().__init__(params, visualize, train)
+
         self.pre_processor = build_preprocessor(params["preprocess"], train)
         self.post_processor = build_postprocessor(params["postprocess"], train)
 
         self.message_handler = message_handler
         self.module_name = "OpenCOOD.EarlyFusionDataset"
 
-    def __find_ego_vehicle(self, base_data_dict):
+    def __find_ego_vehicle(self, base_data_dict: Dict[str, Dict[str, Any]]) -> Tuple[int, List[float]]:
+        """
+        Find the ego vehicle in the base data dictionary.
+
+        Parameters
+        ----------
+        base_data_dict : Dict[str, Dict[str, Any]]
+            Dictionary containing data for all CAVs.
+
+        Returns
+        -------
+        Tuple[int, List[float]]
+            Tuple containing ego vehicle ID and its LiDAR pose.
+        """
         ego_id = -1
         ego_lidar_pose = []
 
@@ -51,10 +98,21 @@ class EarlyFusionDataset(basedataset.BaseDataset):
         return ego_id, ego_lidar_pose
 
     @staticmethod
-    def __wrap_ndarray(ndarray):
+    def __wrap_ndarray(ndarray: NDArray) -> Dict[str, Any]:
         return {"data": ndarray.tobytes(), "shape": ndarray.shape, "dtype": str(ndarray.dtype)}
 
-    def extract_data(self, idx):
+    def extract_data(self, idx: int):
+        """
+        Extract and package data for V2V communication simulation.
+
+        Retrieves base data, processes each CAV's data, and sends messages
+        through the message handler for communication simulation.
+
+        Parameters
+        ----------
+        idx : int
+        Dataset sample index corresponding to a specific scenario frame.
+        """
         base_data_dict = self.retrieve_base_data(idx)
         _, ego_lidar_pose = self.__find_ego_vehicle(base_data_dict)
 
@@ -84,7 +142,29 @@ class EarlyFusionDataset(basedataset.BaseDataset):
                         "data": self.__wrap_ndarray(selected_cav_processed["projected_lidar"]),
                     }
 
-    def __process_with_messages(self, ego_id, ego_lidar_pose, base_data_dict):
+    def __process_with_messages(
+        self,
+        ego_id: int,
+        ego_lidar_pose: List[float],
+        base_data_dict: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """
+        Process data with message handling for inter-vehicle communication.
+
+        Parameters
+        ----------
+        ego_id : int
+            ID of the ego vehicle.
+        ego_lidar_pose : List[float]
+            Lidar pose of the ego vehicle.
+        base_data_dict : Dict[str, Any]
+            Dictionary containing base data for all CAVs.
+
+        Returns
+        -------
+        Dict[str, Any]
+            Processed data containing object stack, object IDs, and projected lidar.
+        """
         object_stack = []
         object_id_stack = []
         projected_lidar_stack = []
@@ -112,7 +192,26 @@ class EarlyFusionDataset(basedataset.BaseDataset):
 
         return {"object_stack": object_stack, "object_id_stack": object_id_stack, "projected_lidar_stack": projected_lidar_stack}
 
-    def __process_without_messages(self, ego_lidar_pose, base_data_dict):
+    def __process_without_messages(
+        self,
+        ego_lidar_pose: List[float],
+        base_data_dict: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """
+        Process data without message handling.
+
+        Parameters
+        ----------
+        ego_lidar_pose : List[float]
+            Lidar pose of the ego vehicle.
+        base_data_dict : Dict[str, Any]
+            Dictionary containing base data for all CAVs.
+
+        Returns
+        -------
+        Dict[str, Any]
+            Processed data containing object stack, object IDs, and projected lidar.
+        """
         projected_lidar_stack = []
         object_stack = []
         object_id_stack = []
@@ -134,7 +233,35 @@ class EarlyFusionDataset(basedataset.BaseDataset):
 
         return {"object_stack": object_stack, "object_id_stack": object_id_stack, "projected_lidar_stack": projected_lidar_stack}
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx: int) -> Dict[str, Any]:
+        """
+        Get a single data sample by index.
+
+        Parameters
+        ----------
+        idx : int
+            Index of the data sample.
+
+        Returns
+        -------
+        processed_data_dict : dict of {str: dict}
+        Dictionary containing:
+            - ego : dict
+                - object_bbx_center : NDArray (max_num, 7)
+                    Padded object bounding boxes.
+                - object_bbx_mask : NDArray (max_num,)
+                    Binary mask for valid objects.
+                - object_ids : list of str
+                    Unique object IDs after deduplication.
+                - anchor_box : NDArray
+                    Generated anchor boxes for detection.
+                - processed_lidar : dict
+                    Preprocessed LiDAR (voxels/BEV).
+                - label_dict : dict
+                    Ground truth labels for training.
+                - origin_lidar : NDArray, optional
+                    Raw fused point cloud (if visualize=True).
+        """
         base_data_dict = self.retrieve_base_data(idx)
         processed_data_dict = OrderedDict()
         processed_data_dict["ego"] = {}
@@ -200,7 +327,7 @@ class EarlyFusionDataset(basedataset.BaseDataset):
 
         return processed_data_dict
 
-    def get_item_single_car(self, selected_cav_base, ego_pose):
+    def get_item_single_car(self, selected_cav_base: Dict[str, Any], ego_pose: List[float]) -> Dict[str, Any]:
         """
         Project the lidar and bbx to ego space first, and then do clipping.
 
@@ -214,7 +341,13 @@ class EarlyFusionDataset(basedataset.BaseDataset):
         Returns
         -------
         selected_cav_processed : dict
-            The dictionary contains the cav's processed information.
+        Processed CAV data:
+            - object_bbx_center : NDArray
+                Valid object bounding boxes in ego frame.
+            - object_ids : list of str
+                Object IDs.
+            - projected_lidar : NDArray
+                LiDAR points (N, 4) in ego frame.
         """
         selected_cav_processed = {}
 
@@ -238,7 +371,7 @@ class EarlyFusionDataset(basedataset.BaseDataset):
 
         return selected_cav_processed
 
-    def collate_batch_test(self, batch):
+    def collate_batch_test(self, batch: List[Dict[str, Dict[str, Any]]]) -> Dict[str, Dict[str, torch.Tensor]]:
         """
         Customized collate function for pytorch dataloader during testing
         for late fusion dataset.
@@ -249,8 +382,17 @@ class EarlyFusionDataset(basedataset.BaseDataset):
 
         Returns
         -------
-        batch : dict
-            Reformatted batch.
+        output_dict : dict of {str: dict}
+            Reformatted batch dictionary with tensors:
+                - {cav_id}: dict
+                    - object_bbx_center : torch.Tensor (1, max_num, 7)
+                    - object_bbx_mask : torch.Tensor (1, max_num)
+                    - anchor_box : torch.Tensor, optional
+                    - processed_lidar : dict of tensors
+                    - label_dict : dict of tensors
+                    - object_ids : list of str
+                    - transformation_matrix : torch.Tensor (4, 4)
+                    - origin_lidar : torch.Tensor, optional (if visualize=True)
         """
         # currently, we only support batch size of 1 during testing
         assert len(batch) <= 1, "Batch size 1 is required during testing!"
@@ -298,7 +440,7 @@ class EarlyFusionDataset(basedataset.BaseDataset):
 
         return output_dict
 
-    def post_process(self, data_dict, output_dict):
+    def post_process(self, data_dict: Dict[str, Any], output_dict: Dict[str, torch.Tensor]) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Process the outputs of the model to 2D/3D bounding box.
 

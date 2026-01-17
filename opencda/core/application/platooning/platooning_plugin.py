@@ -1,11 +1,16 @@
 # -*- coding: utf-8 -*-
+"""
+Platooning plugin for V2X communication and finite state machine management.
 
-"""Platooning plugin for communication and track FSM"""
-
+This module provides the platooning application plugin that manages platoon
+membership, status tracking, and vehicle coordination within a platoon through
+V2X communication.
+"""
 # Author: Runsheng Xu <rxx3386@ucla.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
 import warnings
+from typing import Optional, Dict, List, Tuple, Any
 
 from opencda.core.common.misc import compute_distance, cal_distance_angle
 from opencda.core.application.platooning.fsm import FSM
@@ -13,50 +18,48 @@ from opencda.core.application.platooning.fsm import FSM
 
 class PlatooningPlugin(object):
     """
-    Platooning plugin inside the V2X manager.
+    Platooning plugin for V2X manager.
+
+    Manages platoon membership, finite state machine transitions, and
+    vehicle-to-vehicle coordination for cooperative adaptive cruise control
+    in platoons.
 
     Parameters
     ----------
     search_range : float
-        The search range of the communication equipment.
-
-    cda_enabled : boolean
-        Whether connectivity is supported.
+        Search range of the communication equipment in meters.
+    cda_enabled : bool
+        Whether cooperative driving automation connectivity is supported.
 
     Attributes
     ----------
-    leader : boolean
-        Boolean indicator of the platoon leader status.
-
-    platooning_object : opencda object
-        The current platoon object.
-
-    platooning_id : int
-        The current platoon ID.
-
-    in_id : int
-        The position in the platoon.
-
-    status : enum
-        The current platooning status.
-
-    ego_pos : carla.transformation
-        The current position (i.e., location and rotation) of the ego vehicle.
-
-    ego_spd : float
-        The current speed(km/h) of the ego vehicle.
-
-    platooning_blacklist : list
-        The platoon in the black list won't be considered again.
-
-    front_vehicle : opencda object
-        The front vehicle manager of the ego vehicle.
-
-    rear_vechile : opencda object
-        The rear vehicle manager of the ego vehicle.
+    search_range : float
+        Maximum communication range for platoon searching.
+    cda_enabled : bool
+        Connectivity support flag.
+    leader : bool
+        True if this vehicle is the platoon leader.
+    platooning_object : Any or None
+        Current platoon object reference.
+    platooning_id : int or None
+        ID of the current platoon.
+    in_id : int or None
+        Position index within the platoon.
+    status : str or None
+        Current platooning FSM status.
+    ego_pos : carla.Transform or None
+        Current position and rotation of the ego vehicle.
+    ego_spd : float or None
+        Current speed of the ego vehicle in km/h.
+    platooning_blacklist : List[int]
+        List of platoon IDs that won't be considered for joining.
+    front_vehicle : Any or None
+        Vehicle manager of the vehicle in front.
+    rear_vechile : Any or None
+        Vehicle manager of the vehicle behind.
     """
 
-    def __init__(self, search_range, cda_enabled):
+    def __init__(self, search_range: float, cda_enabled: bool):
         self.search_range = search_range
         self.cda_enabled = cda_enabled
 
@@ -78,24 +81,26 @@ class PlatooningPlugin(object):
         self.front_vehicle = None
         self.rear_vechile = None
 
-    def update_info(self, ego_pos, ego_spd):
+    def update_info(self, ego_pos: Any, ego_spd: float) -> None:
         """
-        Update the ego position and speed
+        Update ego vehicle position and speed.
 
         Parameters
         ----------
-        ego_pos: carla.Transform
-            Ego pose.
-
+        ego_pos : carla.Transform
+            Ego vehicle pose (location and rotation).
         ego_spd : float
-            Ego speed(km/h).
+            Ego vehicle speed in km/h.
         """
         self.ego_pos = ego_pos
         self.ego_spd = ego_spd
 
-    def reset(self):
+    def reset(self) -> None:
         """
-        Reset to the origin status.
+        Reset platooning plugin to initial state.
+
+        Clears platoon membership, leader status, and neighboring vehicle
+        references.
         """
         self.front_vehicle = None
         self.rear_vechile = None
@@ -105,23 +110,26 @@ class PlatooningPlugin(object):
         self.platooning_id = None
         self.in_id = None
 
-    def set_platoon(self, in_id, platooning_object=None, platooning_id=None, leader=False):
+    def set_platoon(
+        self,
+        in_id: Optional[int],
+        platooning_object: Optional[Any] = None,
+        platooning_id: Optional[int] = None,
+        leader: bool = False,
+    ) -> None:
         """
-        Set platooning status.
+        Set platoon membership status.
 
         Parameters
         ----------
-        in_id : int
-            Inner platoon ID of the vehicle.
-
-        platooning_object : opencda object
-            The current platoon object.
-
-        platooning_id : int
-            The current platoon ID.
-
-        leader : bool
-            Boolean indicator of the platoon leader status.
+        in_id : int or None
+            Position index within the platoon. None to start searching.
+        platooning_object : Any, optional
+            Current platoon object reference. Default is None.
+        platooning_id : int, optional
+            Current platoon ID. Default is None.
+        leader : bool, optional
+            Whether this vehicle is the platoon leader. Default is False.
         """
         if in_id is None:
             if not self.cda_enabled:
@@ -143,36 +151,35 @@ class PlatooningPlugin(object):
         else:
             self.set_status(FSM.MAINTINING)
 
-    def set_status(self, status):
+    def set_status(self, status: str) -> None:
         """
-        Set FSM status
+        Set finite state machine status.
 
         Parameters
         ----------
         status : str
-            The current platooning status.
+            Current platooning FSM status (e.g., SEARCHING, LEADING_MODE,
+            MAINTINING, DISABLE).
         """
         self.status = status
 
-    def search_platoon(self, ego_loc, cav_nearby):
+    def search_platoon(self, ego_loc: Any, cav_nearby: Dict[Any, Any]) -> Tuple[Optional[int], Optional[Any]]:
         """
-        Search platoon candidate in the range
+        Search for platoon candidates within communication range.
 
         Parameters
         ----------
         ego_loc : carla.Location
-            Ego vehicle current position.
-
-        cav_nearby : dict
-             The dictionary contains all the cavs nearby.
+            Ego vehicle current location.
+        cav_nearby : Dict[Any, Any]
+            Dictionary of nearby connected and automated vehicles.
 
         Returns
         -------
-        pmid : int
-            Platoon manager ID.
-
-        pm : opencda object
-            Platoon manager ID.
+        pmid : int or None
+            Platoon manager ID of the closest platoon, or None if not found.
+        pm : Any or None
+            Platoon manager object of the closest platoon, or None if not found.
         """
         pm = None
         pmid = None
@@ -194,25 +201,26 @@ class PlatooningPlugin(object):
 
         return pmid, pm
 
-    def match_platoon(self, cav_nearby):
+    def match_platoon(self, cav_nearby: Dict[Any, Any]) -> Tuple[bool, int, List[Any]]:
         """
-        A naive way to find the best position to join a platoon
+        Find the best position to join a platoon.
+
+        Uses a naive matching algorithm to determine the optimal insertion
+        point in a nearby platoon based on distance and angle.
 
         Parameters
         ----------
-        cav_nearby : dict
-            The dictionary contains all the cavs nearby.
+        cav_nearby : Dict[Any, Any]
+            Dictionary of nearby connected and automated vehicles.
 
         Returns
         -------
         matched : bool
-            The boolean indicator of matching result.
-
+            True if a suitable platoon position was found.
         min_index : int
-            The minimum index inside the selected platoon.
-
-        platoon_vehicle_list : list
-            The list of platoon members.
+            Index position in the platoon to join (-1 if no match).
+        platoon_vehicle_list : List[Any]
+            List of vehicle managers in the matched platoon.
         """
 
         # make sure the previous status won't influence current one

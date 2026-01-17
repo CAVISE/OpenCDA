@@ -1,25 +1,55 @@
+"""
+Convolutional Gated Recurrent Unit (ConvGRU) Module.
+
+This module implements ConvGRU cells and multi-layer ConvGRU networks for
+processing spatiotemporal data using gated recurrent units with convolutional operations.
+"""
+
+from typing import List, Any, Tuple, Union, Optional
 import torch
 from torch import nn
 from torch.autograd import Variable
 
 
 class ConvGRUCell(nn.Module):
-    def __init__(self, input_size, input_dim, hidden_dim, kernel_size, bias):
-        """
-        Initialize the ConvLSTM cell
-        :param input_size: (int, int)
-            Height and width of input tensor as (height, width).
-        :param input_dim: int
-            Number of channels of input tensor.
-        :param hidden_dim: int
-            Number of channels of hidden state.
-        :param kernel_size: (int, int)
-            Size of the convolutional kernel.
-        :param bias: bool
-            Whether or not to add the bias.
-        :param dtype: torch.cuda.FloatTensor or torch.FloatTensor
-            Whether or not to use cuda.
-        """
+    """
+    Convolutional GRU cell.
+
+    This cell implements a single GRU unit with convolutional operations
+    instead of fully connected layers, suitable for processing spatial data.
+
+    Parameters
+    ----------
+    input_size : tuple of int
+        Height and width of input tensor as (height, width).
+    input_dim : int
+        Number of channels of input tensor.
+    hidden_dim : int
+        Number of channels of hidden state.
+    kernel_size : tuple of int
+        Size of the convolutional kernel as (kernel_h, kernel_w).
+    bias : bool
+        Whether or not to add bias in convolutions.
+
+    Attributes
+    ----------
+    height : int
+        Height of input tensor.
+    width : int
+        Width of input tensor.
+    padding : tuple of int
+        Padding for convolutions to maintain spatial dimensions.
+    hidden_dim : int
+        Number of hidden channels.
+    bias : bool
+        Whether bias is used.
+    conv_gates : nn.Conv2d
+        Convolution for computing update and reset gates.
+    conv_can : nn.Conv2d
+        Convolution for computing candidate hidden state.
+    """
+
+    def __init__(self, input_size: Tuple[int, int], input_dim: int, hidden_dim: int, kernel_size: Tuple[int, int], bias: bool):
         super(ConvGRUCell, self).__init__()
         self.height, self.width = input_size
         self.padding = kernel_size[0] // 2, kernel_size[1] // 2
@@ -44,18 +74,37 @@ class ConvGRUCell(nn.Module):
             bias=self.bias,
         )
 
-    def init_hidden(self, batch_size):
+    def init_hidden(self, batch_size: int) -> torch.Tensor:
+        """
+        Initialize hidden state with zeros.
+
+        Parameters
+        ----------
+        batch_size : int
+            Batch size.
+
+        Returns
+        -------
+        Tensor
+            Zero-initialized hidden state with shape (B, hidden_dim, H, W).
+        """
         return Variable(torch.zeros(batch_size, self.hidden_dim, self.height, self.width))
 
-    def forward(self, input_tensor, h_cur):
+    def forward(self, input_tensor: torch.Tensor, h_cur: torch.Tensor) -> torch.Tensor:
         """
-        :param self:
-        :param input_tensor: (b, c, h, w)
-            input is actually the target_model
-        :param h_cur: (b, c_hidden, h, w)
-            current hidden and cell states respectively
-        :return: h_next,
-            next hidden state
+        Forward pass through the ConvGRU cell.
+
+        Parameters
+        ----------
+        input_tensor : Tensor
+            Input features with shape (B, input_dim, H, W).
+        h_cur : Tensor
+            Current hidden state with shape (B, hidden_dim, H, W).
+
+        Returns
+        -------
+        Tensor
+            Next hidden state with shape (B, hidden_dim, H, W).
         """
         combined = torch.cat([input_tensor, h_cur], dim=1)
         combined_conv = self.conv_gates(combined)
@@ -73,29 +122,68 @@ class ConvGRUCell(nn.Module):
 
 
 class ConvGRU(nn.Module):
-    def __init__(self, input_size, input_dim, hidden_dim, kernel_size, num_layers, batch_first=False, bias=True, return_all_layers=False):
-        """
-        :param input_size: (int, int)
-            Height and width of input tensor as (height, width).
-        :param input_dim: int e.g. 256
-            Number of channels of input tensor.
-        :param hidden_dim: int e.g. 1024
-            Number of channels of hidden state.
-        :param kernel_size: (int, int)
-            Size of the convolutional kernel.
-        :param num_layers: int
-            Number of ConvLSTM layers
-        :param dtype: torch.cuda.FloatTensor or torch.FloatTensor
-            Whether or not to use cuda.
-        :param alexnet_path: str
-            pretrained alexnet parameters
-        :param batch_first: bool
-            if the first position of array is batch or not
-        :param bias: bool
-            Whether or not to add the bias.
-        :param return_all_layers: bool
-            if return hidden and cell states for all layers
-        """
+    """
+    Multi-layer Convolutional GRU network.
+
+    This module stacks multiple ConvGRU cells to create a deep recurrent
+    network for spatiotemporal sequence processing.
+
+    Parameters
+    ----------
+    input_size : tuple of int
+        Height and width of input tensor as (height, width).
+    input_dim : int
+        Number of channels of input tensor (e.g., 256).
+    hidden_dim : int or list of int
+        Number of channels of hidden state for each layer (e.g., 1024 or [512, 1024]).
+    kernel_size : tuple of int or list of tuple of int
+        Size of the convolutional kernel for each layer.
+    num_layers : int
+        Number of ConvGRU layers.
+    batch_first : bool, optional
+        If True, input shape is (B, T, C, H, W). If False, (T, B, C, H, W).
+        Default is False.
+    bias : bool, optional
+        Whether to add bias in convolutions. Default is True.
+    return_all_layers : bool, optional
+        If True, return hidden states for all layers. Otherwise, only return
+        the last layer. Default is False.
+
+    Attributes
+    ----------
+    height : int
+        Height of input tensor.
+    width : int
+        Width of input tensor.
+    input_dim : int
+        Number of input channels.
+    hidden_dim : list of int
+        Number of hidden channels for each layer.
+    kernel_size : list of tuple of int
+        Kernel sizes for each layer.
+    num_layers : int
+        Number of layers.
+    batch_first : bool
+        Whether batch dimension is first.
+    bias : bool
+        Whether bias is used.
+    return_all_layers : bool
+        Whether to return all layer outputs.
+    cell_list : nn.ModuleList
+        List of ConvGRU cells for each layer.
+    """
+
+    def __init__(
+        self,
+        input_size: Tuple[int, int],
+        input_dim: int,
+        hidden_dim: Union[int, List[int]],
+        kernel_size: Union[Tuple[int, int], List[Tuple[int, int]]],
+        num_layers: int,
+        batch_first: bool = False,
+        bias: bool = True,
+        return_all_layers: bool = False,
+    ):
         super(ConvGRU, self).__init__()
 
         # Make sure that both `kernel_size` and
@@ -130,12 +218,30 @@ class ConvGRU(nn.Module):
         # convert python list to pytorch module
         self.cell_list = nn.ModuleList(cell_list)
 
-    def forward(self, input_tensor, hidden_state=None):
+    def forward(self, input_tensor: torch.Tensor, hidden_state: Optional[List[torch.Tensor]] = None) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
         """
-        :param input_tensor: (b, t, c, h, w) or (t,b,c,h,w)
-            depends on if batch first or not extracted features from alexnet
-        :param hidden_state:
-        :return: layer_output_list, last_state_list
+        Forward pass through multi-layer ConvGRU.
+
+        Parameters
+        ----------
+        input_tensor : Tensor
+            Input sequence with shape (T, B, C, H, W) if batch_first=False,
+            or (B, T, C, H, W) if batch_first=True.
+        hidden_state : list of Tensor, optional
+            Initial hidden states for each layer. If None, initialized to zeros.
+
+        Returns
+        -------
+        layer_output_list : list of Tensor
+            Output sequences from each layer (or just last layer if
+            return_all_layers=False). Each tensor has shape (B, T, hidden_dim, H, W).
+        last_state_list : list of list of Tensor
+            Final hidden states for each layer.
+
+        Raises
+        ------
+        NotImplementedError
+            If hidden_state is provided (stateful mode not implemented).
         """
         if not self.batch_first:
             # (t, b, c, h, w) -> (b, t, c, h, w)
@@ -178,19 +284,64 @@ class ConvGRU(nn.Module):
 
         return layer_output_list, last_state_list
 
-    def _init_hidden(self, batch_size, device=None, dtype=None):
+    def _init_hidden(self, batch_size: int, device: Optional[torch.device] = None, dtype: Optional[torch.dtype] = None) -> List[torch.Tensor]:
+        """
+        Initialize hidden states for all layers.
+
+        Parameters
+        ----------
+        batch_size : int
+            Batch size.
+        device : torch.device, optional
+            Device for tensors.
+        dtype : torch.dtype, optional
+            Data type for tensors.
+
+        Returns
+        -------
+        list of Tensor
+            List of initialized hidden states for each layer.
+        """
         init_states = []
         for i in range(self.num_layers):
             init_states.append(self.cell_list[i].init_hidden(batch_size).to(device).to(dtype))
         return init_states
 
     @staticmethod
-    def _check_kernel_size_consistency(kernel_size):
+    def _check_kernel_size_consistency(kernel_size: Any) -> None:
+        """
+        Check if kernel_size format is valid.
+
+        Parameters
+        ----------
+        kernel_size : Any
+            Kernel size to validate.
+
+        Raises
+        ------
+        ValueError
+            If kernel_size is not a tuple or list of tuples.
+        """
         if not (isinstance(kernel_size, tuple) or (isinstance(kernel_size, list) and all([isinstance(elem, tuple) for elem in kernel_size]))):
             raise ValueError("`kernel_size` must be tuple or list of tuples")
 
     @staticmethod
-    def _extend_for_multilayer(param, num_layers):
+    def _extend_for_multilayer(param: Union[Any, List[Any]], num_layers: int) -> List[Any]:
+        """
+        Extend parameter to list of length num_layers if not already a list.
+
+        Parameters
+        ----------
+        param : Any or list of Any
+            Parameter to extend.
+        num_layers : int
+            Number of layers.
+
+        Returns
+        -------
+        list of Any
+            List of parameters with length num_layers.
+        """
         if not isinstance(param, list):
             param = [param] * num_layers
         return param

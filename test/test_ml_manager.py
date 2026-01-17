@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-Unit test for ML Manager.
+Unit tests for machine learning manager.
+
+This module contains unit tests for the MLManager class, which handles
+object detection and visualization using machine learning models.
 """
 # Author: Runsheng Xu <rxx3386@ucla.edu>
 # License: MIT
@@ -20,15 +23,52 @@ from opencda.customize.ml_libs.ml_manager import MLManager
 
 
 class TestMlManager(unittest.TestCase):
+    """
+    Test suite for MLManager class.
+
+    Tests object detection initialization, inference, and 2D bounding box
+    visualization capabilities.
+    """
+
     def setUp(self):
+        """
+        Set up test fixtures.
+
+        Loads test image and initializes MLManager instance for object
+        detection testing.
+
+        Returns
+        -------
+        None
+        """
         current_path = os.path.dirname(os.path.realpath(__file__))
         self.data = cv2.imread(os.path.join(current_path, "data/test.jpg"))
         self.ml_manager = MLManager()
 
     def test_parameters(self):
+        """
+        Test object detector initialization.
+
+        Validates that the object detector is properly initialized and
+        available in the MLManager instance.
+
+        Returns
+        -------
+        None
+        """
         assert self.ml_manager.object_detector
 
     def test_draw_2d_bbx(self):
+        """
+        Test 2D bounding box detection and visualization.
+
+        Verifies that object detection runs successfully and that bounding
+        boxes can be drawn on the image without changing its dimensions.
+
+        Returns
+        -------
+        None
+        """
         results = self.ml_manager.object_detector(self.data)
         assert len(results) == 1
         assert self.ml_manager.draw_2d_box(results, self.data, 0).shape == self.data.shape

@@ -1,12 +1,19 @@
 # -*- coding: utf-8 -*-
 
-"""Behavior manager for platooning specifically"""
+"""
+Platooning behavior manager.
+
+This module provides specialized behavior agent for cooperative adaptive cruise
+control (CACC) and platooning operations, including various joining strategies
+and gap maintenance algorithms.
+"""
 # Author: Runsheng Xu <rxx3386@ucla.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
 import weakref
 from collections import deque
 import logging
+from typing import Optional, Tuple, Dict, List, Any
 
 import carla
 import numpy as np
@@ -27,19 +34,14 @@ class PlatooningBehaviorAgent(BehaviorAgent):
     ----------
     vehicle : carla.Vehicle
         The carla vehicle.
-
     vehicle_manager : opencda object
         The vehicle manager, used when joining platoon finished.
-
     v2x_manager : opencda object
         Used to received and deliver information.
-
     behavior_yaml : dict
         The configuration dictionary for BehaviorAgent.
-
     platoon_yaml : dict.
         The configuration dictionary for platoon behavior.
-
     carla_map : carla.Map
         The HD Map used in the simulation.
 
@@ -48,19 +50,24 @@ class PlatooningBehaviorAgent(BehaviorAgent):
     vehicle_manager : opencda object
         The weak reference of the vehicle manager, used when joining platoon
         finished.
-
     v2x_manager : opencda object
         The weak reference of the v2x_manager
-
     debug_helper : opencda Object
         A debug helper used to record the driving performance
          during platooning
-
     inter_gap : float
         The desired time gap between each platoon member.
     """
 
-    def __init__(self, vehicle, vehicle_manager, v2x_manager, behavior_yaml, platoon_yaml, carla_map):
+    def __init__(
+        self,
+        vehicle: carla.Vehicle,
+        vehicle_manager: Any,
+        v2x_manager: Any,
+        behavior_yaml: Dict[str, Any],
+        platoon_yaml: Dict[str, Any],
+        carla_map: carla.Map,
+    ):
         super(PlatooningBehaviorAgent, self).__init__(vehicle, carla_map, behavior_yaml)
 
         self.vehicle_manager = weakref.ref(vehicle_manager)()
@@ -85,22 +92,33 @@ class PlatooningBehaviorAgent(BehaviorAgent):
         self.time_gap = 100.0
         self.dist_gap = 100.0
 
-    def run_step(self, target_speed=None, collision_detector_enabled=True, lane_change_allowed=True):
+    def run_step(
+        self,
+        target_speed: Optional[float] = None,
+        collision_detector_enabled: bool = True,
+        lane_change_allowed: bool = True,
+    ) -> Tuple[float, Optional[carla.Waypoint]]:
         """
-        Run a single step for navigation under platooning agent.
-        Finite state machine is used to switch between different
-        platooning states.
+        Execute single navigation step under platooning control.
+
+        Uses finite state machine to switch between different platooning states
+        and execute appropriate maneuvers.
 
         Parameters
         ----------
+        target_speed : float, optional
+            Target speed in km/h. Default is None.
+        collision_detector_enabled : bool, optional
+            Whether collision detection is enabled. Default is True.
+        lane_change_allowed : bool, optional
+            Whether lane change is allowed. Default is True.
+
+        Returns
+        -------
         target_speed : float
-            Target speed in km/h
-
-        collision_detector_enabled : bool
-            Whether collision detection enabled.
-
-        lane_change_allowed : bool
-            Whether lane change is allowed.
+            Computed target speed in km/h.
+        target_waypoint : carla.Waypoint or None
+            Target waypoint for navigation.
         """
         # reset time gap and distance gap record at the beginning
         self.time_gap = 100.0
@@ -191,21 +209,18 @@ class PlatooningBehaviorAgent(BehaviorAgent):
         if status == FSM.OPEN_GAP:
             return self.run_step_open_gap()
 
-    def update_information(self, ego_pos, ego_speed, objects):
+    def update_information(self, ego_pos: carla.Transform, ego_speed: float, objects: Dict[str, List[Any]]) -> None:
         """
-        Update the perception and localization
-        information to the behavior agent.
+        Update perception and localization information.
 
         Parameters
         ----------
         ego_pos : carla.Transform
-            Ego position from localization module.
-
+            Ego vehicle position from localization module.
         ego_speed : float
-            km/h, ego speed.
-
-        objects : dict
-            Objects detection results from perception module.
+            Ego vehicle speed in km/h.
+        objects : Dict[str, List[Any]]
+            Object detection results from perception module.
         """
         # update localization information
         self._ego_speed = ego_speed
@@ -228,15 +243,15 @@ class PlatooningBehaviorAgent(BehaviorAgent):
             # This method also includes stop signs and intersections.
             self.light_state = str(self.vehicle.get_traffic_light_state())
 
-    def joining_finish_manager(self, insert_vehicle="front"):
+    def joining_finish_manager(self, insert_vehicle: str = "front") -> None:
         """
-        Called when a joining is finish to update the platoon manager list.
+        Update platoon manager list after joining completion.
 
         Parameters
         ----------
-        insert_vehicle : string
-            indicate use the front or rear vehicle index to update
-            the platoon manager list.
+        insert_vehicle : str, optional
+            Indicates use of front or rear vehicle index for updating
+            platoon manager list. Default is "front".
         """
         frontal_vehicle_manager, rear_vehicle_manager = self.v2x_manager.get_platoon_front_rear()
         if insert_vehicle == "front":
@@ -249,16 +264,17 @@ class PlatooningBehaviorAgent(BehaviorAgent):
 
         platoon_manger.update_member_order()
 
-    def calculate_gap(self, distance):
+    def calculate_gap(self, distance: float) -> None:
         """
-        Calculate the current vehicle and frontal vehicle's time/distance gap.
-        Note: please use groundtruth position of the frontal vehicle to
-        calculate the correct distance.
+        Calculate time and distance gap to frontal vehicle.
+
+        Uses groundtruth position of frontal vehicle for accurate distance
+        calculation.
 
         Parameters
         ----------
         distance : float
-            Distance between the ego vehicle and frontal vehicle.
+            Distance between ego vehicle and frontal vehicle in meters.
         """
         # we need to count the vehicle length in to calculate the gap
         boundingbox = self.vehicle.bounding_box
@@ -269,14 +285,21 @@ class PlatooningBehaviorAgent(BehaviorAgent):
         self.time_gap = time_gap
         self.dist_gap = distance - veh_length
 
-    def platooning_following_manager(self, inter_gap):
+    def platooning_following_manager(self, inter_gap: float) -> Tuple[float, Optional[carla.Waypoint]]:
         """
-        Car following behavior in platooning with gap regulation.
+        Execute car following behavior with gap regulation for platooning.
 
         Parameters
-        __________
+        ----------
         inter_gap : float
-            The gap designed for platooning.
+            Designed time gap for platooning in seconds.
+
+        Returns
+        -------
+        target_speed : float
+            Target speed in km/h.
+        target_waypoint : carla.Waypoint or None
+            Target waypoint for navigation.
         """
 
         frontal_vehicle_manager, _ = self.v2x_manager.get_platoon_front_rear()
@@ -349,21 +372,21 @@ class PlatooningBehaviorAgent(BehaviorAgent):
 
             return self._local_planner.run_step([], [], [], trajectory=ego_trajetory)
 
-    def platooning_merge_management(self, frontal_vehicle_vm):
+    def platooning_merge_management(self, frontal_vehicle_vm: Any) -> Tuple[float, Optional[carla.Waypoint]]:
         """
-        Merge the vehicle into the platooning.
+        Merge vehicle into the platoon.
 
         Parameters
         ----------
-        frontal_vehicle_vm : opencda object
-            The vehivle manager of the front vehicle.
+        frontal_vehicle_vm : Any
+            Vehicle manager of the front vehicle.
+
         Returns
         -------
         target_speed : float
-            The target speed for ego vehicle.
-
-        target_waypoint : carla.waypoint
-            The target waypoint for ego vehicle.
+            Target speed in km/h.
+        target_waypoint : carla.Waypoint or None
+            Target waypoint for navigation.
         """
         logger.info("start merging !")
         self.lane_change_allowed = True
@@ -386,17 +409,16 @@ class PlatooningBehaviorAgent(BehaviorAgent):
 
         return target_speed, target_waypoint
 
-    def run_step_maintaining(self):
+    def run_step_maintaining(self) -> Tuple[float, Optional[carla.Waypoint]]:
         """
-        Next step behavior planning for speed maintaining.
+        Execute speed maintaining behavior in platoon.
 
         Returns
         -------
         target_speed : float
-            The target speed for ego vehicle.
-
-        target_waypoint : carla.waypoint
-            The target waypoint for ego vehicle.
+            Target speed in km/h.
+        target_waypoint : carla.Waypoint or None
+            Target waypoint for navigation.
         """
         frontal_vehicle_manager, _ = self.v2x_manager.get_platoon_front_rear()
         self.current_gap = self.inter_gap
@@ -429,17 +451,18 @@ class PlatooningBehaviorAgent(BehaviorAgent):
 
         return target_speed, target_waypoint
 
-    def run_step_cut_in_move2point(self):
+    def run_step_cut_in_move2point(self) -> Tuple[float, Optional[carla.Waypoint], int]:
         """
-        The vehicle is trying to get to the move in point.
+        Execute move-to-point phase of cut-in joining.
 
         Returns
         -------
         target_speed : float
-            The target speed for ego vehicle.
-
-        target_waypoint : carla.waypoint
-            The target waypoint for ego vehicle.
+            Target speed in km/h.
+        target_waypoint : carla.Waypoint or None
+            Target waypoint for navigation.
+        new_status : int
+            New FSM status code.
         """
 
         frontal_vehicle_manager, rear_vehicle_vm = self.v2x_manager.get_platoon_front_rear()
@@ -501,17 +524,18 @@ class PlatooningBehaviorAgent(BehaviorAgent):
 
         return (*self.platooning_merge_management(frontal_vehicle_manager), FSM.JOINING)
 
-    def run_step_cut_in_joining(self):
+    def run_step_cut_in_joining(self) -> Tuple[float, Optional[carla.Waypoint], int]:
         """
-        Check if the vehicle has been joined successfully.
+        Execute cut-in joining completion check.
 
         Returns
         -------
         target_speed : float
-            The target speed for ego vehicle.
-
-        target_waypoint : carla.waypoint
-            The target waypoint for ego vehicle.
+            Target speed in km/h.
+        target_waypoint : carla.Waypoint or None
+            Target waypoint for navigation.
+        new_status : int
+            New FSM status code.
         """
         logger.info("merging speed %d" % self._ego_speed)
 
@@ -537,17 +561,16 @@ class PlatooningBehaviorAgent(BehaviorAgent):
 
         return (*super().run_step(target_speed=frontal_vehicle_speed, collision_detector_enabled=False), FSM.JOINING)
 
-    def run_step_open_gap(self):
+    def run_step_open_gap(self) -> Tuple[float, Optional[carla.Waypoint]]:
         """
-        Open gap for cut-in vehicle.
+        Execute gap opening for cut-in vehicle.
 
         Returns
         -------
         target_speed : float
-            The target speed for ego vehicle.
-
-        target_waypoint : carla.waypoint
-            The target waypoint for ego vehicle.
+            Target speed in km/h.
+        target_waypoint : carla.Waypoint or None
+            Target waypoint for navigation.
         """
         frontal_vehicle_manager, rear_vehicle_manager = self.v2x_manager.get_platoon_front_rear()
 
@@ -567,17 +590,18 @@ class PlatooningBehaviorAgent(BehaviorAgent):
 
         return target_speed, target_loc
 
-    def run_step_back_joining(self):
+    def run_step_back_joining(self) -> Tuple[float, Optional[carla.Waypoint], int]:
         """
-        Back-joining Algorithm.
+        Execute back-joining algorithm.
 
         Returns
         -------
         target_speed : float
-            The target speed for ego vehicle.
-
-        target_waypoint : carla.waypoint
-            The target waypoint for ego vehicle.
+            Target speed in km/h.
+        target_waypoint : carla.Waypoint or None
+            Target waypoint for navigation.
+        new_status : int
+            New FSM status code.
         """
         frontal_vehicle_manager, _ = self.v2x_manager.get_platoon_front_rear()
         # reset lane change flag every step
@@ -666,17 +690,18 @@ class PlatooningBehaviorAgent(BehaviorAgent):
 
         return (*super().run_step(self.tailgate_speed), FSM.BACK_JOINING)
 
-    def run_step_front_joining(self):
+    def run_step_front_joining(self) -> Tuple[float, Optional[carla.Waypoint], int]:
         """
-        Front-joining algorithm.
+        Execute front-joining algorithm.
 
         Returns
         -------
         target_speed : float
-            The target speed for ego vehicle.
-
-        target_waypoint : carla.waypoint
-            The target waypoint for ego vehicle.
+            Target speed in km/h.
+        target_waypoint : carla.Waypoint or None
+            Target waypoint for navigation.
+        new_status : int
+            New FSM status code.
         """
         _, rear_vehicle_manager = self.v2x_manager.get_platoon_front_rear()
         # get necessary information of the ego vehicle and target vehicle in

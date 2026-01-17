@@ -1,9 +1,16 @@
 # -*- coding: utf-8 -*-
+"""
+CAV World management for cooperative driving simulation.
 
+This module provides a centralized world object that manages all connected
+and automated vehicle (CAV) information, machine learning models, and
+SUMO-CARLA ID mappings during co-simulation.
+"""
 # Author: Runsheng Xu <rxx3386@ucla.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
 import importlib
+from typing import Dict, Any
 
 
 class CavWorld(object):
@@ -36,7 +43,7 @@ class CavWorld(object):
         The machine learning manager class.
     """
 
-    def __init__(self, apply_ml=False, with_capi=False):
+    def __init__(self, apply_ml: bool = False, with_capi: bool = False):
         self.vehicle_id_set = set()
         self._vehicle_manager_dict = {}
         self._platooning_dict = {}
@@ -62,7 +69,7 @@ class CavWorld(object):
         # this is used only when co-simulation activated.
         self.sumo2carla_ids = {}
 
-    def update_vehicle_manager(self, vehicle_manager):
+    def update_vehicle_manager(self, vehicle_manager: Any) -> None:
         """
         Update created CAV manager to the world.
 
@@ -74,7 +81,7 @@ class CavWorld(object):
         self.vehicle_id_set.add(vehicle_manager.vehicle.id)
         self._vehicle_manager_dict.update({vehicle_manager.vid: vehicle_manager})
 
-    def update_platooning(self, platooning_manager):
+    def update_platooning(self, platooning_manager: Any) -> None:
         """
         Add created platooning.
 
@@ -85,7 +92,7 @@ class CavWorld(object):
         """
         self._platooning_dict.update({platooning_manager.pmid: platooning_manager})
 
-    def update_rsu_manager(self, rsu_manager):
+    def update_rsu_manager(self, rsu_manager: Any) -> None:
         """
         Add rsu manager.
 
@@ -96,7 +103,7 @@ class CavWorld(object):
         """
         self._rsu_manager_dict.update({rsu_manager.rid: rsu_manager})
 
-    def update_sumo_vehicles(self, sumo2carla_ids):
+    def update_sumo_vehicles(self, sumo2carla_ids: Dict[str, int]) -> None:
         """
         Update the sumo carla mapping dict. This is only called
         when cosimulation is conducted.

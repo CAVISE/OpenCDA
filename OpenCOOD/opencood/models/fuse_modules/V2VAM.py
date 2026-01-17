@@ -1,12 +1,41 @@
+"""
+V2V Attention Fusion module for multi-agent feature aggregation.
+
+This module implements V2VNet fusion mechanism using criss-cross attention
+for capturing long-range dependencies in multi-agent cooperative perception.
+"""
+
 import torch
 import torch.nn as nn
 
-
 from torch.nn import Softmax
+
+from torch import Tensor
+from typing import List
 
 
 class V2V_AttFusion(nn.Module):
-    def __init__(self, feature_dim):
+    """
+    V2VNet fusion mechanism for multi-agent feature aggregation.
+
+    This module uses criss-cross attention to fuse features from multiple
+    connected agents, capturing long-range dependencies in both horizontal
+    and vertical directions.
+
+    Parameters
+    ----------
+    feature_dim : int
+        Input feature dimension.
+
+    Attributes
+    ----------
+    cov_att : nn.Sequential
+        Convolutional attention module with conv, batch norm, and ReLU.
+    CCNet : CrissCrossAttention
+        Criss-cross attention module for feature fusion.
+    """
+
+    def __init__(self, feature_dim: int):
         super(V2V_AttFusion, self).__init__()
 
         self.cov_att = nn.Sequential(
@@ -17,7 +46,22 @@ class V2V_AttFusion(nn.Module):
 
         self.CCNet = CrissCrossAttention(feature_dim)
 
-    def forward(self, x, record_len):
+    def forward(self, x: Tensor, record_len: Tensor) -> Tensor:
+        """
+        Forward pass of the V2V attention fusion.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Input features from all vehicles.
+        record_len : torch.Tensor
+            Number of vehicles per batch sample.
+
+        Returns
+        -------
+        torch.Tensor
+            Fused features after attention.
+        """
         split_x = self.regroup(x, record_len)  # x =[5, 64, 100, 352], record_len=[3,2]
 
         out = []
@@ -43,25 +87,65 @@ class V2V_AttFusion(nn.Module):
 
         return torch.cat(out, dim=0)  # [2, 64, 100, 352]
 
-    def regroup(self, x, record_len):
+    def regroup(x: Tensor, record_len: Tensor) -> List[Tensor]:
+        """
+        Split input tensor into a list of tensors based on record_len.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Input tensor to be split.
+        record_len : torch.Tensor
+            Number of agents per sample.
+
+        Returns
+        -------
+        list of torch.Tensor
+            List of tensors, one per sample in the batch.
+        """
         cum_sum_len = torch.cumsum(record_len, dim=0)
         split_x = torch.tensor_split(x, cum_sum_len[:-1].cpu())
 
         return split_x
 
 
-def INF(B, H, W):
+def INF(B: int, H: int, W: int) -> Tensor:
     return -torch.diag(torch.tensor(float("inf")).cuda().repeat(H), 0).unsqueeze(0).repeat(B * W, 1, 1)
 
 
 class CrissCrossAttention(nn.Module):
-    """Criss-Cross Attention Module
+    """
+    Criss-Cross Attention Module.
 
-    reference: https://github.com/speedinghzl/CCNet
+    This module implements criss-cross attention for capturing long-range dependencies
+    in both horizontal and vertical directions.
 
+    Parameters
+    ----------
+    in_dim : int
+        Number of input channels.
+
+    Attributes
+    ----------
+    query_conv : nn.Sequential
+        Query projection with conv, batch norm, and ReLU.
+    key_conv : nn.Sequential
+        Key projection with conv, batch norm, and ReLU.
+    value_conv : nn.Sequential
+        Value projection with conv, batch norm, and ReLU.
+    softmax : Softmax
+        Softmax activation for attention weights.
+    INF : function
+        Function to generate negative infinity mask.
+    gamma : nn.Parameter
+        Learnable scaling parameter for residual connection.
+
+    References
+    ----------
+    .. [1] https://github.com/speedinghzl/CCNet
     """
 
-    def __init__(self, in_dim):
+    def __init__(self, in_dim: int) -> None:
         super(CrissCrossAttention, self).__init__()
 
         self.query_conv = nn.Sequential(
@@ -78,7 +162,24 @@ class CrissCrossAttention(nn.Module):
         self.INF = INF
         self.gamma = nn.Parameter(torch.zeros(1))
 
-    def forward(self, query, key, value):
+    def forward(self, query: Tensor, key: Tensor, value: Tensor) -> Tensor:
+        """
+        Forward pass through criss-cross attention.
+
+        Parameters
+        ----------
+        query : Tensor
+            Query features with shape (B, C, H, W).
+        key : Tensor
+            Key features with shape (B, C, H, W).
+        value : Tensor
+            Value features with shape (B, C, H, W).
+
+        Returns
+        -------
+        Tensor
+            Attention-weighted features with shape (B, C, H, W).
+        """
         m_batchsize, _, height, width = query.size()
 
         proj_query = self.query_conv(query)

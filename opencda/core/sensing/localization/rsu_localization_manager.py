@@ -1,12 +1,16 @@
 # -*- coding: utf-8 -*-
 """
-Localization module for RSU.
+Localization module for roadside units (RSU).
+
+This module provides GNSS-based localization functionality for infrastructure
+units, including coordinate transformation from WGS84 to ENU coordinate system.
 """
 # Author: Runsheng Xu <rxx3386@ucla.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
 import weakref
 from collections import deque
+from typing import Dict, List, Any, Optional
 
 import carla
 
@@ -15,31 +19,32 @@ from opencda.core.sensing.localization.coordinate_transform import geo_to_transf
 
 class GnssSensor(object):
     """
-    The default GNSS sensor module for rsu.
+    GNSS sensor module for roadside units.
 
     Parameters
-    world : carla.world
-        Carla world.
-
-    config : dict
-        The configuration dictionary of the localization module.
-
-    global_position : list
-        The global position of the rsu.
+    ----------
+    world : carla.World
+        CARLA world object.
+    config : Dict[str, Any]
+        Configuration dictionary for the GNSS sensor.
+    global_position : List[float]
+        Global position of the RSU as [x, y, z].
 
     Attributes
-
-    blueprint : carla.blueprint
-        The current blueprint of the sensor actor.
-
-    weak_self : opencda Object
-        A weak reference point to avoid circular reference.
-
-    sensor : CARLA actor
-        The current sensor actors that will be attach to the vehicles.
+    ----------
+    sensor : carla.Sensor
+        GNSS sensor actor attached to the world.
+    lat : float
+        Current latitude in degrees.
+    lon : float
+        Current longitude in degrees.
+    alt : float
+        Current altitude in meters.
+    timestamp : float
+        Timestamp of the latest GNSS measurement.
     """
 
-    def __init__(self, world, config, global_position):
+    def __init__(self, world: carla.World, config: Dict[str, Any], global_position: List[float]):
         blueprint = world.get_blueprint_library().find("sensor.other.gnss")
 
         # set the noise for gps
@@ -56,8 +61,17 @@ class GnssSensor(object):
         self.sensor.listen(lambda event: GnssSensor._on_gnss_event(weak_self, event))
 
     @staticmethod
-    def _on_gnss_event(weak_self, event):
-        """GNSS method that returns the current geo location."""
+    def _on_gnss_event(weak_self: weakref.ref, event: carla.GnssMeasurement) -> None:
+        """
+        Callback for GNSS measurement events.
+
+        Parameters
+        ----------
+        weak_self : weakref.ref
+            Weak reference to the GnssSensor instance.
+        event : carla.GnssMeasurement
+            GNSS measurement event from CARLA.
+        """
         self = weak_self()
         if not self:
             return
@@ -69,24 +83,43 @@ class GnssSensor(object):
 
 class LocalizationManager(object):
     """
-    Default localization module for infrastructure.
+    Localization module for infrastructure units.
+
+    Provides GNSS-based localization with coordinate transformation from
+    WGS84 geodetic coordinates to ENU (East-North-Up) local coordinates.
 
     Parameters
-    world : carla.world
-        CARLA world.
-    config_yaml : dict
-        The configuration dictionary of the localization module.
+    ----------
+    world : carla.World
+        CARLA world object.
+    config_yaml : Dict[str, Any]
+        Configuration dictionary for the localization module.
     carla_map : carla.Map
-        The carla HDMap. We need this to find the map origin to
-        convert wg84 to enu coordinate system.
+        CARLA HD map for coordinate system reference.
 
     Attributes
-    gnss : opencda object
-        GNSS sensor manager for spawning gnss sensor and listen to the data
-        transmission.
+    ----------
+    activate : bool
+        Whether localization module is activated.
+    map : carla.Map
+        CARLA map object.
+    geo_ref : carla.GeoLocation
+        Geographic reference point (map origin).
+    gnss : GnssSensor
+        GNSS sensor manager.
+    true_ego_pos : carla.Transform
+        Ground truth position of the RSU.
+    _ego_pos : carla.Transform or None
+        Current estimated position.
+    _speed : float
+        Current speed (always 0 for RSU).
+    _ego_pos_history : deque
+        History of ego positions (max 100 entries).
+    _timestamp_history : deque
+        History of timestamps (max 100 entries).
     """
 
-    def __init__(self, world, config_yaml, carla_map):
+    def __init__(self, world: carla.World, config_yaml: Dict[str, Any], carla_map: carla.Map):
         self.activate = config_yaml["activate"]
         self.map = carla_map
         self.geo_ref = self.map.transform_to_geolocation(carla.Location(x=0, y=0, z=0))
@@ -105,9 +138,12 @@ class LocalizationManager(object):
         )
         self._speed = 0
 
-    def localize(self):
+    def localize(self) -> None:
         """
-        Currently implemented in a naive way.
+        Perform localization using GNSS data or ground truth.
+
+        If localization is deactivated, uses ground truth position.
+        Otherwise, converts GNSS WGS84 coordinates to local ENU coordinates.
         """
 
         if not self.activate:
@@ -116,15 +152,25 @@ class LocalizationManager(object):
             x, y, z = geo_to_transform(self.gnss.lat, self.gnss.lon, self.gnss.alt, self.geo_ref.latitude, self.geo_ref.longitude, 0.0)
             self._ego_pos = carla.Transform(carla.Location(x=x, y=y, z=z))
 
-    def get_ego_pos(self):
+    def get_ego_pos(self) -> Optional[carla.Transform]:
         """
-        Retrieve ego vehicle position
+        Retrieve current ego position.
+
+        Returns
+        -------
+        carla.Transform or None
+            Current position transform, or None if not yet computed.
         """
         return self._ego_pos
 
-    def get_ego_spd(self):
+    def get_ego_spd(self) -> float:
         """
-        Retrieve ego vehicle speed
+        Retrieve ego speed.
+
+        Returns
+        -------
+        float
+            Current speed (always 0.0 for RSU).
         """
         return self._speed
 

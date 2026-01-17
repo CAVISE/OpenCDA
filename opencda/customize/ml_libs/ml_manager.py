@@ -1,43 +1,56 @@
 # -*- coding: utf-8 -*-
 
 """
-Since multiple CAV normally use the same ML/DL model,
-here we have this class to enable different CAVs share the same model to
- avoid duplicate memory consumption.
+Shared ML model manager for multi-agent systems.
+
+This module provides a centralized ML model manager that allows multiple CAVs
+(Connected Autonomous Vehicles) to share the same model instance, avoiding
+duplicate memory consumption in multi-agent cooperative perception scenarios.
 """
 
 # Author: Runsheng Xu <rxx3386@ucla.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
+from typing import Any
 import cv2
 import torch
 import numpy as np
+import numpy.typing as npt
 
 
 class MLManager(object):
     """
-    A class that should contain all the ML models you want to initialize.
+    Centralized ML model manager for multi-agent systems.
+
+    Contains and manages ML/DL models shared across multiple CAVs to avoid
+    duplicate memory consumption. Currently supports YOLOv5 object detection.
 
     Attributes
-    -object_detector : torch_detector
-        The YoloV5 detector load from pytorch.
-
+    ----------
+    object_detector : torch.nn.Module
+        YOLOv5 object detector loaded from PyTorch Hub.
     """
 
     def __init__(self):
         self.object_detector = torch.hub.load("ultralytics/yolov5", "yolov5m")
 
-    def draw_2d_box(self, result, rgb_image, index):
+    def draw_2d_box(self, result: Any, rgb_image: npt.NDArray[np.uint8], index: int) -> npt.NDArray[np.uint8]:
         """
-        Draw 2d bounding box based on the yolo detection.
+        Draw 2D bounding boxes on image based on YOLO detection results.
 
-        Args:
-            -result (yolo.Result):Detection result from yolo 5.
-            -rgb_image (np.ndarray): Camera rgb image.
-            -index(int): Indicate the index.
+        Parameters
+        ----------
+        result : Any
+            Detection result from YOLOv5 containing bounding boxes and labels.
+        rgb_image : npt.NDArray[np.uint8]
+            RGB camera image with shape (H, W, 3).
+        index : int
+            Index indicating which batch result to visualize.
 
-        Returns:
-            -rgb_image (np.ndarray): camera image with bbx drawn.
+        Returns
+        -------
+        npt.NDArray[np.uint8]
+            RGB image with bounding boxes and labels drawn.
         """
         # torch.Tensor
         bounding_box = result.xyxy[index]
@@ -64,15 +77,19 @@ class MLManager(object):
         return rgb_image
 
 
-def is_vehicle_cococlass(label):
+def is_vehicle_cococlass(label: int) -> bool:
     """
-    Check whether the label belongs to the vehicle class according
-    to coco dataset.
-    Args:
-        -label(int): yolo detection prediction.
-    Returns:
-        -is_vehicle: bool
-            whether this label belongs to the vehicle class
+    Check if label belongs to vehicle class in COCO dataset.
+
+    Parameters
+    ----------
+    label : int
+        YOLO detection class label (0-79 for COCO).
+
+    Returns
+    -------
+    bool
+        True if label corresponds to vehicle class, False otherwise.
     """
     vehicle_class_array = np.array([1, 2, 3, 5, 7], dtype=np.int)
     return True if 0 in (label - vehicle_class_array) else False

@@ -1,3 +1,11 @@
+"""
+Training utility functions for model setup, optimization, and data handling.
+
+This module provides utilities for creating models, loss functions, optimizers,
+and learning rate schedulers, as well as checkpoint management for training
+deep learning models.
+"""
+
 import glob
 import importlib
 import yaml
@@ -5,30 +13,37 @@ import sys
 import os
 import re
 from datetime import datetime
+from typing import Any, Tuple, Dict
 
 import torch
 import torch.optim as optim
+from torch.optim import Optimizer
+from torch import nn
+from torch.optim.lr_scheduler import _LRScheduler
 
 
-def load_saved_model(saved_path, model):
+def load_saved_model(saved_path: str, model: nn.Module) -> Tuple[int, nn.Module]:
     """
-    Load saved model if exiseted
+    Load saved model if existed.
 
     Parameters
-    __________
+    ----------
     saved_path : str
-       model saved path
-    model : opencood object
+        Model saved path.
+    model : nn.Module
         The model instance.
 
     Returns
     -------
-    model : opencood object
-        The model instance loaded pretrained params.
+    initial_epoch : int
+        The epoch number to resume from.
+    model : nn.Module
+        The model instance loaded with pretrained params.
     """
     assert os.path.exists(saved_path), "{} not found".format(saved_path)
 
-    def findLastCheckpoint(save_dir):
+    def findLastCheckpoint(save_dir: str) -> int:
+        """Find the latest checkpoint epoch number."""
         if os.path.exists(os.path.join(saved_path, "latest.pth")):
             return 10000
         file_list = glob.glob(os.path.join(save_dir, "*epoch*.pth"))
@@ -54,14 +69,25 @@ def load_saved_model(saved_path, model):
     return initial_epoch, model
 
 
-def setup_train(hypes):
+def setup_train(hypes: Dict[str, Any]) -> str:
     """
-    Create folder for saved model based on current timestep and model name
+    Create folder for saved model based on current timestamp and model name.
 
     Parameters
     ----------
-    hypes: dict
-        Config yaml dictionary for training:
+    hypes : dict
+        Configuration dictionary containing at least:
+            - name (str): The name of the model.
+
+    Returns
+    -------
+    full_path : str
+        The full path to the created directory where logs will be saved.
+
+    Notes
+    -----
+    The function creates a directory structure: logs/{model_name}_{timestamp}/
+    and saves the configuration as config.yaml in that directory.
     """
     model_name = hypes["name"]
     current_time = datetime.now()
@@ -88,19 +114,21 @@ def setup_train(hypes):
     return full_path
 
 
-def create_model(hypes):
+def create_model(hypes: Dict[str, Any]) -> nn.Module:
     """
-    Import the module "models/[model_name].py
+    Dynamically import and instantiate a model based on the configuration.
 
     Parameters
-    __________
+    ----------
     hypes : dict
-        Dictionary containing parameters.
+        Configuration dictionary containing:
+            - model.core_method (str): The name of the model class.
+            - model.args (dict): Arguments to pass to the model constructor.
 
     Returns
     -------
-    model : opencood,object
-        Model object.
+    instance : nn.Module
+        An instance of the specified model.
     """
     backbone_name = hypes["model"]["core_method"]
     backbone_config = hypes["model"]["args"]
@@ -125,18 +153,21 @@ def create_model(hypes):
     return instance
 
 
-def create_loss(hypes):
+def create_loss(hypes: Dict[str, Any]) -> nn.Module:
     """
-    Create the loss function based on the given loss name.
+    Create a loss function based on the configuration.
 
     Parameters
     ----------
     hypes : dict
-        Configuration params for training.
+        Configuration dictionary containing:
+            - loss.core_method (str): The name of the loss class.
+            - loss.args (dict): Arguments for the loss constructor.
+
     Returns
     -------
-    criterion : opencood.object
-        The loss function.
+    criterion : nn.Module
+        An instance of the specified loss function.
     """
     loss_func_name = hypes["loss"]["core_method"]
     loss_func_config = hypes["loss"]["args"]
@@ -162,16 +193,24 @@ def create_loss(hypes):
     return criterion
 
 
-def setup_optimizer(hypes, model):
+def setup_optimizer(hypes: Dict[str, Any], model: nn.Module) -> Optimizer:
     """
-    Create optimizer corresponding to the yaml file
+    Create and configure an optimizer based on the configuration.
 
     Parameters
     ----------
     hypes : dict
-        The training configurations.
-    model : opencood model
-        The pytorch model
+        Configuration dictionary containing:
+            - optimizer.core_method (str): The name of the optimizer class.
+            - optimizer.lr (float): Learning rate.
+            - optimizer.args (dict, optional): Additional optimizer arguments.
+    model : nn.Module
+        The model whose parameters will be optimized.
+
+    Returns
+    -------
+    optimizer : Optimizer
+        Configured optimizer instance.
     """
     method_dict = hypes["optimizer"]
     optimizer_method = getattr(optim, method_dict["core_method"], None)
@@ -185,16 +224,26 @@ def setup_optimizer(hypes, model):
         return optimizer_method(filter(lambda p: p.requires_grad, model.parameters()), lr=method_dict["lr"])
 
 
-def setup_lr_schedular(hypes, optimizer, n_iter_per_epoch):
+def setup_lr_schedular(hypes: Dict[str, Any], optimizer: Optimizer, n_iter_per_epoch: int) -> _LRScheduler | None:
     """
-    Set up the learning rate schedular.
+    Set up a learning rate scheduler based on the configuration.
 
     Parameters
     ----------
     hypes : dict
-        The training configurations.
+        Configuration dictionary containing:
+            - lr_scheduler (dict): Scheduler configuration with:
+                - core_method (str): Scheduler type ('step', 'multistep', 'exponential', 'cosineannealwarm').
+                - Additional parameters depending on the scheduler type.
+    optimizer : Optimizer
+        The optimizer whose learning rate will be scheduled.
+    n_iter_per_epoch : int
+        Number of iterations per training epoch.
 
-    optimizer : torch.optimizer
+    Returns
+    -------
+    scheduler : _LRScheduler or None
+        Configured learning rate scheduler, or None if not configured.
     """
     lr_schedule_config = hypes["lr_scheduler"]
 
@@ -243,7 +292,22 @@ def setup_lr_schedular(hypes, optimizer, n_iter_per_epoch):
     return scheduler
 
 
-def to_device(inputs, device):
+def to_device(inputs: Any, device: torch.device) -> Any:
+    """
+    Move input tensors to the specified device.
+
+    Parameters
+    ----------
+    inputs : Any
+        Input data (tensor, list, or dict of tensors).
+    device : torch.device
+        Target device (e.g., 'cuda' or 'cpu').
+
+    Returns
+    -------
+    Any
+        The input data with all tensors moved to the specified device.
+    """
     if isinstance(inputs, list):
         return [to_device(x, device) for x in inputs]
     elif isinstance(inputs, dict):

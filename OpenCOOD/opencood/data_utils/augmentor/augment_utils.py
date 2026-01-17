@@ -1,13 +1,41 @@
+"""
+Data augmentation utilities for 3D object detection.
+
+This module provides geometric transformation functions for augmenting LiDAR
+point clouds and 3D bounding boxes, including flipping, rotation, and scaling
+operations.
+"""
+
 import numpy as np
+from numpy.typing import NDArray
 from opencood.utils import common_utils
+from typing import Tuple
 
 
-def random_flip_along_x(gt_boxes, points):
+def random_flip_along_x(gt_boxes: NDArray[np.float64], points: NDArray[np.float64]) -> Tuple[NDArray[np.float64], NDArray[np.float64]]:
     """
-    Args:
-        gt_boxes: (N, 7 + C), [x, y, z, dx, dy, dz, heading, [vx], [vy]]
-        points: (M, 3 + C)
-    Returns:
+    Randomly flip the point cloud and bounding boxes along the X-axis.
+
+    Parameters
+    ----------
+    gt_boxes : NDArray[np.float64]
+        Ground truth boxes of shape (N, 7 + C) where:
+        - N : number of bounding boxes
+        - 7 : [x, y, z, dx, dy, dz, heading]
+        - C : optional velocity components [vx, vy, ...]
+    points : NDArray[np.float64]
+        Point cloud of shape (M, 3 + C) where:
+        - M : number of points
+        - 3 : x, y, z coordinates
+        - C : additional features per point
+
+    Returns
+    -------
+    Tuple[NDArray[np.float64], NDArray[np.float64]]
+        gt_boxes : NDArray[np.float64]
+            Flipped ground truth boxes of shape (N, 7 + C).
+        points : NDArray[np.float64]
+            Flipped points of shape (M, 3 + C).
     """
     enable = np.random.choice([False, True], replace=False, p=[0.5, 0.5])
     if enable:
@@ -21,12 +49,24 @@ def random_flip_along_x(gt_boxes, points):
     return gt_boxes, points
 
 
-def random_flip_along_y(gt_boxes, points):
+def random_flip_along_y(gt_boxes: NDArray[np.float64], points: NDArray[np.float64]) -> Tuple[NDArray[np.float64], NDArray[np.float64]]:
     """
-    Args:
-        gt_boxes: (N, 7 + C), [x, y, z, dx, dy, dz, heading, [vx], [vy]]
-        points: (M, 3 + C)
-    Returns:
+    Flip the point cloud and bounding boxes along the Y-axis.
+
+    Parameters
+    ----------
+    gt_boxes : NDArray[np.float64]
+        Ground truth boxes of shape (N, 7 + C), [x, y, z, dx, dy, dz, heading, [vx], [vy]].
+    points : NDArray[np.float64]
+        Point cloud of shape (M, 3 + C).
+
+    Returns
+    -------
+    Tuple[NDArray[np.float64], NDArray[np.float64]]
+        gt_boxes : NDArray[np.float64]
+            Flipped ground truth boxes.
+        points : NDArray[np.float64]
+            Flipped points.
     """
     enable = np.random.choice([False, True], replace=False, p=[0.5, 0.5])
     if enable:
@@ -40,13 +80,28 @@ def random_flip_along_y(gt_boxes, points):
     return gt_boxes, points
 
 
-def global_rotation(gt_boxes, points, rot_range):
+def global_rotation(
+    gt_boxes: NDArray[np.float64], points: NDArray[np.float64], rot_range: Tuple[float, float]
+) -> Tuple[NDArray[np.float64], NDArray[np.float64]]:
     """
-    Args:
-        gt_boxes: (N, 7 + C), [x, y, z, dx, dy, dz, heading, [vx], [vy]]
-        points: (M, 3 + C),
-        rot_range: [min, max]
-    Returns:
+    Apply global rotation to point cloud and bounding boxes.
+
+    Parameters
+    ----------
+    gt_boxes : NDArray[np.float64]
+        Ground truth boxes of shape (N, 7 + C), [x, y, z, dx, dy, dz, heading, [vx], [vy]].
+    points : NDArray[np.float64]
+        Point cloud of shape (M, 3 + C).
+    rot_range : Tuple[float, float]
+        Rotation angle range [min, max].
+
+    Returns
+    -------
+    Tuple[NDArray[np.float64], NDArray[np.float64]]
+        gt_boxes : NDArray[np.float64]
+            Rotated ground truth boxes.
+        points : NDArray[np.float64]
+            Rotated points.
     """
     noise_rotation = np.random.uniform(rot_range[0], rot_range[1])
     points = common_utils.rotate_points_along_z(points[np.newaxis, :, :], np.array([noise_rotation]))[0]
@@ -63,13 +118,28 @@ def global_rotation(gt_boxes, points, rot_range):
     return gt_boxes, points
 
 
-def global_scaling(gt_boxes, points, scale_range):
+def global_scaling(
+    gt_boxes: NDArray[np.float64], points: NDArray[np.float64], scale_range: Tuple[float, float]
+) -> Tuple[NDArray[np.float64], NDArray[np.float64]]:
     """
-    Args:
-        gt_boxes: (N, 7), [x, y, z, dx, dy, dz, heading]
-        points: (M, 3 + C),
-        scale_range: [min, max]
-    Returns:
+    Apply global scaling to point cloud and bounding boxes.
+
+    Parameters
+    ----------
+    gt_boxes : NDArray[np.float64]
+        Ground truth boxes of shape (N, 7), [x, y, z, dx, dy, dz, heading].
+    points : NDArray[np.float64]
+        Point cloud of shape (M, 3 + C).
+    scale_range : Tuple[float, float]
+        Scale factor range [min, max].
+
+    Returns
+    -------
+    Tuple[NDArray[np.float64], NDArray[np.float64]]
+        gt_boxes : NDArray[np.float64]
+            Scaled ground truth boxes.
+        points : NDArray[np.float64]
+            Scaled points.
     """
     if scale_range[1] - scale_range[0] < 1e-3:
         return gt_boxes, points

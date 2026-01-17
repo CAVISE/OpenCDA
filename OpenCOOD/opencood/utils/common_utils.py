@@ -1,19 +1,62 @@
 """
-Common utilities
+Common utilities.
+
+This module provides various utility functions for data type checking and conversion,
+as well as common operations used throughout the OpenCOOD project.
 """
+
+from typing import Any, Dict, List, Tuple, Union
 
 import numpy as np
 import torch
+from numpy import ndarray
 from shapely.geometry import Polygon
+from torch import Tensor
 
 
-def check_numpy_to_torch(x):
+def check_numpy_to_torch(x: Union[ndarray, Any]) -> Tuple[Union[Tensor, Any], bool]:
+    """
+    Check if input is a numpy array and convert it to a PyTorch tensor if it is.
+
+    Parameters
+    ----------
+    x : np.ndarray or Any
+        Input value which could be a numpy array or any other type.
+
+    Returns
+    -------
+    converted : torch.Tensor or Any
+        The input converted to a PyTorch tensor if it was a numpy array,
+        otherwise the original input.
+    is_converted : bool
+        Boolean indicating whether a conversion was performed (True) or not (False).
+    """
     if isinstance(x, np.ndarray):
         return torch.from_numpy(x).float(), True
     return x, False
 
 
-def check_contain_nan(x):
+def check_contain_nan(x: Union[Dict[str, Any], List[Any], int, float, ndarray]) -> bool:
+    """
+    Recursively check if any value in a nested structure contains NaN.
+
+    Parameters
+    ----------
+    x : dict, list, np.ndarray, int, or float
+        Input which can be a dictionary, list, numpy array, or numeric value.
+
+    Returns
+    -------
+    bool
+        True if any NaN value is found in the input structure, False otherwise.
+
+    Notes
+    -----
+    - For dictionaries, checks all values recursively.
+    - For lists, checks all elements recursively.
+    - For numpy arrays, uses np.any(np.isnan()).
+    - For int or float, always returns False as they cannot be NaN in Python.
+    """
     if isinstance(x, dict):
         return any(check_contain_nan(v) for k, v in x.items())
     if isinstance(x, list):
@@ -25,13 +68,34 @@ def check_contain_nan(x):
     return torch.any(x.isnan()).detach().cpu().item()
 
 
-def rotate_points_along_z(points, angle):
+def rotate_points_along_z(points: Union[np.ndarray, torch.Tensor], angle: Union[np.ndarray, torch.Tensor]) -> Union[np.ndarray, torch.Tensor]:
     """
-    Args:
-        points: (B, N, 3 + C)
-        angle: (B), radians, angle along z-axis, angle increases x ==> y
-    Returns:
+    Rotate points around the z-axis by given angles.
 
+    Parameters
+    ----------
+    points : np.ndarray or torch.Tensor
+        Input points to be rotated with shape (B, N, 3 + C) where:
+        - B: batch size
+        - N: number of points
+        - 3: x, y, z coordinates
+        - C: additional channels (not modified by rotation)
+    angle : np.ndarray or torch.Tensor
+        Rotation angles in radians with shape (B,), where B is the batch size.
+        The rotation follows the right-hand rule (counter-clockwise when looking
+        from positive z towards origin).
+
+    Returns
+    -------
+    np.ndarray or torch.Tensor
+        Rotated points with the same type and shape as input.
+        The first 3 dimensions (x, y, z) are rotated around z-axis, while any
+        additional channels remain unchanged.
+
+    Notes
+    -----
+    - The function handles both numpy arrays and PyTorch tensors as input.
+    - The function preserves the input type (numpy array or tensor).
     """
     points, is_numpy = check_numpy_to_torch(points)
     angle, _ = check_numpy_to_torch(angle)
@@ -46,21 +110,21 @@ def rotate_points_along_z(points, angle):
     return points_rot.numpy() if is_numpy else points_rot
 
 
-def rotate_points_along_z_2d(points, angle):
+def rotate_points_along_z_2d(points: Union[np.ndarray, torch.Tensor], angle: Union[np.ndarray, torch.Tensor]) -> Union[np.ndarray, torch.Tensor]:
     """
-    Rorate the points along z-axis.
+    Rotate the points along z-axis in 2D.
+
     Parameters
     ----------
-    points : torch.Tensor / np.ndarray
-        (N, 2).
-    angle : torch.Tensor / np.ndarray
-        (N,)
+    points : torch.Tensor or np.ndarray
+        Points with shape (N, 2).
+    angle : torch.Tensor or np.ndarray
+        Rotation angles with shape (N,).
 
     Returns
     -------
-    points_rot : torch.Tensor / np.ndarray
-        Rorated points with shape (N, 2)
-
+    torch.Tensor or np.ndarray
+        Rotated points with shape (N, 2).
     """
     points, is_numpy = check_numpy_to_torch(points)
     angle, _ = check_numpy_to_torch(angle)
@@ -72,25 +136,24 @@ def rotate_points_along_z_2d(points, angle):
     return points_rot.numpy() if is_numpy else points_rot
 
 
-def remove_ego_from_objects(objects, ego_id):
+def remove_ego_from_objects(objects: Dict[str, Any], ego_id: int) -> None:
     """
     Avoid adding ego vehicle to the object dictionary.
 
     Parameters
     ----------
     objects : dict
-        The dictionary contained all objects.
-
+        The dictionary containing all objects.
     ego_id : int
-        Ego id.
+        Ego vehicle ID.
     """
     if ego_id in objects:
         del objects[ego_id]
 
 
-def retrieve_ego_id(base_data_dict):
+def retrieve_ego_id(base_data_dict: Dict[str, Any]) -> str:
     """
-    Retrieve the ego vehicle id from sample(origin format).
+    Retrieve the ego vehicle id from sample (origin format).
 
     Parameters
     ----------
@@ -99,7 +162,7 @@ def retrieve_ego_id(base_data_dict):
 
     Returns
     -------
-    ego_id : str
+    str
         The id of ego vehicle.
     """
     ego_id = None
@@ -111,22 +174,21 @@ def retrieve_ego_id(base_data_dict):
     return ego_id
 
 
-def compute_iou(box, boxes):
+def compute_iou(box: Polygon, boxes: List[Polygon]) -> np.ndarray:
     """
-    Compute iou between box and boxes list
+    Compute IoU between box and boxes list.
+
     Parameters
     ----------
     box : shapely.geometry.Polygon
         Bounding box Polygon.
-
-    boxes : list
+    boxes : list of shapely.geometry.Polygon
         List of shapely.geometry.Polygon.
 
     Returns
     -------
-    iou : np.ndarray
-        Array of iou between box and boxes.
-
+    np.ndarray
+        Array of IoU between box and boxes.
     """
     # Calculate intersection areas
     if np.any(np.array([box.union(b).area for b in boxes]) == 0):
@@ -136,48 +198,60 @@ def compute_iou(box, boxes):
     return np.array(iou, dtype=np.float32)
 
 
-def convert_format(boxes_array):
+def convert_format(boxes_array: np.ndarray) -> List[Polygon]:
     """
     Convert boxes array to shapely.geometry.Polygon format.
+
     Parameters
     ----------
     boxes_array : np.ndarray
-        (N, 4, 2) or (N, 8, 3).
+        Boxes array with shape (N, 4, 2) or (N, 8, 3).
 
     Returns
     -------
-        list of converted shapely.geometry.Polygon object.
-
+    list of Polygon
+        List of converted shapely.geometry.Polygon objects.
     """
     polygons = [Polygon([(box[i, 0], box[i, 1]) for i in range(4)]) for box in boxes_array]
-    return np.array(polygons)
+    return polygons
 
 
-def torch_tensor_to_numpy(torch_tensor):
+def torch_tensor_to_numpy(torch_tensor: torch.Tensor) -> np.ndarray:
     """
     Convert a torch tensor to numpy.
 
     Parameters
     ----------
     torch_tensor : torch.Tensor
+        Input PyTorch tensor.
 
     Returns
     -------
-    A numpy array.
+    np.ndarray
+        A numpy array.
     """
     return torch_tensor.numpy() if not torch_tensor.is_cuda else torch_tensor.cpu().detach().numpy()
 
 
-def get_voxel_centers(voxel_coords, downsample_times, voxel_size, point_cloud_range):
+def get_voxel_centers(voxel_coords: np.ndarray, downsample_times: int, voxel_size: np.ndarray, point_cloud_range: np.ndarray) -> np.ndarray:
     """
-    Args:
-        voxel_coords: (N, 3)
-        downsample_times:
-        voxel_size:
-        point_cloud_range:
+    Calculate voxel center coordinates.
 
-    Returns:
+    Parameters
+    ----------
+    voxel_coords : np.ndarray
+        Voxel coordinates with shape (N, 3).
+    downsample_times : int
+        Downsampling factor.
+    voxel_size : np.ndarray
+        Size of each voxel.
+    point_cloud_range : np.ndarray
+        Point cloud range.
 
+    Returns
+    -------
+    np.ndarray
+        Voxel center coordinates.
     """
     assert voxel_coords.shape[1] == 3
     voxel_centers = voxel_coords[:, [2, 1, 0]].float()  # (xyz)

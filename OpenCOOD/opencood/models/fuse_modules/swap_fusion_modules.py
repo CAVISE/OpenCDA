@@ -1,5 +1,8 @@
 """
-This class is about swap fusion applications (also known as Fused Axial Attention)
+Swap Fusion (Fused Axial Attention) for multi-agent feature fusion.
+
+This module implements swap fusion using alternating window and grid attention
+patterns for efficient multi-agent cooperative perception.
 """
 
 import torch
@@ -8,6 +11,8 @@ from torch import nn, einsum
 from einops.layers.torch import Rearrange, Reduce
 
 from opencood.models.sub_modules.base_transformer import FeedForward, PreNormResidual
+
+from typing import Optional
 
 
 # swap attention -> max_vit
@@ -25,9 +30,28 @@ class Attention(nn.Module):
         Dropout rate
     agent_size: int
         The agent can be different views, timestamps or vehicles.
+
+    Attributes
+    ----------
+    heads : int
+        Number of attention heads.
+    scale : float
+        Scaling factor for queries (1/sqrt(dim_head)).
+    window_size : list of int
+        Window size in [agent, height, width] dimensions.
+    to_qkv : nn.Linear
+        Linear projection for queries, keys, and values.
+    attend : nn.Sequential
+        Softmax layer for attention weights.
+    to_out : nn.Sequential
+        Output projection with dropout.
+    relative_position_bias_table : nn.Embedding
+        Learnable relative position bias table.
+    relative_position_index : Tensor
+        Buffer storing relative position indices for bias lookup.
     """
 
-    def __init__(self, dim, dim_head=32, dropout=0.0, agent_size=6, window_size=7):
+    def __init__(self, dim: int, dim_head: int = 32, dropout: float = 0.0, agent_size: int = 6, window_size: int = 7):
         super().__init__()
         assert (dim % dim_head) == 0, "dimension should be divisible by dimension per head"
 
@@ -67,7 +91,22 @@ class Attention(nn.Module):
         relative_position_index = relative_coords.sum(-1)  # Wd*Wh*Ww, Wd*Wh*Ww
         self.register_buffer("relative_position_index", relative_position_index)
 
-    def forward(self, x, mask=None):
+    def forward(self, x: torch.Tensor, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
+        """
+        Apply multi-head attention with optional masking.
+
+        Parameters
+        ----------
+        x : Tensor
+            Input features (B, L, H, W, w_h, w_w, C).
+        mask : Tensor, optional
+            Binary mask (B, H, W, 1, L) for valid agents.
+
+        Returns
+        -------
+        out : Tensor
+            Attention output with same shape as input.
+        """
         # x shape: b, l, h, w, w_h, w_w, c
         batch, agent_size, height, width, window_height, window_width, _, _, h = *x.shape, x.device, self.heads  # eighth variable is device
 
@@ -109,11 +148,46 @@ class Attention(nn.Module):
 
 class SwapFusionBlockMask(nn.Module):
     """
-    Swap Fusion Block contains window attention and grid attention with
-    mask enabled for multi-vehicle cooperation.
+    Swap fusion block with mask support for variable agent counts.
+
+    Alternates between window attention (local) and grid attention (global).
+
+    Parameters
+    ----------
+    input_dim : int
+        Feature dimension.
+    mlp_dim : int
+        MLP hidden dimension.
+    dim_head : int
+        Dimension per attention head.
+    window_size : int
+        Window size for partitioning.
+    agent_size : int
+        Number of agents.
+    drop_out : float
+        Dropout rate.
+
+    Attributes
+    ----------
+    heads : int
+        Number of attention heads.
+    scale : float
+        Scaling factor for queries (1/sqrt(dim_head)).
+    window_size : list of int
+        Window size in [agent, height, width] dimensions.
+    to_qkv : nn.Linear
+        Linear projection for queries, keys, and values.
+    attend : nn.Sequential
+        Softmax layer for attention weights.
+    to_out : nn.Sequential
+        Output projection with dropout.
+    relative_position_bias_table : nn.Embedding
+        Learnable relative position bias table.
+    relative_position_index : Tensor
+        Buffer storing relative position indices for bias lookup.
     """
 
-    def __init__(self, input_dim, mlp_dim, dim_head, window_size, agent_size, drop_out):
+    def __init__(self, input_dim: int, mlp_dim: int, dim_head: int, window_size: int, agent_size: int, drop_out: float):
         super(SwapFusionBlockMask, self).__init__()
 
         self.window_size = window_size
@@ -123,7 +197,22 @@ class SwapFusionBlockMask(nn.Module):
         self.grid_attention = PreNormResidual(input_dim, Attention(input_dim, dim_head, drop_out, agent_size, window_size))
         self.grid_ffd = PreNormResidual(input_dim, FeedForward(input_dim, mlp_dim, drop_out))
 
-    def forward(self, x, mask):
+    def forward(self, x: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+        """
+        Apply window and grid attention with masking.
+
+        Parameters
+        ----------
+        x : Tensor
+            Input features (B, L, C, H, W).
+        mask : Tensor
+            Agent mask (B, H, W, 1, L).
+
+        Returns
+        -------
+        x : Tensor
+            Output features (B, L, C, H, W).
+        """
         # x: b l c h w
         # mask: b h w 1 l
         # window attention -> grid attention
@@ -149,10 +238,30 @@ class SwapFusionBlockMask(nn.Module):
 
 class SwapFusionBlock(nn.Module):
     """
-    Swap Fusion Block contains window attention and grid attention.
+    Swap fusion block without masking
+
+     Parameters
+     ----------
+     input_dim : int
+         Feature dimension.
+     mlp_dim : int
+         MLP hidden dimension.
+     dim_head : int
+         Dimension per attention head.
+     window_size : int
+         Window size for partitioning.
+     agent_size : int
+         Number of agents.
+     drop_out : float
+         Dropout rate.
+
+     Attributes
+     ----------
+     block : nn.Sequential
+         Sequential block containing window and grid attention operations.
     """
 
-    def __init__(self, input_dim, mlp_dim, dim_head, window_size, agent_size, drop_out):
+    def __init__(self, input_dim: int, mlp_dim: int, dim_head: int, window_size: int, agent_size: int, drop_out: float) -> None:
         super(SwapFusionBlock, self).__init__()
         # b = batch * max_cav
         self.block = nn.Sequential(
@@ -166,7 +275,7 @@ class SwapFusionBlock(nn.Module):
             Rearrange("b m x y w1 w2 d -> b m d (w1 x) (w2 y)"),
         )
 
-    def forward(self, x, mask=None):
+    def forward(self, x: torch.Tensor, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
         # todo: add mask operation later for mulit-agents
         x = self.block(x)
         return x
@@ -174,7 +283,41 @@ class SwapFusionBlock(nn.Module):
 
 class SwapFusionEncoder(nn.Module):
     """
-    Data rearrange -> swap block -> mlp_head
+    Multi-stage swap fusion encoder with MLP head.
+
+    Stacks multiple swap fusion blocks and averages across agents.
+
+    Parameters
+    ----------
+    args : dict
+        Configuration containing:
+            - depth : int
+                Number of swap fusion blocks.
+            - input_dim : int
+                Feature dimension.
+            - mlp_dim : int
+                MLP hidden dimension.
+            - agent_size : int
+                Number of agents.
+            - window_size : int
+                Window size.
+            - dim_head : int
+                Head dimension.
+            - drop_out : float
+                Dropout rate.
+            - mask : bool, optional
+                Whether to use masking.
+
+    Attributes
+    ----------
+    layers : nn.ModuleList
+        List of swap fusion blocks.
+    depth : int
+        Number of fusion blocks.
+    mask : bool
+        Flag indicating whether masking is enabled.
+    mlp_head : nn.Sequential
+        MLP head for final feature transformation after agent aggregation.
     """
 
     def __init__(self, args):
@@ -212,7 +355,22 @@ class SwapFusionEncoder(nn.Module):
             Rearrange("b h w d -> b d h w"),
         )
 
-    def forward(self, x, mask=None):
+    def forward(self, x: torch.Tensor, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
+        """
+        Apply swap fusion and aggregate across agents.
+
+        Parameters
+        ----------
+        x : Tensor
+            Input features (B, L, C, H, W).
+        mask : Tensor, optional
+            Agent mask (B, H, W, 1, L).
+
+        Returns
+        -------
+        out : Tensor
+            Fused features (B, C, H, W).
+        """
         for stage in self.layers:
             x = stage(x, mask=mask)
         return self.mlp_head(x)

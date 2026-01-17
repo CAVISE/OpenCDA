@@ -1,8 +1,42 @@
+"""
+Autoencoder module for feature compression and decompression.
+
+This module implements a simple convolutional autoencoder that can be used
+for feature compression in multi-agent perception systems.
+"""
+
 import torch.nn as nn
+import torch
 
 
 class AutoEncoder(nn.Module):
-    def __init__(self, feature_num, layer_num):
+    """
+    An autoencoder for feature compression.
+
+    The autoencoder reduces the spatial dimensions of the input features
+    while maintaining the number of channels. It consists of multiple
+    encoding and decoding layers with skip connections.
+
+    Parameters
+    ----------
+    feature_num : int
+        Number of input/output channels.
+    layer_num : int
+        Number of encoding/decoding layers.
+
+    Attributes
+    ----------
+    feature_num : int
+        Number of input/output channels.
+    feature_stride : int
+        Channel reduction factor (always 2).
+    encoder : nn.ModuleList
+        List of encoding blocks that downsample spatially and reduce channels.
+    decoder : nn.ModuleList
+        List of decoding blocks that upsample spatially and increase channels.
+    """
+
+    def __init__(self, feature_num: int, layer_num: int):
         super().__init__()
         self.feature_num = feature_num
         self.feature_stride = 2
@@ -51,7 +85,26 @@ class AutoEncoder(nn.Module):
             self.decoder.append(nn.Sequential(*cur_layers))
             feature_num //= 2
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass through autoencoder.
+
+        Parameters
+        ----------
+        x : Tensor
+            Input features with shape (B, C, H, W).
+
+        Returns
+        -------
+        Tensor
+            Reconstructed features with shape (B, C, H, W).
+
+        Notes
+        -----
+        The spatial dimensions are progressively reduced by 2^layer_num during
+        encoding and restored during decoding. The channel dimension follows
+        the pattern: C -> C/2 -> C/4 -> ... -> C/(2^layer_num) -> ... -> C.
+        """
         for i in range(len(self.encoder)):
             x = self.encoder[i](x)
 
