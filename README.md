@@ -6,7 +6,7 @@
 
 ---
 
-OpenCDA is a **SIMULATION** tool integrated with a prototype cooperative driving automation (CDA; see SAE J3216) pipeline as well as regular automated driving components (e.g., perception, localization, planning, control). The tool integrates automated driving simulation (CARLA), traffic simulation (SUMO), and Co-simulation.
+OpenCDA is a open co-simulation-based framework integrated with a prototype cooperative driving automation (CDA; see SAE J3216) pipeline as well as regular automated driving components (e.g., perception, localization, planning, control). The tool integrates automated driving simulation (CARLA), traffic simulation (SUMO), Co-simulation, detection framework (OpenCOOD) and V2X simulation framework (Artery).
 
 ## Key Features
 
@@ -16,48 +16,13 @@ OpenCDA is a **SIMULATION** tool integrated with a prototype cooperative driving
 - **SUMO Co-simulation**: Large-scale traffic flow simulation
 - **Modular Design**: Easy customization and extension
 - **Platooning Support**: Built-in cooperative platooning algorithms
+- **Cooperative Perception Support**: Built-in cooperative perception algorithms
 - **Testing Framework**: Scenario-based testing and evaluation
-
-## Quick Start
-
-### Prerequisites
-
-- Python 3.10+
-- CARLA 0.9.X (recommended 0.9.16)
-- SUMO 1.10+
-
-### Installation
-
-```bash
-# Clone the repository
-git clone https://github.com/CAVISE/OpenCDA
-cd OpenCDA
-
-# Create conda environment
-conda env create -f environment.yml
-conda activate opencda
-
-# Install in development mode
-pip install -e .
-```
-
-### Run Your First Scenario
-
-```bash
-# Start CARLA server (in a separate terminal)
-cd /path/to/CARLA
-./CarlaUE4.sh
-
-# Run a single vehicle scenario
-python opencda.py -t single_2lanefree_carla 
-
-# Run a platoon scenario  
-python opencda.py -t platoon_stability_2lanefree_carla
-```
 
 ## Documentation
 
-Full documentation is available at: [OpenCDA Documentation](https://opencda-documentation.readthedocs.io/en/latest/index.html)
+Full fork documentation is not available yet...
+Full original documentation is available at: [OpenCDA Documentation](https://opencda-documentation.readthedocs.io/en/latest/index.html)
 
 
 ## Architecture
@@ -76,13 +41,6 @@ OpenCDA
 └── co_simulation/     # CARLA-SUMO integration
 ```
 
-## Use Cases
-
-- **Research**: Test cooperative driving algorithms in realistic scenarios
-- **Education**: Learn about autonomous driving system architecture
-- **Development**: Prototype and validate CDA applications
-- **Benchmarking**: Compare different planning and control strategies
-
 ## License
 
 OpenCDA is released under the MIT License.
@@ -92,7 +50,9 @@ OpenCDA is released under the MIT License.
 ## Related Projects
 
 - [Original OpenCDA](https://github.com/ucla-mobility/OpenCDA) - UCLA Mobility Lab
+- [Original OpenCOOD](https://github.com/DerrickXuNu/OpenCOOD) - detection framework
 - [CARLA Simulator](https://carla.org/) - Open-source simulator for autonomous driving
 - [SUMO](https://www.eclipse.org/sumo/) - Traffic simulation suite
+- [Artery](https://github.com/riebl/artery) - V2X simulation framework
 
 Based on: OpenCDA by UCLA Mobility Lab

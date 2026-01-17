@@ -548,7 +548,7 @@ def get_projection_length_for_vector_projection(a: npt.NDArray[np.floating], b: 
     """
     Get projection length for the Vector projection of a onto b s.t.
     a_projected = length * b. (2D version) See
-    [https://en.wikipedia.org/wiki/Vector_projection#Vector_projection_2](https://en.wikipedia.org/wiki/Vector_projection#Vector_projection_2)
+    https://en.wikipedia.org/wiki/Vector_projection#Vector_projection_2
     for more details.
 
     Parameters
