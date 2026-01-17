@@ -98,7 +98,7 @@ optimizer:
   core_method: Adam
   lr: 0.002
 postprocess:
-  gt_range: *id001
+  gt_range: *id001 
   anchor_args:
     D: 40
     H: 800
@@ -131,7 +131,7 @@ preprocess:
     voxel_size: *id002
   cav_lidar_range: *id001
   core_method: SpVoxelPreprocessor
-root_dir: /data/opv2v/train
+root_dir: /home/opencda/cavise/opencda/opv2v_data_dumping/validate
 train_params:
   batch_size: 1
   epoches: 60
