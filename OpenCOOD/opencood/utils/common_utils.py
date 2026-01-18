@@ -5,16 +5,16 @@ This module provides various utility functions for data type checking and conver
 as well as common operations used throughout the OpenCOOD project.
 """
 
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Dict, List, Tuple, Union, Hashable, Optional
 
 import numpy as np
 import torch
-from numpy import ndarray
+import numpy.typing as npt
 from shapely.geometry import Polygon
 from torch import Tensor
 
 
-def check_numpy_to_torch(x: Union[ndarray, Any]) -> Tuple[Union[Tensor, Any], bool]:
+def check_numpy_to_torch(x: Union[npt.NDArray, Any]) -> Tuple[Union[Tensor, Any], bool]:
     """
     Check if input is a numpy array and convert it to a PyTorch tensor if it is.
 
@@ -36,7 +36,7 @@ def check_numpy_to_torch(x: Union[ndarray, Any]) -> Tuple[Union[Tensor, Any], bo
     return x, False
 
 
-def check_contain_nan(x: Union[Dict[str, Any], List[Any], int, float, ndarray]) -> bool:
+def check_contain_nan(x: Any) -> bool:
     """
     Recursively check if any value in a nested structure contains NaN.
 
@@ -64,11 +64,11 @@ def check_contain_nan(x: Union[Dict[str, Any], List[Any], int, float, ndarray]) 
     if isinstance(x, int) or isinstance(x, float):
         return False
     if isinstance(x, np.ndarray):
-        return np.any(np.isnan(x))
-    return torch.any(x.isnan()).detach().cpu().item()
+        return bool(np.any(np.isnan(x)))
+    return bool(torch.any(x.isnan()).detach().cpu().item())
 
 
-def rotate_points_along_z(points: Union[np.ndarray, torch.Tensor], angle: Union[np.ndarray, torch.Tensor]) -> Union[np.ndarray, torch.Tensor]:
+def rotate_points_along_z(points: Union[npt.NDArray, torch.Tensor], angle: Union[npt.NDArray, torch.Tensor]) -> Union[npt.NDArray, torch.Tensor]:
     """
     Rotate points around the z-axis by given angles.
 
@@ -110,7 +110,7 @@ def rotate_points_along_z(points: Union[np.ndarray, torch.Tensor], angle: Union[
     return points_rot.numpy() if is_numpy else points_rot
 
 
-def rotate_points_along_z_2d(points: Union[np.ndarray, torch.Tensor], angle: Union[np.ndarray, torch.Tensor]) -> Union[np.ndarray, torch.Tensor]:
+def rotate_points_along_z_2d(points: Union[npt.NDArray, torch.Tensor], angle: Union[npt.NDArray, torch.Tensor]) -> Union[npt.NDArray, torch.Tensor]:
     """
     Rotate the points along z-axis in 2D.
 
@@ -136,7 +136,7 @@ def rotate_points_along_z_2d(points: Union[np.ndarray, torch.Tensor], angle: Uni
     return points_rot.numpy() if is_numpy else points_rot
 
 
-def remove_ego_from_objects(objects: Dict[str, Any], ego_id: int) -> None:
+def remove_ego_from_objects(objects: Dict[Hashable, Any], ego_id: int) -> None:
     """
     Avoid adding ego vehicle to the object dictionary.
 
@@ -151,7 +151,7 @@ def remove_ego_from_objects(objects: Dict[str, Any], ego_id: int) -> None:
         del objects[ego_id]
 
 
-def retrieve_ego_id(base_data_dict: Dict[str, Any]) -> str:
+def retrieve_ego_id(base_data_dict: Dict[str, Any]) -> Optional[str]:
     """
     Retrieve the ego vehicle id from sample (origin format).
 
@@ -174,7 +174,7 @@ def retrieve_ego_id(base_data_dict: Dict[str, Any]) -> str:
     return ego_id
 
 
-def compute_iou(box: Polygon, boxes: List[Polygon]) -> np.ndarray:
+def compute_iou(box: Polygon, boxes: List[Polygon]) -> npt.NDArray:
     """
     Compute IoU between box and boxes list.
 
@@ -198,7 +198,7 @@ def compute_iou(box: Polygon, boxes: List[Polygon]) -> np.ndarray:
     return np.array(iou, dtype=np.float32)
 
 
-def convert_format(boxes_array: np.ndarray) -> List[Polygon]:
+def convert_format(boxes_array: npt.NDArray) -> List[Polygon]:
     """
     Convert boxes array to shapely.geometry.Polygon format.
 
@@ -216,7 +216,7 @@ def convert_format(boxes_array: np.ndarray) -> List[Polygon]:
     return polygons
 
 
-def torch_tensor_to_numpy(torch_tensor: torch.Tensor) -> np.ndarray:
+def torch_tensor_to_numpy(torch_tensor: torch.Tensor) -> npt.NDArray:
     """
     Convert a torch tensor to numpy.
 
@@ -233,7 +233,7 @@ def torch_tensor_to_numpy(torch_tensor: torch.Tensor) -> np.ndarray:
     return torch_tensor.numpy() if not torch_tensor.is_cuda else torch_tensor.cpu().detach().numpy()
 
 
-def get_voxel_centers(voxel_coords: np.ndarray, downsample_times: int, voxel_size: np.ndarray, point_cloud_range: np.ndarray) -> np.ndarray:
+def get_voxel_centers(voxel_coords: Any, downsample_times: Any, voxel_size: Any, point_cloud_range: Any) -> Any:
     """
     Calculate voxel center coordinates.
 

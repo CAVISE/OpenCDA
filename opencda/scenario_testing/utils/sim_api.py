@@ -20,6 +20,7 @@ from omegaconf.listconfig import ListConfig
 
 import carla
 import numpy as np
+from typing import Dict, List, Any
 
 from opencda.core.common.vehicle_manager import VehicleManager
 from opencda.core.application.platooning.platooning_manager import PlatooningManager
@@ -274,8 +275,8 @@ class ScenarioManager:
         single_cav_list : list
             A list contains all single CAVs' vehicle manager.
         """
-        single_cav_list = []
-        cav_carla_list = {}
+        single_cav_list: List[Any] = []
+        cav_carla_list: Dict[str, carla.Actor] = {}
 
         if self.scenario_params.get("scenario") is None or self.scenario_params["scenario"].get("single_cav_list", None) is None:
             logger.info("No CAV was created")
@@ -346,8 +347,8 @@ class ScenarioManager:
         single_cav_list : list
             A list contains all single CAVs' vehicle manager.
         """
-        platoon_list = []
-        platoon_carla_ids = {}
+        platoon_list: List[Any] = []
+        platoon_carla_ids: Dict[str, int] = {}
 
         self.cav_world = CavWorld(self.apply_ml)
 

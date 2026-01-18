@@ -8,7 +8,7 @@ import argparse
 import omegaconf
 
 from pathlib import Path
-from typing import List, Union, Any
+from typing import List, Union, Any, Optional, Dict
 from dataclasses import dataclass
 
 import opencda.scenario_testing.utils.cosim_api as sim_api
@@ -44,7 +44,7 @@ class Scenario:
     scenario_name: str
 
     def __init__(self, opt: argparse.Namespace, scenario_params: omegaconf.OmegaConf):
-        self.node_ids = {"cav": [], "rsu": [], "platoon": []}
+        self.node_ids: Dict[str, List[int]] = {"cav": [], "rsu": [], "platoon": []}
         self.scenario_name = opt.test_scenario
         self.scenario_params, current_time = add_current_time(scenario_params)
         logger.info(f"running scenario with name: {self.scenario_name}; current time: {current_time}")
@@ -94,7 +94,7 @@ class Scenario:
 
         if self.cav_world.comms_manager is not None:
             self.cav_world.comms_manager.create_socket(zmq.PAIR, "connect")
-            self.message_handler = MessageHandler()
+            self.message_handler: Optional[MessageHandler] = MessageHandler()
             logger.info("running: creating message handler")
         else:
             self.message_handler = None

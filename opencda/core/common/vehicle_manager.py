@@ -6,6 +6,7 @@ Basic class of CAV
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
 import logging
+from typing import Set
 
 from opencda.core.actuation.control_manager import ControlManager
 from opencda.core.application.platooning.platoon_behavior_agent import PlatooningBehaviorAgent
@@ -72,7 +73,7 @@ class VehicleManager(object):
     current_cav_id = 1
     current_platoon_id = 1
     current_unknown_id = 1
-    used_ids = set()
+    used_ids: Set[int] = set()
 
     # TODO: application и prefix как будто бы дублируют друг друга, но не факт
     def __init__(

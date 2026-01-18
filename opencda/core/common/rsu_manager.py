@@ -6,6 +6,7 @@ Basic class for RSU(Roadside Unit) management.
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
 import logging
+from typing import Any, Set
 
 # CAVISE
 
@@ -55,7 +56,7 @@ class RSUManager(object):
     """
 
     current_id = 1
-    used_ids = set()
+    used_ids: Set[int] = set()
 
     def __init__(
         self, carla_world, config_yaml, carla_map, cav_world, current_time="", data_dumping=False, autogenerate_id_on_failure=True

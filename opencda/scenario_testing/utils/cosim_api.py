@@ -11,7 +11,7 @@ and traffic light coordination.
 
 import os
 import logging
-from typing import Dict, Optional, Any
+from typing import Dict, Optional, Any, Set
 
 import carla
 
@@ -90,9 +90,9 @@ class CoScenarioManager(ScenarioManager):
         super(CoScenarioManager, self).__init__(scenario_params, apply_ml, carla_version, xodr_path, town, cav_world, carla_host)
 
         # these following sets are used to track the vehicles controlled by sumo side
-        self._active_actors = set()
-        self.spawned_actors = set()
-        self.destroyed_actors = set()
+        self._active_actors: Set[int] = set()
+        self.spawned_actors: Set[int] = set()
+        self.destroyed_actors: Set[int] = set()
         self.node_ids = node_ids
 
         # contains all carla traffic lights objects
@@ -106,7 +106,7 @@ class CoScenarioManager(ScenarioManager):
                     logging.warning(f"Landmark {landmark.id} is not linked to any traffic light")
 
         # sumo side initialization
-        base_name = os.path.basename(sumo_file_parent_path)
+        base_name: str = os.path.basename(sumo_file_parent_path)
 
         sumo_key = "sumo"
 

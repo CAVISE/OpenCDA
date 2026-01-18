@@ -92,33 +92,22 @@ class PlatooningBehaviorAgent(BehaviorAgent):
         self.time_gap = 100.0
         self.dist_gap = 100.0
 
-    def run_step(
-        self,
-        target_speed: Optional[float] = None,
-        collision_detector_enabled: bool = True,
-        lane_change_allowed: bool = True,
-    ) -> Tuple[float, Optional[carla.Waypoint]]:
+    def run_step(self, target_speed: float | Any= None, collision_detector_enabled: bool=True, lane_change_allowed: bool=True) -> Tuple[float, Optional[carla.Waypoint]]:
         """
-        Execute single navigation step under platooning control.
-
-        Uses finite state machine to switch between different platooning states
-        and execute appropriate maneuvers.
+        Run a single step for navigation under platooning agent.
+        Finite state machine is used to switch between different
+        platooning states.
 
         Parameters
         ----------
-        target_speed : float, optional
-            Target speed in km/h. Default is None.
-        collision_detector_enabled : bool, optional
-            Whether collision detection is enabled. Default is True.
-        lane_change_allowed : bool, optional
-            Whether lane change is allowed. Default is True.
-
-        Returns
-        -------
         target_speed : float
-            Computed target speed in km/h.
-        target_waypoint : carla.Waypoint or None
-            Target waypoint for navigation.
+            Target speed in km/h
+
+        collision_detector_enabled : bool
+            Whether collision detection enabled.
+
+        lane_change_allowed : bool
+            Whether lane change is allowed.
         """
         # reset time gap and distance gap record at the beginning
         self.time_gap = 100.0

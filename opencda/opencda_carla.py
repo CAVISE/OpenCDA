@@ -183,7 +183,7 @@ class Transform(object):
         The rotation (in degrees) of the object represented by the transform.
     """
 
-    def __init__(self, location: Location = None, rotation: Rotation = None):
+    def __init__(self, location: Location | None = None, rotation: Rotation | None = None):
         self.location = location
         self.rotation = Rotation(0, 0, 0) if not rotation else rotation
 

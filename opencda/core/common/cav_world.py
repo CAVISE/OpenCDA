@@ -10,7 +10,7 @@ SUMO-CARLA ID mappings during co-simulation.
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
 import importlib
-from typing import Dict, Any
+from typing import Dict, Any, Set
 
 
 class CavWorld(object):
@@ -44,10 +44,10 @@ class CavWorld(object):
     """
 
     def __init__(self, apply_ml: bool = False, with_capi: bool = False):
-        self.vehicle_id_set = set()
-        self._vehicle_manager_dict = {}
-        self._platooning_dict = {}
-        self._rsu_manager_dict = {}
+        self.vehicle_id_set: Set[int] = set()
+        self._vehicle_manager_dict: Dict[str, Any] = {}
+        self._platooning_dict: Dict[str, Any] = {}
+        self._rsu_manager_dict: Dict[str, Any] = {}
         self.ml_manager = None
         # CAVISE communication protocol manager
         self.comms_manager = None
@@ -67,7 +67,7 @@ class CavWorld(object):
             self.comms_manager = manager(address)
 
         # this is used only when co-simulation activated.
-        self.sumo2carla_ids = {}
+        self.sumo2carla_ids: Dict[str, int] = {}
 
     def update_vehicle_manager(self, vehicle_manager: Any) -> None:
         """
