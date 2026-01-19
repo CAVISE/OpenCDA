@@ -21,7 +21,7 @@ from opencda.core.sensing.perception.static_obstacle import StaticObstacle
 
 VIRIDIS = np.array(cm.get_cmap("plasma").colors)
 VID_RANGE = np.linspace(0.0, 1.0, VIRIDIS.shape[0])
-LABEL_COLORS = (
+LABEL_COLORS = (  # noqa: DC01
     np.array(
         [
             (255, 255, 255),  # None
@@ -103,9 +103,9 @@ def o3d_visualizer_init(actor_id):
     """
     vis = o3d.visualization.Visualizer()
     vis.create_window(window_name=str(actor_id), width=480, height=320, left=480, top=270)
-    vis.get_render_option().background_color = [0.05, 0.05, 0.05]
-    vis.get_render_option().point_size = 1
-    vis.get_render_option().show_coordinate_frame = True
+    vis.get_render_option().background_color = [0.05, 0.05, 0.05]  # noqa: DC05
+    vis.get_render_option().point_size = 1  # noqa: DC05
+    vis.get_render_option().show_coordinate_frame = True  # noqa: DC05
 
     return vis
 
