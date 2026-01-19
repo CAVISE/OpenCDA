@@ -1,4 +1,4 @@
-name: Lint, Format and Type Check
+name: Lint, Format, Type and Unused code Check
 
 on: [ pull_request ]
 
@@ -23,7 +23,7 @@ jobs:
         with:
           args: "format --check --diff"
 
-  type-chek:
+  type-check:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -36,4 +36,19 @@ jobs:
         run: pip install mypy
       - name: Run mypy
         run: mypy .
+        continue-on-error: true
+
+  unused-code-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Dependencies
+        run: pip install deadcode
+      - name: Run deadcode
+        run: deadcode .
         continue-on-error: true
