@@ -92,7 +92,9 @@ class PlatooningBehaviorAgent(BehaviorAgent):
         self.time_gap = 100.0
         self.dist_gap = 100.0
 
-    def run_step(self, target_speed: float | Any= None, collision_detector_enabled: bool=True, lane_change_allowed: bool=True) -> Tuple[float, Optional[carla.Waypoint]]:
+    def run_step(
+        self, target_speed: float | Any = None, collision_detector_enabled: bool = True, lane_change_allowed: bool = True
+    ) -> Tuple[float, Optional[carla.Waypoint]]:
         """
         Run a single step for navigation under platooning agent.
         Finite state machine is used to switch between different
