@@ -10,10 +10,10 @@ from torch_geometric.nn import GraphConv as GNNConv
 from tqdm import tqdm
 
 from dataset import CarDataset
-from utils.config import DT, OBS_LEN, PRED_LEN
+from utils.config import DT, PRED_LEN
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-obs_len, pred_len, dt = OBS_LEN, PRED_LEN, DT
+pred_len, dt = PRED_LEN, DT
 
 parser = argparse.ArgumentParser(description="")
 parser.add_argument("--train_folder", type=str, help="path to the training set", default="csv/train_pre")

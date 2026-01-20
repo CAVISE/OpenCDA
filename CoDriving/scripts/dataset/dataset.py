@@ -10,10 +10,10 @@ from torch_geometric.data import Data, InMemoryDataset
 from tqdm import tqdm
 
 from MPC_XY_Frame import linear_mpc_control_data_aug
-from utils.config import DT, OBS_LEN, PRED_LEN
+from utils.config import DT, PRED_LEN
 
 
-obs_len, pred_len, dt = OBS_LEN, PRED_LEN, DT
+pred_len, dt = PRED_LEN, DT
 
 
 def rotation_matrix(yaw):
@@ -35,14 +35,6 @@ class CarDataset(InMemoryDataset):
         super().__init__(preprocess_folder)
         self.data, self.slices = torch.load(self.processed_paths[0])
 
-    @property
-    def processed_file_names(self):
-        pt_name = "data"
-        pt_name += "_mlp" if self.mlp else "_gnn"
-        if self.mpc_aug:
-            pt_name += "_aug"
-        return [f"{pt_name}.pt"]
-
     def process(self):
         """
         Converts raw data into GNN-readable format by constructing
@@ -53,8 +45,8 @@ class CarDataset(InMemoryDataset):
         graphs = list()
 
         if self.plot:
-            fig, ax = plt.subplots()  # plot the mcp augmented data
-            fig2, ax2 = plt.subplots()  # plot the rotated gt
+            fig, _ = plt.subplots()  # plot the mcp augmented data
+            # fig2, ax2 = plt.subplots()  # plot the rotated gt
             os.makedirs(f"images/{self.preprocess_folder}", exist_ok=True)
 
         for file in tqdm(preprocess_files):
