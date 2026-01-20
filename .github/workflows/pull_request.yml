@@ -50,4 +50,4 @@ jobs:
       - name: Install Dependencies
         run: pip install deadcode
       - name: Run deadcode
-        run: deadcode . --exclude=docs,OpenCOOD/docs,test
+        run: deadcode .

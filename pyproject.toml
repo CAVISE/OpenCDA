@@ -91,3 +91,7 @@ exclude = [
     'docs',
     'test'
 ]
+
+
+[tool.deadcode]
+exclude = ["docs", "OpenCOOD/docs", "test"]
