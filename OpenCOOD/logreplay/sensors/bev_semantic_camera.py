@@ -64,7 +64,7 @@ class BEVSemanticCamera(BaseSensor):
             self.sensor = world.spawn_actor(blueprint, spawn_point)
 
         self.image = None
-        self.timstamp = None
+        self.timstamp = None  # noqa: DC05
         self.frame = 0
         weak_self = weakref.ref(self)
         self.sensor.listen(lambda event: BEVSemanticCamera._on_rgb_image_event(weak_self, event))

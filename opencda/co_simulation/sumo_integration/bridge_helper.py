@@ -20,7 +20,7 @@ import os
 import carla  # pylint: disable=import-error
 import traci  # pylint: disable=import-error
 
-from opencda.co_simulation.sumo_integration.sumo_simulation import SumoSignalState, SumoVehSignal
+from opencda.co_simulation.sumo_integration.sumo_simulation import SumoSignalState
 
 # ==================================================================================================
 # -- Bridge helper (SUMO <=> CARLA) ----------------------------------------------------------------
@@ -238,116 +238,6 @@ class BridgeHelper(object):
             logging.debug("[BridgeHelper] blueprint %s found in sumo vtypes", type_id)
             return type_id
         return BridgeHelper._create_sumo_vtype(carla_actor)
-
-    @staticmethod
-    def get_carla_lights_state(current_carla_lights, sumo_lights):
-        """
-        Returns carla vehicle light state based on sumo signals.
-        """
-        current_lights = current_carla_lights
-
-        # Blinker right / emergency.
-        if any([bool(sumo_lights & SumoVehSignal.BLINKER_RIGHT), bool(sumo_lights & SumoVehSignal.BLINKER_EMERGENCY)]) != bool(
-            current_lights & carla.VehicleLightState.RightBlinker
-        ):
-            current_lights ^= carla.VehicleLightState.RightBlinker
-
-        # Blinker left / emergency.
-        if any([bool(sumo_lights & SumoVehSignal.BLINKER_LEFT), bool(sumo_lights & SumoVehSignal.BLINKER_EMERGENCY)]) != bool(
-            current_lights & carla.VehicleLightState.LeftBlinker
-        ):
-            current_lights ^= carla.VehicleLightState.LeftBlinker
-
-        # Break.
-        if bool(sumo_lights & SumoVehSignal.BRAKELIGHT) != bool(current_lights & carla.VehicleLightState.Brake):
-            current_lights ^= carla.VehicleLightState.Brake
-
-        # Front (low beam).
-        if bool(sumo_lights & SumoVehSignal.FRONTLIGHT) != bool(current_lights & carla.VehicleLightState.LowBeam):
-            current_lights ^= carla.VehicleLightState.LowBeam
-
-        # Fog.
-        if bool(sumo_lights & SumoVehSignal.FOGLIGHT) != bool(current_lights & carla.VehicleLightState.Fog):
-            current_lights ^= carla.VehicleLightState.Fog
-
-        # High beam.
-        if bool(sumo_lights & SumoVehSignal.HIGHBEAM) != bool(current_lights & carla.VehicleLightState.HighBeam):
-            current_lights ^= carla.VehicleLightState.HighBeam
-
-        # Backdrive (reverse).
-        if bool(sumo_lights & SumoVehSignal.BACKDRIVE) != bool(current_lights & carla.VehicleLightState.Reverse):
-            current_lights ^= carla.VehicleLightState.Reverse
-
-        # Door open left/right.
-        if any([bool(sumo_lights & SumoVehSignal.DOOR_OPEN_LEFT), bool(sumo_lights & SumoVehSignal.DOOR_OPEN_RIGHT)]) != bool(
-            current_lights & carla.VehicleLightState.Position
-        ):
-            current_lights ^= carla.VehicleLightState.Position
-
-        return current_lights
-
-    @staticmethod
-    def get_sumo_lights_state(current_sumo_lights, carla_lights):
-        """
-        Returns sumo signals based on carla vehicle light state.
-        """
-        current_lights = current_sumo_lights
-
-        # Blinker right.
-        if bool(carla_lights & carla.VehicleLightState.RightBlinker) != bool(current_lights & SumoVehSignal.BLINKER_RIGHT):
-            current_lights ^= SumoVehSignal.BLINKER_RIGHT
-
-        # Blinker left.
-        if bool(carla_lights & carla.VehicleLightState.LeftBlinker) != bool(current_lights & SumoVehSignal.BLINKER_LEFT):
-            current_lights ^= SumoVehSignal.BLINKER_LEFT
-
-        # Emergency.
-        if all([bool(carla_lights & carla.VehicleLightState.RightBlinker), bool(carla_lights & carla.VehicleLightState.LeftBlinker)]) != (
-            current_lights & SumoVehSignal.BLINKER_EMERGENCY
-        ):
-            current_lights ^= SumoVehSignal.BLINKER_EMERGENCY
-
-        # Break.
-        if bool(carla_lights & carla.VehicleLightState.Brake) != bool(current_lights & SumoVehSignal.BRAKELIGHT):
-            current_lights ^= SumoVehSignal.BRAKELIGHT
-
-        # Front (low beam)
-        if bool(carla_lights & carla.VehicleLightState.LowBeam) != bool(current_lights & SumoVehSignal.FRONTLIGHT):
-            current_lights ^= SumoVehSignal.FRONTLIGHT
-
-        # Fog light.
-        if bool(carla_lights & carla.VehicleLightState.Fog) != bool(current_lights & SumoVehSignal.FOGLIGHT):
-            current_lights ^= SumoVehSignal.FOGLIGHT
-
-        # High beam ligth.
-        if bool(carla_lights & carla.VehicleLightState.HighBeam) != bool(current_lights & SumoVehSignal.HIGHBEAM):
-            current_lights ^= SumoVehSignal.HIGHBEAM
-
-        # Backdrive (reverse)
-        if bool(carla_lights & carla.VehicleLightState.Reverse) != bool(current_lights & SumoVehSignal.BACKDRIVE):
-            current_lights ^= SumoVehSignal.BACKDRIVE
-
-        return current_lights
-
-    @staticmethod
-    def get_carla_traffic_light_state(sumo_tl_state):
-        """
-        Returns carla traffic light state based on sumo traffic light state.
-        """
-        if sumo_tl_state == SumoSignalState.RED or sumo_tl_state == SumoSignalState.RED_YELLOW:
-            return carla.TrafficLightState.Red
-
-        elif sumo_tl_state == SumoSignalState.YELLOW:
-            return carla.TrafficLightState.Yellow
-
-        elif sumo_tl_state == SumoSignalState.GREEN or sumo_tl_state == SumoSignalState.GREEN_WITHOUT_PRIORITY:
-            return carla.TrafficLightState.Green
-
-        elif sumo_tl_state == SumoSignalState.OFF:
-            return carla.TrafficLightState.Off
-
-        else:  # SumoSignalState.GREEN_RIGHT_TURN and SumoSignalState.OFF_BLINKING
-            return carla.TrafficLightState.Unknown
 
     @staticmethod
     def get_sumo_traffic_light_state(carla_tl_state):

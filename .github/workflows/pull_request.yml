@@ -51,4 +51,3 @@ jobs:
         run: pip install deadcode
       - name: Run deadcode
         run: deadcode .
-        continue-on-error: true

@@ -97,13 +97,6 @@ class ResBEVBackbone(nn.Module):
         data_dict["spatial_features_2d"] = x
         return data_dict
 
-    def get_multiscale_feature(self, spatial_features):
-        """
-        before multiscale intermediate fusion
-        """
-        x = self.resnet(spatial_features)  # tuple of features
-        return x
-
     def decode_multiscale_feature(self, x):
         """
         after multiscale interemediate fusion

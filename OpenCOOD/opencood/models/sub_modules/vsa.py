@@ -95,7 +95,7 @@ class VoxelSetAbstraction(nn.Module):
             nn.ReLU(),
         )
         self.num_point_features = self.model_cfg["num_out_features"]
-        self.num_point_features_before_fusion = c_in
+        self.num_point_features_before_fusion = c_in  # noqa: DC05
 
     def interpolate_from_bev_features(self, keypoints, bev_features, batch_size, bev_stride):
         x_idxs = (keypoints[:, :, 0] - self.point_cloud_range[0]) / self.voxel_size[0]
@@ -203,7 +203,7 @@ class VoxelSetAbstraction(nn.Module):
             )
             point_features_list.append(point_bev_features[kpt_mask])
 
-        batch_size, num_keypoints, _ = keypoints.shape
+        batch_size, _, _ = keypoints.shape
 
         new_xyz = keypoints[kpt_mask]
         new_xyz_batch_cnt = torch.tensor([(mask).sum() for mask in kpt_mask], device=new_xyz.device).int()
@@ -217,7 +217,7 @@ class VoxelSetAbstraction(nn.Module):
                 xyz_batch_cnt[bs_idx] = (indices == bs_idx).sum()
             point_features = None
 
-            pooled_points, pooled_features = self.SA_rawpoints(
+            _, pooled_features = self.SA_rawpoints(
                 xyz=xyz.contiguous(),
                 xyz_batch_cnt=xyz_batch_cnt,
                 new_xyz=new_xyz[:, :3].contiguous(),
@@ -238,7 +238,7 @@ class VoxelSetAbstraction(nn.Module):
             for bs_idx in range(batch_size):
                 xyz_batch_cnt[bs_idx] = (cur_coords[:, 0] == bs_idx).sum()
 
-            pooled_points, pooled_features = self.SA_layers[k](
+            _, pooled_features = self.SA_layers[k](
                 xyz=xyz.contiguous(),
                 xyz_batch_cnt=xyz_batch_cnt,
                 new_xyz=new_xyz[:, :3].contiguous(),

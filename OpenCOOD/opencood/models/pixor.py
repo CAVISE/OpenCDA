@@ -1,7 +1,6 @@
 import math
 
 import torch.nn as nn
-import torch.nn.functional as F
 
 
 def conv3x3(in_planes, out_planes, stride=1, bias=False):
@@ -173,25 +172,6 @@ class BackBone(nn.Module):
             layers.append(block(self.in_planes, planes, stride=1))
             self.in_planes = planes * block.expansion
         return nn.Sequential(*layers)
-
-    def _upsample_add(self, x, y):
-        """Upsample and add two feature maps.
-        Args:
-          x: (Variable) top feature map to be upsampled.
-          y: (Variable) lateral feature map.
-        Returns:
-          (Variable) added feature map.
-        Note in PyTorch, when input size is odd, the upsampled feature map
-        with `F.upsample(..., scale_factor=2, mode='nearest')`
-        maybe not equal to the lateral feature map size.
-        e.g.
-        original input size: [N,_,15,15] ->
-        conv2d feature map size: [N,_,8,8] ->
-        upsampled feature map size: [N,_,16,16]
-        So we choose bilinear upsample which supports arbitrary output sizes.
-        """
-        _, _, H, W = y.size()
-        return F.upsample(x, size=(H, W), mode="bilinear") + y
 
 
 class Header(nn.Module):

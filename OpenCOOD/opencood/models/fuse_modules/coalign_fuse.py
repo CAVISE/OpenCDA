@@ -74,38 +74,3 @@ class Att_w_Warp(nn.Module):
 
         out = torch.stack(out)
         return out
-
-    def forward_debug(self, xx, record_len, normalized_affine_matrix):
-        import matplotlib.pyplot as plt
-        import numpy as np
-
-        _, C, H, W = xx.shape
-        B, L = normalized_affine_matrix.shape[:2]
-        split_x = regroup(xx, record_len)
-        batch_node_features = split_x
-        out = []
-        # iterate each batch
-
-        rd = np.random.randint(100)
-        for b in range(B):
-            N = record_len[b]
-            t_matrix = normalized_affine_matrix[b][:N, :N, :, :]
-            # update each node i
-            i = 0  # ego
-            x = warp_affine_simple(batch_node_features[b], t_matrix[i, :, :, :], (H, W))
-            cav_num = x.shape[0]
-            # debug
-            print(t_matrix[0, 0])
-            x_np = x.detach().cpu().numpy()
-            for j in range(cav_num):
-                plt.imshow(x_np[j].sum(axis=0))
-                plt.savefig(f"opencood/logs/pj_later_debug/{rd}_{b}_{j}.png", dpi=400)
-                plt.close()
-
-            x = x.view(cav_num, C, -1).permute(2, 0, 1)  #  (H*W, cav_num, C), perform self attention on each pixel.
-            h = self.att(x, x, x)
-            h = h.permute(1, 2, 0).view(cav_num, C, H, W)[0, ...]  # C, W, H before
-            out.append(h)
-
-        out = torch.stack(out)
-        return out
