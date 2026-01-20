@@ -43,12 +43,13 @@ def load_yaml(file, opt=None):
     )
     param = yaml.load(stream, Loader=loader)
     if "yaml_parser" in param:
+        # TODO: Replace eval with secure function
         param = eval(param["yaml_parser"])(param)
 
     return param
 
 
-def load_voxel_params(param):
+def load_voxel_params(param):  # noqa: DC02
     """
     Based on the lidar range and resolution of voxel, calcuate the anchor box
     and target resolution.
@@ -90,7 +91,7 @@ def load_voxel_params(param):
     return param
 
 
-def load_point_pillar_params(param):
+def load_point_pillar_params(param):  # noqa: DC02
     """
     Based on the lidar range and resolution of voxel, calcuate the anchor box
     and target resolution.
@@ -131,7 +132,7 @@ def load_point_pillar_params(param):
     return param
 
 
-def load_second_params(param):
+def load_second_params(param):  # noqa: DC02
     """
     Based on the lidar range and resolution of voxel, calcuate the anchor box
     and target resolution.
@@ -172,7 +173,7 @@ def load_second_params(param):
     return param
 
 
-def load_bev_params(param):
+def load_bev_params(param):  # noqa: DC02
     """
     Load bev related geometry parameters s.t. boundary, resolutions, input
     shape, target shape etc.

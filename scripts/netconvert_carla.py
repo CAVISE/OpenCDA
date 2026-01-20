@@ -78,9 +78,9 @@ class SumoTopology(object):
         else:
             # Ensures that all the related sumo edges belongs to the same
             # opendrive road but to different lane sections.
-            assert set([edge.split(".", 1)[0] for edge, lane_index in sumo_ids]) == 1
+            assert set([edge.split(".", 1)[0] for edge, _ in sumo_ids]) == 1
 
-            s_coords = [float(edge.split(".", 1)[1]) for edge, lane_index in sumo_ids]
+            s_coords = [float(edge.split(".", 1)[1]) for edge, _ in sumo_ids]
 
             s_coords, sumo_ids = zip(*sorted(zip(s_coords, sumo_ids)))
             index = bisect.bisect_left(s_coords, s, lo=1) - 1
@@ -113,18 +113,6 @@ class SumoTopology(object):
             return []
 
         result = set([(connection[0][0], connection[0][1]) for connection in self._paths[(odr_road_id, odr_lane_id)]])
-        return list(result)
-
-    def get_outgoing(self, odr_road_id, odr_lane_id):
-        """
-        If the pair (odr_road_id, odr_lane_id) belongs to a junction,
-        returns the outgoing edges of the path. Otherwise, return and
-        empty list.
-        """
-        if not self.is_junction(odr_road_id, odr_lane_id):
-            return []
-
-        result = set([(connection[1][0], connection[1][1]) for connection in self._paths[(odr_road_id, odr_lane_id)]])
         return list(result)
 
     def get_path_connectivity(self, odr_road_id, odr_lane_id):

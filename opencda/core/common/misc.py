@@ -51,27 +51,6 @@ def draw_trajetory_points(world, waypoints, z=0.25, color=carla.Color(255, 0, 0)
         world.debug.draw_point(wpt_t.location, size=size, color=color, life_time=lt)
 
 
-def draw_waypoints(world, waypoints, z=0.5):
-    """
-    Draw a list of waypoints at a certain height given in z.
-
-    Parameters
-    ----------
-    world : carla.world
-        The simulation world.
-
-    waypoints : list
-        List or iterable container with the waypoints to draw.
-
-    z: float
-        Height in meters.
-    """
-    for wpt in waypoints:
-        wpt_t = wpt.transform
-        begin = wpt_t.location + carla.Location(z=z)
-        world.debug.draw_point(begin, size=0.1, life_time=1.0)
-
-
 def get_speed(vehicle, meters=False):
     """
     Compute speed of a vehicle in Km/h.
@@ -92,29 +71,6 @@ def get_speed(vehicle, meters=False):
     vel = vehicle.get_velocity()
     vel_meter_per_second = math.sqrt(vel.x**2 + vel.y**2 + vel.z**2)
     return vel_meter_per_second if meters else 3.6 * vel_meter_per_second
-
-
-def get_acc(vehicle, meters=False):
-    """
-    Compute acceleration of a vehicle.
-
-    Parameters
-    ----------
-    meters : bool
-        Whether to use m/s^2 (True) or km/h^2 (False).
-
-    vehicle : carla.vehicle
-        The vehicle for which speed is calculated.
-
-    Returns
-    -------
-    acceleration : float
-        The vehicle speed.
-    """
-    acc = vehicle.get_acceleration()
-    acc_meter_per_second = math.sqrt(acc.x**2 + acc.y**2 + acc.z**2)
-
-    return acc_meter_per_second if meters else 3.6 * acc_meter_per_second
 
 
 def cal_distance_angle(target_location, current_location, orientation):
