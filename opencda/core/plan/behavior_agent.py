@@ -1,6 +1,5 @@
 """Behavior planning module"""
 
-import random
 import logging
 import sys
 
