@@ -1,10 +1,6 @@
-# -*- coding: utf-8 -*-
 """
 Obstacle vehicle class to save object detection.
 """
-
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: TDG-Attribution-NonCommercial-NoDistrib
 
 import carla
 import numpy as np

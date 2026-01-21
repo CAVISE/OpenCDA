@@ -1,9 +1,3 @@
-# Copyright (c) # Copyright (c) 2018-2020 CVC.
-#
-# This work is licensed under the terms of the MIT license.
-# For a copy, see <https://opensource.org/licenses/MIT>.
-
-
 """
 This module provides GlobalRoutePlanner implementation.
 """

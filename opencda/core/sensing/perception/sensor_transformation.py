@@ -1,9 +1,6 @@
-# -*- coding: utf-8 -*-
 """
 This script contains the transformations between world and different sensors.
 """
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: TDG-Attribution-NonCommercial-NoDistrib
 
 import numpy as np
 from matplotlib import cm
