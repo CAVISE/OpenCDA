@@ -1,8 +1,5 @@
 """
 Cubic spline planner
-
-Author: Atsushi Sakai(@Atsushi_twi)
-
 """
 
 import math
@@ -12,8 +9,7 @@ import bisect
 
 class Spline:
     """
-    Cubic Spline class for calculte curvature
-     (Author: Atsushi Sakai(@Atsushi_twi)).
+    Cubic Spline class for calculte curvature.
 
     Parameters
     -x : float
@@ -149,8 +145,7 @@ class Spline:
 
 class Spline2D:
     """
-    2D Cubic Spline class for calculte curvature
-     (Author: Atsushi Sakai(@Atsushi_twi)).
+    2D Cubic Spline class for calculte curvature.
 
     Parameters
     -x : float

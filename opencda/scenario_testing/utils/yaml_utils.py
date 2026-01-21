@@ -1,9 +1,6 @@
-# -*- coding: utf-8 -*-
 """
 Used to load and write yaml files
 """
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: TDG-Attribution-NonCommercial-NoDistrib
 
 import re
 import yaml

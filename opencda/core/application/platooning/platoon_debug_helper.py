@@ -1,9 +1,6 @@
-# -*- coding: utf-8 -*-
 """
 Analysis + visualization functions for platooning
 """
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: TDG-Attribution-NonCommercial-NoDistrib
 
 from opencda.core.plan.planer_debug_helper import PlanDebugHelper
 
