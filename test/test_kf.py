@@ -1,8 +1,20 @@
+# -*- coding: utf-8 -*-
 """
 Unit test for Kalman Filter
 """
+# Author: Runsheng Xu <rxx3386@ucla.edu>
+# License: MIT
 
+import os
+import sys
 import unittest
+
+
+# temporary solution for relative imports in case opencda is not installed
+# if opencda is installed, no need to use the following line
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), ".")))
+
 from opencda.core.sensing.localization.kalman_filter import KalmanFilter
 from opencda.core.sensing.localization.coordinate_transform import geo_to_transform
 
