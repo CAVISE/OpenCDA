@@ -1,10 +1,4 @@
-# -*- coding: utf-8 -*-
-
 """HDMap utilities"""
-
-
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: TDG-Attribution-NonCommercial-NoDistrib
 
 import carla
 import numpy as np
