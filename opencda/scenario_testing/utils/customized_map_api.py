@@ -7,15 +7,9 @@ import carla
 
 
 class bcolors:
-    HEADER = "\033[95m"
-    OKBLUE = "\033[94m"
-    OKCYAN = "\033[96m"
-    OKGREEN = "\033[92m"
     WARNING = "\033[93m"
     FAIL = "\033[91m"
     ENDC = "\033[0m"
-    BOLD = "\033[1m"
-    UNDERLINE = "\033[4m"
 
 
 def load_customized_world(xodr_path, client):
@@ -87,43 +81,5 @@ def spawn_helper_2lanefree(carla_version, coefficient):
 
     transform_point.location.x = transform_point.location.x + coefficient * (begin_point.location.x - transform_point.location.x)
     transform_point.location.y = transform_point.location.y + coefficient * (begin_point.location.y - transform_point.location.y)
-
-    return transform_point
-
-
-def spawn_helper_2lanefree_complete(carla_version, coefficient):
-    """
-    A helper function to locate the valid spawn point on the merge lane.
-
-    Parameters
-    ----------
-    carla_version : str
-        The CARLA simulator version. We need this as the map for 0.9.11
-        and 0.9.12 are a little different
-
-    coefficient : float
-        A single scalar indicating where is the  spawn point, eg. 0.5
-        represents the spawn position is in the middle of the merge lane.
-
-    Returns
-    -------
-    transform_point : carla.transform
-        The desired spawn points.
-    """
-
-    if carla_version == "0.9.12":
-        coefficient += 0.06
-
-    start_point_x = -1202.19
-    start_point_y = 456.34
-
-    merge_point_x = -31.65
-    merge_point_y = 19.52
-    merge_point_yaw = -20.48
-
-    spawn_x = start_point_x + coefficient * (merge_point_x - start_point_x)
-    spawn_y = start_point_y + coefficient * (merge_point_y - start_point_y)
-
-    transform_point = carla.Transform(carla.Location(spawn_x, spawn_y, 0.3), carla.Rotation(yaw=merge_point_yaw))
 
     return transform_point

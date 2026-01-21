@@ -33,33 +33,11 @@ class SumoSignalState(object):
     RED = "r"
     YELLOW = "y"
     GREEN = "G"
-    GREEN_WITHOUT_PRIORITY = "g"
-    GREEN_RIGHT_TURN = "s"
-    RED_YELLOW = "u"
-    OFF_BLINKING = "o"
+    GREEN_WITHOUT_PRIORITY = "g"  # noqa: DC01
+    GREEN_RIGHT_TURN = "s"  # noqa: DC01
+    RED_YELLOW = "u"  # noqa: DC01
+    OFF_BLINKING = "o"  # noqa: DC01
     OFF = "O"
-
-
-# https://sumo.dlr.de/docs/TraCI/Vehicle_Signalling.html
-class SumoVehSignal(object):
-    """
-    SumoVehSignal contains the different sumo vehicle signals.
-    """
-
-    BLINKER_RIGHT = 1 << 0
-    BLINKER_LEFT = 1 << 1
-    BLINKER_EMERGENCY = 1 << 2
-    BRAKELIGHT = 1 << 3
-    FRONTLIGHT = 1 << 4
-    FOGLIGHT = 1 << 5
-    HIGHBEAM = 1 << 6
-    BACKDRIVE = 1 << 7
-    WIPER = 1 << 8
-    DOOR_OPEN_LEFT = 1 << 9
-    DOOR_OPEN_RIGHT = 1 << 10
-    EMERGENCY_BLUE = 1 << 11
-    EMERGENCY_RED = 1 << 12
-    EMERGENCY_YELLOW = 1 << 13
 
 
 # https://sumo.dlr.de/docs/Definition_of_Vehicles,_Vehicle_Types,_and_Routes.html#abstract_vehicle_class
@@ -68,33 +46,33 @@ class SumoActorClass(enum.Enum):
     SumoActorClass enumerates the different sumo actor classes.
     """
 
-    IGNORING = "ignoring"
-    PRIVATE = "private"
-    EMERGENCY = "emergency"
-    AUTHORITY = "authority"
-    ARMY = "army"
-    VIP = "vip"
-    PEDESTRIAN = "pedestrian"
-    PASSENGER = "passenger"
-    HOV = "hov"
-    TAXI = "taxi"
-    BUS = "bus"
-    COACH = "coach"
-    DELIVERY = "delivery"
-    TRUCK = "truck"
-    TRAILER = "trailer"
-    MOTORCYCLE = "motorcycle"
-    MOPED = "moped"
-    BICYCLE = "bicycle"
-    EVEHICLE = "evehicle"
-    TRAM = "tram"
-    RAIL_URBAN = "rail_urban"
-    RAIL = "rail"
-    RAIL_ELECTRIC = "rail_electric"
-    RAIL_FAST = "rail_fast"
-    SHIP = "ship"
-    CUSTOM1 = "custom1"
-    CUSTOM2 = "custom2"
+    IGNORING = "ignoring"  # noqa: DC01
+    PRIVATE = "private"  # noqa: DC01
+    EMERGENCY = "emergency"  # noqa: DC01
+    AUTHORITY = "authority"  # noqa: DC01
+    ARMY = "army"  # noqa: DC01
+    VIP = "vip"  # noqa: DC01
+    PEDESTRIAN = "pedestrian"  # noqa: DC01
+    PASSENGER = "passenger"  # noqa: DC01
+    HOV = "hov"  # noqa: DC01
+    TAXI = "taxi"  # noqa: DC01
+    BUS = "bus"  # noqa: DC01
+    COACH = "coach"  # noqa: DC01
+    DELIVERY = "delivery"  # noqa: DC01
+    TRUCK = "truck"  # noqa: DC01
+    TRAILER = "trailer"  # noqa: DC01
+    MOTORCYCLE = "motorcycle"  # noqa: DC01
+    MOPED = "moped"  # noqa: DC01
+    BICYCLE = "bicycle"  # noqa: DC01
+    EVEHICLE = "evehicle"  # noqa: DC01
+    TRAM = "tram"  # noqa: DC01
+    RAIL_URBAN = "rail_urban"  # noqa: DC01
+    RAIL = "rail"  # noqa: DC01
+    RAIL_ELECTRIC = "rail_electric"  # noqa: DC01
+    RAIL_FAST = "rail_fast"  # noqa: DC01
+    SHIP = "ship"  # noqa: DC01
+    CUSTOM1 = "custom1"  # noqa: DC01
+    CUSTOM2 = "custom2"  # noqa: DC01
 
 
 SumoActor = collections.namedtuple("SumoActor", "type_id vclass transform signals extent color")
@@ -334,7 +312,7 @@ class SumoSimulation(object):
         traci.route.add("carla_route", [traci.edge.getIDList()[0]])
 
         # Variable to asign an id to new added actors.
-        self._sequential_id = 0
+        self._sequential_id = 0  # noqa: DC05
 
         # Structures to keep track of the spawned and destroyed vehicles at each time step.
         self.spawned_actors = set()
@@ -437,7 +415,7 @@ class SumoSimulation(object):
             color = color.split(",")
             traci.vehicle.setColor(id, color)
 
-        self._sequential_id += 1
+        self._sequential_id += 1  # noqa: DC05
 
         return id
 

@@ -27,8 +27,6 @@ exclude = [
     "node_modules",
     "site-packages",
     "venv",
-
-    "OpenCOOD",
 ]
 
 # Same as Black.
@@ -40,7 +38,7 @@ target-version = "py310"
 
 [tool.ruff.lint]
 # Enable Pyflakes (`F`) and a subset of the pycodestyle (`E`) codes by default.
-# Unlike Flake8, Ruff doesn't enable pycodestyle warnings (`W`) or
+# Unlike Flake8, Ruff does not enable pycodestyle warnings (`W`) or
 # McCabe complexity (`C901`) by default.
 select = ["E4", "E7", "E9", "F"]
 ignore = []
@@ -78,3 +76,28 @@ docstring-code-format = true
 # This only has an effect when the `docstring-code-format` setting is
 # enabled.
 docstring-code-line-length = "dynamic"
+
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
+disallow_untyped_defs = true
+check_untyped_defs = true
+warn_unused_ignores = true
+pretty = true
+
+exclude_gitignore = true
+exclude = [
+    "docs",
+    "test"
+]
+
+
+[tool.deadcode]
+exclude = [
+    "docs", 
+    "OpenCOOD/docs", 
+    "test", 
+    "venv", 
+    "opencda/core/common/communication/protos/cavise"
+]

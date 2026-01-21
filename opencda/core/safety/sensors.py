@@ -42,7 +42,7 @@ class CollisionSensor(object):
         self.sensor.listen(lambda event: CollisionSensor._on_collision(weak_self, event))
 
         self.collided = False
-        self.collided_frame = -1
+        self.collided_frame = -1  # noqa: DC05
         self._history = deque(maxlen=params["history_size"])
         self._threshold = params["col_thresh"]
 
@@ -56,7 +56,7 @@ class CollisionSensor(object):
         self._history.append((event.frame, intensity))
         if intensity > self._threshold:
             self.collided = True
-            self.collided_frame = event.frame
+            self.collided_frame = event.frame  # noqa: DC05
 
     def return_status(self):
         return {"collision": self.collided}
@@ -176,10 +176,10 @@ class TrafficLightDector(object):
         self._active_light = None
         self._last_light = None
 
-        self.total_lights_ran = 0
-        self.total_lights = 0
+        self.total_lights_ran = 0  # noqa: DC05
+        self.total_lights = 0  # noqa: DC05
         self.ran_light = False
-        self.active_light_state = carla.TrafficLightState.Off
+        self.active_light_state = carla.TrafficLightState.Off  # noqa: DC05
         self.active_light_dis = 200
 
     def tick(self, data_dict):
@@ -200,7 +200,7 @@ class TrafficLightDector(object):
         # compute the distance between the vehicle and the traffic light
         if self._active_light is not None:
             light_trigger_location = self._active_light.get_location()
-            self.active_light_state = self._active_light.get_state()
+            self.active_light_state = self._active_light.get_state()  # noqa: DC05
             delta = vehicle_location - light_trigger_location
             distance = np.sqrt(sum([delta.x**2, delta.y**2, delta.z**2]))
 
@@ -214,12 +214,12 @@ class TrafficLightDector(object):
             # last light to the current light
             if self.active_light_dis < self._light_dis_thresh:
                 if self._last_light is None or self._active_light.actor.id != self._last_light.id:
-                    self.total_lights += 1
+                    self.total_lights += 1  # noqa: DC05
                     self._last_light = self._active_light.actor
         else:
             # If there is no active traffic light, set the active light state
             # to "Off" and set the active light distance to a default value
-            self.active_light_state = carla.TrafficLightState.Off
+            self.active_light_state = carla.TrafficLightState.Off  # noqa: DC05
             self.active_light_dis = 200
 
             # If there is a last light (i.e., a traffic light that was active
@@ -265,7 +265,7 @@ class TrafficLightDector(object):
                     # Is the vehicle traversing the stop line?
                     if self._is_vehicle_crossing_line((tail_close_pt, tail_far_pt), (lft_lane_wp, rgt_lane_wp)):
                         self.ran_light = True
-                        self.total_lights_ran += 1
+                        self.total_lights_ran += 1  # noqa: DC05
                         self._last_light = None
 
     def _is_vehicle_crossing_line(self, seg1: List, seg2: List) -> bool:

@@ -154,7 +154,7 @@ def calculate_ap(result_stat, iou, global_sort_detections):
 
 def eval_final_results(result_stat, save_path, global_sort_detections):
     dump_dict = {}
-    ap_30, mrec_30, mpre_30 = calculate_ap(result_stat, 0.30, global_sort_detections)
+    ap_30, _, _ = calculate_ap(result_stat, 0.30, global_sort_detections)
     ap_50, mrec_50, mpre_50 = calculate_ap(result_stat, 0.50, global_sort_detections)
     ap_70, mrec_70, mpre_70 = calculate_ap(result_stat, 0.70, global_sort_detections)
 

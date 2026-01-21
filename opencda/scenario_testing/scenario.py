@@ -20,7 +20,7 @@ from opencda.core.common.rsu_manager import RSUManager
 from opencda.core.common.communication.serialize import MessageHandler
 from opencda.core.application.platooning.platooning_manager import PlatooningManager
 from opencda.core.common.aim_model_manager import AIMModelManager
-
+from AIM import get_model
 
 from opencda.scenario_testing.evaluations.evaluate_manager import EvaluationManager
 from opencda.scenario_testing.utils.yaml_utils import add_current_time, save_yaml
@@ -136,9 +136,9 @@ class Scenario:
             nodes = net.getNodes()
 
             # TODO: Replace with params from scenario file
+            model = get_model("MTP")
             self.codriving_model_manager = AIMModelManager(
-                pretrained="opencda/codriving_models/gnn_mtl_gnn/model_rot_gnn_mtl_np_sumo_0911_e3_1930.pth",
-                model_name="GNN_mtl_gnn",
+                model=model,
                 nodes=nodes,
                 excluded_nodes=None,  # scenario_params['excluded_nodes'] if scenario_params['excluded_nodes'] else None
             )

@@ -52,7 +52,7 @@ class PlatooningManager(object):
         self.maximum_capacity = config_yaml["max_capacity"]
 
         self.destination = None
-        self.center_loc = None
+        self.center_loc = None  # noqa: DC05
 
         # this is used to control platooning speed during joining
         self.leader_target_speed = 0
@@ -118,7 +118,7 @@ class PlatooningManager(object):
 
         if any(t is None for t in (v1_ego_transform, v2_ego_transform)):
             return
-        self.center_loc = carla.Location(
+        self.center_loc = carla.Location(  # noqa: DC05
             x=(v1_ego_transform.location.x + v2_ego_transform.location.x) / 2,
             y=(v1_ego_transform.location.y + v2_ego_transform.location.y) / 2,
             z=(v1_ego_transform.location.z + v2_ego_transform.location.z) / 2,
