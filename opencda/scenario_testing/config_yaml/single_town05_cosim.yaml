@@ -1,5 +1,5 @@
 description: |-
-  ...
+  Content: This is the scenario testing configuration file town05 cosimulation.
 
 world:
   town: Town05

@@ -1,5 +1,6 @@
 description: |-
-  ...
+  Content: This is the co-simulation scenario testing configuration file for platooning joining and cooperative merge
+           at the customized 2lanefree simple version.
 
 # First define the basic parameters of the vehicles
 vehicle_base:

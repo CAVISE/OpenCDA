@@ -1,5 +1,6 @@
 description: |-
-  ...
+  Content: This is the scenario testing configuration file for platooning joining and cooperative merge
+           at the Town06 using  CARLA only.
 
 world:
   town: Town06

@@ -1,5 +1,5 @@
 description: |-
-  ...
+  Content: This is the scenario testing configuration file for v2x perception data dumping
 
 world:
   town: Town06

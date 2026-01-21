@@ -1,5 +1,5 @@
 description: |-
-  ...
+  Content: This is the scenario testing configuration file for single vehicle testing in town06 with perception/localization activated
 
 world:
   town: Town06

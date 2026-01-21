@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Used to reduce the dependency on CARLA api by mocking
 them in the same structure.

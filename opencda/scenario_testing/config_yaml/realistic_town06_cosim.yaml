@@ -1,5 +1,5 @@
 description: |-
-  ...
+  Content: This is the scenario testing configuration file for single vehicle full-stack system in town06 with co-simulation
 
 world:
   town: Town06

@@ -3,9 +3,6 @@ Basic class for RSU(Roadside Unit) management.
 """
 
 import logging
-
-# CAVISE
-
 from opencda.core.common.data_dumper import DataDumper
 from opencda.core.sensing.perception.perception_manager import PerceptionManager
 from opencda.core.sensing.localization.rsu_localization_manager import LocalizationManager
