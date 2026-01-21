@@ -112,9 +112,9 @@ def main() -> None:
         vis = o3d.visualization.Visualizer()
         vis.create_window()
 
-        vis.get_render_option().background_color = [0.05, 0.05, 0.05]
-        vis.get_render_option().point_size = 1.0
-        vis.get_render_option().show_coordinate_frame = True
+        vis.get_render_option().background_color = [0.05, 0.05, 0.05]  # noqa: DC05
+        vis.get_render_option().point_size = 1.0  # noqa: DC05
+        vis.get_render_option().show_coordinate_frame = True  # noqa: DC05
 
         # used to visualize lidar points
         vis_pcd = o3d.geometry.PointCloud()

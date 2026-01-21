@@ -352,7 +352,7 @@ class RoIHead(nn.Module):
         for bs_idx in range(batch_size):
             new_xyz_batch_cnt[bs_idx] = label_record_len[bs_idx] * self.grid_size**3
 
-        pooled_points, pooled_features = self.roi_grid_pool_layer(
+        _, pooled_features = self.roi_grid_pool_layer(
             xyz=xyz[:, :3].contiguous(),
             xyz_batch_cnt=xyz_batch_cnt,
             new_xyz=new_xyz[:, :3].contiguous(),

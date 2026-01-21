@@ -118,7 +118,7 @@ class StackSAModuleMSG(nn.Module):
         """
         new_features_list = []
         for k in range(len(self.groupers)):
-            new_features, ball_idxs = self.groupers[k](xyz, xyz_batch_cnt, new_xyz, new_xyz_batch_cnt, features)  # (M1 + M2, C, nsample)
+            new_features, _ = self.groupers[k](xyz, xyz_batch_cnt, new_xyz, new_xyz_batch_cnt, features)  # (M1 + M2, C, nsample)
             new_features = new_features.permute(1, 0, 2).unsqueeze(dim=0)  # (1, C, M1 + M2 ..., nsample)
             new_features = self.mlps[k](new_features)  # (1, C, M1 + M2 ..., nsample)
 

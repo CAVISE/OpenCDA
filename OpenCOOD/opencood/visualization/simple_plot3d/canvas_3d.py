@@ -93,16 +93,6 @@ class Canvas_3D(object):
 
         self.clear_canvas()
 
-    def get_canvas(self):
-        """
-        Get the current canvas image.
-
-        Returns
-        -------
-        canvas : np.ndarray
-        """
-        return self.canvas
-
     def clear_canvas(self):
         """
         Clear canvas and reset to background color.
@@ -235,59 +225,6 @@ class Canvas_3D(object):
         else:
             for color, (x, y) in zip(colors.tolist(), canvas_xy.tolist()):
                 self.canvas = cv2.circle(self.canvas, (y, x), radius, color, -1, lineType=cv2.LINE_AA)
-
-    def draw_lines(
-        self,
-        canvas_xy: npt.NDArray[np.int32],
-        start_xyz: npt.NDArray[np.floating],
-        end_xyz: npt.NDArray[np.floating],
-        colors: Optional[Union[Tuple[int, int, int], npt.NDArray[np.uint8]]] = (
-            255,
-            255,
-            255,
-        ),
-        thickness: int = 1,
-    ) -> None:
-        """
-        Draw lines between 3D points on the canvas.
-
-        Parameters
-        ----------
-        canvas_xy : np.ndarray
-            Valid canvas coordinates with shape (N, 2).
-        start_xyz : np.ndarray
-            3D starting points with shape (N, 3).
-        end_xyz : np.ndarray
-            3D ending points with shape (N, 3). Same length as start_xyz.
-        colors : tuple or np.ndarray or None, optional
-            Line color specification:
-                - None: All lines white
-                - Tuple: Single RGB color (0-255) for all lines
-                - ndarray: Per-line RGB colors with shape (N, 3)
-        thickness : int, optional
-            Line thickness in pixels. D
-        """
-        if colors is None:
-            colors = np.full((len(canvas_xy), 3), fill_value=255, dtype=np.uint8)
-        elif isinstance(colors, tuple):
-            assert len(colors) == 3
-            colors_tmp = np.zeros((len(canvas_xy), 3), dtype=np.uint8)
-            colors_tmp[..., : len(colors)] = np.array(colors)
-            colors = colors_tmp
-        elif isinstance(colors, np.ndarray):
-            assert len(colors) == len(canvas_xy)
-            colors = colors.astype(np.uint8)
-        else:
-            raise Exception("colors type {} was not an expected type".format(type(colors)))
-
-        start_pts_xy, start_pts_valid_mask, start_pts_d = self.get_canvas_coords(start_xyz, True)
-        end_pts_xy, end_pts_valid_mask, end_pts_d = self.get_canvas_coords(end_xyz, True)
-
-        for idx, (color, start_pt_xy, end_pt_xy) in enumerate(zip(colors.tolist(), start_pts_xy.tolist(), end_pts_xy.tolist())):
-            if start_pts_valid_mask[idx] and end_pts_valid_mask[idx]:
-                self.canvas = cv2.line(
-                    self.canvas, tuple(start_pt_xy[::-1]), tuple(end_pt_xy[::-1]), color=color, thickness=thickness, lineType=cv2.LINE_AA
-                )
 
     def draw_boxes(
         self,

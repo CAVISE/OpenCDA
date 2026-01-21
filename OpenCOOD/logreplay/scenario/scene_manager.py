@@ -155,7 +155,7 @@ class SceneManager:
         self.origin_settings = self.world.get_settings()
         new_settings = self.world.get_settings()
 
-        new_settings.synchronous_mode = True
+        new_settings.synchronous_mode = True  # noqa: DC05
         new_settings.fixed_delta_seconds = fixed_delta_seconds
 
         self.world.apply_settings(new_settings)

@@ -107,37 +107,6 @@ def shuffle_points(points: npt.NDArray[np.floating]) -> npt.NDArray[np.floating]
     return points
 
 
-def lidar_project(lidar_data: npt.NDArray[np.floating], extrinsic: npt.NDArray[np.floating]) -> npt.NDArray[np.floating]:
-    """
-    Project lidar data to another coordinate space using extrinsic matrix.
-
-    Parameters
-    ----------
-    lidar_data : np.ndarray
-        Lidar data with shape (n, 4).
-    extrinsic : np.ndarray
-        Extrinsic transformation matrix with shape (4, 4).
-
-    Returns
-    -------
-    np.ndarray
-        Projected lidar data with shape (n, 4).
-    """
-    lidar_xyz = lidar_data[:, :3].T
-    # (3, n) -> (4, n), homogeneous transformation
-    lidar_xyz = np.r_[lidar_xyz, [np.ones(lidar_xyz.shape[1])]]
-    lidar_int = lidar_data[:, 3]
-
-    # transform to ego vehicle space, (3, n)
-    project_lidar_xyz = np.dot(extrinsic, lidar_xyz)[:3, :]
-    # (n, 3)
-    project_lidar_xyz = project_lidar_xyz.T
-    # concatenate the intensity with xyz, (n, 4)
-    projected_lidar = np.hstack((project_lidar_xyz, np.expand_dims(lidar_int, -1)))
-
-    return projected_lidar
-
-
 def projected_lidar_stack(projected_lidar_list: List[npt.NDArray[np.floating]]) -> npt.NDArray[np.floating]:
     """
     Stack all projected lidar point clouds together.

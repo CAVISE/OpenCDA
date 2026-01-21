@@ -104,9 +104,9 @@ class SumoTopology(object):
         else:
             # Ensures that all the related sumo edges belongs to the same
             # opendrive road but to different lane sections.
-            assert set([edge.split(".", 1)[0] for edge, lane_index in sumo_ids]) == 1
+            assert set([edge.split(".", 1)[0] for edge, _ in sumo_ids]) == 1
 
-            s_coords = [float(edge.split(".", 1)[1]) for edge, lane_index in sumo_ids]
+            s_coords = [float(edge.split(".", 1)[1]) for edge, _ in sumo_ids]
 
             s_coords, sumo_ids = zip(*sorted(zip(s_coords, sumo_ids))) #TODO error: Incompatible types in assignment (expression has type "tuple[Any, ...]", variable has type "list[float]"
             index = bisect.bisect_left(s_coords, s, lo=1) - 1
@@ -175,30 +175,7 @@ class SumoTopology(object):
         result = set([(connection[0][0], connection[0][1]) for connection in self._paths[(odr_road_id, odr_lane_id)]])
         return list(result)
 
-    def get_outgoing(self, odr_road_id: str, odr_lane_id: int) -> List[Tuple[str, int]]:
-        """
-        Get outgoing edges for a junction path.
-
-        Parameters
-        ----------
-        odr_road_id : str
-            OpenDRIVE road ID.
-        odr_lane_id : int
-            OpenDRIVE lane ID.
-
-        Returns
-        -------
-        outgoing : list of tuple
-            List of (edge_id, lane_index) tuples for outgoing edges.
-            Empty list if not a junction.
-        """
-        if not self.is_junction(odr_road_id, odr_lane_id):
-            return []
-
-        result = set([(connection[1][0], connection[1][1]) for connection in self._paths[(odr_road_id, odr_lane_id)]])
-        return list(result)
-
-    def get_path_connectivity(self, odr_road_id: str, odr_lane_id: int) -> List[Tuple[Tuple[str, int], Tuple[str, int]]]:
+    def get_path_connectivity(self, odr_road_id, odr_lane_id):
         """
         Get full path connectivity for a junction.
 

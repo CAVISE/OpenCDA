@@ -121,11 +121,11 @@ class CoperceptionModelManager:
 
         if self.opt.show_sequence:
             if self.vis is None:
-                self.vis = o3d.visualization.Visualizer()
-                self.vis.create_window()
-                self.vis.get_render_option().background_color = [0.05, 0.05, 0.05]
-                self.vis.get_render_option().point_size = 1.0
-                self.vis.get_render_option().show_coordinate_frame = True
+                self.vis = o3d.visualization.Visualizer()  # noqa: DC05
+                self.vis.create_window()  # noqa: DC05
+                self.vis.get_render_option().background_color = [0.05, 0.05, 0.05]  # noqa: DC05
+                self.vis.get_render_option().point_size = 1.0  # noqa: DC05
+                self.vis.get_render_option().show_coordinate_frame = True  # noqa: DC05
             # used to visualize lidar points
             vis_pcd = o3d.geometry.PointCloud()
             # used to visualize object bounding box, maximum 50

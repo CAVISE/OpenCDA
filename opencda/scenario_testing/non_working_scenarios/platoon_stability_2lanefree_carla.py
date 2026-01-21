@@ -35,7 +35,7 @@ def run_scenario(opt, scenario_params):
         platoon_list = scenario_manager.create_platoon_manager()
 
         # create traffic flow if any
-        traffic_manager, bg_veh_list = scenario_manager.create_traffic_carla()
+        _, bg_veh_list = scenario_manager.create_traffic_carla()
 
         if len(platoon_list) > 1:
             sys.exit("In this scenario testing, only single platoon is allowed.")

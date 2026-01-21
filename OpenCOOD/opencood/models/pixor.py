@@ -8,10 +8,10 @@ This module implements PIXOR, a bird's-eye-view based single-stage detector for
 import math
 
 import torch.nn as nn
-import torch.nn.functional as F
-
 from typing import Dict, Any, List, Optional, Tuple, Type, Union
 import torch
+
+from typing import Dict, Any, List, Optional, Tuple, Type, Union
 
 
 def conv3x3(in_planes: int, out_planes: int, stride: int = 1, bias: bool = False) -> nn.Conv2d:
@@ -401,29 +401,6 @@ class BackBone(nn.Module):
             layers.append(block(self.in_planes, planes, stride=1))
             self.in_planes = planes * block.expansion
         return nn.Sequential(*layers)
-
-    def _upsample_add(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        """
-        Upsample and add two feature maps.
-
-        This method upsamples the top feature map x to match the size of the lateral
-        feature map y, then adds them together. Bilinear upsampling is used to support
-        arbitrary output sizes, which is necessary when input dimensions are odd.
-
-        Parameters
-        ----------
-        x : torch.torch.Tensor
-            Top feature map to be upsampled.
-        y : torch.torch.Tensor
-            Lateral feature map that determines the target size.
-
-        Returns
-        -------
-        torch.torch.Tensor
-            Added feature map with the same spatial dimensions as y.
-        """
-        _, _, H, W = y.size()
-        return F.upsample(x, size=(H, W), mode="bilinear") + y
 
 
 class Header(nn.Module):

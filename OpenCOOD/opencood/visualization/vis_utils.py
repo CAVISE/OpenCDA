@@ -112,43 +112,6 @@ def bbx2oabb(
     return oabbs
 
 
-def bbx2aabb(bbx_center: Union[npt.NDArray, Any], order: str) -> List[o3d.geometry.AxisAlignedBoundingBox]:
-    """
-    Convert the torch tensor bounding box to o3d aabb for visualization.
-
-    Parameters
-    ----------
-    bbx_center : torch.Tensor or np.ndarray
-        Bounding box centers with shape (n, 7).
-    order : str
-        Bounding box order, either "hwl" or "lwh".
-
-    Returns
-    -------
-    list of o3d.geometry.AxisAlignedBoundingBox
-        The list containing all axis-aligned bounding boxes.
-    """
-    if not isinstance(bbx_center, np.ndarray):
-        bbx_center = common_utils.torch_tensor_to_numpy(bbx_center)
-    bbx_corner = box_utils.boxes_to_corners_3d(bbx_center, order)
-
-    aabbs = []
-
-    for i in range(bbx_corner.shape[0]):
-        bbx = bbx_corner[i]
-        # o3d use right-hand coordinate
-        bbx[:, :1] = -bbx[:, :1]
-
-        tmp_pcd = o3d.geometry.PointCloud()
-        tmp_pcd.points = o3d.utility.Vector3dVector(bbx)
-
-        aabb = tmp_pcd.get_axis_aligned_bounding_box()
-        aabb.color = (0, 0, 1)
-        aabbs.append(aabb)
-
-    return aabbs
-
-
 def linset_assign_list(
     vis: o3d.visualization.Visualizer,
     lineset_list1: List[o3d.geometry.LineSet],
@@ -283,8 +246,8 @@ def visualize_single_sample_output_gt(
         vis.create_window()
 
         opt = vis.get_render_option()
-        opt.background_color = np.asarray([0, 0, 0])
-        opt.point_size = 1.0
+        opt.background_color = np.asarray([0, 0, 0])  # noqa: DC05
+        opt.point_size = 1.0  # noqa: DC05
 
         vis.add_geometry(pcd)
         for ele in pred:
@@ -353,7 +316,7 @@ def visualize_single_sample_output_bev(
         gt_box = common_utils.torch_tensor_to_numpy(gt_box)
 
     ratio = dataset.params["preprocess"]["args"]["res"]
-    L1, W1, H1, L2, W2, H2 = dataset.params["preprocess"]["cav_lidar_range"]
+    L1, W1, H1, L2, W2, _ = dataset.params["preprocess"]["cav_lidar_range"]
     bev_origin = np.array([L1, W1]).reshape(1, -1)
     # (img_row, img_col)
     bev_map = dataset.project_points_to_bev_map(pcd, ratio)
@@ -526,9 +489,9 @@ def visualize_sequence_dataloader(dataloader: Any, order: str, color_mode: str =
     vis = o3d.visualization.Visualizer()
     vis.create_window()
 
-    vis.get_render_option().background_color = [0.05, 0.05, 0.05]
-    vis.get_render_option().point_size = 1.0
-    vis.get_render_option().show_coordinate_frame = True
+    vis.get_render_option().background_color = [0.05, 0.05, 0.05]  # noqa: DC05
+    vis.get_render_option().point_size = 1.0  # noqa: DC05
+    vis.get_render_option().show_coordinate_frame = True  # noqa: DC05
 
     # used to visualize lidar points
     vis_pcd = o3d.geometry.PointCloud()
@@ -583,142 +546,3 @@ def save_o3d_visualization(element: List, save_path: str) -> None:
 
     vis.capture_screen_image(save_path)
     vis.destroy_window()
-
-
-def visualize_bev(batch_data: dict) -> None:
-    """
-    Visualize bird's eye view representation.
-
-    Parameters
-    ----------
-    batch_data : dict
-        Batch data containing processed lidar and label information.
-    """
-    bev_input = batch_data["processed_lidar"]["bev_input"]
-    label_map = batch_data["label_dict"]["label_map"]
-    if not isinstance(bev_input, np.ndarray):
-        bev_input = common_utils.torch_tensor_to_numpy(bev_input)
-
-    if not isinstance(label_map, np.ndarray):
-        label_map = label_map[0].numpy() if not label_map[0].is_cuda else label_map[0].cpu().detach().numpy()
-
-    if len(bev_input.shape) > 3:
-        bev_input = bev_input[0, ...]
-
-    plt.matshow(np.sum(bev_input, axis=0))
-    plt.axis("off")
-    plt.matshow(label_map[0, :, :])
-    plt.axis("off")
-    plt.show()
-
-
-def draw_box_plt(boxes_dec: Union[npt.NDArray, Any], ax: plt.Axes, color: Optional[str] = None, linewidth_scale: float = 1.0) -> plt.Axes:
-    """
-    Draw boxes in a given plt ax.
-
-    Parameters
-    ----------
-    boxes_dec : np.ndarray or torch.Tensor
-        Bounding boxes with shape (N, 5) or (N, 7) in metric coordinates.
-    ax : matplotlib.axes.Axes
-        Matplotlib axes object to draw on.
-    color : str, optional
-        Color for the bounding boxes. Default is None.
-    linewidth_scale : float, optional
-        Scale factor for line width. Default is 1.0.
-
-    Returns
-    -------
-    matplotlib.axes.Axes
-        Axes with drawn boxes.
-    """
-    if not len(boxes_dec) > 0:
-        return ax
-    boxes_np = boxes_dec
-    if not isinstance(boxes_np, np.ndarray):
-        boxes_np = boxes_np.cpu().detach().numpy()
-    if boxes_np.shape[-1] > 5:
-        boxes_np = boxes_np[:, [0, 1, 3, 4, 6]]
-    x = boxes_np[:, 0]
-    y = boxes_np[:, 1]
-    dx = boxes_np[:, 2]
-    dy = boxes_np[:, 3]
-
-    x1 = x - dx / 2
-    y1 = y - dy / 2
-    x2 = x + dx / 2
-    y2 = y + dy / 2
-    theta = boxes_np[:, 4:5]
-    # bl, fl, fr, br
-    corners = np.array([[x1, y1], [x1, y2], [x2, y2], [x2, y1]]).transpose(2, 0, 1)
-    new_x = (corners[:, :, 0] - x[:, None]) * np.cos(theta) + (corners[:, :, 1] - y[:, None]) * (-np.sin(theta)) + x[:, None]
-    new_y = (corners[:, :, 0] - x[:, None]) * np.sin(theta) + (corners[:, :, 1] - y[:, None]) * (np.cos(theta)) + y[:, None]
-    corners = np.stack([new_x, new_y], axis=2)
-    for corner in corners:
-        ax.plot(corner[[0, 1, 2, 3, 0], 0], corner[[0, 1, 2, 3, 0], 1], color=color, linewidth=0.5 * linewidth_scale)
-        # draw front line (
-        ax.plot(corner[[2, 3], 0], corner[[2, 3], 1], color=color, linewidth=2 * linewidth_scale)
-    return ax
-
-
-def draw_points_boxes_plt(
-    pc_range: List[float],
-    points: Optional[npt.NDArray] = None,
-    boxes_pred: Optional[Union[npt.NDArray, Any]] = None,
-    boxes_gt: Optional[Union[npt.NDArray, Any]] = None,
-    save_path: Optional[str] = None,
-    points_c: str = "y.",
-    bbox_gt_c: str = "green",
-    bbox_pred_c: str = "red",
-    return_ax: bool = False,
-    ax: Optional[plt.Axes] = None,
-) -> Optional[plt.Axes]:
-    """
-    Draw points and bounding boxes in bird's eye view using matplotlib.
-
-    Parameters
-    ----------
-    pc_range : list of float
-        Point cloud range [x_min, y_min, z_min, x_max, y_max, z_max].
-    points : np.ndarray, optional
-        Point cloud data. Default is None.
-    boxes_pred : np.ndarray or torch.Tensor, optional
-        Predicted bounding boxes. Default is None.
-    boxes_gt : np.ndarray or torch.Tensor, optional
-        Ground truth bounding boxes. Default is None.
-    save_path : str, optional
-        Path to save the figure. Default is None.
-    points_c : str, optional
-        Color and marker style for points. Default is "y.".
-    bbox_gt_c : str, optional
-        Color for ground truth boxes. Default is "green".
-    bbox_pred_c : str, optional
-        Color for predicted boxes. Default is "red".
-    return_ax : bool, optional
-        Whether to return the axes object. Default is False.
-    ax : matplotlib.axes.Axes, optional
-        Existing axes to draw on. Default is None.
-
-    Returns
-    -------
-    matplotlib.axes.Axes or None
-        Axes object if return_ax is True, otherwise None.
-    """
-    if ax is None:
-        ax = plt.figure(figsize=(15, 6)).add_subplot(1, 1, 1)
-        ax.set_aspect("equal", "box")
-        ax.set(xlim=(pc_range[0], pc_range[3]), ylim=(pc_range[1], pc_range[4]))
-    if points is not None:
-        ax.plot(points[:, 0], points[:, 1], points_c, markersize=0.1)
-    if (boxes_gt is not None) and len(boxes_gt) > 0:
-        ax = draw_box_plt(boxes_gt, ax, color=bbox_gt_c)
-    if (boxes_pred is not None) and len(boxes_pred) > 0:
-        ax = draw_box_plt(boxes_pred, ax, color=bbox_pred_c)
-    plt.xlabel("x")
-    plt.ylabel("y")
-
-    plt.savefig(save_path)
-    if return_ax:
-        return ax
-    plt.close()
-    return None

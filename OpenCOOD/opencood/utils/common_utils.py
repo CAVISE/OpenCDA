@@ -138,44 +138,6 @@ def rotate_points_along_z_2d(points: Union[npt.NDArray, torch.Tensor], angle: Un
     return points_rot.numpy() if is_numpy else points_rot
 
 
-def remove_ego_from_objects(objects: Dict[Hashable, Any], ego_id: int) -> None:
-    """
-    Avoid adding ego vehicle to the object dictionary.
-
-    Parameters
-    ----------
-    objects : dict
-        The dictionary containing all objects.
-    ego_id : int
-        Ego vehicle ID.
-    """
-    if ego_id in objects:
-        del objects[ego_id]
-
-
-def retrieve_ego_id(base_data_dict: Dict[str, Any]) -> Optional[str]:
-    """
-    Retrieve the ego vehicle id from sample (origin format).
-
-    Parameters
-    ----------
-    base_data_dict : dict
-        Data sample in origin format.
-
-    Returns
-    -------
-    str
-        The id of ego vehicle.
-    """
-    ego_id = None
-
-    for cav_id, cav_content in base_data_dict.items():
-        if cav_content["ego"]:
-            ego_id = cav_id
-            break
-    return ego_id
-
-
 def compute_iou(box: Polygon, boxes: List[Polygon]) -> npt.NDArray:
     """
     Compute IoU between box and boxes list.

@@ -40,18 +40,7 @@ class MeanVFE(nn.Module):
         self.model_cfg = model_cfg
         self.num_point_features = num_point_features
 
-    def get_output_feature_dim(self) -> int:
-        """
-        Get output feature dimension.
-
-        Returns
-        -------
-        int
-            Number of output feature channels (same as input).
-        """
-        return self.num_point_features
-
-    def forward(self, batch_dict: Dict[str, Any], **kwargs) -> Dict[str, Any]:
+    def forward(self, batch_dict, **kwargs):
         """
         Encode voxel features by computing mean of points within each voxel.
 

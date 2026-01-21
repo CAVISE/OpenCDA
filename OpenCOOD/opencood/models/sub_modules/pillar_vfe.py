@@ -81,9 +81,9 @@ class PFNLayer(nn.Module):
             x = torch.cat(part_linear_out, dim=0)
         else:
             x = self.linear(inputs)
-        torch.backends.cudnn.enabled = False
+        torch.backends.cudnn.enabled = False  # noqa: DC05
         x = self.norm(x.permute(0, 2, 1)).permute(0, 2, 1) if self.use_norm else x
-        torch.backends.cudnn.enabled = True
+        torch.backends.cudnn.enabled = True  # noqa: DC05
         x = F.relu(x)
         x_max = torch.max(x, dim=1, keepdim=True)[0]
 
@@ -174,9 +174,6 @@ class PillarVFE(nn.Module):
         self.x_offset = self.voxel_x / 2 + point_cloud_range[0]
         self.y_offset = self.voxel_y / 2 + point_cloud_range[1]
         self.z_offset = self.voxel_z / 2 + point_cloud_range[2]
-
-    def get_output_feature_dim(self):
-        return self.num_filters[-1]
 
     @staticmethod
     def get_paddings_indicator(actual_num: torch.Tensor, max_num: int, axis: int = 0) -> torch.Tensor:

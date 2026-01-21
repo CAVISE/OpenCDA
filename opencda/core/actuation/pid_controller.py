@@ -87,18 +87,18 @@ class Controller:
         self.max_brake = args["max_brake"]
         self.max_throttle = args["max_throttle"]
 
-        self._lon_k_p = args["lon"]["k_p"]
-        self._lon_k_d = args["lon"]["k_d"]
-        self._lon_k_i = args["lon"]["k_i"]
+        self._lon_k_p = args["lon"]["k_p"]  # noqa: DC05
+        self._lon_k_d = args["lon"]["k_d"]  # noqa: DC05
+        self._lon_k_i = args["lon"]["k_i"]  # noqa: DC05
 
         self._lon_ebuffer = deque(maxlen=10)
 
         # lateral related
         self.max_steering = args["max_steering"]
 
-        self._lat_k_p = args["lat"]["k_p"]
-        self._lat_k_d = args["lat"]["k_d"]
-        self._lat_k_i = args["lat"]["k_i"]
+        self._lat_k_p = args["lat"]["k_p"]  # noqa: DC05
+        self._lat_k_d = args["lat"]["k_d"]  # noqa: DC05
+        self._lat_k_i = args["lat"]["k_i"]  # noqa: DC05
 
         self._lat_ebuffer = deque(maxlen=10)
 
@@ -234,21 +234,21 @@ class Controller:
 
         # emergency stop
         if target_speed == 0 or waypoint is None:
-            control.steer = 0.0
-            control.throttle = 0.0
-            control.brake = 1.0
-            control.hand_brake = False
+            control.steer = 0.0  # noqa: DC05
+            control.throttle = 0.0  # noqa: DC05
+            control.brake = 1.0  # noqa: DC05
+            control.hand_brake = False  # noqa: DC05
             return control
 
         acceleration = self.lon_run_step(target_speed)
         current_steering = self.lat_run_step(waypoint)
 
         if acceleration >= 0.0:
-            control.throttle = min(acceleration, self.max_throttle)
-            control.brake = 0.0
+            control.throttle = min(acceleration, self.max_throttle)  # noqa: DC05
+            control.brake = 0.0  # noqa: DC05
         else:
-            control.throttle = 0.0
-            control.brake = min(abs(acceleration), self.max_brake)
+            control.throttle = 0.0  # noqa: DC05
+            control.brake = min(abs(acceleration), self.max_brake)  # noqa: DC05
 
         # Steering regulation: changes cannot happen abruptly, can't steer too
         # much.
@@ -262,8 +262,8 @@ class Controller:
         else:
             steering = max(-self.max_steering, current_steering)
 
-        control.steer = steering
-        control.hand_brake = False
-        control.manual_gear_shift = False
+        control.steer = steering  # noqa: DC05
+        control.hand_brake = False  # noqa: DC05
+        control.manual_gear_shift = False  # noqa: DC05
         self.past_steering = steering
         return control

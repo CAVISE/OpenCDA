@@ -15,14 +15,7 @@ status conversions for CARLA simulation.
 from typing import List
 import carla
 import numpy as np
-from enum import IntEnum
 import numpy.typing as npt
-
-
-class InterpolationMethod(IntEnum):
-    INTER_METER = 0  # fixed interpolation at a given step in meters
-    INTER_ENSURE_LEN = 1  # ensure we always get the same number of elements
-
 
 def lateral_shift(transform: carla.Transform, shift: float) -> carla.Location:
     transform.rotation.yaw += 90

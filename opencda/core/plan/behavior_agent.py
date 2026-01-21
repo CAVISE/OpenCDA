@@ -9,7 +9,6 @@ for autonomous vehicles in CARLA simulator.
 # Author: Runsheng Xu <rxx3386@ucla.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
-import random
 import logging
 import sys
 from typing import List, Dict, Tuple, Optional, Any
@@ -329,26 +328,7 @@ class BehaviorAgent(object):
         """
         return self._local_planner
 
-    def reroute(self, spawn_points: List[Any]) -> None:
-        """
-        Reroute vehicle approaching its destination to a new target.
-
-        Parameters
-        ----------
-        spawn_points : list
-            List of possible destinations for the agent.
-        """
-        if self.debug:
-            logger.info("Target almost reached, setting new destination...")
-        random.shuffle(spawn_points)
-        new_start = self._local_planner.waypoints_queue[-1][0].transform.location
-        destination = spawn_points[0].location if spawn_points[0].location != new_start else spawn_points[1].location
-        if self.debug:
-            logger.info("New destination: " + str(destination))
-
-        self.set_destination(new_start, destination)
-
-    def _trace_route(self, start_waypoint: Any, end_waypoint: Any) -> List[Tuple[Any, Any]]:
+    def _trace_route(self, start_waypoint, end_waypoint):
         """
         This method sets up a global router and returns the
         optimal route from start_waypoint to end_waypoint.

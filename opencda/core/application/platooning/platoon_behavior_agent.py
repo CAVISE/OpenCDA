@@ -314,7 +314,7 @@ class PlatooningBehaviorAgent(BehaviorAgent):
 
             tracked_length = len(frontal_trajectory) - 1 if not frontal_front_vehicle_manger else len(frontal_trajectory)
 
-            # todo: current not working well on curve
+            # TODO: current not working well on curve
             for i in range(tracked_length):
                 delta_t = self.get_local_planner().dt
                 # if leader is slowing down(leader target speed is smaller than
@@ -324,7 +324,7 @@ class PlatooningBehaviorAgent(BehaviorAgent):
                     """
                     # only increase dt when V_ego > V_front (avoid collision)
                     # if V_ego < V_front (diff < 0), stick with small dt
-                    # todo: change delta_t to a function:
+                    # TODO: change delta_t to a function:
                     #      --> 1. {V_ego > V_front}: decrease dt to increase
                                   gap, help avoid collision
                     #      --> 2. more difference, more dt adjustment
@@ -467,7 +467,7 @@ class PlatooningBehaviorAgent(BehaviorAgent):
         self.calculate_gap(compute_distance(frontal_vehicle.get_location(), ego_vehicle_loc))
 
         # if there is a obstacle blocking ahead, we just change to back joining
-        # mode todo: lane change not considered
+        # mode TODO: lane change not considered
         if self.hazard_flag:
             if rear_vehicle_vm:
                 rear_vehicle_vm.v2x_manager.set_platoon_status(FSM.MAINTINING)
@@ -605,7 +605,7 @@ class PlatooningBehaviorAgent(BehaviorAgent):
         platooning_manager, _ = frontal_vehicle_manager.v2x_manager.get_platoon_manager()
         frontal_destination = platooning_manager.destination
 
-        # retrieve ego vehicle info todo: remove this later
+        # retrieve ego vehicle info TODO: remove this later
         ego_vehicle_loc = self._ego_pos.location
         ego_wpt = self._map.get_waypoint(ego_vehicle_loc)
         ego_vehicle_lane = ego_wpt.lane_id

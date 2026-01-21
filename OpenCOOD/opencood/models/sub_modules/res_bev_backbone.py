@@ -150,24 +150,7 @@ class ResBEVBackbone(nn.Module):
         data_dict["spatial_features_2d"] = x
         return data_dict
 
-    def get_multiscale_feature(self, spatial_features: torch.Tensor) -> Tuple[torch.Tensor, ...]:
-        """
-        Extract multi-scale features before intermediate fusion.
-
-        Parameters
-        ----------
-        spatial_features : Tensor
-            Input BEV features with shape (B, C, H, W).
-
-        Returns
-        -------
-        tuple of Tensor
-            Multi-scale features from each ResNet layer.
-        """
-        x = self.resnet(spatial_features)  # tuple of features
-        return x
-
-    def decode_multiscale_feature(self, x: Tuple[torch.Tensor, ...]) -> torch.Tensor:
+    def decode_multiscale_feature(self, x):
         """
         Decode and fuse multi-scale features after intermediate fusion.
 

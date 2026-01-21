@@ -324,46 +324,6 @@ class Spline2D:
         return yaw
 
 
-def calc_spline_course(x: npt.ArrayLike, y: npt.ArrayLike, ds: float = 0.1) -> Tuple[List[float], List[float], List[float], List[float], List[float]]:
-    """
-    Calculate 2D spline course.
-
-    Parameters
-    ----------
-    x : array_like
-        The x coordinates of the input points.
-    y : array_like
-        The y coordinates of the input points.
-    ds : float, optional
-        The arc length step value. Default is 0.1.
-
-    Returns
-    -------
-    rx : list of float
-        List of spline course points' x coordinates.
-    ry : list of float
-        List of spline course points' y coordinates.
-    ryaw : list of float
-        List of spline course points' yaw angles.
-    rk : list of float
-        List of spline course points' curvatures.
-    s : list of float
-        List of spline course points' arc length values.
-    """
-    sp = Spline2D(x, y)
-    s = list(np.arange(0, sp.s[-1], ds))
-
-    rx, ry, ryaw, rk = [], [], [], []
-    for i_s in s:
-        ix, iy = sp.calc_position(i_s)
-        rx.append(ix)
-        ry.append(iy)
-        ryaw.append(sp.calc_yaw(i_s))
-        rk.append(sp.calc_curvature(i_s))
-
-    return rx, ry, ryaw, rk, s
-
-
 def main():
     """
     Main function to calculate spline and visualize the results.

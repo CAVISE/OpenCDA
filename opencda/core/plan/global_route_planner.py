@@ -449,48 +449,7 @@ class GlobalRoutePlanner(object):
         self._previous_decision = decision
         return decision
 
-    def abstract_route_plan(self, origin: carla.Location, destination: carla.Location) -> List[RoadOption]:
-        """
-        The function that generates the route plan based on origin and destination.
-
-        Parameters
-        ----------
-        origin : carla.Location
-            Object of the route's start position.
-        destination : carla.Location
-            Object of the route's end position.
-
-        Returns
-        -------
-        plan : list
-            List of turn by turn navigation decisions as agents.navigation.local_planner.RoadOption.
-        """
-
-        route = self._path_search(origin, destination)
-        plan = []
-
-        for i in range(len(route) - 1):
-            road_option = self._turn_decision(i, route)
-            plan.append(road_option)
-
-        return plan
-
-    def _find_closest_in_list(self, current_waypoint: carla.Waypoint, waypoint_list: List[carla.Waypoint]) -> int:
-        """
-        Find index of closest waypoint in list to current waypoint.
-
-        Parameters
-        ----------
-        current_waypoint : carla.Waypoint
-            Reference waypoint.
-        waypoint_list : List[carla.Waypoint]
-            List of waypoints to search.
-
-        Returns
-        -------
-        int
-            Index of closest waypoint in the list.
-        """
+    def _find_closest_in_list(self, current_waypoint, waypoint_list):
         min_distance = float("inf")
         closest_index = -1
         for i, waypoint in enumerate(waypoint_list):

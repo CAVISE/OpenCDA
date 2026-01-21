@@ -216,24 +216,6 @@ def boxes_to_corners_3d(boxes3d: npt.NDArray[np.floating] | torch.Tensor, order:
     return corners3d.numpy() if is_numpy else corners3d
 
 
-def box3d_to_2d(box3d: npt.NDArray[np.floating]) -> npt.NDArray[np.floating]:
-    """
-    Convert 3D bounding box to 2D.
-
-    Parameters
-    ----------
-    box3d : np.ndarray
-        (n, 8, 3)
-
-    Returns
-    -------
-    box2d : np.ndarray
-        (n, 4, 2), project 3d to 2d.
-    """
-    box2d = box3d[:, :4, :2]
-    return box2d
-
-
 def corner2d_to_standup_box(box2d: npt.NDArray[np.floating]) -> npt.NDArray[np.floating]:
     """
     Find the minmaxx, minmaxy for each 2d box. (N, 4, 2) -> (N, 4)
@@ -504,46 +486,6 @@ def get_points_in_rotated_box(p: npt.NDArray[np.floating], box_corner: npt.NDArr
     return p_in_box
 
 
-def get_points_in_rotated_box_3d(p: npt.NDArray[np.floating], box_corner: npt.NDArray[np.floating]) -> npt.NDArray[np.floating]:
-    """
-    Get points within a rotated bounding box (3D version).
-
-    Parameters
-    ----------
-    p : numpy.array
-        Points to be tested with shape (N, 3).
-    box_corner : numpy.array
-        Corners of bounding box with shape (8, 3).
-
-    Returns
-    -------
-    p_in_box : numpy.array
-        Points within the box.
-
-    """
-    edge1 = box_corner[1, :] - box_corner[0, :]
-    edge2 = box_corner[3, :] - box_corner[0, :]
-    edge3 = box_corner[4, :] - box_corner[0, :]
-
-    p_rel = p - box_corner[0, :].reshape(1, -1)
-
-    l1 = get_projection_length_for_vector_projection(p_rel, edge1)
-    l2 = get_projection_length_for_vector_projection(p_rel, edge2)
-    l3 = get_projection_length_for_vector_projection(p_rel, edge3)
-    # A point is within the box, if and only after projecting the
-    # point onto the two edges s.t. p_rel = [edge1, edge2] @ [l1, l2]^T,
-    # we have 0<=l1<=1 and 0<=l2<=1.
-    mask1 = np.logical_and(l1 >= 0, l1 <= 1)
-    mask2 = np.logical_and(l2 >= 0, l2 <= 1)
-    mask3 = np.logical_and(l3 >= 0, l3 <= 1)
-
-    mask = np.logical_and(mask1, mask2)
-    mask = np.logical_and(mask, mask3)
-    p_in_box = p[mask, :]
-
-    return p_in_box
-
-
 def get_projection_length_for_vector_projection(a: npt.NDArray[np.floating], b: npt.NDArray[np.floating]) -> npt.NDArray[np.floating]:
     """
     Get projection length for the Vector projection of a onto b s.t.
@@ -615,103 +557,6 @@ def nms_rotated(boxes: torch.Tensor, scores: torch.Tensor, threshold: float) -> 
         ixs = np.delete(ixs, 0)
 
     return np.array(pick, dtype=np.int32)
-
-
-def nms_pytorch(boxes: torch.Tensor, thresh_iou: float) -> List[int]:
-    """
-    Apply non-maximum suppression to avoid detecting too many
-    overlapping bounding boxes for a given object.
-
-    Parameters
-    ----------
-    boxes : torch.tensor
-        The location preds along with the class predscores,
-         Shape: [num_boxes,5].
-    thresh_iou : float
-        (float) The overlap thresh for suppressing unnecessary boxes.
-    Returns
-    -------
-        A list of index
-    """
-
-    # we extract coordinates for every
-    # prediction box present in P
-    x1 = boxes[:, 0]
-    y1 = boxes[:, 1]
-    x2 = boxes[:, 2]
-    y2 = boxes[:, 3]
-
-    # we extract the confidence scores as well
-    scores = boxes[:, 4]
-
-    # calculate area of every block in P
-    areas = (x2 - x1) * (y2 - y1)
-
-    # sort the prediction boxes in P
-    # according to their confidence scores
-    order = scores.argsort()
-
-    # initialise an empty list for
-    # filtered prediction boxes
-    keep = []
-
-    while len(order) > 0:
-        # extract the index of the
-        # prediction with highest score
-        # we call this prediction S
-        idx = order[-1]
-
-        # push S in filtered predictions list
-        keep.append(idx.numpy().item() if not idx.is_cuda else idx.cpu().detach().numpy().item())
-
-        # remove S from P
-        order = order[:-1]
-
-        # sanity check
-        if len(order) == 0:
-            break
-
-        # select coordinates of BBoxes according to
-        # the indices in order
-        xx1 = torch.index_select(x1, dim=0, index=order)
-        xx2 = torch.index_select(x2, dim=0, index=order)
-        yy1 = torch.index_select(y1, dim=0, index=order)
-        yy2 = torch.index_select(y2, dim=0, index=order)
-
-        # find the coordinates of the intersection boxes
-        xx1 = torch.max(xx1, x1[idx])
-        yy1 = torch.max(yy1, y1[idx])
-        xx2 = torch.min(xx2, x2[idx])
-        yy2 = torch.min(yy2, y2[idx])
-
-        # find height and width of the intersection boxes
-        w = xx2 - xx1
-        h = yy2 - yy1
-
-        # take max with 0.0 to avoid negative w and h
-        # due to non-overlapping boxes
-        w = torch.clamp(w, min=0.0)
-        h = torch.clamp(h, min=0.0)
-
-        # find the intersection area
-        inter = w * h
-
-        # find the areas of BBoxes according the indices in order
-        rem_areas = torch.index_select(areas, dim=0, index=order)
-
-        # find the union of every prediction T in P
-        # with the prediction S
-        # Note that areas[idx] represents area of S
-        union = (rem_areas - inter) + areas[idx]
-
-        # find the IoU of every prediction in P with S
-        IoU = inter / union
-
-        # keep the boxes with IoU less than thresh_iou
-        mask = IoU < thresh_iou
-        order = order[mask]
-
-    return keep
 
 
 def remove_large_pred_bbx(bbx_3d: torch.Tensor) -> torch.Tensor:

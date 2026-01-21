@@ -336,7 +336,7 @@ class V2XTEncoder(nn.Module):
         self.RTE_ratio = cav_att_config["RTE_ratio"]
         self.sttf = STTF(args["sttf"])
         # adjust the channel numbers from 256+3 -> 256
-        self.prior_feed = nn.Linear(cav_att_config["dim"] + 3, cav_att_config["dim"])
+        self.prior_feed = nn.Linear(cav_att_config["dim"] + 3, cav_att_config["dim"])  # noqa: DC05
         self.layers = nn.ModuleList([])
         if self.use_RTE:
             self.rte = RTE(cav_att_config["dim"], self.RTE_ratio)

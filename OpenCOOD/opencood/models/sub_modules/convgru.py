@@ -308,24 +308,6 @@ class ConvGRU(nn.Module):
         return init_states
 
     @staticmethod
-    def _check_kernel_size_consistency(kernel_size: Any) -> None:
-        """
-        Check if kernel_size format is valid.
-
-        Parameters
-        ----------
-        kernel_size : Any
-            Kernel size to validate.
-
-        Raises
-        ------
-        ValueError
-            If kernel_size is not a tuple or list of tuples.
-        """
-        if not (isinstance(kernel_size, tuple) or (isinstance(kernel_size, list) and all([isinstance(elem, tuple) for elem in kernel_size]))):
-            raise ValueError("`kernel_size` must be tuple or list of tuples")
-
-    @staticmethod
     def _extend_for_multilayer(param: Union[Any, List[Any]], num_layers: int) -> List[Any]:
         """
         Extend parameter to list of length num_layers if not already a list.

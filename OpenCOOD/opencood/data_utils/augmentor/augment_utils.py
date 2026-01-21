@@ -2,7 +2,7 @@
 Data augmentation utilities for 3D object detection.
 
 This module provides geometric transformation functions for augmenting LiDAR
-point clouds and 3D bounding boxes, including flipping, rotation, and scaling
+point clouds and 3D bounding boxes, including rotation, and scaling
 operations.
 """
 
@@ -10,74 +10,6 @@ import numpy as np
 from numpy.typing import NDArray
 from opencood.utils import common_utils
 from typing import Tuple
-
-
-def random_flip_along_x(gt_boxes: NDArray[np.float64], points: NDArray[np.float64]) -> Tuple[NDArray[np.float64], NDArray[np.float64]]:
-    """
-    Randomly flip the point cloud and bounding boxes along the X-axis.
-
-    Parameters
-    ----------
-    gt_boxes : NDArray[np.float64]
-        Ground truth boxes of shape (N, 7 + C) where:
-        - N : number of bounding boxes
-        - 7 : [x, y, z, dx, dy, dz, heading]
-        - C : optional velocity components [vx, vy, ...]
-    points : NDArray[np.float64]
-        Point cloud of shape (M, 3 + C) where:
-        - M : number of points
-        - 3 : x, y, z coordinates
-        - C : additional features per point
-
-    Returns
-    -------
-    Tuple[NDArray[np.float64], NDArray[np.float64]]
-        gt_boxes : NDArray[np.float64]
-            Flipped ground truth boxes of shape (N, 7 + C).
-        points : NDArray[np.float64]
-            Flipped points of shape (M, 3 + C).
-    """
-    enable = np.random.choice([False, True], replace=False, p=[0.5, 0.5])
-    if enable:
-        gt_boxes[:, 1] = -gt_boxes[:, 1]
-        gt_boxes[:, 6] = -gt_boxes[:, 6]
-        points[:, 1] = -points[:, 1]
-
-        if gt_boxes.shape[1] > 7:
-            gt_boxes[:, 8] = -gt_boxes[:, 8]
-
-    return gt_boxes, points
-
-
-def random_flip_along_y(gt_boxes: NDArray[np.float64], points: NDArray[np.float64]) -> Tuple[NDArray[np.float64], NDArray[np.float64]]:
-    """
-    Flip the point cloud and bounding boxes along the Y-axis.
-
-    Parameters
-    ----------
-    gt_boxes : NDArray[np.float64]
-        Ground truth boxes of shape (N, 7 + C), [x, y, z, dx, dy, dz, heading, [vx], [vy]].
-    points : NDArray[np.float64]
-        Point cloud of shape (M, 3 + C).
-
-    Returns
-    -------
-    Tuple[NDArray[np.float64], NDArray[np.float64]]
-        gt_boxes : NDArray[np.float64]
-            Flipped ground truth boxes.
-        points : NDArray[np.float64]
-            Flipped points.
-    """
-    enable = np.random.choice([False, True], replace=False, p=[0.5, 0.5])
-    if enable:
-        gt_boxes[:, 0] = -gt_boxes[:, 0]
-        gt_boxes[:, 6] = -(gt_boxes[:, 6] + np.pi)
-        points[:, 0] = -points[:, 0]
-
-        if gt_boxes.shape[1] > 7:
-            gt_boxes[:, 7] = -gt_boxes[:, 7]
-
-    return gt_boxes, points
 
 
 def global_rotation(

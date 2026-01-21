@@ -10,29 +10,6 @@ import os
 from typing import Any, Tuple
 
 import torch
-import torch.distributed as dist
-
-
-def get_dist_info() -> Tuple[int, int]:
-    """
-    Get the distributed process information.
-
-    Returns
-    -------
-    rank : int
-        Process rank within the distributed group.
-        Returns 0 if not using distributed training.
-    world_size : int
-        Number of processes in the distributed group.
-        Returns 1 if not using distributed training.
-    """
-    if dist.is_available() and dist.is_initialized():
-        rank = dist.get_rank()
-        world_size = dist.get_world_size()
-    else:
-        rank = 0
-        world_size = 1
-    return rank, world_size
 
 
 def init_distributed_mode(args: Any) -> None:

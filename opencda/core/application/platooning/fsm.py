@@ -47,7 +47,7 @@ class FSM(Enum):
     JOINING = 3
     MAINTINING = 4
     BACK_JOINING = 5
-    CUT_IN_TO_BACK = 6
+    CUT_IN_TO_BACK = 6  # noqa: DC01
     FRONT_JOINING = 7
     JOINING_FINISHED = 8
     LEADING_MODE = 9

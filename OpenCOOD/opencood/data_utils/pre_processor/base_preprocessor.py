@@ -73,7 +73,7 @@ class BasePreprocessor:
             BEV occupancy map including projected points with shape
             (img_row, img_col).
         """
-        L1, W1, H1, L2, W2, H2 = self.params["cav_lidar_range"]
+        L1, W1, H1, L2, W2, _ = self.params["cav_lidar_range"]
         img_row = int((L2 - L1) / ratio)
         img_col = int((W2 - W1) / ratio)
         bev_map = np.zeros((img_row, img_col))

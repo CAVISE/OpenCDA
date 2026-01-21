@@ -85,7 +85,7 @@ class VehicleManager(object):
         cav_world,
         current_time="",
         data_dumping=False,
-        autogenerate_id_on_failure=True,  # TODO: Привязать к конфигу сценария
+        autogenerate_id_on_failure=True,  # TODO: Link with scenario config
         prefix="unknown",
     ):
         config_id = config_yaml.get("id")
@@ -118,10 +118,6 @@ class VehicleManager(object):
             else:
                 logger.error("No vehicle ID specified in config.")
                 raise ValueError("No vehicle ID specified in config.")
-
-        # [CoDrivingInt]
-        self.vname = config_yaml["name"]
-        # [CoDrivingInt]
 
         self.vehicle = vehicle
         self.carla_map = carla_map
@@ -239,7 +235,7 @@ class VehicleManager(object):
         self.controller.update_info(ego_pos, ego_spd)
 
     def update_info_v2x(self):
-        # TODO: Добавить обновление информации
+        # TODO: Implement
         pass
 
     def run_step(self, target_speed=None):

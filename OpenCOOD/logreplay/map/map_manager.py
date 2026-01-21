@@ -822,7 +822,7 @@ class MapManager(object):
         # --------- Retrieve city objects such as buildings ---------- #
         # first filter out objects out of range
         final_city_objs = obj_in_range(self.center, raster_radius, self.other_objs_info)
-        for obj_cat, obj_content in final_city_objs.items():
+        for _, obj_content in final_city_objs.items():
             for obj_id, obj in obj_content.items():
                 corner_area = self.generate_agent_area(obj["corners"])
                 obj["corner_area"] = corner_area
