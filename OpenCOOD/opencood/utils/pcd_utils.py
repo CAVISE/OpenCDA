@@ -174,7 +174,7 @@ def downsample_lidar_minimum(pcd_np_list: List[npt.NDArray[np.floating]]) -> Lis
     list of np.ndarray
         List of downsampled point clouds, all with the same number of points.
     """
-    minimum: float = np.Inf
+    minimum: int = np.iinfo(np.int64).max
 
     for i in range(len(pcd_np_list)):
         num = pcd_np_list[i].shape[0]

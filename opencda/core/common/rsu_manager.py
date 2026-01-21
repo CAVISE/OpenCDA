@@ -6,7 +6,7 @@ Basic class for RSU(Roadside Unit) management.
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
 import logging
-from typing import Any, Set
+from typing import Set
 
 # CAVISE
 
