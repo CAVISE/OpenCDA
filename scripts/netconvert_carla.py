@@ -19,7 +19,7 @@ import logging
 import shutil
 import subprocess
 import tempfile
-from typing import Optional, List, Tuple
+from typing import Any, Dict, Optional, List, Set, Tuple
 
 import lxml.etree as ET
 
@@ -96,7 +96,7 @@ class SumoTopology(object):
         if (odr_road_id, odr_lane_id) not in self._odr2sumo_ids:
             return None
 
-        sumo_ids = list(self._odr2sumo_ids[(odr_road_id, odr_lane_id)])
+        sumo_ids: List[Tuple[str, int]] = list(self._odr2sumo_ids[(odr_road_id, odr_lane_id)])
 
         if (len(sumo_ids)) == 1:
             return sumo_ids[0]
@@ -108,7 +108,7 @@ class SumoTopology(object):
 
             s_coords = [float(edge.split(".", 1)[1]) for edge, lane_index in sumo_ids]
 
-            s_coords, sumo_ids = zip(*sorted(zip(s_coords, sumo_ids)))
+            s_coords, sumo_ids = zip(*sorted(zip(s_coords, sumo_ids))) #TODO error: Incompatible types in assignment (expression has type "tuple[Any, ...]", variable has type "list[float]"
             index = bisect.bisect_left(s_coords, s, lo=1) - 1
             return sumo_ids[index]
 
@@ -245,7 +245,7 @@ def build_topology(sumo_net: sumolib.net.Net) -> SumoTopology:
     # --------------------------
     # Only takes into account standard roads.
 
-    odr2sumo_ids = {}
+    odr2sumo_ids: Dict[Tuple[str, int], Set[Tuple]] = {}
     for edge in sumo_net.getEdges():
         for lane in edge.getLanes():
             if lane.getParam("origId") is None:
@@ -267,8 +267,8 @@ def build_topology(sumo_net: sumolib.net.Net) -> SumoTopology:
     # -----------
     # Connections
     # -----------
-    topology = {}
-    paths = {}
+    topology: Dict[Tuple[str, int], Set[Tuple]] = {}
+    paths: Dict[Tuple[str, int], Set[Tuple]] = {}
 
     for from_edge in sumo_net.getEdges():
         for to_edge in sumo_net.getEdges():
@@ -629,7 +629,7 @@ def _netconvert_carla_impl(xodr_file: str, output: str, tmpdir: str, guess_tls: 
                 # When the landmarks does not belong to a junction (i.e., belongs to a std road),
                 # we place the traffic light between that std road and its successor.
                 elif not wp.is_junction and not sumo_topology.is_junction(road_id, lane_id):
-                    from_edge, from_lane = sumo_topology.get_sumo_id(road_id, lane_id, landmark.s)
+                    from_edge, from_lane = sumo_topology.get_sumo_id(road_id, lane_id, landmark.s) #TODO error: "None" object is not iterable
 
                     for to_edge, to_lane in sumo_topology.get_successors(from_edge, from_lane):
                         tlid = SumoTrafficLight.generate_tl_id(from_edge, to_edge)
@@ -651,13 +651,13 @@ def _netconvert_carla_impl(xodr_file: str, output: str, tmpdir: str, guess_tls: 
 
     for tl in tls.values():
         SumoTrafficLight.generate_default_program(tl)
-        edges_tags = tree.xpath("//edge")
+        edges_tags: Any = tree.xpath("//edge")
         if not edges_tags:
             raise RuntimeError("No edges found in sumo net.")
         root.insert(root.index(edges_tags[-1]) + 1, tl.to_xml())
 
         for connection in tl.connections:
-            tags = tree.xpath(
+            tags: Any = tree.xpath(
                 '//connection[@from="{}" and @to="{}" and @fromLane="{}" and @toLane="{}"]'.format(
                     connection.from_road, connection.to_road, connection.from_lane, connection.to_lane
                 )

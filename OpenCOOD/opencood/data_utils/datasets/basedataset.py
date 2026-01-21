@@ -118,8 +118,8 @@ class BaseDataset(Dataset):
         scenario_folders = sorted([os.path.join(root_dir, x) for x in os.listdir(root_dir) if os.path.isdir(os.path.join(root_dir, x))])
         # Structure: {scenario_id : {cav_1 : {timestamp1 : {yaml: path,
         # lidar: path, cameras:list of path}}}}
-        self.scenario_database = OrderedDict()
-        self.len_record = []
+        self.scenario_database: OrderedDict[int, OrderedDict] = OrderedDict()
+        self.len_record: List[int] = []
 
         # loop over all scenarios
         for i, scenario_folder in enumerate(scenario_folders):
@@ -231,7 +231,7 @@ class BaseDataset(Dataset):
         # calculate distance to ego for each cav
         ego_cav_content = self.calc_dist_to_ego(scenario_database, timestamp_key)
 
-        data = OrderedDict()
+        data: OrderedDict = OrderedDict()
         # load files for all CAVs
         for cav_id, cav_content in scenario_database.items():
             data[cav_id] = OrderedDict()
@@ -324,7 +324,7 @@ class BaseDataset(Dataset):
             If no ego vehicle is found in the scenario.
         """
         ego_lidar_pose = None
-        ego_cav_content = None
+        ego_cav_content: Dict[str, Any] = {}
         # Find ego pose first
         for cav_id, cav_content in scenario_database.items():
             if cav_content["ego"]:
@@ -449,7 +449,7 @@ class BaseDataset(Dataset):
 
         if cur_ego_pose_flag:
             transformation_matrix = x1_to_x2(delay_cav_lidar_pose, cur_ego_lidar_pose)
-            spatial_correction_matrix = np.eye(4)
+            spatial_correction_matrix: NDArray[np.float64 | np.floating] = np.eye(4)
         else:
             transformation_matrix = x1_to_x2(delay_cav_lidar_pose, delay_ego_lidar_pose)
             spatial_correction_matrix = x1_to_x2(delay_ego_lidar_pose, cur_ego_lidar_pose)
@@ -562,7 +562,7 @@ class BaseDataset(Dataset):
                                'origin_lidar': torch.Tensor [if visualize=True]}}
         """
         # during training, we only care about ego.
-        output_dict = {"ego": {}}
+        output_dict: Dict[str, Dict] = {"ego": {}}
 
         object_bbx_center = []
         object_bbx_mask = []

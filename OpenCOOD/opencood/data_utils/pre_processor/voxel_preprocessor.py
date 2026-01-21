@@ -66,7 +66,7 @@ class VoxelPreprocessor(BasePreprocessor):
         self.vd = self.params["args"]["vd"]
         self.T = self.params["args"]["T"]
 
-    def preprocess(self, pcd_np: NDArray[np.float64]) -> Dict[str, NDArray]:
+    def preprocess(self, pcd_np: NDArray[np.floating[Any]]) -> Dict[str, NDArray]:
         """
         Preprocess the lidar points by voxelization.
 

@@ -33,7 +33,7 @@ class PixorLoss(nn.Module):
         super(PixorLoss, self).__init__()
         self.alpha = args["alpha"]
         self.beta = args["beta"]
-        self.loss_dict = {}
+        self.loss_dict: Dict[str, torch.Tensor] = {}
 
     def dtype(self) -> torch.dtype:
         """

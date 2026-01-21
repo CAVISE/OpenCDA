@@ -85,7 +85,7 @@ def create_video(input_dir: str, output_path: str, framerate: int = 20, rotate: 
 
             rotate_cmd = ["ffmpeg", "-y", "-i", str(intermediate_path), "-vf", rotate_str, "-c:a", "copy", str(output_path)]
             subprocess.run(rotate_cmd, check=True, stderr=subprocess.PIPE)
-            os.remove(intermediate_path)
+            os.remove(str(intermediate_path))
 
         print(f"Video successfully created: {output_path}")
 

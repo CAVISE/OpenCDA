@@ -74,7 +74,7 @@ class EarlyFusionDataset(basedataset.BaseDataset):
 
         Parameters
         ----------
-        base_data_dict : Dict[str, Dict[str, Any]]
+        base_data_dict : Dict[int, Dict[str, Any]]
             Dictionary containing data for all CAVs.
 
         Returns
@@ -169,7 +169,7 @@ class EarlyFusionDataset(basedataset.BaseDataset):
         object_id_stack = []
         projected_lidar_stack = []
 
-        ego_cav_base = base_data_dict.get(ego_id)
+        ego_cav_base = base_data_dict.get(ego_id) #TODO there should be a check for None
         ego_cav_processed = self.get_item_single_car(ego_cav_base, ego_lidar_pose)
 
         object_id_stack += ego_cav_processed["object_ids"]
@@ -263,7 +263,7 @@ class EarlyFusionDataset(basedataset.BaseDataset):
                     Raw fused point cloud (if visualize=True).
         """
         base_data_dict = self.retrieve_base_data(idx)
-        processed_data_dict = OrderedDict()
+        processed_data_dict: OrderedDict = OrderedDict()
         processed_data_dict["ego"] = {}
 
         ego_id, ego_lidar_pose = self.__find_ego_vehicle(base_data_dict)
@@ -398,7 +398,7 @@ class EarlyFusionDataset(basedataset.BaseDataset):
         assert len(batch) <= 1, "Batch size 1 is required during testing!"
         batch = batch[0]
 
-        output_dict = {}
+        output_dict: Dict[str, Dict] = {}
 
         for cav_id, cav_content in batch.items():
             output_dict.update({cav_id: {}})

@@ -67,7 +67,7 @@ class CiassdLoss(nn.Module):
         self.reg = args["reg"]
         self.iou = args["iou"]
         self.dir = args["dir"]
-        self.loss_dict = {}
+        self.loss_dict: Dict[str, torch.Tensor] = {}
         ##
         self.num_cls = 2
         self.box_codesize = 7

@@ -36,7 +36,9 @@ def check_numpy_to_torch(x: Union[npt.NDArray, Any]) -> Tuple[Union[Tensor, Any]
     return x, False
 
 
-def check_contain_nan(x: Any) -> bool:
+def check_contain_nan(
+    x: Union[Dict[str, Any], List[Any], int, float, npt.NDArray[np.floating]]
+) -> bool:
     """
     Recursively check if any value in a nested structure contains NaN.
 

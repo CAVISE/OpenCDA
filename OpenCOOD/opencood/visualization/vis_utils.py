@@ -721,3 +721,4 @@ def draw_points_boxes_plt(
     if return_ax:
         return ax
     plt.close()
+    return None

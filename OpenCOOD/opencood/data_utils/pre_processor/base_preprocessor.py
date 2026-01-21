@@ -5,7 +5,7 @@ This module provides base preprocessor classes for lidar point cloud data.
 """
 
 import numpy as np
-from numpy.typing import NDArray
+import numpy.typing as npt 
 
 from opencood.utils import pcd_utils
 from typing import Dict, Any
@@ -34,13 +34,13 @@ class BasePreprocessor:
         self.params = preprocess_params
         self.train = train
 
-    def preprocess(self, pcd_np: NDArray[np.float64]) -> Dict[str, NDArray[np.float64]]:
+    def preprocess(self, pcd_np: npt.NDArray[np.floating[Any]]) -> Dict[str, npt.NDArray[np.floating[Any]]]:  
         """
         Preprocess the lidar points by simple sampling.
 
         Parameters
         ----------
-        pcd_np : NDArray[np.float64]
+        pcd_np : NDArray[np.floating[Any]]
             The raw lidar.
 
         Returns
@@ -56,7 +56,7 @@ class BasePreprocessor:
 
         return data_dict
 
-    def project_points_to_bev_map(self, points: NDArray[np.float64], ratio: float = 0.1) -> NDArray[np.float64]:
+    def project_points_to_bev_map(self, points: npt.NDArray[np.float64], ratio: float = 0.1) -> npt.NDArray[np.float64]:
         """
         Project points to BEV occupancy map with default ratio=0.1.
 

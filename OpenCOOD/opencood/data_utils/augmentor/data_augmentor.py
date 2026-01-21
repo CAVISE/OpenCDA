@@ -41,7 +41,7 @@ class DataAugmentor:
 
     def random_world_flip(
         self, data_dict: Optional[Dict[str, Any]] = None, config: Optional[Dict[str, Any]] = None
-    ) -> Union[Dict[str, Any], Callable[[Optional[Dict[str, Any]]], Dict[str, Any]]]:
+    ) -> Union[Dict[str, Any], Callable]:
         """
         Randomly flip the world along specified axes.
 
@@ -69,7 +69,7 @@ class DataAugmentor:
         )
         gt_boxes_valid = gt_boxes[gt_mask == 1]
 
-        for cur_axis in config["ALONG_AXIS_LIST"]:
+        for cur_axis in config["ALONG_AXIS_LIST"]: #TODO Value of type "dict[str, Any] | None" is not indexable
             assert cur_axis in ["x", "y"]
             gt_boxes_valid, points = getattr(augment_utils, "random_flip_along_%s" % cur_axis)(
                 gt_boxes_valid,
@@ -85,7 +85,7 @@ class DataAugmentor:
 
     def random_world_rotation(
         self, data_dict: Optional[Dict[str, Any]] = None, config: Optional[Dict[str, Any]] = None
-    ) -> Union[Dict[str, Any], Callable[[Optional[Dict[str, Any]]], Dict[str, Any]]]:
+    ) -> Union[Dict[str, Any], Callable]:
         """
         Apply random rotation to the world.
 
@@ -107,7 +107,7 @@ class DataAugmentor:
             return partial(self.random_world_rotation, config=config)
 
         rot_range = config["WORLD_ROT_ANGLE"]
-        if not isinstance(rot_range, list):
+        if not isinstance(rot_range, list): #TODO Value of type "dict[str, Any] | None" is not indexable
             rot_range = [-rot_range, rot_range]
 
         gt_boxes, gt_mask, points = (
@@ -127,7 +127,7 @@ class DataAugmentor:
 
     def random_world_scaling(
         self, data_dict: Optional[Dict[str, Any]] = None, config: Optional[Dict[str, Any]] = None
-    ) -> Union[Dict[str, Any], Callable[[Optional[Dict[str, Any]]], Dict[str, Any]]]:
+    ) -> Union[Dict[str, Any], Callable]:
         """
         Apply random scaling to the world.
 
@@ -158,7 +158,7 @@ class DataAugmentor:
         gt_boxes_valid, points = augment_utils.global_scaling(gt_boxes_valid, points, config["WORLD_SCALE_RANGE"])
         gt_boxes[: gt_boxes_valid.shape[0], :] = gt_boxes_valid
         data_dict["object_bbx_center"] = gt_boxes
-        data_dict["object_bbx_mask"] = gt_mask
+        data_dict["object_bbx_mask"] = gt_mask #TODO Value of type "dict[str, Any] | None" is not indexable
         data_dict["lidar_np"] = points
 
         return data_dict

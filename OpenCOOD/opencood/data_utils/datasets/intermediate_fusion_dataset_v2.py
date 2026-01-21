@@ -105,7 +105,7 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
         idx : int
             Index of the data to extract.
         """
-        base_data_dict = self.retrieve_base_data(idx, cur_ego_pose_flag=self.cur_ego_pose_flag)
+        base_data_dict = self.retrieve_base_data(idx, cur_ego_pose_flag=self.cur_ego_pose_flag) #TODO where is this variable
         _, ego_lidar_pose = self.__find_ego_vehicle(base_data_dict)
 
         if self.message_handler is not None:

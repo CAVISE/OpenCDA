@@ -8,7 +8,7 @@ __all__ = {
     "EarlyFusionDataset": EarlyFusionDataset,
     "IntermediateFusionDataset": IntermediateFusionDataset,
     "IntermediateFusionDatasetV2": IntermediateFusionDatasetV2,
-}
+} #TODO error: Type of __all__ must be "Sequence[str]", not "dict[str, type[BaseDataset]]
 
 # the final range for evaluation
 GT_RANGE = [-140, -40, -3, 140, 40, 1]

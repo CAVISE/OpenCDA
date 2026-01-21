@@ -53,7 +53,7 @@ class BasePostprocessor(object):
         # TODO: needs to be overloaded
         return None
 
-    def generate_label(self, *argv: Any) -> Any:
+    def generate_label(self, *argv: Any) -> Dict[str, torch.Tensor]:
         """
         Generate labels for training.
 

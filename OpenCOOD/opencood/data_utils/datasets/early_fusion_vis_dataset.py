@@ -69,7 +69,7 @@ class EarlyFusionVisDataset(basedataset.BaseDataset):
         """
         base_data_dict = self.retrieve_base_data(idx)
 
-        processed_data_dict = OrderedDict()
+        processed_data_dict: OrderedDict = OrderedDict()
         processed_data_dict["ego"] = {}
 
         ego_id = -1

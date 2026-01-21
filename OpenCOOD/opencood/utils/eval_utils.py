@@ -128,7 +128,7 @@ def caluclate_tp_fp(
     result_stat[iou_thresh]["gt"] += gt
 
 
-def calculate_ap(result_stat: Dict[float, Dict[str, List[Any]]], iou: float, global_sort_detections: bool) -> Tuple[float, List[float], List[float]]:
+def calculate_ap(result_stat: Dict[float, Dict[str, Any]], iou: float, global_sort_detections: bool) -> Tuple[float, List[float], List[float]]:
     """
     Calculate average precision and recall values.
 

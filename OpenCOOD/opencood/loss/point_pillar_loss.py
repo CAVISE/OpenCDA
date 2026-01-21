@@ -146,7 +146,7 @@ class PointPillarLoss(nn.Module):
 
         self.cls_weight = args["cls_weight"]
         self.reg_coe = args["reg"]
-        self.loss_dict = {}
+        self.loss_dict: Dict[str, torch.Tensor] = {}
 
     def forward(self, output_dict: Dict[str, torch.Tensor], target_dict: Dict[str, torch.Tensor]) -> torch.Tensor:
         """
