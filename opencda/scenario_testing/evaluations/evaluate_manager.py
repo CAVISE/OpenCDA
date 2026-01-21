@@ -1,10 +1,6 @@
-# -*- coding: utf-8 -*-
 """
 Evaluation manager.
 """
-
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: TDG-Attribution-NonCommercial-NoDistrib
 
 import os
 import logging

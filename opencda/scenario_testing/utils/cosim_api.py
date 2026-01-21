@@ -1,10 +1,7 @@
-# -*- coding: utf-8 -*-
 """
 Co-simulation scenario manager. The code is modified from CARLA official
 cosimulation code.
 """
-# Author: CARLA Team, Runsheng Xu <rxx3386@ucla.edu>
-# License: MIT
 
 import os
 import logging

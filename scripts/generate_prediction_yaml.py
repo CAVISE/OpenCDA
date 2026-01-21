@@ -1,11 +1,6 @@
-# -*- coding: utf-8 -*-
-
 """Load the dumped yaml files and generate prediction/observed trajectory
 for each vehicle
 """
-
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: TDG-Attribution-NonCommercial-NoDistrib
 
 import os
 import concurrent

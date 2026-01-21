@@ -1,12 +1,6 @@
-# -*- coding: utf-8 -*-
 """
 Script to run different scenarios.
 """
-
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: TDG-Attribution-NonCommercial-NoDistrib
-
-# Modified by CAVISE team.
 
 import os
 import sys

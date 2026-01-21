@@ -1,9 +1,6 @@
-# -*- coding: utf-8 -*-
 """
 Unit test for Kalman Filter
 """
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: MIT
 
 import os
 import sys

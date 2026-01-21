@@ -1,17 +1,11 @@
-# -*- coding: utf-8 -*-
 """
 Dumping sensor data.
 """
 
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: TDG-Attribution-NonCommercial-NoDistrib
-
 import os
-
 import cv2
 import open3d as o3d
 import numpy as np
-
 from opencda.core.common.misc import get_speed
 from opencda.core.sensing.perception import sensor_transformation as st
 from opencda.scenario_testing.utils.yaml_utils import save_yaml
