@@ -96,7 +96,7 @@ class Scenario:
 
         if self.cav_world.comms_manager is not None:
             self.cav_world.comms_manager.create_socket(zmq.DEALER, "connect")
-            self.cav_world.comms_manager.socket.setsockopt(zmq.RCVTIMEO, 2000) 
+            self.cav_world.comms_manager.socket.setsockopt(zmq.RCVTIMEO, 2000)
             self.payload_handler = PayloadHandler()
             logger.info("running: creating message handler")
         else:
@@ -283,30 +283,26 @@ class Scenario:
             # TODO: Move this part within CommunicationManager
             msg_id = str(uuid.uuid4())
 
-            message = {
-                "type": "command",
-                "id": msg_id,
-                "payload": opencda_payload
-            }
+            message = {"type": "command", "id": msg_id, "payload": opencda_payload}
             ack_received = False
             # TODO: Replace hardcoded retries with opencda argument
             for attempt in range(5):
                 self.cav_world.comms_manager.socket.send_json(message)
                 try:
-                    reply  = self.cav_world.comms_manager.socket.recv_json()
+                    reply = self.cav_world.comms_manager.socket.recv_json()
 
-                    if reply.get("type") == "ack" and reply.get("id") == msg_id:   
+                    if reply.get("type") == "ack" and reply.get("id") == msg_id:
                         logger.info("Artery received the message")
                         ack_received = True
                         break
-                    else: 
+                    else:
                         raise RuntimeError("Unexpected reply instead of ACK")
                 except zmq.Again:
                     logger.warning(f"Retry #{attempt + 1}")
-            
+
             if not ack_received:
                 raise RuntimeError("Failed to receive ACK from server")
-            
+
             # TODO: Replace hardcoded retries with opencda argument
             result_timeout = 60
             deadline = time.monotonic() + result_timeout

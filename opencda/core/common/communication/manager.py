@@ -21,18 +21,3 @@ class CommunicationManager:
                 logger.info(f"socket is open in {start_func} mode at {self.address}")
         except zmq.ZMQError as error:
             logger.error(f"error upon socket creation: {error}")
-
-    def send_message(self, message: str) -> None:
-        try:
-            self.socket.send(message)
-            logger.info(f"message sent to {self.address}")
-        except zmq.ZMQError as error:
-            logger.error(f"error upon sending message: {error}")
-
-    def receive_message(self) -> bytes:
-        try:
-            received_data = self.socket.recv()
-            logger.info(f"message received from {self.address}")
-            return received_data
-        except zmq.ZMQError as error:
-            logger.error(f"error upon receiving message: {error}")
