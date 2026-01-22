@@ -29,23 +29,23 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
     deep features to ego.
     """
 
-    def __init__(self, params, visualize, train=True, message_handler=None):
+    def __init__(self, params, visualize, train=True, payload_handler=None):
         super(IntermediateFusionDatasetV2, self).__init__(params, visualize, train)
         self.pre_processor = build_preprocessor(params["preprocess"], train)
         self.post_processor = post_processor.build_postprocessor(params["postprocess"], train)
 
-        self.message_handler = message_handler
+        self.payload_handler = payload_handler
         self.module_name = "OpenCOOD.IntermediateFusionDatasetV2"
 
     def extract_data(self, idx):
         base_data_dict = self.retrieve_base_data(idx, cur_ego_pose_flag=self.cur_ego_pose_flag)
         _, ego_lidar_pose = self.__find_ego_vehicle(base_data_dict)
 
-        if self.message_handler is not None:
+        if self.payload_handler is not None:
             for cav_id, selected_cav_base in base_data_dict.items():
                 selected_cav_processed = self.get_item_single_car(selected_cav_base, ego_lidar_pose)
 
-                with self.message_handler.handle_opencda_message(cav_id, self.module_name) as msg:
+                with self.payload_handler.handle_opencda_payload(cav_id, self.module_name) as msg:
                     msg["object_ids"] = (selected_cav_processed["object_ids"],)  # list
                     msg["object_bbx_center"] = selected_cav_processed["object_bbx_center"]
                     msg["voxel_num_points"] = selected_cav_processed["processed_features"]["voxel_num_points"]
@@ -84,10 +84,10 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
         processed_features.append(ego_cav_processed["processed_features"])
         projected_lidar_stack.append(ego_cav_processed["projected_lidar"])
 
-        if ego_id in self.message_handler.current_message_artery:
+        if ego_id in self.payload_handler.current_artery_payload:
             for cav_id, _ in base_data_dict.items():
-                if cav_id in self.message_handler.current_message_artery[ego_id]:
-                    with self.message_handler.handle_artery_message(ego_id, cav_id, self.module_name) as msg:
+                if cav_id in self.payload_handler.current_artery_payload[ego_id]:
+                    with self.payload_handler.handle_artery_payload(ego_id, cav_id, self.module_name) as msg:
                         projected = msg["projected_lidar"]
 
                         if len(projected) > 10:
@@ -150,7 +150,7 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
 
         ego_id, ego_lidar_pose = self.__find_ego_vehicle(base_data_dict)
 
-        if self.message_handler is not None:
+        if self.payload_handler is not None:
             data = self.__process_with_messages(ego_id, ego_lidar_pose, base_data_dict)
         else:
             data = self.__process_without_messages(ego_lidar_pose, base_data_dict)

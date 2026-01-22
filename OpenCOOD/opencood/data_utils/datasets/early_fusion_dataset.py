@@ -26,12 +26,12 @@ class EarlyFusionDataset(basedataset.BaseDataset):
     point cloud to the ego vehicle.
     """
 
-    def __init__(self, params, visualize, train=True, message_handler=None):
+    def __init__(self, params, visualize, train=True, payload_handler=None):
         super(EarlyFusionDataset, self).__init__(params, visualize, train)
         self.pre_processor = build_preprocessor(params["preprocess"], train)
         self.post_processor = build_postprocessor(params["postprocess"], train)
 
-        self.message_handler = message_handler
+        self.payload_handler = payload_handler
         self.module_name = "OpenCOOD.EarlyFusionDataset"
 
     def __find_ego_vehicle(self, base_data_dict):
@@ -54,11 +54,11 @@ class EarlyFusionDataset(basedataset.BaseDataset):
         base_data_dict = self.retrieve_base_data(idx)
         _, ego_lidar_pose = self.__find_ego_vehicle(base_data_dict)
 
-        if self.message_handler is not None:
+        if self.payload_handler is not None:
             for cav_id, selected_cav_base in base_data_dict.items():
                 selected_cav_processed = self.get_item_single_car(selected_cav_base, ego_lidar_pose)
 
-                with self.message_handler.handle_opencda_message(cav_id, self.module_name) as msg:
+                with self.payload_handler.handle_opencda_payload(cav_id, self.module_name) as msg:
                     msg["object_ids"] = selected_cav_processed["object_ids"]  # list
                     msg["object_bbx_center"] = selected_cav_processed["object_bbx_center"]
                     msg["projected_lidar"] = selected_cav_processed["projected_lidar"]
@@ -75,10 +75,10 @@ class EarlyFusionDataset(basedataset.BaseDataset):
         object_stack.append(ego_cav_processed["object_bbx_center"])
         projected_lidar_stack.append(ego_cav_processed["projected_lidar"])
 
-        if ego_id in self.message_handler.current_message_artery:
+        if ego_id in self.payload_handler.current_artery_payload:
             for cav_id, _ in base_data_dict.items():
-                if cav_id in self.message_handler.current_message_artery[ego_id]:
-                    with self.message_handler.handle_artery_message(ego_id, cav_id, self.module_name) as msg:
+                if cav_id in self.payload_handler.current_artery_payload[ego_id]:
+                    with self.payload_handler.handle_artery_payload(ego_id, cav_id, self.module_name) as msg:
                         object_id_stack += msg["object_ids"]
                         object_stack.append(msg["object_bbx_center"])
                         projected_lidar_stack.append(msg["projected_lidar"])
@@ -114,7 +114,7 @@ class EarlyFusionDataset(basedataset.BaseDataset):
 
         ego_id, ego_lidar_pose = self.__find_ego_vehicle(base_data_dict)
 
-        if self.message_handler is not None:
+        if self.payload_handler is not None:
             data = self.__process_with_messages(ego_id, ego_lidar_pose, base_data_dict)
         else:
             data = self.__process_without_messages(ego_lidar_pose, base_data_dict)

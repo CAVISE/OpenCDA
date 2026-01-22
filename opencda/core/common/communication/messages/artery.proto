@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package capi;
+
+import "entity.proto";
+
+message ArteryMessage {
+
+    // Information received from other vehicles (CAV/RSU/Platoon)
+    message Transmission {
+        string id = 1;
+        repeated Entity entity = 2;
+    }
+
+    repeated Transmission transmissions = 1;
+}

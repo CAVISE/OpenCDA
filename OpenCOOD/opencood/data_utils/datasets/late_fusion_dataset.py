@@ -27,12 +27,12 @@ class LateFusionDataset(basedataset.BaseDataset):
     detection outputs to ego.
     """
 
-    def __init__(self, params, visualize, train=True, message_handler=None):
+    def __init__(self, params, visualize, train=True, payload_handler=None):
         super(LateFusionDataset, self).__init__(params, visualize, train)
         self.pre_processor = build_preprocessor(params["preprocess"], train)
         self.post_processor = build_postprocessor(params["postprocess"], train)
 
-        self.message_handler = message_handler
+        self.payload_handler = payload_handler
 
     def __getitem__(self, idx):
         base_data_dict = self.retrieve_base_data(idx)
@@ -46,11 +46,11 @@ class LateFusionDataset(basedataset.BaseDataset):
     def extract_data(self, idx):
         base_data_dict = self.retrieve_base_data(idx)
 
-        if self.message_handler is not None:
+        if self.payload_handler is not None:
             for cav_id, selected_cav_base in base_data_dict.items():
                 selected_cav_processed = self.get_item_single_car(selected_cav_base)
 
-                with self.message_handler.handle_opencda_message(cav_id, self.module_name) as msg:
+                with self.payload_handler.handle_opencda_payload(cav_id, self.module_name) as msg:
                     msg["object_ids"] = selected_cav_processed["object_ids"]
                     msg["lidar_pose"] = selected_cav_base["params"]["lidar_pose"]
                     msg["object_bbx_center"] = selected_cav_processed["object_bbx_center"]
@@ -119,10 +119,10 @@ class LateFusionDataset(basedataset.BaseDataset):
 
         processed_data_dict.update({"ego": ego_cav_processed})
 
-        if ego_id in self.message_handler.current_message_artery:
+        if ego_id in self.payload_handler.current_artery_payload:
             for cav_id, _ in base_data_dict.items():
-                if cav_id in self.message_handler.current_message_artery[ego_id]:
-                    with self.message_handler.handle_artery_message(ego_id, cav_id, self.module_name) as msg:
+                if cav_id in self.payload_handler.current_artery_payload[ego_id]:
+                    with self.payload_handler.handle_artery_payload(ego_id, cav_id, self.module_name) as msg:
                         object_ids += msg["object_ids"]
                         cav_lidar_pose = msg["lidar_pose"]
 
@@ -254,7 +254,7 @@ class LateFusionDataset(basedataset.BaseDataset):
 
         ego_id, ego_lidar_pose = self.__find_ego_vehicle(base_data_dict)
 
-        if self.message_handler is not None:
+        if self.payload_handler is not None:
             processed_data_dict = self.__process_with_messages(ego_id, ego_lidar_pose, base_data_dict)
         else:
             processed_data_dict = self.__process_without_messages(ego_id, ego_lidar_pose, base_data_dict)

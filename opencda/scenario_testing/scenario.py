@@ -1,6 +1,8 @@
 import os
 import zmq
 import sys
+import time
+import uuid
 import carla
 import sumolib
 import logging
@@ -17,7 +19,7 @@ import opencda.scenario_testing.utils.customized_map_api as map_api
 from opencda.core.common.cav_world import CavWorld
 from opencda.core.common.vehicle_manager import VehicleManager
 from opencda.core.common.rsu_manager import RSUManager
-from opencda.core.common.communication.serialize import MessageHandler
+from opencda.core.common.communication.serialize import PayloadHandler
 from opencda.core.application.platooning.platooning_manager import PlatooningManager
 from opencda.core.common.aim_model_manager import AIMModelManager
 from AIM import get_model
@@ -93,11 +95,12 @@ class Scenario:
             )
 
         if self.cav_world.comms_manager is not None:
-            self.cav_world.comms_manager.create_socket(zmq.PAIR, "connect")
-            self.message_handler = MessageHandler()
+            self.cav_world.comms_manager.create_socket(zmq.DEALER, "connect")
+            self.cav_world.comms_manager.socket.setsockopt(zmq.RCVTIMEO, 2000) 
+            self.payload_handler = PayloadHandler()
             logger.info("running: creating message handler")
         else:
-            self.message_handler = None
+            self.payload_handler = None
 
         logger.info(f"using scenario manager of type: {type(self.scenario_manager)}")
 
@@ -125,7 +128,7 @@ class Scenario:
                     logger.error(f'Model directory "{opt.model_dir}" does not exist.')
                     sys.exit(1)
 
-                self.coperception_model_manager = CoperceptionModelManager(opt=opt, current_time=current_time, message_handler=self.message_handler)
+                self.coperception_model_manager = CoperceptionModelManager(opt=opt, current_time=current_time, payload_handler=self.payload_handler)
                 logger.info("created cooperception manager")
 
         # [CoDrivingInt]
@@ -274,20 +277,63 @@ class Scenario:
                     idx=0  # TODO: Figure out how to select the ego vehicle in cooperative perception models
                 )
 
-            message = self.message_handler.make_opencda_message()
+            opencda_payload = self.payload_handler.make_opencda_payload()
+            logger.info(f"{round(len(opencda_payload) / (1 << 20), 3)} MB of payload about to be sent")
 
-            self.cav_world.comms_manager.send_message(message)
-            logger.info(f"{round(len(message) / (1 << 20), 3)} MB about to be sent")
+            # TODO: Move this part within CommunicationManager
+            msg_id = str(uuid.uuid4())
 
-            message = self.cav_world.comms_manager.receive_message()
-            logger.info(f"{round(len(message) / (1 << 20), 3)} MB were received")
+            message = {
+                "type": "command",
+                "id": msg_id,
+                "payload": opencda_payload
+            }
+            ack_received = False
+            # TODO: Replace hardcoded retries with opencda argument
+            for attempt in range(5):
+                self.cav_world.comms_manager.socket.send_json(message)
+                try:
+                    reply  = self.cav_world.comms_manager.socket.recv_json()
 
-            self.message_handler.make_artery_data(message)
+                    if reply.get("type") == "ack" and reply.get("id") == msg_id:   
+                        logger.info("Artery received the message")
+                        ack_received = True
+                        break
+                    else: 
+                        raise RuntimeError("Unexpected reply instead of ACK")
+                except zmq.Again:
+                    logger.warning(f"Retry #{attempt + 1}")
+            
+            if not ack_received:
+                raise RuntimeError("Failed to receive ACK from server")
+            
+            # TODO: Replace hardcoded retries with opencda argument
+            result_timeout = 60
+            deadline = time.monotonic() + result_timeout
+            artery_payload = None
+            while time.monotonic() < deadline:
+                try:
+                    reply = self.cav_world.comms_manager.socket.recv_json()
+
+                    if reply.get("type") == "result" and reply.get("id") == msg_id:
+                        artery_payload = reply["payload"]
+                        break
+                    else:
+                        logger.warning("Received unrelated message, ignoring")
+
+                except zmq.Again:
+                    logger.info("Waiting for result...")
+
+            if artery_payload is None:
+                raise RuntimeError("RESULT did not arrive within timeout")
+
+            logger.info(f"{round(len(artery_payload) / (1 << 20), 3)} MB were received")
+            self.payload_handler.make_artery_payload(artery_payload)
 
             if self.coperception_model_manager is not None and tick_number > 0:
                 self.coperception_model_manager.make_prediction(tick_number)
 
-            self.message_handler.clear_messages()
+            self.payload_handler.clear_messages()
 
             if self.platoon_list is not None:
                 logger.debug("updating platoons")

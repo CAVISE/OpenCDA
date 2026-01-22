@@ -25,7 +25,7 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
     deep features to ego.
     """
 
-    def __init__(self, params, visualize, train=True, message_handler=None):
+    def __init__(self, params, visualize, train=True, payload_handler=None):
         super(IntermediateFusionDataset, self).__init__(params, visualize, train)
 
         # if project first, cav's lidar will first be projected to
@@ -45,18 +45,18 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
         self.pre_processor = build_preprocessor(params["preprocess"], train)
         self.post_processor = post_processor.build_postprocessor(params["postprocess"], train)
 
-        self.message_handler = message_handler
+        self.payload_handler = payload_handler
         self.module_name = "OpenCOOD.IntermediateFusionDataset"
 
     def extract_data(self, idx):
         base_data_dict = self.retrieve_base_data(idx, cur_ego_pose_flag=self.cur_ego_pose_flag)
         _, ego_lidar_pose = self.__find_ego_vehicle(base_data_dict)
 
-        if self.message_handler is not None:
+        if self.payload_handler is not None:
             for cav_id, selected_cav_base in base_data_dict.items():
                 selected_cav_processed = self.get_item_single_car(selected_cav_base, ego_lidar_pose)
 
-                with self.message_handler.handle_opencda_message(cav_id, self.module_name) as msg:
+                with self.payload_handler.handle_opencda_payload(cav_id, self.module_name) as msg:
                     msg["infra"] = {"name": "infra", "label": "LABEL_OPTIONAL", "type": "int64", "data": 1 if "rsu" in cav_id else 0}
                     msg["velocity"] = {"name": "velocity", "label": "LABEL_OPTIONAL", "type": "float", "data": selected_cav_processed["velocity"]}
                     msg["time_delay"] = selected_cav_base["time_delay"]
@@ -136,10 +136,10 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
         if self.visualize:
             projected_lidar_stack.append(ego_cav_processed["projected_lidar"])
 
-        if ego_id in self.message_handler.current_message_artery:
+        if ego_id in self.payload_handler.current_artery_payload:
             for cav_id, _ in base_data_dict.items():
-                if cav_id in self.message_handler.current_message_artery[ego_id]:
-                    with self.message_handler.handle_artery_message(ego_id, cav_id, self.module_name) as msg:
+                if cav_id in self.payload_handler.current_artery_payload[ego_id]:
+                    with self.payload_handler.handle_artery_payload(ego_id, cav_id, self.module_name) as msg:
                         infra.append(msg["infra"])
                         velocity.append(msg["velocity"])
                         time_delay.append(msg["time_delay"])
@@ -220,7 +220,7 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
         ego_id, ego_lidar_pose = self.__find_ego_vehicle(base_data_dict)
         pairwise_t_matrix = self.get_pairwise_transformation(base_data_dict, self.max_cav)
 
-        if self.message_handler is not None:
+        if self.payload_handler is not None:
             data = self.__process_with_messages(ego_id, ego_lidar_pose, base_data_dict)
         else:
             data = self.__process_without_messages(ego_lidar_pose, base_data_dict)

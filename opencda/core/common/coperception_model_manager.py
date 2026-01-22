@@ -18,7 +18,7 @@ logger = logging.getLogger("cavise.opencda.opencda.core.common.coperception_mode
 
 
 class CoperceptionModelManager:
-    def __init__(self, opt, current_time, message_handler=None):
+    def __init__(self, opt, current_time, payload_handler=None):
         self.opt = opt
         self.hypes = yaml_utils.load_yaml(None, self.opt)
         self.model = train_utils.create_model(self.hypes)
@@ -34,7 +34,7 @@ class CoperceptionModelManager:
 
         self.opencood_dataset = None
         self.data_loader = None
-        self.message_handler = message_handler
+        self.payload_handler = payload_handler
 
         self.final_result_stat = {
             0.3: {"tp": [], "fp": [], "gt": 0, "score": []},
@@ -44,7 +44,7 @@ class CoperceptionModelManager:
 
     def make_dataset(self):
         logger.info("Dataset Building")
-        self.opencood_dataset = build_dataset(self.hypes, visualize=True, train=False, message_handler=self.message_handler)
+        self.opencood_dataset = build_dataset(self.hypes, visualize=True, train=False, payload_handler=self.payload_handler)
         logger.info(f"{len(self.opencood_dataset)} samples found.")
         self.data_loader = DataLoader(
             self.opencood_dataset,
