@@ -51,3 +51,19 @@ jobs:
         run: pip install deadcode
       - name: Run deadcode
         run: deadcode .
+
+  pre-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Run pre-commit
+        uses: pre-commit/action@v3.0.1
+        with:
+          extra_args: >-
+            --config .github/pre-commit-config-ci.yaml
+            --all-files
