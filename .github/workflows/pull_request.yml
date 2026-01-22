@@ -65,22 +65,5 @@ jobs:
         uses: pre-commit/action@v3.0.1
         with:
           extra_args: >-
-            check-case-conflict
-            check-docstring-first
-            check-executables-have-shebangs
-            check-illegal-windows-names
-            check-json
-            check-merge-conflict --assume-in-merge
-            check-shebang-scripts-are-executable
-            check-symlinks
-            check-toml
-            check-vcs-permalinks
-            check-xml
-            check-yaml --exclude opencda/coperception_models/.*
-            destroyed-symlinks
-            end-of-file-fixer
-            name-tests-test
-            pretty-format-json --autofix
-            requirements-txt-fixer
-            trailing-whitespace
+            --config .pre-commit-config-ci.yaml
             --all-files
