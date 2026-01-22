@@ -51,3 +51,36 @@ jobs:
         run: pip install deadcode
       - name: Run deadcode
         run: deadcode .
+
+  pre-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Run pre-commit
+        uses: pre-commit/action@v3.0.1
+        with:
+          extra_args: >-
+            check-case-conflict
+            check-docstring-first
+            check-executables-have-shebangs
+            check-illegal-windows-names
+            check-json
+            check-merge-conflict --assume-in-merge
+            check-shebang-scripts-are-executable
+            check-symlinks
+            check-toml
+            check-vcs-permalinks
+            check-xml
+            check-yaml --exclude opencda/coperception_models/.*
+            destroyed-symlinks
+            end-of-file-fixer
+            name-tests-test
+            pretty-format-json --autofix
+            requirements-txt-fixer
+            trailing-whitespace
+            --all-files
