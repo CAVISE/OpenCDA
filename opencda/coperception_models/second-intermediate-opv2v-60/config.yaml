@@ -98,7 +98,7 @@ optimizer:
   core_method: Adam
   lr: 0.002
 postprocess:
-  gt_range: *id001 
+  gt_range: *id001
   anchor_args:
     D: 40
     H: 800
