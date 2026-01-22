@@ -114,7 +114,7 @@ class BasePostprocessor(object):
             tmp_object_dict.update(cav_content["params"]["vehicles"])
 
         output_dict = {}
-        filter_range = self.params["anchor_args"]["cav_lidar_range"] if self.train else GT_RANGE
+        filter_range = self.params["anchor_args"]["cav_lidar_range"]
 
         box_utils.project_world_objects(tmp_object_dict, output_dict, reference_lidar_pose, filter_range, self.params["order"])
 
