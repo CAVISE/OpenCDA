@@ -22,6 +22,7 @@ from opencood.utils.pcd_utils import mask_points_by_range, mask_ego_points, shuf
 from opencood.utils.transformation_utils import x1_to_x2
 
 from typing import Dict, List, Tuple, Any, Optional
+from numpy.typing import npt
 
 logger = logging.getLogger("cavise.OpenCOOD.opencood.data_utils.datasets.late_fusion_dataset")
 
@@ -309,7 +310,7 @@ class LateFusionDataset(basedataset.BaseDataset):
                         object_ids += msg["object_ids"]
                         cav_lidar_pose = msg["lidar_pose"]
 
-                        def unpack(msg_key):
+                        def unpack(msg_key: str) -> npt.NDArray[Any]:
                             array = np.frombuffer(msg[msg_key]["data"], np.dtype(msg[msg_key]["dtype"]))
                             return array.reshape(msg[msg_key]["shape"])
 

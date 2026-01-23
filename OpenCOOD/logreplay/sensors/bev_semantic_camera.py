@@ -200,7 +200,7 @@ class BEVSemanticCamera(BaseSensor):
         self.frame = event.frame
         self.timestamp = event.timestamp
 
-    def visualize_data(self):
+    def visualize_data(self) -> None:
         """
         Display real-time camera visualization.
 

@@ -6,7 +6,8 @@ Basic class for RSU(Roadside Unit) management.
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
 import logging
-from typing import Set
+from typing import Optional, Set, Dict, Any
+import carla
 
 # CAVISE
 
@@ -59,7 +60,7 @@ class RSUManager(object):
     used_ids: Set[int] = set()
 
     def __init__(
-        self, carla_world, config_yaml, carla_map, cav_world, current_time="", data_dumping=False, autogenerate_id_on_failure=True
+        self, carla_world: carla.World, config_yaml: Dict, carla_map: carla.Map, cav_world: Any, current_time: str="", data_dumping: bool=False, autogenerate_id_on_failure: bool=True
     ):  # TODO: Привязать к конфигу сценария
         config_id = config_yaml.get("id")
 
@@ -74,11 +75,11 @@ class RSUManager(object):
                     logger.warning(f"Duplicate RSU ID detected: {candidate!r}.")
                     raise ValueError(f"Duplicate RSU ID detected: {candidate!r}.")
                 self.rid = candidate
-                RSUManager.used_ids.add(self.rid)
+                RSUManager.used_ids.add(self.rid) #NOTE error Argument 1 to "add" of "set" has incompatible type "str"; expected "int"
 
             except (ValueError, TypeError):
                 if autogenerate_id_on_failure:
-                    self.rid = self.__generate_unique_rsu_id()
+                    self.rid = self.__generate_unique_rsu_id() #NOTE error: "__generate_unique_rsu_id" of "RSUManager" does not return a value (it only ever returns None)
                     logger.warning(f"Invalid or unavailable RSU ID in config: {config_id!r}. Assigned auto-generated ID: {self.rid}")
                 else:
                     logger.error(f"Invalid or unavailable RSU ID in config: {config_id!r}.")
@@ -114,23 +115,23 @@ class RSUManager(object):
             carla_world=carla_world,
         )
         if data_dumping:
-            self.data_dumper = DataDumper(self.perception_manager, self.rid, save_time=current_time)
+            self.data_dumper: Optional[DataDumper] = DataDumper(self.perception_manager, self.rid, save_time=current_time)
         else:
             self.data_dumper = None
 
         cav_world.update_rsu_manager(self)
 
-    def __generate_unique_rsu_id(self):
+    def __generate_unique_rsu_id(self) -> str:
         """Generates a unique RSU ID in the format 'rsu-<number>', avoiding duplicates."""
         while True:
             candidate = f"rsu-{RSUManager.current_id}"
             if candidate not in RSUManager.used_ids:
-                RSUManager.used_ids.add(candidate)
+                RSUManager.used_ids.add(candidate) #NOTE Argument 1 to "add" of "set" has incompatible type "str"; expected "int"
                 RSUManager.current_id += 1
                 return candidate
             RSUManager.current_id += 1
 
-    def update_info(self):
+    def update_info(self) -> None:
         """
         Call perception and localization module to
         retrieve surrounding info an ego position.
@@ -143,11 +144,11 @@ class RSUManager(object):
         # TODO: object detection - pass it to other CAVs for V2X perception
         self.perception_manager.detect(ego_pos)
 
-    def update_info_v2x(self):
+    def update_info_v2x(self) -> None:
         # TODO: Добавить обновление информации
         pass
 
-    def run_step(self):
+    def run_step(self) -> None:
         """
         Currently only used for dumping data.
         """
@@ -155,7 +156,7 @@ class RSUManager(object):
         if self.data_dumper:
             self.data_dumper.run_step(self.perception_manager, self.localizer, None)
 
-    def destroy(self):
+    def destroy(self) -> None:
         """
         Destroy the actor vehicle
         """

@@ -5,8 +5,10 @@ import math
 
 import numpy as np
 
+from typing import Any, Dict, Optional
 
-def load_yaml(file, opt=None):
+
+def load_yaml(file: str, opt: Optional[Any] = None) -> Dict[str, Any]:
     """
     Load yaml file and return a dictionary.
 
@@ -49,7 +51,7 @@ def load_yaml(file, opt=None):
     return param
 
 
-def load_voxel_params(param):  # noqa: DC02
+def load_voxel_params(param: Dict[str, Any]) -> Dict[str, Any]:  # noqa: DC02
     """
     Based on the lidar range and resolution of voxel, calcuate the anchor box
     and target resolution.
@@ -91,7 +93,7 @@ def load_voxel_params(param):  # noqa: DC02
     return param
 
 
-def load_point_pillar_params(param):  # noqa: DC02
+def load_point_pillar_params(param: Dict[str, Any]) -> Dict[str, Any]:  # noqa: DC02
     """
     Based on the lidar range and resolution of voxel, calcuate the anchor box
     and target resolution.
@@ -132,7 +134,7 @@ def load_point_pillar_params(param):  # noqa: DC02
     return param
 
 
-def load_second_params(param):  # noqa: DC02
+def load_second_params(param: Dict[str, Any]) -> Dict[str, Any]:  # noqa: DC02
     """
     Based on the lidar range and resolution of voxel, calcuate the anchor box
     and target resolution.
@@ -173,7 +175,7 @@ def load_second_params(param):  # noqa: DC02
     return param
 
 
-def load_bev_params(param):  # noqa: DC02
+def load_bev_params(param: Dict[str, Any]) -> Dict[str, Any]: # noqa: DC02
     """
     Load bev related geometry parameters s.t. boundary, resolutions, input
     shape, target shape etc.
@@ -193,7 +195,7 @@ def load_bev_params(param):  # noqa: DC02
     L1, W1, H1, L2, W2, H2 = param["preprocess"]["cav_lidar_range"]
     downsample_rate = param["preprocess"]["args"]["downsample_rate"]
 
-    def f(low, high, r):
+    def f(low: float, high: float, r: float) -> int:
         return int((high - low) / r)
 
     input_shape = (int((f(L1, L2, res))), int((f(W1, W2, res))), int((f(H1, H2, res)) + 1))
@@ -216,7 +218,7 @@ def load_bev_params(param):  # noqa: DC02
     return param
 
 
-def save_yaml(data, save_name):
+def save_yaml(data: Dict[str, Any], save_name: str) -> None:
     """
     Save the dictionary into a yaml file.
 
@@ -233,7 +235,7 @@ def save_yaml(data, save_name):
         yaml.dump(data, outfile, default_flow_style=False)
 
 
-def save_yaml_wo_overwriting(data, save_name):
+def save_yaml_wo_overwriting(data: Dict[str, Any], save_name: str) -> None:
     """
     Save the yaml file without overwriting the existing one.
 

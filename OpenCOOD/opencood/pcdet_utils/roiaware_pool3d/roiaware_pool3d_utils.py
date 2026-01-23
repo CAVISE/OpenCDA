@@ -5,8 +5,6 @@ Provides GPU-accelerated pooling of point cloud features within 3D regions of
 interest (RoIs) for object detection and segmentation tasks.
 """
 
-from typing import Any, Union, Tuple
-
 import torch
 
 from opencood.utils import common_utils

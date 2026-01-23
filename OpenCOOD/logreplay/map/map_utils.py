@@ -10,7 +10,7 @@ import carla
 import numpy as np
 import uuid
 import math
-from typing import List, Dict, Union
+from typing import List, Dict, Union, cast, Any
 from numpy.typing import NDArray
 
 LABEL_TO_CARLA = {"building": carla.CityObjectLabel.Buildings, "terrain": carla.CityObjectLabel.Terrain, "sidewalk": carla.CityObjectLabel.Sidewalks}
@@ -220,7 +220,9 @@ def retrieve_city_object_info(
 
 
 def obj_in_range(
-    center: carla.Transform, radius: float, obj_info_dict: Dict[str, Dict[str, Dict[str, Union[List[float], float, List[List[float]]]]]]
+    center: carla.Transform,
+    radius: float,
+    obj_info_dict: Dict[str, Dict[str, Dict[str, Union[List[float], float, List[List[float]]]]]]
 ) -> Dict[str, Dict[str, Dict[str, Union[List[float], float, List[List[float]]]]]]:
     """
     Retrieve the object in range.
@@ -239,12 +241,13 @@ def obj_in_range(
     -------
     A dictionary that contains objects in range.
     """
-    final_objs = {}
+    final_objs: Dict[str, Dict[str, Dict[str, Union[List[float], float, List[List[float]]]]]] = {}
 
     for obj_category, obj_contents in obj_info_dict.items():
-        cur_objs = {}
+        cur_objs: Dict[str, Dict[str, Union[List[float], float, List[List[float]]]]] = {}
         for obj_id, obj_info in obj_contents.items():
-            corners = obj_info["corners"]
+            corners_any: Any = obj_info["corners"]  # Using a temporary variable of type Any because Mypy cannot infer the type from the nested dict.
+            corners: List[List[float]] = cast(List[List[float]], corners_any) # The cast ensures corners is treated as List[List[float]] for static type checking.
             for corner in corners:
                 distance = math.sqrt((corner[0] - center.location.x) ** 2 + (corner[1] - center.location.y) ** 2)
                 if distance < radius:

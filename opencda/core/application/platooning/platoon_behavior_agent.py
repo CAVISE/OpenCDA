@@ -244,7 +244,7 @@ class PlatooningBehaviorAgent(BehaviorAgent):
             Indicates use of front or rear vehicle index for updating
             platoon manager list. Default is "front".
         """
-        frontal_vehicle_manager, rear_vehicle_manager = self.v2x_manager.get_platoon_front_rear()
+        frontal_vehicle_manager, rear_vehicle_manager = self.v2x_manager.get_platoon_front_rear() # NOTE: A None-check is required to satisfy type checking
         if insert_vehicle == "front":
             platoon_manger, index = frontal_vehicle_manager.v2x_manager.get_platoon_manager()
             platoon_manger.set_member(self.vehicle_manager, index + 1)
@@ -293,7 +293,7 @@ class PlatooningBehaviorAgent(BehaviorAgent):
             Target waypoint for navigation.
         """
 
-        frontal_vehicle_manager, _ = self.v2x_manager.get_platoon_front_rear()
+        frontal_vehicle_manager, _ = self.v2x_manager.get_platoon_front_rear() # NOTE: A None-check is required to satisfy type checking
         frontal_front_vehicle_manger, _ = frontal_vehicle_manager.v2x_manager.get_platoon_front_rear()
 
         if len(self._local_planner.get_trajectory()) > self.get_local_planner().trajectory_update_freq - 2:
@@ -306,7 +306,7 @@ class PlatooningBehaviorAgent(BehaviorAgent):
             frontal_speed = frontal_vehicle_manager.agent._ego_speed
 
             ego_trajetory = deque(maxlen=30)
-            ego_loc_x, ego_loc_y, ego_loc_z = self._ego_pos.location.x, self._ego_pos.location.y, self._ego_pos.location.z
+            ego_loc_x, ego_loc_y, ego_loc_z = self._ego_pos.location.x, self._ego_pos.location.y, self._ego_pos.location.z # NOTE: A None-check is required to satisfy type checking
 
             # get ego speed
             ego_speed = self._ego_speed
@@ -357,7 +357,7 @@ class PlatooningBehaviorAgent(BehaviorAgent):
                 ego_loc_y = pos_y
 
             if not ego_trajetory:
-                wpt = self._map.get_waypoint(self._ego_pos.location)
+                wpt = self._map.get_waypoint(self._ego_pos.location) # NOTE: A None-check is required to satisfy type checking
                 next_wpt = wpt.next(max(2, int(self._ego_speed / 3.6 * 1)))[0]
                 ego_trajetory.append((next_wpt.transform, self._ego_speed))
 
@@ -411,12 +411,12 @@ class PlatooningBehaviorAgent(BehaviorAgent):
         target_waypoint : carla.Waypoint or None
             Target waypoint for navigation.
         """
-        frontal_vehicle_manager, _ = self.v2x_manager.get_platoon_front_rear()
+        frontal_vehicle_manager, _ = self.v2x_manager.get_platoon_front_rear() # NOTE: A None-check is required to satisfy type checking
         self.current_gap = self.inter_gap
 
         frontal_vehicle = frontal_vehicle_manager.vehicle
         frontal_vehicle_loc = frontal_vehicle_manager.v2x_manager.get_ego_pos().location
-        ego_vehicle_loc = self._ego_pos.location
+        ego_vehicle_loc = self._ego_pos.location # NOTE: A None-check is required to satisfy type checking
 
         # headway distance
         distance = compute_distance(ego_vehicle_loc, frontal_vehicle_loc)
@@ -456,12 +456,12 @@ class PlatooningBehaviorAgent(BehaviorAgent):
             New FSM status code.
         """
 
-        frontal_vehicle_manager, rear_vehicle_vm = self.v2x_manager.get_platoon_front_rear()
+        frontal_vehicle_manager, rear_vehicle_vm = self.v2x_manager.get_platoon_front_rear() # NOTE: A None-check is required to satisfy type checking
         frontal_vehicle = frontal_vehicle_manager.vehicle
         frontal_vehicle_speed = frontal_vehicle_manager.v2x_manager.get_ego_speed()
 
-        ego_vehicle_loc = self._ego_pos.location
-        ego_vehicle_yaw = self._ego_pos.rotation.yaw
+        ego_vehicle_loc = self._ego_pos.location # NOTE: A None-check is required to satisfy type checking
+        ego_vehicle_yaw = self._ego_pos.rotation.yaw # NOTE: A None-check is required to satisfy type checking
 
         distance, angle = cal_distance_angle(frontal_vehicle_manager.v2x_manager.get_ego_pos().location, ego_vehicle_loc, ego_vehicle_yaw)
 
@@ -478,8 +478,8 @@ class PlatooningBehaviorAgent(BehaviorAgent):
             last_member = platoon_manager.vehicle_manager_list[-1]
 
             # set the last member as the frontal vehicle
-            self.v2x_manager.set_platoon_front(last_member)
-            self.v2x_manager.set_platoon_rear(None)
+            self.v2x_manager.set_platoon_front(last_member) # NOTE: A None-check is required to satisfy type checking
+            self.v2x_manager.set_platoon_rear(None) # NOTE: A None-check is required to satisfy type checking
             logger.info("switch to back joining!")
             # slow down to join back
             return (*super().run_step(self.max_speed / 2), FSM.BACK_JOINING)
@@ -530,15 +530,15 @@ class PlatooningBehaviorAgent(BehaviorAgent):
         """
         logger.info("merging speed %d" % self._ego_speed)
 
-        frontal_vehicle_manager, rear_vehicle_vm = self.v2x_manager.get_platoon_front_rear()
+        frontal_vehicle_manager, rear_vehicle_vm = self.v2x_manager.get_platoon_front_rear() # NOTE: A None-check is required to satisfy type checking
 
         frontal_vehicle = frontal_vehicle_manager.vehicle
         frontal_vehicle_speed = frontal_vehicle_manager.v2x_manager.get_ego_speed()
         frontal_lane = self._map.get_waypoint(frontal_vehicle_manager.v2x_manager.get_ego_pos().location).lane_id
 
-        ego_vehicle_loc = self._ego_pos.location
+        ego_vehicle_loc = self._ego_pos.location # NOTE: A None-check is required to satisfy type checking
         ego_vehicle_lane = self._map.get_waypoint(ego_vehicle_loc).lane_id
-        ego_vehicle_yaw = self._ego_pos.rotation.yaw
+        ego_vehicle_yaw = self._ego_pos.rotation.yaw # NOTE: A None-check is required to satisfy type checking
 
         distance, angle = cal_distance_angle(frontal_vehicle.get_location(), ego_vehicle_loc, ego_vehicle_yaw)
         # calculate the time gap with the frontal vehicle
@@ -563,11 +563,11 @@ class PlatooningBehaviorAgent(BehaviorAgent):
         target_waypoint : carla.Waypoint or None
             Target waypoint for navigation.
         """
-        frontal_vehicle_manager, rear_vehicle_manager = self.v2x_manager.get_platoon_front_rear()
+        frontal_vehicle_manager, rear_vehicle_manager = self.v2x_manager.get_platoon_front_rear() # NOTE: A None-check is required to satisfy type checking
 
         # calculate the time gap under this state
-        ego_vehicle_loc = self._ego_pos.location
-        ego_vehicle_yaw = self._ego_pos.rotation.yaw
+        ego_vehicle_loc = self._ego_pos.location # NOTE: A None-check is required to satisfy type checking
+        ego_vehicle_yaw = self._ego_pos.rotation.yaw # NOTE: A None-check is required to satisfy type checking
 
         distance, _ = cal_distance_angle(frontal_vehicle_manager.vehicle.get_location(), ego_vehicle_loc, ego_vehicle_yaw)
         self.calculate_gap(distance)
@@ -594,7 +594,7 @@ class PlatooningBehaviorAgent(BehaviorAgent):
         new_status : int
             New FSM status code.
         """
-        frontal_vehicle_manager, _ = self.v2x_manager.get_platoon_front_rear()
+        frontal_vehicle_manager, _ = self.v2x_manager.get_platoon_front_rear() # NOTE: A None-check is required to satisfy type checking
         # reset lane change flag every step
 
         # get necessary information of the ego vehicle and target vehicle in
@@ -608,10 +608,10 @@ class PlatooningBehaviorAgent(BehaviorAgent):
         frontal_destination = platooning_manager.destination
 
         # retrieve ego vehicle info TODO: remove this later
-        ego_vehicle_loc = self._ego_pos.location
+        ego_vehicle_loc = self._ego_pos.location # NOTE: A None-check is required to satisfy type checking
         ego_wpt = self._map.get_waypoint(ego_vehicle_loc)
         ego_vehicle_lane = ego_wpt.lane_id
-        ego_vehicle_yaw = self._ego_pos.rotation.yaw
+        ego_vehicle_yaw = self._ego_pos.rotation.yaw # NOTE: A None-check is required to satisfy type checking
 
         distance, angle = cal_distance_angle(frontal_vehicle_manager.v2x_manager.get_ego_pos().location, ego_vehicle_loc, ego_vehicle_yaw)
 
@@ -694,7 +694,7 @@ class PlatooningBehaviorAgent(BehaviorAgent):
         new_status : int
             New FSM status code.
         """
-        _, rear_vehicle_manager = self.v2x_manager.get_platoon_front_rear()
+        _, rear_vehicle_manager = self.v2x_manager.get_platoon_front_rear() # NOTE: A None-check is required to satisfy type checking
         # get necessary information of the ego vehicle and target vehicle in
         # the platooning
         rear_vehicle = rear_vehicle_manager.vehicle
@@ -707,10 +707,10 @@ class PlatooningBehaviorAgent(BehaviorAgent):
         rear_destination = platooning_manager.destination
 
         # retrieve ego vehicle info
-        ego_vehicle_loc = self._ego_pos.location
+        ego_vehicle_loc = self._ego_pos.location # NOTE: A None-check is required to satisfy type checking
         ego_wpt = self._map.get_waypoint(ego_vehicle_loc)
         ego_vehicle_lane = ego_wpt.lane_id
-        ego_vehicle_yaw = self._ego_pos.rotation.yaw
+        ego_vehicle_yaw = self._ego_pos.rotation.yaw # NOTE: A None-check is required to satisfy type checking
 
         distance, angle = cal_distance_angle(rear_vehicle_manager.v2x_manager.get_ego_pos().location, ego_vehicle_loc, ego_vehicle_yaw)
 

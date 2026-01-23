@@ -166,7 +166,7 @@ class Scenario:
 
         self.spectator = self.scenario_manager.world.get_spectator()
 
-    def run(self, opt: argparse.Namespace):
+    def run(self, opt: argparse.Namespace) -> None:
         if self.coperception_model_manager is not None:
             from opencda.core.common.coperception_model_manager import DirectoryProcessor
 
@@ -182,7 +182,7 @@ class Scenario:
         else:
             self.capi_loop(opt, directory_processor)
 
-    def default_loop(self, opt, directory_processor):
+    def default_loop(self, opt: Any, directory_processor: Any) -> None: 
         tick_number = -1
         while True:
             tick_number += 1
@@ -234,7 +234,7 @@ class Scenario:
                     rsu.update_info()
                     rsu.run_step()
 
-    def capi_loop(self, opt, directory_processor):
+    def capi_loop(self, opt: Any, directory_processor: Any) -> None:
         tick_number = -1
         while True:
             tick_number += 1
@@ -308,7 +308,7 @@ class Scenario:
                     rsu.update_info()
                     rsu.run_step()
 
-    def finalize(self, opt: argparse.Namespace):
+    def finalize(self, opt: argparse.Namespace) -> None:
         if opt.record:
             self.scenario_manager.client.stop_recorder()
             logger.info("finalizing: stopping recorder")
@@ -345,7 +345,7 @@ class Scenario:
                 v.destroy()
 
 
-def run_scenario(opt, scenario_params) -> None:
+def run_scenario(opt: Dict, scenario_params: Dict) -> None:
     raised_error = scenario = None
     try:
         scenario = Scenario(opt, scenario_params)

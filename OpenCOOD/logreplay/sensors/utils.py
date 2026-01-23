@@ -1,7 +1,9 @@
 import numpy as np
+import carla
+from numpy.typing import npt
 
 
-def get_camera_intrinsic(sensor):
+def get_camera_intrinsic(sensor: carla.Sensor) -> npt.NDArray[np.float64]:
     """
     Retrieve the camera intrinsic matrix.
 

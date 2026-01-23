@@ -3,6 +3,8 @@ from opencood.data_utils.datasets.early_fusion_dataset import EarlyFusionDataset
 from opencood.data_utils.datasets.intermediate_fusion_dataset import IntermediateFusionDataset
 from opencood.data_utils.datasets.intermediate_fusion_dataset_v2 import IntermediateFusionDatasetV2
 
+from typing import Dict, Any, Optional
+
 __all__ = {
     "LateFusionDataset": LateFusionDataset,
     "EarlyFusionDataset": EarlyFusionDataset,
@@ -16,7 +18,7 @@ GT_RANGE = [-140, -40, -3, 140, 40, 1]
 COM_RANGE = 70
 
 
-def build_dataset(dataset_cfg, visualize=False, train=True, message_handler=None):
+def build_dataset(dataset_cfg: Dict[str, Any], visualize: bool=False, train: bool=True, message_handler: Optional[object]=None):
     dataset_name = dataset_cfg["fusion"]["core_method"]
     error_message = f"{dataset_name} is not found. Please add your processor file's name in opencood/data_utils/datasets/init.py"
     assert dataset_name in ["LateFusionDataset", "EarlyFusionDataset", "IntermediateFusionDataset", "IntermediateFusionDatasetV2"], error_message

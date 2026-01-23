@@ -10,7 +10,7 @@ SUMO-CARLA ID mappings during co-simulation.
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
 import importlib
-from typing import Dict, Any, Set
+from typing import Dict, Any, Optional, Set
 
 
 class CavWorld(object):
@@ -115,19 +115,19 @@ class CavWorld(object):
         """
         self.sumo2carla_ids = sumo2carla_ids
 
-    def get_vehicle_managers(self):
+    def get_vehicle_managers(self) -> Dict[str, Any]:
         """
         Return vehicle manager dictionary.
         """
         return self._vehicle_manager_dict
 
-    def get_platoon_dict(self):
+    def get_platoon_dict(self) -> Dict[str, Any]:
         """
         Return existing platoons.
         """
         return self._platooning_dict
 
-    def locate_vehicle_manager(self, loc):
+    def locate_vehicle_manager(self, loc: Any) -> Optional[Any]:
         """
         Locate the vehicle manager based on the given location.
 

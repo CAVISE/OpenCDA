@@ -47,7 +47,7 @@ class FpvrcnnLoss(nn.Module):
         Dictionary to store all loss components.
     """
 
-    def __init__(self, args):
+    def __init__(self, args: Dict):
         super(FpvrcnnLoss, self).__init__()
         self.ciassd_loss = CiassdLoss(args["stage1"])
         self.cls: Dict[str, float] = args["stage2"]["cls"]

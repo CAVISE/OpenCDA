@@ -8,7 +8,7 @@ corresponding 3D bounding boxes.
 """
 
 from functools import partial
-from typing import Dict, Any, List, Optional, Callable, Union
+from typing import Dict, Any, List, Optional, Callable, Union, cast, Tuple
 from opencood.data_utils.augmentor import augment_utils
 
 
@@ -106,8 +106,8 @@ class DataAugmentor:
         if data_dict is None:
             return partial(self.random_world_rotation, config=config)
 
-        rot_range = config["WORLD_ROT_ANGLE"]
-        if not isinstance(rot_range, list): #TODO Value of type "dict[str, Any] | None" is not indexable
+        rot_range = config["WORLD_ROT_ANGLE"] #TODO  error: Value of type "dict[str, Any] | None" is not indexable
+        if not isinstance(rot_range, list):
             rot_range = [-rot_range, rot_range]
 
         gt_boxes, gt_mask, points = (
@@ -117,7 +117,7 @@ class DataAugmentor:
         )
         gt_boxes_valid = gt_boxes[gt_mask == 1]
 
-        gt_boxes_valid, points = augment_utils.global_rotation(gt_boxes_valid, points, rot_range=rot_range)
+        gt_boxes_valid, points = augment_utils.global_rotation(gt_boxes_valid, points, rot_range=rot_range) #TODO Argument "rot_range" to "global_rotation" has incompatible type "list[Any]"; expected "tuple[float, float]"
         gt_boxes[: gt_boxes_valid.shape[0], :] = gt_boxes_valid
         data_dict["object_bbx_center"] = gt_boxes
         data_dict["object_bbx_mask"] = gt_mask
@@ -155,10 +155,10 @@ class DataAugmentor:
         )
         gt_boxes_valid = gt_boxes[gt_mask == 1]
 
-        gt_boxes_valid, points = augment_utils.global_scaling(gt_boxes_valid, points, config["WORLD_SCALE_RANGE"])
+        gt_boxes_valid, points = augment_utils.global_scaling(gt_boxes_valid, points, config["WORLD_SCALE_RANGE"]) ##TODO Value of type "dict[str, Any] | None" is not indexable
         gt_boxes[: gt_boxes_valid.shape[0], :] = gt_boxes_valid
         data_dict["object_bbx_center"] = gt_boxes
-        data_dict["object_bbx_mask"] = gt_mask #TODO Value of type "dict[str, Any] | None" is not indexable
+        data_dict["object_bbx_mask"] = gt_mask
         data_dict["lidar_np"] = points
 
         return data_dict

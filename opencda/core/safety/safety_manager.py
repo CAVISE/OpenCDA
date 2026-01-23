@@ -52,7 +52,7 @@ class SafetyManager:
 
     def __init__(self, vehicle: Any, params: Dict[str, Any]):
         self.vehicle = vehicle
-        self.print_message = params["print_message"]
+        self.print_message: bool = params["print_message"]
         self.sensors = [
             CollisionSensor(vehicle, params["collision_sensor"]),
             StuckDetector(params["stuck_dector"]),
@@ -60,7 +60,7 @@ class SafetyManager:
             TrafficLightDector(params["traffic_light_detector"], vehicle),
         ]
 
-    def update_info(self, data_dict: Dict[str, Any]) -> Dict[str, bool]:
+    def update_info(self, data_dict: Dict[str, Any]) -> None:
         """
         Update safety sensor information and return hazard status.
 
@@ -75,14 +75,11 @@ class SafetyManager:
 
         Returns
         -------
-        Dict[str, bool]
-            Dictionary mapping sensor names to their hazard status (True indicates
-            a hazard is detected).
         """
-        status_dict = {}
+        status_dict: Dict[str, Any] = {}
         for sensor in self.sensors:
-            sensor.tick(data_dict)
-            status_dict.update(sensor.return_status())
+            sensor.tick(data_dict)  #NOTE "object" has no attribute "tick"
+            status_dict.update(sensor.return_status()) #NOTE "object" has no attribute "return status"
         if self.print_message:
             print_flag = False
             # only print message when it has hazard
@@ -93,6 +90,6 @@ class SafetyManager:
             if print_flag:
                 logger.info(f"Safety Warning from the safety manager:\n{status_dict}")
 
-    def destroy(self):
+    def destroy(self) -> None:
         for sensor in self.sensors:
-            sensor.destroy()
+            sensor.destroy() #NOTE "object" has no attribute "destroy"

@@ -15,7 +15,7 @@ import numpy as np
 import carla
 
 
-def draw_trajetory_points(world, waypoints, z=0.25, color=carla.Color(255, 0, 0), lt=5, size=0.1, arrow_size=0.1):
+def draw_trajetory_points(world: carla.World, waypoints: List, z=0.25, color=carla.Color(255, 0, 0), lt=5, size=0.1, arrow_size=0.1):
     """
     Draw a list of trajectory points
 

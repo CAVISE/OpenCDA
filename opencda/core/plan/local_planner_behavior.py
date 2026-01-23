@@ -9,6 +9,7 @@ from collections import deque
 from enum import Enum
 import statistics
 import math
+from typing import Any, Deque, Dict, List, Optional, Tuple
 
 import carla
 import numpy as np
@@ -89,25 +90,25 @@ class LocalPlanner(object):
     # Minimum distance to target waypoint as a percentage
     # (e.g. within 80% of total distance)
 
-    def __init__(self, agent, carla_map, config_yaml):
+    def __init__(self, agent: carla.agent, carla_map: carla.Map, config_yaml: Dict):
         self._vehicle = agent.vehicle
         self._map = carla_map
 
-        self._ego_pos = None
-        self._ego_speed = None
+        self._ego_pos: Optional[carla.Transform] = None
+        self._ego_speed: Optional[float] = None
 
         # waypoint pop out thresholding
         self._min_distance = config_yaml["min_dist"]
         self._buffer_size = config_yaml["buffer_size"]
 
         # global route
-        self.waypoints_queue = deque(maxlen=20000)
+        self.waypoints_queue: Deque[Tuple[carla.Waypoint, Any]] = deque(maxlen=20000)
         # waypoint route
-        self._waypoint_buffer = deque(maxlen=self._buffer_size)
+        self._waypoint_buffer: Deque[Tuple[Any, float]] = deque(maxlen=self._buffer_size)
         # trajectory buffer
-        self._long_plan_debug = []
-        self._trajectory_buffer = deque(maxlen=30)
-        self._history_buffer = deque(maxlen=3)
+        self._long_plan_debug: List[carla.Transform] = []
+        self._trajectory_buffer: Deque[Tuple[carla.Transform, float]] = deque(maxlen=30)
+        self._history_buffer: Deque[Tuple[carla.Waypoint, Any]] = deque(maxlen=3)
         self.trajectory_update_freq = config_yaml["trajectory_update_freq"]
         self.waypoint_update_freq = config_yaml["waypoint_update_freq"]
 
@@ -125,7 +126,7 @@ class LocalPlanner(object):
         self.debug = config_yaml["debug"]
         self.debug_trajectory = config_yaml["debug_trajectory"]
 
-    def set_global_plan(self, current_plan, clean=False):
+    def set_global_plan(self, current_plan: List[carla.Waypoint], clean: bool=False) -> None:
         """
         Sets new global plan.
 
@@ -149,7 +150,7 @@ class LocalPlanner(object):
                 else:
                     break
 
-    def update_information(self, ego_pos, ego_speed):
+    def update_information(self, ego_pos: carla.Transform, ego_speed: float) -> None:
         """
         Update the ego position and speed for trajectory planner.
 
@@ -165,7 +166,7 @@ class LocalPlanner(object):
         self._ego_pos = ego_pos
         self._ego_speed = ego_speed
 
-    def get_trajectory(self):
+    def get_trajectory(self) -> Deque[carla.Waypoint]:
         """
         Get the trajetory
 
@@ -177,7 +178,7 @@ class LocalPlanner(object):
         """
         return self._trajectory_buffer
 
-    def get_waypoint_buffer(self):
+    def get_waypoint_buffer(self) -> Deque[carla.Waypoint]:
         """
         Get the _waypoint_buffer.
 
@@ -189,7 +190,7 @@ class LocalPlanner(object):
         """
         return self._waypoint_buffer
 
-    def get_waypoints_queue(self):
+    def get_waypoints_queue(self) -> Deque[carla.Waypoint]:
         """
         Get the waypoints_queue.
         Returns
@@ -200,7 +201,7 @@ class LocalPlanner(object):
         """
         return self.waypoints_queue
 
-    def get_history_buffer(self):
+    def get_history_buffer(self) -> Deque[carla.Waypoint]:
         """
         Get the _history_buffer
 
@@ -212,7 +213,7 @@ class LocalPlanner(object):
         """
         return self._history_buffer
 
-    def generate_path(self):
+    def generate_path(self) -> Tuple[List[float], List[float], List[float], List[float]]:
         """
         Generate the smooth path using cubic spline.
 
@@ -243,8 +244,8 @@ class LocalPlanner(object):
         ds = 0.1
 
         # retrieve current location, yaw angle
-        current_location = self._ego_pos.location
-        current_yaw = self._ego_pos.rotation.yaw
+        current_location = self._ego_pos.location #NOTE A None-check is required
+        current_yaw = self._ego_pos.rotation.yaw #NOTE A None-check is required 
 
         # retrieve the corresponding waypoint of the current location
         current_wpt = self._map.get_waypoint(current_location).next(1)[0]
@@ -322,7 +323,10 @@ class LocalPlanner(object):
             y.append(cur_y)
 
         # calculate interpolation points
-        rx, ry, ryaw, rk = [], [], [], []
+        rx: List[float] = []
+        ry: List[float] = []
+        ryaw: List[float] = []
+        rk: List[float] = []
 
         # Cubic Spline Interpolation calculation
         if len(x) < 2 or len(y) < 2:
@@ -352,7 +356,7 @@ class LocalPlanner(object):
 
         return rx, ry, rk, ryaw
 
-    def generate_trajectory(self, rx, ry, rk):
+    def generate_trajectory(self, rx: List[float], ry: List[float], rk: List[float]) -> None:
         """
         Sampling the generated path and assign speed to each point.
 
@@ -383,7 +387,7 @@ class LocalPlanner(object):
         sample_num = 2.0 // dt
 
         break_flag = False
-        current_speed = current_speed / 3.6
+        current_speed = current_speed / 3.6 #NOTE A None-check is required
         sample_resolution = 0
 
         # use mean curvature to constrain the speed
@@ -395,7 +399,7 @@ class LocalPlanner(object):
 
         max_acc = 3.5
         # todo: hard-coded, need to be tuned
-        acceleration = max(min(max_acc, (target_speed / 3.6 - current_speed) / dt), -6.5)
+        acceleration = max(min(max_acc, (target_speed / 3.6 - current_speed) / dt), -6.5) #NOTE A None-check is required
 
         for i in range(1, int(sample_num) + 1):
             sample_resolution += current_speed * dt + 0.5 * acceleration * dt**2
@@ -417,7 +421,7 @@ class LocalPlanner(object):
             if break_flag:
                 break
 
-    def buffer_filter(self):
+    def buffer_filter(self) -> None:
         """
         Remove the waypoints in the global route plan which has dramatic
         change of yaw angle. Such waypoint can cause bad vehicle dynnamics.
@@ -436,7 +440,7 @@ class LocalPlanner(object):
 
             # check if the current waypoint is behind the vehicle.
             # if so, remove such waypoint.
-            _, angle = cal_distance_angle(waypoint.transform.location, self._ego_pos.location, self._ego_pos.rotation.yaw)
+            _, angle = cal_distance_angle(waypoint.transform.location, self._ego_pos.location, self._ego_pos.rotation.yaw) #NOTE A None-check is required
 
             if angle > 90:
                 # print('delete waypoint!')
@@ -458,7 +462,7 @@ class LocalPlanner(object):
 
             prev_wpt = waypoint
 
-    def pop_buffer(self, vehicle_transform):
+    def pop_buffer(self, vehicle_transform: carla.Position) -> None:
         """
         Remove waypoints the ego vehicle has achieved.
 
@@ -498,7 +502,15 @@ class LocalPlanner(object):
                 for i in range(max_index + 1):
                     self._trajectory_buffer.popleft()
 
-    def run_step(self, rx, ry, rk, target_speed=None, trajectory=None, following=False):
+    def run_step(
+    self,
+    rx: List[float],
+    ry: List[float],
+    rk: List[float],
+    target_speed: Optional[float] = None,
+    trajectory: Optional[Deque[Tuple[carla.Transform, float]]] = None,
+    following: bool = False
+) -> Tuple[float, carla.Waypoint]:
         """
         Execute one step of local planning which involves
         running the longitudinal and lateral PID controllers to
@@ -537,7 +549,7 @@ class LocalPlanner(object):
 
         """
 
-        self._target_speed = target_speed
+        self._target_speed: float = target_speed
 
         # Buffering the waypoints. Always keep the waypoint buffer alive
         if len(self._waypoint_buffer) < self.waypoint_update_freq:
@@ -553,7 +565,7 @@ class LocalPlanner(object):
             self._trajectory_buffer.clear()
             # if no spline points provided, return 0 and none target wpt
             if len(rx) == 0:
-                return 0, None
+                return 0, None 
             self.generate_trajectory(rx, ry, rk)
         elif trajectory:
             self._trajectory_buffer = trajectory.copy()

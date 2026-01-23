@@ -347,7 +347,7 @@ class CoScenarioManager(ScenarioManager):
             return actor.destroy()
         return False
 
-    def close(self):
+    def close(self) -> None:
         """
         Close the co-simulation and clean up resources.
 

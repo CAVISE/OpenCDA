@@ -52,14 +52,14 @@ class SensorManager:
         Dictionary storing metadata returned from sensors, keyed by sensor name.
     """
 
-    def __init__(self, agent_id: int, vehicle_content: Dict[str, Any], world: carla.World, config_yaml: Dict[str, Any], output_root: str):
+    def __init__(self, agent_id: str, vehicle_content: Dict[str, Any], world: carla.World, config_yaml: Dict[str, Any], output_root: str):
         self.agent_id = agent_id
         self.output_root = output_root
         self.vehicle = vehicle_content["actor"]
         self.world = world
         self.sensor_list = []
         # this is used to gather the meta information return from sensors
-        self.sensor_meta = OrderedDict()
+        self.sensor_meta: OrderedDict = OrderedDict()
 
         for sensor_content in config_yaml["sensor_list"]:
             sensor = None
@@ -106,7 +106,7 @@ class SensorManager:
                 os.makedirs(output_folder)
             sensor_instance.data_dump(output_folder, cur_timestamp)
 
-    def destroy(self):
+    def destroy(self) -> None:
         """
         Destroy all managed sensor instances.
 

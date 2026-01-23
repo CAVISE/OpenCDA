@@ -19,7 +19,7 @@ from logreplay.assets.presave_lib import bcolors
 from logreplay.map.map_manager import MapManager
 from logreplay.sensors.sensor_manager import SensorManager
 from opencood.hypes_yaml.yaml_utils import load_yaml
-from typing import Dict, List, Any
+from typing import Dict, List, Any, cast
 
 
 class SceneManager:
@@ -64,12 +64,12 @@ class SceneManager:
         HD map generation manager.
     """
 
-    def __init__(self, folder, scene_name, collection_params, scenario_params):
+    def __init__(self, folder: str, scene_name: str, collection_params: Dict[str, Any], scenario_params: Dict[str, Any]):
         self.scene_name = scene_name
         self.town_name = find_town(scene_name)
         self.collection_params = collection_params
         self.scenario_params = scenario_params
-        self.cav_id_list = []
+        self.cav_id_list: List[str] = []
 
         # dumping related
         self.output_root = os.path.join(scenario_params["output_dir"], scene_name)
@@ -82,7 +82,7 @@ class SceneManager:
         cav_list = sorted([x for x in os.listdir(folder) if os.path.isdir(os.path.join(folder, x))])
         assert len(cav_list) > 0
 
-        self.database = OrderedDict()
+        self.database: OrderedDict = OrderedDict()
         # we want to save timestamp as the parent keys for cavs
         cav_sample = os.path.join(folder, cav_list[0])
 
@@ -104,13 +104,13 @@ class SceneManager:
                 self.database[timestamp][cav_id]["yaml"] = yaml_file
 
         # this is used to dynamically save all information of the objects
-        self.veh_dict = OrderedDict()
+        self.veh_dict: OrderedDict = OrderedDict()
         # used to count timestamp
         self.cur_count = 0
         # used for HDMap
         self.map_manager = None
 
-    def start_simulator(self):
+    def start_simulator(self) -> None:
         """
         Connect to the CARLA simulator and initialize world for log replay.
 
@@ -170,7 +170,7 @@ class SceneManager:
         # hd map manager per scene
         self.map_manager = MapManager(self.world, self.scenario_params["map"], self.output_root, self.scene_name)
 
-    def tick(self):
+    def tick(self) -> bool:
         """
         Execute one simulation step: spawn/move vehicles and collect data.
 
@@ -228,7 +228,7 @@ class SceneManager:
 
         return True
 
-    def map_dumping(self):
+    def map_dumping(self) -> None:
         """
         Generate and save BEV maps for all CAVs.
 
@@ -239,7 +239,7 @@ class SceneManager:
             if "cav" in veh_content:
                 self.map_manager.run_step(veh_id, veh_content, self.veh_dict)
 
-    def sensor_dumping(self, cur_timestamp: str):
+    def sensor_dumping(self, cur_timestamp: str) -> None:
         """
         Trigger sensor data collection for all equipped vehicles.
 
@@ -252,7 +252,7 @@ class SceneManager:
             if "sensor_manager" in veh_content:
                 veh_content["sensor_manager"].run_step(cur_timestamp)
 
-    def spawn_cav(self, cav_id: str, cav_content: Dict[str, Any], cur_timestamp: str):
+    def spawn_cav(self, cav_id: str, cav_content: Dict[str, Any], cur_timestamp: str) -> None:
         """
         Spawn the cav based on current content.
 
@@ -303,7 +303,7 @@ class SceneManager:
             }
         )
 
-    def spawn_bg_vehicles(self, bg_veh_id: str, bg_veh_content: Dict[str, Any], cur_timestamp: str):
+    def spawn_bg_vehicles(self, bg_veh_id: str, bg_veh_content: Dict[str, Any], cur_timestamp: str) -> None:
         """
         Spawn the background vehicle.
 
@@ -355,7 +355,7 @@ class SceneManager:
             }
         )
 
-    def move_vehicle(self, veh_id: str, cur_timestamp: str, transform: carla.Transform):
+    def move_vehicle(self, veh_id: str, cur_timestamp: str, transform: carla.Transform) -> None:
         """
         Updates vehicle position if it hasn't been moved in current timestamp.
         Prevents duplicate movements within the same simulation tick.
@@ -377,20 +377,21 @@ class SceneManager:
         self.veh_dict[veh_id]["cur_count"] = cur_timestamp
         self.veh_dict[veh_id]["cur_pose"] = transform
 
-    def close(self):
+    def close(self) -> None:
         self.world.apply_settings(self.origin_settings)
         actor_list = self.world.get_actors()
         for actor in actor_list:
+            actor = cast(carla.Actor, actor)
             actor.destroy()
-        self.map_manager.destroy()
+        cast(MapManager, self.map_manager).destroy() # Tell type checker that self.map_manager is MapManager
         self.sensor_destory()
 
-    def sensor_destory(self):
+    def sensor_destory(self) -> None:
         for veh_id, veh_content in self.veh_dict.items():
             if "sensor_manager" in veh_content:
                 veh_content["sensor_manager"].destroy()
 
-    def destroy_vehicle(self, cur_timestamp: str):
+    def destroy_vehicle(self, cur_timestamp: str) -> None:
         """
         Destroy vehicles that are out of scope of all CAVs.
 

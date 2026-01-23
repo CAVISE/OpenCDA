@@ -9,8 +9,7 @@ All Rights Reserved 2019-2020.
 """
 
 import torch
-import numpy as np
-import numpy.typing as npt
+from typing import Union, Tuple, Optional
 
 from opencood.pcdet_utils.iou3d_nms import iou3d_nms_cuda
 

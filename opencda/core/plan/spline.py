@@ -8,7 +8,7 @@ Author: Atsushi Sakai(@Atsushi_twi)
 """
 
 import math
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, cast
 import numpy as np
 import numpy.typing as npt
 import bisect
@@ -45,8 +45,11 @@ class Spline:
         The dimension of x.
     """
 
-    def __init__(self, x, y):
-        self.b, self.c, self.d, self.w = [], [], [], []
+    def __init__(self, x: npt.ArrayLike, y: npt.ArrayLike):
+        self.b: list[float] = []
+        self.c: npt.NDArray[np.float64]
+        self.d: list[float] = []
+        self.w: list[float] = []
 
         self.x = x
         self.y = y
@@ -234,8 +237,8 @@ class Spline2D:
         Discrete arc length differences.
     """
 
-    def __init__(self, x, y):
-        self.s = self.__calc_s(x, y)
+    def __init__(self, x: npt.ArrayLike, y: npt.ArrayLike):
+        self.s: List[float] = self.__calc_s(x, y)
         self.sx = Spline(self.s, x)
         self.sy = Spline(self.s, y)
 
@@ -260,7 +263,7 @@ class Spline2D:
         self.ds = np.hypot(dx, dy)
         s = [0]
         s.extend(np.cumsum(self.ds))
-        return s
+        return s #NOTE: Incompatible return value type (got "list[int]", expected "list[float]")
 
     def calc_position(self, s: float) -> Tuple[Optional[float], Optional[float]]:
         """
@@ -297,10 +300,10 @@ class Spline2D:
         float
             Curvature value.
         """
-        dx = self.sx.calcd(s)
-        ddx = self.sx.calcdd(s)
-        dy = self.sy.calcd(s)
-        ddy = self.sy.calcdd(s)
+        dx = cast(float, self.sx.calcd(s))
+        ddx = cast(float, self.sx.calcdd(s))
+        dy = cast(float, self.sy.calcd(s))
+        ddy = cast(float, self.sy.calcdd(s))
         k = (ddy * dx - ddx * dy) / ((dx**2 + dy**2) ** (3 / 2))
         return k
 
@@ -320,11 +323,11 @@ class Spline2D:
         """
         dx = self.sx.calcd(s)
         dy = self.sy.calcd(s)
-        yaw = math.atan2(dy, dx)
+        yaw = math.atan2(cast(float, dy), cast(float, dx))
         return yaw
 
 
-def main():
+def main() -> None:
     """
     Main function to calculate spline and visualize the results.
     """

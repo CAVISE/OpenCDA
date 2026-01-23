@@ -9,7 +9,7 @@ and dynamic agents into bird's-eye view (BEV) representations.
 import math
 import os.path
 import uuid
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
 
 import cv2
 import carla
@@ -334,7 +334,7 @@ class MapManager(object):
 
         return np.nonzero(x_min_in & y_min_in & x_max_in & y_max_in & z_flag)[0]
 
-    def retrieve_light_stop_pos(self):
+    def retrieve_light_stop_pos(self) -> None:
         # retrieve all stop and traffic light position
         all_actors = self.world.get_actors()
         for actor in all_actors:
@@ -369,7 +369,7 @@ class MapManager(object):
                 associate_tl_id = tl_id
         return associate_tl_id
 
-    def data_dump(self):
+    def data_dump(self) -> None:
         """
         Dump the data to the corresponding folder.
         """
@@ -421,7 +421,7 @@ class MapManager(object):
             save_vis_name = os.path.join(save_name, self.current_timstamp + "_bev_vis.png")
             cv2.imwrite(save_vis_name, self.vis_bev)
 
-    def generate_lane_cross_info(self):
+    def generate_lane_cross_info(self) -> None:
         """
         From the topology generate all lane and crosswalk
         information in a dictionary under world's coordinate frame.
@@ -502,14 +502,14 @@ class MapManager(object):
         self.bound_info["lanes"]["ids"] = lanes_id
         self.bound_info["lanes"]["bounds"] = lanes_bounds
 
-    def split_cross_walks(self):
+    def split_cross_walks(self) -> List[List[Tuple[float, float, float]]]:
         """
         Find each crosswalk with their key points.
         """
         all_cross_walks = self.carla_map.get_crosswalks()
         cross_walks_list = []
 
-        tmp_list = []
+        tmp_list: List[Tuple[float, float, float]] = []
         for key_points in all_cross_walks:
             if (key_points.x, key_points.y, key_points.z) in tmp_list:
                 cross_walks_list.append(tmp_list)
@@ -519,7 +519,7 @@ class MapManager(object):
 
         return cross_walks_list
 
-    def generate_tl_info(self, world):
+    def generate_tl_info(self, world: carla.World) -> None:
         """
         Generate traffic light information under world's coordinate frame.
 
@@ -530,7 +530,8 @@ class MapManager(object):
 
         Returns
         -------
-        A dictionary containing traffic lights information.
+        None
+        Updates self.traffic_light_info in place.
         """
         tl_list = world.get_actors().filter("traffic.traffic_light*")
 
@@ -603,7 +604,7 @@ class MapManager(object):
 
         return lane_area
 
-    def generate_cross_area(self, xyz):
+    def generate_cross_area(self, xyz: NDArray[np.float64]) -> NDArray[np.float64]:
         """
         Generate the cross lane under rasterization map's center
         coordinate frame.
@@ -642,7 +643,7 @@ class MapManager(object):
 
         return lane_area
 
-    def generate_agent_area(self, corners):
+    def generate_agent_area(self, corners: List[List[float]]) -> NDArray[np.float64]:
         """
         Convert the agent's bbx corners from world coordinates to
         rasterization coordinates.
@@ -678,7 +679,7 @@ class MapManager(object):
 
         return corner_area
 
-    def load_agents_world(self):
+    def load_agents_world(self) -> Dict[int, Dict[str, object]]:
         """
         Load all the dynamic agents info from server directly
         into a  dictionary.
@@ -719,7 +720,7 @@ class MapManager(object):
             dynamic_agent_info[agent_id] = {"location": agent_loc, "yaw": agent_yaw, "corners": corners_reformat}
         return dynamic_agent_info
 
-    def rasterize_dynamic(self):
+    def rasterize_dynamic(self) -> None:
         """
         Rasterize the dynamic agents.
 
@@ -759,7 +760,7 @@ class MapManager(object):
         self.vis_mask = draw_agent(vis_corner_list, self.vis_mask)
         self.vis_corp_mask = draw_agent(vis_corp_corner_list, self.vis_corp_mask)
 
-    def rasterize_static(self):
+    def rasterize_static(self) -> None:
         """
         Generate the static bev map.
         """
@@ -835,5 +836,5 @@ class MapManager(object):
         self.vis_bev = draw_crosswalks(cross_area_list, self.vis_bev)
         self.vis_bev = cv2.cvtColor(self.vis_bev, cv2.COLOR_RGB2BGR)
 
-    def destroy(self):
+    def destroy(self) -> None:
         cv2.destroyAllWindows()

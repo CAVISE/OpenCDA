@@ -5,6 +5,7 @@
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
 from collections import deque
+from typing import Any, Deque, Dict, Optional, Tuple
 import weakref
 
 import carla
@@ -48,13 +49,13 @@ class V2XManager(object):
 
     """
 
-    def __init__(self, cav_world, config_yaml, vid):
+    def __init__(self, cav_world: Any, config_yaml: Dict[str, Any], vid: str):
         # if disabled, no cooperation will be operated
         self.cda_enabled = config_yaml["enabled"]
         self.communication_range = config_yaml["communication_range"]
 
         # found CAVs nearby
-        self.cav_nearby = {}
+        self.cav_nearby: Dict[str, Any] = {}
 
         # used for cooperative perception.
         # self._recieved_buffer = {}
@@ -65,8 +66,8 @@ class V2XManager(object):
         self.cav_world = weakref.ref(cav_world)()
 
         # ego position buffer. use deque so we can simulate lagging
-        self.ego_pos = deque(maxlen=100)
-        self.ego_spd = deque(maxlen=100)
+        self.ego_pos: Deque[carla.Transform] = deque(maxlen=100)
+        self.ego_spd: Deque[float] = deque(maxlen=100)
         # used to exclude the cav self during searching
         self.vid = vid
 
@@ -86,7 +87,7 @@ class V2XManager(object):
         if "lag" in config_yaml:
             self.lag = config_yaml["lag"]
 
-    def update_info(self, ego_pos, ego_spd):
+    def update_info(self, ego_pos: carla.Transform, ego_spd: float) -> None:
         """
         Update all communication plugins with current localization info.
         """
@@ -98,7 +99,7 @@ class V2XManager(object):
         # so we shouldn't add noise or lag.
         self.platooning_plugin.update_info(ego_pos, ego_spd)
 
-    def get_ego_pos(self):
+    def get_ego_pos(self) -> Optional[carla.Transform]:
         """
         Add noise and lag to the current ego position and send to other CAVs.
         This is for simulate noise and lagging during communication.
@@ -126,7 +127,7 @@ class V2XManager(object):
 
         return processed_ego_pos
 
-    def get_ego_speed(self):
+    def get_ego_speed(self) -> Optional[float]:
         """
         Add noise and lag to the current ego speed.
 
@@ -143,11 +144,11 @@ class V2XManager(object):
 
         return processed_ego_speed
 
-    def search(self):
+    def search(self) -> None:
         """
         Search the CAVs nearby.
         """
-        vehicle_manager_dict = self.cav_world.get_vehicle_managers()
+        vehicle_manager_dict = self.cav_world.get_vehicle_managers() #NOTE: cav_world can be None
 
         for vid, vm in vehicle_manager_dict.items():
             # avoid the Nonetype error at the first simulation step
@@ -167,7 +168,7 @@ class V2XManager(object):
     -----------------------------------------------------------
     """
 
-    def set_platoon(self, in_id, platooning_object=None, platooning_id=None, leader=False):
+    def set_platoon(self, in_id: int, platooning_object: Any=None, platooning_id:Optional[bool]=None, leader:bool=False) -> None:
         """
         Set platooning status
 
@@ -189,7 +190,7 @@ class V2XManager(object):
         """
         self.platooning_plugin.set_platoon(in_id, platooning_object, platooning_id, leader)
 
-    def set_platoon_status(self, status):
+    def set_platoon_status(self, status: str) -> None:
         """
         Set the cav to a different fsm status.
 
@@ -201,7 +202,7 @@ class V2XManager(object):
         """
         self.platooning_plugin.set_status(status)
 
-    def set_platoon_front(self, vm):
+    def set_platoon_front(self, vm: Any) -> None:
         """
         Set the frontal vehicle to another vehicle
 
@@ -212,7 +213,7 @@ class V2XManager(object):
         """
         self.platooning_plugin.front_vehicle = vm
 
-    def set_platoon_rear(self, vm):
+    def set_platoon_rear(self, vm: Any) -> None:
         """
         Set the rear vehicle to another vehicle
 
@@ -223,7 +224,7 @@ class V2XManager(object):
         """
         self.platooning_plugin.rear_vechile = vm
 
-    def add_platoon_blacklist(self, pmid):
+    def add_platoon_blacklist(self, pmid: int) -> None:
         """
         Add an existing platoon to current blacklist.
 
@@ -234,13 +235,13 @@ class V2XManager(object):
         """
         self.platooning_plugin.platooning_blacklist.append(pmid)
 
-    def match_platoon(self):
+    def match_platoon(self) -> Any:
         """
         A naive way to find the best position to join a platoon.
         """
         return self.platooning_plugin.match_platoon(self.cav_nearby)
 
-    def in_platoon(self):
+    def in_platoon(self) -> bool:
         """
         Check whether the vehicle is inside the platoon.
 
@@ -251,7 +252,7 @@ class V2XManager(object):
         """
         return False if self.platooning_plugin.in_id is None else True
 
-    def get_platoon_manager(self):
+    def get_platoon_manager(self) -> Tuple[Any, Optional[int]]:
         """
         Retrieve the platoon manager the cav
         belongs to and the corresponding id.
@@ -266,7 +267,7 @@ class V2XManager(object):
         """
         return self.platooning_plugin.platooning_object, self.platooning_plugin.in_id
 
-    def get_platoon_status(self):
+    def get_platoon_status(self) -> Any:
         """
         Retrieve the FSM status for platooning application
 
@@ -277,7 +278,7 @@ class V2XManager(object):
         """
         return self.platooning_plugin.status
 
-    def get_platoon_front_rear(self):
+    def get_platoon_front_rear(self) -> Tuple:
         """
         Get the ego vehicle's front and rear cav in the platoon
 

@@ -146,7 +146,7 @@ class PixorLoss(nn.Module):
         writer.add_scalar("Confidence_loss", cls_loss.item(), epoch * batch_len + batch_id)
 
 
-def test():
+def test() -> None:
     """
     Test function for PixorLoss.
 

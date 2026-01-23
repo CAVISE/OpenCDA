@@ -196,7 +196,7 @@ class CiassdLoss(nn.Module):
 
         return loss
 
-    def logging(self, epoch: int, batch_id: int, batch_len: int, writer, pbar: Optional[Any] = None) -> None:
+    def logging(self, epoch: int, batch_id: int, batch_len: int, writer: Any, pbar: Optional[Any] = None) -> None:
         """
         Print out  the loss function for current iteration.
 
@@ -309,7 +309,7 @@ def one_hot_f(tensor: Tensor, depth: int, dim: int = -1, on_value: float = 1.0, 
     return tensor_onehot
 
 
-def sigmoid_focal_loss(preds: Tensor, targets: Tensor, weights: Optional[Tensor] = None, **kwargs) -> Tensor:
+def sigmoid_focal_loss(preds: torch.Tensor, targets: torch.Tensor, weights: Optional[torch.Tensor] = None, **kwargs: Any) -> torch.Tensor:
     """
     Compute focal loss with sigmoid activation.
 
@@ -349,7 +349,7 @@ def sigmoid_focal_loss(preds: Tensor, targets: Tensor, weights: Optional[Tensor]
     return loss
 
 
-def softmax_cross_entropy_with_logits(logits: Tensor, labels: Tensor) -> Tensor:
+def softmax_cross_entropy_with_logits(logits: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
     """
     Compute cross-entropy loss with softmax.
 
@@ -373,7 +373,7 @@ def softmax_cross_entropy_with_logits(logits: Tensor, labels: Tensor) -> Tensor:
     return loss
 
 
-def weighted_smooth_l1_loss(preds: Tensor, targets: Tensor, sigma: float = 3.0, weights: Optional[Tensor] = None) -> Tensor:
+def weighted_smooth_l1_loss(preds: torch.Tensor, targets: torch.Tensor, sigma: float = 3.0, weights: Optional[torch.Tensor] = None) -> torch.Tensor:
     """
     Compute weighted smooth L1 loss (Huber loss variant).
 

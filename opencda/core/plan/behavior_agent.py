@@ -11,7 +11,7 @@ for autonomous vehicles in CARLA simulator.
 
 import logging
 import sys
-from typing import List, Dict, Tuple, Optional, Any
+from typing import Deque, List, Dict, Tuple, Optional, Any
 
 import numpy as np
 import numpy.typing as npt
@@ -117,7 +117,7 @@ class BehaviorAgent(object):
     def __init__(self, vehicle: carla.Vehicle, carla_map: carla.Map, config_yaml: Dict[str, Any]):
         self.vehicle = vehicle
         # ego pos(transform) and speed(km/h) retrieved from localization module
-        self._ego_pos = None
+        self._ego_pos: Optional[carla.Transform] = None
         self._ego_speed = 0.0
         self._map = carla_map
 
@@ -142,9 +142,9 @@ class BehaviorAgent(object):
         self.hazard_flag = False
 
         # route planner related
-        self._global_planner = None
-        self.start_waypoint = None
-        self.end_waypoint = None
+        self._global_planner: Optional[GlobalRoutePlanner] = None
+        self.start_waypoint: Optional[carla.Waypoint] = None
+        self.end_waypoint: Optional[carla.Waypoint] = None
         self._sampling_resolution = config_yaml["sample_resolution"]
 
         # intersection agent related
@@ -164,9 +164,9 @@ class BehaviorAgent(object):
 
         # white list of vehicle managers that the cav does not consider as
         # obstacles
-        self.white_list = []
-        self.obstacle_vehicles = []
-        self.objects = {}
+        self.white_list: List[Any] = []
+        self.obstacle_vehicles: List[Any] = []
+        self.objects: Dict[str, Any] = {}
 
         # debug helper
         self.debug_helper = PlanDebugHelper(self.vehicle.id)
@@ -328,7 +328,7 @@ class BehaviorAgent(object):
         """
         return self._local_planner
 
-    def _trace_route(self, start_waypoint, end_waypoint):
+    def _trace_route(self, start_waypoint: carla.Waypoint, end_waypoint: carla.Waypoint) -> List[Tuple[carla.Waypoint, Any]]:
         """
         This method sets up a global router and returns the
         optimal route from start_waypoint to end_waypoint.
@@ -440,7 +440,7 @@ class BehaviorAgent(object):
             Distance to closest obstacle in meters.
         """
 
-        def dist(v):
+        def dist(v: carla.Vehicle) -> float:
             return v.get_location().distance(waypoint.transform.location)
 
         vehicle_state = False
@@ -504,9 +504,9 @@ class BehaviorAgent(object):
             # this not the real plan path, but just a quick path to check
             # collision
             rx, ry, ryaw = self._collision_check.adjacent_lane_collision_check(
-                ego_loc=self._ego_pos.location, target_wpt=left_wpt, carla_map=self._map, overtake=True, world=self.vehicle.get_world()
+                ego_loc=self._ego_pos.location, target_wpt=left_wpt, carla_map=self._map, overtake=True, world=self.vehicle.get_world() # NOTE: _ego_pos is Optional, need extra checks
             )
-            vehicle_state, _, _ = self.collision_manager(rx, ry, ryaw, self._map.get_waypoint(self._ego_pos.location), True)
+            vehicle_state, _, _ = self.collision_manager(rx, ry, ryaw, self._map.get_waypoint(self._ego_pos.location), True) # NOTE: _ego_pos is Optional, need extra checks
             if not vehicle_state:
                 logger.info("Left overtake is operated")
                 self.overtake_counter = 100
@@ -526,10 +526,10 @@ class BehaviorAgent(object):
             and right_wpt.lane_type == carla.LaneType.Driving
         ):
             rx, ry, ryaw = self._collision_check.adjacent_lane_collision_check(
-                ego_loc=self._ego_pos.location, target_wpt=right_wpt, overtake=True, carla_map=self._map, world=self.vehicle.get_world()
+                ego_loc=self._ego_pos.location, target_wpt=right_wpt, overtake=True, carla_map=self._map, world=self.vehicle.get_world() # NOTE: _ego_pos is Optional, need extra checks
             )
 
-            vehicle_state, _, _ = self.collision_manager(rx, ry, ryaw, self._map.get_waypoint(self._ego_pos.location), True)
+            vehicle_state, _, _ = self.collision_manager(rx, ry, ryaw, self._map.get_waypoint(self._ego_pos.location), True) # NOTE: _ego_pos is Optional, need extra checks
             if not vehicle_state:
                 logger.info("Right overtake is operated")
                 self.overtake_counter = 100
@@ -553,7 +553,7 @@ class BehaviorAgent(object):
         vehicle_state : boolean
             Whether the lane change is dangerous.
         """
-        ego_wpt = self._map.get_waypoint(self._ego_pos.location)
+        ego_wpt = self._map.get_waypoint(self._ego_pos.location) # NOTE: _ego_pos is Optional, need extra checks 
         ego_lane_id = ego_wpt.lane_id
         target_wpt = None
 
@@ -566,9 +566,9 @@ class BehaviorAgent(object):
             return True
 
         rx, ry, ryaw = self._collision_check.adjacent_lane_collision_check(
-            ego_loc=self._ego_pos.location, target_wpt=target_wpt, overtake=False, carla_map=self._map, world=self.vehicle.get_world()
+            ego_loc=self._ego_pos.location, target_wpt=target_wpt, overtake=False, carla_map=self._map, world=self.vehicle.get_world() # NOTE: _ego_pos is Optional, need extra checks
         )
-        vehicle_state, _, _ = self.collision_manager(rx, ry, ryaw, self._map.get_waypoint(self._ego_pos.location), adjacent_check=True)
+        vehicle_state, _, _ = self.collision_manager(rx, ry, ryaw, self._map.get_waypoint(self._ego_pos.location), adjacent_check=True) # NOTE: _ego_pos is Optional, need extra checks
         return not vehicle_state
 
     def car_following_manager(self, vehicle: carla.Vehicle, distance: float, target_speed: Optional[float] = None) -> float:
@@ -610,7 +610,7 @@ class BehaviorAgent(object):
             target_speed = 0 if vehicle_speed == 0 else min(vehicle_speed + 1, target_speed)
         return target_speed
 
-    def is_intersection(self, objects: Dict[Any], waypoint_buffer) -> bool:
+    def is_intersection(self, objects: Dict[Any, Deque], waypoint_buffer: Deque) -> bool:
         """
         Check the next waypoints is near the intersection. This is done by
         check the distance between the waypoints and the traffic light.

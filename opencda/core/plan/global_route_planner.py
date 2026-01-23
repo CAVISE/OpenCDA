@@ -59,7 +59,7 @@ class GlobalRoutePlanner(object):
         self._id_map: Optional[Dict[Tuple[float, float, float], int]] = None
         self._road_id_to_edge: Optional[Dict[int, Dict[int, Dict[int, Tuple[int, int]]]]] = None
 
-    def setup(self):
+    def setup(self) -> None:
         """
         Performs initial server data lookup for detailed topology
         and builds graph representation of the world map.
@@ -69,7 +69,11 @@ class GlobalRoutePlanner(object):
         self._find_loose_ends()
         self._lane_change_link()
 
-    def _build_graph(self):
+    def _build_graph(self) -> Tuple[
+    nx.DiGraph,
+    Dict[Tuple[float, float, float], int],
+    Dict[int, Dict[int, Dict[int, Tuple[int, int]]]],
+]:
         """
         This function builds a networkx graph representation of topology.
 
@@ -98,11 +102,11 @@ class GlobalRoutePlanner(object):
             Map from road id to edge in the graph.
         """
         graph = nx.DiGraph()
-        id_map = dict()  # Map with structure {(x,y,z): id, ... }
+        id_map: Dict[Tuple[float, float, float], int] = dict()  # Map with structure {(x,y,z): id, ... }
         # Map with structure {road_id: {lane_id: edge, ... }, ... }
-        road_id_to_edge = dict()
+        road_id_to_edge: Dict[int, Dict[int, Dict[int, Tuple[int, int]]]] = dict()
 
-        for segment in self._topology:
+        for segment in self._topology: #NOTE A None-check is required
             entry_xyz, exit_xyz = segment["entryxyz"], segment["exitxyz"]
             path = segment["path"]
             entry_wp, exit_wp = segment["entry"], segment["exit"]
@@ -143,7 +147,7 @@ class GlobalRoutePlanner(object):
 
         return graph, id_map, road_id_to_edge
 
-    def _find_loose_ends(self):
+    def _find_loose_ends(self) -> None:
         """
         Find and connect road segments with unconnected ends.
 
@@ -152,7 +156,7 @@ class GlobalRoutePlanner(object):
         """
         count_loose_ends = 0
         hop_resolution = self._dao.get_resolution()
-        for segment in self._topology:
+        for segment in self._topology: #NOTE A None-check is required
             end_wp = segment["exit"]
             exit_xyz = segment["exitxyz"]
             road_id, section_id, lane_id = end_wp.road_id, end_wp.section_id, end_wp.lane_id
@@ -232,7 +236,7 @@ class GlobalRoutePlanner(object):
             )
         return edge
 
-    def _lane_change_link(self):
+    def _lane_change_link(self) -> None:
         """
         Add zero-cost lane change links to topology graph.
 
@@ -240,7 +244,7 @@ class GlobalRoutePlanner(object):
         with type CHANGELANERIGHT or CHANGELANELEFT.
         """
 
-        for segment in self._topology:
+        for segment in self._topology: 
             left_found, right_found = False, False
 
             for waypoint in segment["path"]:
@@ -296,7 +300,7 @@ class GlobalRoutePlanner(object):
                 if left_found and right_found:
                     break
 
-    def _distance_heuristic(self, n1, n2):
+    def _distance_heuristic(self, n1: int, n2: int) -> float:
         """
         Distance heuristic calculator for path searching in self._graph
         """
@@ -304,7 +308,7 @@ class GlobalRoutePlanner(object):
         l2 = np.array(self._graph.nodes[n2]["vertex"])
         return np.linalg.norm(l1 - l2)
 
-    def _path_search(self, origin, destination):
+    def _path_search(self, origin: carla.Location, destination: carla.Location) -> List[int]:
         """
         This function finds the shortest path connecting origin and destination.
 
@@ -449,7 +453,7 @@ class GlobalRoutePlanner(object):
         self._previous_decision = decision
         return decision
 
-    def _find_closest_in_list(self, current_waypoint, waypoint_list):
+    def _find_closest_in_list(self, current_waypoint: carla.Waypoint, waypoint_list: List[carla.Waypoint]) -> int:
         min_distance = float("inf")
         closest_index = -1
         for i, waypoint in enumerate(waypoint_list):

@@ -42,7 +42,7 @@ class BaseSensor:
     ):
         return
 
-    def visualize_data(self):
+    def visualize_data(self) -> None:
         """
         Display sensor data in real-time.
 
@@ -71,7 +71,7 @@ class BaseSensor:
         """
         return
 
-    def tick(self):
+    def tick(self) -> None:
         """
         Process sensor data and return metadata.
 
@@ -80,7 +80,7 @@ class BaseSensor:
         """
         return None
 
-    def destroy(self):
+    def destroy(self) -> None:
         """
         Clean up sensor resources.
 

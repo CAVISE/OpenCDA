@@ -6,7 +6,8 @@ Basic class of CAV
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
 import logging
-from typing import Set
+from typing import Any, Dict, List, Optional, Set
+import carla
 
 from opencda.core.actuation.control_manager import ControlManager
 from opencda.core.application.platooning.platoon_behavior_agent import PlatooningBehaviorAgent
@@ -78,15 +79,15 @@ class VehicleManager(object):
     # TODO: application и prefix как будто бы дублируют друг друга, но не факт
     def __init__(
         self,
-        vehicle,
-        config_yaml,
-        application,
-        carla_map,
-        cav_world,
-        current_time="",
-        data_dumping=False,
-        autogenerate_id_on_failure=True,  # TODO: Link with scenario config
-        prefix="unknown",
+        vehicle: carla.Vehicle,
+        config_yaml: Dict[str, Any],
+        application: List[str],
+        carla_map: carla.Map,
+        cav_world: carla.World,
+        current_time: str ="",
+        data_dumping: bool =False,
+        autogenerate_id_on_failure: bool=True,  # TODO: Link with scenario config
+        prefix: str="unknown",
     ):
         config_id = config_yaml.get("id")
         self.prefix = prefix if prefix in {"cav", "platoon"} else "unknown"
@@ -147,7 +148,7 @@ class VehicleManager(object):
             platoon_config = config_yaml["platoon"]
             self.agent = PlatooningBehaviorAgent(vehicle, self, self.v2x_manager, behavior_config, platoon_config, carla_map)
         else:
-            self.agent = BehaviorAgent(vehicle, carla_map, behavior_config)
+            self.agent = BehaviorAgent(vehicle, carla_map, behavior_config) #NOTE: A None-check is required to satisfy type checking.
 
         # Control module
         self.controller = ControlManager(control_config)
@@ -159,7 +160,7 @@ class VehicleManager(object):
 
         cav_world.update_vehicle_manager(self)
 
-    def __generate_unique_vehicle_id(self):
+    def __generate_unique_vehicle_id(self) -> str:
         """Generates a unique vehicle ID based on prefix."""
         while True:
             if self.prefix == "cav":
@@ -176,7 +177,7 @@ class VehicleManager(object):
                 VehicleManager.used_ids.add(candidate)
                 return candidate
 
-    def set_destination(self, start_location, end_location, clean=False, end_reset=True):
+    def set_destination(self, start_location: carla.Location, end_location: carla.Location, clean: bool=False, end_reset: bool=True) -> None:
         """
         Set global route.
 
@@ -197,10 +198,9 @@ class VehicleManager(object):
         Returns
         -------
         """
+        self.agent.set_destination(start_location, end_location, clean, end_reset) #NOTE: A None-check is required 
 
-        self.agent.set_destination(start_location, end_location, clean, end_reset)
-
-    def update_info(self):
+    def update_info(self) -> None:
         """
         Call perception and localization module to
         retrieve surrounding info an ego position.
@@ -230,21 +230,21 @@ class VehicleManager(object):
 
         # leave this for platooning for now
         self.v2x_manager.update_info(ego_pos, ego_spd)
-        self.agent.update_information(ego_pos, ego_spd, objects)
+        self.agent.update_information(ego_pos, ego_spd, objects) #NOTE: A None-check is required 
         # pass position and speed info to controller
         self.controller.update_info(ego_pos, ego_spd)
 
-    def update_info_v2x(self):
+    def update_info_v2x(self) -> None:
         # TODO: Implement
         pass
 
-    def run_step(self, target_speed=None):
+    def run_step(self, target_speed: Optional[float]=None) -> carla.VehicleControl:
         """
         Execute one step of navigation.
         """
         # visualize the bev map if needed
         self.map_manager.run_step()
-        target_speed, target_pos = self.agent.run_step(target_speed)
+        target_speed, target_pos = self.agent.run_step(target_speed) #NOTE: A None-check is required to satisfy type checking.
         control = self.controller.run_step(target_speed, target_pos)
 
         # dump data
@@ -253,7 +253,7 @@ class VehicleManager(object):
 
         return control
 
-    def destroy(self):
+    def destroy(self) -> None:
         """
         Destroy the actor vehicle
         """

@@ -8,6 +8,7 @@ including speed, acceleration, and time-to-collision tracking and visualization.
 
 # Author: Runsheng Xu <rxx3386@ucla.edu>
 # License:  TDG-Attribution-NonCommercial-NoDistrib
+from typing import Any, List, Tuple
 import warnings
 
 import numpy as np
@@ -41,9 +42,9 @@ class PlanDebugHelper(object):
 
     def __init__(self, actor_id: int):
         self.actor_id = actor_id
-        self.speed_list = [[]]
-        self.acc_list = [[]]
-        self.ttc_list = [[]]
+        self.speed_list: List[List[float]] = [[]]
+        self.acc_list: List[List[float]] = [[]]
+        self.ttc_list: List[List[float]] = [[]]
 
         self.count = 0
 
@@ -70,7 +71,7 @@ class PlanDebugHelper(object):
                 self.acc_list[0].append((self.speed_list[0][-1] - self.speed_list[0][-2]) / 0.05)
             self.ttc_list[0].append(ttc)
 
-    def evaluate(self):
+    def evaluate(self) -> Tuple[Any, str]:
         """
         Evaluate the target vehicle and visualize the plot.
 

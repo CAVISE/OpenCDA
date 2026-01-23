@@ -58,7 +58,7 @@ class FpvrcnnPostprocessor(VoxelPostprocessor):
         else:
             return self.post_process_stage2(data_dict)
 
-    def post_process_stage1(self, data_dict: Dict[str, Any], output_dict: Dict[str, Any]) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
+    def post_process_stage1(self, data_dict: Dict[str, Any], output_dict: Dict[str, Any]) -> Tuple[Optional[List[torch.Tensor]], Optional[List[torch.Tensor]]]:
         """
         Process the first stage outputs of the model to 3D bounding boxes.
 

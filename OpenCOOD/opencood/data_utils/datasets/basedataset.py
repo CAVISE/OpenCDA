@@ -10,7 +10,7 @@ import os
 import math
 import logging
 from collections import OrderedDict
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Dict, List, Any, Optional, Tuple, cast
 
 import torch
 import numpy as np
@@ -174,10 +174,10 @@ class BaseDataset(Dataset):
                 else:
                     self.scenario_database[i][cav_id]["ego"] = False
 
-    def __len__(self):
+    def __len__(self) -> int:
         return self.len_record[-1]
 
-    def __getitem__(self, idx: int):
+    def __getitem__(self, idx: int) -> Dict[str, Any]:
         """
         Abstract method, needs to be define by the children class.
 
@@ -401,8 +401,8 @@ class BaseDataset(Dataset):
 
         np.random.seed(self.seed)
         xyz_noise = np.random.normal(0, xyz_std, 3)
-        ryp_std = np.random.normal(0, ryp_std, 3)
-        noise_pose = [pose[0] + xyz_noise[0], pose[1] + xyz_noise[1], pose[2] + xyz_noise[2], pose[3], pose[4] + ryp_std[1], pose[5]]
+        ryp_std = cast(NDArray[np.float64], np.random.normal(0, ryp_std, 3))
+        noise_pose = [pose[0] + xyz_noise[0], pose[1] + xyz_noise[1], pose[2] + xyz_noise[2], pose[3], pose[4] + ryp_std[1], pose[5]] 
         return noise_pose
 
     def reform_param(
@@ -506,7 +506,7 @@ class BaseDataset(Dataset):
             BEV occupancy map including projected points
             with shape (img_row, img_col).
         """
-        return self.pre_processor.project_points_to_bev_map(points, ratio)
+        return cast(Any, self.pre_processor).self.pre_processor.project_points_to_bev_map(points, ratio)
 
     def augment(
         self, lidar_np: NDArray[np.float64], object_bbx_center: NDArray[np.float64], object_bbx_mask: NDArray[np.float64]

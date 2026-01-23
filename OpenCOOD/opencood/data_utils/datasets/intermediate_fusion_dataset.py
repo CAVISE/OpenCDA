@@ -456,7 +456,7 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
             Dictionary containing the processed data sample with ego vehicle information.
         """
         base_data_dict = self.retrieve_base_data(idx, cur_ego_pose_flag=self.cur_ego_pose_flag)
-        processed_data_dict = OrderedDict()
+        processed_data_dict: OrderedDict = OrderedDict()
         processed_data_dict["ego"] = {}
 
         ego_id, ego_lidar_pose = self.__find_ego_vehicle(base_data_dict)
@@ -567,7 +567,7 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
         Dict[str, List[Any]]
             Dictionary where key is feature name and value is list of features.
         """
-        merged_feature_dict = OrderedDict()
+        merged_feature_dict: OrderedDict = OrderedDict()
 
         for i in range(len(processed_feature_list)):
             for feature_name, feature in processed_feature_list[i].items():

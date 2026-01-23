@@ -48,10 +48,10 @@ class BevPostprocessor(BasePostprocessor):
         self.target_mean = np.array([0.008, 0.001, 0.202, 0.2, 0.43, 1.368])
         self.target_std_dev = np.array([0.866, 0.5, 0.954, 0.668, 0.09, 0.111])
 
-    def generate_anchor_box(self):
+    def generate_anchor_box(self) -> None:
         return None
 
-    def generate_label(self, **kwargs) -> Dict[str, np.ndarray]:
+    def generate_label(self, **kwargs: Any) -> Dict[str, np.ndarray]:
         """
         Generate targets for training.
 

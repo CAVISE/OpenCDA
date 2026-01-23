@@ -190,7 +190,7 @@ class CollisionChecker:
         #         255, 255, 0) if overtake else carla.Color(
         #         255, 255, 255), size=0.05, lt=0.2)
 
-        return rx, ry, ryaw
+        return rx, ry, ryaw # NOTE: calc_position returns Optional;
 
     def collision_circle_check(
         self,

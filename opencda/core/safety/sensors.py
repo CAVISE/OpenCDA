@@ -6,7 +6,7 @@ off-road situations, and traffic light violations in CARLA simulator.
 """
 
 import math
-from typing import List, Dict, Any
+from typing import Deque, List, Dict, Any, Tuple
 
 import numpy as np
 import carla
@@ -53,7 +53,7 @@ class CollisionSensor(object):
 
         self.collided = False
         self.collided_frame = -1  # noqa: DC05
-        self._history = deque(maxlen=params["history_size"])
+        self._history: Deque[Tuple[int, float]] = deque(maxlen=params["history_size"])
         self._threshold = params["col_thresh"]
 
     @staticmethod
@@ -78,10 +78,10 @@ class CollisionSensor(object):
             self.collided = True
             self.collided_frame = event.frame  # noqa: DC05
 
-    def return_status(self):
+    def return_status(self) -> Dict[str, bool]:
         return {"collision": self.collided}
 
-    def tick(self, data_dict):
+    def tick(self, data_dict: Dict) -> None:
         pass
 
     def destroy(self) -> None:
@@ -114,14 +114,14 @@ class StuckDetector(object):
         Flag indicating if vehicle is stuck.
     """
 
-    def __init__(self, params):
-        self._speed_queue = deque(maxlen=params["len_thresh"])
+    def __init__(self, params: Dict[str, Any]):
+        self._speed_queue: Deque[float] = deque(maxlen=params["len_thresh"])
         self._len_thresh = params["len_thresh"]
         self._speed_thresh = params["speed_thresh"]
 
         self.stuck = False
 
-    def tick(self, data_dict) -> None:
+    def tick(self, data_dict: Dict[str, Any]) -> None:
         """
         Update one tick
 
@@ -138,10 +138,10 @@ class StuckDetector(object):
                 return
         self.stuck = False
 
-    def return_status(self):
+    def return_status(self) -> Dict[str, bool]:
         return {"stuck": self.stuck}
 
-    def destroy(self):
+    def destroy(self) -> None:
         """
         Clear speed history
         """
@@ -165,10 +165,10 @@ class OffRoadDetector(object):
         Flag indicating if vehicle is off the road.
     """
 
-    def __init__(self, params):
+    def __init__(self, params: Dict[str, Any]) -> None:
         self.off_road = False
 
-    def tick(self, data_dict) -> None:
+    def tick(self, data_dict: Dict[str, Any]) -> None:
         """
         Update one tick
 
@@ -189,10 +189,10 @@ class OffRoadDetector(object):
         else:
             self.off_road = False
 
-    def return_status(self):
+    def return_status(self) -> Dict[str, bool]:
         return {"offroad": self.off_road}
 
-    def destroy(self):
+    def destroy(self) -> None:
         pass
 
 
@@ -376,9 +376,9 @@ class TrafficLightDector(object):
             area.append(point_location)
 
         # Get the waypoints of these points, removing duplicates
-        ini_wps = []
+        ini_wps: List[carla.Waypoint] = []
         for pt in area:
-            wpx = self._map.get_waypoint(pt)
+            wpx = self._map.get_waypoint(pt) #NOTE self._map can be none
             # As x_values are arranged in order, only the last one has to be checked
             if not ini_wps or ini_wps[-1].road_id != wpx.road_id or ini_wps[-1].lane_id != wpx.lane_id:
                 ini_wps.append(wpx)
@@ -396,8 +396,8 @@ class TrafficLightDector(object):
 
         return wps
 
-    def return_status(self):
+    def return_status(self) -> Dict[str, bool]:
         return {"ran_light": self.ran_light}
 
-    def destroy(self):
+    def destroy(self) -> None:
         pass
