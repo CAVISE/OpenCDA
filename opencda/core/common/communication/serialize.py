@@ -4,10 +4,22 @@
 """
 
 from contextlib import contextmanager
+import logging
 
-from . import toolchain
+logger = logging.getLogger("cavise.communication.serialize")
 
-toolchain.CommunicationToolchain.handle_messages(["capi"])
+# Avoid running protoc during import.
+# Try to import generated protobufs first; generate only if missing.
+try:
+    from .protos.cavise import capi_pb2 as proto_capi  # noqa: E402
+except Exception:
+    from . import toolchain
+    try:
+        toolchain.CommunicationToolchain.handle_messages(["capi"])
+    except FileNotFoundError:
+        # protoc is not available in some environments (e.g. Windows dev machines / minimal CI)
+        logger.warning("protoc not found; assuming generated protobufs already exist.")
+    from .protos.cavise import capi_pb2 as proto_capi  # noqa: E402
 
 from .protos.cavise import capi_pb2 as proto_capi  # noqa: E402
 from google.protobuf.descriptor import FieldDescriptor  # noqa: E402
