@@ -1,12 +1,9 @@
-# -*- coding: utf-8 -*-
 """
 Extended Kalman Filter for GPS and IMU sensor fusion.
 
 This module implements an Extended Kalman Filter (EKF) for improved vehicle
 localization by fusing GPS position measurements with IMU angular rate data.
 """
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: TDG-Attribution-NonCommercial-NoDistrib
 
 import math
 from typing import Tuple

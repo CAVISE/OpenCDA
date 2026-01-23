@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 """
 Platooning behavior manager.
 
@@ -7,8 +5,6 @@ This module provides specialized behavior agent for cooperative adaptive cruise
 control (CACC) and platooning operations, including various joining strategies
 and gap maintenance algorithms.
 """
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: TDG-Attribution-NonCommercial-NoDistrib
 
 import weakref
 from collections import deque

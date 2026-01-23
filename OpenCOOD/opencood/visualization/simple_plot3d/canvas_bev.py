@@ -11,8 +11,8 @@ from typing import Tuple, Optional, Union, List
 
 import numpy as np
 import numpy.typing as npt
-import cv2 
-import matplotlib 
+import cv2
+import matplotlib
 
 
 class Canvas_BEV_heading_right(object):

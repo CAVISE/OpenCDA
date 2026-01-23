@@ -5,7 +5,7 @@ This module implements transformer-based attention mechanisms for fusing
 features from multiple Connected and Autonomous Vehicles (CAVs).
 """
 
-from typing import Dict, Any
+from typing import Any
 
 import torch
 from torch import nn

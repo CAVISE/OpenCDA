@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Mock CARLA classes for unit testing.
 
@@ -6,9 +5,6 @@ This module provides lightweight mock implementations of CARLA classes
 (Location, Transform, Rotation, Camera, LiDAR, Vehicle, etc.) to enable
 unit testing without requiring the full CARLA simulator.
 """
-
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: MIT
 
 import numpy as np
 

@@ -1,12 +1,9 @@
-# -*- coding: utf-8 -*-
 """
 Unit tests for machine learning manager.
 
 This module contains unit tests for the MLManager class, which handles
 object detection and visualization using machine learning models.
 """
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: MIT
 
 import os
 import sys

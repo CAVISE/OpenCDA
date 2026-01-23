@@ -1,15 +1,9 @@
-# -*- coding: utf-8 -*-
 """
 PID controller implementation for vehicle control.
 
 This module provides a PID (Proportional-Integral-Derivative) controller
 for both longitudinal and lateral vehicle control in CARLA simulation.
 """
-
-# Copyright (c) # Copyright (c) 2018-2020 CVC.
-#
-# This work is licensed under the terms of the MIT license.
-# For a copy, see <https://opensource.org/licenses/MIT>.
 
 from collections import deque
 

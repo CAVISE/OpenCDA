@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Unit tests for sensor coordinate transformation functions.
 
@@ -6,8 +5,6 @@ This module contains unit tests for sensor transformation utilities including
 world-to-sensor conversions, bounding box transformations, camera intrinsics,
 and LiDAR-to-camera projection operations.
 """
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: MIT
 
 import os
 import sys

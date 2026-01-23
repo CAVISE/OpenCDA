@@ -2,7 +2,7 @@
 
 OpenCDA is a generalized framework for developing and testing **cooperative driving automation applications** (e.g., cooperative perception, platooning) as well as **autonomous vehicle components** (e.g., perception, localization, planning, control) using **multi-resolution simulators** (CARLA, SUMO).
 
-> **Note**: This is a fork of the original OpenCDA project.  
+> **Note**: This is a fork of the original OpenCDA project.
 > **Original repository**: [ucla-mobility/OpenCDA](https://github.com/ucla-mobility/OpenCDA)
 
 OpenCDA is under active development. We welcome contributions—please visit our GitHub repository for the latest updates.

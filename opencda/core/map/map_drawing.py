@@ -1,10 +1,6 @@
-# -*- coding: utf-8 -*-
 """
 Rasterization drawing functions.
 """
-
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: TDG-Attribution-NonCommercial-NoDistrib
 
 import numpy as np
 import cv2

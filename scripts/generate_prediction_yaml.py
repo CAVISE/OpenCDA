@@ -1,14 +1,9 @@
-# -*- coding: utf-8 -*-
-
 """
 Script to load dumped YAML files and generate prediction/observed trajectories for each vehicle.
 
 This module provides functionality to process simulation data, extract vehicle trajectories,
 and generate prediction and observation data for each vehicle in the simulation.
 """
-
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: TDG-Attribution-NonCommercial-NoDistrib
 
 import os
 import concurrent

@@ -9,7 +9,8 @@ All Rights Reserved 2019-2020.
 """
 
 import torch
-from typing import Union, Tuple, Optional
+
+from typing import Any, Tuple, Union, Optional
 
 from opencood.pcdet_utils.iou3d_nms import iou3d_nms_cuda
 
@@ -122,7 +123,7 @@ def boxes_iou3d_gpu(
     return iou3d
 
 
-def nms_gpu(boxes: torch.Tensor, scores: torch.Tensor, thresh: float, pre_maxsize: Optional[int] = None, **kwargs) -> Tuple[torch.Tensor, None]:
+def nms_gpu(boxes: torch.Tensor, scores: torch.Tensor, thresh: float, pre_maxsize: Optional[int] = None, **kwargs: Any) -> Tuple[torch.Tensor, None]:
     """
     Perform rotated NMS on GPU for BEV boxes.
 
@@ -158,7 +159,7 @@ def nms_gpu(boxes: torch.Tensor, scores: torch.Tensor, thresh: float, pre_maxsiz
     return order[keep[:num_out].cuda()].contiguous(), None
 
 
-def nms_normal_gpu(boxes: torch.Tensor, scores: torch.Tensor, thresh: float, **kwargs) -> Tuple[torch.Tensor, None]:
+def nms_normal_gpu(boxes: torch.Tensor, scores: torch.Tensor, thresh: float, **kwargs: Any) -> Tuple[torch.Tensor, None]:
     """
     Perform axis-aligned NMS on GPU (ignores heading).
 

@@ -1,13 +1,9 @@
-# -*- coding: utf-8 -*-
-
 """
 Visualization tools for vehicle dynamics profiles.
 
 This module provides plotting functions for velocity, acceleration, time-to-collision,
 time gap, and distance gap profiles for vehicle trajectory analysis.
 """
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License:  TDG-Attribution-NonCommercial-NoDistrib
 
 from typing import List
 import matplotlib.pyplot as plt

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Platooning plugin for V2X communication and finite state machine management.
 
@@ -6,8 +5,6 @@ This module provides the platooning application plugin that manages platoon
 membership, status tracking, and vehicle coordination within a platoon through
 V2X communication.
 """
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: TDG-Attribution-NonCommercial-NoDistrib
 
 import warnings
 from typing import Optional, Dict, List, Tuple, Any

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Controller interface for managing different types of vehicle controllers.
 
@@ -6,9 +5,6 @@ This module provides the ControlManager class which acts as a wrapper around
 different controller implementations, allowing for easy switching between
 different control algorithms while maintaining a consistent interface.
 """
-
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: TDG-Attribution-NonCommercial-NoDistrib
 
 import importlib
 from typing import Any, Dict

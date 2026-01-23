@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 """
 Shared ML model manager for multi-agent systems.
 
@@ -7,9 +5,6 @@ This module provides a centralized ML model manager that allows multiple CAVs
 (Connected Autonomous Vehicles) to share the same model instance, avoiding
 duplicate memory consumption in multi-agent cooperative perception scenarios.
 """
-
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: TDG-Attribution-NonCommercial-NoDistrib
 
 from typing import Any
 import cv2

@@ -1,10 +1,6 @@
-# -*- coding: utf-8 -*-
 """
 Utility functions for evaluation.
 """
-
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: TDG-Attribution-NonCommercial-NoDistrib
 
 import sys
 

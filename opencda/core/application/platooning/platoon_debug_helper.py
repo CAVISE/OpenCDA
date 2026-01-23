@@ -1,12 +1,9 @@
-# -*- coding: utf-8 -*-
 """
 Analysis and visualization functions for platooning behavior.
 
 This module provides debugging and statistics collection utilities for platoon
 operations, including time gap and distance gap tracking between vehicles.
 """
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: TDG-Attribution-NonCommercial-NoDistrib
 
 from opencda.core.plan.planer_debug_helper import PlanDebugHelper
 from typing import Optional

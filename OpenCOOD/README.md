@@ -207,34 +207,34 @@ We have a series of tutorials to help you understand OpenCOOD more. Please check
 ## Supported Projects
 OpenCOOD has supported several top conference papers in cooperative perception field.
 
-**V2V4Real: A large-scale real-world dataset for Vehicle-to-Vehicle Cooperative Perception** 
+**V2V4Real: A large-scale real-world dataset for Vehicle-to-Vehicle Cooperative Perception**
 [[Paper]]()[[Code]](https://github.com/ucla-mobility/V2V4Real)
 
-**Robust Collaborative 3D Object Detection in Presence of Pose Errors** 
+**Robust Collaborative 3D Object Detection in Presence of Pose Errors**
 [[Paper]](https://arxiv.org/abs/2211.07214)[[Code]](https://github.com/yifanlu0227/CoAlign)
 
-**Analyzing Infrastructure LiDAR Placement with Realistic LiDAR Simulation Library** 
+**Analyzing Infrastructure LiDAR Placement with Realistic LiDAR Simulation Library**
 [[Paper]](https://arxiv.org/abs/2211.15975)[[Code]](https://github.com/PJLab-ADG/LiDARSimLib-and-Placement-Evaluation)
 
-**Bridging the Domain Gap for Multi-Agent Perception** 
+**Bridging the Domain Gap for Multi-Agent Perception**
 [[Paper]](https://arxiv.org/pdf/2210.08451.pdf)[[Code]](https://github.com/DerrickXuNu/MPDA)
 
-**Model Agnostic Multi-agent Perception** 
+**Model Agnostic Multi-agent Perception**
 [[Paper]](https://arxiv.org/abs/2203.13168)[[Code]](https://github.com/DerrickXuNu/model_anostic)
 
-**Learning for Vehicle-to-Vehicle Cooperative Perception under Lossy Communication** 
+**Learning for Vehicle-to-Vehicle Cooperative Perception under Lossy Communication**
 [[Paper]](https://ieeexplore.ieee.org/document/10077757) [[Code]](https://github.com/jinlong17/V2VLC)
 
 **Where2comm: Communication-Efficient Collaborative Perception via Spatial Confidence Maps**
 [[Paper]](https://arxiv.org/abs/2209.12836) [[Code]](https://github.com/MediaBrain-SJTU/Where2comm)
 
-**Adaptive Feature Fusion for Cooperative Perception using LiDAR Point Clouds** 
+**Adaptive Feature Fusion for Cooperative Perception using LiDAR Point Clouds**
 [[Paper]](https://arxiv.org/abs/2208.00116)
 
-**CoBEVT: Cooperative Bird's Eye View Semantic Segmentation with Sparse Transformers** 
+**CoBEVT: Cooperative Bird's Eye View Semantic Segmentation with Sparse Transformers**
 [[Paper]](https://arxiv.org/abs/2207.02202) [[Code]](https://github.com/DerrickXuNu/CoBEVT)
 
-**V2X-ViT: Vehicle-to-Everything Cooperative Perception with Vision Transformer** 
+**V2X-ViT: Vehicle-to-Everything Cooperative Perception with Vision Transformer**
 [[Paper]](https://arxiv.org/abs/2203.10638) [[Code]](https://github.com/DerrickXuNu/v2x-vit) [[Talk]](https://course.zhidx.com/c/MmQ1YWUyMzM1M2I3YzVlZjE1NzM=)
 
 **OPV2V: An Open Benchmark Dataset and Fusion Pipeline for Perception with Vehicle-to-Vehicle Communication** <br>

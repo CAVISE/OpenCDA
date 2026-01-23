@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Co-simulation scenario manager for CARLA-SUMO integration.
 
@@ -6,8 +5,6 @@ This module provides functionality for synchronized co-simulation between CARLA
 and SUMO traffic simulators, handling vehicle spawning, state synchronization,
 and traffic light coordination.
 """
-# Author: CARLA Team, Runsheng Xu <rxx3386@ucla.edu>
-# License: MIT
 
 import os
 import logging

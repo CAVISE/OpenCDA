@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Unit tests for localization debug helper.
 
@@ -6,8 +5,6 @@ This module contains unit tests for the LocDebugHelper class, which tracks
 and evaluates localization performance by comparing GNSS measurements,
 filtered estimates, and ground truth data.
 """
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: MIT
 
 import os
 import sys

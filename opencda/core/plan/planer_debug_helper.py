@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Analysis and visualization functions for planning behavior.
 
@@ -6,11 +5,9 @@ This module provides debugging and evaluation tools for vehicle planning,
 including speed, acceleration, and time-to-collision tracking and visualization.
 """
 
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License:  TDG-Attribution-NonCommercial-NoDistrib
-from typing import Any, List, Tuple
 import warnings
 
+from typing import Any, List, Tuple
 import numpy as np
 import matplotlib.pyplot as plt
 

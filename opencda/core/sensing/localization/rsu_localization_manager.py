@@ -1,12 +1,9 @@
-# -*- coding: utf-8 -*-
 """
 Localization module for roadside units (RSU).
 
 This module provides GNSS-based localization functionality for infrastructure
 units, including coordinate transformation from WGS84 to ENU coordinate system.
 """
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: TDG-Attribution-NonCommercial-NoDistrib
 
 import weakref
 from collections import deque

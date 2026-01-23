@@ -5,7 +5,7 @@ This module implements a simple mean-pooling strategy for encoding point
 features within voxels by averaging all points in each voxel.
 """
 
-from typing import Dict, Any
+from typing import Dict
 import torch
 from torch import nn
 

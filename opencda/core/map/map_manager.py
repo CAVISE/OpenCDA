@@ -1,9 +1,4 @@
-# -*- coding: utf-8 -*-
-
 """HDMap manager"""
-
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: TDG-Attribution-NonCommercial-NoDistrib
 
 import math
 from typing import Any, Dict, List

@@ -1,12 +1,9 @@
-# -*- coding: utf-8 -*-
 """
 Unit tests for Extended Kalman Filter localization functionality.
 
 This module contains unit tests for the ExtendedKalmanFilter class used
 in vehicle localization systems with nonlinear motion models.
 """
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: MIT
 
 import os
 import sys

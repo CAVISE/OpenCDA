@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Obstacle vehicle representation for object detection.
 
@@ -6,9 +5,6 @@ This module provides classes for representing detected obstacle vehicles,
 including bounding box information, location, velocity, and integration with
 CARLA simulation and SUMO co-simulation.
 """
-
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: TDG-Attribution-NonCommercial-NoDistrib
 
 from typing import Optional, Dict, Any
 import carla
