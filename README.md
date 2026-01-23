@@ -1,7 +1,7 @@
 # OpenCDA (Fork)
 
-> **This is a fork of the original OpenCDA project**  
-> Original authors: UCLA Mobility Lab  
+> **This is a fork of the original OpenCDA project**
+> Original authors: UCLA Mobility Lab
 > Original paper: [OpenCDA: An Open Cooperative Driving Automation Framework Integrated with Co-simulation](https://arxiv.org/abs/2107.06260)
 
 ---

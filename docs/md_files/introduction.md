@@ -196,7 +196,7 @@ OpenCDA aims to accelerate CDA research by providing:
 
 ---
 
-**Original Project:** [UCLA Mobility Lab OpenCDA](https://github.com/ucla-mobility/OpenCDA)  
-**Documentation:** [OpenCDA Docs](https://opencda-documentation.readthedocs.io/)  
-**Forum:** [GitHub Discussions](https://github.com/ucla-mobility/OpenCDA/discussions)  
+**Original Project:** [UCLA Mobility Lab OpenCDA](https://github.com/ucla-mobility/OpenCDA)
+**Documentation:** [OpenCDA Docs](https://opencda-documentation.readthedocs.io/)
+**Forum:** [GitHub Discussions](https://github.com/ucla-mobility/OpenCDA/discussions)
 **Issues:** Report bugs and request features via [GitHub Issues](https://github.com/ucla-mobility/OpenCDA/issues)
