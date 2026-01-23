@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Static obstacle base classes for 3D object representation.
 
@@ -6,8 +5,6 @@ This module provides classes for representing static obstacles including boundin
 boxes, general static obstacles, and traffic lights in the CARLA simulator.
 """
 
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: TDG-Attribution-NonCommercial-NoDistrib
 import math
 
 import numpy as np

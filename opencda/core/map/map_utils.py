@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 """
 HDMap utility functions.
 
@@ -8,14 +6,11 @@ including coordinate conversions, waypoint transformations, and traffic light
 status conversions for CARLA simulation.
 """
 
-
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: TDG-Attribution-NonCommercial-NoDistrib
-
 from typing import List
 import carla
 import numpy as np
 import numpy.typing as npt
+
 
 def lateral_shift(transform: carla.Transform, shift: float) -> carla.Location:
     transform.rotation.yaw += 90

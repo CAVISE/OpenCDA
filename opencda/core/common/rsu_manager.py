@@ -1,14 +1,9 @@
-# -*- coding: utf-8 -*-
 """
 Basic class for RSU(Roadside Unit) management.
 """
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: TDG-Attribution-NonCommercial-NoDistrib
 
 import logging
 from typing import Set
-
-# CAVISE
 
 from opencda.core.common.data_dumper import DataDumper
 from opencda.core.sensing.perception.perception_manager import PerceptionManager

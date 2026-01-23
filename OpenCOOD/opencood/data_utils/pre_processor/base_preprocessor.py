@@ -5,7 +5,7 @@ This module provides base preprocessor classes for lidar point cloud data.
 """
 
 import numpy as np
-import numpy.typing as npt 
+import numpy.typing as npt
 
 from opencood.utils import pcd_utils
 from typing import Dict, Any
@@ -34,7 +34,7 @@ class BasePreprocessor:
         self.params = preprocess_params
         self.train = train
 
-    def preprocess(self, pcd_np: npt.NDArray[np.floating[Any]]) -> Dict[str, npt.NDArray[np.floating[Any]]]:  
+    def preprocess(self, pcd_np: npt.NDArray[np.floating[Any]]) -> Dict[str, npt.NDArray[np.floating[Any]]]:
         """
         Preprocess the lidar points by simple sampling.
 

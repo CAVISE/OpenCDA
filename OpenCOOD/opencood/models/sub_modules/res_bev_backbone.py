@@ -10,7 +10,7 @@ import torch
 import torch.nn as nn
 from opencood.models.sub_modules.resblock import ResNetLayers
 
-from typing import Dict, Any, Tuple
+from typing import Dict, Any
 
 
 class ResBEVBackbone(nn.Module):

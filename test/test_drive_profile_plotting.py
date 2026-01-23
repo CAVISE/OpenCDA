@@ -1,12 +1,9 @@
-# -*- coding: utf-8 -*-
 """
 Unit tests for drive profile plotting functionality.
 
 This module contains test cases for the drive profile plotting functions
 in opencda.core.plan.drive_profile_plotting module.
 """
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: MIT
 
 import os
 import sys

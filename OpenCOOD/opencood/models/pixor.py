@@ -11,8 +11,6 @@ import torch.nn as nn
 from typing import Dict, Any, List, Optional, Tuple, Type, Union
 import torch
 
-from typing import Dict, Any, List, Optional, Tuple, Type, Union
-
 
 def conv3x3(in_planes: int, out_planes: int, stride: int = 1, bias: bool = False) -> nn.Conv2d:
     """

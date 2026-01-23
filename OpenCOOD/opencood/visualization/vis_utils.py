@@ -6,7 +6,7 @@ and predictions using Open3D and Matplotlib.
 """
 
 import time
-from typing import List, Tuple, Optional, Any, Union
+from typing import List, Tuple, Any, Union
 
 import cv2
 import numpy as np

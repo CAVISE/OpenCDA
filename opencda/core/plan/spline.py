@@ -3,8 +3,6 @@ Cubic spline planner for 2D path interpolation and curvature calculation.
 
 This module provides classes for creating smooth cubic splines from discrete
 waypoints and calculating geometric properties like position, yaw, and curvature.
-
-Author: Atsushi Sakai(@Atsushi_twi)
 """
 
 import math
@@ -17,8 +15,6 @@ import bisect
 class Spline:
     """
     Cubic Spline class for calculating curvature.
-
-    Author: Atsushi Sakai(@Atsushi_twi)
 
     Parameters
     ----------
@@ -212,8 +208,6 @@ class Spline:
 class Spline2D:
     """
     2D Cubic Spline class for calculating curvature.
-
-    Author: Atsushi Sakai(@Atsushi_twi)
 
     Parameters
     ----------

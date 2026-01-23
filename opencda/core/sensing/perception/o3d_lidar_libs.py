@@ -1,10 +1,6 @@
-# -*- coding: utf-8 -*-
 """
 Utility functions for 3d lidar visualization and processing by utilizing open3d.
 """
-
-# Author: CARLA Team, Runsheng Xu <rxx3386@ucla.edu>
-# License: TDG-Attribution-NonCommercial-NoDistrib
 
 import time
 

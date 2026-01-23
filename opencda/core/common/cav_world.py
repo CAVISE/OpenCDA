@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 CAV World management for cooperative driving simulation.
 
@@ -6,8 +5,6 @@ This module provides a centralized world object that manages all connected
 and automated vehicle (CAV) information, machine learning models, and
 SUMO-CARLA ID mappings during co-simulation.
 """
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: TDG-Attribution-NonCommercial-NoDistrib
 
 import importlib
 from typing import Dict, Any, Set

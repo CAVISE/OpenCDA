@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Collision detection and checking module.
 
@@ -7,8 +6,6 @@ including range checking, adjacent lane collision detection, and circle-based
 collision checking along trajectories.
 """
 
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: TDG-Attribution-NonCommercial-NoDistrib
 import math
 from math import sin, cos
 from scipy import spatial

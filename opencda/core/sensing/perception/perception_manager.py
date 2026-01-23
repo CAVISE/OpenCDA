@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Perception module for vehicle and infrastructure sensors.
 
@@ -6,9 +5,6 @@ This module provides sensor management and object detection capabilities for
 cooperative autonomous driving, including camera, LiDAR, and semantic LiDAR
 sensors with optional visualization and ML-based detection.
 """
-
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: TDG-Attribution-NonCommercial-NoDistrib
 
 import weakref
 import sys

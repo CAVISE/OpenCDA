@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Unit test for Localization DebugHelper.
 
@@ -6,8 +5,6 @@ This module contains unit tests for the PlatoonDebugHelper class, which
 tracks and evaluates platooning performance metrics such as speed, acceleration,
 time-to-collision, and inter-vehicle gaps.
 """
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: MIT
 
 import os
 import sys

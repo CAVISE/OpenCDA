@@ -1,12 +1,9 @@
-# -*- coding: utf-8 -*-
 """
 Localization module for vehicle position and velocity estimation.
 
 This module provides GNSS and IMU sensor management with Kalman filtering
 for accurate vehicle localization in cooperative autonomous driving scenarios.
 """
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: TDG-Attribution-NonCommercial-NoDistrib
 
 import weakref
 from collections import deque

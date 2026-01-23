@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Coordinate transformation utilities for sensor and world spaces.
 
@@ -6,8 +5,6 @@ This module provides transformation functions between world coordinates and
 different sensor coordinate systems (camera, LiDAR) in CARLA simulator,
 including bounding box projections and point cloud transformations.
 """
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: TDG-Attribution-NonCommercial-NoDistrib
 
 import numpy as np
 import numpy.typing as npt

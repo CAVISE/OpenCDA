@@ -1,9 +1,6 @@
-# -*- coding: utf-8 -*-
 """
 Basic class of CAV
 """
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: TDG-Attribution-NonCommercial-NoDistrib
 
 import logging
 from typing import Set

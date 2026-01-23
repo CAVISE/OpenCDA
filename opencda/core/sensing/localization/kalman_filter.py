@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Kalman Filter implementation for GPS and IMU sensor fusion.
 
@@ -10,8 +9,6 @@ Reference
 ---------
 https://www.bzarg.com/p/how-a-kalman-filter-works-in-pictures/
 """
-# Author: Runsheng Xu <rxx3386@ucla.edu>, Xin Xia<x35xia@g.ucla.edu>
-# License: TDG-Attribution-NonCommercial-NoDistrib
 
 import math
 from typing import Tuple

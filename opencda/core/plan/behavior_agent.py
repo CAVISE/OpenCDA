@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Behavior planning module for autonomous vehicle navigation.
 
@@ -6,8 +5,6 @@ This module implements a behavior agent that handles path planning, collision
 avoidance, traffic light management, overtaking, and lane change behaviors
 for autonomous vehicles in CARLA simulator.
 """
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: TDG-Attribution-NonCommercial-NoDistrib
 
 import logging
 import sys

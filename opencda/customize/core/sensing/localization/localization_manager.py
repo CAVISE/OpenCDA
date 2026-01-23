@@ -1,12 +1,9 @@
-# -*- coding: utf-8 -*-
 """
 Customized localization module for sensor fusion-based positioning.
 
 This module extends the default OpenCDA localization manager with a customized
 Extended Kalman Filter implementation for improved position estimation.
 """
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: TDG-Attribution-NonCommercial-NoDistrib
 
 from typing import Dict, Any
 import carla

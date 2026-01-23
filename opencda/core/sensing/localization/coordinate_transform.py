@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Coordinate system transformation utilities.
 
@@ -7,8 +6,6 @@ coordinate systems, particularly WGS84 geodetic coordinates to East-North-Up
 (ENU) local coordinate system.
 """
 
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: TDG-Attribution-NonCommercial-NoDistrib
 import numpy as np
 from typing import Tuple
 

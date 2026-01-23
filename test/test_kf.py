@@ -1,12 +1,9 @@
-# -*- coding: utf-8 -*-
 """
 Unit tests for Kalman filter localization functionality.
 
 This module contains unit tests for the KalmanFilter class and coordinate
 transformation utilities used in vehicle localization systems.
 """
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: MIT
 
 import os
 import sys

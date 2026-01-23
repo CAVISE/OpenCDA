@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Visualization tools for localization debugging and analysis.
 
@@ -6,8 +5,6 @@ This module provides utilities for visualizing and evaluating localization
 algorithms by comparing GNSS measurements, filtered estimates, and ground truth
 data through trajectory plots and error analysis.
 """
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: TDG-Attribution-NonCommercial-NoDistrib
 
 from typing import Dict, Any, List, Tuple
 import numpy as np

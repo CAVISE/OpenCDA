@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 """
 Platooning management for cooperative driving.
 
@@ -7,9 +5,6 @@ This module provides platooning management functionality for coordinating
 multiple vehicles in a platoon formation, including leader-follower dynamics,
 member management, and performance evaluation.
 """
-
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: TDG-Attribution-NonCommercial-NoDistrib
 
 import uuid
 import weakref

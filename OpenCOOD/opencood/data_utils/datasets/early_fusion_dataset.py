@@ -169,7 +169,7 @@ class EarlyFusionDataset(basedataset.BaseDataset):
         object_id_stack = []
         projected_lidar_stack = []
 
-        ego_cav_base = base_data_dict.get(ego_id) #TODO there should be a check for None
+        ego_cav_base = base_data_dict.get(ego_id)  # TODO there should be a check for None
         ego_cav_processed = self.get_item_single_car(ego_cav_base, ego_lidar_pose)
 
         object_id_stack += ego_cav_processed["object_ids"]

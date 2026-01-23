@@ -1,10 +1,3 @@
-#!/usr/bin/env python
-
-# Copyright (c) 2020 Computer Vision Center (CVC) at the Universitat Autonoma de
-# Barcelona (UAB).
-#
-# This work is licensed under the terms of the MIT license.
-# For a copy, see <https://opensource.org/licenses/MIT>.
 """
 Generate SUMO networks from OpenDRIVE files.
 
@@ -108,7 +101,9 @@ class SumoTopology(object):
 
             s_coords = [float(edge.split(".", 1)[1]) for edge, _ in sumo_ids]
 
-            s_coords, sumo_ids = zip(*sorted(zip(s_coords, sumo_ids))) #TODO error: Incompatible types in assignment (expression has type "tuple[Any, ...]", variable has type "list[float]"
+            s_coords, sumo_ids = zip(
+                *sorted(zip(s_coords, sumo_ids))
+            )  # TODO error: Incompatible types in assignment (expression has type "tuple[Any, ...]", variable has type "list[float]"
             index = bisect.bisect_left(s_coords, s, lo=1) - 1
             return sumo_ids[index]
 
@@ -606,7 +601,7 @@ def _netconvert_carla_impl(xodr_file: str, output: str, tmpdir: str, guess_tls: 
                 # When the landmarks does not belong to a junction (i.e., belongs to a std road),
                 # we place the traffic light between that std road and its successor.
                 elif not wp.is_junction and not sumo_topology.is_junction(road_id, lane_id):
-                    from_edge, from_lane = sumo_topology.get_sumo_id(road_id, lane_id, landmark.s) #TODO error: "None" object is not iterable
+                    from_edge, from_lane = sumo_topology.get_sumo_id(road_id, lane_id, landmark.s)  # TODO error: "None" object is not iterable
 
                     for to_edge, to_lane in sumo_topology.get_successors(from_edge, from_lane):
                         tlid = SumoTrafficLight.generate_tl_id(from_edge, to_edge)
