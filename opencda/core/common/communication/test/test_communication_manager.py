@@ -2,6 +2,7 @@ import pytest
 import zmq
 from opencda.core.common.communication.manager import CommunicationManager
 
+
 def _safe_close_manager(manager: CommunicationManager) -> None:
     """
     CommunicationManager API changed over time. Some versions have close_socket/close_context,

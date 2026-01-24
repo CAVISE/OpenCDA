@@ -14,6 +14,7 @@ try:
     from .protos.cavise import capi_pb2 as proto_capi  # noqa: E402
 except Exception:
     from . import toolchain
+
     try:
         toolchain.CommunicationToolchain.handle_messages(["capi"])
     except FileNotFoundError:
