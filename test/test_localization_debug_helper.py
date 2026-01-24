@@ -43,7 +43,7 @@ class TestLocDebugHelper(unittest.TestCase):
         htrue_cols_before = self.debug_heloer.hTrue.shape[1]
         hxest_cols_before = self.debug_heloer.hxEst.shape[1]
         hz_cols_before = self.debug_heloer.hz.shape[1]
-        
+
         self.debug_heloer.run_step(10.0, 10.0, 10.0, 20.0, 10.4, 10.4, 10.4, 20.4, 10.3, 10.3, 10.3, 20.3)
 
         assert len(self.debug_heloer.gnss_x) == 1

@@ -8,6 +8,7 @@ from google.protobuf.descriptor import FieldDescriptor  # noqa: E402
 def mh():
     return MessageHandler()
 
+
 def _pick_entity_field_and_payload():
     """
     Pick a real protobuf field (other than 'id') from OpenCDA_message.entity
@@ -57,6 +58,7 @@ def _pick_entity_field_and_payload():
         return f, payload
 
     pytest.skip("No suitable protobuf fields found for OpenCDA_message.entity (other than id).")
+
 
 def test_add_new_entities(mh):
     assert mh.current_message_opencda == {}

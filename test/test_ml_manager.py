@@ -19,18 +19,20 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), ".")))
 import opencda.customize.ml_libs.ml_manager as ml_manager_module
 from opencda.customize.ml_libs.ml_manager import MLManager
 
+
 class _FakeTensor:
     """Minimal torch.Tensor-like wrapper for what draw_2d_box needs."""
+
     def __init__(self, arr):
         self._arr = np.asarray(arr)
         self.is_cuda = False
 
     def cpu(self):
         return self
-    
+
     def detach(self):
         return self
-    
+
     def numpy(self):
         return self._arr
 
@@ -79,8 +81,6 @@ class _FakeDetector:
 
     def __call__(self, img):
         return _FakeDetections(img)
-
- 
 
 
 class TestMlManager(unittest.TestCase):

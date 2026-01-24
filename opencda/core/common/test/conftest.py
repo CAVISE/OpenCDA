@@ -6,15 +6,29 @@ import pytest
 # Global storage for original modules to restore later
 _ORIGINAL_MODULES = {}
 _MOCKED_MODULE_NAMES = [
-    "torch", "torch.cuda", "torch.utils", "torch.utils.data",
-    "open3d", "open3d.visualization", "open3d.geometry",
-    "opencood", "opencood.hypes_yaml", "opencood.hypes_yaml.yaml_utils",
-    "opencood.tools", "opencood.tools.train_utils", "opencood.tools.inference_utils",
-    "opencood.data_utils", "opencood.data_utils.datasets",
-    "opencood.visualization", "opencood.visualization.simple_vis", "opencood.visualization.vis_utils",
-    "opencood.utils", "opencood.utils.eval_utils",
-    "tqdm"
+    "torch",
+    "torch.cuda",
+    "torch.utils",
+    "torch.utils.data",
+    "open3d",
+    "open3d.visualization",
+    "open3d.geometry",
+    "opencood",
+    "opencood.hypes_yaml",
+    "opencood.hypes_yaml.yaml_utils",
+    "opencood.tools",
+    "opencood.tools.train_utils",
+    "opencood.tools.inference_utils",
+    "opencood.data_utils",
+    "opencood.data_utils.datasets",
+    "opencood.visualization",
+    "opencood.visualization.simple_vis",
+    "opencood.visualization.vis_utils",
+    "opencood.utils",
+    "opencood.utils.eval_utils",
+    "tqdm",
 ]
+
 
 def _install_mocks():
     """
@@ -31,32 +45,35 @@ def _install_mocks():
     torch.cuda = types.ModuleType("torch.cuda")
     torch.cuda.is_available = Mock(return_value=False)
     torch.device = Mock(side_effect=lambda x: f"device({x})")
-    
+
     no_grad_mock = MagicMock()
     no_grad_mock.__enter__ = Mock()
     no_grad_mock.__exit__ = Mock()
     torch.no_grad = Mock(return_value=no_grad_mock)
-    
+
     torch_utils = types.ModuleType("torch.utils")
     torch_utils_data = types.ModuleType("torch.utils.data")
     torch_utils.data = torch_utils_data
     torch.utils = torch_utils
-    
+
     class MockDataLoader:
         def __init__(self, dataset, **kwargs):
             self.dataset = dataset
             self.kwargs = kwargs
+
         def __iter__(self):
             return iter([])
+
         def __len__(self):
             return 0
+
     torch_utils_data.DataLoader = MockDataLoader
 
     # 3. Mock open3d
     o3d = types.ModuleType("open3d")
     o3d.visualization = types.ModuleType("open3d.visualization")
     o3d.geometry = types.ModuleType("open3d.geometry")
-    
+
     # Return distinct mock instances per call
     o3d.visualization.Visualizer = Mock(side_effect=lambda: MagicMock(name="VisualizerInstance"))
     o3d.geometry.PointCloud = Mock(side_effect=lambda: MagicMock(name="PointCloud"))
@@ -64,32 +81,32 @@ def _install_mocks():
 
     # 4. Mock opencood and submodules
     opencood = types.ModuleType("opencood")
-    
+
     # Submodules
     hypes_yaml = types.ModuleType("opencood.hypes_yaml")
     yaml_utils = types.ModuleType("opencood.hypes_yaml.yaml_utils")
     hypes_yaml.yaml_utils = yaml_utils
     opencood.hypes_yaml = hypes_yaml
-    
+
     tools = types.ModuleType("opencood.tools")
     train_utils = types.ModuleType("opencood.tools.train_utils")
     inference_utils = types.ModuleType("opencood.tools.inference_utils")
     tools.train_utils = train_utils
     tools.inference_utils = inference_utils
     opencood.tools = tools
-    
+
     data_utils = types.ModuleType("opencood.data_utils")
     datasets = types.ModuleType("opencood.data_utils.datasets")
     data_utils.datasets = datasets
     opencood.data_utils = data_utils
-    
+
     visualization = types.ModuleType("opencood.visualization")
     simple_vis = types.ModuleType("opencood.visualization.simple_vis")
     vis_utils = types.ModuleType("opencood.visualization.vis_utils")
     visualization.simple_vis = simple_vis
     visualization.vis_utils = vis_utils
     opencood.visualization = visualization
-    
+
     utils = types.ModuleType("opencood.utils")
     eval_utils = types.ModuleType("opencood.utils.eval_utils")
     utils.eval_utils = eval_utils
@@ -100,7 +117,7 @@ def _install_mocks():
     train_utils.create_model = Mock(return_value=MagicMock())
     train_utils.load_saved_model = Mock(return_value=(None, MagicMock()))
     train_utils.to_device = Mock(side_effect=lambda x, y: x)
-    
+
     # Inference utils
     inference_utils.inference_late_fusion = Mock(return_value=(MagicMock(), MagicMock(), MagicMock()))
     inference_utils.inference_early_fusion = Mock(return_value=(MagicMock(), MagicMock(), MagicMock()))
@@ -122,7 +139,7 @@ def _install_mocks():
     # 5. Mock tqdm
     tqdm_module = types.ModuleType("tqdm")
     tqdm_module.tqdm = lambda x, **kwargs: x
-    
+
     # Apply patches
     new_modules = {
         "torch": torch,
@@ -145,9 +162,10 @@ def _install_mocks():
         "opencood.visualization.vis_utils": vis_utils,
         "opencood.utils": utils,
         "opencood.utils.eval_utils": eval_utils,
-        "tqdm": tqdm_module
+        "tqdm": tqdm_module,
     }
     sys.modules.update(new_modules)
+
 
 def _uninstall_mocks():
     """
@@ -159,20 +177,19 @@ def _uninstall_mocks():
         elif mod_name in sys.modules:
             del sys.modules[mod_name]
 
+
 # Pytest hooks for setup/teardown at the start/end of the process
 def pytest_configure(config):
     _install_mocks()
 
+
 def pytest_unconfigure(config):
     _uninstall_mocks()
+
 
 @pytest.fixture
 def fake_heavy_deps():
     """
     Returns the currently mocked modules from sys.modules for use in tests.
     """
-    return {
-        "torch": sys.modules["torch"],
-        "opencood": sys.modules["opencood"],
-        "open3d": sys.modules["open3d"]
-    }
+    return {"torch": sys.modules["torch"], "opencood": sys.modules["opencood"], "open3d": sys.modules["open3d"]}

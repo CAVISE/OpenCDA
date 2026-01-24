@@ -8,7 +8,8 @@ import sys
 import unittest
 
 import matplotlib
-matplotlib.use('Agg')  # Non-GUI backend for CI/headless testing
+
+matplotlib.use("Agg")  # Non-GUI backend for CI/headless testing
 import matplotlib.pyplot as plt
 
 # temporary solution for relative imports in case opencda is not installed
@@ -37,7 +38,7 @@ class TestDriveProfilePlotting(unittest.TestCase):
 
     def tearDown(self):
         """Clean up matplotlib figures after each test."""
-        plt.close('all')
+        plt.close("all")
 
     def _assert_figure_created(self):
         """Helper: verify at least one axis exists on current figure."""
