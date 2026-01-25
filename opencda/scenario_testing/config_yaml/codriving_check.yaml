@@ -4,6 +4,9 @@ description: |-
 world:
   town: Town06
 
+aim:
+  model: "MTP"
+
 # First define the basic parameters of the vehicles
 vehicle_base:
   sensing:
