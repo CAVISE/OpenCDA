@@ -5,7 +5,7 @@ This module implements double convolution blocks and sequential downsampling
 using configurable kernel sizes, strides, and padding.
 """
 
-from typing import Dict, List, Union, Tuple
+from typing import Any, Dict, List, Union, Tuple
 import torch.nn as nn
 import torch
 
@@ -95,7 +95,7 @@ class DownsampleConv(nn.Module):
         List of DoubleConv blocks for sequential processing.
     """
 
-    def __init__(self, config: Dict[str, List[Union[int, Tuple[int, int]]]]):
+    def __init__(self, config: Dict[str, Any]):
         super(DownsampleConv, self).__init__()
         self.layers = nn.ModuleList([])
         input_dim = config["input_dim"]

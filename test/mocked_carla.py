@@ -8,7 +8,8 @@ unit testing without requiring the full CARLA simulator.
 
 import numpy as np
 
-from typing import Dict
+from typing import Any, Dict
+import numpy.typing as npt
 
 
 class Location(object):
@@ -161,7 +162,15 @@ class Camera(object):
         self.attributes = attributes
         self.transform = Transform(x=10, y=10, z=10)
 
-    def get_transform(self):
+    def get_transform(self) -> Transform:
+        """
+        Get the current transform of the camera.
+
+        Returns
+        -------
+        Transform
+            Current camera transform.
+        """
         return self.transform
 
 
@@ -186,7 +195,7 @@ class Lidar(object):
         self.attributes = attributes
         self.transform = Transform(x=11, y=11, z=11)
 
-    def get_transform(self):
+    def get_transform(self) -> Transform:
         """
         Get the current transform of the LiDAR.
 
@@ -219,7 +228,7 @@ class BoundingBox(object):
         Half-extents (width, length, height) of the bounding box.
     """
 
-    def __init__(self, corners):
+    def __init__(self, corners: npt.NDArray[np.floating[Any]]):
         center_x = np.mean(corners[:, 0])
         center_y = np.mean(corners[:, 1])
         center_z = np.mean(corners[:, 2])
@@ -247,7 +256,7 @@ class Vehicle(object):
         Vehicle's bounding box.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         corner = np.random.random((8, 3))
         self.transform = Transform(x=12, y=12, z=12)
         self.bounding_box = BoundingBox(corner)

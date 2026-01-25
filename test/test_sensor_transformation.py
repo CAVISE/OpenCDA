@@ -40,7 +40,7 @@ class TestSensorTransformation(unittest.TestCase):
     reference frames, as well as bounding box operations and projections.
     """
 
-    def setUp(self):
+    def setUp(self) -> None:
         # random cords, [(x, y, z, 1), n]
         self.cords = np.random.random(size=(4, 10))
         self.vehicle = mcarla.Vehicle()
@@ -53,7 +53,7 @@ class TestSensorTransformation(unittest.TestCase):
         self.rgb_image = np.random.randint(0, 255, size=(800, 600, 3)).astype("uint8")
         self.point_cloud = np.random.random(size=(100, 4))
 
-    def test_x_to_world_transformation(self):
+    def test_x_to_world_transformation(self) -> None:
         """
         Test transformation matrix generation from sensor to world frame.
 
@@ -67,7 +67,7 @@ class TestSensorTransformation(unittest.TestCase):
         assert x_to_world_transformation(self.lidar_transform).shape == (4, 4)
         assert x_to_world_transformation(self.lidar_transform)[3, 3] == 1
 
-    def test_world_to_sensor(self):
+    def test_world_to_sensor(self) -> None:
         """
         Test world-to-sensor coordinate transformation.
 
@@ -80,7 +80,7 @@ class TestSensorTransformation(unittest.TestCase):
         """
         assert world_to_sensor(self.cords, self.lidar_transform).shape == (4, self.cords.shape[1])
 
-    def test_sensor_to_world(self):
+    def test_sensor_to_world(self) -> None:
         """
         Test sensor-to-world coordinate transformation.
 
@@ -93,7 +93,7 @@ class TestSensorTransformation(unittest.TestCase):
         """
         assert sensor_to_world(self.cords, self.lidar_transform).shape == (4, self.cords.shape[1])
 
-    def test_get_camera_intrinsic(self):
+    def test_get_camera_intrinsic(self) -> None:
         """
         Test camera intrinsic matrix extraction.
 
@@ -107,7 +107,7 @@ class TestSensorTransformation(unittest.TestCase):
         assert get_camera_intrinsic(self.camera).shape == (3, 3)
         assert get_camera_intrinsic(self.camera)[2, 2] == 1
 
-    def test_create_bb_points(self):
+    def test_create_bb_points(self) -> None:
         """
         Test bounding box corner point generation.
 
@@ -121,7 +121,7 @@ class TestSensorTransformation(unittest.TestCase):
         assert create_bb_points(self.vehicle).shape == (8, 4)
         assert create_bb_points(self.vehicle)[:, 3].all() == 1
 
-    def test_bbx_to_world(self):
+    def test_bbx_to_world(self) -> None:
         """
         Test bounding box transformation to world coordinates.
 
@@ -134,7 +134,7 @@ class TestSensorTransformation(unittest.TestCase):
         """
         assert bbx_to_world(self.cords.T, self.vehicle).shape == (4, self.cords.shape[1])
 
-    def test_vehicle_to_sensor(self):
+    def test_vehicle_to_sensor(self) -> None:
         """
         Test vehicle-to-sensor coordinate transformation.
 
@@ -147,7 +147,7 @@ class TestSensorTransformation(unittest.TestCase):
         """
         assert vehicle_to_sensor(self.cords.T, self.vehicle, self.camera_transform).shape == (4, self.cords.shape[1])
 
-    def test_get_bounding_box(self):
+    def test_get_bounding_box(self) -> None:
         """
         Test 3D bounding box extraction in camera coordinates.
 
@@ -159,7 +159,7 @@ class TestSensorTransformation(unittest.TestCase):
         """
         assert get_bounding_box(self.vehicle, self.camera, self.camera_transform).shape == (8, 3)
 
-    def test_get_2d_bb(self):
+    def test_get_2d_bb(self) -> None:
         """
         Test 2D bounding box projection to image plane.
 
@@ -172,7 +172,7 @@ class TestSensorTransformation(unittest.TestCase):
         """
         assert get_2d_bb(self.vehicle, self.camera, self.camera_transform).shape == (2, 2)
 
-    def test_project_lidar_to_camera(self):
+    def test_project_lidar_to_camera(self) -> None:
         """
         Test LiDAR point cloud projection to camera image.
 

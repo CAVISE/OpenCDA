@@ -6,7 +6,7 @@ This module implements voxel-based set abstraction for processing multi-scale
 """
 
 import copy
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import torch
 import torch.nn as nn
@@ -113,13 +113,13 @@ class VoxelSetAbstraction(nn.Module):
 
     def __init__(
         self,
-        model_cfg: Dict[str, any],
+        model_cfg: Dict[str, Any],
         voxel_size: List[float],
         point_cloud_range: List[float],
         num_bev_features: Optional[int] = None,
         num_rawpoint_features: Optional[int] = None,
-        **kwargs,
-    ) -> None:
+        **kwargs: Any,
+    ):
         super().__init__()
         self.model_cfg = model_cfg
         self.voxel_size = voxel_size
@@ -152,12 +152,12 @@ class VoxelSetAbstraction(nn.Module):
 
         if "bev" in self.model_cfg["features_source"]:
             c_bev = num_bev_features
-            c_in += c_bev
+            c_in += c_bev #NOTE Unsupported operand types 
 
         if "raw_points" in self.model_cfg["features_source"]:
             mlps = copy.copy(SA_cfg["raw_points"]["mlps"])
             for k in range(len(mlps)):
-                mlps[k] = [num_rawpoint_features - 3] + mlps[k]
+                mlps[k] = [num_rawpoint_features - 3] + mlps[k] #NOTE Unsupported operand types 
 
             self.SA_rawpoints = pointnet2_stack_modules.StackSAModuleMSG(
                 radii=SA_cfg["raw_points"]["pool_radius"], nsamples=SA_cfg["raw_points"]["n_sample"], mlps=mlps, use_xyz=True, pool_method="max_pool"

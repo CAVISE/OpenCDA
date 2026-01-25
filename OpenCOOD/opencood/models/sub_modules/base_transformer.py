@@ -40,7 +40,7 @@ class PreNormResidual(nn.Module):
         self.norm = nn.LayerNorm(dim)
         self.fn = fn
 
-    def forward(self, x: torch.Tensor, **kwargs) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, **kwargs: Any) -> torch.Tensor:
         """
         Forward pass with pre-normalization and residual connection.
 
@@ -86,7 +86,7 @@ class PreNorm(nn.Module):
         self.norm = nn.LayerNorm(dim)
         self.fn = fn
 
-    def forward(self, x: torch.Tensor, **kwargs) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, **kwargs: Any) -> torch.Tensor:
         """
         Forward pass with pre-normalization.
 

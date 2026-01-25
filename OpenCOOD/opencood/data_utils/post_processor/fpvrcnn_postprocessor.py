@@ -175,7 +175,7 @@ class FpvrcnnPostprocessor(VoxelPostprocessor):
         # shape: (N, 5)
         pred_box2d_list = torch.vstack(pred_box2d_list)
         # scores
-        scores = pred_box2d_list[:, -1]
+        scores = pred_box2d_list[:, -1] # NOTE: mypy error - list doesn't support numpy-style indexing
         # predicted 3d bbx
         pred_box3d_tensor = torch.vstack(pred_box3d_list)
         pred_box3d_original = torch.vstack(pred_box3d_original_list)

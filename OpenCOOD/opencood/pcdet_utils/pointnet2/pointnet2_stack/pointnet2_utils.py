@@ -6,6 +6,7 @@ ball query, feature grouping, farthest point sampling, and feature interpolation
 All operations have custom autograd functions for efficient backpropagation.
 """
 
+from typing import Any, Tuple
 import torch
 import torch.nn as nn
 from torch.autograd import Function, Variable
@@ -21,7 +22,7 @@ class BallQuery(Function):
     """
 
     @staticmethod
-    def forward(ctx, radius: float, nsample: int, xyz: torch.Tensor, xyz_batch_cnt: torch.Tensor, new_xyz: torch.Tensor, new_xyz_batch_cnt):
+    def forward(ctx: Any, radius: float, nsample: int, xyz: torch.Tensor, xyz_batch_cnt: torch.Tensor, new_xyz: torch.Tensor, new_xyz_batch_cnt: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Find neighbors within radius for each query point.
 
@@ -62,7 +63,7 @@ class BallQuery(Function):
         return idx, empty_ball_mask
 
     @staticmethod
-    def backward(ctx, a=None):
+    def backward(ctx: Any, a: Any = None) -> Tuple[None, None, None, None]:
         return None, None, None, None
 
 
@@ -77,7 +78,7 @@ class GroupingOperation(Function):
     """
 
     @staticmethod
-    def forward(ctx, features: torch.Tensor, features_batch_cnt: torch.Tensor, idx: torch.Tensor, idx_batch_cnt: torch.Tensor):
+    def forward(ctx: Any, features: torch.Tensor, features_batch_cnt: torch.Tensor, idx: torch.Tensor, idx_batch_cnt: torch.Tensor) -> torch.Tensor:
         """
         Group features according to neighborhood indices.
 
@@ -121,7 +122,7 @@ class GroupingOperation(Function):
         return output
 
     @staticmethod
-    def backward(ctx, grad_out: torch.Tensor):
+    def backward(ctx: Any, grad_out: torch.Tensor) -> Tuple[torch.Tensor, None, None, None]:
         """
         Compute gradient with respect to input features.
 
@@ -189,7 +190,7 @@ class QueryAndGroup(nn.Module):
 
     def forward(
         self, xyz: torch.Tensor, xyz_batch_cnt: torch.Tensor, new_xyz: torch.Tensor, new_xyz_batch_cnt: torch.Tensor, features: torch.Tensor = None
-    ):
+    ) -> torch.Tensor:
         """
         Query neighbors and group their features.
 

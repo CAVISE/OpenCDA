@@ -4,6 +4,7 @@
 """
 
 from contextlib import contextmanager
+from typing import Any, Dict, Iterator, Literal, Type, Union
 
 from . import toolchain
 
@@ -15,9 +16,27 @@ from google.protobuf.descriptor import FieldDescriptor  # noqa: E402
 
 # TODO: fix docs and annotations
 class MessageHandler:
-    def __init__(self):
-        self.current_message_opencda = {}
-        self.current_message_artery = {}
+    """
+    Handler for serializing and deserializing protobuf messages.
+    
+    Manages OpenCDA and Artery message serialization/deserialization,
+    including support for NDArray custom types and validation of
+    message field types and labels.
+    
+    Attributes
+    ----------
+    current_message_opencda : Dict[str, Dict[str, Dict[str, Any]]]
+        Dictionary storing current OpenCDA messages by entity ID and module.
+    current_message_artery : Dict[str, Dict[str, Dict[str, Dict[str, Any]]]]
+        Dictionary storing current Artery messages by ego ID, entity ID, and module.
+    TYPE_MAP : Dict[str, int]
+        Mapping from type names to protobuf FieldDescriptor type constants.
+    LABEL_MAP : Dict[str, int]
+        Mapping from label names to protobuf FieldDescriptor label constants.
+    """
+    def __init__(self) -> None:
+        self.current_message_opencda: Dict[str, Dict[str, Dict[str, Any]]] = {}
+        self.current_message_artery: Dict[str, Dict[str, Dict[str, Dict[str, Any]]]] = {}
 
         self.TYPE_MAP = {
             "NDArray": FieldDescriptor.TYPE_MESSAGE,  # Custom type
@@ -48,18 +67,18 @@ class MessageHandler:
     def __serialize_ndarray(self, packed_array: dict) -> proto_capi.NDArray:
         return proto_capi.NDArray(data=packed_array["data"], shape=list(packed_array["shape"]), dtype=packed_array["dtype"])
 
-    def __deserialize_ndarray(self, ndarray_msg) -> dict:
+    def __deserialize_ndarray(self, ndarray_msg: Any) -> Dict[str, Any]:
         return {"data": ndarray_msg.data, "shape": list(ndarray_msg.shape), "dtype": ndarray_msg.dtype}
 
     @contextmanager
-    def handle_opencda_message(self, id, module):
+    def handle_opencda_message(self, id: str, module: str) -> Iterator[Dict[str, Any]]:
         if id not in self.current_message_opencda:
             self.current_message_opencda[id] = {module: {}}
 
         yield self.current_message_opencda[id][module]
 
     @contextmanager
-    def handle_artery_message(self, ego_id, id, module):
+    def handle_artery_message(self, ego_id: str, id: str, module: str) -> Iterator[Dict[str, Any]]:
         if ego_id not in self.current_message_artery:
             self.current_message_artery[ego_id] = {}
         if id not in self.current_message_artery[ego_id]:
@@ -113,7 +132,7 @@ class MessageHandler:
                             FieldDescriptor.TYPE_SFIXED32,
                             FieldDescriptor.TYPE_SFIXED64,
                         ):
-                            expected_python_type = int
+                            expected_python_type:  Union[Type[int], Type[float], Type[str], Type[bool], Literal["NDArray"]] = int
                         elif field.type in (FieldDescriptor.TYPE_FLOAT, FieldDescriptor.TYPE_DOUBLE):
                             expected_python_type = float
                         elif field.type == FieldDescriptor.TYPE_STRING:
@@ -155,7 +174,7 @@ class MessageHandler:
 
         return opencda_message.SerializeToString()
 
-    def make_artery_data(self, string) -> None:
+    def make_artery_data(self, string: bytes) -> None:
         artery_message = proto_capi.Artery_message()
         artery_message.ParseFromString(string)
 
@@ -190,7 +209,7 @@ class MessageHandler:
                             else:
                                 msg[field_name] = value
 
-    def clear_messages(self):
+    def clear_messages(self) -> None:
         # Clear opencda and artery dict messages to avoid usage of date from previous ticks
         self.current_message_opencda = {}
         self.current_message_artery = {}

@@ -10,7 +10,7 @@ import torch
 import torch.nn as nn
 from opencood.models.sub_modules.resblock import ResNetLayers
 
-from typing import Dict, Any
+from typing import Dict, Any, Tuple
 
 
 class ResBEVBackbone(nn.Module):
@@ -150,7 +150,7 @@ class ResBEVBackbone(nn.Module):
         data_dict["spatial_features_2d"] = x
         return data_dict
 
-    def decode_multiscale_feature(self, x):
+    def decode_multiscale_feature(self, x: Tuple[torch.Tensor, ...]) -> torch.Tensor:
         """
         Decode and fuse multi-scale features after intermediate fusion.
 

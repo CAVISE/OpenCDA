@@ -58,7 +58,12 @@ class SumoTopology(object):
         Dictionary mapping OpenDRIVE (road_id, lane_id) to SUMO (edge_id, lane_index) tuples.
     """
 
-    def __init__(self, topology, paths, odr2sumo_ids):
+    def __init__(
+    self,
+    topology: Dict[Tuple[str, int], Set[Tuple[str, int]]],
+    paths: Dict[Tuple[str, int], Set[Tuple[Tuple[str, int], Tuple[str, int]]]],
+    odr2sumo_ids: Dict[Tuple[str, int], Set[Tuple[str, int]]]
+):
         # Contains only standard roads.
         self._topology = topology
         # Contaions only roads that belong to a junction.
@@ -101,7 +106,7 @@ class SumoTopology(object):
 
             s_coords = [float(edge.split(".", 1)[1]) for edge, _ in sumo_ids]
 
-            s_coords, sumo_ids = zip(
+            s_coords, sumo_ids = zip(   #NOTE error: Incompatible types in assignment
                 *sorted(zip(s_coords, sumo_ids))
             )  # TODO error: Incompatible types in assignment (expression has type "tuple[Any, ...]", variable has type "list[float]"
             index = bisect.bisect_left(s_coords, s, lo=1) - 1
@@ -170,7 +175,7 @@ class SumoTopology(object):
         result = set([(connection[0][0], connection[0][1]) for connection in self._paths[(odr_road_id, odr_lane_id)]])
         return list(result)
 
-    def get_path_connectivity(self, odr_road_id, odr_lane_id):
+    def get_path_connectivity(self, odr_road_id: str, odr_lane_id: int) -> List[Tuple[Tuple[str, int], Tuple[str, int]]]:
         """
         Get full path connectivity for a junction.
 
@@ -315,15 +320,15 @@ class SumoTrafficLight(object):
     Phase = collections.namedtuple("Phase", "duration state min_dur max_dur next name")
     Connection = collections.namedtuple("Connection", "tlid from_road to_road from_lane to_lane link_index")
 
-    def __init__(self, tlid, program_id="0", offset=0, tltype="static"):
+    def __init__(self, tlid: str, program_id: str="0", offset: int =0, tltype: str="static"):
         self.id = tlid
         self.program_id = program_id
         self.offset = offset
         self.type = tltype
 
-        self.phases = []
-        self.parameters = set()
-        self.connections = set()
+        self.phases: List[SumoTrafficLight.Phase] = []
+        self.parameters: Set[Tuple[int, str]] = set()
+        self.connections: Set[SumoTrafficLight.Connection] = set()
 
     @staticmethod
     def generate_tl_id(from_edge: str, to_edge: str) -> str:
@@ -345,7 +350,7 @@ class SumoTrafficLight(object):
         return "{}:{}".format(from_edge, to_edge)
 
     @staticmethod
-    def generate_default_program(tl):
+    def generate_default_program(tl: "SumoTrafficLight") -> None:
         """
         Generate default program for the given sumo traffic light
 
@@ -372,7 +377,7 @@ class SumoTrafficLight(object):
             tl.add_phase(SumoTrafficLight.DEFAULT_DURATION_YELLOW_PHASE, "".join(phase_yellow))
             tl.add_phase(SumoTrafficLight.DEFAULT_DURATION_RED_PHASE, "".join(phase_red))
 
-    def add_phase(self, duration: int, state: str, min_dur: int = -1, max_dur: int = -1, next_phase: Optional[int] = None, name: str = ""):
+    def add_phase(self, duration: int, state: str, min_dur: int = -1, max_dur: int = -1, next_phase: Optional[int] = None, name: str = "") -> None:
         """
          Add a signal phase to the traffic light program.
 
@@ -393,7 +398,7 @@ class SumoTrafficLight(object):
         """
         self.phases.append(SumoTrafficLight.Phase(duration, state, min_dur, max_dur, next_phase, name))
 
-    def add_parameter(self, key: int, value: str):
+    def add_parameter(self, key: int, value: str) -> None:
         """
         Add a parameter to the traffic light.
 
@@ -406,7 +411,7 @@ class SumoTrafficLight(object):
         """
         self.parameters.add((key, value))
 
-    def add_connection(self, connection):
+    def add_connection(self, connection: "SumoTrafficLight.Connection") -> None:
         """
         Add a controlled connection to the traffic light.
 
@@ -458,7 +463,7 @@ class SumoTrafficLight(object):
         self.add_parameter(link_index, landmark_id)
         return True
 
-    def to_xml(self):
+    def to_xml(self) -> ET.Element:
         """
         Convert traffic light to XML element for SUMO network file.
 
@@ -478,7 +483,7 @@ class SumoTrafficLight(object):
         return xml_tag
 
 
-def _netconvert_carla_impl(xodr_file: str, output: str, tmpdir: str, guess_tls: bool = False):
+def _netconvert_carla_impl(xodr_file: str, output: str, tmpdir: str, guess_tls: bool = False) -> None:
     """
     Internal implementation of the netconvert_carla function.
 
@@ -655,7 +660,7 @@ def _netconvert_carla_impl(xodr_file: str, output: str, tmpdir: str, guess_tls: 
     tree.write(output, pretty_print=True, encoding="UTF-8", xml_declaration=True)
 
 
-def netconvert_carla(xodr_file: str, output: str, guess_tls: bool = False):
+def netconvert_carla(xodr_file: str, output: str, guess_tls: bool = False) -> None:
     """
     Generate a SUMO network file from an OpenDRIVE file.
 

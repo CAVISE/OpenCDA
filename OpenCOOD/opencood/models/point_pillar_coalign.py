@@ -69,7 +69,7 @@ class PointPillarCoAlign(nn.Module):
         Regression head for predicting bounding box parameters.
     """
 
-    def __init__(self, args):
+    def __init__(self, args: Dict[str, Any]):
         super(PointPillarCoAlign, self).__init__()
 
         # PIllar VFE

@@ -116,7 +116,7 @@ class Att_w_Warp(nn.Module):
         Self-attention module for cross-agent fusion.
     """
 
-    def __init__(self, feature_dims):
+    def __init__(self, feature_dims: int):
         super(Att_w_Warp, self).__init__()
         self.att = ScaledDotProductAttention(feature_dims)
 

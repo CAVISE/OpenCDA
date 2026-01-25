@@ -27,7 +27,7 @@ class TestDriveProfile(unittest.TestCase):
     acceleration, and other metrics over time.
     """
 
-    def setUp(self):
+    def setUp(self) -> None:
         """
         Set up test fixtures.
 
@@ -40,7 +40,7 @@ class TestDriveProfile(unittest.TestCase):
         """
         self.mock_list = [[23, 25, 25, 44, 66], [44, 55, 25, 22, 33]]
 
-    def test_sub_plot(self):
+    def test_sub_plot(self) -> None:
         """
         Test subplot generation with multiple metric lists.
 

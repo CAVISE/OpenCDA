@@ -6,7 +6,7 @@ through a sparse 3D convolutional network, followed by a 2D BEV (Bird's Eye View
 backbone for efficient 3D object detection.
 """
 
-from typing import Any
+from typing import Any, Dict
 
 import torch
 import torch.nn as nn
@@ -59,7 +59,7 @@ class Second(nn.Module):
         Regression head for predicting bounding box parameters.
     """
 
-    def __init__(self, args):
+    def __init__(self, args: Dict[str, Any]):
         super(Second, self).__init__()
 
         self.batch_size = args["batch_size"]

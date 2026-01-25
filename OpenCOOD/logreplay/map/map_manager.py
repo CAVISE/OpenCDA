@@ -9,7 +9,7 @@ and dynamic agents into bird's-eye view (BEV) representations.
 import math
 import os.path
 import uuid
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Optional, Tuple
 
 import cv2
 import carla
@@ -84,10 +84,10 @@ class MapManager(object):
         Comprehensive BEV map for visualization.
     """
 
-    def __init__(self, world, config, output_root, scene_name):
+    def __init__(self, world: carla.World, config: Dict[str, Any], output_root: str, scene_name: str):
         self.world = world
         self.carla_map = world.get_map()
-        self.center = None
+        self.center: Optional[carla.Transform] = None
         self.actor_id = None
         self.out_root = output_root
         self.scene_name = scene_name
@@ -128,12 +128,12 @@ class MapManager(object):
         self.topology = sorted(topology, key=lambda w: w.transform.location.z)
 
         # basic elements in HDMap: lane, crosswalk and traffic light
-        self.lane_info = {}
-        self.crosswalk_info = {}
-        self.traffic_light_info = {}
+        self.lane_info:  Dict[str, Dict[str, Any]] = {}
+        self.crosswalk_info: Dict[str, Dict[str, NDArray[np.float64]]] = {}
+        self.traffic_light_info: Dict[str, Dict[str, Any]] = {}
         # this is mainly used for efficient filtering
-        self.bound_info = {"lanes": {}, "crosswalks": {}}
-        self.traffic_stop_pos = []
+        self.bound_info: Dict[str, Dict[str, Any]] = {"lanes": {}, "crosswalks": {}}
+        self.traffic_stop_pos: List[Tuple[float, float]] = []
 
         self.retrieve_light_stop_pos()
         # generate information for traffic light
@@ -154,12 +154,12 @@ class MapManager(object):
         # whether to check visibility in camera for ego only
         self.visibility = config["dynamic"]["visibility"]
         # visible agent id for ego
-        self.vis_ids = []
+        self.vis_ids: List[int] = []
 
         # whether to check visibility in camera for multi-agent perspective
         self.visibility_corp = config["dynamic"]["visibility_corp"]
         # visible agent id for all vehicles
-        self.vis_corp_ids = []
+        self.vis_corp_ids: List[int] = []
 
         # bev maps
         self.dynamic_bev = 255 * np.zeros(shape=(self.raster_size[1], self.raster_size[0], 3), dtype=np.uint8)
@@ -289,7 +289,7 @@ class MapManager(object):
         final_agents = {}
 
         # convert center to list format
-        center = [self.center.location.x, self.center.location.y]
+        center = [self.center.location.x, self.center.location.y] #NOTE need a None-check
 
         for agent_id, agent in agents_dict.items():
             location = agent["location"]
@@ -316,7 +316,7 @@ class MapManager(object):
         -------
         np.ndarray: indices of elements inside radius from center
         """
-        x_center, y_center, z_center = self.center.location.x, self.center.location.y, self.center.location.z
+        x_center, y_center, z_center = self.center.location.x, self.center.location.y, self.center.location.z #NOTE need a None-check
 
         x_min_in = x_center > bounds[:, 0, 0] - half_extent
         y_min_in = y_center > bounds[:, 0, 1] - half_extent
@@ -643,14 +643,14 @@ class MapManager(object):
 
         return lane_area
 
-    def generate_agent_area(self, corners: List[List[float]]) -> NDArray[np.float64]:
+    def generate_agent_area(self, corners: NDArray[np.float64]) -> NDArray[np.float64]:
         """
         Convert the agent's bbx corners from world coordinates to
         rasterization coordinates.
 
         Parameters
         ----------
-        corners : list
+        corners : ndarray
             The four corners of the agent's bbx under world coordinate.
 
         Returns
@@ -660,7 +660,7 @@ class MapManager(object):
         # (4, 3) numpy array
         corners = np.array(corners)
         # for homogeneous transformation
-        corners = corners.T
+        corners = corners.T                                 
         corners = np.r_[corners, [np.ones(corners.shape[1])]]
         # convert to ego's coordinate frame
         corners = world_to_sensor(corners, self.center).T

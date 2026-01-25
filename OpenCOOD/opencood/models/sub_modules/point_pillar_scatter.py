@@ -38,7 +38,7 @@ class PointPillarScatter(nn.Module):
         Grid size along Z axis.
     """
 
-    def __init__(self, model_cfg):
+    def __init__(self, model_cfg: Dict):
         super().__init__()
 
         self.model_cfg = model_cfg
@@ -86,7 +86,7 @@ class PointPillarScatter(nn.Module):
             batch_spatial_features.append(spatial_feature)
 
         batch_spatial_features = torch.stack(batch_spatial_features, 0)
-        batch_spatial_features = batch_spatial_features.view(batch_size, self.num_bev_features * self.nz, self.ny, self.nx)
+        batch_spatial_features = batch_spatial_features.view(batch_size, self.num_bev_features * self.nz, self.ny, self.nx) #NOTE "list" has no attribute "view"
         batch_dict["spatial_features"] = batch_spatial_features
 
         return batch_dict

@@ -19,7 +19,7 @@ from logreplay.assets.presave_lib import bcolors
 from logreplay.map.map_manager import MapManager
 from logreplay.sensors.sensor_manager import SensorManager
 from opencood.hypes_yaml.yaml_utils import load_yaml
-from typing import Dict, List, Any, cast
+from typing import Dict, List, Any, Optional, cast
 
 
 class SceneManager:
@@ -108,7 +108,7 @@ class SceneManager:
         # used to count timestamp
         self.cur_count = 0
         # used for HDMap
-        self.map_manager = None
+        self.map_manager: Optional[MapManager] = None
 
     def start_simulator(self) -> None:
         """
@@ -237,7 +237,7 @@ class SceneManager:
         """
         for veh_id, veh_content in self.veh_dict.items():
             if "cav" in veh_content:
-                self.map_manager.run_step(veh_id, veh_content, self.veh_dict)
+                self.map_manager.run_step(veh_id, veh_content, self.veh_dict) #NOTE need a None-check
 
     def sensor_dumping(self, cur_timestamp: str) -> None:
         """
@@ -326,7 +326,7 @@ class SceneManager:
             veh_bp = blueprint_library.find(model)
             color = "0, 0, 255"
         else:
-            model = find_blue_print(bg_veh_content["extent"])
+            model = find_blue_print(bg_veh_content["extent"]) #NOTE need a None-check
             if not model:
                 print("model net found for %s" % bg_veh_id)
             veh_bp = blueprint_library.find(model)

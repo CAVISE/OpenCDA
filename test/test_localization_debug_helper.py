@@ -27,7 +27,7 @@ class TestLocDebugHelper(unittest.TestCase):
     for localization systems using GNSS, filtering, and ground truth data.
     """
 
-    def setUp(self):
+    def setUp(self) -> None:
         """
         Set up test fixtures.
 
@@ -42,7 +42,7 @@ class TestLocDebugHelper(unittest.TestCase):
         self.actor_id = 10
         self.debug_heloer = LocDebugHelper(config_yaml=config_yaml, actor_id=self.actor_id)
 
-    def test_parameters(self):
+    def test_parameters(self) -> None:
         """
         Test initialization of debug helper parameters.
 
@@ -79,7 +79,7 @@ class TestLocDebugHelper(unittest.TestCase):
 
         assert self.debug_heloer.actor_id == self.actor_id
 
-    def test_run_step(self):
+    def test_run_step(self) -> None:
         """
         Test data collection in a single simulation step.
 
@@ -99,7 +99,7 @@ class TestLocDebugHelper(unittest.TestCase):
         assert self.debug_heloer.hxEst.shape[1] == 2
         assert self.debug_heloer.hz.shape[1] == 2
 
-    def test_evaluate(self):
+    def test_evaluate(self) -> None:
         """
         Test performance evaluation and report generation.
 

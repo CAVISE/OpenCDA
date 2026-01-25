@@ -312,7 +312,7 @@ class CML(nn.Module):
         Third 3D convolution layer.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         super(CML, self).__init__()
         self.conv3d_1 = Conv3d(64, 64, 3, s=(2, 1, 1), p=(1, 1, 1))
         self.conv3d_2 = Conv3d(64, 64, 3, s=(1, 1, 1), p=(0, 1, 1))

@@ -46,7 +46,7 @@ class StackSAModuleMSG(nn.Module):
         Stored pooling method.
     """
 
-    def __init__(self, *, radii: List[float], nsamples: List[int], mlps: List[List[int]], use_xyz: bool = True, pool_method="max_pool"):
+    def __init__(self, *, radii: List[float], nsamples: List[int], mlps: List[List[int]], use_xyz: bool = True, pool_method: str="max_pool"):
         super().__init__()
 
         assert len(radii) == len(nsamples) == len(mlps)
@@ -69,7 +69,7 @@ class StackSAModuleMSG(nn.Module):
 
         self.init_weights()
 
-    def init_weights(self):
+    def init_weights(self) -> None:
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
                 nn.init.kaiming_normal_(m.weight)

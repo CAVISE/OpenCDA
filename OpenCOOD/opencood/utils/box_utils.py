@@ -12,7 +12,7 @@ import torch
 import torch.nn.functional as F
 import opencood.utils.common_utils as common_utils
 from opencood.utils.transformation_utils import x1_to_x2
-from typing import Dict, List
+from typing import Any, Dict, List, Tuple
 
 
 def corner_to_center(corner3d: npt.NDArray[np.floating], order: str = "lwh") -> npt.NDArray[np.floating]:
@@ -338,7 +338,7 @@ def get_mask_for_boxes_within_range_torch(boxes: torch.Tensor) -> torch.Tensor:
 
 def mask_boxes_outside_range_numpy(
     boxes: npt.NDArray[np.floating], limit_range: List, order: str, min_num_corners: int = 8, return_mask: bool = False
-) -> npt.NDArray[np.floating] | tuple[npt.NDArray[np.floating], npt.NDArray[np.bool_]]:
+) -> Tuple[npt.NDArray[np.float64], npt.NDArray[np.bool_]]:
     """
     Parameters
     ----------

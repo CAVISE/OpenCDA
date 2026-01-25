@@ -20,7 +20,7 @@ class SpatialFusion(nn.Module):
     multiple agents and selects the maximum activation at each spatial location.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         super(SpatialFusion, self).__init__()
 
     def regroup(self, x: torch.Tensor, record_len: torch.Tensor) -> List[torch.Tensor]:

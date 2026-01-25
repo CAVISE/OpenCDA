@@ -50,7 +50,7 @@ class BackBoneIntermediate(BackBone):
         self.fusion_net4 = AttFusion(256)
         self.fusion_net5 = AttFusion(384)
 
-    def forward(self, x: torch.Tensor, record_len: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, record_len: torch.Tensor) -> torch.Tensor: #NOTE  incompatible with supertype "BackBone"
         """
         Forward pass through backbone with intermediate fusion.
 

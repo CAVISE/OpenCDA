@@ -26,7 +26,7 @@ class MLManager(object):
         YOLOv5 object detector loaded from PyTorch Hub.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.object_detector = torch.hub.load("ultralytics/yolov5", "yolov5m")
 
     def draw_2d_box(self, result: Any, rgb_image: npt.NDArray[np.uint8], index: int) -> npt.NDArray[np.uint8]:

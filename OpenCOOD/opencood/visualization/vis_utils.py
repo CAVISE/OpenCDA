@@ -117,7 +117,7 @@ def linset_assign_list(
     lineset_list1: List[o3d.geometry.LineSet],
     lineset_list2: List[o3d.geometry.LineSet],
     update_mode: str = "update",
-):
+) -> None:
     """
     Associate two lists of lineset.
 
@@ -241,7 +241,7 @@ def visualize_single_sample_output_gt(
         Color rendering mode. Default is "constant".
     """
 
-    def custom_draw_geometry(pcd, pred, gt):
+    def custom_draw_geometry( pcd: o3d.geometry.PointCloud, pred: List[o3d.geometry.LineSet], gt: List[o3d.geometry.LineSet]) -> None:
         vis = o3d.visualization.Visualizer()
         vis.create_window()
 

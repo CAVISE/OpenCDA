@@ -48,7 +48,7 @@ class CIASSD(nn.Module):
         Detection head for predicting bounding boxes and classifications.
     """
 
-    def __init__(self, args):
+    def __init__(self, args: Dict[str, Any]):
         super(CIASSD, self).__init__()
         lidar_range = np.array(args["lidar_range"])
         grid_size = np.round((lidar_range[3:6] - lidar_range[:3]) / np.array(args["voxel_size"])).astype(np.int64)
@@ -91,5 +91,5 @@ class CIASSD(nn.Module):
 
 
 if __name__ == "__main__":
-    model = SSFA(None)
+    model = SSFA(None) #NOTE Argument 1 to "SSFA" has incompatible type "None"; expected "dict[Any, Any]". Using Optional in the SSFA can cause problems
     print(model)

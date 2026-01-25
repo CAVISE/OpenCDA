@@ -6,7 +6,7 @@ operations, including time gap and distance gap tracking between vehicles.
 """
 
 from opencda.core.plan.planer_debug_helper import PlanDebugHelper
-from typing import Optional
+from typing import List, Optional
 
 
 class PlatoonDebugHelper(PlanDebugHelper):
@@ -32,8 +32,8 @@ class PlatoonDebugHelper(PlanDebugHelper):
     def __init__(self, actor_id: int):
         super(PlatoonDebugHelper, self).__init__(actor_id)
 
-        self.time_gap_list = [[]]
-        self.dist_gap_list = [[]]
+        self.time_gap_list: List[List[Optional[float]]] = [[]]
+        self.dist_gap_list: List[List[Optional[float]]]= [[]]
 
     def update(
         self,

@@ -10,7 +10,7 @@ import os
 import re
 import shutil
 import logging
-from typing import Optional, Any
+from typing import Dict, List, Optional, Any, Union
 from tqdm import tqdm
 
 import torch  # type: ignore
@@ -64,7 +64,7 @@ class CoperceptionModelManager:
         PyTorch DataLoader for batch processing.
     message_handler : Any or None
         V2X message handler.
-    final_result_stat : Dict[float, Dict[str, Any]]
+    final_result_stat : [float, Dict[str, Union[List[Any], int]]]
         Accumulated evaluation statistics across all predictions.
     """
 
@@ -86,27 +86,53 @@ class CoperceptionModelManager:
         self.data_loader = None
         self.message_handler = message_handler
 
-        self.final_result_stat = {
+        self.final_result_stat: Dict[float, Dict[str, Any]] = {
             0.3: {"tp": [], "fp": [], "gt": 0, "score": []},
             0.5: {"tp": [], "fp": [], "gt": 0, "score": []},
             0.7: {"tp": [], "fp": [], "gt": 0, "score": []},
         }
 
-    def make_dataset(self):
+    def make_dataset(self) -> None:
+        """
+        Build the OpenCOOD dataset and create DataLoader.
+
+        Creates dataset instance from configuration and initializes
+        DataLoader for batch processing.
+        """
         logger.info("Dataset Building")
         self.opencood_dataset = build_dataset(self.hypes, visualize=True, train=False, message_handler=self.message_handler)
-        logger.info(f"{len(self.opencood_dataset)} samples found.")
+        logger.info(f"{len(self.opencood_dataset)} samples found.") #NOTE None-check is required
         self.data_loader = DataLoader(
             self.opencood_dataset,
             batch_size=1,
             num_workers=16,
-            collate_fn=self.opencood_dataset.collate_batch_test,
+            collate_fn=self.opencood_dataset.collate_batch_test, #NOTE None-check is required
             shuffle=False,
             pin_memory=False,
             drop_last=False,
         )
 
-    def make_prediction(self, tick_number):
+    def make_prediction(self, tick_number: int) -> None:
+        """
+        Run cooperative perception inference on the dataset.
+
+        Performs model inference using specified fusion method, evaluates predictions,
+        and optionally saves/visualizes results.
+
+        Parameters
+        ----------
+        tick_number : int
+            Current simulation tick number for naming output files.
+
+        Raises
+        ------
+        AssertionError
+            If fusion method is not one of 'late', 'early', 'intermediate'.
+        AssertionError
+            If both show_vis and show_sequence options are enabled.
+        NotImplementedError
+            If fusion method is not supported.
+        """
         assert self.opt.fusion_method in ["late", "early", "intermediate"]
         assert not (self.opt.show_vis and self.opt.show_sequence), "you can only visualize the results in single image mode or video mode"
         self.model.eval()
@@ -119,7 +145,7 @@ class CoperceptionModelManager:
             0.7: {"tp": [], "fp": [], "gt": 0, "score": []},
         }
 
-        if self.opt.show_sequence:
+        if self.opt.show_sequence:  #NOTE None-check is required
             if self.vis is None:
                 self.vis = o3d.visualization.Visualizer()  # noqa: DC05
                 self.vis.create_window()  # noqa: DC05
@@ -135,7 +161,7 @@ class CoperceptionModelManager:
                 vis_aabbs_gt.append(o3d.geometry.LineSet())
                 vis_aabbs_pred.append(o3d.geometry.LineSet())
 
-        for i, batch_data in tqdm(enumerate(self.data_loader), total=len(self.data_loader)):
+        for i, batch_data in tqdm(enumerate(self.data_loader), total=len(self.data_loader)): #NOTE Argument 1 to "len" has incompatible type "None"; expected "Sized
             with torch.no_grad():
                 batch_data = train_utils.to_device(batch_data, self.device)
                 if self.opt.fusion_method == "late":
@@ -179,7 +205,7 @@ class CoperceptionModelManager:
 
                 if self.opt.show_vis:
                     vis_save_path = ""
-                    self.opencood_dataset.visualize_result(
+                    self.opencood_dataset.visualize_result( #NOTE None-check is required
                         pred_box_tensor,
                         gt_box_tensor,
                         batch_data["ego"]["origin_lidar"],
@@ -189,20 +215,20 @@ class CoperceptionModelManager:
                     )
 
                 if self.opt.show_sequence and pred_box_tensor is not None and self.hypes["postprocess"]["core_method"] != "BevPostprocessor":
-                    self.vis.clear_geometries()
+                    self.vis.clear_geometries() #NOTE None-check is required
                     pcd, pred_o3d_box, gt_o3d_box = vis_utils.visualize_inference_sample_dataloader(
                         pred_box_tensor, gt_box_tensor, batch_data["ego"]["origin_lidar"], vis_pcd, mode="constant"
                     )
                     if i == 0:
-                        self.vis.add_geometry(pcd)
+                        self.vis.add_geometry(pcd) #NOTE None-check is required
                         vis_utils.linset_assign_list(self.vis, vis_aabbs_pred, pred_o3d_box, update_mode="add")
                         vis_utils.linset_assign_list(self.vis, vis_aabbs_gt, gt_o3d_box, update_mode="add")
                     else:
                         vis_utils.linset_assign_list(self.vis, vis_aabbs_pred, pred_o3d_box)
                         vis_utils.linset_assign_list(self.vis, vis_aabbs_gt, gt_o3d_box)
-                    self.vis.update_geometry(pcd)
-                    self.vis.poll_events()
-                    self.vis.update_renderer()
+                    self.vis.update_geometry(pcd) #NOTE None-check is required
+                    self.vis.poll_events() #NOTE None-check is required
+                    self.vis.update_renderer() #NOTE None-check is required
 
         for iou in [0.3, 0.5, 0.7]:
             self.final_result_stat[iou]["gt"] += result_stat[iou]["gt"]
@@ -210,7 +236,13 @@ class CoperceptionModelManager:
             self.final_result_stat[iou]["fp"] += result_stat[iou]["fp"]
             self.final_result_stat[iou]["score"] += result_stat[iou]["score"]
 
-    def final_eval(self):
+    def final_eval(self) -> None:
+        """
+        Perform final evaluation and save results.
+
+        Evaluates accumulated predictions across all batches and saves
+        evaluation metrics to disk.
+        """
         eval_dir = f"simulation_output/coperception/results/{self.opt.test_scenario}_{self.current_time}"
         os.makedirs(eval_dir, exist_ok=True)
         eval_utils.eval_final_results(self.final_result_stat, eval_dir, self.opt.global_sort_detections)
@@ -246,7 +278,7 @@ class DirectoryProcessor:
         self.source_directory = source_directory
         self.now_directory = now_directory
 
-    def detect_cameras(self, data_directory):
+    def detect_cameras(self, data_directory: str) -> List[str]:
         inner_subdirectories = sorted([d for d in os.listdir(data_directory) if os.path.isdir(os.path.join(data_directory, d))])
         if not inner_subdirectories:
             return []
@@ -258,7 +290,7 @@ class DirectoryProcessor:
 
         return [f"_camera{cam_id}.png" for cam_id in camera_ids]
 
-    def process_directory(self, tick_number):
+    def process_directory(self, tick_number: int) -> None:
         number = f"{tick_number:06d}"
         postfixes = [".pcd", ".yaml"]
 
@@ -285,7 +317,7 @@ class DirectoryProcessor:
                 if os.path.exists(source_file_path):
                     shutil.copy(source_file_path, destination_file_path)
 
-    def clear_directory_now(self):
+    def clear_directory_now(self) -> None:
         for item in os.listdir(self.now_directory):
             item_path = os.path.join(self.now_directory, item)
             if os.path.isfile(item_path) or os.path.islink(item_path):

@@ -5,7 +5,7 @@ This module implements a simple mean-pooling strategy for encoding point
 features within voxels by averaging all points in each voxel.
 """
 
-from typing import Dict
+from typing import Any, Dict
 import torch
 from torch import nn
 
@@ -35,12 +35,12 @@ class MeanVFE(nn.Module):
         Number of point feature channels (also output dimension).
     """
 
-    def __init__(self, model_cfg: Dict, num_point_features, **kwargs):
+    def __init__(self, model_cfg: Dict, num_point_features: int, **kwargs: Any):
         super().__init__()
         self.model_cfg = model_cfg
         self.num_point_features = num_point_features
 
-    def forward(self, batch_dict, **kwargs):
+    def forward(self, batch_dict: Dict[str, Any], **kwargs: Any) -> Dict[str, Any]:
         """
         Encode voxel features by computing mean of points within each voxel.
 

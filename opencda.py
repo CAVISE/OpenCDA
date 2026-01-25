@@ -90,7 +90,7 @@ def create_logger(level: int, fmt: str = "- [%(asctime)s][%(name)s] %(message)s"
     return logger
 
 
-def install_traceback_handler(verbose: bool = True, suppress_modules: typing.Collection[str] = ()):
+def install_traceback_handler(verbose: bool = True, suppress_modules: typing.Collection[str] = ()) -> None:
     """
     Install a rich traceback handler with module filtering.
 

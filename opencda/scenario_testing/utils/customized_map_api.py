@@ -2,6 +2,7 @@
 
 import os
 import sys
+from typing import Optional
 
 import carla
 
@@ -12,7 +13,7 @@ class bcolors:
     ENDC = "\033[0m"
 
 
-def load_customized_world(xodr_path, client):
+def load_customized_world(xodr_path: str, client: carla.Client) -> Optional[carla.World]:
     """
     Load .xodr file and return the carla world object
 
@@ -23,6 +24,11 @@ def load_customized_world(xodr_path, client):
 
     client : carla.client
         The created CARLA simulation client.
+
+    Returns
+    -------
+    Optional[carla.World]
+        CARLA world object if successful, None if file not found.
     """
     if os.path.exists(xodr_path):
         with open(xodr_path) as od_file:
@@ -53,7 +59,7 @@ def load_customized_world(xodr_path, client):
         return None
 
 
-def spawn_helper_2lanefree(carla_version, coefficient):
+def spawn_helper_2lanefree(carla_version: str, coefficient: float) -> carla.Transform:
     """
     A helper function to locate the valid spawn point on the merge lane.
 

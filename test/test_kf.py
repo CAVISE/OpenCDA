@@ -27,7 +27,7 @@ class testKalmanFilter(unittest.TestCase):
     for GPS/IMU fusion-based vehicle localization.
     """
 
-    def setUp(self):
+    def setUp(self) -> None:
         """
         Set up test fixtures.
 
@@ -42,7 +42,7 @@ class testKalmanFilter(unittest.TestCase):
         self.kf = KalmanFilter(self.dt)
         self.kf.run_step_init(10, 10, 90, 20)
 
-    def test_parameters(self):
+    def test_parameters(self) -> None:
         """
         Test Kalman filter parameter initialization.
 
@@ -60,7 +60,7 @@ class testKalmanFilter(unittest.TestCase):
         assert hasattr(self.kf, "xEst") and self.kf.xEst.shape == (4, 1)
         assert hasattr(self.kf, "PEst") and self.kf.PEst.shape == (4, 4)
 
-    def test_run_step(self):
+    def test_run_step(self) -> None:
         """
         Test Kalman filter state update.
 
@@ -76,7 +76,7 @@ class testKalmanFilter(unittest.TestCase):
         assert isinstance(self.kf.run_step(10, 10, 10, 10, 3)[2], float)
         assert isinstance(self.kf.run_step(10, 10, 10, 10, 3)[3], float)
 
-    def test_geo_to_transform(self):
+    def test_geo_to_transform(self) -> None:
         """
         Test geographic to local coordinate transformation.
 

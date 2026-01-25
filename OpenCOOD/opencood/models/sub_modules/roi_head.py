@@ -258,7 +258,7 @@ class RoIHead(nn.Module):
         gt_boxes = [b[m][:, [0, 1, 2, 5, 4, 3, 6]].float() for b, m in zip(batch_dict["object_bbx_center"], batch_dict["object_bbx_mask"].bool())]
         for rois, gts in zip(pred_boxes, gt_boxes):
             gts[:, -1] *= 1
-            ious = boxes_iou3d_gpu(rois, gts)
+            ious: torch.Tensor = boxes_iou3d_gpu(rois, gts)
             max_ious, gt_inds = ious.max(dim=1)
             gt_of_rois = gts[gt_inds]
             rcnn_labels = (max_ious > 0.3).float()
@@ -317,7 +317,7 @@ class RoIHead(nn.Module):
 
         return batch_dict
 
-    def roi_grid_pool(self, batch_dict: Dict[str, Any]) -> Dict[str, Any]:
+    def roi_grid_pool(self, batch_dict: Dict[str, Any]) -> torch.Tensor:
         """
         Perform RoI-aware grid pooling using PointNet++ set abstraction.
 
@@ -364,7 +364,7 @@ class RoIHead(nn.Module):
 
         return pooled_features
 
-    def forward(self, batch_dict):
+    def forward(self, batch_dict: Dict[str, Any]) -> Dict[str, Any]:
         """
         Forward pass through RoI head.
 

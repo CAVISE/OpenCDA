@@ -54,25 +54,25 @@ class SSFA(nn.Module):
     def __init__(self, args: Dict):
         super(SSFA, self).__init__()
         # 128
-        self._num_input_features = args["feature_num"]  # noqa: DC05
+        self._num_input_features: int = args["feature_num"]  # noqa: DC05
 
         seq = [nn.ZeroPad2d(1)] + get_conv_layers(
             "Conv2d", 128, 128, n_layers=3, kernel_size=[3, 3, 3], stride=[1, 1, 1], padding=[0, 1, 1], sequential=False
         )
-        self.bottom_up_block_0 = nn.Sequential(*seq)
-        self.bottom_up_block_1 = get_conv_layers("Conv2d", 128, 256, n_layers=3, kernel_size=[3, 3, 3], stride=[2, 1, 1], padding=[1, 1, 1])
+        self.bottom_up_block_0: nn.Sequential = nn.Sequential(*seq)
+        self.bottom_up_block_1: nn.Sequential = get_conv_layers("Conv2d", 128, 256, n_layers=3, kernel_size=[3, 3, 3], stride=[2, 1, 1], padding=[1, 1, 1])
 
-        self.trans_0 = get_conv_layers("Conv2d", 128, 128, n_layers=1, kernel_size=[1], stride=[1], padding=[0])
-        self.trans_1 = get_conv_layers("Conv2d", 256, 256, n_layers=1, kernel_size=[1], stride=[1], padding=[0])
+        self.trans_0: nn.Sequential = get_conv_layers("Conv2d", 128, 128, n_layers=1, kernel_size=[1], stride=[1], padding=[0])
+        self.trans_1: nn.Sequential = get_conv_layers("Conv2d", 256, 256, n_layers=1, kernel_size=[1], stride=[1], padding=[0])
 
-        self.deconv_block_0 = get_conv_layers("ConvTranspose2d", 256, 128, n_layers=1, kernel_size=[3], stride=[2], padding=[1], output_padding=[1])
-        self.deconv_block_1 = get_conv_layers("ConvTranspose2d", 256, 128, n_layers=1, kernel_size=[3], stride=[2], padding=[1], output_padding=[1])
+        self.deconv_block_0: nn.Sequential = get_conv_layers("ConvTranspose2d", 256, 128, n_layers=1, kernel_size=[3], stride=[2], padding=[1], output_padding=[1])
+        self.deconv_block_1: nn.Sequential = get_conv_layers("ConvTranspose2d", 256, 128, n_layers=1, kernel_size=[3], stride=[2], padding=[1], output_padding=[1])
 
-        self.conv_0 = get_conv_layers("Conv2d", 128, 128, n_layers=1, kernel_size=[3], stride=[1], padding=[1])
-        self.conv_1 = get_conv_layers("Conv2d", 128, 128, n_layers=1, kernel_size=[3], stride=[1], padding=[1])
+        self.conv_0: nn.Sequential = get_conv_layers("Conv2d", 128, 128, n_layers=1, kernel_size=[3], stride=[1], padding=[1])
+        self.conv_1: nn.Sequential = get_conv_layers("Conv2d", 128, 128, n_layers=1, kernel_size=[3], stride=[1], padding=[1])
 
-        self.w_0 = get_conv_layers("Conv2d", 128, 1, n_layers=1, kernel_size=[1], stride=[1], padding=[0], relu_last=False)
-        self.w_1 = get_conv_layers("Conv2d", 128, 1, n_layers=1, kernel_size=[1], stride=[1], padding=[0], relu_last=False)
+        self.w_0: nn.Sequential = get_conv_layers("Conv2d", 128, 1, n_layers=1, kernel_size=[1], stride=[1], padding=[0], relu_last=False)
+        self.w_1: nn.Sequential = get_conv_layers("Conv2d", 128, 1, n_layers=1, kernel_size=[1], stride=[1], padding=[0], relu_last=False)
 
     # default init_weights for conv(msra) and norm in ConvModule
     def init_weights(self) -> None:
@@ -123,7 +123,7 @@ def get_conv_layers(
     padding: List[int],
     relu_last: bool = True,
     sequential: bool = True,
-    **kwargs,
+    **kwargs: List[int],
 ) -> Union[nn.Sequential, List[nn.Module]]:
     """
     Build convolutional layers with batch normalization and ReLU.

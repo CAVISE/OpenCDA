@@ -55,7 +55,7 @@ class SecondIntermediate(nn.Module):
         Regression head for predicting bounding box parameters.
     """
 
-    def __init__(self, args):
+    def __init__(self, args: Dict[str, Any]):
         super(SecondIntermediate, self).__init__()
 
         self.batch_size = args["batch_size"]

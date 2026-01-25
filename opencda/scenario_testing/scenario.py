@@ -345,7 +345,7 @@ class Scenario:
                 v.destroy()
 
 
-def run_scenario(opt: Dict, scenario_params: Dict) -> None:
+def run_scenario(opt: argparse.Namespace, scenario_params: Dict) -> None:
     raised_error = scenario = None
     try:
         scenario = Scenario(opt, scenario_params)

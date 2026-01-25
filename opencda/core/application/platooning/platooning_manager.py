@@ -153,7 +153,7 @@ class PlatooningManager(object):
                 vm.v2x_manager.set_platoon(i, leader=leader)
                 vm.v2x_manager.set_platoon_rear(self.vehicle_manager_list[i + 1])
 
-    def reset_speed(self):
+    def reset_speed(self) -> None:
         """
         Reset platoon speed to original after joining request.
 
@@ -306,7 +306,7 @@ class PlatooningManager(object):
 
         return figure, perform_txt
 
-    def destroy(self):
+    def destroy(self) -> None:
         """
         Destroy platoon vehicles actors inside simulation world.
         """

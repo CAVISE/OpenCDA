@@ -102,7 +102,7 @@ class NaiveFusion(nn.Module):
         Second convolutional layer producing final fused features.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         super(NaiveFusion, self).__init__()
         self.conv1 = Conv2d(128 * 5, 256, 3, 1, 1, batch_norm=False, bias=False)
         self.conv2 = Conv2d(256, 128, 3, 1, 1)

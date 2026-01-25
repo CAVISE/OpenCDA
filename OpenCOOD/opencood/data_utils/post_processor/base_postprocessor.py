@@ -11,6 +11,7 @@ import torch
 
 from opencood.utils import box_utils
 from typing import Dict, List, Optional, Tuple, Any
+import numpy.typing as npt
 
 
 class BasePostprocessor(object):
@@ -33,7 +34,7 @@ class BasePostprocessor(object):
 
     def __init__(self, anchor_params: Dict[str, Any], train: bool = True):
         self.params = anchor_params
-        self.bbx_dict = {}  # noqa: DC05
+        self.bbx_dict: Dict[str, npt.NDArray] = {}  # noqa: DC05
         self.train = train
 
     def generate_anchor_box(self) -> Optional[torch.Tensor]:
@@ -103,7 +104,7 @@ class BasePostprocessor(object):
         gt_box3d_list = torch.vstack(gt_box3d_list)
         # some of the bbx may be repetitive, use the id list to filter
         gt_box3d_selected_indices = [object_id_list.index(x) for x in set(object_id_list)]
-        gt_box3d_tensor = gt_box3d_list[gt_box3d_selected_indices]
+        gt_box3d_tensor = gt_box3d_list[gt_box3d_selected_indices] #NOTE different types ("list" / "tensor")
 
         # filter the gt_box to make sure all bbx are in the range
         mask = box_utils.get_mask_for_boxes_within_range_torch(gt_box3d_tensor)
@@ -141,7 +142,7 @@ class BasePostprocessor(object):
         for cav_content in cav_contents:
             tmp_object_dict.update(cav_content["params"]["vehicles"])
 
-        output_dict = {}
+        output_dict: Dict = {}
         filter_range = self.params["anchor_args"]["cav_lidar_range"] if self.train else GT_RANGE
 
         box_utils.project_world_objects(tmp_object_dict, output_dict, reference_lidar_pose, filter_range, self.params["order"])

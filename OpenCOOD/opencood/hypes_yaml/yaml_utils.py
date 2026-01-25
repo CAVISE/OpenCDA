@@ -8,7 +8,7 @@ import numpy as np
 from typing import Any, Dict, Optional
 
 
-def load_yaml(file: str, opt: Optional[Any] = None) -> Dict[str, Any]:
+def load_yaml(file: str | None, opt: Optional[Any] = None) -> Dict[str, Any]:
     """
     Load yaml file and return a dictionary.
 
@@ -27,7 +27,7 @@ def load_yaml(file: str, opt: Optional[Any] = None) -> Dict[str, Any]:
     if opt and opt.model_dir:
         file = os.path.join(opt.model_dir, "config.yaml")
 
-    stream = open(file, "r")
+    stream = open(file, "r") #NOTE need a None-check
     loader = yaml.Loader
     loader.add_implicit_resolver(
         "tag:yaml.org,2002:float",

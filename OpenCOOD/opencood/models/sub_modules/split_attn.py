@@ -5,6 +5,7 @@ This module implements split attention mechanism that adaptively weights
 features from multiple window sizes using radix softmax.
 """
 
+from typing import List
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -34,7 +35,7 @@ class RadixSoftmax(nn.Module):
         self.radix = radix
         self.cardinality = cardinality
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Apply radix softmax to compute split attention weights.
 
@@ -92,7 +93,7 @@ class SplitAttn(nn.Module):
         Radix softmax module for computing attention weights.
     """
 
-    def __init__(self, input_dim):
+    def __init__(self, input_dim: int):
         super(SplitAttn, self).__init__()
         self.input_dim = input_dim
 
@@ -103,7 +104,7 @@ class SplitAttn(nn.Module):
 
         self.rsoftmax = RadixSoftmax(3, 1)
 
-    def forward(self, window_list):
+    def forward(self, window_list: List[torch.Tensor]) -> torch.Tensor:
         """
         Fuse multi-scale window features using split attention.
 

@@ -27,7 +27,7 @@ class TestPlanDebugHelper(unittest.TestCase):
     for platooning applications.
     """
 
-    def setUp(self):
+    def setUp(self) -> None:
         """
         Set up test fixtures.
 
@@ -42,7 +42,7 @@ class TestPlanDebugHelper(unittest.TestCase):
         self.platoon_debug_helper = PlatoonDebugHelper(actor_id=self.actor_id)
         self.platoon_debug_helper.count = 100
 
-    def test_parameters(self):
+    def test_parameters(self) -> None:
         """
         Test initialization of metric tracking lists.
 
@@ -59,7 +59,7 @@ class TestPlanDebugHelper(unittest.TestCase):
         assert isinstance(self.platoon_debug_helper.time_gap_list[0], list)
         assert isinstance(self.platoon_debug_helper.dist_gap_list[0], list)
 
-    def test_update(self):
+    def test_update(self) -> None:
         """
         Test metric update functionality.
 
@@ -79,7 +79,7 @@ class TestPlanDebugHelper(unittest.TestCase):
         assert len(self.platoon_debug_helper.time_gap_list) == 1
         assert len(self.platoon_debug_helper.dist_gap_list) == 1
 
-    def test_evaluate(self):
+    def test_evaluate(self) -> None:
         """
         Test performance evaluation and report generation.
 

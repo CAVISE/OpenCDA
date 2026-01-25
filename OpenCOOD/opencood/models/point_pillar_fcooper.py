@@ -91,7 +91,7 @@ class PointPillarFCooper(nn.Module):
         if args["backbone_fix"]:
             self.backbone_fix()
 
-    def backbone_fix(self):
+    def backbone_fix(self) -> None:
         """
         Fix the parameters of backbone during fine-tuning on time delay.
 

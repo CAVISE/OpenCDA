@@ -46,7 +46,7 @@ class STTF(nn.Module):
 
     def __init__(self, args: Dict[str, Union[float, List[float], int]]):
         super(STTF, self).__init__()
-        self.discrete_ratio = args["voxel_size"][0]
+        self.discrete_ratio = args["voxel_size"][0] #NOTE Value of type "float | list[float] | int" is not indexable
         self.downsample_rate = args["downsample_rate"]
 
     def forward(self, x: torch.Tensor, mask: torch.Tensor, spatial_correction_matrix: torch.Tensor) -> torch.Tensor:

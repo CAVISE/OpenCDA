@@ -4,6 +4,7 @@ Evaluation manager.
 
 import os
 import logging
+from typing import Any
 from opencda.scenario_testing.evaluations.utils import lprint
 
 logger = logging.getLogger("cavise.evaluate_manager")
@@ -32,7 +33,7 @@ class EvaluationManager(object):
 
     """
 
-    def __init__(self, cav_world, script_name, current_time):
+    def __init__(self, cav_world: Any, script_name: str, current_time: str) -> None:
         self.cav_world = cav_world
 
         current_path = os.path.dirname(os.path.realpath(__file__))
@@ -41,7 +42,7 @@ class EvaluationManager(object):
         if not os.path.exists(self.eval_save_path):
             os.makedirs(self.eval_save_path)
 
-    def evaluate(self):
+    def evaluate(self) -> None:
         """
         Evaluate performance of all modules by plotting and writing the
         statistics into the log file.
@@ -57,7 +58,7 @@ class EvaluationManager(object):
         self.platooning_eval(log_file)
         logger.info("Platooning Evaluation Done")
 
-    def kinematics_eval(self, log_file):
+    def kinematics_eval(self, log_file: str) -> None:
         """
         vehicle kinematics related evaluation.
 
@@ -79,7 +80,7 @@ class EvaluationManager(object):
 
             lprint(log_file, perform_txt)
 
-    def localization_eval(self, log_file):
+    def localization_eval(self, log_file: str) -> None:
         """
         Localization module evaluation.
 
@@ -101,7 +102,7 @@ class EvaluationManager(object):
             # save log txt
             lprint(log_file, perform_txt)
 
-    def platooning_eval(self, log_file):
+    def platooning_eval(self, log_file: str) -> None:
         """
         Platooning evaluation.
 

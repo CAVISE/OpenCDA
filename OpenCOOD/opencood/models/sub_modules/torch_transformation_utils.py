@@ -382,32 +382,73 @@ class Test:
     spatial transformations. Not intended for production use.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         pass
 
     @staticmethod
-    def load_img():
+    def load_img() -> torch.Tensor:
+        """
+        Load a random test image tensor.
+
+        Returns
+        -------
+        torch.Tensor
+            Random tensor with shape (1, 5, 16, 400, 200).
+        """
         torch.manual_seed(0)
         x = torch.randn(1, 5, 16, 400, 200) * 100
         # x = torch.ones(1, 5, 16, 400, 200)
         return x
 
     @staticmethod
-    def load_raw_transformation_matrix(N):
+    def load_raw_transformation_matrix(N: int) -> torch.Tensor:
+        """
+        Load a raw transformation matrix with 90-degree rotation and translation.
+
+        Parameters
+        ----------
+        N : int
+            Number of matrices to generate.
+
+        Returns
+        -------
+        torch.Tensor
+            Transformation matrices with shape (1, N, 2, 3).
+        """
         a = 90 / 180 * np.pi
         matrix = torch.Tensor([[np.cos(a), -np.sin(a), 10], [np.sin(a), np.cos(a), 10]])
         matrix = torch.repeat_interleave(matrix.unsqueeze(0).unsqueeze(0), N, dim=1)
         return matrix
 
     @staticmethod
-    def load_raw_transformation_matrix2(N, alpha):
+    def load_raw_transformation_matrix2(N: int, alpha: float) -> torch.Tensor:
+        """
+        Load a raw transformation matrix with custom rotation angle.
+
+        Parameters
+        ----------
+        N : int
+            Number of matrices to generate.
+        alpha : float
+            Rotation angle in degrees.
+
+        Returns
+        -------
+        torch.Tensor
+            Transformation matrices with shape (1, N, 2, 4).
+        """
         a = alpha / 180 * np.pi
         matrix = torch.Tensor([[np.cos(a), -np.sin(a), 0, 0], [np.sin(a), np.cos(a), 0, 0]])
         matrix = torch.repeat_interleave(matrix.unsqueeze(0).unsqueeze(0), N, dim=1)
         return matrix
 
     @staticmethod
-    def test():
+    def test() -> None:
+        """
+        Test basic transformation and visualization.
+        
+        Loads an image, applies transformation, and displays the result.
+        """
         img = Test.load_img()
         B, L, C, H, W = img.shape
         raw_T = Test.load_raw_transformation_matrix(5)
@@ -418,7 +459,12 @@ class Test:
         plt.show()
 
     @staticmethod
-    def test_combine_roi_and_cav_mask():
+    def test_combine_roi_and_cav_mask() -> None:
+        """
+        Test ROI and CAV mask combination with visualization.
+        
+        Creates test data, applies mask generation, and displays the result.
+        """
         B = 2
         L = 5
         C = 16

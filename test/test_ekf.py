@@ -25,7 +25,7 @@ class testKalmanFilter(unittest.TestCase):
     vehicle localization using Extended Kalman Filter with nonlinear models.
     """
 
-    def setUp(self):
+    def setUp(self) -> None:
         """
         Set up test fixtures.
 
@@ -40,7 +40,7 @@ class testKalmanFilter(unittest.TestCase):
         self.kf = ExtentedKalmanFilter(self.dt)
         self.kf.run_step_init(10, 10, 90, 20)
 
-    def test_parameters(self):
+    def test_parameters(self) -> None:
         """
         Test Extended Kalman filter parameter initialization.
 
@@ -58,7 +58,7 @@ class testKalmanFilter(unittest.TestCase):
         assert hasattr(self.kf, "xEst") and self.kf.xEst.shape == (4, 1)
         assert hasattr(self.kf, "PEst") and self.kf.PEst.shape == (4, 4)
 
-    def test_run_step(self):
+    def test_run_step(self) -> None:
         """
         Test Extended Kalman filter state update.
 

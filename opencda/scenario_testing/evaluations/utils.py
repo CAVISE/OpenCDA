@@ -3,9 +3,10 @@ Utility functions for evaluation.
 """
 
 import sys
+from typing import Union
 
 
-def lprint(logfile, *argv):
+def lprint(logfile: str, *argv: Union[str, int, float, bool]) -> None:
     """
     Save string to log file.
 

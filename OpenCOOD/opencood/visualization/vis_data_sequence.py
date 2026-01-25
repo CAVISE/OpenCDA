@@ -14,7 +14,7 @@ from opencood.visualization import vis_utils
 from opencood.data_utils.datasets.early_fusion_vis_dataset import EarlyFusionVisDataset
 
 
-def vis_parser():
+def vis_parser() -> argparse.Namespace:
     """
     Parse command line arguments for visualization.
 

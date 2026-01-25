@@ -4,6 +4,7 @@ import collections
 import enum
 import logging
 import os
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 import carla  # pylint: disable=import-error
 import sumolib  # pylint: disable=import-error
@@ -24,6 +25,25 @@ logger = logging.getLogger("cavise.sumo_simulation")
 class SumoSignalState(object):
     """
     SumoSignalState contains the different traffic light states.
+    
+    Attributes
+    ----------
+    RED : str
+        Red light state.
+    YELLOW : str
+        Yellow light state.
+    GREEN : str
+        Green light state.
+    GREEN_WITHOUT_PRIORITY : str
+        Green without priority state.
+    GREEN_RIGHT_TURN : str
+        Green right turn state.
+    RED_YELLOW : str
+        Red-yellow light state.
+    OFF_BLINKING : str
+        Off blinking state.
+    OFF : str
+        Off state.
     """
 
     RED = "r"
@@ -40,6 +60,63 @@ class SumoSignalState(object):
 class SumoActorClass(enum.Enum):
     """
     SumoActorClass enumerates the different sumo actor classes.
+    
+    Attributes
+    ----------
+    IGNORING : str
+        Ignoring class.
+    PRIVATE : str
+        Private vehicle class.
+    EMERGENCY : str
+        Emergency vehicle class.
+    AUTHORITY : str
+        Authority vehicle class.
+    ARMY : str
+        Army vehicle class.
+    VIP : str
+        VIP vehicle class.
+    PEDESTRIAN : str
+        Pedestrian class.
+    PASSENGER : str
+        Passenger vehicle class.
+    HOV : str
+        High-occupancy vehicle class.
+    TAXI : str
+        Taxi class.
+    BUS : str
+        Bus class.
+    COACH : str
+        Coach class.
+    DELIVERY : str
+        Delivery vehicle class.
+    TRUCK : str
+        Truck class.
+    TRAILER : str
+        Trailer class.
+    MOTORCYCLE : str
+        Motorcycle class.
+    MOPED : str
+        Moped class.
+    BICYCLE : str
+        Bicycle class.
+    EVEHICLE : str
+        Electric vehicle class.
+    TRAM : str
+        Tram class.
+    RAIL_URBAN : str
+        Urban rail class.
+    RAIL : str
+        Rail class.
+    RAIL_ELECTRIC : str
+        Electric rail class.
+    RAIL_FAST : str
+        Fast rail class.
+    SHIP : str
+        Ship class.
+    CUSTOM1 : str
+        Custom class 1.
+    CUSTOM2 : str
+        Custom class 2.
     """
 
     IGNORING = "ignoring"  # noqa: DC01
@@ -81,24 +158,44 @@ SumoActor = collections.namedtuple("SumoActor", "type_id vclass transform signal
 class SumoTLLogic(object):
     """
     SumoTLLogic holds the data relative to a traffic light in sumo.
+    
+    Parameters
+    ----------
+    tlid : str
+        Traffic light ID.
+    states : List[str]
+        List of traffic light states.
+    parameters : Dict[str, Any]
+        Dictionary of traffic light parameters.
+        
+    Attributes
+    ----------
+    tlid : str
+        Traffic light ID.
+    states : List[str]
+        List of traffic light states.
+     _landmark2link : Dict[str, List[Tuple[str, str]]]
+        Maps landmark IDs to lists of (traffic light ID, link index) tuples.
+    _link2landmark : Dict[Tuple[str, str], str]
+        Maps (traffic light ID, link index) tuples to landmark IDs.
     """
 
-    def __init__(self, tlid, states, parameters):
+    def __init__(self, tlid: str, states: List[str], parameters: Dict[str, Any]):
         self.tlid = tlid
         self.states = states
 
-        self._landmark2link = {}
-        self._link2landmark = {}
+        self._landmark2link: Dict[str, List[Tuple[str, int]]] = {} #NOTE using List[Tuple[str, int] provide mistakes below but using List[Tuple[str, str]]] also provide mistakes
+        self._link2landmark: Dict[Tuple[str, str], str] = {}
         for link_index, landmark_id in parameters.items():
             # Link index information is added in the parameter as 'linkSignalID:x'
-            link_index = int(link_index.split(":")[1])
+            link_index = int(link_index.split(":")[1]) #NOTE Incompatible types in assignment (expression has type "int", variable has type "str")
 
             if landmark_id not in self._landmark2link:
                 self._landmark2link[landmark_id] = []
             self._landmark2link[landmark_id].append((tlid, link_index))
             self._link2landmark[(tlid, link_index)] = landmark_id
 
-    def get_number_signals(self):
+    def get_number_signals(self) -> int:
         """
         Returns number of internal signals of the traffic light.
         """
@@ -106,23 +203,32 @@ class SumoTLLogic(object):
             return len(self.states[0])
         return 0
 
-    def get_all_signals(self):
+    def get_all_signals(self) ->  List[Tuple[str, int]]:
         """
         Returns all the signals of the traffic light.
             :returns list: [(tlid, link_index), (tlid, link_index), ...]
         """
         return [(self.tlid, i) for i in range(self.get_number_signals())]
 
-    def get_all_landmarks(self):
+    def get_all_landmarks(self) -> Any:
         """
-        Returns all the landmarks associated with this traffic light.
+        Get number of internal signals of the traffic light.
+
+        Returns
+        -------
+        Dict_keys
+            Number of signals.
         """
         return self._landmark2link.keys()
 
-    def get_associated_signals(self, landmark_id):
+    def get_associated_signals(self, landmark_id: str) -> List[Tuple[str, int]]:
         """
-        Returns all the signals associated with the given landmark.
-            :returns list: [(tlid, link_index), (tlid, link_index), ...]
+        Get all the landmarks associated with this traffic light.
+        
+        Returns
+        -------
+        dict_keys
+            Dictionary keys containing all landmark IDs.
         """
         return self._landmark2link.get(landmark_id, [])
 
@@ -133,8 +239,8 @@ class SumoTLManager(object):
     of the current program, phase, ...)
     """
 
-    def __init__(self):
-        self._tls = {}  # {tlid: {program_id: SumoTLLogic}
+    def __init__(self) -> None:
+        self._tls: Dict[str, Dict[str, Any]] = {}  # {tlid: {program_id: SumoTLLogic}
         self._current_program = {}  # {tlid: program_id}
         self._current_phase = {}  # {tlid: index_phase}
 
@@ -155,12 +261,18 @@ class SumoTLManager(object):
         self._off = False
 
     @staticmethod
-    def subscribe(tlid):
+    def subscribe(tlid: str) -> None:
         """
-        Subscribe the given traffic ligth to the following variables:
-
-            * Current program.
-            * Current phase.
+        Subscribe the given traffic light to receive updates.
+        
+        Subscribes to the following variables:
+        - Current program
+        - Current phase
+        
+        Parameters
+        ----------
+        tlid : str
+            Traffic light ID.
         """
         traci.trafficlight.subscribe(
             tlid,
@@ -171,43 +283,77 @@ class SumoTLManager(object):
         )
 
     @staticmethod
-    def unsubscribe(tlid):
+    def unsubscribe(tlid: str) -> None:
         """
-        Unsubscribe the given traffic ligth from receiving updated information each step.
+        Unsubscribe the given traffic light from receiving updates.
+        
+        Parameters
+        ----------
+        tlid : str
+            Traffic light ID.
         """
         traci.trafficlight.unsubscribe(tlid)
 
-    def get_all_signals(self):
+    def get_all_signals(self) -> Set[Tuple[str, int]]:
         """
-        Returns all the traffic light signals.
+        Get all the traffic light signals.
+        
+        Returns
+        -------
+        Set[Tuple[str, int]]
+            Set of tuples containing (tlid, link_index).
         """
         signals = set()
         for tlid, program_id in self._current_program.items():
             signals.update(self._tls[tlid][program_id].get_all_signals())
         return signals
 
-    def get_all_landmarks(self):
+    def get_all_landmarks(self) -> Set[str]:
         """
-        Returns all the landmarks associated with a traffic light in the simulation.
+        Get all the landmarks associated with traffic lights in the simulation.
+        
+        Returns
+        -------
+        Set[str]
+            Set of landmark IDs.
         """
         landmarks = set()
         for tlid, program_id in self._current_program.items():
             landmarks.update(self._tls[tlid][program_id].get_all_landmarks())
         return landmarks
 
-    def get_all_associated_signals(self, landmark_id):
+    def get_all_associated_signals(self, landmark_id: str) -> Set[Tuple[str, int]]:
         """
-        Returns all the signals associated with the given landmark.
-            :returns list: [(tlid, link_index), (tlid, link_index), ...]
+        Get all the signals associated with the given landmark.
+        
+        Parameters
+        ----------
+        landmark_id : str
+            Landmark ID.
+        
+        Returns
+        -------
+        Set[Tuple[str, int]]
+            Set of tuples containing (tlid, link_index).
         """
         signals = set()
         for tlid, program_id in self._current_program.items():
             signals.update(self._tls[tlid][program_id].get_associated_signals(landmark_id))
         return signals
 
-    def get_state(self, landmark_id):
+    def get_state(self, landmark_id: str) -> Optional[str]:
         """
-        Returns the traffic light state of the signals associated with the given landmark.
+        Get the traffic light state of the signals associated with the given landmark.
+        
+        Parameters
+        ----------
+        landmark_id : str
+            Landmark ID.
+        
+        Returns
+        -------
+        Optional[str]
+            Traffic light state, or None if no associated signals found.
         """
         states = set()
         for tlid, link_index in self.get_all_associated_signals(landmark_id):
@@ -225,15 +371,27 @@ class SumoTLManager(object):
         else:
             return None
 
-    def set_state(self, landmark_id, state):
+    def set_state(self, landmark_id: str, state: str) -> bool:
         """
-        Updates the state of all the signals associated with the given landmark.
+        Update the state of all the signals associated with the given landmark.
+        
+        Parameters
+        ----------
+        landmark_id : str
+            Landmark ID.
+        state : str
+            New traffic light state.
+        
+        Returns
+        -------
+        bool
+            True if successfully updated.
         """
         for tlid, link_index in self.get_all_associated_signals(landmark_id):
             traci.trafficlight.setLinkState(tlid, link_index, state)
         return True
 
-    def switch_off(self):
+    def switch_off(self) -> None:
         """
         Switch off all traffic lights.
         """
@@ -241,7 +399,7 @@ class SumoTLManager(object):
             traci.trafficlight.setLinkState(tlid, link_index, SumoSignalState.OFF)
         self._off = True
 
-    def tick(self):
+    def tick(self) -> None:
         """
         Tick to traffic light manager
         """
@@ -261,12 +419,22 @@ class SumoTLManager(object):
 # ==================================================================================================
 
 
-def _get_sumo_net(cfg_file):
+def _get_sumo_net(cfg_file: str) -> Optional[sumolib.net.Net]:
     """
-    Returns sumo net.
-
-    This method reads the sumo configuration file and retrieve the sumo net filename to create the
-    net.
+    Get sumo net from configuration file.
+    
+    This method reads the sumo configuration file and retrieves the sumo net
+    filename to create the net.
+    
+    Parameters
+    ----------
+    cfg_file : str
+        Path to sumo configuration file.
+    
+    Returns
+    -------
+    Optional[sumolib.net.Net]
+        Sumo net object, or None if net file not found.
     """
     cfg_file = os.path.join(os.getcwd(), cfg_file)
 
@@ -285,9 +453,43 @@ def _get_sumo_net(cfg_file):
 class SumoSimulation(object):
     """
     SumoSimulation is responsible for the management of the sumo simulation.
+    
+    Parameters
+    ----------
+    cfg_file : str
+        Path to sumo configuration file.
+    step_length : float
+        Simulation step length.
+    host : Optional[str], optional
+        Host address for TraCI connection.
+    port : Optional[int], optional
+        Port number for TraCI connection.
+    sumo_gui : bool, optional
+        Whether to use sumo-gui, by default False.
+    client_order : int, optional
+        Client order for TraCI connection, by default 1.
+        
+    Attributes
+    ----------
+    net : Optional[sumolib.net.Net]
+        Sumo network object.
+    spawned_actors : Set[str]
+        Set of actor IDs spawned in current step.
+    destroyed_actors : Set[str]
+        Set of actor IDs destroyed in current step.
+    traffic_light_manager : SumoTLManager
+        Traffic light manager instance.
     """
 
-    def __init__(self, cfg_file, step_length, host=None, port=None, sumo_gui=False, client_order=1):
+    def __init__(
+        self,
+        cfg_file: str,
+        step_length: float,
+        host: Optional[str] = None,
+        port: Optional[int] = None,
+        sumo_gui: bool = False,
+        client_order: int = 1,
+    ):
         if sumo_gui is True:
             sumolib.checkBinary("sumo-gui")
         else:
@@ -311,30 +513,44 @@ class SumoSimulation(object):
         self._sequential_id = 0  # noqa: DC05
 
         # Structures to keep track of the spawned and destroyed vehicles at each time step.
-        self.spawned_actors = set()
-        self.destroyed_actors = set()
+        self.spawned_actors: Set[str] = set()
+        self.destroyed_actors: Set[str] = set()
 
         # Traffic light manager.
         self.traffic_light_manager = SumoTLManager()
 
     @property
-    def traffic_light_ids(self):
+    def traffic_light_ids(self)-> Set[str]:
+        """
+        Get all traffic light IDs.
+        
+        Returns
+        -------
+        Set[str]
+            Set of traffic light landmark IDs.
+        """
         return self.traffic_light_manager.get_all_landmarks()
 
     @staticmethod
-    def subscribe(actor_id):
+    def subscribe(actor_id: str) -> None:
         """
-        Subscribe the given actor to the following variables:
-
-            * Type.
-            * Vehicle class.
-            * Color.
-            * Length, Width, Height.
-            * Position3D (i.e., x, y, z).
-            * Angle, Slope.
-            * Speed.
-            * Lateral speed.
-            * Signals.
+        Subscribe the given actor to receive updates.
+        
+        Subscribes to the following variables:
+        - Type
+        - Vehicle class
+        - Color
+        - Length, Width, Height
+        - Position3D (i.e., x, y, z)
+        - Angle, Slope
+        - Speed
+        - Lateral speed
+        - Signals
+        
+        Parameters
+        ----------
+        actor_id : str
+            Actor ID.
         """
         traci.vehicle.subscribe(
             actor_id,
@@ -355,24 +571,44 @@ class SumoSimulation(object):
         )
 
     @staticmethod
-    def unsubscribe(actor_id):
+    def unsubscribe(actor_id: str) -> None:
         """
-        Unsubscribe the given actor from receiving updated information each step.
+        Unsubscribe the given actor from receiving updates.
+        
+        Parameters
+        ----------
+        actor_id : str
+            Actor ID.
         """
         traci.vehicle.unsubscribe(actor_id)
 
-    def get_net_offset(self):
+    def get_net_offset(self)-> Tuple[float, float]:
         """
-        Accessor for sumo net offset.
+        Get sumo net offset.
+        
+        Returns
+        -------
+        Tuple[float, float]
+            Net offset as (x, y) coordinates.
         """
         if self.net is None:
             return (0, 0)
         return self.net.getLocationOffset()
 
     @staticmethod
-    def get_actor(actor_id):
+    def get_actor(actor_id: str) -> SumoActor:
         """
-        Accessor for sumo actor.
+        Get sumo actor information.
+        
+        Parameters
+        ----------
+        actor_id : str
+            Actor ID.
+        
+        Returns
+        -------
+        SumoActor
+            Named tuple containing actor information.
         """
         results = traci.vehicle.getSubscriptionResults(actor_id)
 
@@ -393,22 +629,32 @@ class SumoSimulation(object):
 
         return SumoActor(type_id, vclass, transform, signals, extent, color)
 
-    def spawn_actor(self, type_id, id, color=None):
+    def spawn_actor(self, type_id: str, id: str, color: Optional[str]=None) -> Union[str, int]:
         """
-        Spawns a new actor.
-
-            :param type_id: vtype to be spawned.
-            :param color: color attribute for this specific actor.
-            :return: actor id if the actor is successfully spawned. Otherwise, INVALID_ACTOR_ID.
+        Spawn a new actor.
+        
+        Parameters
+        ----------
+        type_id : str
+            Vehicle type ID to be spawned.
+        id : str
+            Actor ID.
+        color : Optional[str]
+            Color attribute for this specific actor.
+        
+        Returns
+        -------
+        str
+            Actor ID if successfully spawned, otherwise INVALID_ACTOR_ID.
         """
         try:
             traci.vehicle.add(id, "carla_route", typeID=type_id)
         except traci.exceptions.TraCIException as error:
             logger.error(f"Spawn sumo actor failed: {error}")
-            return INVALID_ACTOR_ID
+            return INVALID_ACTOR_ID #NOTE Incompatible return value type
 
         if color is not None:
-            color = color.split(",")
+            color = color.split(",") #NOTE Incompatible types in assignment
             traci.vehicle.setColor(id, color)
 
         self._sequential_id += 1  # noqa: DC05
@@ -416,9 +662,14 @@ class SumoSimulation(object):
         return id
 
     @staticmethod
-    def destroy_actor(actor_id):
+    def destroy_actor(actor_id: str) -> None:
         """
-        Destroys the given actor.
+        Destroy the given actor.
+        
+        Parameters
+        ----------
+        actor_id : str
+            Actor ID.
         """
         # traci.vehicle.remove(actor_id)
 
@@ -427,28 +678,45 @@ class SumoSimulation(object):
         else:
             logger.warning(f"Tried to remove nonexistent SUMO actor: {actor_id}")
 
-    def get_traffic_light_state(self, landmark_id):
+    def get_traffic_light_state(self, landmark_id: str) -> Optional[str]:
         """
-        Accessor for traffic light state.
-
-        If the traffic ligth does not exist, returns None.
+        Get traffic light state.
+        
+        Parameters
+        ----------
+        landmark_id : str
+            Landmark ID.
+        
+        Returns
+        -------
+        Optional[str]
+            Traffic light state, or None if traffic light does not exist.
         """
         return self.traffic_light_manager.get_state(landmark_id)
 
-    def switch_off_traffic_lights(self):
+    def switch_off_traffic_lights(self) -> None:
         """
         Switch off all traffic lights.
         """
         self.traffic_light_manager.switch_off()
 
-    def synchronize_vehicle(self, vehicle_id, transform, signals=None):
+    def synchronize_vehicle(self, vehicle_id: str, transform: carla.Transform, signals: Optional[int]=None) -> bool:
         """
-        Updates vehicle state.
-
-            :param vehicle_id: id of the actor to be updated.
-            :param transform: new vehicle transform (i.e., position and rotation).
-            :param signals: new vehicle signals.
-            :return: True if successfully updated. Otherwise, False.
+        Update vehicle state.
+        
+        Parameters
+        ----------
+        vehicle_id : str
+            ID of the actor to be updated.
+        transform : carla.Transform
+            New vehicle transform (i.e., position and rotation).
+        signals : Optional[int], optional
+            New vehicle signals.
+        
+        Returns
+        -------
+        bool
+            True if successfully updated, False otherwise.
         """
         loc_x, loc_y = transform.location.x, transform.location.y
         yaw = transform.rotation.yaw
@@ -458,17 +726,20 @@ class SumoSimulation(object):
             traci.vehicle.setSignals(vehicle_id, signals)
         return True
 
-    def synchronize_traffic_light(self, landmark_id, state):
+    def synchronize_traffic_light(self, landmark_id: str, state: str) -> None:
         """
-        Updates traffic light state.
-
-            :param landmark_id: id of the traffic light to be updated (logic id, link index).
-            :param state: new traffic light state.
-            :return: True if successfully updated. Otherwise, False.
+        Update traffic light state.
+        
+        Parameters
+        ----------
+        landmark_id : str
+            ID of the traffic light to be updated.
+        state : str
+            New traffic light state.
         """
         self.traffic_light_manager.set_state(landmark_id, state)
 
-    def tick(self):
+    def tick(self) -> None:
         """
         Tick to sumo simulation.
         """
@@ -480,7 +751,7 @@ class SumoSimulation(object):
         self.destroyed_actors = set(traci.simulation.getArrivedIDList())
 
     @staticmethod
-    def close():
+    def close() -> None:
         """
         Closes traci client.
         """

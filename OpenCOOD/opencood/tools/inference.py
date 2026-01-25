@@ -22,7 +22,7 @@ from opencood.utils import eval_utils
 from opencood.visualization import vis_utils
 
 
-def test_parser():
+def test_parser() -> argparse.Namespace:
     """
     Parse command line arguments for the inference script.
 

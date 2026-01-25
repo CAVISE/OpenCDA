@@ -2,12 +2,21 @@
 
 import math
 import importlib
+from typing import Dict, List, Tuple, Union
 
 import numpy as np
 import carla
 
 
-def draw_trajetory_points(world: carla.World, waypoints: List, z=0.25, color=carla.Color(255, 0, 0), lt=5, size=0.1, arrow_size=0.1):
+def draw_trajetory_points(
+    world: carla.World,
+    waypoints: List[Union[carla.Waypoint, carla.Transform, Tuple[carla.Waypoint, Any], List[Any]]],
+    z: float = 0.25,
+    color: carla.Color = carla.Color(255, 0, 0),
+    lt: float = 5,
+    size: float = 0.1,
+    arrow_size: float = 0.1,
+) -> None:
     """
     Draw a list of trajectory points
 
@@ -15,19 +24,14 @@ def draw_trajetory_points(world: carla.World, waypoints: List, z=0.25, color=car
     ----------
     size : float
         Time step between updating visualized waypoint.
-
     lt : int
         Number of waypoints being visualized.
-
     color : carla.Color
         The trajectory color.
-
     world : carla.world
         The simulation world.
-
     waypoints : list
         The waypoints of the current plan.
-
     z : float
         The height of the visualized waypoint.
     """
@@ -43,7 +47,7 @@ def draw_trajetory_points(world: carla.World, waypoints: List, z=0.25, color=car
         world.debug.draw_point(wpt_t.location, size=size, color=color, life_time=lt)
 
 
-def get_speed(vehicle, meters=False):
+def get_speed(vehicle: carla.Vehicle, meters: bool=False) -> float:
     """
     Compute speed of a vehicle in Km/h.
 
@@ -51,7 +55,6 @@ def get_speed(vehicle, meters=False):
     ----------
     meters : bool
         Whether to use m/s (True) or km/h (False).
-
     vehicle : carla.vehicle
         The vehicle for which speed is calculated.
 
@@ -65,7 +68,7 @@ def get_speed(vehicle, meters=False):
     return vel_meter_per_second if meters else 3.6 * vel_meter_per_second
 
 
-def cal_distance_angle(target_location, current_location, orientation):
+def cal_distance_angle(target_location: carla.Location, current_location: carla.Location, orientation: carla.Rotation) -> Tuple[float, float]:
     """
     Calculate the vehicle current relative distance to target location.
 
@@ -73,10 +76,8 @@ def cal_distance_angle(target_location, current_location, orientation):
     ----------
     target_location : carla.Location
         The target location.
-
     current_location : carla.Location
         The current location .
-
     orientation : carla.Rotation
         Orientation of the reference object.
 
@@ -84,7 +85,6 @@ def cal_distance_angle(target_location, current_location, orientation):
     -------
     distance : float
         The measured distance from current location to target location.
-
     d_angle : float)
         The measured rotation (angle) froM current location
         to target location.
@@ -98,7 +98,7 @@ def cal_distance_angle(target_location, current_location, orientation):
     return norm_target, d_angle
 
 
-def distance_vehicle(waypoint, vehicle_transform):
+def distance_vehicle(waypoint: carla.Waypoint, vehicle_transform: carla.transform) -> float:
     """
     Returns the 2D distance from a waypoint to a vehicle
 
@@ -106,9 +106,13 @@ def distance_vehicle(waypoint, vehicle_transform):
     ----------
     waypoint : carla.Waypoint
         Actual waypoint.
-
     vehicle_transform : carla.transform
         Transform of the target vehicle.
+
+    Returns
+    -------
+    float
+        2D Euclidean distance between waypoint and vehicle.
     """
     loc = vehicle_transform.location
     if hasattr(waypoint, "is_junction"):
@@ -121,7 +125,7 @@ def distance_vehicle(waypoint, vehicle_transform):
     return math.sqrt(x * x + y * y)
 
 
-def vector(location_1, location_2):
+def vector(location_1: carla.Location, location_2: carla.Location) -> List[float]:
     """
     Returns the unit vector from location_1 to location_2.
 
@@ -129,9 +133,13 @@ def vector(location_1, location_2):
     ----------
     location_1 : carla.location
         Start location of the vector.
-
     location_2 : carla.location
         End location of the vector.
+    
+    Returns
+    -------
+    List[float]
+        Unit vector as [x, y, z] components.
     """
     x = location_2.x - location_1.x
     y = location_2.y - location_1.y
@@ -141,17 +149,21 @@ def vector(location_1, location_2):
     return [x / norm, y / norm, z / norm]
 
 
-def compute_distance(location_1, location_2):
+def compute_distance(location_1: carla.Location, location_2: carla.Location) -> float:
     """
-    Euclidean distance between 3D points.
+    Compute Euclidean distance between 3D points.
 
     Parameters
     ----------
     location_1 : carla.Location
         Start point of the measurement.
-
     location_2 : carla.Location
         End point of the measurement.
+
+    Returns
+    -------
+    float
+        Euclidean distance between the two locations.
     """
     x = location_2.x - location_1.x
     y = location_2.y - location_1.y
@@ -160,30 +172,38 @@ def compute_distance(location_1, location_2):
     return norm
 
 
-def positive(num):
+def positive(num: float) -> float:
     """
-    Return the given number if positive, else 0
+    Return the given number if positive, else 0.
+
+    Parameters
+    ----------
+    num : float
+        Input number.
+
+    Returns
+    -------
+    float
+        The number if positive, otherwise 0.0.
     """
     return num if num > 0.0 else 0.0
 
 
-def get_speed_sumo(sumo2carla_ids, carla_id):
+def get_speed_sumo(sumo2carla_ids: Dict[str, int], carla_id: int) -> float:
     """
     Get the speed of the vehicles controlled by sumo.
 
     Parameters
     ----------
-    sumo2carla_ids : dict
+    sumo2carla_ids : Dict[str, int]
         Sumo-carla mapping dictionary.
-
     carla_id : int
         Carla actor id.
 
     Returns
     -------
-    speed : float
-        The speed retrieved from the sumo server, -1 if the carla_id not
-        found.
+    float
+        The speed retrieved from the sumo server, -1 if the carla_id not found.
     """
     # python will only import this once and then save it in cache. so the
     # efficiency won't affected during the loop.

@@ -7,7 +7,7 @@ for efficient processing of voxelized point cloud data.
 
 from functools import partial
 
-from typing import Dict, List, Tuple, Optional, Union, Any
+from typing import Callable, Dict, List, Tuple, Optional, Union, Any
 import torch.nn as nn
 
 try:  # spconv1
@@ -24,7 +24,7 @@ def post_act_block(
     stride: Union[int, Tuple[int, int, int]] = 1,
     padding: Union[int, Tuple[int, int, int]] = 0,
     conv_type: str = "subm",
-    norm_fn: Optional[callable] = None,
+    norm_fn: Optional[Callable] = None,
 ) -> SparseSequential:
     """
     Create sparse convolution block with post-activation.
@@ -69,7 +69,7 @@ def post_act_block(
 
     m = SparseSequential(
         conv,
-        norm_fn(out_channels),
+        norm_fn(out_channels), #NOTE None-check is required 
         nn.ReLU(),
     )
 
@@ -119,7 +119,7 @@ class VoxelBackBone8x(nn.Module):
         Channel dimensions for each convolution stage.
     """
 
-    def __init__(self, model_cfg: Dict[str, Any], input_channels: int, grid_size: List[int], **kwargs) -> None:
+    def __init__(self, model_cfg: Dict[str, Any], input_channels: int, grid_size: List[int], **kwargs: Any) -> None:
         super().__init__()
         self.model_cfg = model_cfg
         norm_fn = partial(nn.BatchNorm1d, eps=1e-3, momentum=0.01)

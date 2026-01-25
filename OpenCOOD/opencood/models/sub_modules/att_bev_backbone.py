@@ -10,7 +10,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from typing import Dict
+from typing import Any, Dict
 from torch import Tensor
 
 from opencood.models.fuse_modules.self_attn import AttFusion
@@ -61,7 +61,7 @@ class AttBEVBackbone(nn.Module):
         Total number of output BEV feature channels.
     """
 
-    def __init__(self, model_cfg: Dict[str, any], input_channels: int):
+    def __init__(self, model_cfg: Dict[str, Any], input_channels: int):
         super().__init__()
         self.model_cfg = model_cfg
         self.compress = False

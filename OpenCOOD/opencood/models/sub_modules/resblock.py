@@ -195,7 +195,7 @@ class ResNetLayers(nn.Module):
         Whether to replace stride with dilation for each layer. Default is None.
     norm_layer : callable, optional
         Normalization layer constructor. Default is nn.BatchNorm2d.
-    inplanes : int, optional
+    inplanes : int
         Initial number of input channels. Default is 64.
 
     Attributes
@@ -233,7 +233,7 @@ class ResNetLayers(nn.Module):
         width_per_group: int = 64,
         replace_stride_with_dilation: Optional[List[bool]] = None,
         norm_layer: Optional[Callable[..., nn.Module]] = None,
-        inplanes=64,
+        inplanes: int=64,
     ):
         super(ResNetLayers, self).__init__()
 
@@ -296,7 +296,7 @@ class ResNetLayers(nn.Module):
 
         return nn.Sequential(*layers)
 
-    def forward(self, x: torch.Tensor):
+    def forward(self, x: torch.Tensor) -> List[torch.Tensor]:
         interm_features = []
 
         for i in range(self.layernum):

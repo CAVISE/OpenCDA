@@ -45,4 +45,4 @@ class CustomizedLocalizationManager(LocalizationManager):
         carla_map: carla.Map,
     ):
         super(CustomizedLocalizationManager, self).__init__(vehicle, config_yaml, carla_map)
-        self.kf = ExtentedKalmanFilter(self.dt)
+        self.kf = ExtentedKalmanFilter(self.dt) #NOTE Incompatible types in assignment (expression has type "ExtentedKalmanFilter", variable has type "KalmanFilter")

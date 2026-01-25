@@ -195,7 +195,7 @@ class Matcher(nn.Module):
         len_records = [len(c) for c in clusters]
         boxes_fused = [boxes_fused[sum(len_records[:i]) : sum(len_records[:i]) + length] for i, length in enumerate(len_records)]
         scores_fused = torch.stack(scores_fused, dim=0)
-        scores_fused = [scores_fused[sum(len_records[:i]) : sum(len_records[:i]) + length] for i, length in enumerate(len_records)]
+        scores_fused = [scores_fused[sum(len_records[:i]) : sum(len_records[:i]) + length] for i, length in enumerate(len_records)] # NOTE: Explicit type annotation required - mypy infers List[List[int]] from list comprehension instead of List[int]
 
         return boxes_fused, scores_fused
 

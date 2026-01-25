@@ -41,7 +41,14 @@ class Canvas_BEV_heading_right(object):
         Current canvas image with shape (height, width, 3) in BGR format.
     """
 
-    def __init__(self, canvas_shape=(800, 2800), canvas_x_range=(-140, 140), canvas_y_range=(-40, 40), canvas_bg_color=(0, 0, 0), left_hand=True):
+    def __init__(
+    self, 
+    canvas_shape: Tuple[int, int] = (800, 2800),
+    canvas_x_range: Tuple[float, float] = (-140, 140),
+    canvas_y_range: Tuple[float, float] = (-40, 40),
+    canvas_bg_color: Tuple[int, int, int] = (0, 0, 0),
+    left_hand: bool = True
+):
         # Sanity check ratios
         if (canvas_shape[1] / canvas_shape[0]) != ((canvas_x_range[0] - canvas_x_range[1]) / (canvas_y_range[0] - canvas_y_range[1])):
             print("Not an error, but the x & y ranges are not proportional to canvas height & width.")
@@ -54,7 +61,7 @@ class Canvas_BEV_heading_right(object):
 
         self.clear_canvas()
 
-    def clear_canvas(self):
+    def clear_canvas(self) -> None:
         self.canvas = np.zeros((*self.canvas_shape, 3), dtype=np.uint8)
         self.canvas[..., :] = self.canvas_bg_color
 
@@ -112,7 +119,7 @@ class Canvas_BEV_heading_right(object):
         self,
         canvas_xy: npt.NDArray[np.int32],
         radius: int = -1,
-        colors: Optional[Union[Tuple[int, int, int], npt.NDArray[np.uint8], str]] = None,
+        colors: Optional[Union[Tuple[int, int, int], npt.NDArray[np.uint8], str, matplotlib.colors.Colormap]] = None,
         colors_operand: Optional[npt.NDArray[np.floating]] = None,
     ) -> None:
         """

@@ -14,7 +14,7 @@ from opencood.utils.transformation_utils import dist_to_continuous
 from opencood.data_utils.post_processor.base_postprocessor import BasePostprocessor
 from opencood.utils import box_utils
 from opencood.visualization import vis_utils
-from typing import Dict, Tuple, Optional, Any, Union
+from typing import Dict, List, Tuple, Optional, Any, Union
 
 
 class BevPostprocessor(BasePostprocessor):
@@ -51,7 +51,7 @@ class BevPostprocessor(BasePostprocessor):
     def generate_anchor_box(self) -> None:
         return None
 
-    def generate_label(self, **kwargs: Any) -> Dict[str, np.ndarray]:
+    def generate_label(self, **kwargs: Any) -> Dict[str, Any]: #NOTE Signature mismatch with supertype
         """
         Generate targets for training.
 
@@ -197,7 +197,7 @@ class BevPostprocessor(BasePostprocessor):
         return reg_map
 
     @staticmethod
-    def collate_batch(label_batch_list):
+    def collate_batch(label_batch_list: List) -> Dict:
         """
         Customized collate function for target label generation.
 

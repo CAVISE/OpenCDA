@@ -71,7 +71,7 @@ class VehicleManager(object):
     current_cav_id = 1
     current_platoon_id = 1
     current_unknown_id = 1
-    used_ids: Set[int] = set()
+    used_ids: Set[str] = set()
 
     # TODO: application и prefix как будто бы дублируют друг друга, но не факт
     def __init__(
@@ -151,9 +151,8 @@ class VehicleManager(object):
         self.controller = ControlManager(control_config)
 
         if data_dumping:
-            self.data_dumper = DataDumper(self.perception_manager, self.vid, save_time=current_time)
-        else:
-            self.data_dumper = None
+            self.data_dumper: Optional[DataDumper] = DataDumper(self.perception_manager, self.vid, save_time=current_time) 
+            self.data_dumper = None 
 
         cav_world.update_vehicle_manager(self)
 

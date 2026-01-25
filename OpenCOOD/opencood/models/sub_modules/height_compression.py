@@ -33,7 +33,7 @@ class HeightCompression(nn.Module):
         Number of output BEV feature channels.
     """
 
-    def __init__(self, model_cfg, **kwargs):
+    def __init__(self, model_cfg: Dict[str, Any], **kwargs: Any):
         super().__init__()
         self.model_cfg = model_cfg
         self.num_bev_features = self.model_cfg["feature_num"]

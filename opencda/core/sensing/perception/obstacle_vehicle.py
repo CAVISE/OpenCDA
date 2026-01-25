@@ -51,7 +51,7 @@ class BoundingBox(object):
         The half-extents of the bounding box in each dimension.
     """
 
-    def __init__(self, corners):
+    def __init__(self, corners: npt.NDArray[np.float64]):
         center_x = np.mean(corners[:, 0])
         center_y = np.mean(corners[:, 1])
         center_z = np.mean(corners[:, 2])
@@ -183,7 +183,7 @@ class ObstacleVehicle(object):
         """
         self.velocity = velocity
 
-    def set_vehicle(self, vehicle, lidar, sumo2carla_ids):
+    def set_vehicle(self, vehicle: carla.Vehicle, lidar: carla.sensor.lidar, sumo2carla_ids: Dict) -> None:
         """
         Assign the attributes from carla.Vehicle to ObstacleVehicle.
 
@@ -191,11 +191,9 @@ class ObstacleVehicle(object):
         ----------
         vehicle : carla.Vehicle
             The carla.Vehicle object.
-
         lidar : carla.sensor.lidar
             The lidar sensor, it is used to project world coordinates to
              sensor coordinates.
-
         sumo2carla_ids : dict
             Sumo to carla mapping dictionary, this is used only when
             co-simulation is activated. We need this since the speed info of
@@ -257,7 +255,7 @@ class ObstacleVehicle(object):
         self.o3d_bbx = aabb
 
     # CAVISE
-    def to_dict(self):
+    def to_dict(self) -> Dict[str, Any]:
         """
         Convert the ObstacleVehicle instance to a dictionary.
         """
@@ -267,8 +265,8 @@ class ObstacleVehicle(object):
             # Add other attributes as needed
         }
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"({self.location}, {self.carla_id})"  # ВСЁ КРОМЕ type_id почему так не знаю
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"({self.location}, {self.carla_id})"  # ВСЁ КРОМЕ type_id почему так не знаю

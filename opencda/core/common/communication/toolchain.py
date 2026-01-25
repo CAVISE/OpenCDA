@@ -23,7 +23,7 @@ class MessageConfig:
 class CommunicationToolchain:
     # handle messages, it is assumed that it is safe to import messages after this call
     @staticmethod
-    def handle_messages(messages: typing.List[str], config: typing.Optional[MessageConfig] = None):
+    def handle_messages(messages: typing.List[str], config: typing.Optional[MessageConfig] = None) -> None:
         if config is None:
             config = MessageConfig(
                 pathlib.PurePath("opencda/core/common/communication/messages"), pathlib.PurePath("opencda/core/common/communication/protos/cavise")
@@ -35,7 +35,7 @@ class CommunicationToolchain:
     # invoke subroutine to create python message impl from proto file
     @staticmethod
     def generate_message(config: MessageConfig, messages: typing.List[str]) -> None:
-        command = [
+        command: typing.List[typing.Union[str, pathlib.PurePath]]  = [
             "protoc",
             f"--proto_path={config.source_dir}",
             f"--python_out={config.binary_dir}",

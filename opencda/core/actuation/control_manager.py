@@ -45,7 +45,7 @@ class ControlManager:
         """
         self.controller.update_info(ego_pos, ego_speed)
 
-    def run_step(self, target_speed: float, waypoint: Any):
+    def run_step(self, target_speed: float, waypoint: Any) -> Any:
         """
         Execute one control step to generate vehicle control commands.
 

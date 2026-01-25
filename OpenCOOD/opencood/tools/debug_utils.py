@@ -17,7 +17,7 @@ from opencood.data_utils.datasets import build_dataset
 from opencood.visualization import vis_utils
 
 
-def test_parser():
+def test_parser() -> argparse.Namespace:
     """
     Parse command line arguments for testing.
 

@@ -402,7 +402,7 @@ class BaseDataset(Dataset):
         np.random.seed(self.seed)
         xyz_noise = np.random.normal(0, xyz_std, 3)
         ryp_std = cast(NDArray[np.float64], np.random.normal(0, ryp_std, 3))
-        noise_pose = [pose[0] + xyz_noise[0], pose[1] + xyz_noise[1], pose[2] + xyz_noise[2], pose[3], pose[4] + ryp_std[1], pose[5]] 
+        noise_pose = [pose[0] + xyz_noise[0], pose[1] + xyz_noise[1], pose[2] + xyz_noise[2], pose[3], pose[4] + ryp_std[1], pose[5]] #NOTE Value of type "float" is not indexable
         return noise_pose
 
     def reform_param(
@@ -586,8 +586,8 @@ class BaseDataset(Dataset):
         object_bbx_center = torch.from_numpy(np.array(object_bbx_center))
         object_bbx_mask = torch.from_numpy(np.array(object_bbx_mask))
 
-        processed_lidar_torch_dict = self.pre_processor.collate_batch(processed_lidar_list)
-        label_torch_dict = self.post_processor.collate_batch(label_dict_list)
+        processed_lidar_torch_dict = self.pre_processor.collate_batch(processed_lidar_list) #NOTE None-check is required 
+        label_torch_dict = self.post_processor.collate_batch(label_dict_list) #NOTE None-check is required 
         output_dict["ego"].update(
             {
                 "object_bbx_center": object_bbx_center,
@@ -631,4 +631,4 @@ class BaseDataset(Dataset):
             Dataset object for additional context. Default is None.
         """
         # visualize the model output
-        self.post_processor.visualize(pred_box_tensor, gt_tensor, pcd, show_vis, save_path, dataset=dataset)
+        self.post_processor.visualize(pred_box_tensor, gt_tensor, pcd, show_vis, save_path, dataset=dataset) #NOTE None-check is required 

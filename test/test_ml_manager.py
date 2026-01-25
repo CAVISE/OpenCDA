@@ -27,7 +27,7 @@ class TestMlManager(unittest.TestCase):
     visualization capabilities.
     """
 
-    def setUp(self):
+    def setUp(self) -> None:
         """
         Set up test fixtures.
 
@@ -42,7 +42,7 @@ class TestMlManager(unittest.TestCase):
         self.data = cv2.imread(os.path.join(current_path, "data/test.jpg"))
         self.ml_manager = MLManager()
 
-    def test_parameters(self):
+    def test_parameters(self) -> None:
         """
         Test object detector initialization.
 
@@ -55,7 +55,7 @@ class TestMlManager(unittest.TestCase):
         """
         assert self.ml_manager.object_detector
 
-    def test_draw_2d_bbx(self):
+    def test_draw_2d_bbx(self) -> None:
         """
         Test 2D bounding box detection and visualization.
 

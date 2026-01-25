@@ -9,7 +9,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from typing import Dict
+from typing import Any, Dict
 
 
 class BaseBEVBackbone(nn.Module):
@@ -44,7 +44,7 @@ class BaseBEVBackbone(nn.Module):
         Total number of output BEV feature channels.
     """
 
-    def __init__(self, model_cfg, input_channels):
+    def __init__(self, model_cfg: Dict[str, Any], input_channels: int):
         super().__init__()
         self.model_cfg = model_cfg
 
