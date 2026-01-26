@@ -1,0 +1,645 @@
+description: |-
+  Copyright 2021 <UCLA Mobility Lab>
+  Author: Runsheng Xu <rxx3386@ucla.edu>
+  Content: This is the scenario testing configuration file for single vehicle full-stack system in town06 with co-simulation
+
+world:
+  town: Town03
+  sync_mode: true
+  fixed_delta_seconds: 0.05
+blueprint:
+  use_multi_class_bp: true
+  bp_meta_path: "opencda/assets/blueprint_meta/bbx_stats_0915.json" # Define the path for loading the blueprint metadata for defining the class of each blueprint
+  # Define blueprint type sample probabilities
+  bp_class_sample_prob:
+    car: 0.5
+    truck: 0.1
+    bus: 0.1
+    bicycle: 0.1
+    motorcycle: 0.1
+
+# First define the basic parameters of the vehicles
+vehicle_base:
+  sensing:
+    perception:
+      activate: false # when not activated, objects positions will be retrieved from server directly
+      camera:
+        visualize: 0 # how many camera images need to be visualized. 0 means no visualization for camera
+        num: 4 # how many cameras are mounted on the vehicle. Maximum 3(frontal, left and right cameras)
+        # relative positions (x,y,z,yaw) of the camera. len(positions) should be equal to camera num
+        positions:
+          - [2.5, 0, 1.0, 0]
+          - [0.0, 0.3, 1.8, 100]
+          - [0.0, -0.3, 1.8, -100]
+          - [-2.0, 0.0, 1.5, 180]
+      lidar: # lidar sensor configuration, check CARLA sensor reference for more details
+        visualize: false
+        channels: 32
+        range: 120
+        points_per_second: 1000000
+        rotation_frequency: 20 # the simulation is 20 fps
+        upper_fov: 2
+        lower_fov: -25
+        dropoff_general_rate: 0.3
+        dropoff_intensity_limit: 0.7
+        dropoff_zero_intensity: 0.4
+        noise_stddev: 0.02
+
+    localization:
+      activate: false # when not activated, ego position will be retrieved from server directly
+      debug_helper:
+        show_animation: false # whether to show real-time trajectory plotting
+
+  behavior:
+    ignore_traffic_light: false # whether to ignore traffic light
+    collision_time_ahead: 50.0 # used for collision checking
+    local_planner:
+      debug_trajectory: true
+      debug: false
+    max_speed: 30
+    overtake_allowed: false
+
+# define sumo simulation setting for traffic generation
+sumo:
+  port: 3000
+  host: sumo
+  gui: true
+  client_order: 2
+  step_length: ${world.fixed_delta_seconds}
+
+scenario:
+
+  single_cav_list:
+    - name: cav1
+      spawn_position: [29, 7, 1, 0, 0, 0]
+      destination: [227, 9, 1]
+      target_speed: 100
+      auto_lane_change: true
+      vehicle_speed_perc: 50
+      id: 100
+      color: [123, 10, 231]
+
+  custom_actor_list:
+    - name: car2
+      spawn_position: [29, 3, 1, 0, 0, 0]
+      id: 101
+      model: "vehicle.audi.a2"
+      color: [0, 10, 231]
+
+    - name: car3
+      spawn_position: [34, 3, 1, 0, 0, 0]
+      id: 102
+      model: "vehicle.audi.etron"
+      color: [10, 10, 231]
+
+    - name: car4
+      spawn_position: [39, 3, 1, 0, 0, 0]
+      id: 103
+      model: "vehicle.audi.tt"
+      color: [20, 10, 231]
+
+    - name: car5
+      spawn_position: [44, 3, 1, 0, 0, 0]
+      id: 104
+      model: "vehicle.bh.crossbike"
+      color: [30, 10, 231]
+
+    - name: car6
+      spawn_position: [49, 3, 1, 0, 0, 0]
+      id: 105
+      model: "vehicle.bmw.grandtourer"
+      color: [40, 10, 231]
+
+    - name: car7
+      spawn_position: [54, 3, 1, 0, 0, 0]
+      id: 106
+      model: "vehicle.chevrolet.impala"
+      color: [50, 10, 231]
+
+    - name: car8
+      spawn_position: [59, 3, 1, 0, 0, 0]
+      id: 107
+      model: "vehicle.citroen.c3"
+      color: [60, 10, 231]
+
+    - name: car9
+      spawn_position: [64, 3, 1, 0, 0, 0]
+      id: 108
+      model: "vehicle.diamondback.century"
+      color: [70, 10, 231]
+
+    - name: car10
+      spawn_position: [69, 3, 1, 0, 0, 0]
+      id: 109
+      model: "vehicle.dodge.charger_2020"
+      color: [80, 10, 231]
+
+    - name: car11
+      spawn_position: [74, 3, 1, 0, 0, 0]
+      id: 110
+      model: "vehicle.dodge.charger_police"
+      color: [90, 10, 231]
+
+    - name: car12
+      spawn_position: [79, 3, 1, 0, 0, 0]
+      id: 111
+      model: "vehicle.dodge.charger_police_2020"
+      color: [100, 10, 231]
+
+    - name: car14
+      spawn_position: [94, 4, 1, 0, 0, 0]
+      id: 113
+      model: "vehicle.ford.crown"
+      color: [120, 10, 231]
+
+    - name: car16
+      spawn_position: [99, 4, 1, 0, 0, 0]
+      id: 115
+      model: "vehicle.gazelle.omafiets"
+      color: [140, 10, 231]
+
+    - name: car17
+      spawn_position: [104, 4, 1, 0, 0, 0]
+      id: 116
+      model: "vehicle.harley-davidson.low_rider"
+      color: [150, 10, 231]
+
+    - name: car18
+      spawn_position: [109, 4, 1, 0, 0, 0]
+      id: 117
+      model: "vehicle.jeep.wrangler_rubicon"
+      color: [160, 10, 231]
+
+    - name: car19
+      spawn_position: [114, 4, 1, 0, 0, 0]
+      id: 118
+      model: "vehicle.kawasaki.ninja"
+      color: [170, 10, 231]
+
+    - name: car20
+      spawn_position: [119, 4, 1, 0, 0, 0]
+      id: 119
+      model: "vehicle.lincoln.mkz_2017"
+      color: [180, 10, 231]
+
+    - name: car21
+      spawn_position: [124, 4, 1, 0, 0, 0]
+      id: 120
+      model: "vehicle.lincoln.mkz_2020"
+      color: [190, 10, 231]
+
+    - name: car22
+      spawn_position: [129, 4, 1, 0, 0, 0]
+      id: 121
+      model: "vehicle.mercedes.coupe"
+      color: [200, 10, 231]
+
+    - name: car23
+      spawn_position: [134, 4, 1, 0, 0, 0]
+      id: 122
+      model: "vehicle.mercedes.coupe_2020"
+      color: [210, 10, 231]
+
+    - name: car24
+      spawn_position: [139, 4, 1, 0, 0, 0]
+      id: 123
+      model: "vehicle.micro.microlino"
+      color: [220, 10, 231]
+
+    - name: car25
+      spawn_position: [144, 5, 1, 0, 0, 0]
+      id: 124
+      model: "vehicle.mini.cooper_s"
+      color: [230, 10, 231]
+
+    - name: car26
+      spawn_position: [149, 5, 1, 0, 0, 0]
+      id: 125
+      model: "vehicle.mini.cooper_s_2021"
+      color: [240, 10, 231]
+
+    - name: car27
+      spawn_position: [154, 5, 1, 0, 0, 0]
+      id: 126
+      model: "vehicle.nissan.micra"
+      color: [250, 10, 231]
+
+    - name: car28
+      spawn_position: [159, 5, 1, 0, 0, 0]
+      id: 127
+      model: "vehicle.nissan.patrol"
+      color: [5, 10, 231]
+
+    - name: car29
+      spawn_position: [164, 5, 1, 0, 0, 0]
+      id: 128
+      model: "vehicle.nissan.patrol_2021"
+      color: [15, 10, 231]
+
+    - name: car30
+      spawn_position: [169, 5, 1, 0, 0, 0]
+      id: 129
+      model: "vehicle.seat.leon"
+      color: [25, 10, 231]
+
+    - name: car31
+      spawn_position: [175, 5, 1, 0, 0, 0]
+      id: 130
+      model: "vehicle.tesla.cybertruck"
+      color: [35, 10, 231]
+
+    - name: car32
+      spawn_position: [184, 5, 1, 0, 0, 0]
+      id: 131
+      model: "vehicle.tesla.model3"
+      color: [45, 10, 231]
+
+    - name: car34
+      spawn_position: [189, 6, 1, 0, 0, 0]
+      id: 133
+      model: "vehicle.volkswagen.t2"
+      color: [65, 10, 231]
+
+    - name: car35
+      spawn_position: [194, 6, 1, 0, 0, 0]
+      id: 134
+      model: "vehicle.volkswagen.t2_2021"
+      color: [75, 10, 231]
+
+    - name: car36
+      spawn_position: [199, 6, 1, 0, 0, 0]
+      id: 135
+      model: "vehicle.yamaha.yzf"
+      color: [85, 10, 231]
+
+    - name: car33
+      spawn_position: [205, 6, 1, 0, -180, 0]
+      id: 132
+      model: "vehicle.toyota.prius"
+      color: [55, 10, 231]
+
+    - name: car15
+      spawn_position: [100, 12, 1.5, 0, -180, 0]
+      id: 114
+      model: "vehicle.ford.mustang"
+      color: [95, 10, 231]
+
+    - name: car13
+      spawn_position: [50, 12, 1.5, 0, 0, 0]
+      id: 112
+      model: "vehicle.ford.ambulance"
+      color: [110, 10, 231]
+
+    - name: car37
+      spawn_position: [60, 12, 1, 0, 0, 0]
+      id: 136
+      model: "vehicle.mercedes.sprinter"
+      color: [120, 10, 231]
+
+    - name: car39
+      spawn_position: [70, 12, 1, 0, 0, 0]
+      id: 137
+      model: "vehicle.carlamotors.european_hgv"
+      color: [130, 10, 231]
+
+    - name: car40
+      spawn_position: [80, 12, 1, 0, 0, 0]
+      id: 138
+      model: "vehicle.mitsubishi.fusorosa"
+      color: [140, 10, 231]
+
+    - name: car41
+      spawn_position: [90, 12, 1, 0, 0, 0]
+      id: 139
+      model: "vehicle.carlamotors.firetruck"
+      color: [120, 10, 231]
+
+    - name: car42
+      spawn_position: [105, 12, 1, 0, 0, 0]
+      id: 140
+      model: "vehicle.carlamotors.carlacola"
+      color: [130, 10, 231]
+
+    - name: car43
+      spawn_position: [110, 12, 1, 0, 0, 0]
+      id: 141
+      model: "vehicle.vespa.zx125"
+      color: [140, 10, 231]
+
+    - name: pedestrian1
+      spawn_position: [117, 12, 1, 0, 0, 0]
+      id: 142
+      model: "walker.pedestrian.0038"
+      color: [180, 10, 231]
+
+    - name: pedestrian2
+      spawn_position: [119, 12, 1, 0, 0, 0]
+      id: 143
+      model: "walker.pedestrian.0042"
+      color: [190, 10, 231]
+
+    - name: pedestrian3
+      spawn_position: [121, 12, 1, 0, 0, 0]
+      id: 144
+      model: "walker.pedestrian.0025"
+      color: [200, 10, 231]
+
+    - name: pedestrian4
+      spawn_position: [123, 12, 1, 0, 0, 0]
+      id: 145
+      model: "walker.pedestrian.0031"
+      color: [210, 10, 231]
+
+    - name: pedestrian5
+      spawn_position: [125, 12, 1, 0, 0, 0]
+      id: 146
+      model: "walker.pedestrian.0027"
+      color: [220, 10, 231]
+
+    - name: pedestrian6
+      spawn_position: [127, 12, 1, 0, 0, 0]
+      id: 147
+      model: "walker.pedestrian.0045"
+      color: [230, 10, 231]
+
+    - name: pedestrian7
+      spawn_position: [129, 12, 1, 0, 0, 0]
+      id: 148
+      model: "walker.pedestrian.0004"
+      color: [240, 10, 231]
+
+    - name: pedestrian8
+      spawn_position: [131, 12, 1, 0, 0, 0]
+      id: 149
+      model: "walker.pedestrian.0018"
+      color: [0, 10, 231]
+
+    - name: pedestrian9
+      spawn_position: [133, 12, 1, 0, 0, 0]
+      id: 150
+      model: "walker.pedestrian.0030"
+      color: [10, 10, 231]
+
+    - name: pedestrian10
+      spawn_position: [135, 12, 1, 0, 0, 0]
+      id: 151
+      model: "walker.pedestrian.0014"
+      color: [20, 10, 231]
+
+    - name: pedestrian11
+      spawn_position: [137, 12, 1, 0, 0, 0]
+      id: 152
+      model: "walker.pedestrian.0035"
+      color: [30, 10, 231]
+
+    - name: pedestrian12
+      spawn_position: [139, 12, 1, 0, 0, 0]
+      id: 153
+      model: "walker.pedestrian.0010"
+      color: [40, 10, 231]
+
+    - name: pedestrian13
+      spawn_position: [141, 12, 1, 0, 0, 0]
+      id: 154
+      model: "walker.pedestrian.0024"
+      color: [50, 10, 231]
+
+    - name: pedestrian14
+      spawn_position: [143, 12, 1, 0, 0, 0]
+      id: 155
+      model: "walker.pedestrian.0051"
+      color: [60, 10, 231]
+
+    - name: pedestrian15
+      spawn_position: [145, 12, 1, 0, 0, 0]
+      id: 156
+      model: "walker.pedestrian.0022"
+      color: [70, 10, 231]
+
+    - name: pedestrian16
+      spawn_position: [147, 12, 1, 0, 0, 0]
+      id: 157
+      model: "walker.pedestrian.0047"
+      color: [80, 10, 231]
+
+    - name: pedestrian17
+      spawn_position: [149, 12, 1, 0, 0, 0]
+      id: 158
+      model: "walker.pedestrian.0007"
+      color: [90, 10, 231]
+
+    - name: pedestrian18
+      spawn_position: [151, 12, 1, 0, 0, 0]
+      id: 159
+      model: "walker.pedestrian.0033"
+      color: [100, 10, 231]
+
+    - name: pedestrian19
+      spawn_position: [153, 12, 1, 0, 0, 0]
+      id: 160
+      model: "walker.pedestrian.0050"
+      color: [110, 10, 231]
+
+    - name: pedestrian20
+      spawn_position: [155, 12, 1, 0, 0, 0]
+      id: 161
+      model: "walker.pedestrian.0005"
+      color: [120, 10, 231]
+
+    - name: pedestrian21
+      spawn_position: [157, 12, 1, 0, 0, 0]
+      id: 162
+      model: "walker.pedestrian.0041"
+      color: [130, 10, 231]
+
+    - name: pedestrian22
+      spawn_position: [159, 12, 1, 0, 0, 0]
+      id: 163
+      model: "walker.pedestrian.0013"
+      color: [140, 10, 231]
+
+    - name: pedestrian23
+      spawn_position: [161, 12, 1, 0, 0, 0]
+      id: 164
+      model: "walker.pedestrian.0044"
+      color: [150, 10, 231]
+
+    - name: pedestrian24
+      spawn_position: [163, 12, 1, 0, 0, 0]
+      id: 165
+      model: "walker.pedestrian.0008"
+      color: [160, 10, 231]
+
+    - name: pedestrian25
+      spawn_position: [165, 12, 1, 0, 0, 0]
+      id: 166
+      model: "controller.ai.walker"
+      color: [170, 10, 231]
+
+    - name: pedestrian26
+      spawn_position: [167, 12, 1, 0, 0, 0]
+      id: 167
+      model: "walker.pedestrian.0032"
+      color: [180, 10, 231]
+
+    - name: pedestrian27
+      spawn_position: [169, 12, 1, 0, 0, 0]
+      id: 168
+      model: "walker.pedestrian.0021"
+      color: [190, 10, 231]
+
+    - name: pedestrian28
+      spawn_position: [171, 12, 1, 0, 0, 0]
+      id: 169
+      model: "walker.pedestrian.0023"
+      color: [200, 10, 231]
+
+    - name: pedestrian29
+      spawn_position: [173, 12, 1, 0, 0, 0]
+      id: 170
+      model: "walker.pedestrian.0002"
+      color: [210, 10, 231]
+
+    - name: pedestrian30
+      spawn_position: [175, 12, 1, 0, 0, 0]
+      id: 171
+      model: "walker.pedestrian.0006"
+      color: [220, 10, 231]
+
+    - name: pedestrian31
+      spawn_position: [177, 12, 1, 0, 0, 0]
+      id: 172
+      model: "walker.pedestrian.0046"
+      color: [230, 10, 231]
+
+    - name: pedestrian32
+      spawn_position: [179, 12, 1, 0, 0, 0]
+      id: 173
+      model: "walker.pedestrian.0028"
+      color: [240, 10, 231]
+
+    - name: pedestrian33
+      spawn_position: [181, 12, 1, 0, 0, 0]
+      id: 174
+      model: "walker.pedestrian.0001"
+      color: [0, 10, 231]
+
+    - name: pedestrian34
+      spawn_position: [183, 12, 1, 0, 0, 0]
+      id: 175
+      model: "walker.pedestrian.0043"
+      color: [10, 10, 231]
+
+    - name: pedestrian35
+      spawn_position: [185, 12, 1, 0, 0, 0]
+      id: 176
+      model: "walker.pedestrian.0040"
+      color: [20, 10, 231]
+
+    - name: pedestrian36
+      spawn_position: [187, 12, 1, 0, 0, 0]
+      id: 177
+      model: "walker.pedestrian.0039"
+      color: [30, 10, 231]
+
+    - name: pedestrian37
+      spawn_position: [189, 12, 1, 0, 0, 0]
+      id: 178
+      model: "walker.pedestrian.0037"
+      color: [40, 10, 231]
+
+    - name: pedestrian38
+      spawn_position: [191, 12, 1, 0, 0, 0]
+      id: 179
+      model: "walker.pedestrian.0036"
+      color: [50, 10, 231]
+
+    - name: pedestrian39
+      spawn_position: [193, 12, 1, 0, 0, 0]
+      id: 180
+      model: "walker.pedestrian.0034"
+      color: [60, 10, 231]
+
+    - name: pedestrian40
+      spawn_position: [195, 12, 1, 0, 0, 0]
+      id: 181
+      model: "walker.pedestrian.0029"
+      color: [70, 10, 231]
+
+    - name: pedestrian41
+      spawn_position: [197, 12, 1, 0, 0, 0]
+      id: 182
+      model: "walker.pedestrian.0026"
+      color: [80, 10, 231]
+
+    - name: pedestrian42
+      spawn_position: [199, 12, 1, 0, 0, 0]
+      id: 183
+      model: "walker.pedestrian.0052"
+      color: [90, 10, 231]
+
+    - name: pedestrian43
+      spawn_position: [201, 12, 1, 0, 0, 0]
+      id: 184
+      model: "walker.pedestrian.0049"
+      color: [100, 10, 231]
+
+    - name: pedestrian44
+      spawn_position: [203, 12, 1, 0, 0, 0]
+      id: 185
+      model: "walker.pedestrian.0017"
+      color: [110, 10, 231]
+
+    - name: pedestrian45
+      spawn_position: [205, 12, 1, 0, 0, 0]
+      id: 186
+      model: "walker.pedestrian.0048"
+      color: [120, 10, 231]
+
+    - name: pedestrian46
+      spawn_position: [207, 12, 1, 0, 0, 0]
+      id: 187
+      model: "walker.pedestrian.0016"
+      color: [130, 10, 231]
+
+    - name: pedestrian47
+      spawn_position: [209, 12, 1, 0, 0, 0]
+      id: 188
+      model: "walker.pedestrian.0015"
+      color: [140, 10, 231]
+
+    - name: pedestrian48
+      spawn_position: [211, 12, 1, 0, 0, 0]
+      id: 189
+      model: "walker.pedestrian.0012"
+      color: [150, 10, 231]
+
+    - name: pedestrian49
+      spawn_position: [213, 12, 1, 0, 0, 0]
+      id: 190
+      model: "walker.pedestrian.0011"
+      color: [160, 10, 231]
+
+    - name: pedestrian50
+      spawn_position: [215, 12, 1, 0, 0, 0]
+      id: 191
+      model: "walker.pedestrian.0003"
+      color: [170, 10, 231]
+
+    - name: pedestrian51
+      spawn_position: [217, 12, 1, 0, 0, 0]
+      id: 192
+      model: "walker.pedestrian.0009"
+      color: [180, 10, 231]
+
+    - name: pedestrian52
+      spawn_position: [219, 12, 1, 0, 0, 0]
+      id: 193
+      model: "walker.pedestrian.0019"
+      color: [190, 10, 231]
+
+    - name: pedestrian53
+      spawn_position: [221, 12, 1, 0, 0, 0]
+      id: 194
+      model: "walker.pedestrian.0020"
+      color: [200, 10, 231]
