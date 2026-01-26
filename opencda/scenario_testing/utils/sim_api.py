@@ -261,7 +261,9 @@ class ScenarioManager:
             if "spawn_special" not in actor_config:
                 spawn_transform = carla.Transform(
                     carla.Location(x=actor_config["spawn_position"][0], y=actor_config["spawn_position"][1], z=actor_config["spawn_position"][2]),
-                    carla.Rotation(pitch=actor_config["spawn_position"][5], yaw=actor_config["spawn_position"][4], roll=actor_config["spawn_position"][3]),
+                    carla.Rotation(
+                        pitch=actor_config["spawn_position"][5], yaw=actor_config["spawn_position"][4], roll=actor_config["spawn_position"][3]
+                    ),
                 )
             else:
                 spawn_transform = map_helper(self.carla_version, *actor_config["spawn_special"])

@@ -605,7 +605,7 @@ class PerceptionManager:
 
         # label 10 is the vehicle (is it true???)
         # I replaced 10 with 14 and get ground truth worked
-        # I just checked all tags using stl_tags.sh and found [] for walkers and pedestrians, 14 for vehicles, 
+        # I just checked all tags using stl_tags.sh and found [] for walkers and pedestrians, 14 for vehicles,
         vehicle_idx = semantic_idx[np.isin(semantic_tag, self.semantic_tag_list)]
         # each individual instance id
         vehicle_unique_id = list(np.unique(vehicle_idx))
