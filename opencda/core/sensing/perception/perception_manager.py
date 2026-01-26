@@ -324,6 +324,7 @@ class PerceptionManager:
         self.vehicle = vehicle
         self.carla_world = carla_world if carla_world is not None else self.vehicle.get_world()
         self._map = self.carla_world.get_map()
+        self.semantic_tag_list = [13, 14, 15, 18]
 
         self.id = infra_id
         if vehicle is None:
@@ -604,7 +605,8 @@ class PerceptionManager:
 
         # label 10 is the vehicle (is it true???)
         # I replaced 10 with 14 and get ground truth worked
-        vehicle_idx = semantic_idx[semantic_tag == 14]
+        # I just checked all tags using stl_tags.sh and found [] for walkers and pedestrians, 14 for vehicles, 
+        vehicle_idx = semantic_idx[np.isin(semantic_tag, self.semantic_tag_list)]
         # each individual instance id
         vehicle_unique_id = list(np.unique(vehicle_idx))
 
