@@ -160,6 +160,11 @@ class Scenario:
         self.rsu_list, self.node_ids["rsu"] = self.scenario_manager.create_rsu_manager(data_dump=data_dump)
         logger.info(f"created RSU list of size {len(self.rsu_list)}")
 
+        self.scenario_manager.create_custom_actor_manager(
+            application=["single"], map_helper=map_api.spawn_helper_2lanefree, data_dump=data_dump
+        )
+        logger.info(f"created single custom actors")
+
         self.eval_manager = EvaluationManager(
             self.scenario_manager.cav_world, script_name=self.scenario_name, current_time=scenario_params["current_time"]
         )
