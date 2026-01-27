@@ -150,7 +150,6 @@ class LocDebugHelper(object):
             plt.axis("equal")
             plt.grid(True)
             plt.legend()
-            plt.pause(0.001)
 
     def evaluate(self):
         """

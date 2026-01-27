@@ -1,5 +1,4 @@
 import os
-import zmq
 import sys
 import carla
 import sumolib
@@ -17,7 +16,7 @@ import opencda.scenario_testing.utils.customized_map_api as map_api
 from opencda.core.common.cav_world import CavWorld
 from opencda.core.common.vehicle_manager import VehicleManager
 from opencda.core.common.rsu_manager import RSUManager
-from opencda.core.common.communication.serialize import MessageHandler
+from opencda.core.common.communication.payload_handler import PayloadHandler
 from opencda.core.application.platooning.platooning_manager import PlatooningManager
 from opencda.core.common.aim_model_manager import AIMModelManager
 from AIM import get_model
@@ -25,7 +24,7 @@ from AIM import get_model
 from opencda.scenario_testing.evaluations.evaluate_manager import EvaluationManager
 from opencda.scenario_testing.utils.yaml_utils import add_current_time, save_yaml
 
-logger = logging.getLogger("cavise.scenario")
+logger = logging.getLogger("cavise.opencda.opencda.scenario_testing.scenario")
 
 
 @dataclass
@@ -52,6 +51,8 @@ class Scenario:
         self.cav_world = CavWorld(opt.apply_ml, opt.with_capi)
         logger.info(f"created cav world, using apply_ml = {opt.apply_ml}, with_capi = {opt.with_capi}")
 
+        self.payload_manager = None
+        self.communication_manager = None
         self.coperception_model_manager = None
 
         xodr_path = None
@@ -92,12 +93,16 @@ class Scenario:
                 carla_timeout=opt.carla_timeout,
             )
 
-        if self.cav_world.comms_manager is not None:
-            self.cav_world.comms_manager.create_socket(zmq.PAIR, "connect")
-            self.message_handler = MessageHandler()
+        if opt.with_capi:
+            from opencda.core.common.communication.communication_manager import CommunicationManager
+
+            self.communication_manager = CommunicationManager(
+                artery_address=f"tcp://{opt.artery_address}", artery_retries=opt.artery_retries, artery_timeout=opt.artery_timeout
+            )
+            self.payload_handler = PayloadHandler()
             logger.info("running: creating message handler")
         else:
-            self.message_handler = None
+            self.payload_handler = None
 
         logger.info(f"using scenario manager of type: {type(self.scenario_manager)}")
 
@@ -125,7 +130,7 @@ class Scenario:
                     logger.error(f'Model directory "{opt.model_dir}" does not exist.')
                     sys.exit(1)
 
-                self.coperception_model_manager = CoperceptionModelManager(opt=opt, current_time=current_time, message_handler=self.message_handler)
+                self.coperception_model_manager = CoperceptionModelManager(opt=opt, current_time=current_time, payload_handler=self.payload_handler)
                 logger.info("created cooperception manager")
 
         # [CoDrivingInt]
@@ -177,7 +182,7 @@ class Scenario:
         else:
             directory_processor = None
 
-        if self.cav_world.comms_manager is None:
+        if self.communication_manager is None:
             self.default_loop(opt, directory_processor)
         else:
             self.capi_loop(opt, directory_processor)
@@ -274,20 +279,17 @@ class Scenario:
                     idx=0  # TODO: Figure out how to select the ego vehicle in cooperative perception models
                 )
 
-            message = self.message_handler.make_opencda_message()
-
-            self.cav_world.comms_manager.send_message(message)
-            logger.info(f"{round(len(message) / (1 << 20), 3)} MB about to be sent")
-
-            message = self.cav_world.comms_manager.receive_message()
-            logger.info(f"{round(len(message) / (1 << 20), 3)} MB were received")
-
-            self.message_handler.make_artery_data(message)
+            opencda_message = self.payload_handler.make_opencda_message()
+            logger.info(f"{round(len(opencda_message) / (1 << 20), 3)} MB of payload about to be sent")
+            self.communication_manager.send_message(opencda_message)
+            artery_message = self.communication_manager.receive_message()
+            logger.info(f"{round(len(artery_message) / (1 << 20), 3)} MB were received")
+            self.payload_handler.make_artery_payload(artery_message)
 
             if self.coperception_model_manager is not None and tick_number > 0:
                 self.coperception_model_manager.make_prediction(tick_number)
 
-            self.message_handler.clear_messages()
+            self.payload_handler.clear_messages()
 
             if self.platoon_list is not None:
                 logger.debug("updating platoons")
@@ -343,6 +345,11 @@ class Scenario:
             logger.info(f"finalizing: destroying {len(self.bg_veh_list)} background cars")
             for v in self.bg_veh_list:
                 v.destroy()
+
+        if self.communication_manager:
+            self.communication_manager.destroy()
+
+        # TODO: Add general function to destroy actors
 
 
 def run_scenario(opt, scenario_params) -> None:

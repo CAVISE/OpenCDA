@@ -10,7 +10,7 @@ import subprocess
 import dataclasses
 
 
-logger = logging.getLogger("cavise.protobuf_toolchain")
+logger = logging.getLogger("cavise.opencda.opencda.core.common.communication.toolchain")
 
 
 # Config for protoc

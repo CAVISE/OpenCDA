@@ -5,7 +5,7 @@ import logging
 import opencood.visualization.simple_plot3d.canvas_3d as canvas_3d
 import opencood.visualization.simple_plot3d.canvas_bev as canvas_bev
 
-logger = logging.getLogger("cavise.OpenCOOD.simple_vis")
+logger = logging.getLogger("cavise.opencda.OpenCOOD.opencood.visualization.simple_vis")
 
 
 def visualize(

@@ -10,7 +10,7 @@ from CoDriving.scripts.constants import CONTROL_RADIUS, THRESHOLD, FORCE_VALUE
 from opencda.co_simulation.sumo_integration.bridge_helper import BridgeHelper
 from AIM import AIMModel
 
-logger = logging.getLogger("cavise.codriving_model_manager")
+logger = logging.getLogger("cavise.opencda.opencda.core.common.codriving_model_manager")
 
 
 class AIMModelManager:
