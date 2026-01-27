@@ -4,14 +4,10 @@ import logging
 import pathlib
 from contextlib import contextmanager
 
-from . import toolchain
-
-toolchain.CommunicationToolchain.handle_messages(["entity", "opencda", "artery", "capi"])
-
 sys.path.append(str(pathlib.Path("opencda/core/common/communication/protos/cavise").resolve()))
 
 from .protos.cavise import opencda_pb2 as proto_opencda  # noqa: E402
-from .protos.cavise import capi_pb2 as proto_capi  # noqa: E402
+from .protos.cavise import artery_pb2 as proto_artery  # noqa: E402
 
 
 logger = logging.getLogger("cavise.opencda.opencda.core.common.communication.serialize")
@@ -39,7 +35,7 @@ class PayloadHandler:
 
         yield self.current_artery_payload[ego_id][id][module]
 
-    def make_opencda_payload(self) -> str:
+    def make_opencda_message(self) -> proto_opencda.OpenCDAMessage:
         opencda_message = proto_opencda.OpenCDAMessage()
 
         for entity_id in self.current_opencda_payload:
@@ -47,28 +43,15 @@ class PayloadHandler:
             entity_message.id = entity_id
             entity_message.auxillary = pickle.dumps(self.current_opencda_payload[entity_id])
 
-        msg = proto_capi.Message(opencda=opencda_message)
+        return opencda_message
 
-        return msg.SerializeToString()
-
-    def make_artery_payload(self, string) -> None:
-        msg = proto_capi.Message()
-        msg.ParseFromString(string)
-
-        if msg.WhichOneof("message") == "artery":
-            artery_message = msg.artery
-        else:
-            logger.warning("Message does not contain ArteryMessage")
-            return
-
-        artery_message = msg.artery
-
+    def make_artery_payload(self, artery_message: proto_artery.ArteryMessage) -> None:
         for transmission in artery_message.transmissions:
             ego_id = transmission.id
 
             for entity_info in transmission.entity:
                 entity_id = entity_info.id
-                self.current_opencda_payload[ego_id][entity_id] = pickle.loads(entity_info.auxillary)
+                self.current_artery_payload[ego_id][entity_id] = pickle.loads(entity_info.auxillary)
 
     def clear_messages(self):
         # Clear opencda and artery dict messages to avoid usage of date from previous ticks

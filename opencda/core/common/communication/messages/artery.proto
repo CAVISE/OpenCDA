@@ -5,7 +5,6 @@ package capi;
 import "entity.proto";
 
 message ArteryMessage {
-
     // Information received from other vehicles (CAV/RSU/Platoon)
     message Transmission {
         string id = 1;

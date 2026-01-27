@@ -31,7 +31,7 @@ class CavWorld(object):
         The machine learning manager class.
     """
 
-    def __init__(self, apply_ml=False, with_capi=False):
+    def __init__(self, apply_ml=False):
         self.vehicle_id_set = set()
         self._vehicle_manager_dict = {}
         self._platooning_dict = {}
@@ -46,13 +46,6 @@ class CavWorld(object):
             ml_manager = getattr(importlib.import_module("opencda.customize.ml_libs.ml_manager"), "MLManager")
             # initialize the ml manager to load the DL/ML models into memory
             self.ml_manager = ml_manager()
-
-        if with_capi:
-            manager = getattr(importlib.import_module("opencda.core.common.communication.manager"), "CommunicationManager")
-            # TODO: pass this as some sort of config
-            # TODO: add docs for this
-            address = "tcp://artery:7777"
-            self.comms_manager = manager(address)
 
         # this is used only when co-simulation activated.
         self.sumo2carla_ids = {}

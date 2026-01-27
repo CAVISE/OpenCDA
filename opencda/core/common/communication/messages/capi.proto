@@ -2,12 +2,15 @@ syntax = "proto3";
 
 package capi;
 
+import "ack.proto"
 import "artery.proto";
 import "opencda.proto";
 
 message Message {
+    int64 order = 1;
     oneof message {
-        ArteryMessage artery = 1;
-        OpenCDAMessage opencda = 2;
+        AckMessage ack = 2;
+        OpenCDAMessage opencda = 3;
+        ArteryMessage artery = 4;
     }
 }
