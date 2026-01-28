@@ -345,7 +345,7 @@ class LocalPlanner(object):
                 continue
             if i <= len(s) // 2:
                 self._long_plan_debug.append(carla.Transform(carla.Location(ix, iy, 0)))
-            rx.append(ix)
+            rx.append(ix) #NOTE Append float|None (from sp.calc_position) to List[float]. Runtime OK (assume non-None after hypot check). Fix: cast(float, ix) or if ix is not None: rx.append(ix)
             ry.append(iy)
             rk.append(max(min(sp.calc_curvature(i_s), 0.2), -0.2))
             ryaw.append(sp.calc_yaw(i_s))

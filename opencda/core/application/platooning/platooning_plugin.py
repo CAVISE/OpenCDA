@@ -7,7 +7,8 @@ V2X communication.
 """
 
 import warnings
-from typing import Optional, Dict, List, Tuple, Any
+from typing import Optional, Dict, List, Tuple, Any, Union
+import carla
 
 from opencda.core.common.misc import compute_distance, cal_distance_angle
 from opencda.core.application.platooning.fsm import FSM
@@ -63,16 +64,16 @@ class PlatooningPlugin(object):
         # whether leader in a platoon
         self.leader = False
         self.platooning_object = None
-        self.platooning_id = None
-        self.in_id = None
-        self.status = None
+        self.platooning_id: Optional[int] = None
+        self.in_id: Optional[int] = None
+        self.status: Optional[Union[str, FSM]] = None
 
         # ego speed and position
-        self.ego_pos = None
-        self.ego_spd = None
+        self.ego_pos: Optional[carla.Transform] = None
+        self.ego_spd: Optional[float] = None
 
         # the platoon in the black list won't be considered again
-        self.platooning_blacklist = []
+        self.platooning_blacklist: List[int] = []
 
         # used to label the front and rear vehicle position
         self.front_vehicle = None
@@ -148,7 +149,7 @@ class PlatooningPlugin(object):
         else:
             self.set_status(FSM.MAINTINING)
 
-    def set_status(self, status: str) -> None:
+    def set_status(self, status: Union[str, FSM]) -> None:
         """
         Set finite state machine status.
 
@@ -180,7 +181,7 @@ class PlatooningPlugin(object):
         """
         pm = None
         pmid = None
-        min_dist = 1000
+        min_dist: float = 1000
 
         for _, vm in cav_nearby.items():
             if vm.v2x_manager.in_platoon is None:
@@ -223,8 +224,8 @@ class PlatooningPlugin(object):
         # make sure the previous status won't influence current one
         self.reset()
 
-        cur_loc = self.ego_pos.location
-        cur_yaw = self.ego_pos.rotation.yaw
+        cur_loc = self.ego_pos.location #NOTE None-check is required
+        cur_yaw = self.ego_pos.rotation.yaw #NOTE None-check is required
 
         pmid, pm = self.search_platoon(cur_loc, cav_nearby)
 
@@ -237,29 +238,29 @@ class PlatooningPlugin(object):
         min_angle = 0
 
         # if the platooning is not open to joining
-        if not pm.response_joining_request(self.ego_pos.location):
+        if not pm.response_joining_request(self.ego_pos.location): #NOTE None-check is required
             return False, -1, []
 
         platoon_vehicle_list = []
 
-        for i, vehicle_manager in enumerate(pm.vehicle_manager_list):
+        for i, vehicle_manager in enumerate(pm.vehicle_manager_list):  #NOTE None-check is required
             distance, angle = cal_distance_angle(vehicle_manager.vehicle.get_location(), cur_loc, cur_yaw)
             platoon_vehicle_list.append(vehicle_manager)
 
             if distance < min_distance:
                 min_distance = distance
                 min_index = i
-                min_angle = angle
+                min_angle = angle #NOTE Incompatible types
 
         # if the ego is in front of the platooning
         if min_index == 0 and min_angle > 90:
             self.front_vehicle = None
-            self.rear_vechile = pm.vehicle_manager_list[0]
+            self.rear_vechile = pm.vehicle_manager_list[0] #NOTE None-check is required
             return True, min_index, platoon_vehicle_list
 
-        self.front_vehicle = pm.vehicle_manager_list[min_index]
+        self.front_vehicle = pm.vehicle_manager_list[min_index] #NOTE None-check is required
 
-        if min_index < len(pm.vehicle_manager_list) - 1:
-            self.rear_vechile = pm.vehicle_manager_list[min_index + 1]
+        if min_index < len(pm.vehicle_manager_list) - 1: #NOTE None-check is required
+            self.rear_vechile = pm.vehicle_manager_list[min_index + 1] #NOTE None-check is required
 
         return True, min_index, platoon_vehicle_list

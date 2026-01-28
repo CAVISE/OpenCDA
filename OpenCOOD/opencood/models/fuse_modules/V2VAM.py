@@ -87,7 +87,7 @@ class V2V_AttFusion(nn.Module):
 
         return torch.cat(out, dim=0)  # [2, 64, 100, 352]
 
-    def regroup(x: Tensor, record_len: Tensor) -> List[Tensor]:
+    def regroup(self, x: Tensor, record_len: Tensor) -> List[Tensor]:
         """
         Split input tensor into a list of tensors based on record_len.
 

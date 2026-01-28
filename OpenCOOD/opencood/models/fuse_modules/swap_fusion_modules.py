@@ -12,7 +12,7 @@ from einops.layers.torch import Rearrange, Reduce
 
 from opencood.models.sub_modules.base_transformer import FeedForward, PreNormResidual
 
-from typing import Optional
+from typing import Dict, Optional
 
 
 # swap attention -> max_vit
@@ -108,7 +108,7 @@ class Attention(nn.Module):
             Attention output with same shape as input.
         """
         # x shape: b, l, h, w, w_h, w_w, c
-        batch, agent_size, height, width, window_height, window_width, _, _, h = *x.shape, x.device, self.heads  # eighth variable is device
+        batch, agent_size, height, width, window_height, window_width, _, _, h = *x.shape, x.device, self.heads  # eighth variable is device # NOTE: This unpacking relies on dynamic tensor shape and device injection.Precise typing is impossible without refactoring the assignment.
 
         # flatten
         x = rearrange(x, "b l x y w1 w2 d -> (b x y) (l w1 w2) d")
@@ -320,7 +320,7 @@ class SwapFusionEncoder(nn.Module):
         MLP head for final feature transformation after agent aggregation.
     """
 
-    def __init__(self, args):
+    def __init__(self, args: Dict):
         super(SwapFusionEncoder, self).__init__()
 
         self.layers = nn.ModuleList([])

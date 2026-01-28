@@ -5,7 +5,7 @@ This module implements V2VNet fusion mechanism using spatial transformation
 and iterative GRU-based message passing for multi-agent cooperative perception.
 """
 
-from typing import Dict, List, Union
+from typing import Any, Dict, List, Union
 import torch
 import torch.nn as nn
 from torch import Tensor
@@ -71,7 +71,7 @@ class V2VNetFusion(nn.Module):
         Multi-layer perceptron for final feature transformation.
     """
 
-    def __init__(self, args: Dict[str, Union[int, float, str, Dict[str, int]]]):
+    def __init__(self, args: Dict[str, Any]):
         super(V2VNetFusion, self).__init__()
 
         in_channels = args["in_channels"]
@@ -98,7 +98,7 @@ class V2VNetFusion(nn.Module):
         )
         self.mlp = nn.Linear(in_channels, in_channels)
 
-    def regroup(x: Tensor, record_len: Tensor) -> List[Tensor]:
+    def regroup(self, x: Tensor, record_len: Tensor) -> List[Tensor]:
         """
         Split concatenated tensor into per-sample list.
 

@@ -6,6 +6,7 @@ boxes, general static obstacles, and traffic lights in the CARLA simulator.
 """
 
 import math
+from typing import Any
 
 import numpy as np
 import numpy.typing as npt
@@ -64,7 +65,7 @@ class StaticObstacle(object):
         Bounding box of the osbject vehicle.
     """
 
-    def __init__(self, corner, o3d_bbx):
+    def __init__(self, corner: npt.NDArray[np.float64], o3d_bbx: Any):
         self.bounding_box = BoundingBox(corner)
         self.o3d_bbx = o3d_bbx
 
@@ -90,15 +91,15 @@ class TrafficLight(object):
 
     """
 
-    def __init__(self, tl, trigger_location, light_state):
+    def __init__(self, tl: carla.Actor, trigger_location: carla.Vector3D, light_state: carla.TrafficLightState) -> None:
         self._location = trigger_location
         self.state = light_state
         self.actor = tl
 
-    def get_location(self):
+    def get_location(self) -> carla.Vector3D:
         return self._location
 
-    def get_state(self):
+    def get_state(self) -> carla.TrafficLightState:
         return self.state
 
     @staticmethod

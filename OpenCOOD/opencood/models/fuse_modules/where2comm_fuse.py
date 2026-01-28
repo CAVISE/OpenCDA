@@ -78,7 +78,7 @@ class Communication(nn.Module):
         self.gaussian_filter.weight.data = torch.Tensor(gaussian_kernel).to(self.gaussian_filter.weight.device).unsqueeze(0).unsqueeze(0)
         self.gaussian_filter.bias.data.zero_()
 
-    def forward(self, batch_confidence_maps: List[torch.Tensor], B: int) -> Tuple[torch.Tensor, float]:
+    def forward(self, batch_confidence_maps: List[torch.Tensor], B: int) -> Tuple[List, List]:
         """
         Generate communication masks based on confidence maps.
 
@@ -242,7 +242,7 @@ class Where2comm(nn.Module):
 
         self.naive_communication = Communication(args["communication"])
 
-    def regroup(x: torch.Tensor, record_len: torch.Tensor) -> List[torch.Tensor]:
+    def regroup(self, x: torch.Tensor, record_len: torch.Tensor) -> List[torch.Tensor]:
         """
         Regroup features based on record lengths.
 
@@ -300,7 +300,7 @@ class Where2comm(nn.Module):
             ups = []
 
             for i in range(self.num_levels):
-                x = backbone.blocks[i](x)
+                x = backbone.blocks[i](x) #NOTE None-check is required
 
                 # 1. Communication (mask the features)
                 if i == 0:
@@ -329,8 +329,8 @@ class Where2comm(nn.Module):
                 x_fuse = torch.stack(x_fuse)
 
                 # 4. Deconv
-                if len(backbone.deblocks) > 0:
-                    ups.append(backbone.deblocks[i](x_fuse))
+                if len(backbone.deblocks) > 0: #NOTE None-check is required
+                    ups.append(backbone.deblocks[i](x_fuse)) #NOTE None-check is required
                 else:
                     ups.append(x_fuse)
 
@@ -339,8 +339,8 @@ class Where2comm(nn.Module):
             elif len(ups) == 1:
                 x_fuse = ups[0]
 
-            if len(backbone.deblocks) > self.num_levels:
-                x_fuse = backbone.deblocks[-1](x_fuse)
+            if len(backbone.deblocks) > self.num_levels:  #NOTE None-check is required
+                x_fuse = backbone.deblocks[-1](x_fuse)  #NOTE None-check is required
         else:
             # 1. Communication (mask the features)
             if self.fully:

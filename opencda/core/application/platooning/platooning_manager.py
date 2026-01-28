@@ -9,7 +9,7 @@ member management, and performance evaluation.
 import uuid
 import weakref
 import logging
-from typing import List, Any
+from typing import List, Any, Tuple
 
 import carla
 
@@ -61,7 +61,7 @@ class PlatooningManager(object):
     def __init__(self, config_yaml: dict, cav_world: Any):
         self.pmid = str(uuid.uuid1())
 
-        self.vehicle_manager_list = []
+        self.vehicle_manager_list: List = []
         self.maximum_capacity = config_yaml["max_capacity"]
 
         self.destination = None
@@ -119,7 +119,7 @@ class PlatooningManager(object):
         self.vehicle_manager_list.insert(index, vehicle_manager)
         vehicle_manager.v2x_manager.set_platoon(index, platooning_object=self, platooning_id=self.pmid, leader=lead)
 
-    def cal_center_loc(self):
+    def cal_center_loc(self) -> None:
         """
         Calculate and update center location of the platoon.
 
@@ -137,7 +137,7 @@ class PlatooningManager(object):
             z=(v1_ego_transform.location.z + v2_ego_transform.location.z) / 2,
         )
 
-    def update_member_order(self):
+    def update_member_order(self) -> None:
         """
         Update member front and rear vehicle relationships.
 
@@ -191,7 +191,7 @@ class PlatooningManager(object):
 
             # find the corresponding vehicle manager and add it to the leader's
             # whitelist
-            request_vm = self.cav_world.locate_vehicle_manager(request_loc)
+            request_vm = self.cav_world.locate_vehicle_manager(request_loc) # NOTE: A None-check is required
             self.vehicle_manager_list[0].agent.add_white_list(request_vm)
 
             return True
@@ -241,7 +241,7 @@ class PlatooningManager(object):
 
         return control_list
 
-    def evaluate(self):
+    def evaluate(self) -> Tuple[plt.Figure, str]:
         """
         Evaluate and save statistics for all platoon members.
 

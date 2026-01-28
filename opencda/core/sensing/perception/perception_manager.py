@@ -56,8 +56,8 @@ class CameraSensor:
 
     def __init__(
         self,
-        vehicle: Optional[Any],
-        world: Any,
+        vehicle: Optional[carla.Vehicle],
+        world: carla.World,
         relative_position: Tuple[float, float, float, float],
         global_position: Optional[List[float]],
     ):
@@ -379,7 +379,7 @@ class PerceptionManager:
         carla_world: Optional[Any] = None,
     ):
         self.vehicle = vehicle
-        self.carla_world = carla_world if carla_world is not None else self.vehicle.get_world()
+        self.carla_world = carla_world if carla_world is not None else self.vehicle.get_world() #NOTE None-check is required
         self._map = self.carla_world.get_map()
 
         self.id = infra_id
@@ -409,7 +409,7 @@ class PerceptionManager:
         # we only spawn the camera when perception module is activated or
         # camera visualization is needed
         if self.activate or self.camera_visualize or data_dump:
-            self.rgb_camera = []
+            self.rgb_camera: Optional[List[CameraSensor]] = []
             mount_position = config_yaml["camera"]["positions"]
             assert len(mount_position) == self.camera_num, "The camera number has to be the same as the length of the relative positions list"
 
@@ -448,7 +448,7 @@ class PerceptionManager:
         self.ego_pos = None
 
         # the dictionary contains all objects
-        self.objects = {}
+        self.objects: Dict[str, List[Any]] = {}
         # traffic light detection related
         self.traffic_thresh = config_yaml["traffic_light_thresh"] if "traffic_light_thresh" in config_yaml else 50  # noqa: DC05
 
@@ -467,7 +467,7 @@ class PerceptionManager:
         distance : float
             The distance between ego and the target actor.
         """
-        return a.get_location().distance(self.ego_pos.location)
+        return a.get_location().distance(self.ego_pos.location) #NOTE None-check is required
 
     def detect(self, ego_pos: carla.Transform) -> Dict[str, List]:
         """
@@ -486,7 +486,7 @@ class PerceptionManager:
         """
         self.ego_pos = ego_pos
 
-        objects = {"vehicles": [], "traffic_lights": []}
+        objects: Dict[str, List[Any]] = {"vehicles": [], "traffic_lights": []}
 
         if not self.activate:
             objects = self.deactivate_mode(objects)
@@ -516,7 +516,7 @@ class PerceptionManager:
         """
         # retrieve current cameras and lidar data
         rgb_images = []
-        for rgb_camera in self.rgb_camera:
+        for rgb_camera in self.rgb_camera: #NOTE None-check is required
             while rgb_camera.image is None:
                 continue
             rgb_images.append(cv2.cvtColor(np.array(rgb_camera.image), cv2.COLOR_BGR2RGB))
@@ -549,7 +549,7 @@ class PerceptionManager:
             cv2.waitKey(1)
 
         if self.lidar_visualize:
-            while self.lidar.data is None:
+            while self.lidar.data is None: #NOTE None-check is required
                 continue
             o3d_pointcloud_encode(self.lidar.data, self.lidar.o3d_pointcloud)
             o3d_visualizer_show(self.o3d_vis, self.count, self.lidar.o3d_pointcloud, objects)

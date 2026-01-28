@@ -7,7 +7,7 @@ units, including coordinate transformation from WGS84 to ENU coordinate system.
 
 import weakref
 from collections import deque
-from typing import Dict, List, Any, Optional
+from typing import Deque, Dict, List, Any, Optional
 
 import carla
 
@@ -126,8 +126,8 @@ class LocalizationManager(object):
         self._speed = 0
 
         # history track
-        self._ego_pos_history = deque(maxlen=100)
-        self._timestamp_history = deque(maxlen=100)
+        self._ego_pos_history: Deque = deque(maxlen=100)
+        self._timestamp_history: Deque = deque(maxlen=100)
 
         self.gnss = GnssSensor(world, config_yaml["gnss"], config_yaml["global_position"])
         self.true_ego_pos = carla.Transform(
@@ -171,7 +171,7 @@ class LocalizationManager(object):
         """
         return self._speed
 
-    def destroy(self):
+    def destroy(self) -> None:
         """
         Destroy the sensors
         """

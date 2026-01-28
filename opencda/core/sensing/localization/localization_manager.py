@@ -7,7 +7,7 @@ for accurate vehicle localization in cooperative autonomous driving scenarios.
 
 import weakref
 from collections import deque
-from typing import Dict, Any, Optional
+from typing import Deque, Dict, Any, Optional
 
 import carla
 import numpy as np
@@ -63,7 +63,7 @@ class GnssSensor(object):
         self.sensor.listen(lambda event: GnssSensor._on_gnss_event(weak_self, event))
 
     @staticmethod
-    def _on_gnss_event(weak_self, event):
+    def _on_gnss_event(weak_self: weakref.ref[Any], event: carla.GNSSMeasurement) -> None:
         """GNSS method that returns the current geo location."""
         self = weak_self()
         if not self:
@@ -105,7 +105,7 @@ class ImuSensor(object):
         self.gyroscope = None
 
     @staticmethod
-    def _IMU_callback(weak_self, sensor_data):
+    def _IMU_callback(weak_self: weakref.ref[Any], sensor_data: carla.IMUMeasurement) -> None:
         """
         Callback for IMU measurement events.
 
@@ -179,11 +179,11 @@ class LocalizationManager(object):
 
         # speed and transform and current timestamp
         self._ego_pos = None
-        self._speed = 0
+        self._speed: float = 0
 
         # history track
-        self._ego_pos_history = deque(maxlen=100)
-        self._timestamp_history = deque(maxlen=100)
+        self._ego_pos_history: Deque = deque(maxlen=100)
+        self._timestamp_history: Deque = deque(maxlen=100)
 
         self.gnss = GnssSensor(vehicle, config_yaml["gnss"])
         self.imu = ImuSensor(vehicle)
@@ -199,7 +199,7 @@ class LocalizationManager(object):
         # DebugHelper
         self.debug_helper = LocDebugHelper(config_yaml["debug_helper"], self.vehicle.id)
 
-    def localize(self):
+    def localize(self) -> None:
         """
         Perform localization using sensor fusion or ground truth.
 
@@ -231,7 +231,7 @@ class LocalizationManager(object):
                 self._speed = speed_true
                 self.kf.run_step_init(x, y, np.deg2rad(heading_angle), self._speed / 3.6)
             else:
-                x_kf, y_kf, heading_angle_kf, speed_kf = self.kf.run_step(x, y, np.deg2rad(heading_angle), speed_noise / 3.6, self.imu.gyroscope[2])
+                x_kf, y_kf, heading_angle_kf, speed_kf = self.kf.run_step(x, y, np.deg2rad(heading_angle), speed_noise / 3.6, self.imu.gyroscope[2]) #NOTE Value of type "None" is not indexable
                 self._speed = speed_kf * 3.6
                 heading_angle_kf = np.rad2deg(heading_angle_kf)
 
@@ -301,7 +301,7 @@ class LocalizationManager(object):
         """
         return self._speed
 
-    def destroy(self):
+    def destroy(self) -> None:
         """
         Destroy the sensors
         """

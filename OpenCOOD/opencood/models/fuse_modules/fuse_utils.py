@@ -4,10 +4,10 @@ import numpy as np
 from einops import rearrange
 from opencood.utils.common_utils import torch_tensor_to_numpy
 
-from typing import List
+from typing import List, Tuple
 
 
-def regroup(dense_feature: torch.Tensor, record_len: List[int], max_len: int) -> torch.Tensor:
+def regroup(dense_feature: torch.Tensor, record_len: List[int], max_len: int) -> Tuple[torch.Tensor, torch.Tensor]:
     """
     Regroup concatenated CAV features into batched format with padding.
 
@@ -37,8 +37,8 @@ def regroup(dense_feature: torch.Tensor, record_len: List[int], max_len: int) ->
     """
     cum_sum_len = list(np.cumsum(torch_tensor_to_numpy(record_len)))
     split_features = torch.tensor_split(dense_feature, cum_sum_len[:-1])
-    regroup_features = []
-    mask = []
+    regroup_features: List[torch.Tensor] = []
+    mask: List[torch.Tensor] = []
 
     for split_feature in split_features:
         # M, C, H, W

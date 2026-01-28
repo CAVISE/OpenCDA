@@ -108,7 +108,7 @@ class AttFusion(nn.Module):
             out.append(h)
         return torch.stack(out)
 
-    def regroup(x: torch.Tensor, record_len: torch.Tensor) -> List[torch.Tensor]:
+    def regroup(self, x: torch.Tensor, record_len: torch.Tensor) -> List[torch.Tensor]:
         """
         Split input tensor into a list of tensors based on record_len.
 

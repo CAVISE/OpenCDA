@@ -76,20 +76,20 @@ class LocDebugHelper(object):
         self.y_scale = config_yaml["y_scale"]
 
         # off-line plotting
-        self.gnss_x = []
-        self.gnss_y = []
-        self.gnss_yaw = []
-        self.gnss_spd = []
+        self.gnss_x: List[float] = []
+        self.gnss_y: List[float] = []
+        self.gnss_yaw: List[float] = []
+        self.gnss_spd: List[float] = []
 
-        self.filter_x = []
-        self.filter_y = []
-        self.filter_yaw = []
-        self.filter_spd = []
+        self.filter_x: List[float] = []
+        self.filter_y: List[float] = []
+        self.filter_yaw: List[float] = []
+        self.filter_spd: List[float] = []
 
-        self.gt_x = []
-        self.gt_y = []
-        self.gt_yaw = []
-        self.gt_spd = []
+        self.gt_x: List[float] = []
+        self.gt_y: List[float] = []
+        self.gt_yaw: List[float] = []
+        self.gt_spd: List[float] = []
 
         # online animation
         # filtered x y coordinates

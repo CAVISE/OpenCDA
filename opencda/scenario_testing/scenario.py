@@ -75,7 +75,7 @@ class Scenario:
                 carla_version=opt.version,
                 town=town,
                 cav_world=self.cav_world,
-                sumo_file_parent_path=sumo_cfg,
+                sumo_file_parent_path=str(sumo_cfg),
                 node_ids=self.node_ids,
                 carla_host=opt.carla_host,
                 carla_timeout=opt.carla_timeout,
@@ -85,7 +85,7 @@ class Scenario:
                 scenario_params=scenario_params,
                 apply_ml=opt.apply_ml,
                 carla_version=opt.version,
-                xodr_path=xodr_path,
+                xodr_path=str(xodr_path),
                 town=town,
                 cav_world=self.cav_world,
                 carla_host=opt.carla_host,
@@ -112,7 +112,7 @@ class Scenario:
             save_yaml_name = Path("simulation_output/data_dumping") / current_time / "data_protocol.yaml"
             logger.info(f"saving params to {save_yaml_name}")
             os.makedirs(os.path.dirname(save_yaml_name), exist_ok=True)
-            save_yaml(scenario_params, save_yaml_name)
+            save_yaml(scenario_params, str(save_yaml_name))
 
             if opt.with_coperception and opt.model_dir:
                 from opencda.core.common.coperception_model_manager import CoperceptionModelManager
@@ -144,12 +144,12 @@ class Scenario:
             )
         # [CoDrivingInt]
 
-        self.platoon_list, self.node_ids["platoon"] = self.scenario_manager.create_platoon_manager(
+        self.platoon_list, self.node_ids["platoon"] = self.scenario_manager.create_platoon_manager( #NOTE Incompatible types in assignment (expression has type "dict[int, str]", target has type "list[int]")
             map_helper=map_api.spawn_helper_2lanefree, data_dump=data_dump
         )
         logger.info(f"created platoon list of size {len(self.platoon_list)}")
 
-        self.single_cav_list, self.node_ids["cav"] = self.scenario_manager.create_vehicle_manager(
+        self.single_cav_list, self.node_ids["cav"] = self.scenario_manager.create_vehicle_manager( #NOTE Incompatible types in assignment (expression has type "dict[int, str]", target has type "list[int]")
             application=["single"], map_helper=map_api.spawn_helper_2lanefree, data_dump=data_dump
         )
         logger.info(f"created single cavs of size {len(self.single_cav_list)}")
@@ -157,14 +157,14 @@ class Scenario:
         _, self.bg_veh_list = self.scenario_manager.create_traffic_carla()
         logger.info(f"created background traffic of size {len(self.bg_veh_list)}")
 
-        self.rsu_list, self.node_ids["rsu"] = self.scenario_manager.create_rsu_manager(data_dump=data_dump)
+        self.rsu_list, self.node_ids["rsu"] = self.scenario_manager.create_rsu_manager(data_dump=data_dump) #NOTE Incompatible types in assignment (expression has type "dict[int, str]", target has type "list[int]")
         logger.info(f"created RSU list of size {len(self.rsu_list)}")
 
         self.eval_manager = EvaluationManager(
             self.scenario_manager.cav_world, script_name=self.scenario_name, current_time=scenario_params["current_time"]
         )
 
-        self.spectator = self.scenario_manager.world.get_spectator()
+        self.spectator = self.scenario_manager.world.get_spectator() #NOTE None-check is required
 
     def run(self, opt: argparse.Namespace) -> None:
         if self.coperception_model_manager is not None:
@@ -201,7 +201,7 @@ class Scenario:
                     self.spectator.set_transform(carla.Transform(transform.location + carla.Location(z=50), carla.Rotation(pitch=-90)))
 
             if opt.with_mtp:
-                self.codriving_model_manager.make_trajs(carla_vmanagers=self.single_cav_list)
+                self.codriving_model_manager.make_trajs(carla_vmanagers=self.single_cav_list) #NOTE incompatible type "list[VehicleManager]"; expected "set[Any]"" but set[Any] in "make_trajs" of "AIMModelManager" provide other mistakes
 
             if self.coperception_model_manager is not None and tick_number > 0:
                 try:
@@ -253,7 +253,7 @@ class Scenario:
                     self.spectator.set_transform(carla.Transform(transform.location + carla.Location(z=50), carla.Rotation(pitch=-90)))
 
             if opt.with_mtp:
-                self.codriving_model_manager.make_trajs(carla_vmanagers=self.single_cav_list)
+                self.codriving_model_manager.make_trajs(carla_vmanagers=self.single_cav_list) #NOTE the same mistake as higher
 
             """
             # Tick 0 is an initialization tick. The simulation starts at tick 0, while the data dumper starts at tick 1.
@@ -274,20 +274,20 @@ class Scenario:
                     idx=0  # TODO: Figure out how to select the ego vehicle in cooperative perception models
                 )
 
-            message = self.message_handler.make_opencda_message()
+            message = self.message_handler.make_opencda_message() #NOTE None-check is required
 
-            self.cav_world.comms_manager.send_message(message)
+            self.cav_world.comms_manager.send_message(message) #NOTE None-check is required
             logger.info(f"{round(len(message) / (1 << 20), 3)} MB about to be sent")
 
-            message = self.cav_world.comms_manager.receive_message()
+            message = self.cav_world.comms_manager.receive_message() #NOTE None-check is required
             logger.info(f"{round(len(message) / (1 << 20), 3)} MB were received")
 
-            self.message_handler.make_artery_data(message)
+            self.message_handler.make_artery_data(message) #NOTE None-check is required
 
             if self.coperception_model_manager is not None and tick_number > 0:
                 self.coperception_model_manager.make_prediction(tick_number)
 
-            self.message_handler.clear_messages()
+            self.message_handler.clear_messages() #NOTE None-check is required
 
             if self.platoon_list is not None:
                 logger.debug("updating platoons")

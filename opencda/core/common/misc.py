@@ -2,7 +2,7 @@
 
 import math
 import importlib
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Tuple, Union, Any
 
 import numpy as np
 import carla

@@ -456,7 +456,7 @@ class BehaviorAgent(object):
                 distance = positive(dist(vehicle) - 3)
 
                 if distance < min_distance:
-                    min_distance = distance
+                    min_distance = distance #NOTE Incompatible types in assignment
                     target_vehicle = vehicle
 
         return vehicle_state, target_vehicle, min_distance

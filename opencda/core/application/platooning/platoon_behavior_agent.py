@@ -9,7 +9,7 @@ and gap maintenance algorithms.
 import weakref
 from collections import deque
 import logging
-from typing import Optional, Tuple, Dict, List, Any
+from typing import Deque, Optional, Tuple, Dict, List, Any, Union
 
 import carla
 import numpy as np
@@ -89,8 +89,11 @@ class PlatooningBehaviorAgent(BehaviorAgent):
         self.dist_gap = 100.0
 
     def run_step(
-        self, target_speed: float | Any = None, collision_detector_enabled: bool = True, lane_change_allowed: bool = True
-    ) -> Tuple[float, Optional[carla.Waypoint]]:
+    self,
+    target_speed: float = None,
+    collision_detector_enabled: bool = True,
+    lane_change_allowed: bool = True,
+) -> Tuple[float, Optional[carla.Waypoint]]:
         """
         Run a single step for navigation under platooning agent.
         Finite state machine is used to switch between different
@@ -111,7 +114,7 @@ class PlatooningBehaviorAgent(BehaviorAgent):
         self.time_gap = 100.0
         self.dist_gap = 100.0
 
-        status = self.v2x_manager.get_platoon_status()
+        status = self.v2x_manager.get_platoon_status() #NOTE None-check is required
         # case1: the vehicle is not cda enabled
         if status == FSM.DISABLE:
             return super().run_step(target_speed, collision_detector_enabled)
@@ -128,19 +131,19 @@ class PlatooningBehaviorAgent(BehaviorAgent):
                 return super().run_step(target_speed, collision_detector_enabled)
 
             # platoon found and agreement achieved
-            front_vehicle, rear_vehicle = self.v2x_manager.get_platoon_front_rear()
+            front_vehicle, rear_vehicle = self.v2x_manager.get_platoon_front_rear() #NOTE None-check is required
             # if no front vehicle, meaning it will be a frontal joining
             if not front_vehicle and rear_vehicle:
                 logger.info("merging vehicle chooses frontal joining")
-                self.v2x_manager.set_platoon_status(FSM.FRONT_JOINING)
+                self.v2x_manager.set_platoon_status(FSM.FRONT_JOINING) #NOTE None-check is required
             # if front vehicle and rear vehicle both exist
             if front_vehicle and rear_vehicle:
                 logger.info("merging vehicle chooses cut-in joining")
-                self.v2x_manager.set_platoon_status(FSM.MOVE_TO_POINT)
+                self.v2x_manager.set_platoon_status(FSM.MOVE_TO_POINT) #NOTE None-check is required
             # if only front vehicle exits
             if front_vehicle and not rear_vehicle:
                 logger.info("merging vehicle chooses back joining")
-                self.v2x_manager.set_platoon_status(FSM.BACK_JOINING)
+                self.v2x_manager.set_platoon_status(FSM.BACK_JOINING) #NOTE None-check is required
 
             return super().run_step(target_speed, collision_detector_enabled)
 
@@ -148,7 +151,7 @@ class PlatooningBehaviorAgent(BehaviorAgent):
         # the meeting point
         if status == FSM.MOVE_TO_POINT:
             target_speed, target_waypoint, new_status = self.run_step_cut_in_move2point()
-            self.v2x_manager.set_platoon_status(new_status)
+            self.v2x_manager.set_platoon_status(new_status) #NOTE None-check is required
             return target_speed, target_waypoint
         # case3.2: the merging vehicle chooses cut-in joining and is ready for
         # merging
@@ -170,14 +173,14 @@ class PlatooningBehaviorAgent(BehaviorAgent):
         # case 5: the merging vehicle selects frontal joining
         if status == FSM.FRONT_JOINING:
             target_speed, target_waypoint, new_status = self.run_step_front_joining()
-            self.v2x_manager.set_platoon_status(new_status)
+            self.v2x_manager.set_platoon_status(new_status) #NOTE None-check is required
 
             # if joining abandoned
             if new_status == FSM.ABONDON:
-                self.v2x_manager.set_platoon_status(FSM.SEARCHING)
+                self.v2x_manager.set_platoon_status(FSM.SEARCHING) #NOTE None-check is required
                 _, rear_vehicle_manager = self.v2x_manager.get_platoon_front_rear()
 
-                self.v2x_manager.add_platoon_blacklist(rear_vehicle_manager.v2x_manager.get_platoon_manager()[0].pmid)
+                self.v2x_manager.add_platoon_blacklist(rear_vehicle_manager.v2x_manager.get_platoon_manager()[0].pmid) #NOTE None-check is required
 
             if new_status == FSM.JOINING_FINISHED:
                 self.joining_finish_manager("rear")
@@ -222,7 +225,7 @@ class PlatooningBehaviorAgent(BehaviorAgent):
         self.obstacle_vehicles = self.white_list_match(obstacle_vehicles)
 
         # update the debug helper
-        self.debug_helper.update(ego_speed, self.ttc, time_gap=self.time_gap, dist_gap=self.dist_gap)
+        self.debug_helper.update(ego_speed, self.ttc, time_gap=self.time_gap, dist_gap=self.dist_gap) # NOTE: PlatoonDebugHelper.update() accepts time_gap/dist_gap but base class doesn't
 
         if self.ignore_traffic_light:
             self.light_state = "Green"
@@ -301,7 +304,7 @@ class PlatooningBehaviorAgent(BehaviorAgent):
             # get front speed
             frontal_speed = frontal_vehicle_manager.agent._ego_speed
 
-            ego_trajetory = deque(maxlen=30)
+            ego_trajetory: Deque[List[Union[carla.Transform, float]]] = deque(maxlen=30)
             ego_loc_x, ego_loc_y, ego_loc_z = self._ego_pos.location.x, self._ego_pos.location.y, self._ego_pos.location.z # NOTE: A None-check is required to satisfy type checking
 
             # get ego speed
@@ -438,7 +441,7 @@ class PlatooningBehaviorAgent(BehaviorAgent):
 
         return target_speed, target_waypoint
 
-    def run_step_cut_in_move2point(self) -> Tuple[float, Optional[carla.Waypoint], int]:
+    def run_step_cut_in_move2point(self) -> Tuple[float, Optional[carla.Waypoint], Union[int, FSM]]:
         """
         Execute move-to-point phase of cut-in joining.
 
@@ -511,7 +514,7 @@ class PlatooningBehaviorAgent(BehaviorAgent):
 
         return (*self.platooning_merge_management(frontal_vehicle_manager), FSM.JOINING)
 
-    def run_step_cut_in_joining(self) -> Tuple[float, Optional[carla.Waypoint], int]:
+    def run_step_cut_in_joining(self) -> Tuple[float, Optional[carla.Waypoint], Union[int, FSM]]:
         """
         Execute cut-in joining completion check.
 
@@ -577,7 +580,7 @@ class PlatooningBehaviorAgent(BehaviorAgent):
 
         return target_speed, target_loc
 
-    def run_step_back_joining(self) -> Tuple[float, Optional[carla.Waypoint], int]:
+    def run_step_back_joining(self) -> Tuple[float, Optional[carla.Waypoint], Union[int, FSM]]:
         """
         Execute back-joining algorithm.
 
@@ -677,7 +680,7 @@ class PlatooningBehaviorAgent(BehaviorAgent):
 
         return (*super().run_step(self.tailgate_speed), FSM.BACK_JOINING)
 
-    def run_step_front_joining(self) -> Tuple[float, Optional[carla.Waypoint], int]:
+    def run_step_front_joining(self) -> Tuple[float, Optional[carla.Waypoint], Union[int, FSM]]:
         """
         Execute front-joining algorithm.
 
