@@ -1,0 +1,6 @@
+# Python 3.10 compatibility constraints.
+# Example: networkx 3.5 requires Python >= 3.11
+networkx==3.4.2
+
+# scipy 1.16.x requires Python >= 3.11
+scipy==1.15.3
