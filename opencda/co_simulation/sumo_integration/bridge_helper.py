@@ -5,6 +5,7 @@ import logging
 import math
 import random
 import os
+from typing import Any, List, Optional, Tuple
 
 import carla  # pylint: disable=import-error
 import traci  # pylint: disable=import-error
@@ -18,11 +19,20 @@ from opencda.co_simulation.sumo_integration.sumo_simulation import SumoSignalSta
 
 class BridgeHelper(object):
     """
-    BridgeHelper provides methos to ease the co-simulation between sumo and carla.
+    BridgeHelper provides methods to ease the co-simulation between SUMO and CARLA.
+    
+    Attributes
+    ----------
+    blueprint_library : carla.BlueprintLibrary
+        CARLA blueprint library for vehicle spawning.
+    offset : Tuple[float, float]
+        Coordinate offset between SUMO and CARLA coordinate systems.
+    VTYPES : dict
+        Dictionary mapping vehicle type IDs to their attributes.
     """
 
-    blueprint_library = []
-    offset = (0, 0)
+    blueprint_library: List[Any] = []
+    offset: Tuple = (0, 0)
     dir_path = os.path.dirname(os.path.realpath(__file__))
 
     data_json = os.path.join(dir_path, "vtypes.json")
@@ -31,9 +41,21 @@ class BridgeHelper(object):
         _VTYPES = json.load(f)["carla_blueprints"]
 
     @staticmethod
-    def get_carla_transform(in_sumo_transform, extent):
+    def get_carla_transform(in_sumo_transform: carla.Transform, extent: carla.Vector3D) -> carla.Transform:
         """
-        Returns carla transform based on sumo transform.
+        Returns CARLA transform based on SUMO transform.
+        
+        Parameters
+        ----------
+        in_sumo_transform : carla.Transform
+            Input transform in SUMO coordinate system.
+        extent : carla.Vector3D
+            Bounding box extent of the vehicle.
+        
+        Returns
+        -------
+        carla.Transform
+            Transform in CARLA coordinate system.
         """
         offset = BridgeHelper.offset
         in_location = in_sumo_transform.location
@@ -61,9 +83,21 @@ class BridgeHelper(object):
         return out_transform
 
     @staticmethod
-    def get_sumo_transform(in_carla_transform, extent):
+    def get_sumo_transform(in_carla_transform: carla.Transform, extent: carla.Vector3D) -> carla.Transform:
         """
-        Returns sumo transform based on carla transform.
+        Returns SUMO transform based on CARLA transform.
+        
+        Parameters
+        ----------
+        in_carla_transform : carla.Transform
+            Input transform in CARLA coordinate system.
+        extent : carla.Vector3D
+            Bounding box extent of the vehicle.
+        
+        Returns
+        -------
+        carla.Transform
+            Transform in SUMO coordinate system.
         """
         offset = BridgeHelper.offset
         in_location = in_carla_transform.location
@@ -90,9 +124,19 @@ class BridgeHelper(object):
         return out_transform
 
     @staticmethod
-    def _get_recommended_carla_blueprint(sumo_actor):
+    def _get_recommended_carla_blueprint(sumo_actor: Any) -> Optional[Any]:
         """
-        Returns an appropriate blueprint based on the given sumo actor.
+        Returns an appropriate blueprint based on the given SUMO actor.
+        
+        Parameters
+        ----------
+        sumo_actor : Any
+            SUMO actor object with vclass attribute.
+        
+        Returns
+        -------
+        Optional[Any]
+            Random CARLA blueprint matching the vehicle class, or None.
         """
         vclass = sumo_actor.vclass.value
 
@@ -107,15 +151,27 @@ class BridgeHelper(object):
         return random.choice(blueprints)
 
     @staticmethod
-    def get_carla_blueprint(sumo_actor, sync_color=False):
+    def get_carla_blueprint(sumo_actor: Any, sync_color: bool=False) -> Optional[Any]:
         """
-        Returns an appropriate blueprint based on the received sumo actor.
+        Returns an appropriate blueprint based on the received SUMO actor.
+        
+        Parameters
+        ----------
+        sumo_actor : Any
+            SUMO actor object with typeid, color, and vclass attributes.
+        sync_color : bool, optional
+            Whether to synchronize color from SUMO to CARLA. Default is False.
+        
+        Returns
+        -------
+        Optional[Any]
+            CARLA blueprint with configured attributes, or None if not found.
         """
         blueprint_library = BridgeHelper.blueprint_library
         type_id = sumo_actor.type_id
 
         if type_id in [bp.id for bp in blueprint_library]:
-            blueprint = blueprint_library.filter(type_id)[0]
+            blueprint = blueprint_library.filter(type_id)[0] #NOTE "list" has no attribute "filter"
             logging.debug("[BridgeHelper] sumo vtype %s found in carla blueprints", type_id)
         else:
             blueprint = BridgeHelper._get_recommended_carla_blueprint(sumo_actor)
@@ -150,9 +206,19 @@ class BridgeHelper(object):
         return blueprint
 
     @staticmethod
-    def _create_sumo_vtype(carla_actor):
+    def _create_sumo_vtype(carla_actor: carla.Actor) -> str:
         """
-        Creates an appropriate vtype based on the given carla_actor.
+        Creates an appropriate vtype based on the given CARLA actor.
+        
+        Parameters
+        ----------
+        carla_actor : carla.Actor
+            CARLA actor with typeid, attributes, and bounding_box.
+        
+        Returns
+        -------
+        str
+            SUMO vehicle type ID.
         """
         type_id = carla_actor.type_id
         attrs = carla_actor.attributes
@@ -213,9 +279,19 @@ class BridgeHelper(object):
         return type_id
 
     @staticmethod
-    def get_sumo_vtype(carla_actor):
+    def get_sumo_vtype(carla_actor: carla.Actor) -> Optional[str]:
         """
         Returns an appropriate vtype based on the type id and attributes.
+        
+        Parameters
+        ----------
+        carla_actor : carla.Actor
+            CARLA actor with typeid attribute.
+        
+        Returns
+        -------
+        Optional[str]
+            SUMO vehicle type ID, or None if not supported.
         """
         type_id = carla_actor.type_id
 
@@ -229,9 +305,19 @@ class BridgeHelper(object):
         return BridgeHelper._create_sumo_vtype(carla_actor)
 
     @staticmethod
-    def get_sumo_traffic_light_state(carla_tl_state):
+    def get_sumo_traffic_light_state(carla_tl_state: carla.TrafficLightState) -> str:
         """
-        Returns sumo traffic light state based on carla traffic light state.
+        Returns SUMO traffic light state based on CARLA traffic light state.
+        
+        Parameters
+        ----------
+        carla_tl_state : carla.TrafficLightState
+            CARLA traffic light state.
+        
+        Returns
+        -------
+        SumoSignalState
+            Corresponding SUMO signal state.
         """
         if carla_tl_state == carla.TrafficLightState.Red:
             return SumoSignalState.RED

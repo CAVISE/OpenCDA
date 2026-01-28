@@ -1,5 +1,9 @@
 """
-Dataset class for intermediate fusion
+Intermediate fusion dataset for cooperative perception.
+
+This module provides dataset functionality for intermediate fusion where each
+vehicle transmits deep features to the ego vehicle in cooperative autonomous
+driving scenarios.
 """
 
 import math
@@ -7,6 +11,7 @@ import logging
 from collections import OrderedDict
 
 import numpy as np
+import numpy.typing as npt
 import torch
 
 import opencood.data_utils.datasets
@@ -15,17 +20,47 @@ from opencood.utils import box_utils
 from opencood.data_utils.datasets import basedataset
 from opencood.data_utils.pre_processor import build_preprocessor
 from opencood.utils.pcd_utils import mask_points_by_range, mask_ego_points, shuffle_points, downsample_lidar_minimum
+from typing import Dict, List, Tuple, Any, Optional
 
 logger = logging.getLogger("cavise.OpenCOOD.opencood.data_utils.datasets.intermediate_fusion_dataset")
 
 
 class IntermediateFusionDataset(basedataset.BaseDataset):
     """
-    This class is for intermediate fusion where each vehicle transmit the
-    deep features to ego.
+    Dataset class for intermediate fusion where each vehicle transmits deep features to the ego vehicle.
+
+    This class handles the processing of LiDAR data and object detection labels for multiple connected
+    autonomous vehicles (CAVs) in a cooperative perception setting. It supports both synchronous and
+    asynchronous data processing with message handling capabilities.
+
+    Parameters
+    ----------
+    params : Dict[str, Any]
+        Configuration dictionary containing dataset parameters.
+    visualize : bool
+        Whether to enable visualization features.
+    train : bool, optional
+        Whether the dataset is for training. Default is True.
+    message_handler : Any, optional
+        Handler for inter-vehicle message passing. Default is None.
+
+    Attributes
+    ----------
+    proj_first : bool
+        Whether to project LiDAR to ego frame first or project features.
+    cur_ego_pose_flag : bool
+        Whether there is time delay between CAV projection and ego reception.
+    pre_processor : BasePreprocessor
+        Preprocessor for LiDAR data.
+    post_processor : BasePostprocessor
+        Post-processor for object detection outputs.
+    message_handler : Any
+        Handler for message passing between vehicles.
+    module_name : str
+        Name identifier for the module.
     """
 
-    def __init__(self, params, visualize, train=True, message_handler=None):
+    def __init__(self, params: Dict[str, Any], visualize: bool, train: bool = True, message_handler: Optional[Any] = None):
         super(IntermediateFusionDataset, self).__init__(params, visualize, train)
 
         # if project first, cav's lidar will first be projected to
@@ -49,10 +84,31 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
         self.module_name = "OpenCOOD.IntermediateFusionDataset"
 
     @staticmethod
-    def __wrap_ndarray(ndarray):
+    def __wrap_ndarray(ndarray: npt.NDArray[np.float64]) -> Dict[str, Any]:
+        """
+        Convert a numpy array to a serializable dictionary.
+
+        Parameters
+        ----------
+        ndarray : np.ndarray
+            Input numpy array.
+
+        Returns
+        -------
+        Dict[str, Any]
+            Dictionary containing array data, shape, and dtype.
+        """
         return {"data": ndarray.tobytes(), "shape": ndarray.shape, "dtype": str(ndarray.dtype)}
 
-    def extract_data(self, idx):
+    def extract_data(self, idx: int) -> None:
+        """
+        Extract and process data for a single frame.
+
+        Parameters
+        ----------
+        idx : int
+            Index of the data point to extract.
+        """
         base_data_dict = self.retrieve_base_data(idx, cur_ego_pose_flag=self.cur_ego_pose_flag)
         _, ego_lidar_pose = self.__find_ego_vehicle(base_data_dict)
 
@@ -124,14 +180,34 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
                     else:
                         msg["projected_lidar_raw"] = None
 
-    def __find_ego_vehicle(self, base_data_dict):
+    def __find_ego_vehicle(self, base_data_dict: Dict[str, Any]) -> Tuple[str, List[float]]:
+        """
+        Find the ego vehicle in the base data dictionary.
+
+        Parameters
+        ----------
+        base_data_dict : Dict[str, Any]
+            Dictionary containing data from all CAVs.
+
+        Returns
+        -------
+        ego_id : str
+            ID of the ego vehicle.
+        ego_lidar_pose : List[float]
+            Pose of the ego vehicle's LiDAR.
+
+        Raises
+        ------
+        AssertionError
+            If ego vehicle is not found or not the first element.
+        """
         ego_id = -1
         ego_lidar_pose = []
 
         # first find the ego vehicle's lidar pose
         for cav_id, cav_content in base_data_dict.items():
             if cav_content["ego"]:
-                ego_id = cav_id
+                ego_id = cav_id #NOTE Incompatible types
                 ego_lidar_pose = cav_content["params"]["lidar_pose"]
                 break
 
@@ -139,33 +215,107 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
         assert ego_id != -1
         assert len(ego_lidar_pose) > 0
 
-        return ego_id, ego_lidar_pose
+        return ego_id, ego_lidar_pose #NOTE Incompatible return
 
-    def __prepare_object_stack(self, object_stack, object_id_stack):
+    def __prepare_object_stack(
+        self, object_stack: List[npt.NDArray[np.float64]], object_id_stack: List[int]
+    ) -> Tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], List[int]]:
+        """
+        Prepare object stack by removing duplicates and padding to fixed size.
+
+        Parameters
+        ----------
+        object_stack : List[np.ndarray]
+            List of object bounding boxes.
+        object_id_stack : List[int]
+            List of object IDs.
+
+        Returns
+        -------
+        object_bbx_center : np.ndarray
+            Padded array of object bounding boxes, shape (max_num, 7).
+        mask : np.ndarray
+            Binary mask indicating valid objects, shape (max_num,).
+        filtered_object_ids : List[int]
+            List of unique object IDs.
+        """
         # exclude all repetitive objects
         unique_indices = [object_id_stack.index(x) for x in set(object_id_stack)]
         object_stack = np.vstack(object_stack)
-        object_stack = object_stack[unique_indices]
+        object_stack = object_stack[unique_indices] # NOTE: mypy error - convert to np.array
 
         # make sure bounding boxes across all frames have the same number
         object_bbx_center = np.zeros((self.params["postprocess"]["max_num"], 7))
         mask = np.zeros(self.params["postprocess"]["max_num"])
-        object_bbx_center[: object_stack.shape[0], :] = object_stack
+        object_bbx_center[: object_stack.shape[0], :] = object_stack # NOTE: mypy error - convert to np.array
         mask[: object_stack.shape[0]] = 1
 
         filtered_object_ids = [object_id_stack[i] for i in unique_indices]
 
         return object_bbx_center, mask, filtered_object_ids
 
-    def __pad_spatial_matrix(self, matrix_list):
+    def __pad_spatial_matrix(self, matrix_list: List[npt.NDArray[np.float64]]) -> npt.NDArray[np.float64]:
+        """
+        Pad a list of spatial transformation matrices to match max_cav.
+
+        Parameters
+        ----------
+        matrix_list : List[np.ndarray]
+            List of 4x4 transformation matrices to pad.
+
+        Returns
+        -------
+        np.ndarray
+            Padded array of transformation matrices with shape (max_cav, 4, 4).
+        """
         matrix_list = np.stack(matrix_list)
         padding_eye = np.tile(np.eye(4)[None], (self.max_cav - len(matrix_list), 1, 1))
         return np.concatenate([matrix_list, padding_eye], axis=0)
 
-    def __pad_to_max(self, lst, pad_value):
+    def __pad_to_max(self, lst: List[Any], pad_value: Any) -> List[Any]:
+        """
+        Pad a list to the maximum number of CAVs.
+
+        Parameters
+        ----------
+        lst : List[Any]
+            List to pad.
+        pad_value : Any
+            Value to use for padding.
+
+        Returns
+        -------
+        List[Any]
+            Padded list with length equal to max_cav.
+        """
         return lst + (self.max_cav - len(lst)) * [pad_value]
 
-    def __process_with_messages(self, ego_id, ego_lidar_pose, base_data_dict):
+    def __process_with_messages(self, ego_id: str, ego_lidar_pose: List[float], base_data_dict: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Process data using message passing between connected vehicles.
+
+        Parameters
+        ----------
+        ego_id : str
+            ID of the ego vehicle.
+        ego_lidar_pose : List[float]
+            LiDAR pose of the ego vehicle.
+        base_data_dict : Dict[str, Any]
+            Dictionary containing base data for all vehicles.
+
+        Returns
+        -------
+        Dict[str, Any]
+            Dictionary containing processed data including:
+            - processed_features: List of processed feature dictionaries
+            - object_stack: List of object bounding boxes
+            - object_id_stack: List of object IDs
+            - velocity: List of vehicle velocities
+            - time_delay: List of time delays
+            - infra: List of infrastructure flags
+            - spatial_correction_matrix: List of spatial correction matrices
+            - projected_lidar_stack: List of projected LiDAR points (if visualization is enabled)
+        """
         processed_features = []
         object_stack = []
         object_id_stack = []
@@ -173,25 +323,25 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
         time_delay = []
         infra = []
         spatial_correction_matrix = []
-        projected_lidar_stack = [] if self.visualize else None
+        projected_lidar_stack: Optional[List] = [] if self.visualize else None
 
         ego_cav_base = base_data_dict.get(ego_id)
-        ego_cav_processed = self.get_item_single_car(ego_cav_base, ego_lidar_pose)
+        ego_cav_processed = self.get_item_single_car(ego_cav_base, ego_lidar_pose) #NOTE None-check is required
 
         infra.append(1 if "rsu" in ego_id else 0)
         velocity.append(ego_cav_processed["velocity"])
-        time_delay.append(float(ego_cav_base["time_delay"]))
+        time_delay.append(float(ego_cav_base["time_delay"])) #NOTE None-check is required
         object_id_stack += ego_cav_processed["object_ids"]
         object_stack.append(ego_cav_processed["object_bbx_center"])
-        spatial_correction_matrix.append(ego_cav_base["params"]["spatial_correction_matrix"])
+        spatial_correction_matrix.append(ego_cav_base["params"]["spatial_correction_matrix"]) #NOTE None-check is required
         processed_features.append(ego_cav_processed["processed_features"])
         if self.visualize:
-            projected_lidar_stack.append(ego_cav_processed["projected_lidar"])
+            projected_lidar_stack.append(ego_cav_processed["projected_lidar"]) #NOTE None-check is required
 
-        if ego_id in self.message_handler.current_message_artery:
+        if ego_id in self.message_handler.current_message_artery: #NOTE None-check is required
             for cav_id, _ in base_data_dict.items():
-                if cav_id in self.message_handler.current_message_artery[ego_id]:
-                    with self.message_handler.handle_artery_message(ego_id, cav_id, self.module_name) as msg:
+                if cav_id in self.message_handler.current_message_artery[ego_id]: #NOTE None-check is required
+                    with self.message_handler.handle_artery_message(ego_id, cav_id, self.module_name) as msg: #NOTE None-check is required
                         infra.append(msg["infra"])
                         velocity.append(msg["velocity"])
                         time_delay.append(msg["time_delay"])
@@ -221,7 +371,7 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
                         if self.visualize:
                             projected = np.frombuffer(msg["projected_lidar"]["data"], np.dtype(msg["projected_lidar"]["dtype"]))
                             projected = projected.reshape(msg["projected_lidar"]["shape"])
-                            projected_lidar_stack.append(projected)
+                            projected_lidar_stack.append(projected) #NOTE list has no attribute "append"
 
         return {
             "processed_features": processed_features,
@@ -234,7 +384,22 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
             "projected_lidar_stack": projected_lidar_stack or [],
         }
 
-    def __process_without_messages(self, ego_lidar_pose, base_data_dict):
+    def __process_without_messages(self, ego_lidar_pose: List[float], base_data_dict: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Process data without using message passing.
+
+        Parameters
+        ----------
+        ego_lidar_pose : List[float]
+            LiDAR pose of the ego vehicle.
+        base_data_dict : Dict[str, Any]
+            Dictionary containing base data for all vehicles.
+
+        Returns
+        -------
+        Dict[str, Any]
+            Dictionary containing processed data (same structure as __process_with_messages).
+        """
         processed_features = []
         object_stack = []
         object_id_stack = []
@@ -242,7 +407,7 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
         time_delay = []
         infra = []
         spatial_correction_matrix = []
-        projected_lidar_stack = [] if self.visualize else None
+        projected_lidar_stack: Optional[List[npt.NDArray]] = [] if self.visualize else None
 
         for cav_id, selected_cav_base in base_data_dict.items():
             dx = selected_cav_base["params"]["lidar_pose"][0] - ego_lidar_pose[0]
@@ -263,7 +428,7 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
             processed_features.append(selected_cav_processed["processed_features"])
 
             if self.visualize:
-                projected_lidar_stack.append(selected_cav_processed["projected_lidar"])
+                projected_lidar_stack.append(selected_cav_processed["projected_lidar"]) #NOTE list has no attribute "append"
 
         return {
             "processed_features": processed_features,
@@ -276,9 +441,22 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
             "projected_lidar_stack": projected_lidar_stack or [],
         }
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx: int) -> Dict[str, Any]:
+        """
+        Get a single data sample by index.
+
+        Parameters
+        ----------
+        idx : int
+            Index of the data sample to retrieve.
+
+        Returns
+        -------
+        Dict[str, Any]
+            Dictionary containing the processed data sample with ego vehicle information.
+        """
         base_data_dict = self.retrieve_base_data(idx, cur_ego_pose_flag=self.cur_ego_pose_flag)
-        processed_data_dict = OrderedDict()
+        processed_data_dict: OrderedDict = OrderedDict()
         processed_data_dict["ego"] = {}
 
         ego_id, ego_lidar_pose = self.__find_ego_vehicle(base_data_dict)
@@ -292,8 +470,8 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
         object_bbx_center, mask, object_ids = self.__prepare_object_stack(data["object_stack"], data["object_id_stack"])
 
         merged_feature_dict = self.merge_features_to_dict(data["processed_features"])
-        anchor_box = self.post_processor.generate_anchor_box()
-        label_dict = self.post_processor.generate_label(gt_box_center=object_bbx_center, anchors=anchor_box, mask=mask)
+        anchor_box = self.post_processor.generate_anchor_box() #NOTE None-check is required
+        label_dict = self.post_processor.generate_label(gt_box_center=object_bbx_center, anchors=anchor_box, mask=mask) #NOTE None-check is required
 
         spatial_correction_matrix = self.__pad_spatial_matrix(data["spatial_correction_matrix"])
         velocity = self.__pad_to_max(data["velocity"], 0.0)
@@ -322,21 +500,21 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
 
         return processed_data_dict
 
-    def get_item_single_car(self, selected_cav_base, ego_pose):
+    def get_item_single_car(self, selected_cav_base: Dict[str, Any], ego_pose: List[float]) -> Dict[str, Any]:
         """
         Project the lidar and bbx to ego space first, and then do clipping.
 
         Parameters
         ----------
-        selected_cav_base : dict
-            The dictionary contains a single CAV's raw information.
-        ego_pose : list
-            The ego vehicle lidar pose under world coordinate.
+        selected_cav_base : Dict[str, Any]
+            Dictionary containing a single CAV's raw information.
+        ego_pose : List[float]
+            Ego vehicle lidar pose under world coordinate.
 
         Returns
         -------
-        selected_cav_processed : dict
-            The dictionary contains the cav's processed information.
+        Dict[str, Any]
+            Dictionary containing the CAV's processed information.
         """
         selected_cav_processed = {}
 
@@ -344,7 +522,7 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
         transformation_matrix = selected_cav_base["params"]["transformation_matrix"]
 
         # retrieve objects under ego coordinates
-        object_bbx_center, object_bbx_mask, object_ids = self.post_processor.generate_object_center([selected_cav_base], ego_pose)
+        object_bbx_center, object_bbx_mask, object_ids = self.post_processor.generate_object_center([selected_cav_base], ego_pose) #NOTE None-check is required
 
         # filter lidar
         lidar_np = selected_cav_base["lidar_np"]
@@ -355,7 +533,7 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
         if self.proj_first:
             lidar_np[:, :3] = box_utils.project_points_by_matrix_torch(lidar_np[:, :3], transformation_matrix)
         lidar_np = mask_points_by_range(lidar_np, self.params["preprocess"]["cav_lidar_range"])
-        processed_lidar = self.pre_processor.preprocess(lidar_np)
+        processed_lidar = self.pre_processor.preprocess(lidar_np) #NOTE None-check is required
 
         # velocity
         velocity = selected_cav_base["params"]["ego_speed"]
@@ -375,24 +553,21 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
         return selected_cav_processed
 
     @staticmethod
-    def merge_features_to_dict(processed_feature_list):
+    def merge_features_to_dict(processed_feature_list: List[Dict[str, Any]]) -> Dict[str, List[Any]]:
         """
-        Merge the preprocessed features from different cavs to the same
-        dictionary.
+        Merge the preprocessed features from different cavs to the same dictionary.
 
         Parameters
         ----------
-        processed_feature_list : list
-            A list of dictionary containing all processed features from
-            different cavs.
+        processed_feature_list : List[Dict[str, Any]]
+            List of dictionaries containing all processed features from different cavs.
 
         Returns
         -------
-        merged_feature_dict: dict
-            key: feature names, value: list of features.
+        Dict[str, List[Any]]
+            Dictionary where key is feature name and value is list of features.
         """
-
-        merged_feature_dict = OrderedDict()
+        merged_feature_dict: OrderedDict = OrderedDict()
 
         for i in range(len(processed_feature_list)):
             for feature_name, feature in processed_feature_list[i].items():
@@ -405,9 +580,22 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
 
         return merged_feature_dict
 
-    def collate_batch_train(self, batch):
+    def collate_batch_train(self, batch: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        Collate a batch of training samples.
+
+        Parameters
+        ----------
+        batch : List[Dict[str, Any]]
+            List of data samples to collate.
+
+        Returns
+        -------
+        Dict[str, Any]
+            Dictionary containing batched data with ego vehicle information.
+        """
         # Intermediate fusion is different the other two
-        output_dict = {"ego": {}}
+        output_dict: Dict[str, Dict[str, Any]] = {"ego": {}}
 
         object_bbx_center = []
         object_bbx_mask = []
@@ -457,10 +645,10 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
         # example: {'voxel_features':[np.array([1,2,3]]),
         # np.array([3,5,6]), ...]}
         merged_feature_dict = self.merge_features_to_dict(processed_lidar_list)
-        processed_lidar_torch_dict = self.pre_processor.collate_batch(merged_feature_dict)
+        processed_lidar_torch_dict = self.pre_processor.collate_batch(merged_feature_dict) #NOTE None-check is required
         # [2, 3, 4, ..., M], M <= max_cav
         record_len = torch.from_numpy(np.array(record_len, dtype=int))
-        label_torch_dict = self.post_processor.collate_batch(label_dict_list)
+        label_torch_dict = self.post_processor.collate_batch(label_dict_list) #NOTE None-check is required
 
         # (B, max_cav)
         velocity = torch.from_numpy(np.array(velocity))
@@ -495,7 +683,27 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
 
         return output_dict
 
-    def collate_batch_test(self, batch):
+    def collate_batch_test(self, batch: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        Collate a batch of test samples.
+
+        Parameters
+        ----------
+        batch : List[Dict[str, Any]]
+            List of test samples to collate (batch size must be 1).
+
+        Returns
+        -------
+        Dict[str, Any]
+            Dictionary containing batched test data with additional test-specific fields:
+            - anchor_box: Anchor boxes (if present)
+            - transformation_matrix: Identity transformation matrix
+
+        Raises
+        ------
+        AssertionError
+            If batch size is greater than 1.
+        """
         assert len(batch) <= 1, "Batch size 1 is required during testing!"
         output_dict = self.collate_batch_train(batch)
 
@@ -509,47 +717,46 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
 
         return output_dict
 
-    def post_process(self, data_dict, output_dict):
+    def post_process(self, data_dict: Dict[str, Any], output_dict: Dict[str, Any]) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Process the outputs of the model to 2D/3D bounding box.
 
         Parameters
         ----------
-        data_dict : dict
-            The dictionary containing the origin input data of model.
-
-        output_dict :dict
-            The dictionary containing the output of the model.
+        data_dict : Dict[str, Any]
+            Dictionary containing the origin input data of model.
+        output_dict : Dict[str, Any]
+            Dictionary containing the output of the model.
 
         Returns
         -------
         pred_box_tensor : torch.Tensor
-            The tensor of prediction bounding box after NMS.
+            Tensor of prediction bounding boxes after NMS.
+        pred_score : torch.Tensor
+            Tensor of confidence scores for predicted boxes.
         gt_box_tensor : torch.Tensor
-            The tensor of gt bounding box.
+            Tensor of ground truth bounding boxes.
         """
-        pred_box_tensor, pred_score = self.post_processor.post_process(data_dict, output_dict)
-        gt_box_tensor = self.post_processor.generate_gt_bbx(data_dict)
+        pred_box_tensor, pred_score = self.post_processor.post_process(data_dict, output_dict) #NOTE None-check is required
+        gt_box_tensor = self.post_processor.generate_gt_bbx(data_dict) #NOTE None-check is required
 
         return pred_box_tensor, pred_score, gt_box_tensor
 
-    def get_pairwise_transformation(self, base_data_dict, max_cav):
+    def get_pairwise_transformation(self, base_data_dict: Dict[str, Any], max_cav: int) -> np.ndarray:
         """
         Get pair-wise transformation matrix accross different agents.
 
         Parameters
         ----------
-        base_data_dict : dict
-            Key : cav id, item: transformation matrix to ego, lidar points.
-
+        base_data_dict : Dict[str, Any]
+            Dictionary where key is cav id, item contains transformation matrix to ego and lidar points.
         max_cav : int
-            The maximum number of cav, default 5
+            Maximum number of CAVs, default 5.
 
-        Return
-        ------
-        pairwise_t_matrix : np.array
-            The pairwise transformation matrix across each cav.
-            shape: (L, L, 4, 4)
+        Returns
+        -------
+        np.ndarray
+            Pairwise transformation matrix across each CAV, shape (L, L, 4, 4).
         """
         pairwise_t_matrix = np.zeros((max_cav, max_cav, 4, 4))
 

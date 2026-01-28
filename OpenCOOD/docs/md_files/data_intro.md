@@ -4,8 +4,8 @@
 OpenCOOD support both **OPV2V (ICRA2022)** and **V2XSet (ECCV2022)** dataset.
 
 ## OPV2V
-All the data can be downloaded from [google drive](https://drive.google.com/drive/folders/1dkDeHlwOVbmgXcDazZvO6TFEZ6V_7WUu). If you have a good internet, you can directly
-download the complete large zip file such as `train.zip`. In case you suffer from downloading large fiels, we also split each data set into small chunks, which can be found
+All the data can be downloaded from [official OPV2V website](https://ucla.app.box.com/v/UCLA-MobilityLab-OPV2V). If you have a good internet, you can directly
+download the complete large zip file such as `train.zip`. In case you suffer from downloading large files, we also split each data set into small chunks, which can be found
 in the directory ending with `_chunks`, such as `train_chunks`. After downloading, please run the following command to each set to merge those chunks together:
 ```python
 cat train.zip.part* > train.zip
@@ -78,11 +78,11 @@ Besides agent contents, every scenario database also has a yaml file named `data
 This yaml file records the simulation configuration to collect the current scenario. It is used to log replay
 the data and enable users to add/modify sensors for new tasks without changing the original events.
 
-To help users collect customized data in CARLA (e.g., different sensor configurations and modalities) with similar data format and structure, we have released our OPV2V data collection code in the `feature/data_collection` branch of [OpenCDA](https://github.com/ucla-mobility/OpenCDA/tree/feature/data_collection). Users can refer to its [documentation](https://opencda-documentation.readthedocs.io/en/latest/md_files/introduction.html) for detailed instructions.
+Users can refer to its [documentation](https://opencda-documentation.readthedocs.io/en/latest/md_files/introduction.html) for detailed instructions.
 
 ---
 ## V2XSet
-The data can be found from [google url](https://drive.google.com/drive/folders/1r5sPiBEvo8Xby-nMaWUTnJIPK6WhY1B6?usp=sharing).  Since the data for train/validate/test
+The data can be downloaded from [ucla website](https://mobility-lab.seas.ucla.edu/v2x-real/).  Since the data for train/validate/test
 is very large, we  split each data set into small chunks, which can be found in the directory ending with `_chunks`, such as `train_chunks`. After downloading, please run the following command to each set to merge those chunks together:
 ```
 cat train.zip.part* > train.zip
@@ -109,7 +109,7 @@ V2XSet's data label format is nearly the same with OPV2V, except:
 ---
 ## Adding Noise to OPV2V and V2XSet
 
-Cooperative perception faces the challenge of GPS error and communication delay. Our OpenCOOD allows users
+Cooperative perception faces the challenge of GPS error and communication delay. OpenCOOD allows users
 to add realistic GPS error and communication delay to the dataset.
 
 To add noise to both OPV2V and V2XSet, just add the following parameters to the model yaml file:

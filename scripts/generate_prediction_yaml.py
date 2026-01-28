@@ -1,5 +1,8 @@
-"""Load the dumped yaml files and generate prediction/observed trajectory
-for each vehicle
+"""
+Script to load dumped YAML files and generate prediction/observed trajectories for each vehicle.
+
+This module provides functionality to process simulation data, extract vehicle trajectories,
+and generate prediction and observation data for each vehicle in the simulation.
 """
 
 import os
@@ -8,27 +11,27 @@ import concurrent
 from concurrent.futures import ThreadPoolExecutor
 from opencda.scenario_testing.utils.yaml_utils import load_yaml, save_yaml
 
+from typing import List, Dict
 
-def retrieve_future_params(yaml_params, index, seconds=8):
+
+def retrieve_future_params(yaml_params: List, index: int, seconds: int = 8) -> List:
     """
-    Retrieve the yaml parameters for the next n seconds.
+    Retrieve YAML parameters for the next n seconds.
 
     Parameters
     ----------
     yaml_params : list
-        The list that contains all loaded yaml parameters.
-
+        List containing all loaded YAML parameters.
     index : int
         Current timestamp index.
-
-    seconds : int
-        The next n seconds we want to collect. Note the data collection is
-        10hz.
+    seconds : int, optional
+        Number of future seconds to collect. Default is 8.
+        Data collection is at 10Hz, so 8 seconds = 80 frames.
 
     Returns
     -------
     future_params : list
-        The list contains next n seconds' yaml parameters
+        YAML parameters for the next n seconds.
     """
     start_index = min(index + 1, len(yaml_params) - 1)
     end_index = min(index + seconds * 10 + 1, len(yaml_params) - 1)
@@ -37,26 +40,24 @@ def retrieve_future_params(yaml_params, index, seconds=8):
     return future_params
 
 
-def retrieve_past_params(yaml_params, index, seconds=1):
+def retrieve_past_params(yaml_params: List, index: int, seconds: int = 1) -> List:
     """
-    Retrieve the yaml parameters for the past n seconds.
+    Retrieve YAML parameters for the past n seconds.
 
     Parameters
     ----------
     yaml_params : list
-        The list that contains all loaded yaml parameters.
-
+        List containing all loaded YAML parameters.
     index : int
         Current timestamp index.
-
-    seconds : int
-        The previous n seconds we want to collect. Note the data collection is
-        10hz.
+    seconds : int, optional
+        Number of past seconds to collect. Default is 1.
+        Data collection is at 10Hz, so 1 second = 10 frames.
 
     Returns
     -------
     past_params : list
-        The list contains previous n seconds' yaml parameters
+        YAML parameters for the previous n seconds.
     """
     end_index = max(index - 1, 0)
     start_index = max(index - seconds * 10, 0)
@@ -65,21 +66,23 @@ def retrieve_past_params(yaml_params, index, seconds=1):
     return past_params
 
 
-def extract_trajectories_by_id(object_id, yaml_param_list):
+def extract_trajectories_by_id(object_id: str, yaml_param_list: List) -> List:
     """
-    Extract a certain vehicle's future trajectory.
+    Extract a vehicle's trajectory from YAML parameters.
 
     Parameters
     ----------
     object_id : str
-        Target object id.
+        Target vehicle ID.
     yaml_param_list : list
-        The list contains next n seconds' yaml parameters.
+        List containing YAML parameters for trajectory extraction.
 
     Returns
     -------
-    predictions : list
-        The future trajectory of object_id.
+    trajectories : list of tuple
+        Vehicle's trajectory as a list of 7-tuples:
+        (x, y, z, roll, pitch, yaw, speed).
+        Coordinates are in world frame with bounding box center as reference..
     """
     trajectories = []
 
@@ -103,29 +106,26 @@ def extract_trajectories_by_id(object_id, yaml_param_list):
     return trajectories
 
 
-def extract_trajectories_by_file(yaml_params, cur_index, past_seconds=1, future_seconds=8):
+def extract_trajectories_by_file(yaml_params: List, cur_index: int, past_seconds: int = 1, future_seconds: int = 8) -> Dict:
     """
-    Extract the predictions and observation of all vehicles
-    at the current index.
+    Extract predictions and observations for all vehicles at the current timestamp.
 
     Parameters
     ----------
     yaml_params : list
-        All loaded yaml dictionaries.
-
+        List of all loaded YAML dictionaries.
     cur_index : int
-        Current file index.
-
-    past_seconds : int
-        Previous n seconds for observation trajectory.
-
-    future_seconds : int
-        Next n seconds for prediction trajectory.
+        Current file index in the sequence.
+    past_seconds : int, optional
+        Number of seconds to look back for observation trajectory. Default is 1.
+    future_seconds : int, optional
+        Number of seconds to look ahead for prediction trajectory. Default is 8.
 
     Returns
     -------
-    new_param : dict
-        Update yaml params with the predictions.
+    cur_param : dict
+        Updated YAML parameters with added 'predictions' and 'observations'
+        fields for each vehicle.
     """
     cur_param = yaml_params[cur_index]
 
@@ -141,20 +141,21 @@ def extract_trajectories_by_file(yaml_params, cur_index, past_seconds=1, future_
     return cur_param
 
 
-def generate_prediction_by_scenario(scenario, future_seconds=8, past_seconds=1):
+def generate_prediction_by_scenario(scenario: str, future_seconds: int = 8, past_seconds: int = 1) -> None:
     """
-    Generate prediction and observation trajectories by scenario.
+    Generate prediction and observation trajectories for a single scenario.
+
+    Processes all YAML files in a scenario directory, extracts vehicle trajectories,
+    and updates the YAML files with prediction and observation data.
 
     Parameters
     ----------
-    future_seconds : int
-        The number of seconds look ahead for prediction trajectory.
-
-    past_seconds : int
-        The number of seconds look back for observation trajectory.
-
-    scenario : dict
-        The scenario dictionary.
+    scenario : str
+        Path to the directory containing scenario data with CAV subdirectories.
+    future_seconds : int, optional
+        Number of seconds to look ahead for prediction trajectories. Default is 8.
+    past_seconds : int, optional
+        Number of seconds to look back for observation trajectories. Default is 1.
     """
     cavs = [os.path.join(scenario, x) for x in os.listdir(scenario) if not x.endswith(".yaml")]
     for j, cav in enumerate(cavs):
@@ -167,19 +168,20 @@ def generate_prediction_by_scenario(scenario, future_seconds=8, past_seconds=1):
             save_yaml(new_param, yaml_files[k])
 
 
-def generate_prediction_yaml(root_dir, future_seconds=8, past_seconds=1):
+def generate_prediction_yaml(root_dir: str, future_seconds: int = 8, past_seconds: int = 1) -> None:
     """
-    Overwrite the origin yaml files with the new yaml files that have
+    Process all scenarios in the root directory to generate prediction YAMLs.
+
+    Uses parallel processing to handle multiple scenarios concurrently.
+
     Parameters
     ----------
     root_dir : str
-        The data root directories.
-
-    future_seconds : int
-        The number of seconds look ahead for prediction trajectory.
-
-    past_seconds : int
-        The number of seconds look back for observation trajectory.
+        Root directory containing scenario subdirectories.
+    future_seconds : int, optional
+        Number of seconds to look ahead for prediction. Default is 8.
+    past_seconds : int, optional
+        Number of seconds to look back for observation. Default is 1.
     """
 
     scenarios = [os.path.join(root_dir, x) for x in os.listdir(root_dir)]
@@ -190,5 +192,8 @@ def generate_prediction_yaml(root_dir, future_seconds=8, past_seconds=1):
 
 
 if __name__ == "__main__":
+    """
+    Entry point for trajectory prediction generation.
+    """
     root_dir = "../simulation_output/data_dumping/"
     generate_prediction_yaml(root_dir)

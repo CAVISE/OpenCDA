@@ -3,6 +3,8 @@ Dumping sensor data.
 """
 
 import os
+from typing import Any, Dict, List, Optional
+import numpy.typing as npt
 import cv2
 import open3d as o3d
 import numpy as np
@@ -20,7 +22,7 @@ class DataDumper(object):
     perception_manager : opencda object
         The perception manager contains rgb camera data and lidar data.
 
-    vehicle_id : int
+    vehicle_id : str
         The carla.Vehicle id.
 
     save_time : str
@@ -44,7 +46,7 @@ class DataDumper(object):
 
     """
 
-    def __init__(self, perception_manager, vehicle_id, save_time):
+    def __init__(self, perception_manager: Any, vehicle_id: str, save_time: str):
         self.rgb_camera = perception_manager.rgb_camera
         self.lidar = perception_manager.lidar
 
@@ -59,7 +61,7 @@ class DataDumper(object):
 
         self.count = 0
 
-    def run_step(self, perception_manager, localization_manager, behavior_agent):
+    def run_step(self, perception_manager: Any, localization_manager: Any, behavior_agent: Optional[Any]) -> None:
         """
         Dump data at running time.
 
@@ -87,9 +89,14 @@ class DataDumper(object):
         self.save_lidar_points(self.count)
         self.save_yaml_file(perception_manager, localization_manager, behavior_agent, self.count)
 
-    def save_rgb_image(self, count):
+    def save_rgb_image(self, count: int) -> None:
         """
         Save camera rgb images to disk.
+
+        Parameters
+        ----------
+        count : int
+            Current step count.
         """
         for i, camera in enumerate(self.rgb_camera):
             # frame = camera.frame
@@ -101,9 +108,14 @@ class DataDumper(object):
 
             cv2.imwrite(os.path.join(self.save_parent_folder, image_name), image)
 
-    def save_lidar_points(self, count):
+    def save_lidar_points(self, count: int) -> None:
         """
         Save 3D lidar points to disk.
+
+        Parameters
+        ----------
+        count : int
+            Current step count.
         """
         point_cloud = self.lidar.data
         # frame = self.lidar.frame
@@ -120,7 +132,12 @@ class DataDumper(object):
         pcd_name = "%06d" % count + ".pcd"
         o3d.io.write_point_cloud(os.path.join(self.save_parent_folder, pcd_name), pointcloud=o3d_pcd, write_ascii=True)
 
-    def save_yaml_file(self, perception_manager, localization_manager, behavior_agent, count):
+    def save_yaml_file(self,
+        perception_manager: Any,
+        localization_manager: Any,
+        behavior_agent: Optional[Any],
+        count: int,
+    ) -> None:      
         """
         Save objects positions/spped, true ego position,
         predicted ego position, sensor transformations.
@@ -138,8 +155,8 @@ class DataDumper(object):
         """
         frame = count
 
-        dump_yml = {}
-        vehicle_dict = {}
+        dump_yml: Dict[str, Any] = {}
+        vehicle_dict: Dict[int, Dict[str, Any]]  = {}
 
         # dump obstacle vehicles first
         objects = perception_manager.objects
@@ -270,7 +287,7 @@ class DataDumper(object):
         save_yaml(dump_yml, save_path)
 
     @staticmethod
-    def matrix2list(matrix):
+    def matrix2list(matrix: npt.NDArray[np.float64]) -> List[List[float]]:
         """
         To generate readable yaml file, we need to convert the matrix
         to list format.

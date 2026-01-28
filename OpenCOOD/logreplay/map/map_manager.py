@@ -1,12 +1,20 @@
-"""HDMap manager"""
+"""
+HDMap manager for cooperative autonomous driving simulation.
+
+This module provides functionality for managing high-definition maps in CARLA,
+including rasterization of static map elements (lanes, crosswalks, traffic lights)
+and dynamic agents into bird's-eye view (BEV) representations.
+"""
 
 import math
 import os.path
 import uuid
+from typing import List, Dict, Any, Optional, Tuple
 
 import cv2
 import carla
 import numpy as np
+from numpy.typing import NDArray
 from matplotlib.path import Path
 from shapely.geometry import Polygon
 
@@ -33,70 +41,53 @@ class MapManager(object):
 
     Parameters
     ----------
-    world : Carla.World
-        CARLA world.
-
-    config : dict
-        All the map manager parameters.
-
+    world : carla.World
+        CARLA world instance.
+    config : Dict[str, Any]
+        Configuration dictionary containing all map manager parameters.
     output_root : str
-        The data dump root folder.
-
+        Root directory for data output.
     scene_name : str
-        The name of the scene.
+        Name identifier for the current scene.
 
     Attributes
     ----------
-    world : carla.world
-        Carla simulation world.
-
+    world : carla.World
+        CARLA simulation world instance.
+    carla_map : carla.Map
+        CARLA HD map object.
     meter_per_pixel : float
-        m/pixel
-
-    raster_size : float
-        The rasterization map size in pixels.
-
+        Spatial resolution in meters per pixel.
+    raster_size : NDArray[np.int_]
+        Size of the rasterization map in pixels with shape (2,).
     radius_meter : float
-        The valid radius(m) in the center of the rasterization map.
-
-    topology : list
-        Map topology in list.
-
-    lane_info : dict
-        A dictionary that contains all lane information.
-
-    crosswalk_info : dict
-        A dictionary that contains all crosswalk information.
-        todo: will be implemented in the next version.
-
-    traffic_light_info : dict
-        A dictionary that contains all traffic light information.
-
-    bound_info : dict
-        A dictionary that saves boundary information of lanes and crosswalks.
-        It is used to efficiently filter out invalid lanes/crosswarlks.
-
+        Valid radius in meters from the center of the rasterization map.
+    topology : List[carla.Waypoint]
+        List of map topology waypoints sorted by altitude.
+    lane_info : Dict[str, Dict[str, Any]]
+        Dictionary containing all lane information indexed by lane ID.
+    crosswalk_info : Dict[str, Dict[str, NDArray]]
+        Dictionary containing all crosswalk information indexed by crosswalk ID.
+    traffic_light_info : Dict[str, Dict[str, Any]]
+        Dictionary containing all traffic light information indexed by traffic light ID.
+    bound_info : Dict[str, Dict[str, Any]]
+        Dictionary containing boundary information for efficient filtering.
     lane_sample_resolution : int
-        The sampling resolution for drawing lanes.
-
+        Sampling resolution for drawing lanes in meters.
     draw_lane : bool
-        Whether to draw lane on the static bev map
-
-    static_bev : np.array
-        The static bev map containing lanes and drivable road information.
-
-    dynamic_bev : np.array
-        The dynamic bev map containing vehicle's information.
-
-    vis_bev : np.array
-        The comprehensive bev map for visualization.
-
+        Flag indicating whether to draw lanes on the static BEV map.
+    static_bev : NDArray[np.uint8]
+        Static BEV map containing lanes and drivable road information.
+    dynamic_bev : NDArray[np.uint8]
+        Dynamic BEV map containing vehicle information.
+    vis_bev : NDArray[np.uint8]
+        Comprehensive BEV map for visualization.
     """
 
-    def __init__(self, world, config, output_root, scene_name):
+    def __init__(self, world: carla.World, config: Dict[str, Any], output_root: str, scene_name: str):
         self.world = world
         self.carla_map = world.get_map()
-        self.center = None
+        self.center: Optional[carla.Transform] = None
         self.actor_id = None
         self.out_root = output_root
         self.scene_name = scene_name
@@ -137,12 +128,12 @@ class MapManager(object):
         self.topology = sorted(topology, key=lambda w: w.transform.location.z)
 
         # basic elements in HDMap: lane, crosswalk and traffic light
-        self.lane_info = {}
-        self.crosswalk_info = {}
-        self.traffic_light_info = {}
+        self.lane_info:  Dict[str, Dict[str, Any]] = {}
+        self.crosswalk_info: Dict[str, Dict[str, NDArray[np.float64]]] = {}
+        self.traffic_light_info: Dict[str, Dict[str, Any]] = {}
         # this is mainly used for efficient filtering
-        self.bound_info = {"lanes": {}, "crosswalks": {}}
-        self.traffic_stop_pos = []
+        self.bound_info: Dict[str, Dict[str, Any]] = {"lanes": {}, "crosswalks": {}}
+        self.traffic_stop_pos: List[Tuple[float, float]] = []
 
         self.retrieve_light_stop_pos()
         # generate information for traffic light
@@ -163,12 +154,12 @@ class MapManager(object):
         # whether to check visibility in camera for ego only
         self.visibility = config["dynamic"]["visibility"]
         # visible agent id for ego
-        self.vis_ids = []
+        self.vis_ids: List[int] = []
 
         # whether to check visibility in camera for multi-agent perspective
         self.visibility_corp = config["dynamic"]["visibility_corp"]
         # visible agent id for all vehicles
-        self.vis_corp_ids = []
+        self.vis_corp_ids: List[int] = []
 
         # bev maps
         self.dynamic_bev = 255 * np.zeros(shape=(self.raster_size[1], self.raster_size[0], 3), dtype=np.uint8)
@@ -178,7 +169,7 @@ class MapManager(object):
         self.lane_bev = 255 * np.zeros(shape=(self.raster_size[1], self.raster_size[0], 3), dtype=np.uint8)
         self.vis_bev = 255 * np.ones(shape=(self.raster_size[1], self.raster_size[0], 3), dtype=np.uint8)
 
-    def run_step(self, cav_id, cav_content, veh_dict):
+    def run_step(self, cav_id: str, cav_content: Dict[str, Any], veh_dict: Dict[str, Any]) -> None:
         """
         Rasterization + Visualize the bev map if needed.
 
@@ -219,7 +210,7 @@ class MapManager(object):
             cv2.waitKey(1)
         self.data_dump()
 
-    def check_visibility_corp(self, veh_dict, vis_corp_mask_list):
+    def check_visibility_corp(self, veh_dict: Dict[str, Any], vis_corp_mask_list: List[int]) -> List[int]:
         for _, veh_contnet in veh_dict.items():
             if "cav" in veh_contnet:
                 vis_corp_mask_list += self.check_visibility_single(veh_contnet, vis_corp_mask_list)
@@ -228,14 +219,21 @@ class MapManager(object):
 
     # check visibility agent list for ego vehicle
     @staticmethod
-    def check_visibility_single(cav_content, vis_mask_list):
+    def check_visibility_single(cav_content: Dict[str, Any], vis_mask_list: List[int]) -> List[int]:
         """
         Retrieve visible objects in the ego camera.
 
         Parameters
         ----------
-        vis_mask_list : list
         cav_content : dict
+            CAV content dictionary.
+        vis_mask_list : list of int
+            List of visible agent IDs.
+
+        Returns
+        -------
+        vis_mask_list : list of int
+            Updated list of visible agent IDs.
         """
 
         sensor_manager = cav_content["sensor_manager"]
@@ -247,7 +245,7 @@ class MapManager(object):
         return vis_mask_list
 
     @staticmethod
-    def get_bounds(left_lane, right_lane):
+    def get_bounds(left_lane: NDArray, right_lane: NDArray) -> NDArray:
         """
         Get boundary information of a lane.
 
@@ -272,7 +270,7 @@ class MapManager(object):
 
         return bounds
 
-    def agents_in_range(self, radius, agents_dict):
+    def agents_in_range(self, radius: float, agents_dict: Dict[int, Dict[str, Any]]) -> Dict[int, Dict[str, Any]]:
         """
         Filter out all agents out of the radius.
 
@@ -291,7 +289,7 @@ class MapManager(object):
         final_agents = {}
 
         # convert center to list format
-        center = [self.center.location.x, self.center.location.y]
+        center = [self.center.location.x, self.center.location.y] #NOTE need a None-check
 
         for agent_id, agent in agents_dict.items():
             location = agent["location"]
@@ -301,7 +299,7 @@ class MapManager(object):
 
         return final_agents
 
-    def indices_in_bounds(self, bounds: np.ndarray, half_extent: float) -> np.ndarray:
+    def indices_in_bounds(self, bounds: NDArray, half_extent: float) -> NDArray:
         """
         Get indices of elements for which the bounding box described by bounds
         intersects the one defined around center (square with side 2*half_side)
@@ -318,7 +316,7 @@ class MapManager(object):
         -------
         np.ndarray: indices of elements inside radius from center
         """
-        x_center, y_center, z_center = self.center.location.x, self.center.location.y, self.center.location.z
+        x_center, y_center, z_center = self.center.location.x, self.center.location.y, self.center.location.z #NOTE need a None-check
 
         x_min_in = x_center > bounds[:, 0, 0] - half_extent
         y_min_in = y_center > bounds[:, 0, 1] - half_extent
@@ -336,7 +334,7 @@ class MapManager(object):
 
         return np.nonzero(x_min_in & y_min_in & x_max_in & y_max_in & z_flag)[0]
 
-    def retrieve_light_stop_pos(self):
+    def retrieve_light_stop_pos(self) -> None:
         # retrieve all stop and traffic light position
         all_actors = self.world.get_actors()
         for actor in all_actors:
@@ -344,7 +342,7 @@ class MapManager(object):
                 location = actor.get_transform().location
                 self.traffic_stop_pos.append((location.x, location.y))
 
-    def associate_lane_tl(self, mid_lane):
+    def associate_lane_tl(self, mid_lane: NDArray) -> str:
         """
         Given the waypoints for a certain lane, find the traffic light that
         influence it.
@@ -371,7 +369,7 @@ class MapManager(object):
                 associate_tl_id = tl_id
         return associate_tl_id
 
-    def data_dump(self):
+    def data_dump(self) -> None:
         """
         Dump the data to the corresponding folder.
         """
@@ -423,7 +421,7 @@ class MapManager(object):
             save_vis_name = os.path.join(save_name, self.current_timstamp + "_bev_vis.png")
             cv2.imwrite(save_vis_name, self.vis_bev)
 
-    def generate_lane_cross_info(self):
+    def generate_lane_cross_info(self) -> None:
         """
         From the topology generate all lane and crosswalk
         information in a dictionary under world's coordinate frame.
@@ -504,14 +502,14 @@ class MapManager(object):
         self.bound_info["lanes"]["ids"] = lanes_id
         self.bound_info["lanes"]["bounds"] = lanes_bounds
 
-    def split_cross_walks(self):
+    def split_cross_walks(self) -> List[List[Tuple[float, float, float]]]:
         """
         Find each crosswalk with their key points.
         """
         all_cross_walks = self.carla_map.get_crosswalks()
         cross_walks_list = []
 
-        tmp_list = []
+        tmp_list: List[Tuple[float, float, float]] = []
         for key_points in all_cross_walks:
             if (key_points.x, key_points.y, key_points.z) in tmp_list:
                 cross_walks_list.append(tmp_list)
@@ -521,7 +519,7 @@ class MapManager(object):
 
         return cross_walks_list
 
-    def generate_tl_info(self, world):
+    def generate_tl_info(self, world: carla.World) -> None:
         """
         Generate traffic light information under world's coordinate frame.
 
@@ -532,7 +530,8 @@ class MapManager(object):
 
         Returns
         -------
-        A dictionary containing traffic lights information.
+        None
+        Updates self.traffic_light_info in place.
         """
         tl_list = world.get_actors().filter("traffic.traffic_light*")
 
@@ -561,7 +560,7 @@ class MapManager(object):
                 {tl_id: {"actor": tl_actor, "corners": corner_poly, "base_rot": base_rot, "base_transform": base_transform}}
             )
 
-    def generate_lane_area(self, xyz_left, xyz_right):
+    def generate_lane_area(self, xyz_left: NDArray, xyz_right: NDArray) -> NDArray:
         """
         Generate the lane area poly under rasterization map's center
         coordinate frame.
@@ -605,7 +604,7 @@ class MapManager(object):
 
         return lane_area
 
-    def generate_cross_area(self, xyz):
+    def generate_cross_area(self, xyz: NDArray[np.float64]) -> NDArray[np.float64]:
         """
         Generate the cross lane under rasterization map's center
         coordinate frame.
@@ -644,14 +643,14 @@ class MapManager(object):
 
         return lane_area
 
-    def generate_agent_area(self, corners):
+    def generate_agent_area(self, corners: NDArray[np.float64]) -> NDArray[np.float64]:
         """
         Convert the agent's bbx corners from world coordinates to
         rasterization coordinates.
 
         Parameters
         ----------
-        corners : list
+        corners : ndarray
             The four corners of the agent's bbx under world coordinate.
 
         Returns
@@ -661,7 +660,7 @@ class MapManager(object):
         # (4, 3) numpy array
         corners = np.array(corners)
         # for homogeneous transformation
-        corners = corners.T
+        corners = corners.T                                 
         corners = np.r_[corners, [np.ones(corners.shape[1])]]
         # convert to ego's coordinate frame
         corners = world_to_sensor(corners, self.center).T
@@ -680,7 +679,7 @@ class MapManager(object):
 
         return corner_area
 
-    def load_agents_world(self):
+    def load_agents_world(self) -> Dict[int, Dict[str, object]]:
         """
         Load all the dynamic agents info from server directly
         into a  dictionary.
@@ -721,7 +720,7 @@ class MapManager(object):
             dynamic_agent_info[agent_id] = {"location": agent_loc, "yaw": agent_yaw, "corners": corners_reformat}
         return dynamic_agent_info
 
-    def rasterize_dynamic(self):
+    def rasterize_dynamic(self) -> None:
         """
         Rasterize the dynamic agents.
 
@@ -761,7 +760,7 @@ class MapManager(object):
         self.vis_mask = draw_agent(vis_corner_list, self.vis_mask)
         self.vis_corp_mask = draw_agent(vis_corp_corner_list, self.vis_corp_mask)
 
-    def rasterize_static(self):
+    def rasterize_static(self) -> None:
         """
         Generate the static bev map.
         """
@@ -837,5 +836,5 @@ class MapManager(object):
         self.vis_bev = draw_crosswalks(cross_area_list, self.vis_bev)
         self.vis_bev = cv2.cvtColor(self.vis_bev, cv2.COLOR_RGB2BGR)
 
-    def destroy(self):
+    def destroy(self) -> None:
         cv2.destroyAllWindows()

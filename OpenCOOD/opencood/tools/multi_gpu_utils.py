@@ -1,8 +1,32 @@
+"""
+Distributed training utilities for multi-GPU and multi-node training.
+
+This module provides helper functions for initializing and managing distributed
+PyTorch training across multiple GPUs and compute nodes, supporting both
+standard distributed environments and SLURM clusters.
+"""
+
 import os
+from typing import Any
+
 import torch
 
 
-def init_distributed_mode(args):
+def init_distributed_mode(args: Any) -> None:
+    """
+    Initialize distributed training environment.
+
+    Parameters
+    ----------
+    args : Any
+        Command line arguments object that will be updated with:
+            - rank (int): Process rank
+            - world_size (int): Number of processes
+            - gpu (int): Local GPU ID
+            - distributed (bool): Whether distributed training is enabled
+            - dist_backend (str): Backend for distributed training ('nccl')
+            - dist_url (str): URL for distributed training setup
+    """
     if "RANK" in os.environ and "WORLD_SIZE" in os.environ:
         args.rank = int(os.environ["RANK"])
         args.world_size = int(os.environ["WORLD_SIZE"])
@@ -25,15 +49,25 @@ def init_distributed_mode(args):
     setup_for_distributed(args.rank == 0)
 
 
-def setup_for_distributed(is_master):
+def setup_for_distributed(is_master: bool) -> None:
     """
-    This function disables printing when not in master process
+    Disable printing when not in master process.
+
+    Parameters
+    ----------
+    is_master : bool
+        Whether the current process is the master process.
+
+    Notes
+    -----
+    This function modifies the built-in print function to only print
+    from the master process, unless the 'force' keyword argument is provided.
     """
     import builtins as __builtin__
 
     builtin_print = __builtin__.print
 
-    def print(*args, **kwargs):
+    def print(*args: Any, **kwargs: Any) -> None:
         force = kwargs.pop("force", False)
         if is_master or force:
             builtin_print(*args, **kwargs)

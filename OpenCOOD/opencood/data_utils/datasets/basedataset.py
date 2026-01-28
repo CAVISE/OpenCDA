@@ -1,14 +1,20 @@
 """
-Basedataset class for all kinds of fusion.
+Base dataset class for cooperative perception.
+
+This module provides the foundational dataset class for all types of fusion
+approaches (early, intermediate, and late fusion) in cooperative autonomous
+driving, handling data loading, preprocessing, and augmentation.
 """
 
 import os
 import math
 import logging
 from collections import OrderedDict
+from typing import Dict, List, Any, Optional, Tuple, cast
 
 import torch
 import numpy as np
+from numpy.typing import NDArray
 from torch.utils.data import Dataset
 
 import opencood.utils.pcd_utils as pcd_utils
@@ -17,52 +23,56 @@ from opencood.hypes_yaml.yaml_utils import load_yaml
 from opencood.utils.pcd_utils import downsample_lidar_minimum
 from opencood.utils.transformation_utils import x1_to_x2
 
+
 logger = logging.getLogger("cavise.OpenCOOD.opencood.data_utils.datasets.basedataset")
 
 
 class BaseDataset(Dataset):
     """
-    Base dataset for all kinds of fusion. Mainly used to initialize the
-    database and associate the __get_item__ index with the correct timestamp
-    and scenario.
+    Base dataset for all kinds of fusion.
+
+    Mainly used to initialize the database and associate the __get_item__ index
+    with the correct timestamp and scenario.
 
     Parameters
-    __________
-    params : dict
+    ----------
+    params : Dict[str, Any]
         The dictionary contains all parameters for training/testing.
-
-    visualize : false
+    visualize : bool
         If set to true, the raw point cloud will be saved in the memory
         for visualization.
+    train : bool, optional
+        Whether the dataset is used for training. Default is True.
 
     Attributes
     ----------
+    params : Dict[str, Any]
+        Configuration parameters for the dataset.
+    visualize : bool
+        Flag for visualization mode.
+    train : bool
+        Training mode indicator.
+    pre_processor : Optional[Any]
+        Preprocessor instance for point cloud processing.
+    post_processor : Optional[Any]
+        Postprocessor instance for output processing.
+    data_augmentor : DataAugmentor
+        Data augmentation handler.
+    max_cav : int
+        Maximum number of connected autonomous vehicles.
     scenario_database : OrderedDict
-        A structured dictionary contains all file information.
-
-    len_record : list
-        The list to record each scenario's data length. This is used to
-        retrieve the correct index during training.
-
-    pre_processor : opencood.pre_processor
-        Used to preprocess the raw data.
-
-    post_processor : opencood.post_processor
-        Used to generate training labels and convert the model outputs to
-        bbx formats.
-
-    data_augmentor : opencood.data_augmentor
-        Used to augment data.
-
+        Database containing all scenario data.
+    len_record : List[int]
+        Cumulative length record for indexing.
     """
 
-    def __init__(self, params, visualize, train=True):
+    def __init__(self, params: Dict[str, Any], visualize: bool, train: bool = True):
         self.params = params
         self.visualize = visualize
         self.train = train
 
-        self.pre_processor = None
-        self.post_processor = None
+        self.pre_processor: Optional[Any] = None
+        self.post_processor: Optional[Any] = None
         self.data_augmentor = DataAugmentor(params["data_augment"], train)
 
         # if the training/testing include noisy setting
@@ -108,8 +118,8 @@ class BaseDataset(Dataset):
         scenario_folders = sorted([os.path.join(root_dir, x) for x in os.listdir(root_dir) if os.path.isdir(os.path.join(root_dir, x))])
         # Structure: {scenario_id : {cav_1 : {timestamp1 : {yaml: path,
         # lidar: path, cameras:list of path}}}}
-        self.scenario_database = OrderedDict()
-        self.len_record = []
+        self.scenario_database: OrderedDict[int, OrderedDict] = OrderedDict()
+        self.len_record: List[int] = []
 
         # loop over all scenarios
         for i, scenario_folder in enumerate(scenario_folders):
@@ -164,16 +174,27 @@ class BaseDataset(Dataset):
                 else:
                     self.scenario_database[i][cav_id]["ego"] = False
 
-    def __len__(self):
+    def __len__(self) -> int:
         return self.len_record[-1]
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx: int) -> Dict[str, Any]:
         """
         Abstract method, needs to be define by the children class.
-        """
-        pass
 
-    def retrieve_base_data(self, idx, cur_ego_pose_flag=True):
+        Parameters
+        ----------
+        idx : int
+            Index of the data sample.
+
+        Returns
+        -------
+        Dict[str, Any]
+            Data dictionary.
+        """
+        # TODO: Implement this function
+        raise NotImplementedError
+
+    def retrieve_base_data(self, idx: int, cur_ego_pose_flag: bool = True) -> Dict[str, Any]:
         """
         Given the index, return the corresponding data.
 
@@ -181,18 +202,19 @@ class BaseDataset(Dataset):
         ----------
         idx : int
             Index given by dataloader.
-
-        cur_ego_pose_flag : bool
+        cur_ego_pose_flag : bool, optional
             Indicate whether to use current timestamp ego pose to calculate
             transformation matrix. If set to false, meaning when other cavs
             project their LiDAR point cloud to ego, they are projecting to
-            past ego pose.
+            past ego pose. Default is True.
 
         Returns
         -------
-        data : dict
+        Dict[str, Any]
             The dictionary contains loaded yaml params and lidar data for
             each cav.
+            Structure: {cav_id: {'ego': bool, 'time_delay': int,
+                                'params': dict, 'lidar_np': NDArray}}
         """
         # we loop the accumulated length list to see get the scenario index
         scenario_index = 0
@@ -209,7 +231,7 @@ class BaseDataset(Dataset):
         # calculate distance to ego for each cav
         ego_cav_content = self.calc_dist_to_ego(scenario_database, timestamp_key)
 
-        data = OrderedDict()
+        data: OrderedDict = OrderedDict()
         # load files for all CAVs
         for cav_id, cav_content in scenario_database.items():
             data[cav_id] = OrderedDict()
@@ -230,18 +252,18 @@ class BaseDataset(Dataset):
         return data
 
     @staticmethod
-    def extract_timestamps(yaml_files):
+    def extract_timestamps(yaml_files: List[str]) -> List[str]:
         """
         Given the list of the yaml files, extract the mocked timestamps.
 
         Parameters
         ----------
-        yaml_files : list
-            The full path of all yaml files of ego vehicle
+        yaml_files : List[str]
+            The full path of all yaml files of ego vehicle.
 
         Returns
         -------
-        timestamps : list
+        List[str]
             The list containing timestamps only.
         """
         timestamps = []
@@ -255,22 +277,22 @@ class BaseDataset(Dataset):
         return timestamps
 
     @staticmethod
-    def return_timestamp_key(scenario_database, timestamp_index):
+    def return_timestamp_key(scenario_database: Dict[str, Any], timestamp_index: int) -> str:
         """
-        Given the timestamp index, return the correct timestamp key, e.g.
-        2 --> '000078'.
+        Given the timestamp index, return the correct timestamp key.
+
+        For example: 2 --> '000078'.
 
         Parameters
         ----------
-        scenario_database : OrderedDict
+        scenario_database : Dict[str, Any]
             The dictionary contains all contents in the current scenario.
-
         timestamp_index : int
             The index for timestamp.
 
         Returns
         -------
-        timestamp_key : str
+        str
             The timestamp key saved in the cav dictionary.
         """
         # get all timestamp keys
@@ -280,12 +302,29 @@ class BaseDataset(Dataset):
 
         return timestamp_key
 
-    def calc_dist_to_ego(self, scenario_database, timestamp_key):
+    def calc_dist_to_ego(self, scenario_database: Dict[str, Any], timestamp_key: str) -> Dict[str, Any]:
         """
-        Calculate the distance to ego for each cav.
+        Calculate the distance of each CAV to the ego vehicle.
+
+        Parameters
+        ----------
+        scenario_database : Dict[str, Any]
+            Dictionary containing scenario data for all CAVs.
+        timestamp_key : str
+            Timestamp key to access the specific data.
+
+        Returns
+        -------
+        Dict[str, Any]
+            The ego vehicle's content with updated distance information.
+
+        Raises
+        ------
+        ValueError
+            If no ego vehicle is found in the scenario.
         """
         ego_lidar_pose = None
-        ego_cav_content = None
+        ego_cav_content: Dict[str, Any] = {}
         # Find ego pose first
         for cav_id, cav_content in scenario_database.items():
             if cav_content["ego"]:
@@ -308,19 +347,19 @@ class BaseDataset(Dataset):
 
         return ego_cav_content
 
-    def time_delay_calculation(self, ego_flag):
+    def time_delay_calculation(self, ego_flag: bool) -> int:
         """
         Calculate the time delay for a certain vehicle.
 
         Parameters
         ----------
-        ego_flag : boolean
-            Whether the current cav is ego.
+        ego_flag : bool
+            Whether the current CAV is the ego vehicle.
 
-        Return
-        ------
-        time_delay : int
-            The time delay quantization.
+        Returns
+        -------
+        int
+            The time delay in 100ms units.
         """
         # there is not time delay for ego vehicle
         if ego_flag:
@@ -341,52 +380,54 @@ class BaseDataset(Dataset):
         time_delay = time_delay // 100
         return time_delay if self.async_flag else 0
 
-    def add_loc_noise(self, pose, xyz_std, ryp_std):
+    def add_loc_noise(self, pose: NDArray[np.float64], xyz_std: float, ryp_std: float) -> NDArray[np.float64]:
         """
         Add localization noise to the pose.
 
         Parameters
         ----------
-        pose : list
-            x,y,z,roll,yaw,pitch
-
+        pose : NDArray[np.float64]
+            Pose parameters [x, y, z, roll, yaw, pitch].
         xyz_std : float
-            std of the gaussian noise on xyz
-
+            Standard deviation of Gaussian noise for xyz coordinates.
         ryp_std : float
-            std of the gaussian noise
+            Standard deviation of Gaussian noise for roll, yaw, pitch.
+
+        Returns
+        -------
+        NDArray[np.float64]
+            Noisy pose with the same shape as input.
         """
+
         np.random.seed(self.seed)
         xyz_noise = np.random.normal(0, xyz_std, 3)
-        ryp_std = np.random.normal(0, ryp_std, 3)
-        noise_pose = [pose[0] + xyz_noise[0], pose[1] + xyz_noise[1], pose[2] + xyz_noise[2], pose[3], pose[4] + ryp_std[1], pose[5]]
+        ryp_std = cast(NDArray[np.float64], np.random.normal(0, ryp_std, 3))
+        noise_pose = [pose[0] + xyz_noise[0], pose[1] + xyz_noise[1], pose[2] + xyz_noise[2], pose[3], pose[4] + ryp_std[1], pose[5]] #NOTE Value of type "float" is not indexable
         return noise_pose
 
-    def reform_param(self, cav_content, ego_content, timestamp_cur, timestamp_delay, cur_ego_pose_flag):
+    def reform_param(
+        self, cav_content: Dict[str, Any], ego_content: Dict[str, Any], timestamp_cur: str, timestamp_delay: str, cur_ego_pose_flag: bool
+    ) -> Dict[str, Any]:
         """
-        Reform the data params with current timestamp object groundtruth and
-        delay timestamp LiDAR pose for other CAVs.
+        Reform the data params with current timestamp object groundtruth and delay timestamp LiDAR pose for other CAVs.
 
         Parameters
         ----------
-        cav_content : dict
+        cav_content : Dict[str, Any]
             Dictionary that contains all file paths in the current cav/rsu.
-
-        ego_content : dict
+        ego_content : Dict[str, Any]
             Ego vehicle content.
-
         timestamp_cur : str
             The current timestamp.
-
         timestamp_delay : str
             The delayed timestamp.
-
         cur_ego_pose_flag : bool
             Whether use current ego pose to calculate transformation matrix.
 
-        Return
-        ------
-        The merged parameters.
+        Returns
+        -------
+        Dict[str, Any]
+            The merged parameters with added transformation matrices.
         """
         cur_params = load_yaml(cav_content[timestamp_cur]["yaml"])
         delay_params = load_yaml(cav_content[timestamp_delay]["yaml"])
@@ -408,7 +449,7 @@ class BaseDataset(Dataset):
 
         if cur_ego_pose_flag:
             transformation_matrix = x1_to_x2(delay_cav_lidar_pose, cur_ego_lidar_pose)
-            spatial_correction_matrix = np.eye(4)
+            spatial_correction_matrix: NDArray[np.float64 | np.floating] = np.eye(4)
         else:
             transformation_matrix = x1_to_x2(delay_cav_lidar_pose, delay_ego_lidar_pose)
             spatial_correction_matrix = x1_to_x2(delay_ego_lidar_pose, cur_ego_lidar_pose)
@@ -426,7 +467,7 @@ class BaseDataset(Dataset):
         return delay_params
 
     @staticmethod
-    def load_camera_files(cav_path, timestamp):
+    def load_camera_files(cav_path: str, timestamp: str) -> List[str]:
         """
         Retrieve the paths to all camera files.
 
@@ -434,13 +475,12 @@ class BaseDataset(Dataset):
         ----------
         cav_path : str
             The full file path of current cav.
-
         timestamp : str
-            Current timestamp
+            Current timestamp.
 
         Returns
         -------
-        camera_files : list
+        List[str]
             The list containing all camera png file paths.
         """
         camera0_file = os.path.join(cav_path, timestamp + "_camera0.png")
@@ -449,41 +489,49 @@ class BaseDataset(Dataset):
         camera3_file = os.path.join(cav_path, timestamp + "_camera3.png")
         return [camera0_file, camera1_file, camera2_file, camera3_file]
 
-    def project_points_to_bev_map(self, points, ratio=0.1):
+    def project_points_to_bev_map(self, points: NDArray[np.float64], ratio: float = 0.1) -> NDArray[np.float64]:
         """
         Project points to BEV occupancy map with default ratio=0.1.
 
         Parameters
         ----------
-        points : np.ndarray
-            (N, 3) / (N, 4)
-
-        ratio : float
+        points : NDArray[np.float64]
+            Point cloud array with shape (N, 3) or (N, 4).
+        ratio : float, optional
             Discretization parameters. Default is 0.1.
 
         Returns
         -------
-        bev_map : np.ndarray
+        NDArray[np.float64]
             BEV occupancy map including projected points
             with shape (img_row, img_col).
-
         """
-        return self.pre_processor.project_points_to_bev_map(points, ratio)
+        return cast(Any, self.pre_processor).self.pre_processor.project_points_to_bev_map(points, ratio)
 
-    def augment(self, lidar_np, object_bbx_center, object_bbx_mask):
+    def augment(
+        self, lidar_np: NDArray[np.float64], object_bbx_center: NDArray[np.float64], object_bbx_mask: NDArray[np.float64]
+    ) -> Tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]]:
         """
         Given the raw point cloud, augment by flipping and rotation.
 
         Parameters
         ----------
-        lidar_np : np.ndarray
-            (n, 4) shape
-
-        object_bbx_center : np.ndarray
-            (n, 7) shape to represent bbx's x, y, z, h, w, l, yaw
-
-        object_bbx_mask : np.ndarray
+        lidar_np : NDArray[np.float64]
+            Point cloud array with shape (n, 4).
+        object_bbx_center : NDArray[np.float64]
+            Bounding box centers with shape (n, 7) to represent
+            bbx's x, y, z, h, w, l, yaw.
+        object_bbx_mask : NDArray[np.float64]
             Indicate which elements in object_bbx_center are padded.
+
+        Returns
+        -------
+        lidar_np : NDArray[np.float64]
+            Augmented point cloud.
+        object_bbx_center : NDArray[np.float64]
+            Augmented bounding boxes.
+        object_bbx_mask : NDArray[np.float64]
+            Updated mask after augmentation.
         """
         tmp_dict = {"lidar_np": lidar_np, "object_bbx_center": object_bbx_center, "object_bbx_mask": object_bbx_mask}
         tmp_dict = self.data_augmentor.forward(tmp_dict)
@@ -494,22 +542,27 @@ class BaseDataset(Dataset):
 
         return lidar_np, object_bbx_center, object_bbx_mask
 
-    def collate_batch_train(self, batch):
+    def collate_batch_train(self, batch: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
         """
-        Customized collate function for pytorch dataloader during training
-        for early and late fusion dataset.
+        Customized collate function for pytorch dataloader during training for early and late fusion dataset.
 
         Parameters
         ----------
-        batch : dict
+        batch : List[Dict[str, Any]]
+            List of data samples from __getitem__.
 
         Returns
         -------
-        batch : dict
-            Reformatted batch.
+        Dict[str, Dict[str, Any]]
+            Reformatted batch dictionary.
+            Structure: {'ego': {'object_bbx_center': torch.Tensor,
+                               'object_bbx_mask': torch.Tensor,
+                               'processed_lidar': dict,
+                               'label_dict': dict,
+                               'origin_lidar': torch.Tensor [if visualize=True]}}
         """
         # during training, we only care about ego.
-        output_dict = {"ego": {}}
+        output_dict: Dict[str, Dict] = {"ego": {}}
 
         object_bbx_center = []
         object_bbx_mask = []
@@ -533,8 +586,8 @@ class BaseDataset(Dataset):
         object_bbx_center = torch.from_numpy(np.array(object_bbx_center))
         object_bbx_mask = torch.from_numpy(np.array(object_bbx_mask))
 
-        processed_lidar_torch_dict = self.pre_processor.collate_batch(processed_lidar_list)
-        label_torch_dict = self.post_processor.collate_batch(label_dict_list)
+        processed_lidar_torch_dict = self.pre_processor.collate_batch(processed_lidar_list) #NOTE None-check is required 
+        label_torch_dict = self.post_processor.collate_batch(label_dict_list) #NOTE None-check is required 
         output_dict["ego"].update(
             {
                 "object_bbx_center": object_bbx_center,
@@ -550,6 +603,32 @@ class BaseDataset(Dataset):
 
         return output_dict
 
-    def visualize_result(self, pred_box_tensor, gt_tensor, pcd, show_vis, save_path, dataset=None):
+    def visualize_result(
+        self,
+        pred_box_tensor: torch.Tensor,
+        gt_tensor: torch.Tensor,
+        pcd: NDArray[np.float64],
+        show_vis: bool,
+        save_path: str,
+        dataset: Optional[Any] = None,
+    ) -> None:
+        """
+        Visualize the model output.
+
+        Parameters
+        ----------
+        pred_box_tensor : torch.Tensor
+            Predicted bounding boxes.
+        gt_tensor : torch.Tensor
+            Ground truth bounding boxes.
+        pcd : NDArray[np.float64]
+            Point cloud data.
+        show_vis : bool
+            Whether to show visualization.
+        save_path : str
+            Path to save visualization.
+        dataset : Optional[Any], optional
+            Dataset object for additional context. Default is None.
+        """
         # visualize the model output
-        self.post_processor.visualize(pred_box_tensor, gt_tensor, pcd, show_vis, save_path, dataset=dataset)
+        self.post_processor.visualize(pred_box_tensor, gt_tensor, pcd, show_vis, save_path, dataset=dataset) #NOTE None-check is required 

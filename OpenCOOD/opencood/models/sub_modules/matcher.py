@@ -1,3 +1,11 @@
+"""
+Bounding Box Matcher and Fusion Module.
+
+This module implements clustering and fusion of predicted bounding boxes
+from multiple agents based on IoU overlap and confidence scores.
+"""
+
+from typing import Dict, List, Tuple, Any
 import torch
 from torch import nn
 
@@ -6,28 +14,96 @@ from opencood.pcdet_utils.iou3d_nms.iou3d_nms_utils import boxes_iou3d_gpu
 pi = 3.141592653
 
 
-def limit_period(val, offset=0.5, period=2 * pi):
+def limit_period(val: torch.Tensor, offset: float = 0.5, period: float = 2 * pi) -> torch.Tensor:
+    """
+    Limit angles to a specific period range.
+
+    Parameters
+    ----------
+    val : Tensor
+        Input angle values.
+    offset : float, optional
+        Offset for period wrapping. Default is 0.5.
+    period : float, optional
+        Period length (e.g., 2*pi for full rotation). Default is 2*pi.
+
+    Returns
+    -------
+    Tensor
+        Angle values wrapped to the period range.
+    """
     return val - torch.floor(val / period + offset) * period
 
 
 class Matcher(nn.Module):
-    """Correct localization error and use Algorithm 1:
-    BBox matching with scores to fuse the proposal BBoxes"""
+    """
+    Bounding box matcher and fusion module for multi-agent detection.
 
-    def __init__(self, cfg, pc_range):
+    This module clusters predicted bounding boxes based on IoU overlap
+    and fuses boxes within each cluster using score-weighted averaging.
+    Implements Algorithm 1: BBox matching with scores.
+
+    Parameters
+    ----------
+    cfg : dict of str to Any
+        Configuration dictionary.
+    pc_range : list of float
+        Point cloud range [x_min, y_min, z_min, x_max, y_max, z_max].
+
+    Attributes
+    ----------
+    pc_range : list of float
+        Point cloud range.
+    """
+
+    def __init__(self, cfg: Dict[str, Any], pc_range: List[float]) -> None:
         super(Matcher, self).__init__()
         self.pc_range = pc_range
 
     @torch.no_grad()
-    def forward(self, data_dict):
+    def forward(self, data_dict: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Perform box clustering and fusion.
+
+        Parameters
+        ----------
+        data_dict : dict of str to Any
+            Data dictionary containing:
+            - 'det_boxes': List of detected boxes from all agents.
+            - 'det_scores': List of detection scores from all agents.
+            - 'record_len': Number of agents per scene.
+
+        Returns
+        -------
+        dict of str to Any
+            Updated data dictionary with:
+            - 'boxes_fused': List of fused boxes per scene.
+            - 'scores_fused': List of fused scores per scene.
+        """
         clusters, scores = self.clustering(data_dict)
         data_dict["boxes_fused"], data_dict["scores_fused"] = self.cluster_fusion(clusters, scores)
         self.merge_keypoints(data_dict)
         return data_dict
 
-    def clustering(self, data_dict):
+    def clustering(self, data_dict: Dict[str, Any]) -> Tuple[List[List[torch.Tensor]], List[List[torch.Tensor]]]:
         """
-        Assign predicted boxes to clusters according to their ious with each other
+        Cluster predicted boxes based on IoU overlap.
+
+        Boxes with IoU > 0.1 are assigned to the same cluster, representing
+        detections of the same object from different agents.
+
+        Parameters
+        ----------
+        data_dict : dict of str to Any
+            Data dictionary containing detection results.
+
+        Returns
+        -------
+        clusters_batch : list of list of Tensor
+            Clustered boxes for each scene. Each cluster contains boxes
+            that likely correspond to the same object.
+        scores_batch : list of list of Tensor
+            Corresponding scores for each cluster.
         """
         clusters_batch = []
         scores_batch = []
@@ -63,9 +139,23 @@ class Matcher(nn.Module):
 
         return clusters_batch, scores_batch
 
-    def cluster_fusion(self, clusters, scores):
+    def cluster_fusion(self, clusters: List[List[torch.Tensor]], scores: List[List[torch.Tensor]]) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
         """
-        Merge boxes in each cluster with scores as weights for merging
+        Fuse boxes within each cluster using score-weighted averaging.
+
+        Parameters
+        ----------
+        clusters : list of list of Tensor
+            Clustered boxes for each scene.
+        scores : list of list of Tensor
+            Corresponding detection scores.
+
+        Returns
+        -------
+        boxes_fused : list of Tensor
+            Fused boxes for each scene with shape (N_clusters, 7).
+        scores_fused : list of Tensor
+            Fused confidence scores for each scene with shape (N_clusters,).
         """
         boxes_fused = []
         scores_fused = []
@@ -105,11 +195,30 @@ class Matcher(nn.Module):
         len_records = [len(c) for c in clusters]
         boxes_fused = [boxes_fused[sum(len_records[:i]) : sum(len_records[:i]) + length] for i, length in enumerate(len_records)]
         scores_fused = torch.stack(scores_fused, dim=0)
-        scores_fused = [scores_fused[sum(len_records[:i]) : sum(len_records[:i]) + length] for i, length in enumerate(len_records)]
+        scores_fused = [scores_fused[sum(len_records[:i]) : sum(len_records[:i]) + length] for i, length in enumerate(len_records)] # NOTE: Explicit type annotation required - mypy infers List[List[int]] from list comprehension instead of List[int]
 
         return boxes_fused, scores_fused
 
-    def merge_keypoints(self, data_dict):
+    def merge_keypoints(self, data_dict: Dict[str, Any]) -> None:
+        """
+        Merge keypoint features and coordinates across samples.
+
+         Parameters
+         ----------
+         data_dict : Dict[str, Any]
+             Dictionary containing:
+
+             - point_features : list
+                 List of point features.
+             - point_coords : list
+                 List of point coordinates.
+             - record_len : list of int
+                 List of integers indicating number of points per sample.
+
+         Notes
+         -----
+         Modifies data_dict in-place to update:
+        """
         # merge keypoints
         kpts_feat_out = []
         kpts_coor_out = []

@@ -1,5 +1,8 @@
 """
-3D Anchor Generator for Voxel
+Voxel-based 3D object detection post-processing module.
+
+This module provides functionality for anchor generation, label creation,
+and bounding box post-processing for voxel-based 3D object detection approaches.
 """
 
 import math
@@ -13,14 +16,44 @@ from opencood.data_utils.post_processor.base_postprocessor import BasePostproces
 from opencood.utils import box_utils
 from opencood.utils.box_overlaps import bbox_overlaps
 from opencood.visualization import vis_utils
+from typing import Dict, List, Tuple, Optional, Any
 
 
 class VoxelPostprocessor(BasePostprocessor):
-    def __init__(self, anchor_params, train):
+    """
+    Base class for voxel-based 3D object detection post-processing.
+
+    This class provides common functionality for processing 3D object detection
+    predictions in voxel-based approaches, including anchor generation and
+    box decoding.
+
+    Parameters
+    ----------
+    anchor_params : dict
+        Dictionary containing anchor configuration parameters.
+    train : bool
+        Whether the processor is in training mode.
+
+    Attributes
+    ----------
+    anchor_num : int
+        Number of anchor boxes per location.
+    """
+
+    def __init__(self, anchor_params: Dict[str, Any], train: bool):
         super(VoxelPostprocessor, self).__init__(anchor_params, train)
         self.anchor_num = self.params["anchor_args"]["num"]
 
-    def generate_anchor_box(self):
+    def generate_anchor_box(self) -> torch.Tensor:
+        """
+        Generate anchor boxes for voxel-based detection.
+
+        Returns
+        -------
+        torch.Tensor
+            Anchor boxes with shape (H, W, num_anchors, 7) where 7 represents
+            (x, y, z, h/l, w, l/h, yaw) depending on order parameter.
+        """
         W = self.params["anchor_args"]["W"]
         H = self.params["anchor_args"]["H"]
 
@@ -68,19 +101,31 @@ class VoxelPostprocessor(BasePostprocessor):
 
         return anchors
 
-    def generate_label(self, **kwargs):
+    def generate_label(self, **kwargs: Any) -> Dict[str, torch.Tensor]: #NOTE Signature mismatch with supertype
         """
         Generate targets for training.
 
         Parameters
         ----------
-        argv : list
-            gt_box_center:(max_num, 7), anchor:(H, W, anchor_num, 7)
+        **kwargs : dict
+            Keyword arguments containing:
+            - gt_box_center : np.ndarray
+                Ground truth box centers with shape (max_num, 7)
+            - anchors : np.ndarray
+                Anchor boxes with shape (H, W, anchor_num, 7)
+            - mask : np.ndarray
+                Valid ground truth mask with shape (max_num,)
 
         Returns
         -------
-        label_dict : dict
-            Dictionary that contains all target related info.
+        dict
+            Dictionary containing:
+            - pos_equal_one : np.ndarray
+                Positive anchor mask with shape (H, W, anchor_num)
+            - neg_equal_one : np.ndarray
+                Negative anchor mask with shape (H, W, anchor_num)
+            - targets : np.ndarray
+                Regression targets with shape (H, W, anchor_num * 7)
         """
         assert self.params["order"] == "hwl", "Currently Voxel only supporthwl bbx order."
         # (max_num, 7)
@@ -165,20 +210,25 @@ class VoxelPostprocessor(BasePostprocessor):
         return label_dict
 
     @staticmethod
-    def collate_batch(label_batch_list):
+    def collate_batch(label_batch_list: List[Dict[str, np.ndarray]]) -> Dict[str, torch.Tensor]:
         """
         Customized collate function for target label generation.
 
         Parameters
         ----------
-        label_batch_list : list
-            The list of dictionary  that contains all labels for several
-            frames.
+        label_batch_list : list of dict
+            List of dictionaries that contain all labels for several frames.
 
         Returns
         -------
-        target_batch : dict
-            Reformatted labels in torch tensor.
+        dict
+            Dictionary containing:
+            - targets : torch.Tensor
+                Batched regression targets
+            - pos_equal_one : torch.Tensor
+                Batched positive anchor masks
+            - neg_equal_one : torch.Tensor
+                Batched negative anchor masks
         """
         pos_equal_one = []
         neg_equal_one = []
@@ -195,27 +245,31 @@ class VoxelPostprocessor(BasePostprocessor):
 
         return {"targets": targets, "pos_equal_one": pos_equal_one, "neg_equal_one": neg_equal_one}
 
-    def post_process(self, data_dict, output_dict):
+    def post_process(
+        self, data_dict: Dict[str, Dict[str, Any]], output_dict: Dict[str, Dict[str, torch.Tensor]]
+    ) -> Tuple[Optional[torch.Tensor], Optional[torch.Tensor]]:
         """
         Process the outputs of the model to 2D/3D bounding box.
-        Step1: convert each cav's output to bounding box format
-        Step2: project the bounding boxes to ego space.
-        Step:3 NMS
+
+        Step 1: Convert each CAV's output to bounding box format
+        Step 2: Project the bounding boxes to ego space
+        Step 3: Apply NMS
 
         Parameters
         ----------
         data_dict : dict
-            The dictionary containing the origin input data of model.
-
-        output_dict :dict
-            The dictionary containing the output of the model.
+            Dictionary containing the origin input data of model.
+        output_dict : dict
+            Dictionary containing the output of the model.
 
         Returns
         -------
-        pred_box3d_tensor : torch.Tensor
-            The prediction bounding box tensor after NMS.
-        gt_box3d_tensor : torch.Tensor
-            The groundtruth bounding box tensor.
+        pred_box3d_tensor : torch.Tensor or None
+            Prediction bounding box tensor after NMS with shape (N, 8, 3).
+            Returns None if no predictions.
+        scores : torch.Tensor or None
+            Confidence scores for each prediction with shape (N,).
+            Returns None if no predictions.
         """
         # the final bounding box list
         pred_box3d_list = []
@@ -268,7 +322,7 @@ class VoxelPostprocessor(BasePostprocessor):
         # shape: (N, 5)
         pred_box2d_list = torch.vstack(pred_box2d_list)
         # scores
-        scores = pred_box2d_list[:, -1]
+        scores = pred_box2d_list[:, -1] # NOTE: mypy error - list doesn't support numpy-style indexing 
         # predicted 3d bbx
         pred_box3d_tensor = torch.vstack(pred_box3d_list)
         # remove large bbx
@@ -297,24 +351,24 @@ class VoxelPostprocessor(BasePostprocessor):
         return pred_box3d_tensor, scores
 
     @staticmethod
-    def delta_to_boxes3d(deltas, anchors, channel_swap=True):
+    def delta_to_boxes3d(deltas: torch.Tensor, anchors: torch.Tensor, channel_swap: bool = True) -> torch.Tensor:
         """
-        Convert the output delta to 3d bbx.
+        Convert the output delta to 3D bounding boxes.
 
         Parameters
         ----------
         deltas : torch.Tensor
-            (N, W, L, 14)
+            Predicted deltas with shape (N, W, L, 14).
         anchors : torch.Tensor
-            (W, L, 2, 7) -> xyzhwlr
-        channel_swap : bool
-            Whether to swap the channel of deltas. It is only false when using
-            FPV-RCNN
+            Anchor boxes with shape (W, L, 2, 7) where 7 represents (x, y, z, h, w, l, yaw).
+        channel_swap : bool, optional
+            Whether to swap the channel of deltas. Set to False when using FPV-RCNN.
+            Default is True.
 
         Returns
         -------
-        box3d : torch.Tensor
-            (N, W*L*2, 7)
+        torch.Tensor
+            Decoded 3D boxes with shape (N, W*L*2, 7).
         """
         # batch size
         N = deltas.shape[0]
@@ -346,29 +400,25 @@ class VoxelPostprocessor(BasePostprocessor):
         return boxes3d
 
     @staticmethod
-    def visualize(pred_box_tensor, gt_tensor, pcd, show_vis, save_path, dataset=None):
+    def visualize(
+        pred_box_tensor: torch.Tensor, gt_tensor: torch.Tensor, pcd: torch.Tensor, show_vis: bool, save_path: str, dataset: Optional[Any] = None
+    ) -> None:
         """
         Visualize the prediction, ground truth with point cloud together.
 
         Parameters
         ----------
         pred_box_tensor : torch.Tensor
-            (N, 8, 3) prediction.
-
+            Predicted bounding boxes with shape (N, 8, 3).
         gt_tensor : torch.Tensor
-            (N, 8, 3) groundtruth bbx
-
+            Ground truth bounding boxes with shape (N, 8, 3).
         pcd : torch.Tensor
-            PointCloud, (N, 4).
-
+            Point cloud data with shape (N, 4).
         show_vis : bool
             Whether to show visualization.
-
         save_path : str
-            Save the visualization results to given path.
-
-        dataset : BaseDataset
-            opencood dataset object.
-
+            Path to save the visualization results.
+        dataset : BaseDataset, optional
+            OpenCOOD dataset object. Default is None.
         """
         vis_utils.visualize_single_sample_output_gt(pred_box_tensor, gt_tensor, pcd, show_vis, save_path)

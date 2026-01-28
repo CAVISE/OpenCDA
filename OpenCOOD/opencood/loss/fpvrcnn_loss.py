@@ -1,24 +1,89 @@
+"""
+Loss functions for FPVRCNN (Frustum Point Voxel R-CNN) 3D object detection.
+
+This module implements the loss function for the FPVRCNN architecture.
+"""
+
 import torch
-from torch import nn
-import numpy as np
+from torch import nn, Tensor
+from typing import Dict, Any, Optional
+from torch.utils.tensorboard import SummaryWriter
 from opencood.loss.ciassd_loss import CiassdLoss, weighted_smooth_l1_loss
 
 
 class FpvrcnnLoss(nn.Module):
-    def __init__(self, args):
+    """
+    FPVRCNN (Frustum Point Voxel R-CNN) loss function.
+
+    This loss combines the first stage detection loss (Ciassd) with the second
+    stage refinement loss for 3D object detection.
+
+    Parameters
+    ----------
+    args : dict
+        Configuration dictionary containing:
+        - stage1 : dict
+            Configuration for first stage (Ciassd) loss
+        - stage2 : dict
+            Configuration for second stage loss with keys:
+            - cls : dict
+                Classification loss config
+            - reg : dict
+                Regression loss config
+            - iou : dict
+                IoU loss config
+
+    Attributes
+    ----------
+    ciassd_loss : CiassdLoss
+        First stage detection loss module.
+    cls : dict
+        Dictionary containing classification loss configuration.
+    reg : dict
+        Dictionary containing regression loss configuration.
+    iou : dict
+        Dictionary containing IoU loss configuration.
+    loss_dict : dict
+        Dictionary to store all loss components.
+    """
+
+    def __init__(self, args: Dict):
         super(FpvrcnnLoss, self).__init__()
         self.ciassd_loss = CiassdLoss(args["stage1"])
-        self.cls = args["stage2"]["cls"]
-        self.reg = args["stage2"]["reg"]
-        self.iou = args["stage2"]["iou"]
-        self.loss_dict = {}
+        self.cls: Dict[str, float] = args["stage2"]["cls"]
+        self.reg: Dict[str, float] = args["stage2"]["reg"]
+        self.iou: Dict[str, float] = args["stage2"]["iou"]
+        self.loss_dict: Dict[str, Tensor] = {}
 
-    def forward(self, output_dict, label_dict):
+    def forward(self, output_dict: Dict[str, Any], label_dict: Dict[str, Any]) -> Tensor:
         """
+        Forward pass for FPVRCNN loss computation.
+
         Parameters
         ----------
         output_dict : dict
-        target_dict : dict
+            Dictionary containing model outputs with keys:
+            - preds_dict_stage1 : dict
+                First stage predictions
+            - fvprcnn_out : dict
+                Second stage predictions with keys:
+                - rcnn_cls : torch.Tensor
+                    Classification logits
+                - rcnn_iou : torch.Tensor
+                    IoU predictions
+                - rcnn_reg : torch.Tensor
+                    Regression predictions
+            - rcnn_label_dict : dict
+                Dictionary with target values for second stage
+            - record_len : torch.Tensor, optional
+                Tensor with sequence lengths for batch processing
+        label_dict : dict
+            Dictionary containing ground truth labels.
+
+        Returns
+        -------
+        torch.Tensor
+            Total loss value (scalar tensor).
         """
         ciassd_loss = self.ciassd_loss(output_dict, label_dict)
 
@@ -84,20 +149,23 @@ class FpvrcnnLoss(nn.Module):
 
         return loss
 
-    def logging(self, epoch, batch_id, batch_len, writer, pbar=None):
+    def logging(self, epoch: int, batch_id: int, batch_len: int, writer: SummaryWriter, pbar: Optional[Any] = None) -> None:
         """
-        Print out  the loss function for current iteration.
+        Log training metrics and losses to console and TensorBoard.
 
         Parameters
         ----------
         epoch : int
-            Current epoch for training.
+            Current epoch number.
         batch_id : int
-            The current batch.
+            Current batch index within the epoch.
         batch_len : int
-            Total batch length in one iteration of training,
+            Total number of batches in the dataset.
         writer : SummaryWriter
-            Used to visualize on tensorboard
+            TensorBoard SummaryWriter for logging.
+        pbar : Any, optional
+            Optional progress bar for display. If None, prints to console.
+            Default is None.
         """
         ciassd_loss_dict = self.ciassd_loss.loss_dict
         ciassd_total_loss = ciassd_loss_dict["total_loss"]
@@ -140,36 +208,69 @@ class FpvrcnnLoss(nn.Module):
             writer.add_scalar("Total_loss", self.loss_dict["loss"].item(), epoch * batch_len + batch_id)
 
 
-def weighted_sigmoid_binary_cross_entropy(preds, tgts, weights=None, class_indices=None):
+def weighted_sigmoid_binary_cross_entropy(
+    preds: Tensor, tgts: Tensor, weights: Optional[Tensor] = None, class_indices: Optional[torch.LongTensor] = None
+) -> Tensor:
+    """
+    Compute weighted binary cross entropy with logits.
+
+    Parameters
+    ----------
+    preds : torch.Tensor
+        Predicted logits with shape (batch_size, num_anchors, num_classes).
+    tgts : torch.Tensor
+        Target values with same shape as preds.
+    weights : torch.Tensor, optional
+        Optional weight tensor for each prediction. Default is None.
+    class_indices : torch.LongTensor, optional
+        Optional tensor of class indices to apply weights to. Default is None.
+
+    Returns
+    -------
+    torch.Tensor
+        Computed binary cross entropy loss.
+    """
     if weights is not None:
         weights = weights.unsqueeze(-1)
     if class_indices is not None:
-        weights *= indices_to_dense_vector(class_indices, preds.shape[2]).view(1, 1, -1).type_as(preds)
-    per_entry_cross_ent = nn.functional.binary_cross_entropy_with_logits(preds, tgts, weights)
+        weights = weights * indices_to_dense_vector(class_indices, preds.shape[2]).view(1, 1, -1).type_as(preds)
+    per_entry_cross_ent = nn.functional.binary_cross_entropy_with_logits(preds, tgts, weight=weights, reduction="none")
     return per_entry_cross_ent
 
 
-def indices_to_dense_vector(indices, size, indices_value=1.0, default_value=0, dtype=np.float32):
-    """Creates dense vector with indices set to specific value and rest to zeros.
-
-    This function exists because it is unclear if it is safe to use
-        tf.sparse_to_dense(indices, [size], 1, validate_indices=False)
-    with indices which are not ordered.
-    This function accepts a dynamic size (e.g. tf.shape(tensor)[0])
-
-    Args:
-        indices: 1d Tensor with integer indices which are to be set to
-            indices_values.
-        size: scalar with size (integer) of output Tensor.
-        indices_value: values of elements specified by indices in the output vector
-        default_value: values of other elements in the output vector.
-        dtype: data type.
-
-    Returns:
-        dense 1D Tensor of shape [size] with indices set to indices_values and the
-            rest set to default_value.
+def indices_to_dense_vector(
+    indices: torch.LongTensor, size: int, indices_value: float = 1.0, default_value: float = 0, dtype: torch.dtype = torch.float32
+) -> Tensor:
     """
-    dense = torch.zeros(size).fill_(default_value)
-    dense[indices] = indices_value
+    Creates a dense vector with specified indices set to a given value and the rest to default.
 
+    This is a PyTorch implementation that creates a dense vector where only the specified
+    indices have the value `indices_value` and all others have `default_value`.
+
+    Parameters
+    ----------
+    indices : torch.LongTensor
+        1D tensor containing integer indices to set to `indices_value`.
+    size : int
+        Size of the output tensor.
+    indices_value : float, optional
+        Value to set at the specified indices. Default is 1.0.
+    default_value : float, optional
+        Value to set for all other indices. Default is 0.
+    dtype : torch.dtype, optional
+        Data type of the output tensor. Default is torch.float32.
+
+    Returns
+    -------
+    torch.Tensor
+        1D tensor of shape (size,) with values set at specified indices.
+
+    Examples
+    --------
+    >>> indices = torch.tensor([1, 3, 5])
+    >>> indices_to_dense_vector(indices, size=6)
+    tensor([0., 1., 0., 1., 0., 1.])
+    """
+    dense = torch.zeros(size, dtype=dtype, device=indices.device).fill_(default_value)
+    dense[indices] = indices_value
     return dense

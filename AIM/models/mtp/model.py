@@ -1,5 +1,7 @@
+from typing import List
 import torch
 import numpy as np
+import numpy.typing as npt
 
 from AIM import AIMModel
 from .constants import HIDDEN_CHANNELS
@@ -8,7 +10,13 @@ from importlib.resources import files
 
 
 class MTP(AIMModel):
-    def __init__(self):
+    """
+    Multi-modal Trajectory Prediction (MTP) model.
+
+    This class implements trajectory prediction functionality with support
+    for coordinate system transformations between SUMO and CARLA.
+    """
+    def __init__(self) -> None:
         super().__init__()
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.model = GNN_mtl_gnn(hidden_channels=HIDDEN_CHANNELS)
@@ -20,7 +28,17 @@ class MTP(AIMModel):
 
         self.model.eval()
 
-    def predict(self, features, target_agent_ids):
+    def predict(self, features: npt.NDArray[np.float64], target_agent_ids: List[str]) -> torch.Tensor:
+        """
+        Predict trajectories for target agents.
+
+        Parameters
+        ----------
+        features : NDArray[float64]
+            Feature array of shape (n_agents, n_features) containing agent states.
+        target_agent_ids : List[str]
+            List of agent identifiers for which to predict trajectories.
+        """
         num_agents = features.shape[0]
         # Preparing an agent graph for GNN
         edge_index = torch.tensor([[i, j] for i in range(num_agents) for j in range(num_agents)]).T.to(self.device)
@@ -32,12 +50,19 @@ class MTP(AIMModel):
         return predictions
 
     @staticmethod
-    def _transform_sumo2carla(states: np.ndarray):
+    def _transform_sumo2carla(states: npt.NDArray[float]) -> npt.NDArray[float]:
         """
-        In-place transform from sumo to carla: [x_carla, y_carla, yaw_carla] = [x_sumo, -y_sumo, yaw_sumo-90].
-        Note:
-            - the coordinate system in Carla is more convenient since the angle increases in the direction of rotation from +x to +y, while in sumo this is from +y to +x.
-            - the coordinate system in Carla is a left-handed Cartesian coordinate system.
+        Transform coordinates from SUMO to CARLA coordinate system.
+
+        Parameters
+        ----------
+        states : NDArray[float]
+            Array of states in SUMO coordinate system with shape (n_states, n_dims).
+
+        Returns
+        -------
+        NDArray[float]
+            Transformed states in CARLA coordinate system with the same shape.
         """
         if states.ndim == 1:
             states[1] = -states[1]

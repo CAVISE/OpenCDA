@@ -1,13 +1,67 @@
+"""
+Attention-based BEV Backbone with Multi-scale Feature Fusion.
+
+This module implements a BEV backbone that uses attention mechanisms to fuse
+features from multiple agents at different scales, with optional compression
+for efficient communication.
+"""
+
 import numpy as np
 import torch
 import torch.nn as nn
+
+from typing import Any, Dict
+from torch import Tensor
 
 from opencood.models.fuse_modules.self_attn import AttFusion
 from opencood.models.sub_modules.auto_encoder import AutoEncoder
 
 
 class AttBEVBackbone(nn.Module):
-    def __init__(self, model_cfg, input_channels):
+    """
+    Attention-based BEV Backbone with multi-scale feature extraction and fusion.
+
+    Parameters
+    ----------
+    model_cfg : dict
+        Dictionary containing model configuration:
+
+        - layer_nums : list of int
+            Number of layers in each block.
+        - layer_strides : list of int
+            Stride for each block.
+        - num_filters : list of int
+            Number of filters for each block.
+        - upsample_strides : list of int
+            Upsampling factors.
+        - num_upsample_filter : list of int
+            Number of filters for upsampling.
+        - compression : int, optional
+            Compression ratio for autoencoder.
+    input_channels : int
+        Number of input channels.
+
+    Attributes
+    ----------
+    model_cfg : dict
+        Model configuration.
+    compress : bool
+        Whether feature compression is enabled.
+    compress_layer : int, optional
+        Number of compression layers (if compression is enabled).
+    blocks : nn.ModuleList
+        List of convolutional blocks for feature extraction.
+    fuse_modules : nn.ModuleList
+        List of attention fusion modules for multi-agent fusion.
+    deblocks : nn.ModuleList
+        List of upsampling blocks.
+    compression_modules : nn.ModuleList, optional
+        List of autoencoder compression modules (if compression is enabled).
+    num_bev_features : int
+        Total number of output BEV feature channels.
+    """
+
+    def __init__(self, model_cfg: Dict[str, Any], input_channels: int):
         super().__init__()
         self.model_cfg = model_cfg
         self.compress = False
@@ -101,7 +155,24 @@ class AttBEVBackbone(nn.Module):
 
         self.num_bev_features = c_in
 
-    def forward(self, data_dict):
+    def forward(self, data_dict: Dict[str, Tensor]) -> Dict[str, Tensor]:
+        """
+        Forward pass for the BEV backbone.
+
+        Parameters
+        ----------
+        data_dict : dict of str to Tensor
+            Data dictionary containing:
+            - 'spatial_features': Input BEV features with shape (B, C, H, W).
+            - 'record_len': Number of agents per batch for attention fusion.
+
+        Returns
+        -------
+        dict of str to Tensor
+            Updated data dictionary with:
+            - 'spatial_features_2d': Fused multi-scale features with shape (B, C_out, H', W').
+            - 'spatial_features_Nx': Intermediate features at each scale before fusion
+        """
         spatial_features = data_dict["spatial_features"]
         record_len = data_dict["record_len"]
 

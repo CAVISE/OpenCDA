@@ -1,3 +1,5 @@
+from typing import Any, Dict, List, Optional, Set, Tuple
+import numpy.typing as npt
 import carla
 import traci
 import torch
@@ -14,7 +16,7 @@ logger = logging.getLogger("cavise.codriving_model_manager")
 
 
 class AIMModelManager:
-    def __init__(self, model: AIMModel, nodes, excluded_nodes=None):
+    def __init__(self, model: AIMModel, nodes: List[Any], excluded_nodes: Optional[List[Any]] = None):
         """
         :param model_name: model name contained in the filename
         :param pretrained: filepath to saved model state
@@ -23,12 +25,12 @@ class AIMModelManager:
 
         :return: None
         """
-        self.mtp_controlled_vehicles = set()
+        self.mtp_controlled_vehicles: Set = set()
 
-        self.cav_ids = set()
-        self.carla_vmanagers = set()
+        self.cav_ids: Set = set()
+        self.carla_vmanagers: Set = set()
 
-        self.trajs = dict()
+        self.trajs: Dict = dict()
 
         self.nodes = nodes
         self.node_coords = np.array([node.getCoord() for node in nodes])
@@ -38,57 +40,83 @@ class AIMModelManager:
         self.model = model
 
         self.yaw_dict = self._load_yaw()
-        self.yaw_id = {}
+        self.yaw_id: Dict[str, Dict[Any, str]] = {}
 
-    def _load_yaw(self):
+    def _load_yaw(self)-> Dict[str, npt.NDArray[np.float64]]:
         """
-        Loads yaw dictionary from a predefined address.
-
-        :return: yaw_dict
+        Load yaw dictionary from predefined file.
+        
+        Returns
+        -------
+        Dict[str, NDArray[np.float64]]
+            Dictionary mapping routes to yaw arrays.
         """
         with open("opencda/assets/yaw_dict_10m.pkl", "rb") as f:
             return pkl.load(f)
 
-    def _get_nearest_node(self, pos):
+    def _get_nearest_node(self, pos: npt.NDArray[np.float64]) -> Any:
         """
-        Selects the nearest node from chosen position
-
-        :param pos: 2D-position on simulation map
-        :return: position of the closest node
+        Find the nearest node to given position.
+        
+        Parameters
+        ----------
+        pos : NDArray[np.float64]
+            2D position on simulation map.
+        
+        Returns
+        -------
+        Any
+            Nearest node object.
         """
         distances = np.linalg.norm(self.node_coords - pos, axis=1)
         return self.nodes[np.argmin(distances)]
 
-    def _get_vmanager_by_vid(self, vid: str):
+    def _get_vmanager_by_vid(self, vid: str) -> Optional[Any]:
         """
-        Returns vmanager with selected vid if exists.
-
-        :param vid: virtual manager id (string)
-        :return: virtual manager
+        Get vehicle manager by vehicle ID.
+        
+        Parameters
+        ----------
+        vid : str
+            Vehicle manager ID.
+        
+        Returns
+        -------
+        Optional[Any]
+            Vehicle manager if found, None otherwise.
         """
         for vmanager in self.carla_vmanagers:
             if vmanager.vid == vid:
                 return vmanager
         return None
 
-    def _is_carla_id(self, vid):
+    def _is_carla_id(self, vid: str) -> bool:
         """
-        Checks if there exists virtual manager with selected vid.
-
-        :param vid: virtual manager id (string)
-        :return: boolean value
+        Check if vehicle ID belongs to CARLA vehicle.
+        
+        Parameters
+        ----------
+        vid : str
+            Vehicle ID.
+        
+        Returns
+        -------
+        bool
+            True if CARLA vehicle, False otherwise.
         """
         for vmanager in self.carla_vmanagers:
             if vmanager.vid == vid:
                 return True
         return False
 
-    def make_trajs(self, carla_vmanagers):
+    def make_trajs(self, carla_vmanagers: Set[Any]) -> None:
         """
-        Creates new trajectories based on model predictions, assigns CAVs new destinations.
-
-        :param carla_vmanagers: carla virtual managers
-        :return: None
+        Create trajectories based on model predictions.
+        
+        Parameters
+        ----------
+        carla_vmanagers : Set[Any]
+            Set of CARLA vehicle managers.
         """
         # List of cars from SUMO and CARLA
         self.cav_ids = traci.vehicle.getIDList()
@@ -174,13 +202,14 @@ class AIMModelManager:
             elif vehicle_id in self.mtp_controlled_vehicles:
                 if self._is_carla_id(vehicle_id):
                     cav = self._get_vmanager_by_vid(vehicle_id)
-                    cav.set_destination(cav.vehicle.get_location(), cav.agent.end_waypoint.transform.location, clean=True, end_reset=True)
+                    cav.set_destination(cav.vehicle.get_location(), cav.agent.end_waypoint.transform.location, clean=True, end_reset=True) #NOTE None-check is required
 
                 self.mtp_controlled_vehicles.remove(vehicle_id)
 
-    def update_trajs(self):
+    def update_trajs(self) -> None:
         """
         Updates the self.trajs dictionary, which stores the trajectory history of each vehicle.
+
         Format:
         {
             'vehicle_id': [
@@ -231,12 +260,19 @@ class AIMModelManager:
             if vehicle_id not in self.cav_ids:
                 del self.trajs[vehicle_id]
 
-    def get_intention_by_rotation(self, rotation):
+    def get_intention_by_rotation(self, rotation: float) -> str:
         """
-        Distinguishes vehicle intention by its rotation
-
-        :param rotation: rotation degrees (from 0 to 360)
-        :return: intention
+        Determine vehicle intention from rotation angle.
+        
+        Parameters
+        ----------
+        rotation : float
+            Rotation angle in degrees (0-360).
+        
+        Returns
+        -------
+        str
+            Intention: 'left', 'straight', 'right', or 'null'.
         """
         if rotation < 30 or rotation > 330:
             intention = "straight"
@@ -248,27 +284,44 @@ class AIMModelManager:
             intention = "null"
         return intention
 
-    def get_distance(self, waypoint1, waypoint2):
+    def get_distance(self, waypoint1: Any, waypoint2: Tuple[Any]) -> float:
         """
-        Calculates Euclidean distance between two waypoints
-
-        :param waypoint1: waypoint 2D-coordinates
-        :param waypoint2: waypoint 2D-coordinates
-        :return: distance
+        Calculate Euclidean distance between waypoints.
+        
+        Parameters
+        ----------
+        waypoint1 : Any
+            First waypoint with location attribute.
+        waypoint2 : Tuple[Any]
+            Second waypoint as tuple.
+        
+        Returns
+        -------
+        float
+            Euclidean distance.
         """
         rel_x = waypoint1.location.x - waypoint2[0].transform.location.x
         rel_y = waypoint1.location.y - waypoint2[0].transform.location.y
         position = np.array([rel_x, rel_y])
         return np.linalg.norm(position)
 
-    def get_opencda_intention(self, waypoints, mid, radius=CONTROL_RADIUS):
+    def get_opencda_intention(self, waypoints: List[Tuple[Any]], mid: Tuple[float, float], radius: float = CONTROL_RADIUS) -> str:
         """
-        Gets intention by averaged rotation to pass 3 next waypoints.
-
-        :param waypoints: list of waypoint 2D-coordinates
-        :param mid: middle of the turning path 2D-coordinates
-        :param radius: search radius for waypoints nearby
-        :return: intention
+        Get intention from OpenCDA waypoints.
+        
+        Parameters
+        ----------
+        waypoints : List[Tuple[Any]]
+            List of waypoint coordinates.
+        mid : Tuple[float, float]
+            Middle of turning path coordinates.
+        radius : float, optional
+            Search radius, by default CONTROL_RADIUS.
+        
+        Returns
+        -------
+        str
+            Intention: 'left', 'straight', 'right', or 'null'.
         """
         # Too few waypoints
         if len(waypoints) < 2:
@@ -306,12 +359,19 @@ class AIMModelManager:
         rotation = (mean_yaw - first_waypoint[0].transform.rotation.yaw + 360) % 360
         return self.get_intention_by_rotation(rotation)
 
-    def get_sumo_intention(self, sumo_id):
+    def get_sumo_intention(self, sumo_id: str) -> str:
         """
-        Distinguishes CAV intention from SUMO based on its rotation.
-
-        :param sumo_id: SUMO CAV ID
-        :return: intention
+        Get SUMO vehicle intention from route.
+        
+        Parameters
+        ----------
+        sumo_id : str
+            SUMO vehicle ID.
+        
+        Returns
+        -------
+        str
+            Intention: 'left', 'straight', 'right', or 'null'.
         """
         route = traci.vehicle.getRoute(sumo_id)
         index = traci.vehicle.getRouteIndex(sumo_id)
@@ -327,11 +387,24 @@ class AIMModelManager:
         rotation = (next_angle - current_angle + 360) % 360
         return self.get_intention_by_rotation(rotation)
 
-    def get_intention(self, vehicle_id):
+    def get_intention(self, vehicle_id: str) -> str:
+        """
+        Get vehicle intention (CARLA or SUMO).
+        
+        Parameters
+        ----------
+        vehicle_id : str
+            Vehicle ID.
+        
+        Returns
+        -------
+        str
+            Intention string.
+        """
         if self._is_carla_id(vehicle_id):
             cav = self._get_vmanager_by_vid(vehicle_id)
-            cav.set_destination(cav.vehicle.get_location(), cav.agent.end_waypoint.transform.location, clean=True, end_reset=True)
-            waypoints = cav.agent.get_local_planner().get_waypoint_buffer()
+            cav.set_destination(cav.vehicle.get_location(), cav.agent.end_waypoint.transform.location, clean=True, end_reset=True) #NOTE None-check is required
+            waypoints = cav.agent.get_local_planner().get_waypoint_buffer() #NOTE None-check is required
             curr_pos = np.array(traci.vehicle.getPosition(vehicle_id))
             nearest_node = self._get_nearest_node(curr_pos)
             control_center = nearest_node.getCoord()
@@ -339,11 +412,16 @@ class AIMModelManager:
         else:
             return self.get_sumo_intention(vehicle_id)
 
-    def encoding_scenario_features(self):
+    def encoding_scenario_features(self)-> Tuple[npt.NDArray[np.float64], List[str]]:
         """
-        Encodes data on CAV movement and intentions for processing by ML models
-
-        :return: x: list((motion features, intention vector)), target: agent ids list(vehicle id)
+        Encode scenario features for ML model.
+        
+        Returns
+        -------
+        features : NDArray[np.float64]
+            Array of shape (n_agents, 7) with motion and intention features.
+        target_agent_ids : List[str]
+            List of vehicle IDs.
         """
         features = []
         target_agent_ids = []
@@ -365,10 +443,17 @@ class AIMModelManager:
         return features, target_agent_ids
 
     @staticmethod
-    def transform_sumo2carla(states: np.ndarray):
+    def transform_sumo2carla(states: npt.NDArray[np.float64]) -> None:
         """
-        In-place transform from sumo to carla: [x_carla, y_carla, yaw_carla] = [x_sumo, -y_sumo, yaw_sumo-90].
+        Transform coordinates from SUMO to CARLA in-place.
+        
+        Parameters
+        ----------
+        states : NDArray[np.float64]
+            State array with x, y, yaw coordinates.
+
         Note:
+        ----------
             - the coordinate system in Carla is more convenient since the angle increases in the direction of rotation from +x to +y, while in sumo this is from +y to +x.
             - the coordinate system in Carla is a left-handed Cartesian coordinate system.
         """
@@ -382,21 +467,43 @@ class AIMModelManager:
             raise NotImplementedError
 
     @staticmethod
-    def rotation_matrix_back(yaw):
+    def rotation_matrix_back(yaw: float) -> npt.NDArray[np.float64]:
         """
+        Create rotation matrix for given yaw.
+
+        Parameters
+        ----------
+        yaw : float
+            Yaw angle in radians.
+        
+        Returns
+        -------
+        NDArray[np.float64]
+            2x2 rotation matrix.):
+
+        References
+        -------
         Rotate back.
         https://en.wikipedia.org/wiki/Rotation_matrix#Non-standard_orientation_of_the_coordinate_system
         """
         rotation = np.array([[np.cos(-np.pi / 2 + yaw), -np.sin(-np.pi / 2 + yaw)], [np.sin(-np.pi / 2 + yaw), np.cos(-np.pi / 2 + yaw)]])
         return rotation
 
-    def get_end(self, start, intention):
+    def get_end(self, start: str, intention: str) -> Any:
         """
-        Determines the direction of exit from the turn given its start and vehicle intention.
-
-        :param start: direction from which CAV enters the intersection
-        :param intention: direction of turning relative to CAV movement
-        :return: end
+        Determine exit direction from intersection.
+        
+        Parameters
+        ----------
+        start : str
+            Entry direction: 'up', 'down', 'left', 'right'.
+        intention : str
+            Turn intention: 'left', 'straight', 'right'.
+        
+        Returns
+        -------
+        Optional[str]
+            Exit direction or None.
         """
         match intention:
             case "right":
@@ -430,14 +537,23 @@ class AIMModelManager:
                     case "left":
                         return "right"
 
-    def get_yaw(self, vehicle_id: str, pos: np.ndarray, yaw_dict: dict):
+    def get_yaw(self, vehicle_id: str, pos: npt.NDArray[np.float64], yaw_dict: Dict[str, npt.NDArray[np.float64]]) -> float:
         """
-        Calculates optimal CAV yaw based on its position, using previously collected trajectory data.
-
-        :param vehicle_id: vehicle identifier
-        :param pos: 2D-position on simulation map
-        :param yaw_dict: dictionary containing information about rotation at each stage of the turn
-        :return: yaw (rotation angle)
+        Calculate optimal yaw for vehicle position.
+        
+        Parameters
+        ----------
+        vehicle_id : str
+            Vehicle ID.
+        pos : NDArray[np.float64]
+            2D position array.
+        yaw_dict : Dict[str, NDArray[np.float64]]
+            Dictionary with yaw data for routes.
+        
+        Returns
+        -------
+        float
+            Yaw angle in degrees.
         """
         nearest_node = self._get_nearest_node(pos)
         if not self.trajs[vehicle_id] or self.trajs[vehicle_id][-1][-1] == "null":

@@ -1,50 +1,62 @@
 """
-Analysis + visualization functions for platooning
+Analysis and visualization functions for platooning behavior.
+
+This module provides debugging and statistics collection utilities for platoon
+operations, including time gap and distance gap tracking between vehicles.
 """
 
 from opencda.core.plan.planer_debug_helper import PlanDebugHelper
+from typing import List, Optional
 
 
 class PlatoonDebugHelper(PlanDebugHelper):
-    """This class aims to save statistics for platoon behaviour
+    """
+    Debug helper for platoon behavior statistics.
+
+    This class collects and stores statistics for platooning operations,
+    including time gaps and distance gaps between vehicles over time.
 
     Parameters
     ----------
     actor_id : int
-        The actor ID of the selected vehcile.
+        The actor ID of the selected vehicle.
 
     Attributes
     ----------
-    time_gap_list : list
-        The list containing intra-time-gap(s) of all time-steps.
-
-    dist_gap_list : list
-        The list containing distance gap(s) of all time-steps.
+    time_gap_list : List[List[Optional[float]]]
+        Nested list containing intra-time-gap values for all time-steps.
+    dist_gap_list : List[List[Optional[float]]]
+        Nested list containing distance gap values for all time-steps.
     """
 
-    def __init__(self, actor_id):
+    def __init__(self, actor_id: int):
         super(PlatoonDebugHelper, self).__init__(actor_id)
 
-        self.time_gap_list = [[]]
-        self.dist_gap_list = [[]]
+        self.time_gap_list: List[List[Optional[float]]] = [[]]
+        self.dist_gap_list: List[List[Optional[float]]]= [[]]
 
-    def update(self, ego_speed, ttc, time_gap=None, dist_gap=None):
+    def update(
+        self,
+        ego_speed: float,
+        ttc: float,
+        time_gap: Optional[float] = None,
+        dist_gap: Optional[float] = None,
+    ) -> None:
         """
-        Update the platoon related vehicle information.
+        Update platoon-related vehicle information.
 
         Parameters
         ----------
         ego_speed : float
-            Ego vehcile speed.
-
+            Ego vehicle speed in m/s.
         ttc : float
-            Ego vehicle time-to-collision.
-
-        time_gap : float
-            Ego vehicle time gap with the front vehicle.
-
-        dist_gap : float
-            Ego vehicle distance gap with front vehicle.
+            Ego vehicle time-to-collision in seconds.
+        time_gap : float, optional
+            Ego vehicle time gap with the front vehicle in seconds.
+            Default is None.
+        dist_gap : float, optional
+            Ego vehicle distance gap with front vehicle in meters.
+            Default is None.
         """
         super().update(ego_speed, ttc)
         # at the very beginning, the vehicle speed is 0, which causes

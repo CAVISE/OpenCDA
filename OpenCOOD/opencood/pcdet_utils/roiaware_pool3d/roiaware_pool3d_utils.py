@@ -1,16 +1,32 @@
+"""
+RoI-aware 3D pooling operations for point clouds with CUDA acceleration.
+
+Provides GPU-accelerated pooling of point cloud features within 3D regions of
+interest (RoIs) for object detection and segmentation tasks.
+"""
+
 import torch
 
 from opencood.utils import common_utils
 from opencood.pcdet_utils.roiaware_pool3d import roiaware_pool3d_cuda
 
 
-def points_in_boxes_cpu(points, boxes):
+def points_in_boxes_cpu(points: torch.Tensor, boxes: torch.Tensor) -> torch.Tensor:
     """
-    Args:
-        points: (num_points, 3)
-        boxes: [x, y, z, dx, dy, dz, heading], (x, y, z) is the box center, each box DO NOT overlaps
-    Returns:
-        point_indices: (N, num_points)
+    Find which points are inside which boxes using CPU computation.
+
+    Parameters
+    ----------
+    points : torch.Tensor
+        Point coordinates of shape (num_points, 3).
+    boxes : torch.Tensor
+        Boxes in format [x, y, z, dx, dy, dz, heading] of shape (N, 7),
+        where (x, y, z) is the box center. Boxes DO NOT overlap.
+
+    Returns
+    -------
+    torch.Tensor
+        Point indices of shape (N, num_points) indicating which points are in each box.
     """
     assert boxes.shape[1] == 7
     assert points.shape[1] == 3
@@ -23,30 +39,25 @@ def points_in_boxes_cpu(points, boxes):
     return point_indices.numpy() if is_numpy else point_indices
 
 
-def points_in_boxes_gpu(points, boxes):
+def points_in_boxes_gpu(points: torch.Tensor, boxes: torch.Tensor) -> torch.Tensor:
     """
-    :param points: (B, M, 3)
-    :param boxes: (B, T, 7), num_valid_boxes <= T
-    :return box_idxs_of_pts: (B, M), default background = -1
+    Find which box each point belongs to using GPU computation.
+
+    Parameters
+    ----------
+    points : torch.Tensor
+        Point coordinates of shape (B, M, 3).
+    boxes : torch.Tensor
+        Boxes in format [x, y, z, dx, dy, dz, heading] of shape (B, T, 7),
+        where num_valid_boxes <= T.
+
+    Returns
+    -------
+    torch.Tensor
+        Box indices for each point of shape (B, M). Background points are marked as -1.
     """
     assert boxes.shape[0] == points.shape[0]
     assert boxes.shape[2] == 7 and points.shape[2] == 3
-    # #######
-    # import matplotlib.pyplot as plt
-    # ax = plt.figure(figsize=(8, 8)).add_subplot(1, 1, 1)
-    # ax.set_aspect('equal', 'box')
-    # ax.set(xlim=(-50, 50),
-    #        ylim=(-41.6, 41.6))
-    # points0 = points[0].cpu().detach().numpy()
-    # boxes0 = boxes[0].cpu().detach().numpy()
-    # ax.plot(points0[:, 0], points0[:, 1], 'y.', markersize=3)
-    # ax.plot(boxes0[:, 0], boxes0[:, 1], 'r.', markersize=10)
-    # plt.xlabel('x')
-    # plt.ylabel('y')
-    #
-    # plt.show()
-    # plt.close()
-    # ########
     batch_size, num_points, _ = points.shape
 
     box_idxs_of_pts = points.new_zeros((batch_size, num_points), dtype=torch.int).fill_(-1)

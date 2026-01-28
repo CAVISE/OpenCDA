@@ -1,6 +1,8 @@
 """HDMap manager"""
 
 import math
+from typing import Any, Dict, List
+import numpy.typing as npt
 import uuid
 import logging
 
@@ -79,7 +81,7 @@ class MapManager(object):
 
     """
 
-    def __init__(self, vehicle, carla_map, config):
+    def __init__(self, vehicle: carla.vehicle, carla_map: carla.Map, config: Dict[str, Any]):
         self.world = vehicle.get_world()
         self.agent_id = vehicle.id
         self.carla_map = carla_map
@@ -100,11 +102,11 @@ class MapManager(object):
         self.topology = sorted(topology, key=lambda w: w.transform.location.z)
 
         # basic elements in HDMap: lane, crosswalk and traffic light
-        self.lane_info = {}
-        self.crosswalk_info = {}
-        self.traffic_light_info = {}
+        self.lane_info: Dict[str, Dict[str, Any]] = {}
+        self.crosswalk_info: Dict[str, Dict[str, Any]] = {}
+        self.traffic_light_info: Dict[str, Dict[str, Any]] = {}
         # this is mainly used for efficient filtering
-        self.bound_info = {"lanes": {}, "crosswalks": {}}
+        self.bound_info: Dict[str, Dict[str, Any]] = {"lanes": {}, "crosswalks": {}}
 
         # generate information for traffic light
         self.generate_tl_info(self.world)
@@ -116,7 +118,7 @@ class MapManager(object):
         self.static_bev = None
         self.vis_bev = None
 
-    def update_information(self, ego_pose):
+    def update_information(self, ego_pose: carla.Transform) -> None:
         """
         Update the ego pose as the map center.
 
@@ -126,7 +128,7 @@ class MapManager(object):
         """
         self.center = ego_pose
 
-    def run_step(self):
+    def run_step(self) -> None:
         """
         Rasterization + Visualize the bev map if needed.
         """
@@ -140,7 +142,7 @@ class MapManager(object):
         #     cv2.waitKey(1)
 
     @staticmethod
-    def get_bounds(left_lane, right_lane):
+    def get_bounds(left_lane: npt.NDArray[np.float64], right_lane: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
         """
         Get boundary information of a lane.
 
@@ -162,7 +164,7 @@ class MapManager(object):
 
         return bounds
 
-    def agents_in_range(self, radius, agents_dict):
+    def agents_in_range(self, radius: float, agents_dict: Dict[str, Any]) -> Dict[str, Any]:
         """
         Filter out all agents out of the radius.
 
@@ -181,7 +183,7 @@ class MapManager(object):
         final_agents = {}
 
         # convert center to list format
-        center = [self.center.location.x, self.center.location.y]
+        center = [self.center.location.x, self.center.location.y] # NOTE: self.center can be None here 
 
         for agent_id, agent in agents_dict.items():
             location = agent["location"]
@@ -208,7 +210,7 @@ class MapManager(object):
         -------
         np.ndarray: indices of elements inside radius from center
         """
-        x_center, y_center = self.center.location.x, self.center.location.y
+        x_center, y_center = self.center.location.x, self.center.location.y # NOTE: self.center can be None here 
 
         x_min_in = x_center > bounds[:, 0, 0] - half_extent
         y_min_in = y_center > bounds[:, 0, 1] - half_extent
@@ -216,7 +218,7 @@ class MapManager(object):
         y_max_in = y_center < bounds[:, 1, 1] + half_extent
         return np.nonzero(x_min_in & y_min_in & x_max_in & y_max_in)[0]
 
-    def associate_lane_tl(self, mid_lane):
+    def associate_lane_tl(self, mid_lane: npt.NDArray[np.float64]) -> str:
         """
         Given the waypoints for a certain lane, find the traffic light that
         influence it.
@@ -243,14 +245,14 @@ class MapManager(object):
                 associate_tl_id = tl_id
         return associate_tl_id
 
-    def generate_lane_cross_info(self):
+    def generate_lane_cross_info(self) -> None:
         """
         From the topology generate all lane and crosswalk
         information in a dictionary under world's coordinate frame.
         """
         # list of str
-        lanes_id = []
-        crosswalks_ids = []
+        lanes_id: List[str] = []
+        crosswalks_ids: List[str] = []
 
         # boundary of each lane for later filtering
         lanes_bounds = np.empty((0, 2, 2), dtype=np.float64)
@@ -296,7 +298,7 @@ class MapManager(object):
             self.bound_info["crosswalks"]["ids"] = crosswalks_ids
             self.bound_info["crosswalks"]["bounds"] = crosswalks_bounds
 
-    def generate_tl_info(self, world):
+    def generate_tl_info(self, world: carla.World) -> None:
         """
         Generate traffic light information under world's coordinate frame.
 
@@ -336,7 +338,7 @@ class MapManager(object):
                 {tl_id: {"actor": tl_actor, "corners": corner_poly, "base_rot": base_rot, "base_transform": base_transform}}
             )
 
-    def generate_lane_area(self, xyz_left, xyz_right):
+    def generate_lane_area(self, xyz_left: npt.NDArray[np.float64], xyz_right: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
         """
         Generate the lane area poly under rasterization map's center
         coordinate frame.
@@ -380,7 +382,7 @@ class MapManager(object):
 
         return lane_area
 
-    def generate_agent_area(self, corners):
+    def generate_agent_area(self, corners: List[list[float]] | npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
         """
         Convert the agent's bbx corners from world coordinates to
         rasterization coordinates.
@@ -416,7 +418,7 @@ class MapManager(object):
 
         return corner_area
 
-    def load_agents_world(self):
+    def load_agents_world(self) -> Dict:
         """
         Load all the dynamic agents info from server directly
         into a  dictionary.
@@ -457,7 +459,7 @@ class MapManager(object):
             dynamic_agent_info[agent_id] = {"location": agent_loc, "yaw": agent_yaw, "corners": corners_reformat}
         return dynamic_agent_info
 
-    def rasterize_dynamic(self):
+    def rasterize_dynamic(self) -> None:
         """
         Rasterize the dynamic agents.
 
@@ -481,7 +483,7 @@ class MapManager(object):
         self.dynamic_bev = draw_agent(corner_list, self.dynamic_bev)
         self.vis_bev = draw_agent(corner_list, self.vis_bev)
 
-    def rasterize_static(self):
+    def rasterize_static(self) -> None:
         """
         Generate the static bev map.
         """
@@ -519,5 +521,5 @@ class MapManager(object):
         self.vis_bev = draw_lane(lanes_area_list, lane_type_list, self.vis_bev)
         self.vis_bev = cv2.cvtColor(self.vis_bev, cv2.COLOR_RGB2BGR)
 
-    def destroy(self):
+    def destroy(self) -> None:
         cv2.destroyAllWindows()

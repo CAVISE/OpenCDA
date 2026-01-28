@@ -1,3 +1,10 @@
+"""
+Data visualization script for cooperative perception datasets.
+
+This module provides functionality to visualize sequential data from
+early fusion datasets using various color rendering modes.
+"""
+
 import os
 import argparse
 from torch.utils.data import DataLoader
@@ -7,7 +14,15 @@ from opencood.visualization import vis_utils
 from opencood.data_utils.datasets.early_fusion_vis_dataset import EarlyFusionVisDataset
 
 
-def vis_parser():
+def vis_parser() -> argparse.Namespace:
+    """
+    Parse command line arguments for visualization.
+
+    Returns
+    -------
+    argparse.Namespace
+        Parsed command line arguments containing visualization parameters.
+    """
     parser = argparse.ArgumentParser(description="data visualization")
     parser.add_argument("--color_mode", type=str, default="intensity", help="lidar color rendering mode, e.g. intensity,z-value or constant.")
     opt = parser.parse_args()

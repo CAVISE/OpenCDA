@@ -1,10 +1,14 @@
 """
-Co-simulation scenario manager. The code is modified from CARLA official
-cosimulation code.
+Co-simulation scenario manager for CARLA-SUMO integration.
+
+This module provides functionality for synchronized co-simulation between CARLA
+and SUMO traffic simulators, handling vehicle spawning, state synchronization,
+and traffic light coordination.
 """
 
 import os
 import logging
+from typing import Dict, Optional, Any, Set
 
 import carla
 
@@ -23,59 +27,83 @@ class CoScenarioManager(ScenarioManager):
     functions and variables will start with self.sumo.xx, and all carla-related
     functions and members won't have such prefixes.
 
-    Parameters
+     Parameters
     ----------
     scenario_params : dict
-        The dictionary contains all simulation configurations.
-
-    carla_version : str
-        CARLA simulator version, it currently supports 0.9.11 and 0.9.12
-
-    xodr_path : str
-        The xodr file to the customized map, default: None.
-
-    town : str
-        Town name if not using customized map, eg. 'Town06'.
-
+        Dictionary containing all simulation configurations.
     apply_ml : bool
-        Whether need to load dl/ml model(pytorch required) in this simulation.
+        Whether to load DL/ML model (PyTorch required) in this simulation.
+    carla_version : str
+        CARLA simulator version, currently supports 0.9.11 and 0.9.12.
+    node_ids : dict
+        Dictionary mapping node identifiers for different vehicle types.
+    xodr_path : str, optional
+        Path to the customized map XODR file. Default is None.
+    town : str, optional
+        Town name if not using customized map, e.g., 'Town06'. Default is None.
+    cav_world : object, optional
+        CAV world object. Default is None.
+    sumo_file_parent_path : str, optional
+        Parent path to SUMO configuration files. Default is None.
+    carla_host : str, optional
+        CARLA server host address. Default is "carla".
+    carla_timeout : float, optional
+        Timeout for CARLA connection in seconds. Default is 30.0.
 
+    Attributes
+    ----------
+    _active_actors : set
+        Set of currently active actor IDs.
+    spawned_actors : set
+        Set of newly spawned actor IDs in current tick.
+    destroyed_actors : set
+        Set of destroyed actor IDs in current tick.
+    node_ids : dict
+        Mapping of node identifiers for vehicle types.
+    _tls : dict
+        Dictionary of traffic light objects keyed by landmark ID.
+    sumo : SumoSimulation
+        SUMO simulation instance.
+    sumo2carla_ids : dict
+        Mapping from SUMO actor IDs to CARLA actor IDs.
+    carla2sumo_ids : dict
+        Mapping from CARLA actor IDs to SUMO actor IDs.
     """
 
     def __init__(
         self,
-        scenario_params,
-        apply_ml,
-        carla_version,
-        node_ids,
-        xodr_path=None,
-        town=None,
-        cav_world=None,
-        sumo_file_parent_path=None,
-        carla_host="carla",
-        carla_timeout=30.0,
+        scenario_params: Dict[str, Any],
+        apply_ml: bool,
+        carla_version: str,
+        node_ids: Dict[str, Dict[int, str]],
+        xodr_path: Optional[str] = None,
+        town: Optional[str] = None,
+        cav_world: Optional[Any] = None,
+        sumo_file_parent_path: Optional[str] = None,
+        carla_host: str = "carla",
+        carla_timeout: float = 30.0,
     ):
         # carla side initializations(partial init is already done in scenario manager
         super(CoScenarioManager, self).__init__(scenario_params, apply_ml, carla_version, xodr_path, town, cav_world, carla_host)
 
         # these following sets are used to track the vehicles controlled by sumo side
-        self._active_actors = set()
-        self.spawned_actors = set()
-        self.destroyed_actors = set()
+        self._active_actors: Set[int] = set()
+        self.spawned_actors: Set[int] = set()
+        self.destroyed_actors: Set[int] = set()
         self.node_ids = node_ids
 
         # contains all carla traffic lights objects
         self._tls = {}
         for landmark in self.carla_map.get_all_landmarks_of_type("1000001"):
             if landmark.id != "":
-                traffic_ligth = self.world.get_traffic_light(landmark)
+                traffic_ligth = self.world.get_traffic_light(landmark) #NOTE A None-check is required 
                 if traffic_ligth is not None:
                     self._tls[landmark.id] = traffic_ligth
                 else:
                     logging.warning(f"Landmark {landmark.id} is not linked to any traffic light")
 
         # sumo side initialization
-        base_name = os.path.basename(sumo_file_parent_path)
+        base_name: str = os.path.basename(sumo_file_parent_path)
 
         sumo_key = "sumo"
 
@@ -99,21 +127,19 @@ class CoScenarioManager(ScenarioManager):
         # Mapped actor ids. All vehicles controlled by sumo is
         # in sumo2carla_ids, all vehicles controlled by carla
         # is saved in carla2sumo_ids
-        self.sumo2carla_ids = {}  # key: sumo id, value: carla id
-        self.carla2sumo_ids = {}  # key: carla id, value: sumo id
+        self.sumo2carla_ids: Dict[str, int] = {}  # key: sumo id, value: carla id
+        self.carla2sumo_ids: Dict[str, int] = {}  # key: carla id, value: sumo id
 
-        BridgeHelper.blueprint_library = self.world.get_blueprint_library()
+        BridgeHelper.blueprint_library = self.world.get_blueprint_library() #NOTE A None-check is required 
         BridgeHelper.offset = self.sumo.get_net_offset()
 
-    def tick(self):
+    def tick(self) -> None:
         """
-        Execute a single step of co-simulation. Logic: sumo will move the
-        sumo vehicles to certain positions and then carla use set_transform to
-        move the corresponding actors to the same location.
+        Execute a single step of co-simulation.
 
-        Returns
-        -------
-
+        Synchronizes vehicle positions and traffic light states between SUMO and
+        CARLA. SUMO moves vehicles to new positions, then CARLA updates
+        corresponding actors to match those locations.
         """
         # -----------------
         # sumo-->carla sync
@@ -161,14 +187,14 @@ class CoScenarioManager(ScenarioManager):
         # -----------------
         # carla-->sumo sync
         # -----------------
-        self.world.tick()
+        self.world.tick() #NOTE A None-check is required 
 
         # Update data structures for the current frame.
         current_actors = set(
             [
                 vehicle.id
                 for vehicle in filter(
-                    lambda actor: actor.type_id.startswith("vehicle.") or actor.type_id.startswith("static."), self.world.get_actors()
+                    lambda actor: actor.type_id.startswith("vehicle.") or actor.type_id.startswith("static."), self.world.get_actors()  #NOTE A None-check is required 
                 )
             ]
         )
@@ -180,7 +206,7 @@ class CoScenarioManager(ScenarioManager):
         carla_spawned_actors = self.spawned_actors - set(self.sumo2carla_ids.values())
 
         for carla_actor_id in carla_spawned_actors:
-            carla_actor = self.world.get_actor(carla_actor_id)
+            carla_actor = self.world.get_actor(carla_actor_id) #NOTE A None-check is required 
             type_id = BridgeHelper.get_sumo_vtype(carla_actor)
             color = carla_actor.attributes.get("color", None)
             if type_id is not None:
@@ -207,7 +233,7 @@ class CoScenarioManager(ScenarioManager):
         for carla_actor_id in self.carla2sumo_ids:
             sumo_actor_id = self.carla2sumo_ids[carla_actor_id]
 
-            carla_actor = self.world.get_actor(carla_actor_id)
+            carla_actor = self.world.get_actor(carla_actor_id) #NOTE A None-check is required 
             sumo_actor = self.sumo.get_actor(sumo_actor_id)
             sumo_transform = BridgeHelper.get_sumo_transform(carla_actor.get_transform(), carla_actor.bounding_box.extent)
             self.sumo.synchronize_vehicle(sumo_actor_id, sumo_transform, None)
@@ -223,23 +249,31 @@ class CoScenarioManager(ScenarioManager):
             self.sumo.synchronize_traffic_light(landmark_id, sumo_tl_state)
 
         # update the sumo2carla dict to cav world
-        self.cav_world.update_sumo_vehicles(self.sumo2carla_ids)
+        self.cav_world.update_sumo_vehicles(self.sumo2carla_ids) #NOTE A None-check is required 
 
     @property
-    def traffic_light_ids(self):
+    def traffic_light_ids(self) -> Set[str]:
         return set(self._tls.keys())
 
-    def get_traffic_light_state(self, landmark_id):
+    def get_traffic_light_state(self, landmark_id: str) -> Optional[carla.TrafficLightState]:
         """
-        Accessor for traffic light state.
+        Get the state of a traffic light by landmark ID.
 
-        If the traffic ligth does not exist, returns None.
+        Parameters
+        ----------
+        landmark_id : str
+            The landmark ID of the traffic light.
+
+        Returns
+        -------
+        carla.TrafficLightState or None
+            Traffic light state if exists, None otherwise.
         """
         if landmark_id not in self._tls:
             return None
         return self._tls[landmark_id].state
 
-    def spawn_actor(self, blueprint, transform):
+    def spawn_actor(self, blueprint: carla.ActorBlueprint, transform: carla.Transform) -> int:
         """
         Spawns a new carla actor based on the given coordinate.
 
@@ -266,7 +300,7 @@ class CoScenarioManager(ScenarioManager):
 
         return response.actor_id
 
-    def synchronize_vehicle(self, vehicle_id, transform):
+    def synchronize_vehicle(self, vehicle_id: int, transform: carla.Transform) -> bool:
         """
         The key function of co-simulation. Given the updated location in sumo,
         carla will move the corresponding vehicle to the same location.
@@ -284,14 +318,14 @@ class CoScenarioManager(ScenarioManager):
         success : bool
             Whether update is successful.
         """
-        vehicle = self.world.get_actor(vehicle_id)
+        vehicle = self.world.get_actor(vehicle_id) #NOTE A None-check is required 
         if vehicle is None:
             return False
 
         vehicle.set_transform(transform)
         return True
 
-    def destroy_actor(self, actor_id):
+    def destroy_actor(self, actor_id: int) -> bool:
         """
         Destroys the given carla actor.
 
@@ -299,18 +333,26 @@ class CoScenarioManager(ScenarioManager):
         ----------
         actor_id : int
             The actor id in carla.
+
+        Returns
+        -------
+        bool
+            True if destruction is successful, False otherwise.
         """
-        actor = self.world.get_actor(actor_id)
+        actor = self.world.get_actor(actor_id) #NOTE A None-check is required 
         if actor is not None:
             return actor.destroy()
         return False
 
-    def close(self):
+    def close(self) -> None:
         """
-        Simulation close.
+        Close the co-simulation and clean up resources.
+
+        Destroys all synchronized actors in both CARLA and SUMO, unfreezes
+        traffic lights, and restores original simulation settings.
         """
         # restore to origin setting
-        self.world.apply_settings(self.origin_settings)
+        self.world.apply_settings(self.origin_settings) #NOTE A None-check is required 
 
         # Destroying synchronized actors.
         logger.info("Destroying carla actor")
@@ -322,7 +364,7 @@ class CoScenarioManager(ScenarioManager):
             self.sumo.destroy_actor(sumo_actor_id)
 
         # unfreeze traffic lights, since sumo may freeze the traffic light
-        for actor in self.world.get_actors():
+        for actor in self.world.get_actors(): #NOTE A None-check is required 
             if actor.type_id == "traffic.traffic_light":
                 actor.freeze(False)
 

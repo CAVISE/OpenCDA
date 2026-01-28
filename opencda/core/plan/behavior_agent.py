@@ -1,9 +1,17 @@
-"""Behavior planning module"""
+"""
+Behavior planning module for autonomous vehicle navigation.
+
+This module implements a behavior agent that handles path planning, collision
+avoidance, traffic light management, overtaking, and lane change behaviors
+for autonomous vehicles in CARLA simulator.
+"""
 
 import logging
 import sys
+from typing import Deque, List, Dict, Tuple, Optional, Any
 
 import numpy as np
+import numpy.typing as npt
 import carla
 
 from opencda.core.common.misc import get_speed, positive, cal_distance_angle
@@ -18,69 +26,95 @@ logger = logging.getLogger("cavise.behavior_agent")
 
 class BehaviorAgent(object):
     """
-    A modulized version of carla BehaviorAgent.
+    Modularized behavior planning agent for autonomous vehicles.
+
+    This class implements behavior planning including path planning, collision
+    detection, traffic light management, overtaking, and lane change behaviors.
 
     Parameters
     ----------
-    vehicle : carla.Vehicle
-        The carla.Vehicle. We need this class to spawn our gnss and imu sensor.
-
-    carla_map : carla.map
-        The carla HD map for simulation world.
-
-    config_yaml : dict
-        The configuration dictionary of the localization module.
+    The CARLA vehicle actor.
+    carla_map : carla.Map
+        The CARLA HD map for the simulation world.
+    config_yaml : Dict[str, Any]
+        Configuration dictionary for the behavior agent.
 
     Attributes
     ----------
-    _ego_pos : carla.position
-        Posiion of the ego vehicle.
-
+    vehicle : carla.Vehicle
+        Reference to the CARLA vehicle.
+    _ego_pos : carla.Transform or None
+        Current position and orientation of the ego vehicle.
     _ego_speed : float
-        Speed of the ego vehicle.
-
-    _map : carla.map
-        The HD map of the current simulation world.
-
+        Current speed of the ego vehicle in km/h.
+    _map : carla.Map
+        HD map of the simulation world.
     max_speed : float
-        The current speed limit of the ego vehicles.
-
+        Maximum allowed speed for the vehicle.
+    tailgate_speed : float
+        Speed threshold for tailgating behavior.
+    speed_lim_dist : float
+        Speed limit distance parameter.
+    speed_decrease : float
+        Speed decrease value for safety.
+    safety_time : float
+        Minimum time-to-collision threshold.
+    emergency_param : float
+        Emergency braking parameter.
     break_distance : float
-        The current distance needed for ego vehicle to reach a steady stop.
-
-    _collision_check : collisionchecker
-        A collision check class to estimate the collision with front obstacle.
-
-    ignore_traffic_light : boolean
-        Boolean indicator of whether to ignore traffic light.
-
-    overtake_allowed : boolean
-        Boolean indicator of whether to allow overtake.
-
+        Required distance to reach a complete stop.
+    ttc : float
+        Time-to-collision with leading vehicle.
+    _collision_check : CollisionChecker
+        Collision detection module.
+    ignore_traffic_light : bool
+        Flag to ignore traffic lights.
+    overtake_allowed : bool
+        Flag indicating if overtaking is allowed.
+    overtake_allowed_origin : bool
+        Original overtake permission setting.
+    overtake_counter : int
+        Counter to prevent successive overtakes.
+    hazard_flag : bool
+        Flag indicating hazard on planned path.
+    _global_planner : GlobalRoutePlanner or None
+        Global route planner instance.
+    start_waypoint : carla.Waypoint or None
+        Starting waypoint of current route.
+    end_waypoint : carla.Waypoint or None
+        Destination waypoint.
+    _sampling_resolution : float
+        Sampling resolution for route planning.
+    light_state : str
+        Current traffic light state.
+    light_id_to_ignore : int
+        ID of traffic light to temporarily ignore.
+    stop_sign_wait_count : int
+        Counter for stop sign waiting time.
     _local_planner : LocalPlanner
-        A carla local planner class for behavior planning.
-
-    lane_change_allowed : boolean
-        Boolean indicator of whether the lane change is allowed.
-
-    white_list : list
-        The white list contains all position of target
-        platoon member for joining.
-
-    obstacle_vehicles : list
-        The list contains all obstacle vehicles nearby.
-
-    objects : dict
-        The dictionary that contains all kinds of objects nearby.
-
+        Local trajectory planner.
+    car_following_flag : bool
+        Flag for car-following behavior.
+    lane_change_allowed : bool
+        Flag for lane change permission.
+    destination_push_flag : int
+        Counter for temporary destination push.
+    white_list : List[Any]
+        List of vehicles to ignore in collision detection.
+    obstacle_vehicles : List[Any]
+        List of detected obstacle vehicles.
+    objects : Dict[str, Any]
+        Dictionary of detected objects.
     debug_helper : PlanDebugHelper
-        The helper class that help with the debug functions.
+        Helper for debugging functions.
+    debug : bool
+        Debug mode flag.
     """
 
-    def __init__(self, vehicle, carla_map, config_yaml):
+    def __init__(self, vehicle: carla.Vehicle, carla_map: carla.Map, config_yaml: Dict[str, Any]):
         self.vehicle = vehicle
         # ego pos(transform) and speed(km/h) retrieved from localization module
-        self._ego_pos = None
+        self._ego_pos: Optional[carla.Transform] = None
         self._ego_speed = 0.0
         self._map = carla_map
 
@@ -105,9 +139,9 @@ class BehaviorAgent(object):
         self.hazard_flag = False
 
         # route planner related
-        self._global_planner = None
-        self.start_waypoint = None
-        self.end_waypoint = None
+        self._global_planner: Optional[GlobalRoutePlanner] = None
+        self.start_waypoint: Optional[carla.Waypoint] = None
+        self.end_waypoint: Optional[carla.Waypoint] = None
         self._sampling_resolution = config_yaml["sample_resolution"]
 
         # intersection agent related
@@ -127,16 +161,16 @@ class BehaviorAgent(object):
 
         # white list of vehicle managers that the cav does not consider as
         # obstacles
-        self.white_list = []
-        self.obstacle_vehicles = []
-        self.objects = {}
+        self.white_list: List[Any] = []
+        self.obstacle_vehicles: List[Any] = []
+        self.objects: Dict[str, Any] = {}
 
         # debug helper
         self.debug_helper = PlanDebugHelper(self.vehicle.id)
         # print message in debug mode
         self.debug = False if "debug" not in config_yaml else config_yaml["debug"]
 
-    def update_information(self, ego_pos, ego_speed, objects):
+    def update_information(self, ego_pos: Any, ego_speed: float, objects: Dict[str, Any]) -> None:
         """
         Update the perception and localization information
         to the behavior agent.
@@ -145,10 +179,8 @@ class BehaviorAgent(object):
         ----------
         ego_pos : carla.Transform
             Ego position from localization module.
-
         ego_speed : float
             km/h, ego speed.
-
         objects : dict
             Objects detection results from perception module.
         """
@@ -173,13 +205,17 @@ class BehaviorAgent(object):
             # This method also includes stop signs and intersections.
             self.light_state = str(self.vehicle.get_traffic_light_state())
 
-    def add_white_list(self, vm):
+    def add_white_list(self, vm: Any) -> None:
         """
-        Add vehicle manager to white list.
+        Add vehicle manager to collision detection white list.
+        Parameters
+        ----------
+        vm : Any
+            Vehicle manager to add to white list.
         """
         self.white_list.append(vm)
 
-    def white_list_match(self, obstacles):
+    def white_list_match(self, obstacles: List[Any]) -> List[Any]:
         """
         Match the detected obstacles with the white list.
         Remove the obstacles that are in white list.
@@ -226,7 +262,14 @@ class BehaviorAgent(object):
 
         return new_obstacle_list
 
-    def set_destination(self, start_location, end_location, clean=False, end_reset=True, clean_history=False):
+    def set_destination(
+        self,
+        start_location: Any,
+        end_location: Any,
+        clean: bool = False,
+        end_reset: bool = True,
+        clean_history: bool = False,
+    ) -> None:
         """
         This method creates a list of waypoints from agent's
         position to destination location based on the route returned
@@ -236,16 +279,12 @@ class BehaviorAgent(object):
         ----------
         end_reset : boolean
             Flag to reset the waypoint queue.
-
         start_location : carla.location
             Initial position.
-
         end_location : carla.location
             Final position.
-
         clean : boolean
             Flag to clean the waypoint queue.
-
         clean_history : boolean
             Flag to clean the waypoint history.
         """
@@ -276,13 +315,17 @@ class BehaviorAgent(object):
 
         self._local_planner.set_global_plan(route_trace, clean)
 
-    def get_local_planner(self):
+    def get_local_planner(self) -> LocalPlanner:
         """
-        return the local planner
+        Get the local planner instance.
+        Returns
+        -------
+        LocalPlanner
+            The local trajectory planner.
         """
         return self._local_planner
 
-    def _trace_route(self, start_waypoint, end_waypoint):
+    def _trace_route(self, start_waypoint: carla.Waypoint, end_waypoint: carla.Waypoint) -> List[Tuple[carla.Waypoint, Any]]:
         """
         This method sets up a global router and returns the
         optimal route from start_waypoint to end_waypoint.
@@ -308,9 +351,10 @@ class BehaviorAgent(object):
 
         return route
 
-    def traffic_light_manager(self, waypoint):
+    def traffic_light_manager(self, waypoint: carla.Waypoint) -> int:
         """
         This method is in charge of behaviors for red lights and stops.
+
         WARNING: What follows is a proxy to avoid having a car brake after
         running a yellow light. This happens because the car is still under
         the influence of the semaphore, even after passing it.
@@ -321,7 +365,6 @@ class BehaviorAgent(object):
         ----------
         waypoint : carla.waypoint
             Current waypoint of the agent.
-
         """
 
         light_id = self.vehicle.get_traffic_light().id if self.vehicle.get_traffic_light() is not None else -1
@@ -357,29 +400,44 @@ class BehaviorAgent(object):
             self.light_id_to_ignore = -1
         return 0
 
-    def collision_manager(self, rx, ry, ryaw, waypoint, adjacent_check=False):
+    def collision_manager(
+        self,
+        rx: npt.NDArray[np.float64],
+        ry: npt.NDArray[np.float64],
+        ryaw: npt.NDArray[np.float64],
+        waypoint: carla.Waypoint,
+        adjacent_check: bool = False,
+    ) -> Tuple[bool, Optional[Any], float]:
         """
-        This module is in charge of warning in case of a collision.
+        Detect potential collisions on planned path.
+
+        This module warns in case of a collision and identifies the closest
+        obstacle vehicle.
 
         Parameters
         ----------
-        rx : float
-            x coordinates of plan path.
+        rx : npt.NDArray[np.float64]
+            X coordinates of planned path.
+        ry : npt.NDArray[np.float64]
+            Y coordinates of planned path.
+        ryaw : npt.NDArray[np.float64]
+            Yaw angles of planned path.
+        waypoint : carla.Waypoint
+            Current waypoint of the agent.
+        adjacent_check : bool, optional
+            Whether checking adjacent lane. Default is False.
 
-        ry : float
-            y coordinates of plan path.
-
-        ryaw : float
-            yaw angle.
-
-        waypoint : carla.waypoint
-            current waypoint of the agent.
-
-        adjacent_check : boolean
-            Whether it is a check for adjacent lane.
+        Returns
+        -------
+        vehicle_state : bool
+            True if collision detected.
+        target_vehicle : Any or None
+            Closest obstacle vehicle, or None if no collision.
+        min_distance : float
+            Distance to closest obstacle in meters.
         """
 
-        def dist(v):
+        def dist(v: carla.Vehicle) -> float:
             return v.get_location().distance(waypoint.transform.location)
 
         vehicle_state = False
@@ -398,24 +456,28 @@ class BehaviorAgent(object):
                 distance = positive(dist(vehicle) - 3)
 
                 if distance < min_distance:
-                    min_distance = distance
+                    min_distance = distance #NOTE Incompatible types in assignment
                     target_vehicle = vehicle
 
         return vehicle_state, target_vehicle, min_distance
 
-    def overtake_management(self, obstacle_vehicle):
+    def overtake_management(self, obstacle_vehicle: carla.Vehicle) -> bool:
         """
-        Overtake behavior.
+        Execute overtaking behavior.
+
+        Attempts left or right overtake maneuver if lane change is allowed
+        and the adjacent lane is safe.
 
         Parameters
         ----------
-        obstacle_vehicle : carla.vehicle
-            The obstacle vehicle.
+        obstacle_vehicle : carla.Vehicle
+            The obstacle vehicle to overtake.
 
-        Return
-        ------
-        vehicle_state : boolean
-            Flag indicating whether the vehicle is in dangerous state.
+        Returns
+        -------
+        bool
+            True if overtake cannot be executed (vehicle still in dangerous
+            state), False if overtake was successfully initiated.
         """
         # obstacle vehicle's location
         obstacle_vehicle_loc = obstacle_vehicle.get_location()
@@ -439,9 +501,9 @@ class BehaviorAgent(object):
             # this not the real plan path, but just a quick path to check
             # collision
             rx, ry, ryaw = self._collision_check.adjacent_lane_collision_check(
-                ego_loc=self._ego_pos.location, target_wpt=left_wpt, carla_map=self._map, overtake=True, world=self.vehicle.get_world()
+                ego_loc=self._ego_pos.location, target_wpt=left_wpt, carla_map=self._map, overtake=True, world=self.vehicle.get_world() # NOTE: _ego_pos is Optional, need extra checks
             )
-            vehicle_state, _, _ = self.collision_manager(rx, ry, ryaw, self._map.get_waypoint(self._ego_pos.location), True)
+            vehicle_state, _, _ = self.collision_manager(rx, ry, ryaw, self._map.get_waypoint(self._ego_pos.location), True) # NOTE: _ego_pos is Optional, need extra checks
             if not vehicle_state:
                 logger.info("Left overtake is operated")
                 self.overtake_counter = 100
@@ -461,10 +523,10 @@ class BehaviorAgent(object):
             and right_wpt.lane_type == carla.LaneType.Driving
         ):
             rx, ry, ryaw = self._collision_check.adjacent_lane_collision_check(
-                ego_loc=self._ego_pos.location, target_wpt=right_wpt, overtake=True, carla_map=self._map, world=self.vehicle.get_world()
+                ego_loc=self._ego_pos.location, target_wpt=right_wpt, overtake=True, carla_map=self._map, world=self.vehicle.get_world() # NOTE: _ego_pos is Optional, need extra checks
             )
 
-            vehicle_state, _, _ = self.collision_manager(rx, ry, ryaw, self._map.get_waypoint(self._ego_pos.location), True)
+            vehicle_state, _, _ = self.collision_manager(rx, ry, ryaw, self._map.get_waypoint(self._ego_pos.location), True) # NOTE: _ego_pos is Optional, need extra checks
             if not vehicle_state:
                 logger.info("Right overtake is operated")
                 self.overtake_counter = 100
@@ -479,7 +541,7 @@ class BehaviorAgent(object):
 
         return True
 
-    def lane_change_management(self):
+    def lane_change_management(self) -> bool:
         """
         Identify whether a potential hazard exits if operating lane change.
 
@@ -488,7 +550,7 @@ class BehaviorAgent(object):
         vehicle_state : boolean
             Whether the lane change is dangerous.
         """
-        ego_wpt = self._map.get_waypoint(self._ego_pos.location)
+        ego_wpt = self._map.get_waypoint(self._ego_pos.location) # NOTE: _ego_pos is Optional, need extra checks 
         ego_lane_id = ego_wpt.lane_id
         target_wpt = None
 
@@ -501,24 +563,22 @@ class BehaviorAgent(object):
             return True
 
         rx, ry, ryaw = self._collision_check.adjacent_lane_collision_check(
-            ego_loc=self._ego_pos.location, target_wpt=target_wpt, overtake=False, carla_map=self._map, world=self.vehicle.get_world()
+            ego_loc=self._ego_pos.location, target_wpt=target_wpt, overtake=False, carla_map=self._map, world=self.vehicle.get_world() # NOTE: _ego_pos is Optional, need extra checks
         )
-        vehicle_state, _, _ = self.collision_manager(rx, ry, ryaw, self._map.get_waypoint(self._ego_pos.location), adjacent_check=True)
+        vehicle_state, _, _ = self.collision_manager(rx, ry, ryaw, self._map.get_waypoint(self._ego_pos.location), adjacent_check=True) # NOTE: _ego_pos is Optional, need extra checks
         return not vehicle_state
 
-    def car_following_manager(self, vehicle, distance, target_speed=None):
+    def car_following_manager(self, vehicle: carla.Vehicle, distance: float, target_speed: Optional[float] = None) -> float:
         """
         Module in charge of car-following behaviors when there's
         someone in front of us.
 
         Parameters
         ----------
-        vehicle : carla.vehicle)
+        vehicle : carla.vehicle
             Leading vehicle to follow.
-
         distance : float
             distance from leading vehicle.
-
         target_speed : float
             The target car following speed.
 
@@ -526,7 +586,6 @@ class BehaviorAgent(object):
         -------
         target_speed : float
             The target speed for the next step.
-
         target_loc : carla.Location
             The target location.
         """
@@ -548,7 +607,7 @@ class BehaviorAgent(object):
             target_speed = 0 if vehicle_speed == 0 else min(vehicle_speed + 1, target_speed)
         return target_speed
 
-    def is_intersection(self, objects, waypoint_buffer):
+    def is_intersection(self, objects: Dict[Any, Deque], waypoint_buffer: Deque) -> bool:
         """
         Check the next waypoints is near the intersection. This is done by
         check the distance between the waypoints and the traffic light.
@@ -557,7 +616,6 @@ class BehaviorAgent(object):
         ----------
         objects : dict
             The dictionary contains all objects info.
-
         waypoint_buffer : deque
             The waypoint buffer.
 
@@ -573,7 +631,7 @@ class BehaviorAgent(object):
                     return True
         return False
 
-    def is_close_to_destination(self):
+    def is_close_to_destination(self) -> bool:
         """
         Check if the current ego vehicle's position is close to destination
 
@@ -581,7 +639,6 @@ class BehaviorAgent(object):
         -------
         flag : boolean
             It is True if the current ego vehicle's position is close to destination
-
         """
         flag = (
             abs(self._ego_pos.location.x - self.end_waypoint.transform.location.x) <= 10
@@ -589,7 +646,7 @@ class BehaviorAgent(object):
         )
         return flag
 
-    def check_lane_change_permission(self, lane_change_allowed, collision_detector_enabled, rk):
+    def check_lane_change_permission(self, lane_change_allowed: bool, collision_detector_enabled: bool, rk: List[float]) -> bool:
         """
         Check if lane change is allowed.
         Several conditions will influence the result such as the road curvature, collision detector, overtake and push status.
@@ -599,10 +656,8 @@ class BehaviorAgent(object):
         ----------
         lane_change_allowed : boolean
             Previous lane change permission.
-
         collision_detector_enabled : boolean
             True if collision detector is enabled.
-
         rk : list
             List of planned path points' curvatures.
 
@@ -610,8 +665,6 @@ class BehaviorAgent(object):
         -------
         lane_change_enabled : boolean
             True if lane change is allowed
-
-
         """
         # the lane change is forbidden if driving within a large curve
         if len(rk) > 2 and np.mean(np.abs(np.array(rk))) > 0.04:
@@ -635,7 +688,7 @@ class BehaviorAgent(object):
 
         return lane_change_allowed
 
-    def get_push_destination(self, ego_vehicle_wp, is_intersection):
+    def get_push_destination(self, ego_vehicle_wp: carla.Waypoint, is_intersection: bool) -> carla.Waypoint:
         """
         Get the destination for push operation.
 
@@ -643,7 +696,6 @@ class BehaviorAgent(object):
         ----------
         ego_vehicle_wp : carla.waypoint
             Ego vehicle's waypoint.
-
         is_intersection : boolean
             True if in the intersection.
 
@@ -651,7 +703,6 @@ class BehaviorAgent(object):
         -------
         reset_target : carla.waypoint
             Temporal push destination.
-
         """
         waypoint_buffer = self.get_local_planner().get_waypoint_buffer()
         reset_index = len(waypoint_buffer) // 2
@@ -670,18 +721,18 @@ class BehaviorAgent(object):
             )
         return reset_target
 
-    def run_step(self, target_speed=None, collision_detector_enabled=True, lane_change_allowed=True):
+    def run_step(
+        self, target_speed: Optional[float] = None, collision_detector_enabled: bool = True, lane_change_allowed: bool = True
+    ) -> carla.VehicleControl:
         """
         Execute one step of navigation
 
         Parameters
-        __________
-        collision_detector_enabled : boolean
-            Whether to enable collision detection.
-
+        ----------
         target_speed : float
             A manual order to achieve certain speed.
-
+        collision_detector_enabled : boolean
+            Whether to enable collision detection.
         lane_change_allowed : boolean
             Whether lane change is allowed. This is passed from
             platoon behavior agent.

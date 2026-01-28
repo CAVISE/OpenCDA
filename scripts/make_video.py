@@ -1,26 +1,53 @@
+"""
+Utility script for creating videos from image sequences using FFmpeg.
+
+This module provides functionality to:
+- Create videos from sequences of images
+- Apply rotation to the output video
+- Control frame rate and output format
+- Handle different image file patterns
+"""
+
 import argparse
 import os
 from pathlib import Path
 import subprocess
 import tempfile
+from typing import Optional, Any
 
 
-def create_video(input_dir, output_path, framerate=20, rotate=0, pattern="*.png"):
+def create_video(input_dir: str, output_path: str, framerate: int = 20, rotate: int = 0, pattern: str = "*.png") -> Any: #NOTE There used "Any" because Optional[int] did not work because there should be another "return" at the end of function
     """
-    Creates a video from images.
+    Create a video from a sequence of images using FFmpeg.
 
-    :param input_dir: Path to directory containing source images
-    :param output_path: Output video file path
-    :param framerate: Frame rate in frames per second (FPS)
-    :param rotate: Rotation angle in degrees counter-clockwise (valid values: 90, 180, 270)
-    :param pattern: File pattern for image selection (e.g., *.png, *.jpg)
+    This function creates a video file from a sequence of images in a directory.
+    It supports optional rotation of the output video and various image formats.
+
+    Parameters
+    ----------
+    input_dir : str
+        Path to directory containing source images.
+    output_path : str
+        Path where the output video will be saved.
+    framerate : int, optional
+        Frame rate in frames per second. Default is 20.
+    rotate : int, optional
+        Rotation angle in degrees counter-clockwise.
+        Valid values are 90, 180, or 270. Default is 0 (no rotation).
+    pattern : str, optional
+        File pattern for image selection using glob format. Default is "*.png".
+
+    Notes
+    -----
+    Requires FFmpeg to be installed and available in the system PATH.
+    The output video will be in MP4 format with H.264 codec.
     """
     try:
         if not os.path.isdir(input_dir):
             raise FileNotFoundError(f"Directory {input_dir} not found")
 
         # Creates tmp file if rotation needed
-        temp_file = None
+        temp_file: Optional[Path] = None
         if rotate:
             temp_file = Path(tempfile.mktemp(suffix=".mp4"))
 
@@ -58,7 +85,7 @@ def create_video(input_dir, output_path, framerate=20, rotate=0, pattern="*.png"
 
             rotate_cmd = ["ffmpeg", "-y", "-i", str(intermediate_path), "-vf", rotate_str, "-c:a", "copy", str(output_path)]
             subprocess.run(rotate_cmd, check=True, stderr=subprocess.PIPE)
-            os.remove(intermediate_path)
+            os.remove(str(intermediate_path))
 
         print(f"Video successfully created: {output_path}")
 

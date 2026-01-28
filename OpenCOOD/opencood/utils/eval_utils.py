@@ -1,17 +1,43 @@
+"""
+Evaluation utilities for object detection metrics.
+
+This module provides functions for calculating average precision (AP),
+true positives (TP), false positives (FP), and other evaluation metrics
+for object detection tasks.
+"""
+
+import logging
 import os
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
-import logging
+import torch
 
-from opencood.utils import common_utils
 from opencood.hypes_yaml import yaml_utils
+from opencood.utils import common_utils
 
 logger = logging.getLogger("cavise.OpenCOOD.opencood.utils.eval_utils")
 
 
-def voc_ap(rec, prec):
+def voc_ap(rec: List[float], prec: List[float]) -> Tuple[float, List[float], List[float]]:
     """
     VOC 2010 Average Precision.
+
+    Parameters
+    ----------
+    rec : list of float
+        Recall values.
+    prec : list of float
+        Precision values.
+
+    Returns
+    -------
+    ap : float
+        Average precision value.
+    mrec : list of float
+        Modified recall values with boundaries.
+    mpre : list of float
+        Modified precision values with boundaries.
     """
     rec.insert(0, 0.0)
     rec.append(1.0)
@@ -35,23 +61,33 @@ def voc_ap(rec, prec):
     return ap, mrec, mpre
 
 
-def caluclate_tp_fp(det_boxes, det_score, gt_boxes, result_stat, iou_thresh):
+def caluclate_tp_fp(
+    det_boxes: Optional[torch.Tensor],
+    det_score: Optional[torch.Tensor],
+    gt_boxes: torch.Tensor,
+    result_stat: Dict[float, Dict[str, List[Any]]],
+    iou_thresh: float,
+) -> None:
     """
-    Calculate the true positive and false positive numbers of the current
-    frames.
+    Calculate true positive and false positive numbers for current frames.
 
     Parameters
     ----------
-    det_boxes : torch.Tensor
-        The detection bounding box, shape (N, 8, 3) or (N, 4, 2).
-    det_score :torch.Tensor
-        The confidence score for each preditect bounding box.
+    det_boxes : torch.Tensor or None
+        Detection bounding boxes with shape (N, 8, 3) or (N, 4, 2).
+    det_score : torch.Tensor or None
+        Confidence scores for each predicted bounding box.
     gt_boxes : torch.Tensor
-        The groundtruth bounding box.
-    result_stat: dict
-        A dictionary contains fp, tp and gt number.
+        Ground truth bounding boxes.
+    result_stat : dict
+        Dictionary containing fp, tp and gt statistics for different IoU thresholds.
     iou_thresh : float
-        The iou thresh.
+        IoU threshold for matching predictions to ground truth.
+
+    Returns
+    -------
+    None
+        Updates result_stat in-place.
     """
     # fp, tp and gt in the current frame
     fp = []
@@ -92,20 +128,27 @@ def caluclate_tp_fp(det_boxes, det_score, gt_boxes, result_stat, iou_thresh):
     result_stat[iou_thresh]["gt"] += gt
 
 
-def calculate_ap(result_stat, iou, global_sort_detections):
+def calculate_ap(result_stat: Dict[float, Dict[str, Any]], iou: float, global_sort_detections: bool) -> Tuple[float, List[float], List[float]]:
     """
-    Calculate the average precision and recall, and save them into a txt.
+    Calculate average precision and recall values.
 
     Parameters
     ----------
     result_stat : dict
-        A dictionary contains fp, tp and gt number.
-
+        Dictionary containing fp, tp and gt statistics.
     iou : float
-        The threshold of iou.
-
+        IoU threshold value.
     global_sort_detections : bool
-        Whether to sort the detection results globally.
+        Whether to sort detection results globally by confidence score.
+
+    Returns
+    -------
+    ap : float
+        Average precision value.
+    mrec : list of float
+        Modified recall values.
+    mprec : list of float
+        Modified precision values.
     """
     iou_5 = result_stat[iou]
 
@@ -152,7 +195,24 @@ def calculate_ap(result_stat, iou, global_sort_detections):
     return ap, mrec, mprec
 
 
-def eval_final_results(result_stat, save_path, global_sort_detections):
+def eval_final_results(result_stat: Dict[float, Dict[str, List[Any]]], save_path: str, global_sort_detections: bool) -> None:
+    """
+    Evaluate and save final detection results.
+
+    Parameters
+    ----------
+    result_stat : dict
+        Dictionary containing evaluation statistics for different IoU thresholds.
+    save_path : str
+        Directory path to save the evaluation results.
+    global_sort_detections : bool
+        Whether to sort detections globally by confidence score.
+
+    Returns
+    -------
+    None
+        Saves evaluation results to a YAML file and logs AP metrics.
+    """
     dump_dict = {}
     ap_30, _, _ = calculate_ap(result_stat, 0.30, global_sort_detections)
     ap_50, mrec_50, mpre_50 = calculate_ap(result_stat, 0.50, global_sort_detections)

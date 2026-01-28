@@ -1,21 +1,30 @@
-"""HDMap utilities"""
+"""
+HDMap utilities for CARLA simulator.
+
+This module provides utility functions for handling HD map operations in CARLA,
+including coordinate transformations, waypoint processing, and city object
+retrieval for autonomous driving simulations.
+"""
 
 import carla
 import numpy as np
 import uuid
 import math
+from typing import List, Dict, Union, cast, Any
+from numpy.typing import NDArray
 
 LABEL_TO_CARLA = {"building": carla.CityObjectLabel.Buildings, "terrain": carla.CityObjectLabel.Terrain, "sidewalk": carla.CityObjectLabel.Sidewalks}
 
 
-def lateral_shift(transform, shift):
+def lateral_shift(transform: carla.Transform, shift: float) -> carla.Location:
     transform.rotation.yaw += 90
     return transform.location + shift * transform.get_forward_vector()
 
 
-def list_loc2array(list_location):
+def list_loc2array(list_location: list[carla.Location]) -> NDArray:
     """
     Convert list of carla location to np.array
+
     Parameters
     ----------
     list_location : list
@@ -35,9 +44,10 @@ def list_loc2array(list_location):
     return loc_array
 
 
-def list_wpt2array(list_wpt):
+def list_wpt2array(list_wpt: list[carla.Waypoint]) -> NDArray:
     """
     Convert list of carla transform to np.array
+
     Parameters
     ----------
     list_wpt : list
@@ -57,9 +67,10 @@ def list_wpt2array(list_wpt):
     return loc_array
 
 
-def convert_tl_status(status):
+def convert_tl_status(status: carla.TrafficLightState) -> str:
     """
     Convert carla.TrafficLightState to str.
+
     Parameters
     ----------
     status : carla.TrafficLightState
@@ -78,7 +89,7 @@ def convert_tl_status(status):
         return "normal"
 
 
-def x_to_world_transformation(transform):
+def x_to_world_transformation(transform: carla.Transform) -> NDArray:
     """
     Get the transformation matrix from x(it can be vehicle or sensor)
     coordinates to world coordinate.
@@ -125,7 +136,7 @@ def x_to_world_transformation(transform):
     return matrix
 
 
-def world_to_sensor(cords, sensor_transform):
+def world_to_sensor(cords: NDArray, sensor_transform: carla.Transform) -> NDArray:
     """
     Transform coordinates from world reference to sensor reference.
 
@@ -150,12 +161,14 @@ def world_to_sensor(cords, sensor_transform):
     return sensor_cords
 
 
-def exclude_off_road_agents(static_bev, dynamic_bev):
+def exclude_off_road_agents(static_bev: NDArray, dynamic_bev: NDArray) -> NDArray:
     dynamic_bev[static_bev == 0] = 0
     return dynamic_bev
 
 
-def retrieve_city_object_info(world, label_list):
+def retrieve_city_object_info(
+    world: carla.World, label_list: List[str]
+) -> Dict[str, Dict[str, Dict[str, Union[List[float], float, List[List[float]]]]]]:
     """
     A general function to retrieve object bbx in carla world except vehicle,
     lane, crosswalk and road.
@@ -207,7 +220,11 @@ def retrieve_city_object_info(world, label_list):
     return city_object_info
 
 
-def obj_in_range(center, radius, obj_info_dict):
+def obj_in_range(
+    center: carla.Transform,
+    radius: float,
+    obj_info_dict: Dict[str, Dict[str, Dict[str, Union[List[float], float, List[List[float]]]]]]
+) -> Dict[str, Dict[str, Dict[str, Union[List[float], float, List[List[float]]]]]]:
     """
     Retrieve the object in range.
 
@@ -225,12 +242,13 @@ def obj_in_range(center, radius, obj_info_dict):
     -------
     A dictionary that contains objects in range.
     """
-    final_objs = {}
+    final_objs: Dict[str, Dict[str, Dict[str, Union[List[float], float, List[List[float]]]]]] = {}
 
     for obj_category, obj_contents in obj_info_dict.items():
-        cur_objs = {}
+        cur_objs: Dict[str, Dict[str, Union[List[float], float, List[List[float]]]]] = {}
         for obj_id, obj_info in obj_contents.items():
-            corners = obj_info["corners"]
+            corners_any: Any = obj_info["corners"]  # Using a temporary variable of type Any because Mypy cannot infer the type from the nested dict.
+            corners: List[List[float]] = cast(List[List[float]], corners_any) # The cast ensures corners is treated as List[List[float]] for static type checking.
             for corner in corners:
                 distance = math.sqrt((corner[0] - center.location.x) ** 2 + (corner[1] - center.location.y) ** 2)
                 if distance < radius:

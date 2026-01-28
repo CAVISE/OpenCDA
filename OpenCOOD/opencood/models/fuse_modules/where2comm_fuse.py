@@ -1,6 +1,11 @@
 """
 Implementation of Where2comm fusion.
+
+This module implements Where2comm, a communication-efficient multi-agent fusion
+method that selectively shares features based on confidence maps.
 """
+
+from typing import Dict, List, Optional, Tuple, Any
 
 import numpy as np
 import random
@@ -12,7 +17,35 @@ from opencood.models.fuse_modules.self_attn import ScaledDotProductAttention
 
 
 class Communication(nn.Module):
-    def __init__(self, args):
+    """
+    Communication module for Where2comm that handles feature masking based on confidence.
+
+    Parameters
+    ----------
+    args : Dict[str, Any]
+        Dictionary containing configuration:
+
+        - threshold : float
+            Confidence threshold for communication.
+        - gaussian_smooth : dict, optional
+            Dictionary with Gaussian smoothing parameters:
+
+            - k_size : int
+                Kernel size for Gaussian smoothing.
+            - c_sigma : float
+                Sigma value for Gaussian kernel.
+
+    Attributes
+    ----------
+    threshold : float
+        Confidence threshold for determining which features to communicate.
+    smooth : bool
+        Flag indicating whether Gaussian smoothing is applied.
+    gaussian_filter : nn.Conv2d, optional
+        Gaussian filter for smoothing confidence maps if smoothing is enabled.
+    """
+
+    def __init__(self, args: Dict[str, Any]):
         super(Communication, self).__init__()
         # Threshold of objectiveness
         self.threshold = args["threshold"]
@@ -27,7 +60,17 @@ class Communication(nn.Module):
         else:
             self.smooth = False
 
-    def init_gaussian_filter(self, k_size=5, sigma=1.0):
+    def init_gaussian_filter(self, k_size: int = 5, sigma: float = 1.0) -> None:
+        """
+        Initialize Gaussian filter weights.
+
+        Parameters
+        ----------
+        k_size : int, optional
+            Kernel size for Gaussian filter.
+        sigma : float, optional
+            Standard deviation for Gaussian kernel.
+        """
         center = k_size // 2
         x, y = np.mgrid[0 - center : k_size - center, 0 - center : k_size - center]
         gaussian_kernel = 1 / (2 * np.pi * sigma) * np.exp(-(np.square(x) + np.square(y)) / (2 * np.square(sigma)))
@@ -35,10 +78,23 @@ class Communication(nn.Module):
         self.gaussian_filter.weight.data = torch.Tensor(gaussian_kernel).to(self.gaussian_filter.weight.device).unsqueeze(0).unsqueeze(0)
         self.gaussian_filter.bias.data.zero_()
 
-    def forward(self, batch_confidence_maps, B):
+    def forward(self, batch_confidence_maps: List[torch.Tensor], B: int) -> Tuple[List, List]:
         """
-        Args:
-            batch_confidence_maps: [(L1, H, W), (L2, H, W), ...]
+        Generate communication masks based on confidence maps.
+
+        Parameters
+        ----------
+        batch_confidence_maps : list of torch.Tensor
+            List of confidence maps with shapes [(L1, H, W), (L2, H, W), ...].
+        B : int
+            Batch size.
+
+        Returns
+        -------
+        communication_masks : torch.Tensor
+            Binary masks for communication of shape (sum(L), 1, H, W).
+        communication_rate : float
+            Average communication rate across batch.
         """
 
         _, _, H, W = batch_confidence_maps[0].shape
@@ -80,11 +136,41 @@ class Communication(nn.Module):
 
 
 class AttentionFusion(nn.Module):
-    def __init__(self, feature_dim):
+    """
+    Attention-based feature fusion module using scaled dot-product attention.
+
+    This module applies self-attention across spatial dimensions to fuse features
+    from multiple agents at each pixel location.
+
+    Parameters
+    ----------
+    feature_dim : int
+        Dimension of input features
+
+    Attributes
+    ----------
+    att : ScaledDotProductAttention
+        Scaled dot-product attention module.
+    """
+
+    def __init__(self, feature_dim: int):
         super(AttentionFusion, self).__init__()
         self.att = ScaledDotProductAttention(feature_dim)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass through attention fusion.
+
+        Parameters
+        ----------
+        x : Tensor
+            Input features with shape (cav_num, C, H, W).
+
+        Returns
+        -------
+        Tensor
+            Fused features for ego agent with shape (C, H, W).
+        """
         cav_num, C, H, W = x.shape
         x = x.view(cav_num, C, -1).permute(2, 0, 1)  # (H*W, cav_num, C), perform self attention on each pixel
         x = self.att(x, x, x)
@@ -93,7 +179,45 @@ class AttentionFusion(nn.Module):
 
 
 class Where2comm(nn.Module):
-    def __init__(self, args):
+    """
+    Where2comm fusion module for communication-efficient multi-agent perception.
+
+    This module implements Where2comm fusion strategy that selectively communicates
+    features based on confidence maps to reduce bandwidth while maintaining detection
+    performance. Supports both single-scale and multi-scale fusion.
+
+    Parameters
+    ----------
+    args : dict of str to Any
+        Configuration dictionary containing:
+        - 'voxel_size': Voxel size [x, y, z].
+        - 'downsample_rate': Downsampling rate for features.
+        - 'fully': Whether to use fully connected communication graph.
+        - 'multi_scale': Whether to use multi-scale fusion.
+        - 'layer_nums': Number of layers at each scale (if multi_scale is True).
+        - 'num_filters': Number of filters at each scale (if multi_scale is True).
+        - 'in_channels': Number of input channels (if multi_scale is False).
+        - 'communication': Configuration for communication module.
+
+    Attributes
+    ----------
+    discrete_ratio : float
+        Discretization ratio from voxel size.
+    downsample_rate : int
+        Feature downsampling rate.
+    fully : bool
+        Flag indicating whether to use fully connected communication.
+    multi_scale : bool
+        Flag indicating whether to use multi-scale fusion.
+    num_levels : int, optional
+        Number of pyramid levels if multi_scale is True.
+    fuse_modules : nn.ModuleList or AttentionFusion
+        Fusion modules for each scale or single fusion module.
+    naive_communication : Communication
+        Communication module for generating masks.
+    """
+
+    def __init__(self, args: Dict[str, Any]):
         super(Where2comm, self).__init__()
         self.discrete_ratio = args["voxel_size"][0]
         self.downsample_rate = args["downsample_rate"]
@@ -118,22 +242,55 @@ class Where2comm(nn.Module):
 
         self.naive_communication = Communication(args["communication"])
 
-    def regroup(self, x, record_len):
+    def regroup(self, x: torch.Tensor, record_len: torch.Tensor) -> List[torch.Tensor]:
+        """
+        Regroup features based on record lengths.
+
+        Parameters
+        ----------
+        x : Tensor
+            Features with shape (sum(n_cav), C, H, W).
+        record_len : Tensor
+            Number of agents per batch sample with shape (B,).
+
+        Returns
+        -------
+        list of Tensor
+            List of feature tensors [(L1, C, H, W), (L2, C, H, W), ...].
+        """
         cum_sum_len = torch.cumsum(record_len, dim=0)
         split_x = torch.tensor_split(x, cum_sum_len[:-1].cpu())
         return split_x
 
-    def forward(self, x, psm_single, record_len, pairwise_t_matrix, backbone=None):
+    def forward(
+        self,
+        x: torch.Tensor,
+        psm_single: torch.Tensor,
+        record_len: torch.Tensor,
+        pairwise_t_matrix: torch.Tensor,
+        backbone: Optional[nn.Module] = None,
+    ) -> torch.Tensor:
         """
-        Fusion forwarding.
+        Forward pass for Where2comm fusion.
 
-        Parameters:
-            x: Input data, (sum(n_cav), C, H, W).
-            record_len: List, (B).
-            pairwise_t_matrix: The transformation matrix from each cav to ego, (B, L, L, 4, 4).
+        Parameters
+        ----------
+        x : Tensor
+            Input features with shape (sum(n_cav), C, H, W).
+        psm_single : Tensor
+            Single-agent confidence maps for communication masking.
+        record_len : Tensor
+            Number of agents per batch sample with shape (B,).
+        pairwise_t_matrix : Tensor
+            Pairwise transformation matrices with shape (B, L, L, 4, 4).
+        backbone : nn.Module, optional
+            Backbone network for multi-scale processing. Required if multi_scale is True.
 
-        Returns:
-            Fused feature.
+        Returns
+        -------
+        tuple of (Tensor, Tensor)
+            - x_fuse: Fused features with shape (B, C, H, W).
+            - communication_rates: Communication rate indicating bandwidth usage.
         """
 
         _, C, H, W = x.shape
@@ -143,7 +300,7 @@ class Where2comm(nn.Module):
             ups = []
 
             for i in range(self.num_levels):
-                x = backbone.blocks[i](x)
+                x = backbone.blocks[i](x) #NOTE None-check is required
 
                 # 1. Communication (mask the features)
                 if i == 0:
@@ -172,8 +329,8 @@ class Where2comm(nn.Module):
                 x_fuse = torch.stack(x_fuse)
 
                 # 4. Deconv
-                if len(backbone.deblocks) > 0:
-                    ups.append(backbone.deblocks[i](x_fuse))
+                if len(backbone.deblocks) > 0: #NOTE None-check is required
+                    ups.append(backbone.deblocks[i](x_fuse)) #NOTE None-check is required
                 else:
                     ups.append(x_fuse)
 
@@ -182,8 +339,8 @@ class Where2comm(nn.Module):
             elif len(ups) == 1:
                 x_fuse = ups[0]
 
-            if len(backbone.deblocks) > self.num_levels:
-                x_fuse = backbone.deblocks[-1](x_fuse)
+            if len(backbone.deblocks) > self.num_levels:  #NOTE None-check is required
+                x_fuse = backbone.deblocks[-1](x_fuse)  #NOTE None-check is required
         else:
             # 1. Communication (mask the features)
             if self.fully:

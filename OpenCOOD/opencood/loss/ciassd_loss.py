@@ -1,12 +1,65 @@
+"""
+Loss functions for CIASSD (Collaborative Intermediate Aggregation Single Shot Detector).
+
+This module implements the loss function for the CIASSD architecture.
+"""
+
 import torch
 import torch.nn as nn
 
 from opencood.data_utils.post_processor.voxel_postprocessor import VoxelPostprocessor
 from opencood.pcdet_utils.iou3d_nms.iou3d_nms_utils import aligned_boxes_iou3d_gpu
+from typing import Dict, Any, Optional, Tuple
+from torch import Tensor
 
 
 class CiassdLoss(nn.Module):
-    def __init__(self, args):
+    """
+    Loss function for CIASSD object detection model.
+
+    Combines classification, regression, direction, and IoU losses
+    for 3D object detection in cooperative perception scenarios.
+
+    Parameters
+    ----------
+    args : Dict[str, Any]
+        Configuration dictionary containing:
+        - pos_cls_weight : float
+            Weight for positive class samples.
+        - encode_rad_error_by_sin : bool
+            Whether to encode rotation angle error using sin/cos.
+        - cls : Dict[str, Any]
+            Classification loss parameters (gamma, alpha, weight).
+        - reg : Dict[str, Any]
+            Regression loss parameters (sigma, weight).
+        - iou : Dict[str, Any]
+            IoU loss parameters (sigma, weight).
+        - dir : Dict[str, Any]
+            Direction loss parameters (weight).
+
+    Attributes
+    ----------
+    pos_cls_weight : float
+        Weight for positive classification samples.
+    encode_rad_error_by_sin : bool
+        Flag to encode rotation error with trigonometric functions.
+    cls : Dict[str, Any]
+        Classification loss configuration.
+    reg : Dict[str, Any]
+        Regression loss configuration.
+    iou : Dict[str, Any]
+        IoU loss configuration.
+    dir : Dict[str, Any]
+        Direction loss configuration.
+    loss_dict : Dict[str, torch.Tensor]
+        Dictionary storing individual loss components.
+    num_cls : int
+        Number of classes (default 2 for binary classification).
+    box_codesize : int
+        Bounding box encoding size (7 for 3D boxes: x, y, z, l, w, h, yaw).
+    """
+
+    def __init__(self, args: Dict[str, Any]):
         super(CiassdLoss, self).__init__()
         self.pos_cls_weight = args["pos_cls_weight"]
         self.encode_rad_error_by_sin = args["encode_rad_error_by_sin"]
@@ -14,17 +67,46 @@ class CiassdLoss(nn.Module):
         self.reg = args["reg"]
         self.iou = args["iou"]
         self.dir = args["dir"]
-        self.loss_dict = {}
+        self.loss_dict: Dict[str, torch.Tensor] = {}
         ##
         self.num_cls = 2
         self.box_codesize = 7
 
-    def forward(self, output_dict, label_dict):
+    def forward(self, output_dict: Dict[str, Any], label_dict: Dict[str, Any]) -> Tensor:
         """
+        Compute total loss from model predictions and ground truth labels.
+
         Parameters
         ----------
         output_dict : dict
-        target_dict : dict
+            Model predictions containing:
+                - preds_dict_stage1 : dict
+                    - cls_preds : Tensor (B, C, H, W)
+                        Classification predictions.
+                    - box_preds : Tensor (B, 7, H, W)
+                        Bounding box regression predictions.
+                    - dir_cls_preds : Tensor (B, 2, H, W)
+                        Direction classification predictions.
+                    - iou_preds : Tensor (B, 1, H, W)
+                        IoU predictions.
+                - anchor_box : Tensor
+                    Anchor boxes.
+                - record_len : Tensor, optional
+                    Number of CAVs per sample (for batch size calculation).
+        label_dict : dict
+            Ground truth labels containing:
+                - stage1 : dict
+                    - pos_equal_one : Tensor
+                        Positive sample mask.
+                    - neg_equal_one : Tensor
+                        Negative sample mask.
+                    - targets : Tensor
+                        Regression targets.
+
+        Returns
+        -------
+        loss : Tensor
+            Total loss (scalar).
         """
         preds_dict = output_dict["preds_dict_stage1"]
         target_dict = label_dict["stage1"]
@@ -114,7 +196,7 @@ class CiassdLoss(nn.Module):
 
         return loss
 
-    def logging(self, epoch, batch_id, batch_len, writer, pbar=None):
+    def logging(self, epoch: int, batch_id: int, batch_len: int, writer: Any, pbar: Optional[Any] = None) -> None:
         """
         Print out  the loss function for current iteration.
 
@@ -147,7 +229,27 @@ class CiassdLoss(nn.Module):
         writer.add_scalar("Iou_loss", iou_loss.item(), epoch * batch_len + batch_id)
 
 
-def add_sin_difference(boxes1, boxes2):
+def add_sin_difference(boxes1: Tensor, boxes2: Tensor) -> Tuple[Tensor, Tensor]:
+    """
+    Encode rotation angle error using sine-cosine difference.
+
+    Converts rotation angle regression to sin(pred)*cos(gt) and cos(pred)*sin(gt)
+    for better gradient flow near angle boundaries (e.g., 0° and 360°).
+
+    Parameters
+    ----------
+    boxes1 : Tensor
+        Predicted bounding boxes (..., 7) where last dim is rotation angle.
+    boxes2 : Tensor
+        Ground truth bounding boxes (..., 7) where last dim is rotation angle.
+
+    Returns
+    -------
+    res_boxes1 : Tensor
+        Predicted boxes with angle encoded as sin(pred)*cos(gt).
+    res_boxes2 : Tensor
+        GT boxes with angle encoded as cos(pred)*sin(gt).
+    """
     rad_pred_encoding = torch.sin(boxes1[..., -1:]) * torch.cos(boxes2[..., -1:])  # ry -> sin(pred_ry)*cos(gt_ry)
     rad_gt_encoding = torch.cos(boxes1[..., -1:]) * torch.sin(boxes2[..., -1:])  # ry -> cos(pred_ry)*sin(gt_ry)
     res_boxes1 = torch.cat([boxes1[..., :-1], rad_pred_encoding], dim=-1)
@@ -155,7 +257,7 @@ def add_sin_difference(boxes1, boxes2):
     return res_boxes1, res_boxes2
 
 
-def get_direction_target(reg_targets, anchors, one_hot=True, dir_offset=0.0):
+def get_direction_target(reg_targets: Tensor, anchors: Tensor, one_hot: bool = True, dir_offset: float = 0.0) -> Tensor:
     """
     Generate targets for bounding box direction classification.
 
@@ -180,13 +282,56 @@ def get_direction_target(reg_targets, anchors, one_hot=True, dir_offset=0.0):
     return dir_cls_targets
 
 
-def one_hot_f(tensor, depth, dim=-1, on_value=1.0, dtype=torch.float32):
+def one_hot_f(tensor: Tensor, depth: int, dim: int = -1, on_value: float = 1.0, dtype: torch.dtype = torch.float32) -> Tensor:
+    """
+    Convert integer tensor to one-hot encoding.
+
+    Parameters
+    ----------
+    tensor : Tensor
+        Input tensor with integer class indices.
+    depth : int
+        Number of classes (one-hot vector length).
+    dim : int, optional
+        Dimension along which to add one-hot encoding. Default is -1.
+    on_value : float, optional
+        Value for the "on" position. Default is 1.0.
+    dtype : torch.dtype, optional
+        Output tensor dtype. Default is torch.float32.
+
+    Returns
+    -------
+    tensor_onehot : Tensor
+        One-hot encoded tensor with shape (*tensor.shape, depth).
+    """
     tensor_onehot = torch.zeros(*list(tensor.shape), depth, dtype=dtype, device=tensor.device)  # [4, 70400, 2]
     tensor_onehot.scatter_(dim, tensor.unsqueeze(dim).long(), on_value)  # [4, 70400, 2]
     return tensor_onehot
 
 
-def sigmoid_focal_loss(preds, targets, weights=None, **kwargs):
+def sigmoid_focal_loss(preds: torch.Tensor, targets: torch.Tensor, weights: Optional[torch.Tensor] = None, **kwargs: Any) -> torch.Tensor:
+    """
+    Compute focal loss with sigmoid activation.
+
+    Focal loss down-weights easy examples and focuses on hard negatives,
+    reducing class imbalance impact.
+
+    Parameters
+    ----------
+    preds : Tensor
+        Raw logits (before sigmoid).
+    targets : Tensor
+        Binary targets (0 or 1).
+    weights : Tensor, optional
+        Per-sample weights.
+    **kwargs
+        Must contain 'gamma' (focusing parameter) and 'alpha' (balancing factor).
+
+    Returns
+    -------
+    loss : Tensor
+        Focal loss per sample.
+    """
     assert "gamma" in kwargs and "alpha" in kwargs
     # sigmoid cross entropy with logits
     # more details: https://www.tensorflow.org/api_docs/python/tf/nn/sigmoid_cross_entropy_with_logits
@@ -204,7 +349,22 @@ def sigmoid_focal_loss(preds, targets, weights=None, **kwargs):
     return loss
 
 
-def softmax_cross_entropy_with_logits(logits, labels):
+def softmax_cross_entropy_with_logits(logits: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
+    """
+    Compute cross-entropy loss with softmax.
+
+    Parameters
+    ----------
+    logits : Tensor
+        Raw logits (..., num_classes).
+    labels : Tensor
+        One-hot encoded labels (..., num_classes).
+
+    Returns
+    -------
+    loss : Tensor
+        Cross-entropy loss per sample.
+    """
     param = list(range(len(logits.shape)))
     transpose_param = [0] + [param[-1]] + param[1:-1]
     logits = logits.permute(*transpose_param)
@@ -213,7 +373,29 @@ def softmax_cross_entropy_with_logits(logits, labels):
     return loss
 
 
-def weighted_smooth_l1_loss(preds, targets, sigma=3.0, weights=None):
+def weighted_smooth_l1_loss(preds: torch.Tensor, targets: torch.Tensor, sigma: float = 3.0, weights: Optional[torch.Tensor] = None) -> torch.Tensor:
+    """
+    Compute weighted smooth L1 loss (Huber loss variant).
+
+    Smooth L1 is less sensitive to outliers than L2 loss, with quadratic
+    behavior near zero and linear behavior for large errors.
+
+    Parameters
+    ----------
+    preds : Tensor
+        Predicted values.
+    targets : Tensor
+        Ground truth values.
+    sigma : float, optional
+        Smoothness parameter. Higher sigma = more like L2 loss. Default is 3.0.
+    weights : Tensor, optional
+        Per-sample weights.
+
+    Returns
+    -------
+    loss : Tensor
+        Smooth L1 loss per sample.
+    """
     diff = preds - targets
     abs_diff = torch.abs(diff)
     abs_diff_lt_1 = torch.le(abs_diff, 1 / (sigma**2)).type_as(abs_diff)

@@ -1,27 +1,31 @@
 """
-Utility functions related to point cloud
+Utility functions related to point cloud processing.
+
+This module provides various utilities for working with point cloud data,
+including reading, filtering, transforming, and downsampling operations.
 """
 
-import open3d as o3d
+from typing import List
+
 import numpy as np
+import numpy.typing as npt
+import open3d as o3d
 
 
-def pcd_to_np(pcd_file):
+def pcd_to_np(pcd_file: str) -> npt.NDArray[np.float32]:
     """
-    Read  pcd and return numpy array.
+    Read PCD file and return numpy array.
 
     Parameters
     ----------
     pcd_file : str
-        The pcd file that contains the point cloud.
+        Path to the PCD file containing the point cloud.
 
     Returns
     -------
-    pcd : o3d.PointCloud
-        PointCloud object, used for visualization
-    pcd_np : np.ndarray
-        The lidar data in numpy format, shape:(n, 4)
-
+    np.ndarray
+        The lidar data in numpy format with shape (n, 4), where the last
+        column represents intensity.
     """
     pcd = o3d.io.read_point_cloud(pcd_file)
 
@@ -33,24 +37,22 @@ def pcd_to_np(pcd_file):
     return np.asarray(pcd_np, dtype=np.float32)
 
 
-def mask_points_by_range(points, limit_range):
+def mask_points_by_range(points: npt.NDArray[np.floating], limit_range: List[float]) -> npt.NDArray[np.floating]:
     """
-    Remove the lidar points out of the boundary.
+    Remove lidar points outside the specified boundary.
 
     Parameters
     ----------
     points : np.ndarray
         Lidar points under lidar sensor coordinate system.
-
-    limit_range : list
-        [x_min, y_min, z_min, x_max, y_max, z_max]
+    limit_range : list of float
+        Boundary limits as [x_min, y_min, z_min, x_max, y_max, z_max].
 
     Returns
     -------
-    points : np.ndarray
-        Filtered lidar points.
+    np.ndarray
+        Filtered lidar points within the specified range.
     """
-
     mask = (
         (points[:, 0] > limit_range[0])
         & (points[:, 0] < limit_range[3])
@@ -65,9 +67,9 @@ def mask_points_by_range(points, limit_range):
     return points
 
 
-def mask_ego_points(points):
+def mask_ego_points(points: npt.NDArray[np.floating]) -> npt.NDArray[np.floating]:
     """
-    Remove the lidar points of the ego vehicle itself.
+    Remove lidar points corresponding to the ego vehicle itself.
 
     Parameters
     ----------
@@ -76,8 +78,8 @@ def mask_ego_points(points):
 
     Returns
     -------
-    points : np.ndarray
-        Filtered lidar points.
+    np.ndarray
+        Filtered lidar points with ego vehicle points removed.
     """
     mask = (points[:, 0] >= -1.95) & (points[:, 0] <= 2.95) & (points[:, 1] >= -1.1) & (points[:, 1] <= 1.1)
     points = points[np.logical_not(mask)]
@@ -85,26 +87,39 @@ def mask_ego_points(points):
     return points
 
 
-def shuffle_points(points):
+def shuffle_points(points: npt.NDArray[np.floating]) -> npt.NDArray[np.floating]:
+    """
+    Randomly shuffle the order of points.
+
+    Parameters
+    ----------
+    points : np.ndarray
+        Input points with shape (n, m).
+
+    Returns
+    -------
+    np.ndarray
+        Shuffled points with same shape as input.
+    """
     shuffle_idx = np.random.permutation(points.shape[0])
     points = points[shuffle_idx]
 
     return points
 
 
-def projected_lidar_stack(projected_lidar_list):
+def projected_lidar_stack(projected_lidar_list: List[npt.NDArray[np.floating]]) -> npt.NDArray[np.floating]:
     """
-    Stack all projected lidar together.
+    Stack all projected lidar point clouds together.
 
     Parameters
     ----------
-    projected_lidar_list : list
-        The list containing all projected lidar.
+    projected_lidar_list : list of np.ndarray
+        List containing projected lidar point clouds.
 
     Returns
     -------
-    stack_lidar : np.ndarray
-        Stack all projected lidar data together.
+    np.ndarray
+        Vertically stacked lidar data from all point clouds.
     """
     stack_lidar = []
     for lidar_data in projected_lidar_list:
@@ -113,22 +128,26 @@ def projected_lidar_stack(projected_lidar_list):
     return np.vstack(stack_lidar)
 
 
-def downsample_lidar(pcd_np, num):
+def downsample_lidar(pcd_np: npt.NDArray[np.floating], num: int) -> npt.NDArray[np.floating]:
     """
-    Downsample the lidar points to a certain number.
+    Downsample lidar points to a specified number.
 
     Parameters
     ----------
     pcd_np : np.ndarray
-        The lidar points, (n, 4).
-
+        The lidar points with shape (n, 4).
     num : int
-        The downsample target number.
+        Target number of points after downsampling.
 
     Returns
     -------
-    pcd_np : np.ndarray
-        The downsampled lidar points.
+    np.ndarray
+        Downsampled lidar points with shape (num, 4).
+
+    Raises
+    ------
+    AssertionError
+        If the input has fewer points than the target number.
     """
     assert pcd_np.shape[0] >= num
 
@@ -138,21 +157,24 @@ def downsample_lidar(pcd_np, num):
     return pcd_np
 
 
-def downsample_lidar_minimum(pcd_np_list):
+def downsample_lidar_minimum(pcd_np_list: List[npt.NDArray[np.floating]]) -> List[npt.NDArray[np.floating]]:
     """
-    Given a list of pcd, find the minimum number and downsample all
-    point clouds to the minimum number.
+    Downsample all point clouds to match the minimum point count.
+
+    Given a list of point clouds, finds the one with minimum number of points
+    and downsamples all others to match that count.
 
     Parameters
     ----------
-    pcd_np_list : list
-        A list of pcd numpy array(n, 4).
+    pcd_np_list : list of np.ndarray
+        List of point cloud numpy arrays, each with shape (n, 4).
+
     Returns
     -------
-    pcd_np_list : list
-        Downsampled point clouds.
+    list of np.ndarray
+        List of downsampled point clouds, all with the same number of points.
     """
-    minimum = np.Inf
+    minimum: int = np.iinfo(np.int64).max
 
     for i in range(len(pcd_np_list)):
         num = pcd_np_list[i].shape[0]

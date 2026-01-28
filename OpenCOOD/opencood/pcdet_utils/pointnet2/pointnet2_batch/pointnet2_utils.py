@@ -1,3 +1,9 @@
+"""
+PointNet++ CUDA operations for efficient point cloud processing.
+
+This module provides GPU-accelerated operations for PointNet++.
+"""
+
 from typing import Tuple
 
 import torch
@@ -8,14 +14,31 @@ from opencood.pcdet_utils.pointnet2.pointnet2_batch import pointnet2_batch_cuda 
 
 
 class GroupingOperation(Function):
+    """
+    Group features by indices for local feature aggregation.
+
+    CUDA-accelerated grouping with custom backward for batched inputs.
+    """
+
     @staticmethod
     def forward(ctx, features: torch.Tensor, idx: torch.Tensor) -> torch.Tensor:
         """
-        :param ctx:
-        :param features: (B, C, N) tensor of features to group
-        :param idx: (B, npoint, nsample) tensor containing the indicies of features to group with
-        :return:
-            output: (B, C, npoint, nsample) tensor
+        Group features according to neighborhood indices.
+
+        Parameters
+        ----------
+        ctx : torch.autograd.function.FunctionCtx
+            Context for saving backward information.
+        features : torch.Tensor
+            Input features with shape (B, C, N).
+        idx : torch.Tensor
+            Grouping indices with shape (B, npoint, nsample).
+            Values in range [0, N-1].
+
+        Returns
+        -------
+        output : torch.Tensor
+            Grouped features with shape (B, C, npoint, nsample).
         """
         assert features.is_contiguous()
         assert idx.is_contiguous()
@@ -32,10 +55,21 @@ class GroupingOperation(Function):
     @staticmethod
     def backward(ctx, grad_out: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """
-        :param ctx:
-        :param grad_out: (B, C, npoint, nsample) tensor of the gradients of the output from forward
-        :return:
-            grad_features: (B, C, N) gradient of the features
+        Compute gradient with respect to input features.
+
+        Parameters
+        ----------
+        ctx : torch.autograd.function.FunctionCtx
+            Context with saved forward information.
+        grad_out : torch.Tensor
+            Output gradient with shape (B, C, npoint, nsample).
+
+        Returns
+        -------
+        grad_features : torch.Tensor
+            Input features gradient with shape (B, C, N).
+        None
+            Placeholder for idx gradient.
         """
         idx, N = ctx.for_backwards
 
@@ -51,16 +85,35 @@ grouping_operation = GroupingOperation.apply
 
 
 class BallQuery(Function):
+    """
+    Ball query operation for finding neighbors within a radius.
+
+    CUDA-accelerated local neighborhood query for batched inputs.
+    """
+
     @staticmethod
     def forward(ctx, radius: float, nsample: int, xyz: torch.Tensor, new_xyz: torch.Tensor) -> torch.Tensor:
         """
-        :param ctx:
-        :param radius: float, radius of the balls
-        :param nsample: int, maximum number of features in the balls
-        :param xyz: (B, N, 3) xyz coordinates of the features
-        :param new_xyz: (B, npoint, 3) centers of the ball query
-        :return:
-            idx: (B, npoint, nsample) tensor with the indicies of the features that form the query balls
+        Find neighbors within radius for each query point.
+
+        Parameters
+        ----------
+        ctx : torch.autograd.function.FunctionCtx
+            Context for backward (unused).
+        radius : float
+            Search radius for ball query.
+        nsample : int
+            Maximum number of neighbors to sample per ball.
+        xyz : torch.Tensor
+            Point coordinates with shape (B, N, 3).
+        new_xyz : torch.Tensor
+            Query point coordinates with shape (B, npoint, 3).
+
+        Returns
+        -------
+        idx : torch.Tensor
+            Neighbor indices with shape (B, npoint, nsample).
+            Values in range [0, N-1].
         """
         assert new_xyz.is_contiguous()
         assert xyz.is_contiguous()
@@ -81,22 +134,54 @@ ball_query = BallQuery.apply
 
 
 class QueryAndGroup(nn.Module):
+    """
+    Query and group points within a ball radius.
+
+    Combines ball query and grouping operations for local feature extraction
+    in batched point clouds.
+
+    Parameters
+    ----------
+    radius : float
+        Ball radius for neighborhood query.
+    nsample : int
+        Maximum number of points to sample per ball.
+    use_xyz : bool, optional
+        If True, concatenates relative xyz coordinates to features.
+        Default is True.
+
+    Attributes
+    ----------
+    radius : float
+        Stored ball radius.
+    nsample : int
+        Stored maximum sample count.
+    use_xyz : bool
+        Whether to concatenate xyz coordinates.
+    """
+
     def __init__(self, radius: float, nsample: int, use_xyz: bool = True):
-        """
-        :param radius: float, radius of ball
-        :param nsample: int, maximum number of features to gather in the ball
-        :param use_xyz:
-        """
         super().__init__()
         self.radius, self.nsample, self.use_xyz = radius, nsample, use_xyz
 
     def forward(self, xyz: torch.Tensor, new_xyz: torch.Tensor, features: torch.Tensor = None) -> Tuple[torch.Tensor]:
         """
-        :param xyz: (B, N, 3) xyz coordinates of the features
-        :param new_xyz: (B, npoint, 3) centroids
-        :param features: (B, C, N) descriptors of the features
-        :return:
-            new_features: (B, 3 + C, npoint, nsample)
+        Query neighbors and group their features.
+
+        Parameters
+        ----------
+        xyz : torch.Tensor
+            Point coordinates with shape (B, N, 3).
+        new_xyz : torch.Tensor
+            Query point coordinates with shape (B, npoint, 3).
+        features : torch.Tensor or None, optional
+            Point features with shape (B, C, N). Default is None.
+
+        Returns
+        -------
+        new_features : torch.Tensor
+            Grouped features with shape (B, C_out, npoint, nsample).
+            If use_xyz=True: C_out = C + 3, else C_out = C.
         """
         idx = ball_query(self.radius, self.nsample, xyz, new_xyz)
         xyz_trans = xyz.transpose(1, 2).contiguous()

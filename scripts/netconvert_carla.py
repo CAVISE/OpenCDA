@@ -1,7 +1,8 @@
 """
-Script to generate sumo nets based on opendrive files. Internally,
-it uses netconvert to generatet he net and inserts, manually, the traffic
-light landmarks retrieved from the opendrive.
+Generate SUMO networks from OpenDRIVE files.
+
+This script converts OpenDRIVE files to SUMO network format using netconvert,
+then manually inserts traffic light landmarks retrieved from the OpenDRIVE data.
 """
 
 import argparse
@@ -11,12 +12,12 @@ import logging
 import shutil
 import subprocess
 import tempfile
+from typing import Any, Dict, Optional, List, Set, Tuple
 
 import lxml.etree as ET
 
 import os
 import sys
-
 
 if "SUMO_HOME" in os.environ:
     sys.path.append(os.path.join(os.environ["SUMO_HOME"], "tools"))
@@ -29,22 +30,40 @@ import sumolib
 
 class SumoTopology(object):
     """
-    This object holds the topology of a sumo net. Internally, the information
-    is structured as follows:
+    Topology representation of a SUMO network.
+
+    Provides methods to query and navigate the topology of a SUMO network,
+    including road connections, junctions, and lane mappings between OpenDRIVE
+    and SUMO coordinate systems.
 
     Parameters
     ----------
-    topology : {
-            (road_id, lane_id): [(successor_road_id, succesor_lane_id), ...], ...}
-        - paths: {
-            (road_id, lane_id): [
-                ((in_road_id, in_lane_id), (out_road_id, out_lane_id)), ...
-            ], ...}
-        - odr2sumo_ids: {
-            (odr_road_id, odr_lane_id): [(sumo_edge_id, sumo_lane_id), ...], ...}
+    topology : dict
+        Dictionary mapping (road_id, lane_id) to sets of successor
+        (road_id, lane_id) tuples for standard roads.
+    paths : dict
+        Dictionary containing junction path information mapping
+        (road_id, lane_id) to sets of ((from_edge, from_lane), (to_edge, to_lane)).
+    odr2sumo_ids : dict
+        Dictionary mapping OpenDRIVE (road_id, lane_id) to sets of
+        SUMO (edge_id, lane_index) tuples.
+
+    Attributes
+    ----------
+    _topology : dict
+        Dictionary mapping (road_id, lane_id) to sets of successor (road_id, lane_id) tuples.
+    _paths : dict
+        Dictionary containing junction path information.
+    _odr2sumo_ids : dict
+        Dictionary mapping OpenDRIVE (road_id, lane_id) to SUMO (edge_id, lane_index) tuples.
     """
 
-    def __init__(self, topology, paths, odr2sumo_ids):
+    def __init__(
+    self,
+    topology: Dict[Tuple[str, int], Set[Tuple[str, int]]],
+    paths: Dict[Tuple[str, int], Set[Tuple[Tuple[str, int], Tuple[str, int]]]],
+    odr2sumo_ids: Dict[Tuple[str, int], Set[Tuple[str, int]]]
+):
         # Contains only standard roads.
         self._topology = topology
         # Contaions only roads that belong to a junction.
@@ -53,17 +72,29 @@ class SumoTopology(object):
         self._odr2sumo_ids = odr2sumo_ids
 
     # http://sumo.sourceforge.net/userdoc/Networks/Import/OpenDRIVE.html#dealing_with_lane_sections
-    def get_sumo_id(self, odr_road_id, odr_lane_id, s=0):
+    def get_sumo_id(self, odr_road_id: str, odr_lane_id: int, s: float = 0) -> Optional[Tuple[str, int]]:
         """
-        Returns the pair (sumo_edge_id, sumo_lane index) corresponding to the
-        provided odr pair. The argument 's' allows selecting the better sumo
-        edge when it has been split into different edges due to different odr
-        lane sections.
+        Get SUMO edge and lane index from OpenDRIVE road and lane IDs.
+
+        Parameters
+        ----------
+        odr_road_id : str
+            OpenDRIVE road ID.
+        odr_lane_id : int
+            OpenDRIVE lane ID.
+        s : float, optional
+            Position along the road to select the correct SUMO edge when
+            split into multiple edges due to lane sections. Default is 0.
+
+        Returns
+        -------
+        sumo_id : tuple of (str, int) or None
+            Tuple of (sumo_edge_id, sumo_lane_index), or None if not found.
         """
         if (odr_road_id, odr_lane_id) not in self._odr2sumo_ids:
             return None
 
-        sumo_ids = list(self._odr2sumo_ids[(odr_road_id, odr_lane_id)])
+        sumo_ids: List[Tuple[str, int]] = list(self._odr2sumo_ids[(odr_road_id, odr_lane_id)])
 
         if (len(sumo_ids)) == 1:
             return sumo_ids[0]
@@ -75,32 +106,68 @@ class SumoTopology(object):
 
             s_coords = [float(edge.split(".", 1)[1]) for edge, _ in sumo_ids]
 
-            s_coords, sumo_ids = zip(*sorted(zip(s_coords, sumo_ids)))
+            s_coords, sumo_ids = zip(   #NOTE error: Incompatible types in assignment
+                *sorted(zip(s_coords, sumo_ids))
+            )  # TODO error: Incompatible types in assignment (expression has type "tuple[Any, ...]", variable has type "list[float]"
             index = bisect.bisect_left(s_coords, s, lo=1) - 1
             return sumo_ids[index]
 
-    def is_junction(self, odr_road_id, odr_lane_id):
+    def is_junction(self, odr_road_id: str, odr_lane_id: int) -> bool:
         """
-        Checks whether the provided pair (odr_road_id, odr_lane_id) belongs to
-         a junction.
+        Check if an OpenDRIVE road/lane pair belongs to a junction.
+
+        Parameters
+        ----------
+        odr_road_id : str
+            OpenDRIVE road ID.
+        odr_lane_id : int
+            OpenDRIVE lane ID.
+
+        Returns
+        -------
+        is_junction : bool
+            True if the pair belongs to a junction, False otherwise.
         """
         return (odr_road_id, odr_lane_id) in self._paths
 
-    def get_successors(self, sumo_edge_id, sumo_lane_index):
+    def get_successors(self, sumo_edge_id: str, sumo_lane_index: int) -> List[Tuple[str, int]]:
         """
-        Returns the successors (standard roads) of the provided pair
-         (sumo_edge_id, sumo_lane_index)
+        Get successor edges for a SUMO edge/lane pair.
+
+        Parameters
+        ----------
+        sumo_edge_id : str
+            SUMO edge ID.
+        sumo_lane_index : int
+            SUMO lane index.
+
+        Returns
+        -------
+        successors : list of tuple
+            List of (edge_id, lane_index) tuples for successor edges.
+            Empty list if the edge is a junction.
         """
         if self.is_junction(sumo_edge_id, sumo_lane_index):
             return []
 
         return list(self._topology.get((sumo_edge_id, sumo_lane_index), set()))
 
-    def get_incoming(self, odr_road_id, odr_lane_id):
+    def get_incoming(self, odr_road_id: str, odr_lane_id: int) -> List[Tuple[str, int]]:
         """
-        If the pair (odr_road_id, odr_lane_id) belongs to a junction,
-        returns the incoming edges of the path. Otherwise,
-        return and empty list.
+        Get incoming edges for a junction path.
+
+        Parameters
+        ----------
+        odr_road_id : str
+            OpenDRIVE road ID.
+        odr_lane_id : int
+            OpenDRIVE lane ID.
+
+        Returns
+        -------
+        incoming : list of tuple
+            List of (edge_id, lane_index) tuples for incoming edges.
+            Empty list if not a junction.
         """
         if not self.is_junction(odr_road_id, odr_lane_id):
             return []
@@ -108,25 +175,54 @@ class SumoTopology(object):
         result = set([(connection[0][0], connection[0][1]) for connection in self._paths[(odr_road_id, odr_lane_id)]])
         return list(result)
 
-    def get_path_connectivity(self, odr_road_id, odr_lane_id):
+    def get_path_connectivity(self, odr_road_id: str, odr_lane_id: int) -> List[Tuple[Tuple[str, int], Tuple[str, int]]]:
         """
-        Returns incoming and outgoing roads of the
-        pair (odr_road_id, odr_lane_id). If the provided
-        pair not belongs to a junction, returns an empty list.
+        Get full path connectivity for a junction.
+
+        Parameters
+        ----------
+        odr_road_id : str
+            OpenDRIVE road ID.
+        odr_lane_id : int
+            OpenDRIVE lane ID.
+
+        Returns
+        -------
+        connections : list of tuple
+            List of ((from_edge, from_lane), (to_edge, to_lane)) tuples.
+            Empty list if not a junction.
         """
         return list(self._paths.get((odr_road_id, odr_lane_id), set()))
 
 
-def build_topology(sumo_net):
+def build_topology(sumo_net: sumolib.net.Net) -> SumoTopology:
     """
-    Builds sumo topology.
+    Build a SumoTopology object from a SUMO network.
+
+    This function processes a SUMO network to extract its topology, including
+    road connections, lane mappings, and junction information.
+
+    Parameters
+    ----------
+    sumo_net : sumolib.net.Net
+        The SUMO network object to process.
+
+    Returns
+    -------
+    SumoTopology
+        An object representing the topology of the SUMO network.
+
+    Raises
+    ------
+    RuntimeError
+        If the SUMO network contains lanes without original OpenDRIVE IDs.
     """
     # --------------------------
     # OpenDrive->Sumo mapped ids
     # --------------------------
     # Only takes into account standard roads.
 
-    odr2sumo_ids = {}
+    odr2sumo_ids: Dict[Tuple[str, int], Set[Tuple]] = {}
     for edge in sumo_net.getEdges():
         for lane in edge.getLanes():
             if lane.getParam("origId") is None:
@@ -148,8 +244,8 @@ def build_topology(sumo_net):
     # -----------
     # Connections
     # -----------
-    topology = {}
-    paths = {}
+    topology: Dict[Tuple[str, int], Set[Tuple]] = {}
+    paths: Dict[Tuple[str, int], Set[Tuple]] = {}
 
     for from_edge in sumo_net.getEdges():
         for to_edge in sumo_net.getEdges():
@@ -183,11 +279,38 @@ def build_topology(sumo_net):
 
 class SumoTrafficLight(object):
     """
-    SumoTrafficLight holds all the necessary data to define a traffic light in sumo:
+    Traffic light representation for SUMO networks.
 
-        * connections (tlid, from_road, to_road, from_lane, to_lane, link_index).
-        * phases (duration, state, min_dur, max_dur, nex, name).
-        * parameters.
+    Holds all necessary data to define a traffic light in SUMO, including
+    connections, signal phases, and parameters for landmark association.
+
+    Parameters
+    ----------
+    tlid : str
+        Traffic light ID.
+    program_id : str, optional
+        Program ID for the traffic light.
+    offset : int, optional
+        Time offset for the program.
+    tltype : str, optional
+        Traffic light type.
+
+    Attributes
+    ----------
+    id : str
+        Traffic light ID.
+    program_id : str
+        Program ID.
+    offset : int
+        Time offset.
+    type : str
+        Traffic light type.
+    phases : list of Phase
+        List of signal phases.
+    parameters : set of tuple
+        Set of (link_index, landmark_id) parameter pairs.
+    connections : set of Connection
+        Set of controlled connections.
     """
 
     DEFAULT_DURATION_GREEN_PHASE = 42
@@ -197,27 +320,47 @@ class SumoTrafficLight(object):
     Phase = collections.namedtuple("Phase", "duration state min_dur max_dur next name")
     Connection = collections.namedtuple("Connection", "tlid from_road to_road from_lane to_lane link_index")
 
-    def __init__(self, tlid, program_id="0", offset=0, tltype="static"):
+    def __init__(self, tlid: str, program_id: str="0", offset: int =0, tltype: str="static"):
         self.id = tlid
         self.program_id = program_id
         self.offset = offset
         self.type = tltype
 
-        self.phases = []
-        self.parameters = set()
-        self.connections = set()
+        self.phases: List[SumoTrafficLight.Phase] = []
+        self.parameters: Set[Tuple[int, str]] = set()
+        self.connections: Set[SumoTrafficLight.Connection] = set()
 
     @staticmethod
-    def generate_tl_id(from_edge, to_edge):
+    def generate_tl_id(from_edge: str, to_edge: str) -> str:
         """
-        Generates sumo traffic light id based on the junction connectivity.
+        Generate traffic light ID from junction connectivity.
+
+        Parameters
+        ----------
+        from_edge : str
+            Incoming edge ID.
+        to_edge : str
+            Outgoing edge ID.
+
+        Returns
+        -------
+        tl_id : str
+            Traffic light ID in format "from_edge:to_edge".
         """
         return "{}:{}".format(from_edge, to_edge)
 
     @staticmethod
-    def generate_default_program(tl):
+    def generate_default_program(tl: "SumoTrafficLight") -> None:
         """
-        Generates a default program for the given sumo traffic light
+        Generate default program for the given sumo traffic light
+
+        Creates a simple program with green-yellow-red phases for each
+        incoming road, cycling through them sequentially.
+
+        Parameters
+        ----------
+        tl : SumoTrafficLight
+            Traffic light to generate program for.
         """
         incoming_roads = [connection.from_road for connection in tl.connections]
         for road in set(incoming_roads):
@@ -234,34 +377,81 @@ class SumoTrafficLight(object):
             tl.add_phase(SumoTrafficLight.DEFAULT_DURATION_YELLOW_PHASE, "".join(phase_yellow))
             tl.add_phase(SumoTrafficLight.DEFAULT_DURATION_RED_PHASE, "".join(phase_red))
 
-    def add_phase(self, duration, state, min_dur=-1, max_dur=-1, next_phase=None, name=""):
+    def add_phase(self, duration: int, state: str, min_dur: int = -1, max_dur: int = -1, next_phase: Optional[int] = None, name: str = "") -> None:
         """
-        Adds a new phase.
+         Add a signal phase to the traffic light program.
+
+        Parameters
+        ----------
+        duration : int
+            Phase duration in seconds.
+        state : str
+            Signal state string
+        min_dur : int, optional
+            Minimum duration for actuated control.
+        max_dur : int, optional
+            Maximum duration for actuated control.
+        next_phase : int, optional
+            Index of next phase.
+        name : str, optional
+            Phase name. Default is empty string
         """
         self.phases.append(SumoTrafficLight.Phase(duration, state, min_dur, max_dur, next_phase, name))
 
-    def add_parameter(self, key, value):
+    def add_parameter(self, key: int, value: str) -> None:
         """
-        Adds a new parameter.
+        Add a parameter to the traffic light.
+
+        Parameters
+        ----------
+        key : int
+            Link index.
+        value : str
+            Landmark ID.
         """
         self.parameters.add((key, value))
 
-    def add_connection(self, connection):
+    def add_connection(self, connection: "SumoTrafficLight.Connection") -> None:
         """
-        Adds a new connection.
+        Add a controlled connection to the traffic light.
+
+        Parameters
+        ----------
+        connection : Connection
+            Connection namedtuple to add.
         """
         self.connections.add(connection)
 
-    def add_landmark(self, landmark_id, tlid, from_road, to_road, from_lane, to_lane, link_index=-1):
+    def add_landmark(self, landmark_id: str, tlid: str, from_road: str, to_road: str, from_lane: int, to_lane: int, link_index: int = -1) -> bool:
         """
-        Adds a new landmark.
+        Add an OpenDRIVE landmark to the traffic light.
 
-        Returns True if the landmark is successfully included. Otherwise, returns False.
+        Parameters
+        ----------
+        landmark_id : str
+            OpenDRIVE landmark ID.
+        tlid : str
+            Traffic light ID.
+        from_road : str
+            Incoming edge ID.
+        to_road : str
+            Outgoing edge ID.
+        from_lane : int
+            Incoming lane index.
+        to_lane : int
+            Outgoing lane index.
+        link_index : int, optional
+            Link index. Default is -1 (auto-assign).
+
+        Returns
+        -------
+        success : bool
+            True if landmark was successfully added, False if duplicate.
         """
         if link_index == -1:
             link_index = len(self.connections)
 
-        def is_same_connection(c1, c2):
+        def is_same_connection(c1: SumoTrafficLight.Connection, c2: SumoTrafficLight.Connection) -> bool:
             return c1.from_road == c2.from_road and c1.to_road == c2.to_road and c1.from_lane == c2.from_lane and c1.to_lane == c2.to_lane
 
         connection = SumoTrafficLight.Connection(tlid, from_road, to_road, from_lane, to_lane, link_index)
@@ -273,7 +463,15 @@ class SumoTrafficLight(object):
         self.add_parameter(link_index, landmark_id)
         return True
 
-    def to_xml(self):
+    def to_xml(self) -> ET.Element:
+        """
+        Convert traffic light to XML element for SUMO network file.
+
+        Returns
+        -------
+        xml_tag : lxml.etree.Element
+            XML element representing the traffic light logic.
+        """
         info = {"id": self.id, "type": self.type, "programID": self.program_id, "offset": str(self.offset)}
 
         xml_tag = ET.Element("tlLogic", info)
@@ -285,9 +483,28 @@ class SumoTrafficLight(object):
         return xml_tag
 
 
-def _netconvert_carla_impl(xodr_file, output, tmpdir, guess_tls=False):
+def _netconvert_carla_impl(xodr_file: str, output: str, tmpdir: str, guess_tls: bool = False) -> None:
     """
-    Implements netconvert carla.
+    Internal implementation of the netconvert_carla function.
+
+    This function handles the actual conversion process from OpenDRIVE to SUMO format,
+    including temporary file management and error handling.
+
+    Parameters
+    ----------
+    xodr_file : str
+        Path to the input OpenDRIVE file.
+    output : str
+        Path where the output SUMO network file will be saved.
+    tmpdir : str
+        Temporary directory for intermediate files.
+    guess_tls : bool, optional
+        If True, attempts to guess traffic lights at intersections. Default is False.
+
+    Raises
+    ------
+    RuntimeError
+        If the conversion process fails.
     """
     # ----------
     # netconvert
@@ -389,7 +606,7 @@ def _netconvert_carla_impl(xodr_file, output, tmpdir, guess_tls=False):
                 # When the landmarks does not belong to a junction (i.e., belongs to a std road),
                 # we place the traffic light between that std road and its successor.
                 elif not wp.is_junction and not sumo_topology.is_junction(road_id, lane_id):
-                    from_edge, from_lane = sumo_topology.get_sumo_id(road_id, lane_id, landmark.s)
+                    from_edge, from_lane = sumo_topology.get_sumo_id(road_id, lane_id, landmark.s)  # TODO error: "None" object is not iterable
 
                     for to_edge, to_lane in sumo_topology.get_successors(from_edge, from_lane):
                         tlid = SumoTrafficLight.generate_tl_id(from_edge, to_edge)
@@ -411,13 +628,13 @@ def _netconvert_carla_impl(xodr_file, output, tmpdir, guess_tls=False):
 
     for tl in tls.values():
         SumoTrafficLight.generate_default_program(tl)
-        edges_tags = tree.xpath("//edge")
+        edges_tags: Any = tree.xpath("//edge")
         if not edges_tags:
             raise RuntimeError("No edges found in sumo net.")
         root.insert(root.index(edges_tags[-1]) + 1, tl.to_xml())
 
         for connection in tl.connections:
-            tags = tree.xpath(
+            tags: Any = tree.xpath(
                 '//connection[@from="{}" and @to="{}" and @fromLane="{}" and @toLane="{}"]'.format(
                     connection.from_road, connection.to_road, connection.from_lane, connection.to_lane
                 )
@@ -443,14 +660,26 @@ def _netconvert_carla_impl(xodr_file, output, tmpdir, guess_tls=False):
     tree.write(output, pretty_print=True, encoding="UTF-8", xml_declaration=True)
 
 
-def netconvert_carla(xodr_file, output, guess_tls=False):
+def netconvert_carla(xodr_file: str, output: str, guess_tls: bool = False) -> None:
     """
-    Generates sumo net.
+    Generate a SUMO network file from an OpenDRIVE file.
 
-        :param xodr_file: opendrive file (*.xodr)
-        :param output: output file (*.net.xml)
-        :param guess_tls: guess traffic lights at intersections.
-        :returns: path to the generated sumo net.
+    This function converts an OpenDRIVE file to a SUMO network file, with optional
+    traffic light detection at intersections.
+
+    Parameters
+    ----------
+    xodr_file : str
+        Path to the input OpenDRIVE file (*.xodr).
+    output : str
+        Path where the output SUMO network file will be saved (*.net.xml).
+    guess_tls : bool, optional
+        If True, attempts to guess traffic lights at intersections. Default is False.
+
+    Notes
+    -----
+    This function requires SUMO to be installed and the SUMO_HOME environment
+    variable to be properly set.
     """
     try:
         tmpdir = tempfile.mkdtemp()

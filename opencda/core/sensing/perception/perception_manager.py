@@ -1,15 +1,21 @@
 """
-Perception module base.
+Perception module for vehicle and infrastructure sensors.
+
+This module provides sensor management and object detection capabilities for
+cooperative autonomous driving, including camera, LiDAR, and semantic LiDAR
+sensors with optional visualization and ML-based detection.
 """
 
 import weakref
 import sys
 import logging
+from typing import Optional, List, Dict, Any, Tuple
 
 import carla
 import cv2
 import numpy as np
 import open3d as o3d
+import numpy.typing as npt
 
 import opencda.core.sensing.perception.sensor_transformation as st
 from opencda.core.common.misc import cal_distance_angle, get_speed, get_speed_sumo
@@ -48,7 +54,13 @@ class CameraSensor:
 
     """
 
-    def __init__(self, vehicle, world, relative_position, global_position):
+    def __init__(
+        self,
+        vehicle: Optional[carla.Vehicle],
+        world: carla.World,
+        relative_position: Tuple[float, float, float, float],
+        global_position: Optional[List[float]],
+    ):
         if vehicle is not None:
             world = vehicle.get_world()
 
@@ -73,7 +85,22 @@ class CameraSensor:
         self.image_height = int(self.sensor.attributes["image_size_y"])
 
     @staticmethod
-    def spawn_point_estimation(relative_position, global_position):
+    def spawn_point_estimation(relative_position: Tuple[float, float, float, float], global_position: Optional[List[float]]) -> carla.Transform:
+        """
+        Calculate camera spawn point based on relative or global position.
+
+        Parameters
+        ----------
+        relative_position : Tuple[float, float, float, float]
+            Relative position (x, y, z, yaw) to vehicle.
+        global_position : List[float] or None
+            Global position [x, y, z] for infrastructure.
+
+        Returns
+        -------
+        carla.Transform
+            Spawn point transform for the camera sensor.
+        """
         pitch = 0
         carla_location = carla.Location(x=0, y=0, z=0)
         x, y, z, yaw = relative_position
@@ -92,7 +119,17 @@ class CameraSensor:
         return spawn_point
 
     @staticmethod
-    def _on_rgb_image_event(weak_self, event):
+    def _on_rgb_image_event(weak_self: weakref.ref, event: Any) -> None:
+        """
+        Callback for RGB camera image events.
+
+        Parameters
+        ----------
+        weak_self : weakref.ref
+            Weak reference to the CameraSensor instance.
+        event : carla.Image
+            Camera image event from CARLA.
+        """
         """CAMERA  method"""
         self = weak_self()
         if not self:
@@ -135,7 +172,7 @@ class LidarSensor:
 
     """
 
-    def __init__(self, vehicle, world, config_yaml, global_position):
+    def __init__(self, vehicle: Optional[Any], world: Any, config_yaml: Dict[str, Any], global_position: Optional[List[float]]):
         if vehicle is not None:
             world = vehicle.get_world()
         blueprint = world.get_blueprint_library().find("sensor.lidar.ray_cast")
@@ -173,8 +210,17 @@ class LidarSensor:
         self.sensor.listen(lambda event: LidarSensor._on_data_event(weak_self, event))
 
     @staticmethod
-    def _on_data_event(weak_self, event):
-        """Lidar  method"""
+    def _on_data_event(weak_self: weakref.ref, event: Any) -> None:
+        """
+        Callback for LiDAR data events.
+
+        Parameters
+        ----------
+        weak_self : weakref.ref
+            Weak reference to the LidarSensor instance.
+        event : carla.LidarMeasurement
+            LiDAR measurement event from CARLA.
+        """
         self = weak_self()
         if not self:
             return
@@ -215,11 +261,9 @@ class SemanticLidarSensor:
 
     sensor : carla.sensor
         Lidar sensor that will be attached to the vehicle.
-
-
     """
 
-    def __init__(self, vehicle, world, config_yaml, global_position):
+    def __init__(self, vehicle: Optional[Any], world: Any, config_yaml: Dict[str, Any], global_position: Optional[List[float]]):
         if vehicle is not None:
             world = vehicle.get_world()
 
@@ -258,8 +302,17 @@ class SemanticLidarSensor:
         self.sensor.listen(lambda event: SemanticLidarSensor._on_data_event(weak_self, event))
 
     @staticmethod
-    def _on_data_event(weak_self, event):
-        """Semantic Lidar  method"""
+    def _on_data_event(weak_self: weakref.ref, event: Any) -> None:
+        """
+        Callback for semantic LiDAR data events.
+
+        Parameters
+        ----------
+        weak_self : weakref.ref
+            Weak reference to the SemanticLidarSensor instance.
+        event : carla.SemanticLidarMeasurement
+            Semantic LiDAR measurement event from CARLA.
+        """
         self = weak_self()
         if not self:
             return
@@ -316,9 +369,17 @@ class PerceptionManager:
         Open3d point cloud visualizer.
     """
 
-    def __init__(self, vehicle, config_yaml, cav_world, infra_id, data_dump=False, carla_world=None):
+    def __init__(
+        self,
+        vehicle: Optional[Any],
+        config_yaml: Dict[str, Any],
+        cav_world: Any,
+        infra_id: Any,
+        data_dump: bool = False,
+        carla_world: Optional[Any] = None,
+    ):
         self.vehicle = vehicle
-        self.carla_world = carla_world if carla_world is not None else self.vehicle.get_world()
+        self.carla_world = carla_world if carla_world is not None else self.vehicle.get_world() #NOTE None-check is required
         self._map = self.carla_world.get_map()
 
         self.id = infra_id
@@ -348,7 +409,7 @@ class PerceptionManager:
         # we only spawn the camera when perception module is activated or
         # camera visualization is needed
         if self.activate or self.camera_visualize or data_dump:
-            self.rgb_camera = []
+            self.rgb_camera: Optional[List[CameraSensor]] = []
             mount_position = config_yaml["camera"]["positions"]
             assert len(mount_position) == self.camera_num, "The camera number has to be the same as the length of the relative positions list"
 
@@ -387,11 +448,11 @@ class PerceptionManager:
         self.ego_pos = None
 
         # the dictionary contains all objects
-        self.objects = {}
+        self.objects: Dict[str, List[Any]] = {}
         # traffic light detection related
         self.traffic_thresh = config_yaml["traffic_light_thresh"] if "traffic_light_thresh" in config_yaml else 50  # noqa: DC05
 
-    def dist(self, a):
+    def dist(self, a: Any) -> float:
         """
         A fast method to retrieve the obstacle distance the ego
         vehicle from the server directly.
@@ -406,9 +467,9 @@ class PerceptionManager:
         distance : float
             The distance between ego and the target actor.
         """
-        return a.get_location().distance(self.ego_pos.location)
+        return a.get_location().distance(self.ego_pos.location) #NOTE None-check is required
 
-    def detect(self, ego_pos):
+    def detect(self, ego_pos: carla.Transform) -> Dict[str, List]:
         """
         Detect surrounding objects. Currently only vehicle detection supported.
 
@@ -425,7 +486,7 @@ class PerceptionManager:
         """
         self.ego_pos = ego_pos
 
-        objects = {"vehicles": [], "traffic_lights": []}
+        objects: Dict[str, List[Any]] = {"vehicles": [], "traffic_lights": []}
 
         if not self.activate:
             objects = self.deactivate_mode(objects)
@@ -437,7 +498,7 @@ class PerceptionManager:
 
         return objects
 
-    def activate_mode(self, objects):
+    def activate_mode(self, objects: Dict[str, List]) -> Dict[str, List]:
         """
         Use Yolov5 + Lidar fusion to detect objects.
 
@@ -455,7 +516,7 @@ class PerceptionManager:
         """
         # retrieve current cameras and lidar data
         rgb_images = []
-        for rgb_camera in self.rgb_camera:
+        for rgb_camera in self.rgb_camera: #NOTE None-check is required
             while rgb_camera.image is None:
                 continue
             rgb_images.append(cv2.cvtColor(np.array(rgb_camera.image), cv2.COLOR_BGR2RGB))
@@ -488,7 +549,7 @@ class PerceptionManager:
             cv2.waitKey(1)
 
         if self.lidar_visualize:
-            while self.lidar.data is None:
+            while self.lidar.data is None: #NOTE None-check is required
                 continue
             o3d_pointcloud_encode(self.lidar.data, self.lidar.o3d_pointcloud)
             o3d_visualizer_show(self.o3d_vis, self.count, self.lidar.o3d_pointcloud, objects)
@@ -498,7 +559,7 @@ class PerceptionManager:
 
         return objects
 
-    def deactivate_mode(self, objects):
+    def deactivate_mode(self, objects: Dict[str, List]) -> Dict[str, List]:
         """
         Object detection using server information directly.
 
@@ -566,7 +627,7 @@ class PerceptionManager:
 
         return objects
 
-    def filter_vehicle_out_sensor(self, vehicle_list):
+    def filter_vehicle_out_sensor(self, vehicle_list: List[Any]) -> List[Any]:
         """
         By utilizing semantic lidar, we can retrieve the objects that
         are in the lidar detection range from the server.
@@ -611,7 +672,7 @@ class PerceptionManager:
 
         return new_vehicle_list
 
-    def visualize_3d_bbx_front_camera(self, objects, rgb_image, camera_index):
+    def visualize_3d_bbx_front_camera(self, objects: Dict[str, List], rgb_image: npt.NDArray[np.uint8], camera_index: int) -> npt.NDArray[np.uint8]:
         """
         Visualize the 3d bounding box on frontal camera image.
 
@@ -642,7 +703,7 @@ class PerceptionManager:
 
         return rgb_image
 
-    def speed_retrieve(self, objects):
+    def speed_retrieve(self, objects: Dict[str, List]) -> None:
         """
         We don't implement any obstacle speed calculation algorithm.
         The speed will be retrieved from the server directly.
@@ -683,7 +744,7 @@ class PerceptionManager:
 
                     obstacle_vehicle.set_carla_id(v.id)
 
-    def retrieve_traffic_lights(self, objects):
+    def retrieve_traffic_lights(self, objects: Dict[str, List]) -> Dict[str, List]:
         """
         Retrieve the traffic lights nearby from the server  directly.
         Next version may consider add traffic light detection module.

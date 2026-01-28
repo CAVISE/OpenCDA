@@ -1,5 +1,8 @@
 """
-3D Anchor Generator for Voxel
+3D Anchor Generator for Voxel-based 3D object detection.
+
+This module provides functionality for post-processing 3D object detection
+predictions in the context of cooperative perception.
 """
 
 import numpy as np
@@ -7,17 +10,40 @@ import torch
 
 from opencood.data_utils.post_processor.voxel_postprocessor import VoxelPostprocessor
 from opencood.utils import box_utils
+from typing import Dict, List, Tuple, Any, Union
 
 
 class CiassdPostprocessor(VoxelPostprocessor):
-    def __init__(self, anchor_params, train):
+    """
+    Post-processor for CIASSD (Cooperative Infrastructure-Assisted 3D Object Detection).
+    Handles the conversion of model outputs to 3D bounding boxes with NMS.
+
+    Parameters
+    ----------
+    anchor_params : Dict[str, Any]
+        Dictionary containing anchor configuration parameters.
+    train : bool
+        Whether the processor is in training mode.
+
+    Attributes
+    ----------
+    train : bool
+        Training mode flag.
+    anchor_num : int
+        Number of anchor boxes per location.
+    """
+
+    def __init__(self, anchor_params: Dict[str, Any], train: bool):
         super(CiassdPostprocessor, self).__init__(anchor_params, train)
         self.train = train
         self.anchor_num = self.params["anchor_args"]["num"]
 
-    def post_process(self, data_dict, output_dict):
+    def post_process(
+        self, data_dict: Dict[str, Dict[str, torch.Tensor]], output_dict: Dict[str, Dict[str, torch.Tensor]]
+    ) -> Union[Tuple[torch.Tensor, torch.Tensor], Tuple[List[torch.Tensor], List[torch.Tensor]]]:
         """
         Process the outputs of the model to 2D/3D bounding box.
+
         Step1: convert each cav's output to bounding box format
         Step2: project the bounding boxes to ego space.
         Step:3 NMS
@@ -68,7 +94,7 @@ class CiassdPostprocessor(VoxelPostprocessor):
             # (N, W*L*anchor_num, 7)
             batch_box3d = self.delta_to_boxes3d(reg, anchor_box, False)
             mask = torch.gt(prob, self.params["target_args"]["score_threshold"])
-            batch_num_box_count = [int(m.sum()) for m in mask]
+            batch_num_box_count = [int(m.sum()) for m in mask] #NOTE Name "batch_num_box_count" is not defined
             mask = mask.view(1, -1)
             mask_reg = mask.unsqueeze(2).repeat(1, 1, 7)
 
@@ -109,7 +135,7 @@ class CiassdPostprocessor(VoxelPostprocessor):
         # shape: (N, 5)
         pred_box2d_list = torch.vstack(pred_box2d_list)
         # scores
-        scores = pred_box2d_list[:, -1]
+        scores = pred_box2d_list[:, -1] # NOTE: mypy error - list doesn't support numpy-style indexing 
         # predicted 3d bbx
         pred_box3d_tensor = torch.vstack(pred_box3d_list)
         pred_box3d_original = torch.vstack(pred_box3d_original_list)
@@ -142,7 +168,7 @@ class CiassdPostprocessor(VoxelPostprocessor):
             cur_idx = 0
             batch_pred_boxes3d = []
             batch_scores = []
-            for n in batch_num_box_count:
+            for n in batch_num_box_count: #NOTE Name "batch_num_box_count" is not defined
                 cur_boxes = pred_box3d_tensor[cur_idx : cur_idx + n]
                 cur_scores = scores[cur_idx : cur_idx + n]
                 # nms

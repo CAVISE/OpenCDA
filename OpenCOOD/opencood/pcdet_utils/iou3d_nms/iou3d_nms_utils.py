@@ -1,22 +1,44 @@
 """
-3D IoU Calculation and Rotated NMS
-Written by Shaoshuai Shi
+3D IoU calculation and rotated NMS operations.
+
+Provides CUDA-accelerated functions for computing 3D intersection over union (IoU),
+generalized IoU (GIoU), and non-maximum suppression (NMS) for 3D bounding boxes.
+
+Author: Shaoshuai Shi
 All Rights Reserved 2019-2020.
 """
 
 import torch
 
+from typing import Any, Tuple, Union, Optional
+
 from opencood.pcdet_utils.iou3d_nms import iou3d_nms_cuda
 
 
-def aligned_boxes_iou3d_gpu(boxes_a, boxes_b, return_union=False):
+def aligned_boxes_iou3d_gpu(
+    boxes_a: torch.Tensor,
+    boxes_b: torch.Tensor,
+    return_union: bool = False,
+) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
     """
-    Args:
-        boxes_a: (N, 7) [x, y, z, dx, dy, dz, heading]
-        boxes_b: (N, 7) [x, y, z, dx, dy, dz, heading]
+    Compute 3D IoU for aligned box pairs (element-wise).
 
-    Returns:
-        ans_iou: (N, 1)
+    Parameters
+    ----------
+    boxes_a : torch.Tensor
+        First set of boxes with shape (N, 7).
+        Format: [x, y, z, dx, dy, dz, heading].
+    boxes_b : torch.Tensor
+        Second set of boxes with shape (N, 7).
+    return_union : bool, optional
+        If True, returns (iou, union). Default is False.
+
+    Returns
+    -------
+    iou3d : torch.Tensor
+        IoU values with shape (N, 1).
+    union : torch.Tensor, optional
+        Union volumes with shape (N, 1). Only if return_union=True.
     """
     assert boxes_a.shape[1] == boxes_b.shape[1] == 7
     assert boxes_a.shape[0] == boxes_b.shape[0]
@@ -47,14 +69,31 @@ def aligned_boxes_iou3d_gpu(boxes_a, boxes_b, return_union=False):
     return iou3d
 
 
-def boxes_iou3d_gpu(boxes_a, boxes_b, return_union=False):
+def boxes_iou3d_gpu(
+    boxes_a: torch.Tensor,
+    boxes_b: torch.Tensor,
+    return_union: bool = False,
+) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
     """
-    Args:
-        boxes_a: (N, 7) [x, y, z, dx, dy, dz, heading]
-        boxes_b: (N, 7) [x, y, z, dx, dy, dz, heading]
+    Compute 3D IoU between two sets of boxes on GPU.
 
-    Returns:
-        ans_iou: (N, M)
+    Parameters
+    ----------
+    boxes_a : torch.Tensor
+        First set of boxes with shape (N, 7).
+        Format: [x, y, z, dx, dy, dz, heading].
+    boxes_b : torch.Tensor
+        Second set of boxes with shape (M, 7).
+        Format: [x, y, z, dx, dy, dz, heading].
+    return_union : bool, optional
+        If True, returns (iou, union). Default is False.
+
+    Returns
+    -------
+    iou3d : torch.Tensor
+        IoU matrix with shape (N, M).
+    union : torch.Tensor, optional
+        Union volumes with shape (N, M).
     """
     assert boxes_a.shape[1] == boxes_b.shape[1] == 7
 
@@ -84,13 +123,30 @@ def boxes_iou3d_gpu(boxes_a, boxes_b, return_union=False):
     return iou3d
 
 
-def nms_gpu(boxes, scores, thresh, pre_maxsize=None, **kwargs):
+def nms_gpu(boxes: torch.Tensor, scores: torch.Tensor, thresh: float, pre_maxsize: Optional[int] = None, **kwargs: Any) -> Tuple[torch.Tensor, None]:
     """
-    Operate on rotated bev boxes[x,y,dx,dy,heading]
-    :param boxes: (N, 7) [x, y, z, dx, dy, dz, heading]
-    :param scores: (N)
-    :param thresh:
-    :return:
+    Perform rotated NMS on GPU for BEV boxes.
+
+    Parameters
+    ----------
+    boxes : torch.Tensor
+        Boxes with shape (N, 7).
+        Format: [x, y, z, dx, dy, dz, heading].
+    scores : torch.Tensor
+        Confidence scores with shape (N,).
+    thresh : float
+        IoU threshold for suppression.
+    pre_maxsize : int or None, optional
+        Maximum boxes to consider before NMS. Default is None.
+    **kwargs
+        Additional unused arguments for compatibility.
+
+    Returns
+    -------
+    keep : torch.Tensor
+        Indices of kept boxes after NMS.
+    None
+        Placeholder for compatibility.
     """
     assert boxes.shape[1] == 7
     order = scores.sort(0, descending=True)[1]
@@ -103,13 +159,28 @@ def nms_gpu(boxes, scores, thresh, pre_maxsize=None, **kwargs):
     return order[keep[:num_out].cuda()].contiguous(), None
 
 
-def nms_normal_gpu(boxes, scores, thresh, **kwargs):
+def nms_normal_gpu(boxes: torch.Tensor, scores: torch.Tensor, thresh: float, **kwargs: Any) -> Tuple[torch.Tensor, None]:
     """
-    Ignore heading and operate on bev boxes[x,y,dx,dy]
-    :param boxes: (N, 7) [x, y, z, dx, dy, dz, heading]
-    :param scores: (N)
-    :param thresh:
-    :return:
+    Perform axis-aligned NMS on GPU (ignores heading).
+
+    Parameters
+    ----------
+    boxes : torch.Tensor
+        Boxes with shape (N, 7).
+        Format: [x, y, z, dx, dy, dz, heading].
+    scores : torch.Tensor
+        Confidence scores with shape (N,).
+    thresh : float
+        IoU threshold for suppression.
+    **kwargs
+        Additional unused arguments for compatibility.
+
+    Returns
+    -------
+    keep : torch.Tensor
+        Indices of kept boxes after NMS.
+    None
+        Placeholder for compatibility.
     """
     assert boxes.shape[1] == 7
     order = scores.sort(0, descending=True)[1]

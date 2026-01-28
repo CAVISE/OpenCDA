@@ -1,3 +1,11 @@
+"""
+Inference script for cooperative perception models with visualization support.
+
+This script evaluates trained cooperative perception models on test datasets,
+computing detection metrics and optionally visualizing predictions versus
+ground truth bounding boxes.
+"""
+
 import argparse
 import os
 import time
@@ -14,7 +22,22 @@ from opencood.utils import eval_utils
 from opencood.visualization import vis_utils
 
 
-def test_parser():
+def test_parser() -> argparse.Namespace:
+    """
+    Parse command line arguments for the inference script.
+
+    Returns
+    -------
+    argparse.Namespace
+        Parsed command line arguments with the following attributes:
+            - model_dir (str): Path to the directory containing the model checkpoint.
+            - fusion_method (str): Fusion method to use, one of ['late', 'early', 'intermediate'].
+            - show_vis (bool): Whether to show visualization results.
+            - show_sequence (bool): Whether to show video visualization (cannot be True with show_vis).
+            - save_vis (bool): Whether to save visualization results.
+            - save_npy (bool): Whether to save prediction and ground truth in npy files.
+            - global_sort_detections (bool): Whether to sort detections globally by confidence score.
+    """
     parser = argparse.ArgumentParser(description="synthetic data generation")
     parser.add_argument("--model_dir", type=str, required=True, help="Continued training path")
     parser.add_argument("--fusion_method", required=True, type=str, default="late", help="late, early or intermediate")
@@ -35,7 +58,17 @@ def test_parser():
     return opt
 
 
-def main():
+def main() -> None:
+    """
+    Main inference function for cooperative perception models.
+
+    The function performs the following steps:
+    1. Parses command line arguments
+    2. Loads the dataset and creates data loader
+    3. Initializes the model and loads weights
+    4. Runs inference on the dataset
+    5. Evaluates the results and optionally visualizes them
+    """
     opt = test_parser()
     assert opt.fusion_method in ["late", "early", "intermediate"]
     assert not (opt.show_vis and opt.show_sequence), "you can only visualize the results in single image mode or video mode"

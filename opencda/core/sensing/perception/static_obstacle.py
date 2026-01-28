@@ -1,28 +1,39 @@
 """
-Static Obstacle base class
+Static obstacle base classes for 3D object representation.
+
+This module provides classes for representing static obstacles including bounding
+boxes, general static obstacles, and traffic lights in the CARLA simulator.
 """
 
 import math
+from typing import Any
 
 import numpy as np
+import numpy.typing as npt
 import carla
 
 
 class BoundingBox(object):
     """
-    Bounding box class for obstacle vehicle.
+    Bounding box class for obstacle representation.
 
-    Params:
-    -corners : nd.nparray
-        Eight corners of the bounding box. (shape:(8, 3))
-    Attributes:
-    -location : carla.location
-        The location of the object.
-    -extent : carla.vector3D
-        The extent of  the object.
+    Computes the center location and extent of a 3D bounding box from its
+    eight corner points.
+
+    Parameters
+    ----------
+    corners : NDArray[np.float64]
+        Eight corners of the bounding box with shape (8, 3).
+
+    Attributes
+    ----------
+    location : carla.Location
+        The center location of the bounding box.
+    extent : carla.Vector3D
+        The half-extents of the bounding box along x, y, z axes.
     """
 
-    def __init__(self, corners):
+    def __init__(self, corners: npt.NDArray[np.float64]):
         center_x = np.mean(corners[:, 0])
         center_y = np.mean(corners[:, 1])
         center_z = np.mean(corners[:, 2])
@@ -54,7 +65,7 @@ class StaticObstacle(object):
         Bounding box of the osbject vehicle.
     """
 
-    def __init__(self, corner, o3d_bbx):
+    def __init__(self, corner: npt.NDArray[np.float64], o3d_bbx: Any):
         self.bounding_box = BoundingBox(corner)
         self.o3d_bbx = o3d_bbx
 
@@ -80,27 +91,52 @@ class TrafficLight(object):
 
     """
 
-    def __init__(self, tl, trigger_location, light_state):
+    def __init__(self, tl: carla.Actor, trigger_location: carla.Vector3D, light_state: carla.TrafficLightState) -> None:
         self._location = trigger_location
         self.state = light_state
         self.actor = tl
 
-    def get_location(self):
+    def get_location(self) -> carla.Vector3D:
         return self._location
 
-    def get_state(self):
+    def get_state(self) -> carla.TrafficLightState:
         return self.state
 
     @staticmethod
     def get_trafficlight_trigger_location(traffic_light: carla.Actor) -> carla.Vector3D:  # pylint: disable=invalid-name
         """
-        Calculates the yaw of the waypoint that represents the trigger
-        volume of the traffic light
+        Calculate the trigger location of a traffic light.
+
+        Computes the location that represents the trigger volume of the traffic
+        light by rotating and transforming the trigger volume relative to the
+        traffic light's base transform.
+
+        Parameters
+        ----------
+        traffic_light : carla.Actor
+            The CARLA traffic light actor.
+
+        Returns
+        -------
+        carla.Location
+            The calculated trigger location.
         """
 
-        def rotate_point(point, angle):
+        def rotate_point(point: carla.Vector3D, angle: float) -> carla.Vector3D:
             """
-            rotate a given point by a given angle
+            Rotate a point by a given angle around the z-axis.
+
+            Parameters
+            ----------
+            point : carla.Vector3D
+                The point to rotate.
+            angle : float
+                The rotation angle in degrees.
+
+            Returns
+            -------
+            carla.Vector3D
+                The rotated point.
             """
             x_ = math.cos(math.radians(angle)) * point.x - math.sin(math.radians(angle)) * point.y
             y_ = math.sin(math.radians(angle)) * point.x - math.cos(math.radians(angle)) * point.y

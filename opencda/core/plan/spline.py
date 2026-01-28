@@ -1,39 +1,51 @@
 """
-Cubic spline planner
+Cubic spline planner for 2D path interpolation and curvature calculation.
+
+This module provides classes for creating smooth cubic splines from discrete
+waypoints and calculating geometric properties like position, yaw, and curvature.
 """
 
 import math
+from typing import List, Tuple, Optional, cast
 import numpy as np
+import numpy.typing as npt
 import bisect
 
 
 class Spline:
     """
-    Cubic Spline class for calculte curvature.
+    Cubic Spline class for calculating curvature.
 
     Parameters
-    -x : float
-        The x coordinate.
-    -y : float
-        The y coordinate.
+    ----------
+    x : array_like
+        The x coordinates.
+    y : array_like
+        The y coordinates.
 
     Attributes
-    -b : float
+    ----------
+    a : list of float
+        The spline coefficient a.
+    b : list of float
         The spline coefficient b.
-    -c : float
+    c : list of float
         The spline coefficient c.
-    -d : float
+    d : list of float
         The spline coefficient d.
-    -w : float
-        The spline coefficient w.
-    -nx : float
+    x : array_like
+        The x coordinates.
+    y : array_like
+        The y coordinates.
+    nx : int
         The dimension of x.
-    -h : float
-        The n-th discrete difference along the x-axis.
     """
 
-    def __init__(self, x, y):
-        self.b, self.c, self.d, self.w = [], [], [], []
+    def __init__(self, x: npt.ArrayLike, y: npt.ArrayLike):
+        self.b: list[float] = []
+        self.c: npt.NDArray[np.float64]
+        self.d: list[float] = []
+        self.w: list[float] = []
 
         self.x = x
         self.y = y
@@ -56,16 +68,19 @@ class Spline:
             tb = (self.a[i + 1] - self.a[i]) / h[i] - h[i] * (self.c[i + 1] + 2.0 * self.c[i]) / 3.0
             self.b.append(tb)
 
-    def calc(self, t):
+    def calc(self, t: float) -> Optional[float]:
         """
-        Calc position
+        Calculate position at parameter t.
 
-        Args:
-            - t (float): if t is outside of the input x, return None
-        Returns:
-            - result (float): The calcualtion result of position.
-              If t is outside the range of x, return None.
+        Parameters
+        ----------
+        t : float
+            Parameter value. If t is outside of the input x range, returns None.
 
+        Returns
+        -------
+        float or None
+            The calculated position. Returns None if t is outside the range of x.
         """
 
         if t < self.x[0]:
@@ -79,9 +94,19 @@ class Spline:
 
         return result
 
-    def calcd(self, t):
+    def calcd(self, t: float) -> Optional[float]:
         """
-        Calc first derivative. If t is outside of the input x, return None.
+        Calculate first derivative at parameter t.
+
+        Parameters
+        ----------
+        t : float
+            Parameter value. If t is outside of the input x range, returns None.
+
+        Returns
+        -------
+        float or None
+            The first derivative. Returns None if t is outside the range of x.
         """
 
         if t < self.x[0]:
@@ -94,9 +119,19 @@ class Spline:
         result = self.b[i] + 2.0 * self.c[i] * dx + 3.0 * self.d[i] * dx**2.0
         return result
 
-    def calcdd(self, t):
+    def calcdd(self, t: float) -> Optional[float]:
         """
-        Calc second derivative, If t is outside of the input x, return None.
+        Calculate second derivative at parameter t.
+
+        Parameters
+        ----------
+        t : float
+            Parameter value. If t is outside of the input x range, returns None.
+
+        Returns
+        -------
+        float or None
+            The second derivative. Returns None if t is outside the range of x.
         """
 
         if t < self.x[0]:
@@ -109,15 +144,35 @@ class Spline:
         result = 2.0 * self.c[i] + 6.0 * self.d[i] * dx
         return result
 
-    def __search_index(self, x):
+    def __search_index(self, x: float) -> int:
         """
         Search data segment index.
+
+        Parameters
+        ----------
+        x : float
+            Search value.
+
+        Returns
+        -------
+        int
+            Segment index.
         """
         return bisect.bisect(self.x, x) - 1
 
-    def __calc_A(self, h):
+    def __calc_A(self, h: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
         """
-        Calculate matrix A for spline coefficient a.
+        Calculate matrix A for spline coefficient calculation.
+
+        Parameters
+        ----------
+        h : numpy.ndarray
+            Discrete differences along the x-axis.
+
+        Returns
+        -------
+        numpy.ndarray
+            Matrix A for solving spline coefficients.
         """
         A = np.zeros((self.nx, self.nx))
         A[0, 0] = 1.0
@@ -133,9 +188,19 @@ class Spline:
         #  print(A)
         return A
 
-    def __calc_B(self, h):
+    def __calc_B(self, h: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
         """
-        Calculate matrix B for spline coefficient b.
+        Calculate matrix B for spline coefficient calculation.
+
+        Parameters
+        ----------
+        h : numpy.ndarray
+            Discrete differences along the x-axis.
+
+        Returns
+        -------
+        numpy.ndarray
+            Matrix B for solving spline coefficients.
         """
         B = np.zeros(self.nx)
         for i in range(self.nx - 2):
@@ -145,76 +210,120 @@ class Spline:
 
 class Spline2D:
     """
-    2D Cubic Spline class for calculte curvature.
+    2D Cubic Spline class for calculating curvature.
 
     Parameters
-    -x : float
-        The x coordinate.
-    -y : float
-        The y coordinate.
+    ----------
+    x : array_like
+        The x coordinates.
+    y : array_like
+        The y coordinates.
 
     Attributes
-    -b : float
-        The spline coefficient b.
-    -c : float
-        The spline coefficient c.
-    -d : float
-        The spline coefficient d.
-    -w : float
-        The spline coefficient w.
-    -nx : float
-        The dimension of x.
-    -h : float
-        The n-th discrete difference along the x-axis.
-
+    ----------
+    s : list of float
+        Cumulative arc length along the curve.
+    sx : Spline
+        Spline for x coordinate as a function of s.
+    sy : Spline
+        Spline for y coordinate as a function of s.
+    ds : numpy.ndarray
+        Discrete arc length differences.
     """
 
-    def __init__(self, x, y):
-        self.s = self.__calc_s(x, y)
+    def __init__(self, x: npt.ArrayLike, y: npt.ArrayLike):
+        self.s: List[float] = self.__calc_s(x, y)
         self.sx = Spline(self.s, x)
         self.sy = Spline(self.s, y)
 
-    def __calc_s(self, x, y):
+    def __calc_s(self, x: npt.ArrayLike, y: npt.ArrayLike) -> List[float]:
+        """
+        Calculate cumulative arc length.
+
+        Parameters
+        ----------
+        x : array_like
+            The x coordinates.
+        y : array_like
+            The y coordinates.
+
+        Returns
+        -------
+        list of float
+            Cumulative arc length values.
+        """
         dx = np.diff(x)
         dy = np.diff(y)
         self.ds = np.hypot(dx, dy)
         s = [0]
         s.extend(np.cumsum(self.ds))
-        return s
+        return s #NOTE: Incompatible return value type (got "list[int]", expected "list[float]")
 
-    def calc_position(self, s):
+    def calc_position(self, s: float) -> Tuple[Optional[float], Optional[float]]:
         """
-        Calculate position.
+        Calculate position at arc length s.
+
+        Parameters
+        ----------
+        s : float
+            Arc length parameter.
+
+        Returns
+        -------
+        x : float
+            x coordinate.
+        y : float
+            y coordinate.
         """
         x = self.sx.calc(s)
         y = self.sy.calc(s)
 
         return x, y
 
-    def calc_curvature(self, s):
+    def calc_curvature(self, s: float) -> float:
         """
-        Calculate curvature.
+        Calculate curvature at arc length s.
+
+        Parameters
+        ----------
+        s : float
+            Arc length parameter.
+
+        Returns
+        -------
+        float
+            Curvature value.
         """
-        dx = self.sx.calcd(s)
-        ddx = self.sx.calcdd(s)
-        dy = self.sy.calcd(s)
-        ddy = self.sy.calcdd(s)
+        dx = cast(float, self.sx.calcd(s))
+        ddx = cast(float, self.sx.calcdd(s))
+        dy = cast(float, self.sy.calcd(s))
+        ddy = cast(float, self.sy.calcdd(s))
         k = (ddy * dx - ddx * dy) / ((dx**2 + dy**2) ** (3 / 2))
         return k
 
-    def calc_yaw(self, s):
+    def calc_yaw(self, s: float) -> float:
         """
-        Calculate yaw.
+        Calculate yaw angle at arc length s.
+
+        Parameters
+        ----------
+        s : float
+            Arc length parameter.
+
+        Returns
+        -------
+        float
+            Yaw angle in radians.
         """
         dx = self.sx.calcd(s)
         dy = self.sy.calcd(s)
-        yaw = math.atan2(dy, dx)
+        yaw = math.atan2(cast(float, dy), cast(float, dx))
         return yaw
 
 
-def main():
+def main() -> None:
     """
-    Main function to calculate spline and visulize the results.
+    Main function to calculate spline and visualize the results.
     """
     print("Spline 2D test")
     import matplotlib.pyplot as plt

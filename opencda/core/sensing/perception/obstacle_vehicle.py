@@ -1,24 +1,34 @@
 """
-Obstacle vehicle class to save object detection.
+Obstacle vehicle representation for object detection.
+
+This module provides classes for representing detected obstacle vehicles,
+including bounding box information, location, velocity, and integration with
+CARLA simulation and SUMO co-simulation.
 """
 
+from typing import Optional, Dict, Any
 import carla
 import numpy as np
+import numpy.typing as npt
 import open3d as o3d
 
 import opencda.core.sensing.perception.sensor_transformation as st
 from opencda.core.common.misc import get_speed_sumo
 
 
-def is_vehicle_cococlass(label):
+def is_vehicle_cococlass(label: int) -> bool:
     """
-    Check whether the label belongs to the vehicle class
-    according to coco dataset.
-    Args:
-        -label(int): The lable of the detecting object.
+    Check whether the label belongs to the vehicle class in COCO dataset.
 
-    Returns:
-        -is_vehicle(bool): Whether this label belongs to the vehicle class
+    Parameters
+    ----------
+    label : int
+        The label of the detecting object.
+
+    Returns
+    -------
+    bool
+        True if the label belongs to the vehicle class, False otherwise.
     """
     vehicle_class_array = np.array([1, 2, 3, 5, 7], dtype=np.int)
     return True if 0 in (label - vehicle_class_array) else False
@@ -26,19 +36,22 @@ def is_vehicle_cococlass(label):
 
 class BoundingBox(object):
     """
-    Bounding box class for obstacle vehicle.
+    Bounding box class for obstacle vehicles.
 
-    Params:
-    -corners : nd.nparray
-        Eight corners of the bounding box. (shape:(8, 3))
-    Attributes:
-    -location : carla.location
-        The location of the object.
-    -extent : carla.vector3D
-        The extent of  the object.
+    Parameters
+    ----------
+    corners : NDArray[np.float64]
+        Eight corners of the bounding box, shape (8, 3).
+
+    Attributes
+    ----------
+    location : carla.Location
+        The center location of the bounding box.
+    extent : carla.Vector3D
+        The half-extents of the bounding box in each dimension.
     """
 
-    def __init__(self, corners):
+    def __init__(self, corners: npt.NDArray[np.float64]):
         center_x = np.mean(corners[:, 0])
         center_y = np.mean(corners[:, 1])
         center_z = np.mean(corners[:, 2])
@@ -94,7 +107,14 @@ class ObstacleVehicle(object):
         matched with the obstacle vehicle, it should be -1.
     """
 
-    def __init__(self, corners, o3d_bbx, vehicle=None, lidar=None, sumo2carla_ids=None):
+    def __init__(
+        self,
+        corners: Optional[npt.NDArray[np.float64]],
+        o3d_bbx: Optional[o3d.geometry.AxisAlignedBoundingBox],
+        vehicle: Optional[Any] = None,
+        lidar: Optional[Any] = None,
+        sumo2carla_ids: Optional[Dict[str, int]] = None,
+    ):
         if not vehicle:
             self.bounding_box = BoundingBox(corners)
             self.location = self.bounding_box.location
@@ -108,48 +128,62 @@ class ObstacleVehicle(object):
                 sumo2carla_ids = dict()
             self.set_vehicle(vehicle, lidar, sumo2carla_ids)
 
-    def get_transform(self):
+    def get_transform(self) -> Optional[carla.Transform]:
         """
-        Return the transform of the object vehicle.
+        Get the transform of the obstacle vehicle.
+
+        Returns
+        -------
+        carla.Transform or None
+            Transform of the vehicle, or None if not set.
         """
         return self.transform
 
-    def get_location(self):
+    def get_location(self) -> carla.Location:
         """
-        Return the location of the object vehicle.
+        Get the location of the obstacle vehicle.
+
+        Returns
+        -------
+        carla.Location
+            Location of the vehicle.
         """
         return self.location
 
-    def get_velocity(self):
+    def get_velocity(self) -> carla.Vector3D:
         """
-        Return the velocity of the object vehicle.
+        Get the velocity of the obstacle vehicle.
+
+        Returns
+        -------
+        carla.Vector3D
+            Velocity vector of the vehicle.
         """
         return self.velocity
 
-    def set_carla_id(self, id):
+    def set_carla_id(self, id: int) -> None:
         """
-        Set carla id according to the carla.vehicle.
+        Set CARLA actor ID for the obstacle vehicle.
 
         Parameters
         ----------
         id : int
-            The id from the carla.vehicle.
+            The CARLA actor ID.
         """
         self.carla_id = id
 
-    def set_velocity(self, velocity):
+    def set_velocity(self, velocity: carla.Vector3D) -> None:
         """
-        Set the velocity of the vehicle.
+        Set the velocity of the obstacle vehicle.
 
         Parameters
         ----------
         velocity : carla.Vector3D
-            The target velocity in 3d vector format.
-
+            The target velocity in 3D vector format.
         """
         self.velocity = velocity
 
-    def set_vehicle(self, vehicle, lidar, sumo2carla_ids):
+    def set_vehicle(self, vehicle: carla.Vehicle, lidar: carla.sensor.lidar, sumo2carla_ids: Dict) -> None:
         """
         Assign the attributes from carla.Vehicle to ObstacleVehicle.
 
@@ -157,11 +191,9 @@ class ObstacleVehicle(object):
         ----------
         vehicle : carla.Vehicle
             The carla.Vehicle object.
-
         lidar : carla.sensor.lidar
             The lidar sensor, it is used to project world coordinates to
              sensor coordinates.
-
         sumo2carla_ids : dict
             Sumo to carla mapping dictionary, this is used only when
             co-simulation is activated. We need this since the speed info of
@@ -223,7 +255,7 @@ class ObstacleVehicle(object):
         self.o3d_bbx = aabb
 
     # CAVISE
-    def to_dict(self):
+    def to_dict(self) -> Dict[str, Any]:
         """
         Convert the ObstacleVehicle instance to a dictionary.
         """
@@ -233,8 +265,8 @@ class ObstacleVehicle(object):
             # Add other attributes as needed
         }
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"({self.location}, {self.carla_id})"  # ВСЁ КРОМЕ type_id почему так не знаю
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"({self.location}, {self.carla_id})"  # ВСЁ КРОМЕ type_id почему так не знаю
