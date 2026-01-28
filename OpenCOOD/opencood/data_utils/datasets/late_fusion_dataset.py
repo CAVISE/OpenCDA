@@ -35,7 +35,8 @@ class LateFusionDataset(basedataset.BaseDataset):
         self.message_handler = message_handler
 
     def __getitem__(self, idx):
-        base_data_dict = self.retrieve_base_data(idx)
+        self.update(idx)
+        base_data_dict = self.current_data
         if self.train:
             reformat_data_dict = self.get_item_train(base_data_dict)
         else:
@@ -48,7 +49,8 @@ class LateFusionDataset(basedataset.BaseDataset):
         return {"data": ndarray.tobytes(), "shape": ndarray.shape, "dtype": str(ndarray.dtype)}
 
     def extract_data(self, idx):
-        base_data_dict = self.retrieve_base_data(idx)
+        self.update(idx)
+        base_data_dict = self.current_data
 
         if self.message_handler is not None:
             for cav_id, selected_cav_base in base_data_dict.items():

@@ -135,7 +135,8 @@ class EarlyFusionDataset(basedataset.BaseDataset):
         return {"object_stack": object_stack, "object_id_stack": object_id_stack, "projected_lidar_stack": projected_lidar_stack}
 
     def __getitem__(self, idx):
-        base_data_dict = self.retrieve_base_data(idx)
+        self.update(idx)
+        base_data_dict = self.current_data
         processed_data_dict = OrderedDict()
         processed_data_dict["ego"] = {}
 

@@ -277,7 +277,8 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
         }
 
     def __getitem__(self, idx):
-        base_data_dict = self.retrieve_base_data(idx, cur_ego_pose_flag=self.cur_ego_pose_flag)
+        self.update(idx)
+        base_data_dict = self.current_data
         processed_data_dict = OrderedDict()
         processed_data_dict["ego"] = {}
 

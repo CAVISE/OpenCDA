@@ -163,6 +163,11 @@ class BaseDataset(Dataset):
                         self.len_record.append(prev_last + len(timestamps))
                 else:
                     self.scenario_database[i][cav_id]["ego"] = False
+        self.current_data = None
+        self.current_idx = None
+        self.current_scenario_index = None
+        self.current_timestamp_index = None
+        self.current_timestamp_key = None
 
     def __len__(self):
         return self.len_record[-1]
@@ -172,6 +177,27 @@ class BaseDataset(Dataset):
         Abstract method, needs to be define by the children class.
         """
         pass
+
+    def update(self, idx):
+        self.current_idx = idx
+
+        scenario_index = 0
+        for i, ele in enumerate(self.len_record):
+            if idx < ele:
+                scenario_index = i
+                break
+
+        timestamp_index = idx
+        if scenario_index != 0:
+            timestamp_index -= self.len_record[scenario_index - 1]
+
+        scenario_database = self.scenario_database[scenario_index]
+        timestamp_key = self.return_timestamp_key(scenario_database, timestamp_index)
+
+        self.current_scenario_index = scenario_index
+        self.current_timestamp_index = timestamp_index
+        self.current_timestamp_key = timestamp_key
+        self.current_data = self.retrieve_base_data(idx)
 
     def retrieve_base_data(self, idx, cur_ego_pose_flag=True):
         """

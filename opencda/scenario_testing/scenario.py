@@ -206,7 +206,6 @@ class Scenario:
             if self.coperception_model_manager is not None and tick_number > 0:
                 try:
                     logger.info(f"Processing {tick_number} tick")
-                    directory_processor.clear_directory_now()
                     directory_processor.process_directory(tick_number)
                     logger.info(f"Successfully processed {tick_number} tick")
                 except Exception as e:

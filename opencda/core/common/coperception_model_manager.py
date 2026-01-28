@@ -43,9 +43,13 @@ class CoperceptionModelManager:
         }
 
     def make_dataset(self):
-        logger.info("Dataset Building")
-        self.opencood_dataset = build_dataset(self.hypes, visualize=True, train=False, message_handler=self.message_handler)
-        logger.info(f"{len(self.opencood_dataset)} samples found.")
+        if self.opencood_dataset is None:
+            logger.info("Dataset Building")
+            self.opencood_dataset = build_dataset(self.hypes, visualize=True, train=False, message_handler=self.message_handler)
+            logger.info(f"{len(self.opencood_dataset)} samples found.")
+        else:
+            logger.info("Dataset Updating")
+            self.opencood_dataset.update(0)
         self.data_loader = DataLoader(
             self.opencood_dataset,
             batch_size=1,
