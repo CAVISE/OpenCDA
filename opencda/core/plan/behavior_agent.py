@@ -1,9 +1,4 @@
-# -*- coding: utf-8 -*-
-
 """Behavior planning module"""
-
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: TDG-Attribution-NonCommercial-NoDistrib
 
 import logging
 import sys

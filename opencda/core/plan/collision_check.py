@@ -1,8 +1,5 @@
-# -*- coding: utf-8 -*-
 """This module is used to check collision possibility"""
 
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: TDG-Attribution-NonCommercial-NoDistrib
 import math
 from math import sin, cos
 from scipy import spatial

@@ -95,9 +95,9 @@ exclude = [
 
 [tool.deadcode]
 exclude = [
-    "docs", 
-    "OpenCOOD/docs", 
-    "test", 
-    "venv", 
+    "docs",
+    "OpenCOOD/docs",
+    "test",
+    "venv",
     "opencda/core/common/communication/protos/cavise"
 ]
