@@ -97,7 +97,7 @@ class DataDumper(object):
             if image is None:
                 continue
 
-            image_name = "%06d" % count + "_" + "camera%d" % i + ".png"
+            image_name = f"{count:06d}_camera{i}.png"
 
             cv2.imwrite(os.path.join(self.save_parent_folder, image_name), image)
 

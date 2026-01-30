@@ -2,16 +2,7 @@
 Unit test for Localization DebugHelper.
 """
 
-import os
-import sys
 import unittest
-
-
-# temporary solution for relative imports in case opencda is not installed
-# if opencda is installed, no need to use the following line
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), ".")))
-
 from opencda.core.application.platooning.platoon_debug_helper import PlatoonDebugHelper
 
 
