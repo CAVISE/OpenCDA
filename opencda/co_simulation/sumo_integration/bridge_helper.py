@@ -127,7 +127,8 @@ class BridgeHelper(object):
 
         if blueprint.has_attribute("color"):
             if sync_color:
-                color = "{},{},{}".format(sumo_actor.color[0], sumo_actor.color[1], sumo_actor.color[2])
+                color = f"{sumo_actor.color[0]},{sumo_actor.color[1]},{sumo_actor.color[2]}"
+
             else:
                 color = random.choice(blueprint.get_attribute("color").recommended_values)
             blueprint.set_attribute("color", color)

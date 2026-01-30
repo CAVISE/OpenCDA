@@ -4,12 +4,31 @@
 """
 
 from contextlib import contextmanager
+import logging
 
-from . import toolchain
+logger = logging.getLogger("cavise.opencda.opencda.core.common.communication.serialize")
 
-toolchain.CommunicationToolchain.handle_messages(["capi"])
+# Avoid running protoc during import.
+# Try to import generated protobufs first; generate only if missing.
+try:
+    from .protos.cavise import capi_pb2 as proto_capi  # noqa: E402
+
+    logger.debug("Imported generated protobufs module: %s", proto_capi.__name__)
+
+except ImportError:
+    logger.debug("Generated protobufs not found; attempting to generate via toolchain.", exc_info=True)
+    from . import toolchain
+
+    try:
+        toolchain.CommunicationToolchain.handle_messages(["capi"])
+    except FileNotFoundError:
+        # protoc is not available in some environments (e.g. Windows dev machines / minimal CI)
+        logger.warning("protoc not found; assuming generated protobufs already exist.")
+    from .protos.cavise import capi_pb2 as proto_capi  # noqa: E402
 
 from .protos.cavise import capi_pb2 as proto_capi  # noqa: E402
+
+logger.debug("Imported generated protobufs module after generation: %s", proto_capi.__name__)
 from google.protobuf.descriptor import FieldDescriptor  # noqa: E402
 
 
