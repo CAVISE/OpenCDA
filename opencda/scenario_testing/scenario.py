@@ -105,7 +105,6 @@ class Scenario:
 
         logger.info(f"data dump is {'ON' if data_dump else 'OFF'}")
 
-
         if data_dump:
             logger.info("beginning to record the simulation in simulation_output/data_dumping")
             self.scenario_manager.client.start_recorder(f"{self.scenario_name}.log", True)
