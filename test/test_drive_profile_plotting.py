@@ -63,13 +63,11 @@ class TestDriveProfilePlotting(unittest.TestCase):
 
     def test_draw_time_gap_profile_single_plot(self):
         """Test time gap profile plotting runs without error."""
-        # Note: function has typo "singel" in production code
         draw_time_gap_profile_singel_plot(self.mock_time_gap)
         self._assert_figure_created()
 
     def test_draw_dist_gap_profile_single_plot(self):
         """Test distance gap profile plotting runs without error."""
-        # Note: function has typo "singel" in production code
         draw_dist_gap_profile_singel_plot(self.mock_dist_gap)
         self._assert_figure_created()
 
@@ -79,6 +77,3 @@ class TestDriveProfilePlotting(unittest.TestCase):
         draw_velocity_profile_single_plot(single_velocity)
         self._assert_figure_created()
 
-
-if __name__ == "__main__":
-    unittest.main()

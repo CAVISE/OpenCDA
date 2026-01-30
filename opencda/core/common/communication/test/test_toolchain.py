@@ -4,6 +4,9 @@ import pathlib
 
 from opencda.core.common.communication.toolchain import CommunicationToolchain, MessageConfig
 
+def _norm(s) -> str:
+    # Normalize paths for stable assertions (avoid platform-specific separators in stringified args)
+    return str(s).replace("\\", "/")
 
 class TestCommunicationToolchain:
     @pytest.fixture
@@ -31,9 +34,8 @@ class TestCommunicationToolchain:
         args = mock_subprocess.call_args[0][0]
         # Check command structure strictly
         assert args[0] == "protoc"
-        # Windows produces backslashes in paths; normalize for comparison
-        assert args[1].replace("\\", "/") == "--proto_path=opencda/core/common/communication/messages"
-        assert args[2].replace("\\", "/") == "--python_out=opencda/core/common/communication/protos/cavise"
+        assert _norm(args[1]) == "--proto_path=opencda/core/common/communication/messages"
+        assert _norm(args[2]) == "--python_out=opencda/core/common/communication/protos/cavise"
         assert "msg1.proto" in str(args[3])
 
     def test_handle_messages_custom_config(self, mock_subprocess, mock_importlib):
@@ -52,9 +54,9 @@ class TestCommunicationToolchain:
         assert args[2] == "--python_out=bin"
 
         # Verify all messages are included
-        joined_args = " ".join(str(a) for a in args)
-        assert "src/msgA.proto" in joined_args or "src\\msgA.proto" in joined_args
-        assert "src/msgB.proto" in joined_args or "src\\msgB.proto" in joined_args
+        joined_args = _norm(" ".join(str(a) for a in args))
+        assert "src/msgA.proto" in joined_args
+        assert "src/msgB.proto" in joined_args
 
     def test_generate_message_success_logs(self, mock_subprocess, caplog):
         """Test successful generation logs info."""

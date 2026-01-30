@@ -10,7 +10,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.10", "3.11"]
+        python-version: ["3.10", "3.12"]
 
     env:
       MPLBACKEND: Agg
@@ -27,7 +27,7 @@ jobs:
           cache-dependency-path: |
             ci/requirements-ci.txt
             ci/constraints-py310.txt
-            ci/constraints-py311.txt
+            ci/constraints-py312.txt
             pyproject.toml
 
       - name: Install dependencies (CI minimal)
@@ -38,7 +38,7 @@ jobs:
           if [[ "${{ matrix.python-version }}" == "3.10" ]]; then
             pip install -r ci/requirements-ci.txt -c ci/constraints-py310.txt
           else
-            pip install -r ci/requirements-ci.txt -c ci/constraints-py311.txt
+            pip install -r ci/requirements-ci.txt -c ci/constraints-py312.txt
           fi
 
       - name: Generate protobufs (capi)
@@ -53,14 +53,14 @@ jobs:
 
           # Generate capi_pb2.py (required by MessageHandler/serialize imports)
           python -c "from opencda.core.common.communication.toolchain import CommunicationToolchain; CommunicationToolchain.handle_messages(['capi'])"
-
-      - name: Run tests (do not stop after first failure)
+      # do not stop after first failure
+      - name: Run tests
         run: |
           mkdir -p reports
           pytest -ra --maxfail=0 --continue-on-collection-errors \
             --junitxml=reports/pytest-${{ matrix.python-version }}.xml
-
-      - name: Upload JUnit report (even if tests failed)
+      # even if tests failed
+      - name: Upload JUnit report
         # actions/upload-artifact typically fails under nektos/act (no ACTIONS_RUNTIME_TOKEN)
         if: always() && !env.ACT
         uses: actions/upload-artifact@v4
