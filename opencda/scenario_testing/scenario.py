@@ -103,7 +103,8 @@ class Scenario:
 
         data_dump = opt.record or (opt.with_coperception and opt.model_dir is not None)
 
-        logger.info("data dump is " + ("ON" if data_dump else "OFF"))
+        logger.info(f"data dump is {'ON' if data_dump else 'OFF'}")
+
 
         if data_dump:
             logger.info("beginning to record the simulation in simulation_output/data_dumping")

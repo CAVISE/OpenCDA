@@ -57,7 +57,7 @@ class CommunicationToolchain:
             )
             sys.exit(process.returncode)
         else:
-            logger.info("generated protos for: " + " ".join(messages))
+            logger.info(f"generated protos for: {' '.join(messages)}")
 
 
 if __name__ == "__main__":
