@@ -12,6 +12,7 @@ logger = logging.getLogger("cavise.communication.serialize")
 # Try to import generated protobufs first; generate only if missing.
 try:
     from .protos.cavise import capi_pb2 as proto_capi  # noqa: E402
+
     logger.debug("Imported generated protobufs module: %s", proto_capi.__name__)
 
 except ImportError:
@@ -26,6 +27,7 @@ except ImportError:
     from .protos.cavise import capi_pb2 as proto_capi  # noqa: E402
 
 from .protos.cavise import capi_pb2 as proto_capi  # noqa: E402
+
 logger.debug("Imported generated protobufs module after generation: %s", proto_capi.__name__)
 from google.protobuf.descriptor import FieldDescriptor  # noqa: E402
 

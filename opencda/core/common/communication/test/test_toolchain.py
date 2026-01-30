@@ -4,9 +4,11 @@ import pathlib
 
 from opencda.core.common.communication.toolchain import CommunicationToolchain, MessageConfig
 
+
 def _norm(s) -> str:
     # Normalize paths for stable assertions (avoid platform-specific separators in stringified args)
     return str(s).replace("\\", "/")
+
 
 class TestCommunicationToolchain:
     @pytest.fixture

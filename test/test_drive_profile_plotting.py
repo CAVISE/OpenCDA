@@ -76,4 +76,3 @@ class TestDriveProfilePlotting(unittest.TestCase):
         single_velocity = [[10, 15, 20, 25, 30]]
         draw_velocity_profile_single_plot(single_velocity)
         self._assert_figure_created()
-
