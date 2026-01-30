@@ -6,7 +6,7 @@
 from contextlib import contextmanager
 import logging
 
-logger = logging.getLogger("cavise.communication.serialize")
+logger = logging.getLogger("cavise.opencda.opencda.core.common.communication.serialize")
 
 # Avoid running protoc during import.
 # Try to import generated protobufs first; generate only if missing.
