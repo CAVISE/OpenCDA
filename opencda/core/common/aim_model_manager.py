@@ -80,7 +80,6 @@ class AIMModelManager:
         """
         # List of cars from CARLA
         self.carla_vmanagers = carla_vmanagers
-        
         self.cav_ids = [vmanager.vid for vmanager in self.carla_vmanagers]
 
         # Обновляем траектории всех машин (CARLA)
