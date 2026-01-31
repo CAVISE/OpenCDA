@@ -32,7 +32,7 @@ RUN apt-get update && \
         python3-dev=3.12.3-0ubuntu2.1 \
 
         vulkan-tools=1.3.275.0+dfsg1-1 \
-        libglib2.0-0 \
+        libglib2.0-0=2.80.0-6ubuntu3.7  \
     && \
 
     curl -LO https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/${PROTOC_ZIP} && \
