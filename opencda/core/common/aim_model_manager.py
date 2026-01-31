@@ -79,7 +79,7 @@ class AIMModelManager:
         :return: None
         """
         # List of cars from CARLA
-        self.cav_ids = [vid for vid in traci.vehicle.getIDList() if 'carla' in vid]
+        self.cav_ids = [vid for vid in traci.vehicle.getIDList() if "carla" in vid]
 
         self.carla_vmanagers = carla_vmanagers
 
