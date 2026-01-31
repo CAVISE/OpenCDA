@@ -79,9 +79,9 @@ class AIMModelManager:
         :return: None
         """
         # List of cars from CARLA
-        self.cav_ids = [vid for vid in traci.vehicle.getIDList() if "carla" in vid]
-
         self.carla_vmanagers = carla_vmanagers
+        
+        self.cav_ids = [vmanager.vid for vmanager in self.carla_vmanagers]
 
         # Обновляем траектории всех машин (CARLA)
         self.update_trajs()
