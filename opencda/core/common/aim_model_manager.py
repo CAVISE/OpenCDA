@@ -82,10 +82,8 @@ class AIMModelManager:
         self.carla_vmanagers = carla_vmanagers
         self.cav_ids = [vmanager.vid for vmanager in self.carla_vmanagers]
 
-        # Обновляем траектории всех машин (CARLA)
         self.update_trajs()
 
-        # Получаем признаки агентов и список их идентификаторов
         features, target_agent_ids = self.encoding_scenario_features()
         num_agents = features.shape[0]
 
@@ -98,11 +96,9 @@ class AIMModelManager:
 
         predictions = self.model.predict(features, target_agent_ids)
 
-        # Обрабатываем каждого агента
         for idx in range(num_agents):
             vehicle_id = target_agent_ids[idx]
 
-            # Получаем текущую позицию
             pos_x, pos_y = traci.vehicle.getPosition(vehicle_id)
             curr_pos = np.array([pos_x, pos_y])
 
