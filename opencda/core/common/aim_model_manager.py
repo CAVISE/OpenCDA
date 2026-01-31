@@ -76,7 +76,7 @@ class AIMModelManager:
         Creates new trajectories based on model predictions, assigns CAVs new destinations.
 
         :param carla_vmanagers: carla virtual managers
-        :return: None
+        :return: None 
         """
         # List of cars from CARLA
         self.cav_ids = [vid for vid in traci.vehicle.getIDList() if "carla" in vid]
