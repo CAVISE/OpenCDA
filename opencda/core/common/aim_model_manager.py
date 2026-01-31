@@ -76,7 +76,7 @@ class AIMModelManager:
         Creates new trajectories based on model predictions, assigns CAVs new destinations.
 
         :param carla_vmanagers: carla virtual managers
-        :return: None 
+        :return: None
         """
         # List of cars from CARLA
         self.cav_ids = [vid for vid in traci.vehicle.getIDList() if "carla" in vid]
@@ -152,7 +152,6 @@ class AIMModelManager:
                 if len(cav.agent.get_local_planner().get_waypoint_buffer()) == 0:
                     logger.warning(f"{vehicle_id}: waypoint buffer is empty after set_destination!")
             elif vehicle_id in self.mtp_controlled_vehicles:
-
                 cav = self._get_vmanager_by_vid(vehicle_id)
                 cav.set_destination(cav.vehicle.get_location(), cav.agent.end_waypoint.transform.location, clean=True, end_reset=True)
 
@@ -294,7 +293,6 @@ class AIMModelManager:
         nearest_node = self._get_nearest_node(curr_pos)
         control_center = nearest_node.getCoord()
         return self.get_opencda_intention(waypoints, control_center, CONTROL_RADIUS)
-
 
     def encoding_scenario_features(self):
         """
