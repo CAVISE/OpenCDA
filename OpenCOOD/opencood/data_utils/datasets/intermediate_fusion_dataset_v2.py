@@ -205,7 +205,7 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
 
         # exclude all repetitive objects
         unique_indices = [data["object_id_stack"].index(x) for x in set(data["object_id_stack"])]
-        object_stack_all = np.vstack(data["object_id_stack"])
+        object_stack_all = np.vstack(data["object_stack"])
         object_stack_all = object_stack_all[unique_indices]
 
         # make sure bounding boxes across all frames have the same number
