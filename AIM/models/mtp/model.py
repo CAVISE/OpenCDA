@@ -2,18 +2,21 @@ import torch
 import numpy as np
 
 from AIM import AIMModel
-from .constants import HIDDEN_CHANNELS
-from .GNN_mtl_gnn import GNN_mtl_gnn
+from .GNN_mtl_gnn.GNN_mtl_gnn import GNN_mtl_gnn
 from importlib.resources import files
 
 
 class MTP(AIMModel):
-    def __init__(self):
+    def __init__(self, **kwargs):
         super().__init__()
+        self._models = {"GNN_mtl_gnn": GNN_mtl_gnn}
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-        self.model = GNN_mtl_gnn(hidden_channels=HIDDEN_CHANNELS)
+        hidden_channels = kwargs.get("hidden_channels", 128)
+        underling_model = kwargs.get("underling_model", "GNN_mtl_gnn")
+        weight = kwargs.get("weights", "model_rot_gnn_mtl_np_sumo_0911_e3_1930.pth")
+        self.model = self._models[underling_model](hidden_channels=hidden_channels)
 
-        weights_path = files(__package__).joinpath("model_rot_gnn_mtl_np_sumo_0911_e3_1930.pth")
+        weights_path = files(__package__).joinpath(f"{underling_model}/weights/{weight}")
         checkpoint = torch.load(weights_path, map_location=torch.device("cpu"))
         self.model.load_state_dict(checkpoint)
         self.model = self.model.to(self.device)
