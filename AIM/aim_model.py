@@ -9,5 +9,9 @@ class AIMModel(ABC):
         ModelRegistry.register(cls)
 
     @abstractmethod
+    def __init__(self, **kwargs):
+        pass
+
+    @abstractmethod
     def predict(self, features: List, target_agent_ids: List[str]):
         pass
