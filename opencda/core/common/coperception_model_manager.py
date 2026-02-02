@@ -25,10 +25,10 @@ class CoperceptionModelManager:
         self.current_time = current_time
         self.vis = None
 
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         if torch.cuda.is_available():
             self.model.cuda()
-
+            
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.saved_path = self.opt.model_dir
         _, self.model = train_utils.load_saved_model(self.saved_path, self.model)
 
