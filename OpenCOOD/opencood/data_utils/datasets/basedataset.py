@@ -102,13 +102,25 @@ class BaseDataset(Dataset):
         self.scenario_database = OrderedDict()
         self.len_record = []
         
-        # Первоначальное заполнение базы данных
         self.update_database()
 
 
     def update_database(self):
         """
-        Оптимизированный метод обновления базы данных без пересоздания объекта.
+        Update the scenario database by re-scanning the root directory.
+        
+        This is an optimized method to refresh the database and length 
+        records without re-initializing the entire dataset object. It is 
+        particularly useful for real-time simulations where new data 
+        frames are added to the directory dynamically.
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        None
         """
         if self.train:
             root_dir = self.params["root_dir"]
