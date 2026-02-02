@@ -25,16 +25,31 @@ class CoperceptionModelManager:
         self.current_time = current_time
         self.vis = None
 
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         if torch.cuda.is_available():
             self.model.cuda()
 
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.saved_path = self.opt.model_dir
         _, self.model = train_utils.load_saved_model(self.saved_path, self.model)
 
         self.opencood_dataset = None
         self.data_loader = None
         self.message_handler = message_handler
+
+        logger.info("Initial Dataset Building")
+        self.opencood_dataset = build_dataset(self.hypes, visualize=True, train=False,
+                                              message_handler=self.message_handler)
+
+
+        self.data_loader = DataLoader(
+            self.opencood_dataset,
+            batch_size=1,
+            num_workers=0,
+            collate_fn=self.opencood_dataset.collate_batch_test,
+            shuffle=False,
+            pin_memory=False,
+            drop_last=False,
+        )
 
         self.final_result_stat = {
             0.3: {"tp": [], "fp": [], "gt": 0, "score": []},
@@ -43,18 +58,11 @@ class CoperceptionModelManager:
         }
 
     def make_dataset(self):
-        logger.info("Dataset Building")
-        self.opencood_dataset = build_dataset(self.hypes, visualize=True, train=False, message_handler=self.message_handler)
-        logger.info(f"{len(self.opencood_dataset)} samples found.")
-        self.data_loader = DataLoader(
-            self.opencood_dataset,
-            batch_size=1,
-            num_workers=16,
-            collate_fn=self.opencood_dataset.collate_batch_test,
-            shuffle=False,
-            pin_memory=False,
-            drop_last=False,
-        )
+        logger.debug("Refreshing dataset indices")
+        self.opencood_dataset.update_database()
+
+        if len(self.opencood_dataset) == 0:
+            logger.warning("No samples found in dataset after update.")
 
     def make_prediction(self, tick_number):
         assert self.opt.fusion_method in ["late", "early", "intermediate"]

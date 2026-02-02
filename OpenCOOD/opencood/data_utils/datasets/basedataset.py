@@ -94,15 +94,30 @@ class BaseDataset(Dataset):
             self.transmission_speed = 27  # Mbps
             self.backbone_delay = 0  # ms
 
-        if self.train:
-            root_dir = params["root_dir"]
-        else:
-            root_dir = params["validate_dir"]
-
         if "train_params" not in params or "max_cav" not in params["train_params"]:
             self.max_cav = 7
         else:
             self.max_cav = params["train_params"]["max_cav"]
+
+        self.scenario_database = OrderedDict()
+        self.len_record = []
+        
+        # Первоначальное заполнение базы данных
+        self.update_database()
+
+
+    def update_database(self):
+        """
+        Оптимизированный метод обновления базы данных без пересоздания объекта.
+        """
+        if self.train:
+            root_dir = self.params["root_dir"]
+        else:
+            root_dir = self.params["validate_dir"]
+
+        if not os.path.exists(root_dir):
+            logger.warning(f"Root directory {root_dir} does not exist.")
+            return
 
         # first load all paths of different scenarios
         scenario_folders = sorted([os.path.join(root_dir, x) for x in os.listdir(root_dir) if os.path.isdir(os.path.join(root_dir, x))])
@@ -164,8 +179,21 @@ class BaseDataset(Dataset):
                 else:
                     self.scenario_database[i][cav_id]["ego"] = False
 
+        if not self.len_record:
+            self.len_record = [0]
+
+    def __len__(self):
+        return self.len_record[-1] if self.len_record else 0
+
+    # TODO: check the new code above, the old code below
+    """               
+                else:
+                    self.scenario_database[i][cav_id]["ego"] = False
+        
+            
     def __len__(self):
         return self.len_record[-1]
+        """
 
     def __getitem__(self, idx):
         """
