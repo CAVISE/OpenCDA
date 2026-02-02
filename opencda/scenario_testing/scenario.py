@@ -128,21 +128,17 @@ class Scenario:
                 self.coperception_model_manager = CoperceptionModelManager(opt=opt, current_time=current_time, message_handler=self.message_handler)
                 logger.info("created cooperception manager")
 
-        # [CoDrivingInt]
         if opt.with_mtp:
             logger.info("Codriving Model is initialized")
 
             net = sumolib.net.readNet(f"opencda/sumo-assets/{self.scenario_name}/{self.scenario_name}.net.xml")
             nodes = net.getNodes()
 
-            # TODO: Replace with params from scenario file
-            model = get_model("MTP")
-            self.codriving_model_manager = AIMModelManager(
-                model=model,
-                nodes=nodes,
-                excluded_nodes=None,  # scenario_params['excluded_nodes'] if scenario_params['excluded_nodes'] else None
-            )
-        # [CoDrivingInt]
+            aim_config = scenario_params.get("aim", {})
+            aim_model_name = aim_config.pop("model", "MTP")
+            model = get_model(aim_model_name, **aim_config)
+
+            self.codriving_model_manager = AIMModelManager(model=model, nodes=nodes, excluded_nodes=None)
 
         self.platoon_list, self.node_ids["platoon"] = self.scenario_manager.create_platoon_manager(
             map_helper=map_api.spawn_helper_2lanefree, data_dump=data_dump
