@@ -17,6 +17,7 @@ protoc-wheel==21.1
 pytest==9.0.2
 PyYAML==6.0.3
 pyzmq==27.1.0
+pytest-mock==3.14.0
 
 # used by KF/EKF tests
 # version is pinned via per-python constraints (py310 vs py311)

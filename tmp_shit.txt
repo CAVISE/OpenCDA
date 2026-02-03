@@ -1,0 +1,274 @@
+diff --git a/.github/workflows/requirements/requirements-ci.txt b/.github/workflows/requirements/requirements-ci.txt
+index 5032edd..5971c95 100644
+--- a/.github/workflows/requirements/requirements-ci.txt
++++ b/.github/workflows/requirements/requirements-ci.txt
+@@ -17,6 +17,7 @@ protoc-wheel==21.1
+ pytest==9.0.2
+ PyYAML==6.0.3
+ pyzmq==27.1.0
++pytest-mock==3.14.0
+ 
+ # used by KF/EKF tests
+ # version is pinned via per-python constraints (py310 vs py311)
+diff --git a/test/mocked_carla.py b/test/mocked_carla.py
+index 5e7027d..b06fdd7 100644
+--- a/test/mocked_carla.py
++++ b/test/mocked_carla.py
+@@ -1,98 +1,204 @@
+-"""
+-Mock Carla for unit tests.
++"""Lightweight CARLA API mocks used by unit tests.
++
++This module is reused across the test-suite. It must remain backward compatible.
++
++Compatibility requirements:
++- Keep Camera and Lidar classes with original attributes AND new listen/trigger methods.
++- Transform supports BOTH signatures.
++- BoundingBox supports BOTH signatures.
++- Vehicle keeps self.transform attribute.
+ """
+ 
++from __future__ import annotations
++
+ import numpy as np
+ 
+ 
+-class Location(object):
+-    """A mock class for Location."""
++class Location:
++    """A mock class for carla.Location."""
+ 
+-    def __init__(self, x, y, z):
++    def __init__(self, x=0.0, y=0.0, z=0.0):
+         self.x = x
+         self.y = y
+         self.z = z
+ 
++    def __add__(self, other):
++        return Location(self.x + other.x, self.y + other.y, self.z + other.z)
+ 
+-class Transform(object):
+-    """A mock class for transform"""
+-
+-    def __init__(self, x, y, z, pitch=0, yaw=0, roll=0):
+-        self.location = Location(x, y, z)
+-        self.rotation = Rotation(pitch, yaw, roll)
+ 
++class Rotation:
++    """A mock class for carla.Rotation."""
+ 
+-class Rotation(object):
+-    """A mock class for Rotation."""
+-
+-    def __init__(self, pitch, yaw, roll):
++    def __init__(self, pitch=0.0, yaw=0.0, roll=0.0):
+         self.pitch = pitch
+         self.yaw = yaw
+         self.roll = roll
+ 
+ 
+-class Vector3D(object):
+-    """A mock class for Vector3D."""
++class Transform:
++    """A mock class for carla.Transform.
++
++    Supports both:
++    - Transform(location, rotation)
++    - Transform(x, y, z, pitch=0, yaw=0, roll=0)
++    """
++
++    def __init__(self, *args, **kwargs):
++        # New style: Transform(location, rotation)
++        if len(args) == 2 and isinstance(args[0], Location) and isinstance(args[1], Rotation):
++            self.location = args[0]
++            self.rotation = args[1]
++            return
+ 
+-    def __init__(self, x, y, z):
++        # Old style: Transform(x, y, z, pitch=0, yaw=0, roll=0) or keyword-only
++        if len(args) in {0, 3}:
++            if len(args) == 0:
++                x = kwargs.pop("x", 0.0)
++                y = kwargs.pop("y", 0.0)
++                z = kwargs.pop("z", 0.0)
++            else:
++                x, y, z = args
++
++            pitch = kwargs.pop("pitch", 0.0)
++            yaw = kwargs.pop("yaw", 0.0)
++            roll = kwargs.pop("roll", 0.0)
++
++            self.location = Location(x, y, z)
++            self.rotation = Rotation(pitch=pitch, yaw=yaw, roll=roll)
++            return
++
++        raise TypeError("Unsupported Transform signature. Use Transform(location, rotation) or Transform(x, y, z, pitch=0, yaw=0, roll=0).")
++
++
++class Vector3D:
++    """A mock class for carla.Vector3D."""
++
++    def __init__(self, x=0.0, y=0.0, z=0.0):
+         self.x = x
+         self.y = y
+         self.z = z
+ 
+ 
+-class Camera(object):
+-    """A mock class for camera."""
++class BoundingBox:
++    """A mock class for carla.BoundingBox.
+ 
+-    def __init__(self, attributes: dict):
+-        self.attributes = attributes
+-        self.transform = Transform(x=10, y=10, z=10)
++    Supports both:
++    - BoundingBox(corners) where corners is np.ndarray of shape (8, 3)
++    - BoundingBox(location, extent)
++    """
++
++    def __init__(self, *args):
++        self.corners = None
++
++        # Old style: BoundingBox(corners)
++        if len(args) == 1 and isinstance(args[0], np.ndarray):
++            corners = args[0]
++            if corners.shape != (8, 3):
++                raise ValueError("corners must have shape (8, 3)")
++            self.corners = corners
++            center = corners.mean(axis=0)
++            mins = corners.min(axis=0)
++            maxs = corners.max(axis=0)
++            extent = (maxs - mins) / 2.0
++            self.location = Location(float(center[0]), float(center[1]), float(center[2]))
++            self.extent = Vector3D(float(extent[0]), float(extent[1]), float(extent[2]))
++            return
++
++        # New style: BoundingBox(location, extent)
++        if len(args) == 2 and isinstance(args[0], Location) and isinstance(args[1], Vector3D):
++            self.location = args[0]
++            self.extent = args[1]
++            return
++
++        # Default empty bbox
++        if len(args) == 0:
++            self.location = Location()
++            self.extent = Vector3D()
++            return
++
++        raise TypeError("Unsupported BoundingBox signature. Use BoundingBox(corners) or BoundingBox(location, extent).")
++
++
++class Vehicle:
++    """A mock class for carla.Vehicle."""
++
++    def __init__(self, actor_id=1):
++        self.id = actor_id
++        corners = np.random.rand(8, 3)
++        self.bounding_box = BoundingBox(corners)
++        self.transform = Transform(x=12, y=12, z=12)
+ 
+     def get_transform(self):
+         return self.transform
+ 
++    def get_world(self):
++        return None
+ 
+-class Lidar(object):
+-    """A mock class for lidar."""
++    def destroy(self):
++        return True
+ 
+-    def __init__(self, attributes: dict):
+-        self.attributes = attributes
+-        self.transform = Transform(x=11, y=11, z=11)
++
++class Camera:
++    """A mock class for camera.
++
++    Keeps backward compatibility (attributes, transform, get_transform)
++    AND adds new sensor methods (listen, stop, trigger, destroy).
++    """
++
++    def __init__(self, attributes=None):
++        self.attributes = attributes if attributes is not None else {}
++        self.transform = Transform(x=10, y=10, z=10)
++        self._callback = None
++        self.is_listening = False
+ 
+     def get_transform(self):
+         return self.transform
+ 
++    def listen(self, callback):
++        self._callback = callback
++        self.is_listening = True
+ 
+-class BoundingBox(object):
+-    """
+-    A mock class for bounding box.
+-    """
++    def stop(self):
++        self.is_listening = False
+ 
+-    def __init__(self, corners):
+-        """
+-        Construct class.
+-        Args:
+-            corners (nd.nparray): Eight corners of the bounding box. shape:(8, 3)
+-        """
+-        center_x = np.mean(corners[:, 0])
+-        center_y = np.mean(corners[:, 1])
+-        center_z = np.mean(corners[:, 2])
++    def trigger(self, data):
++        """Test helper: manually trigger callback."""
++        if self._callback and self.is_listening:
++            self._callback(data)
+ 
+-        extent_x = (np.max(corners[:, 0]) - np.min(corners[:, 0])) / 2
+-        extent_y = (np.max(corners[:, 1]) - np.min(corners[:, 1])) / 2
+-        extent_z = (np.max(corners[:, 2]) - np.min(corners[:, 2])) / 2
++    def destroy(self):
++        self.stop()
++        return True
+ 
+-        self.location = Location(x=center_x, y=center_y, z=center_z)
+-        self.transform = Transform(x=center_x, y=center_y, z=center_z)
+-        self.extent = Vector3D(x=extent_x, y=extent_y, z=extent_z)
+ 
++class Lidar:
++    """A mock class for lidar.
+ 
+-class Vehicle(object):
+-    """A mock class for vehicle"""
++    Keeps backward compatibility (attributes, transform, get_transform)
++    AND adds new sensor methods (listen, stop, trigger, destroy).
++    """
+ 
+-    def __init__(self):
+-        corner = np.random.random((8, 3))
+-        self.transform = Transform(x=12, y=12, z=12)
+-        self.bounding_box = BoundingBox(corner)
++    def __init__(self, attributes=None):
++        self.attributes = attributes if attributes is not None else {}
++        self.transform = Transform(x=11, y=11, z=11)
++        self._callback = None
++        self.is_listening = False
+ 
+     def get_transform(self):
+         return self.transform
++
++    def listen(self, callback):
++        self._callback = callback
++        self.is_listening = True
++
++    def stop(self):
++        self.is_listening = False
++
++    def trigger(self, data):
++        """Test helper: manually trigger callback."""
++        if self._callback and self.is_listening:
++            self._callback(data)
++
++    def destroy(self):
++        self.stop()
++        return True
