@@ -101,17 +101,16 @@ class BaseDataset(Dataset):
 
         self.scenario_database = OrderedDict()
         self.len_record = []
-        
-        self.update_database()
 
+        self.update_database()
 
     def update_database(self):
         """
         Update the scenario database by re-scanning the root directory.
-        
-        This is an optimized method to refresh the database and length 
-        records without re-initializing the entire dataset object. It is 
-        particularly useful for real-time simulations where new data 
+
+        This is an optimized method to refresh the database and length
+        records without re-initializing the entire dataset object. It is
+        particularly useful for real-time simulations where new data
         frames are added to the directory dynamically.
 
         Parameters
@@ -196,16 +195,6 @@ class BaseDataset(Dataset):
 
     def __len__(self):
         return self.len_record[-1] if self.len_record else 0
-
-    # TODO: check the new code above, the old code below
-    """               
-                else:
-                    self.scenario_database[i][cav_id]["ego"] = False
-        
-            
-    def __len__(self):
-        return self.len_record[-1]
-        """
 
     def __getitem__(self, idx):
         """

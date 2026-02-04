@@ -27,7 +27,7 @@ class CoperceptionModelManager:
 
         if torch.cuda.is_available():
             self.model.cuda()
-            
+
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.saved_path = self.opt.model_dir
         _, self.model = train_utils.load_saved_model(self.saved_path, self.model)
@@ -37,9 +37,7 @@ class CoperceptionModelManager:
         self.message_handler = message_handler
 
         logger.info("Initial Dataset Building")
-        self.opencood_dataset = build_dataset(self.hypes, visualize=True, train=False,
-                                              message_handler=self.message_handler)
-
+        self.opencood_dataset = build_dataset(self.hypes, visualize=True, train=False, message_handler=self.message_handler)
 
         self.data_loader = DataLoader(
             self.opencood_dataset,

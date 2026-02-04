@@ -34,6 +34,9 @@ class DummyDataset:
     def visualize_result(self, *args, **kwargs):
         pass
 
+    def update_database(self):
+        pass
+
 
 class TestCoperceptionModelManager:
     @pytest.fixture
