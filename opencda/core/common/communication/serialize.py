@@ -4,13 +4,32 @@
 """
 
 from contextlib import contextmanager
+import logging
 from typing import Any, Dict, Iterator, Literal, Type, Union
 
-from . import toolchain
+logger = logging.getLogger("cavise.opencda.opencda.core.common.communication.serialize")
 
-toolchain.CommunicationToolchain.handle_messages(["capi"])
+# Avoid running protoc during import.
+# Try to import generated protobufs first; generate only if missing.
+try:
+    from .protos.cavise import capi_pb2 as proto_capi  # noqa: E402
+
+    logger.debug("Imported generated protobufs module: %s", proto_capi.__name__)
+
+except ImportError:
+    logger.debug("Generated protobufs not found; attempting to generate via toolchain.", exc_info=True)
+    from . import toolchain
+
+    try:
+        toolchain.CommunicationToolchain.handle_messages(["capi"])
+    except FileNotFoundError:
+        # protoc is not available in some environments (e.g. Windows dev machines / minimal CI)
+        logger.warning("protoc not found; assuming generated protobufs already exist.")
+    from .protos.cavise import capi_pb2 as proto_capi  # noqa: E402
 
 from .protos.cavise import capi_pb2 as proto_capi  # noqa: E402
+
+logger.debug("Imported generated protobufs module after generation: %s", proto_capi.__name__)
 from google.protobuf.descriptor import FieldDescriptor  # noqa: E402
 
 
@@ -18,11 +37,11 @@ from google.protobuf.descriptor import FieldDescriptor  # noqa: E402
 class MessageHandler:
     """
     Handler for serializing and deserializing protobuf messages.
-    
+
     Manages OpenCDA and Artery message serialization/deserialization,
     including support for NDArray custom types and validation of
     message field types and labels.
-    
+
     Attributes
     ----------
     current_message_opencda : Dict[str, Dict[str, Dict[str, Any]]]
@@ -34,6 +53,7 @@ class MessageHandler:
     LABEL_MAP : Dict[str, int]
         Mapping from label names to protobuf FieldDescriptor label constants.
     """
+
     def __init__(self) -> None:
         self.current_message_opencda: Dict[str, Dict[str, Dict[str, Any]]] = {}
         self.current_message_artery: Dict[str, Dict[str, Dict[str, Dict[str, Any]]]] = {}
@@ -132,7 +152,7 @@ class MessageHandler:
                             FieldDescriptor.TYPE_SFIXED32,
                             FieldDescriptor.TYPE_SFIXED64,
                         ):
-                            expected_python_type:  Union[Type[int], Type[float], Type[str], Type[bool], Literal["NDArray"]] = int
+                            expected_python_type: Union[Type[int], Type[float], Type[str], Type[bool], Literal["NDArray"]] = int
                         elif field.type in (FieldDescriptor.TYPE_FLOAT, FieldDescriptor.TYPE_DOUBLE):
                             expected_python_type = float
                         elif field.type == FieldDescriptor.TYPE_STRING:

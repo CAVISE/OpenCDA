@@ -69,7 +69,7 @@ def post_act_block(
 
     m = SparseSequential(
         conv,
-        norm_fn(out_channels), #NOTE None-check is required 
+        norm_fn(out_channels),  # NOTE None-check is required
         nn.ReLU(),
     )
 

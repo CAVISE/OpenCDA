@@ -22,7 +22,9 @@ class BallQuery(Function):
     """
 
     @staticmethod
-    def forward(ctx: Any, radius: float, nsample: int, xyz: torch.Tensor, xyz_batch_cnt: torch.Tensor, new_xyz: torch.Tensor, new_xyz_batch_cnt: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    def forward(
+        ctx: Any, radius: float, nsample: int, xyz: torch.Tensor, xyz_batch_cnt: torch.Tensor, new_xyz: torch.Tensor, new_xyz_batch_cnt: torch.Tensor
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Find neighbors within radius for each query point.
 

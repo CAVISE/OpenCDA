@@ -17,7 +17,7 @@ VIRIDIS = np.array(cm.get_cmap("viridis").colors)
 VID_RANGE = np.linspace(0.0, 1.0, VIRIDIS.shape[0])
 
 
-def get_camera_intrinsic(sensor: Any) -> npt.npt.NDArray[np.float64]:
+def get_camera_intrinsic(sensor: Any) -> npt.NDArray[np.float64]:
     """
     Retrieve the camera intrinsic matrix.
 
@@ -44,7 +44,7 @@ def get_camera_intrinsic(sensor: Any) -> npt.npt.NDArray[np.float64]:
     return matrix_k
 
 
-def create_bb_points(vehicle: Any) -> npt.npt.NDArray[np.float64]:
+def create_bb_points(vehicle: Any) -> npt.NDArray[np.float64]:
     """
     Extract the eight vertices of the bounding box from the vehicle.
 
@@ -74,7 +74,7 @@ def create_bb_points(vehicle: Any) -> npt.npt.NDArray[np.float64]:
     return bbx
 
 
-def x_to_world_transformation(transform: Any) -> npt.npt.NDArray[np.float64]:
+def x_to_world_transformation(transform: Any) -> npt.NDArray[np.float64]:
     """
     Get the transformation matrix from x(it can be vehicle or sensor)
     coordinates to world coordinate.
@@ -121,7 +121,7 @@ def x_to_world_transformation(transform: Any) -> npt.npt.NDArray[np.float64]:
     return matrix
 
 
-def bbx_to_world(cords: npt.npt.NDArray[np.float64], vehicle: Any) -> npt.npt.NDArray[np.float64]:
+def bbx_to_world(cords: npt.NDArray[np.float64], vehicle: Any) -> npt.NDArray[np.float64]:
     """
     Convert bounding box coordinate at vehicle reference to world reference.
 
@@ -406,8 +406,8 @@ def project_lidar_to_camera(
     new_intensity = intensity[points_in_canvas_mask]
 
     # Extract the screen coords (uv) as integers.
-    u_coord = new_points_2d[:, 0].astype(np.int)
-    v_coord = new_points_2d[:, 1].astype(np.int)
+    u_coord = new_points_2d[:, 0].astype(int)
+    v_coord = new_points_2d[:, 1].astype(int)
 
     # Since at the time of the creation of this script, the intensity function
     # is returning high values, these are adjusted to be nicely visualized.
@@ -420,7 +420,7 @@ def project_lidar_to_camera(
                 np.interp(new_intensity, VID_RANGE, VIRIDIS[:, 2]) * 255.0,
             ]
         )
-        .astype(np.int)
+        .astype(int)
         .T
     )
 

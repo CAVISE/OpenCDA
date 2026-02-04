@@ -94,7 +94,7 @@ class CiassdPostprocessor(VoxelPostprocessor):
             # (N, W*L*anchor_num, 7)
             batch_box3d = self.delta_to_boxes3d(reg, anchor_box, False)
             mask = torch.gt(prob, self.params["target_args"]["score_threshold"])
-            batch_num_box_count = [int(m.sum()) for m in mask] #NOTE Name "batch_num_box_count" is not defined
+            batch_num_box_count = [int(m.sum()) for m in mask]  # NOTE Name "batch_num_box_count" is not defined
             mask = mask.view(1, -1)
             mask_reg = mask.unsqueeze(2).repeat(1, 1, 7)
 
@@ -135,7 +135,7 @@ class CiassdPostprocessor(VoxelPostprocessor):
         # shape: (N, 5)
         pred_box2d_list = torch.vstack(pred_box2d_list)
         # scores
-        scores = pred_box2d_list[:, -1] # NOTE: mypy error - list doesn't support numpy-style indexing 
+        scores = pred_box2d_list[:, -1]  # NOTE: mypy error - list doesn't support numpy-style indexing
         # predicted 3d bbx
         pred_box3d_tensor = torch.vstack(pred_box3d_list)
         pred_box3d_original = torch.vstack(pred_box3d_original_list)
@@ -168,7 +168,7 @@ class CiassdPostprocessor(VoxelPostprocessor):
             cur_idx = 0
             batch_pred_boxes3d = []
             batch_scores = []
-            for n in batch_num_box_count: #NOTE Name "batch_num_box_count" is not defined
+            for n in batch_num_box_count:  # NOTE Name "batch_num_box_count" is not defined
                 cur_boxes = pred_box3d_tensor[cur_idx : cur_idx + n]
                 cur_scores = scores[cur_idx : cur_idx + n]
                 # nms

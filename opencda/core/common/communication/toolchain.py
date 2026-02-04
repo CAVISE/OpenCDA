@@ -35,7 +35,7 @@ class CommunicationToolchain:
     # invoke subroutine to create python message impl from proto file
     @staticmethod
     def generate_message(config: MessageConfig, messages: typing.List[str]) -> None:
-        command: typing.List[typing.Union[str, pathlib.PurePath]]  = [
+        command: typing.List[typing.Union[str, pathlib.PurePath]] = [
             "protoc",
             f"--proto_path={config.source_dir}",
             f"--python_out={config.binary_dir}",
@@ -57,7 +57,7 @@ class CommunicationToolchain:
             )
             sys.exit(process.returncode)
         else:
-            logger.info("generated protos for: " + " ".join(messages))
+            logger.info(f"generated protos for: {' '.join(messages)}")
 
 
 if __name__ == "__main__":

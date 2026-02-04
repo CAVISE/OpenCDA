@@ -300,7 +300,7 @@ class Where2comm(nn.Module):
             ups = []
 
             for i in range(self.num_levels):
-                x = backbone.blocks[i](x) #NOTE None-check is required
+                x = backbone.blocks[i](x)  # NOTE None-check is required
 
                 # 1. Communication (mask the features)
                 if i == 0:
@@ -329,8 +329,8 @@ class Where2comm(nn.Module):
                 x_fuse = torch.stack(x_fuse)
 
                 # 4. Deconv
-                if len(backbone.deblocks) > 0: #NOTE None-check is required
-                    ups.append(backbone.deblocks[i](x_fuse)) #NOTE None-check is required
+                if len(backbone.deblocks) > 0:  # NOTE None-check is required
+                    ups.append(backbone.deblocks[i](x_fuse))  # NOTE None-check is required
                 else:
                     ups.append(x_fuse)
 
@@ -339,8 +339,8 @@ class Where2comm(nn.Module):
             elif len(ups) == 1:
                 x_fuse = ups[0]
 
-            if len(backbone.deblocks) > self.num_levels:  #NOTE None-check is required
-                x_fuse = backbone.deblocks[-1](x_fuse)  #NOTE None-check is required
+            if len(backbone.deblocks) > self.num_levels:  # NOTE None-check is required
+                x_fuse = backbone.deblocks[-1](x_fuse)  # NOTE None-check is required
         else:
             # 1. Communication (mask the features)
             if self.fully:

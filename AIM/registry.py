@@ -10,6 +10,7 @@ class ModelRegistry:
     and retrieving model classes by name. It prevents duplicate registrations
     and excludes abstract classes from being registered.
     """
+
     _registry: dict[str, type] = {}
 
     @classmethod
@@ -67,7 +68,7 @@ class ModelRegistry:
             model_cls = cls._registry[name]
         else:
             raise KeyError(f"Unknown model '{name}'. Available: {list(cls._registry)}")
-        return model_cls(*args, **kwargs)
+        return model_cls(**kwargs)
 
     @classmethod
     def list_models(cls) -> KeysView[str]:
@@ -79,5 +80,5 @@ class ModelRegistry:
         Iterator[str]
             Iterator over registered model names.
         """
-        
+
         return cls._registry.keys()

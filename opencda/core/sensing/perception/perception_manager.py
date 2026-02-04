@@ -9,7 +9,7 @@ sensors with optional visualization and ML-based detection.
 import weakref
 import sys
 import logging
-from typing import Optional, List, Dict, Any, Tuple
+from typing import Optional, List, Dict, Any, Sequence, Tuple
 
 import carla
 import cv2
@@ -379,7 +379,7 @@ class PerceptionManager:
         carla_world: Optional[Any] = None,
     ):
         self.vehicle = vehicle
-        self.carla_world = carla_world if carla_world is not None else self.vehicle.get_world() #NOTE None-check is required
+        self.carla_world = carla_world if carla_world is not None else self.vehicle.get_world()  # NOTE None-check is required
         self._map = self.carla_world.get_map()
 
         self.id = infra_id
@@ -467,7 +467,7 @@ class PerceptionManager:
         distance : float
             The distance between ego and the target actor.
         """
-        return a.get_location().distance(self.ego_pos.location) #NOTE None-check is required
+        return a.get_location().distance(self.ego_pos.location)  # NOTE None-check is required
 
     def detect(self, ego_pos: carla.Transform) -> Dict[str, List]:
         """
@@ -516,7 +516,7 @@ class PerceptionManager:
         """
         # retrieve current cameras and lidar data
         rgb_images = []
-        for rgb_camera in self.rgb_camera: #NOTE None-check is required
+        for rgb_camera in self.rgb_camera:  # NOTE None-check is required
             while rgb_camera.image is None:
                 continue
             rgb_images.append(cv2.cvtColor(np.array(rgb_camera.image), cv2.COLOR_BGR2RGB))
@@ -526,14 +526,18 @@ class PerceptionManager:
         # rgb_images for drawing
         rgb_draw_images = []
 
-        for i, rgb_camera in enumerate(self.rgb_camera):
+        for i, rgb_camera in enumerate(self.rgb_camera):  # NOTE incompatible types
             # lidar projection
-            rgb_image, projected_lidar = st.project_lidar_to_camera(self.lidar.sensor, rgb_camera.sensor, self.lidar.data, np.array(rgb_camera.image))
+            rgb_image, projected_lidar = st.project_lidar_to_camera(
+                self.lidar.sensor, rgb_camera.sensor, self.lidar.data, np.array(rgb_camera.image)
+            )  # NOTE None-check is required
 
             rgb_draw_images.append(rgb_image)
 
             # camera lidar fusion
-            objects = o3d_camera_lidar_fusion(objects, yolo_detection.xyxy[i], self.lidar.data, projected_lidar, self.lidar.sensor)
+            objects = o3d_camera_lidar_fusion(
+                objects, yolo_detection.xyxy[i], self.lidar.data, projected_lidar, self.lidar.sensor
+            )  # NOTE None-check is required
 
             # calculate the speed. current we retrieve from the server
             # directly.
@@ -549,9 +553,9 @@ class PerceptionManager:
             cv2.waitKey(1)
 
         if self.lidar_visualize:
-            while self.lidar.data is None: #NOTE None-check is required
+            while self.lidar.data is None:  # NOTE None-check is required
                 continue
-            o3d_pointcloud_encode(self.lidar.data, self.lidar.o3d_pointcloud)
+            o3d_pointcloud_encode(self.lidar.data, self.lidar.o3d_pointcloud)  # NOTE None-check is required
             o3d_visualizer_show(self.o3d_vis, self.count, self.lidar.o3d_pointcloud, objects)
         # add traffic light
         objects = self.retrieve_traffic_lights(objects)
@@ -591,14 +595,14 @@ class PerceptionManager:
         # visualization is required.
         sensor = self.lidar.sensor if self.lidar else None
 
-        vehicle_list = [ObstacleVehicle(None, None, v, sensor, self.cav_world.sumo2carla_ids) for v in vehicle_list]
+        vehicle_list = [ObstacleVehicle(None, None, v, sensor, self.cav_world.sumo2carla_ids) for v in vehicle_list]  # NOTE None-check is required
 
         objects.update({"vehicles": vehicle_list})
 
         if self.camera_visualize:
             names = ["front", "right", "left", "back"]
 
-            for i, rgb_camera in enumerate(self.rgb_camera):
+            for i, rgb_camera in enumerate(self.rgb_camera):  # NOTE Incompatible types
                 if i > self.camera_num - 1 or i > self.camera_visualize - 1:
                     break
                 while self.rgb_camera[0].image is None:
@@ -615,11 +619,11 @@ class PerceptionManager:
                 cv2.waitKey(1)
 
         if self.lidar_visualize:
-            while self.lidar.data is None:
+            while self.lidar.data is None:  # NOTE None-check is required
                 continue
-            o3d_pointcloud_encode(self.lidar.data, self.lidar.o3d_pointcloud)
+            o3d_pointcloud_encode(self.lidar.data, self.lidar.o3d_pointcloud)  # NOTE None-check is required
             # render the raw lidar
-            o3d_visualizer_show(self.o3d_vis, self.count, self.lidar.o3d_pointcloud, objects)
+            o3d_visualizer_show(self.o3d_vis, self.count, self.lidar.o3d_pointcloud, objects)  # NOTE None-check is required
 
         # add traffic light
         objects = self.retrieve_traffic_lights(objects)
@@ -688,7 +692,7 @@ class PerceptionManager:
             Indicate the index of the current camera.
 
         """
-        camera_transform = self.rgb_camera[camera_index].sensor.get_transform()
+        camera_transform = self.rgb_camera[camera_index].sensor.get_transform()  # NOTE "None" is not indexable
         camera_location = camera_transform.location
         camera_rotation = camera_transform.rotation
 
@@ -696,7 +700,7 @@ class PerceptionManager:
             # we only draw the bounding box in the fov of camera
             _, angle = cal_distance_angle(v.get_location(), camera_location, camera_rotation.yaw)
             if angle < 60:
-                bbx_camera = st.get_2d_bb(v, self.rgb_camera[camera_index].sensor, camera_transform)
+                bbx_camera = st.get_2d_bb(v, self.rgb_camera[camera_index].sensor, camera_transform)  # NOTE "None" is not indexable
                 cv2.rectangle(
                     rgb_image, (int(bbx_camera[0, 0]), int(bbx_camera[0, 1])), (int(bbx_camera[1, 0]), int(bbx_camera[1, 1])), (255, 0, 0), 2
                 )
@@ -735,8 +739,8 @@ class PerceptionManager:
 
                     # the case where the obstacle vehicle is controled by
                     # sumo
-                    if self.cav_world.sumo2carla_ids:
-                        sumo_speed = get_speed_sumo(self.cav_world.sumo2carla_ids, v.id)
+                    if self.cav_world.sumo2carla_ids:  # NOTE None-check is required
+                        sumo_speed = get_speed_sumo(self.cav_world.sumo2carla_ids, v.id)  # NOTE None-check is required
                         if sumo_speed > 0:
                             # TODO: consider the yaw angle in the future
                             speed_vector = carla.Vector3D(sumo_speed, 0, 0)
@@ -762,7 +766,7 @@ class PerceptionManager:
         world = self.carla_world
         tl_list = world.get_actors().filter("traffic.traffic_light*")
 
-        vehicle_location = self.ego_pos.location
+        vehicle_location = self.ego_pos.location  # NOTE "None" has no attribute "location"
         vehicle_waypoint = self._map.get_waypoint(vehicle_location)
 
         activate_tl, light_trigger_location = self._get_active_light(tl_list, vehicle_location, vehicle_waypoint)
@@ -774,7 +778,33 @@ class PerceptionManager:
             objects["traffic_lights"].append(traffic_light)
         return objects
 
-    def _get_active_light(self, tl_list, vehicle_location, vehicle_waypoint):
+    def _get_active_light(
+        self, tl_list: Sequence[carla.TrafficLight], vehicle_location: carla.Location, vehicle_waypoint: carla.Waypoint
+    ) -> Tuple[Optional[carla.TrafficLight], Optional[carla.Location]]:
+        """
+        Select the relevant traffic light for the ego vehicle and return its trigger location.
+
+        The method filters candidate traffic lights by:
+        - Same road id as the vehicle waypoint.
+        - Same driving direction (using forward-vector dot product).
+        - Advances the light waypoint forward until reaching the intersection boundary
+        (to get a stable "stop-line / intersection entry" location).
+
+        Parameters
+        ----------
+        tl_list : Sequence[carla.TrafficLight]
+            Candidate traffic lights to consider (typically nearby lights).
+        vehicle_location : carla.Location
+            Current location of the vehicle (kept for API symmetry; not used in current logic).
+        vehicle_waypoint : carla.Waypoint
+            Waypoint corresponding to the vehicle's current lane/road.
+
+        Returns
+        -------
+        (traffic_light, trigger_location) : tuple[Optional[carla.TrafficLight], Optional[carla.Location]]
+            - traffic_light: The selected traffic light if a suitable one is found, else None.
+            - trigger_location: A location near the intersection entry for that light, else None.
+        """
         for tl in tl_list:
             object_location = TrafficLight.get_trafficlight_trigger_location(tl)
             object_waypoint = self._map.get_waypoint(object_location)
@@ -799,7 +829,7 @@ class PerceptionManager:
 
         return None, None
 
-    def destroy(self):
+    def destroy(self) -> None:
         """
         Destroy sensors.
         """

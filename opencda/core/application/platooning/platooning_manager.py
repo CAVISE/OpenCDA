@@ -191,7 +191,7 @@ class PlatooningManager(object):
 
             # find the corresponding vehicle manager and add it to the leader's
             # whitelist
-            request_vm = self.cav_world.locate_vehicle_manager(request_loc) # NOTE: A None-check is required
+            request_vm = self.cav_world.locate_vehicle_manager(request_loc)  # NOTE: A None-check is required
             self.vehicle_manager_list[0].agent.add_white_list(request_vm)
 
             return True

@@ -231,7 +231,9 @@ class LocalizationManager(object):
                 self._speed = speed_true
                 self.kf.run_step_init(x, y, np.deg2rad(heading_angle), self._speed / 3.6)
             else:
-                x_kf, y_kf, heading_angle_kf, speed_kf = self.kf.run_step(x, y, np.deg2rad(heading_angle), speed_noise / 3.6, self.imu.gyroscope[2]) #NOTE Value of type "None" is not indexable
+                x_kf, y_kf, heading_angle_kf, speed_kf = self.kf.run_step(
+                    x, y, np.deg2rad(heading_angle), speed_noise / 3.6, self.imu.gyroscope[2]
+                )  # NOTE Value of type "None" is not indexable
                 self._speed = speed_kf * 3.6
                 heading_angle_kf = np.rad2deg(heading_angle_kf)
 

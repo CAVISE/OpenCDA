@@ -142,7 +142,7 @@ class V2XManager(object):
         """
         Search the CAVs nearby.
         """
-        vehicle_manager_dict = self.cav_world.get_vehicle_managers() #NOTE: cav_world can be None
+        vehicle_manager_dict = self.cav_world.get_vehicle_managers()  # NOTE: cav_world can be None
 
         for vid, vm in vehicle_manager_dict.items():
             # avoid the Nonetype error at the first simulation step
@@ -162,7 +162,7 @@ class V2XManager(object):
     -----------------------------------------------------------
     """
 
-    def set_platoon(self, in_id: int, platooning_object: Any=None, platooning_id:Optional[bool]=None, leader:bool=False) -> None:
+    def set_platoon(self, in_id: int, platooning_object: Any = None, platooning_id: Optional[bool] = None, leader: bool = False) -> None:
         """
         Set platooning status
 

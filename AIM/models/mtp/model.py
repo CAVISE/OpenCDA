@@ -1,11 +1,10 @@
-from typing import List
+from typing import List, Any
 import torch
 import numpy as np
 import numpy.typing as npt
 
 from AIM import AIMModel
-from .constants import HIDDEN_CHANNELS
-from .GNN_mtl_gnn import GNN_mtl_gnn
+from .GNN_mtl_gnn.GNN_mtl_gnn import GNN_mtl_gnn
 from importlib.resources import files
 
 
@@ -16,12 +15,17 @@ class MTP(AIMModel):
     This class implements trajectory prediction functionality with support
     for coordinate system transformations between SUMO and CARLA.
     """
-    def __init__(self) -> None:
-        super().__init__()
-        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-        self.model = GNN_mtl_gnn(hidden_channels=HIDDEN_CHANNELS)
 
-        weights_path = files(__package__).joinpath("model_rot_gnn_mtl_np_sumo_0911_e3_1930.pth")
+    def __init__(self, **kwargs: Any):
+        super().__init__()
+        self._models = {"GNN_mtl_gnn": GNN_mtl_gnn}
+        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        hidden_channels = kwargs.get("hidden_channels", 128)
+        underling_model = kwargs.get("underling_model", "GNN_mtl_gnn")
+        weight = kwargs.get("weights", "model_rot_gnn_mtl_np_sumo_0911_e3_1930.pth")
+        self.model = self._models[underling_model](hidden_channels=hidden_channels)
+
+        weights_path = files(__package__).joinpath(f"{underling_model}/weights/{weight}")
         checkpoint = torch.load(weights_path, map_location=torch.device("cpu"))
         self.model.load_state_dict(checkpoint)
         self.model = self.model.to(self.device)

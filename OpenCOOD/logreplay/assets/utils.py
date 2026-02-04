@@ -1,5 +1,6 @@
 from typing import Optional, Tuple, cast
-from logreplay.assets.presave_lib import TOWN_DICTIONARY, BLUE_PRINT_LIB 
+from logreplay.assets.presave_lib import TOWN_DICTIONARY, BLUE_PRINT_LIB
+
 
 def find_town(scenario_name: str) -> str:
     """

@@ -180,9 +180,10 @@ class Controller:
         float
             Desired steering angle value clipped to [-1.0, 1.0] range.
         """
-        v_begin = self.current_transform.location #NOTE None-check is required
+        v_begin = self.current_transform.location  # NOTE None-check is required
         v_end = v_begin + carla.Location(
-            x=math.cos(math.radians(self.current_transform.rotation.yaw)), y=math.sin(math.radians(self.current_transform.rotation.yaw)) #NOTE None-check is required
+            x=math.cos(math.radians(self.current_transform.rotation.yaw)),
+            y=math.sin(math.radians(self.current_transform.rotation.yaw)),  # NOTE None-check is required
         )
         v_vec = np.array([v_end.x - v_begin.x, v_end.y - v_begin.y, 0.0])
         w_vec = np.array([target_location.x - v_begin.x, target_location.y - v_begin.y, 0.0])
@@ -192,7 +193,7 @@ class Controller:
         if _cross[2] < 0:
             _dot *= -1.0
 
-        self._lon_ebuffer.append(_dot) #NOTE "Controller" has no attribute "_lon_ebuffer"
+        self._lon_ebuffer.append(_dot)  # NOTE "Controller" has no attribute "_lon_ebuffer"
         if len(self._lon_ebuffer) >= 2:
             _de = (self._lon_ebuffer[-1] - self._lon_ebuffer[-2]) / self.dt
             _ie = sum(self._lon_ebuffer) * self.dt

@@ -207,7 +207,7 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
         # first find the ego vehicle's lidar pose
         for cav_id, cav_content in base_data_dict.items():
             if cav_content["ego"]:
-                ego_id = cav_id #NOTE Incompatible types
+                ego_id = cav_id  # NOTE Incompatible types
                 ego_lidar_pose = cav_content["params"]["lidar_pose"]
                 break
 
@@ -215,7 +215,7 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
         assert ego_id != -1
         assert len(ego_lidar_pose) > 0
 
-        return ego_id, ego_lidar_pose #NOTE Incompatible return
+        return ego_id, ego_lidar_pose  # NOTE Incompatible return
 
     def __prepare_object_stack(
         self, object_stack: List[npt.NDArray[np.float64]], object_id_stack: List[int]
@@ -242,12 +242,12 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
         # exclude all repetitive objects
         unique_indices = [object_id_stack.index(x) for x in set(object_id_stack)]
         object_stack = np.vstack(object_stack)
-        object_stack = object_stack[unique_indices] # NOTE: mypy error - convert to np.array
+        object_stack = object_stack[unique_indices]  # NOTE: mypy error - convert to np.array
 
         # make sure bounding boxes across all frames have the same number
         object_bbx_center = np.zeros((self.params["postprocess"]["max_num"], 7))
         mask = np.zeros(self.params["postprocess"]["max_num"])
-        object_bbx_center[: object_stack.shape[0], :] = object_stack # NOTE: mypy error - convert to np.array
+        object_bbx_center[: object_stack.shape[0], :] = object_stack  # NOTE: mypy error - convert to np.array
         mask[: object_stack.shape[0]] = 1
 
         filtered_object_ids = [object_id_stack[i] for i in unique_indices]
@@ -326,22 +326,22 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
         projected_lidar_stack: Optional[List] = [] if self.visualize else None
 
         ego_cav_base = base_data_dict.get(ego_id)
-        ego_cav_processed = self.get_item_single_car(ego_cav_base, ego_lidar_pose) #NOTE None-check is required
+        ego_cav_processed = self.get_item_single_car(ego_cav_base, ego_lidar_pose)  # NOTE None-check is required
 
         infra.append(1 if "rsu" in ego_id else 0)
         velocity.append(ego_cav_processed["velocity"])
-        time_delay.append(float(ego_cav_base["time_delay"])) #NOTE None-check is required
+        time_delay.append(float(ego_cav_base["time_delay"]))  # NOTE None-check is required
         object_id_stack += ego_cav_processed["object_ids"]
         object_stack.append(ego_cav_processed["object_bbx_center"])
-        spatial_correction_matrix.append(ego_cav_base["params"]["spatial_correction_matrix"]) #NOTE None-check is required
+        spatial_correction_matrix.append(ego_cav_base["params"]["spatial_correction_matrix"])  # NOTE None-check is required
         processed_features.append(ego_cav_processed["processed_features"])
         if self.visualize:
-            projected_lidar_stack.append(ego_cav_processed["projected_lidar"]) #NOTE None-check is required
+            projected_lidar_stack.append(ego_cav_processed["projected_lidar"])  # NOTE None-check is required
 
-        if ego_id in self.message_handler.current_message_artery: #NOTE None-check is required
+        if ego_id in self.message_handler.current_message_artery:  # NOTE None-check is required
             for cav_id, _ in base_data_dict.items():
-                if cav_id in self.message_handler.current_message_artery[ego_id]: #NOTE None-check is required
-                    with self.message_handler.handle_artery_message(ego_id, cav_id, self.module_name) as msg: #NOTE None-check is required
+                if cav_id in self.message_handler.current_message_artery[ego_id]:  # NOTE None-check is required
+                    with self.message_handler.handle_artery_message(ego_id, cav_id, self.module_name) as msg:  # NOTE None-check is required
                         infra.append(msg["infra"])
                         velocity.append(msg["velocity"])
                         time_delay.append(msg["time_delay"])
@@ -371,7 +371,7 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
                         if self.visualize:
                             projected = np.frombuffer(msg["projected_lidar"]["data"], np.dtype(msg["projected_lidar"]["dtype"]))
                             projected = projected.reshape(msg["projected_lidar"]["shape"])
-                            projected_lidar_stack.append(projected) #NOTE list has no attribute "append"
+                            projected_lidar_stack.append(projected)  # NOTE list has no attribute "append"
 
         return {
             "processed_features": processed_features,
@@ -428,7 +428,7 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
             processed_features.append(selected_cav_processed["processed_features"])
 
             if self.visualize:
-                projected_lidar_stack.append(selected_cav_processed["projected_lidar"]) #NOTE list has no attribute "append"
+                projected_lidar_stack.append(selected_cav_processed["projected_lidar"])  # NOTE list has no attribute "append"
 
         return {
             "processed_features": processed_features,
@@ -470,8 +470,8 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
         object_bbx_center, mask, object_ids = self.__prepare_object_stack(data["object_stack"], data["object_id_stack"])
 
         merged_feature_dict = self.merge_features_to_dict(data["processed_features"])
-        anchor_box = self.post_processor.generate_anchor_box() #NOTE None-check is required
-        label_dict = self.post_processor.generate_label(gt_box_center=object_bbx_center, anchors=anchor_box, mask=mask) #NOTE None-check is required
+        anchor_box = self.post_processor.generate_anchor_box()  # NOTE None-check is required
+        label_dict = self.post_processor.generate_label(gt_box_center=object_bbx_center, anchors=anchor_box, mask=mask)  # NOTE None-check is required
 
         spatial_correction_matrix = self.__pad_spatial_matrix(data["spatial_correction_matrix"])
         velocity = self.__pad_to_max(data["velocity"], 0.0)
@@ -522,7 +522,9 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
         transformation_matrix = selected_cav_base["params"]["transformation_matrix"]
 
         # retrieve objects under ego coordinates
-        object_bbx_center, object_bbx_mask, object_ids = self.post_processor.generate_object_center([selected_cav_base], ego_pose) #NOTE None-check is required
+        object_bbx_center, object_bbx_mask, object_ids = self.post_processor.generate_object_center(
+            [selected_cav_base], ego_pose
+        )  # NOTE None-check is required
 
         # filter lidar
         lidar_np = selected_cav_base["lidar_np"]
@@ -533,7 +535,7 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
         if self.proj_first:
             lidar_np[:, :3] = box_utils.project_points_by_matrix_torch(lidar_np[:, :3], transformation_matrix)
         lidar_np = mask_points_by_range(lidar_np, self.params["preprocess"]["cav_lidar_range"])
-        processed_lidar = self.pre_processor.preprocess(lidar_np) #NOTE None-check is required
+        processed_lidar = self.pre_processor.preprocess(lidar_np)  # NOTE None-check is required
 
         # velocity
         velocity = selected_cav_base["params"]["ego_speed"]
@@ -645,10 +647,10 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
         # example: {'voxel_features':[np.array([1,2,3]]),
         # np.array([3,5,6]), ...]}
         merged_feature_dict = self.merge_features_to_dict(processed_lidar_list)
-        processed_lidar_torch_dict = self.pre_processor.collate_batch(merged_feature_dict) #NOTE None-check is required
+        processed_lidar_torch_dict = self.pre_processor.collate_batch(merged_feature_dict)  # NOTE None-check is required
         # [2, 3, 4, ..., M], M <= max_cav
         record_len = torch.from_numpy(np.array(record_len, dtype=int))
-        label_torch_dict = self.post_processor.collate_batch(label_dict_list) #NOTE None-check is required
+        label_torch_dict = self.post_processor.collate_batch(label_dict_list)  # NOTE None-check is required
 
         # (B, max_cav)
         velocity = torch.from_numpy(np.array(velocity))
@@ -737,8 +739,8 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
         gt_box_tensor : torch.Tensor
             Tensor of ground truth bounding boxes.
         """
-        pred_box_tensor, pred_score = self.post_processor.post_process(data_dict, output_dict) #NOTE None-check is required
-        gt_box_tensor = self.post_processor.generate_gt_bbx(data_dict) #NOTE None-check is required
+        pred_box_tensor, pred_score = self.post_processor.post_process(data_dict, output_dict)  # NOTE None-check is required
+        gt_box_tensor = self.post_processor.generate_gt_bbx(data_dict)  # NOTE None-check is required
 
         return pred_box_tensor, pred_score, gt_box_tensor
 

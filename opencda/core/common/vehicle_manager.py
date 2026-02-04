@@ -81,10 +81,10 @@ class VehicleManager(object):
         application: List[str],
         carla_map: carla.Map,
         cav_world: carla.World,
-        current_time: str ="",
-        data_dumping: bool =False,
-        autogenerate_id_on_failure: bool=True,  # TODO: Link with scenario config
-        prefix: str="unknown",
+        current_time: str = "",
+        data_dumping: bool = False,
+        autogenerate_id_on_failure: bool = True,  # TODO: Link with scenario config
+        prefix: str = "unknown",
     ):
         config_id = config_yaml.get("id")
         self.prefix = prefix if prefix in {"cav", "platoon"} else "unknown"
@@ -145,14 +145,14 @@ class VehicleManager(object):
             platoon_config = config_yaml["platoon"]
             self.agent = PlatooningBehaviorAgent(vehicle, self, self.v2x_manager, behavior_config, platoon_config, carla_map)
         else:
-            self.agent = BehaviorAgent(vehicle, carla_map, behavior_config) #NOTE: A None-check is required to satisfy type checking.
+            self.agent = BehaviorAgent(vehicle, carla_map, behavior_config)  # NOTE: A None-check is required to satisfy type checking.
 
         # Control module
         self.controller = ControlManager(control_config)
 
         if data_dumping:
-            self.data_dumper: Optional[DataDumper] = DataDumper(self.perception_manager, self.vid, save_time=current_time) 
-            self.data_dumper = None 
+            self.data_dumper: Optional[DataDumper] = DataDumper(self.perception_manager, self.vid, save_time=current_time)
+            self.data_dumper = None
 
         cav_world.update_vehicle_manager(self)
 
@@ -173,7 +173,7 @@ class VehicleManager(object):
                 VehicleManager.used_ids.add(candidate)
                 return candidate
 
-    def set_destination(self, start_location: carla.Location, end_location: carla.Location, clean: bool=False, end_reset: bool=True) -> None:
+    def set_destination(self, start_location: carla.Location, end_location: carla.Location, clean: bool = False, end_reset: bool = True) -> None:
         """
         Set global route.
 
@@ -194,7 +194,7 @@ class VehicleManager(object):
         Returns
         -------
         """
-        self.agent.set_destination(start_location, end_location, clean, end_reset) #NOTE: A None-check is required 
+        self.agent.set_destination(start_location, end_location, clean, end_reset)  # NOTE: A None-check is required
 
     def update_info(self) -> None:
         """
@@ -226,7 +226,7 @@ class VehicleManager(object):
 
         # leave this for platooning for now
         self.v2x_manager.update_info(ego_pos, ego_spd)
-        self.agent.update_information(ego_pos, ego_spd, objects) #NOTE: A None-check is required 
+        self.agent.update_information(ego_pos, ego_spd, objects)  # NOTE: A None-check is required
         # pass position and speed info to controller
         self.controller.update_info(ego_pos, ego_spd)
 
@@ -234,13 +234,13 @@ class VehicleManager(object):
         # TODO: Implement
         pass
 
-    def run_step(self, target_speed: Optional[float]=None) -> carla.VehicleControl:
+    def run_step(self, target_speed: Optional[float] = None) -> carla.VehicleControl:
         """
         Execute one step of navigation.
         """
         # visualize the bev map if needed
         self.map_manager.run_step()
-        target_speed, target_pos = self.agent.run_step(target_speed) #NOTE: A None-check is required to satisfy type checking.
+        target_speed, target_pos = self.agent.run_step(target_speed)  # NOTE: A None-check is required to satisfy type checking.
         control = self.controller.run_step(target_speed, target_pos)
 
         # dump data

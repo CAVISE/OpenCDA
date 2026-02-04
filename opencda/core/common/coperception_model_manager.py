@@ -10,7 +10,7 @@ import os
 import re
 import shutil
 import logging
-from typing import Dict, List, Optional, Any, Union
+from typing import Dict, List, Optional, Any
 from tqdm import tqdm
 
 import torch  # type: ignore
@@ -101,12 +101,12 @@ class CoperceptionModelManager:
         """
         logger.info("Dataset Building")
         self.opencood_dataset = build_dataset(self.hypes, visualize=True, train=False, message_handler=self.message_handler)
-        logger.info(f"{len(self.opencood_dataset)} samples found.") #NOTE None-check is required
+        logger.info(f"{len(self.opencood_dataset)} samples found.")  # NOTE None-check is required
         self.data_loader = DataLoader(
             self.opencood_dataset,
             batch_size=1,
             num_workers=16,
-            collate_fn=self.opencood_dataset.collate_batch_test, #NOTE None-check is required
+            collate_fn=self.opencood_dataset.collate_batch_test,  # NOTE None-check is required
             shuffle=False,
             pin_memory=False,
             drop_last=False,
@@ -145,7 +145,7 @@ class CoperceptionModelManager:
             0.7: {"tp": [], "fp": [], "gt": 0, "score": []},
         }
 
-        if self.opt.show_sequence:  #NOTE None-check is required
+        if self.opt.show_sequence:  # NOTE None-check is required
             if self.vis is None:
                 self.vis = o3d.visualization.Visualizer()  # noqa: DC05
                 self.vis.create_window()  # noqa: DC05
@@ -161,7 +161,9 @@ class CoperceptionModelManager:
                 vis_aabbs_gt.append(o3d.geometry.LineSet())
                 vis_aabbs_pred.append(o3d.geometry.LineSet())
 
-        for i, batch_data in tqdm(enumerate(self.data_loader), total=len(self.data_loader)): #NOTE Argument 1 to "len" has incompatible type "None"; expected "Sized
+        for i, batch_data in tqdm(
+            enumerate(self.data_loader), total=len(self.data_loader)
+        ):  # NOTE Argument 1 to "len" has incompatible type "None"; expected "Sized
             with torch.no_grad():
                 batch_data = train_utils.to_device(batch_data, self.device)
                 if self.opt.fusion_method == "late":
@@ -205,7 +207,7 @@ class CoperceptionModelManager:
 
                 if self.opt.show_vis:
                     vis_save_path = ""
-                    self.opencood_dataset.visualize_result( #NOTE None-check is required
+                    self.opencood_dataset.visualize_result(  # NOTE None-check is required
                         pred_box_tensor,
                         gt_box_tensor,
                         batch_data["ego"]["origin_lidar"],
@@ -215,20 +217,20 @@ class CoperceptionModelManager:
                     )
 
                 if self.opt.show_sequence and pred_box_tensor is not None and self.hypes["postprocess"]["core_method"] != "BevPostprocessor":
-                    self.vis.clear_geometries() #NOTE None-check is required
+                    self.vis.clear_geometries()  # NOTE None-check is required
                     pcd, pred_o3d_box, gt_o3d_box = vis_utils.visualize_inference_sample_dataloader(
                         pred_box_tensor, gt_box_tensor, batch_data["ego"]["origin_lidar"], vis_pcd, mode="constant"
                     )
                     if i == 0:
-                        self.vis.add_geometry(pcd) #NOTE None-check is required
+                        self.vis.add_geometry(pcd)  # NOTE None-check is required
                         vis_utils.linset_assign_list(self.vis, vis_aabbs_pred, pred_o3d_box, update_mode="add")
                         vis_utils.linset_assign_list(self.vis, vis_aabbs_gt, gt_o3d_box, update_mode="add")
                     else:
                         vis_utils.linset_assign_list(self.vis, vis_aabbs_pred, pred_o3d_box)
                         vis_utils.linset_assign_list(self.vis, vis_aabbs_gt, gt_o3d_box)
-                    self.vis.update_geometry(pcd) #NOTE None-check is required
-                    self.vis.poll_events() #NOTE None-check is required
-                    self.vis.update_renderer() #NOTE None-check is required
+                    self.vis.update_geometry(pcd)  # NOTE None-check is required
+                    self.vis.poll_events()  # NOTE None-check is required
+                    self.vis.update_renderer()  # NOTE None-check is required
 
         for iou in [0.3, 0.5, 0.7]:
             self.final_result_stat[iou]["gt"] += result_stat[iou]["gt"]

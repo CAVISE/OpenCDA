@@ -224,8 +224,8 @@ class PlatooningPlugin(object):
         # make sure the previous status won't influence current one
         self.reset()
 
-        cur_loc = self.ego_pos.location #NOTE None-check is required
-        cur_yaw = self.ego_pos.rotation.yaw #NOTE None-check is required
+        cur_loc = self.ego_pos.location  # NOTE None-check is required
+        cur_yaw = self.ego_pos.rotation.yaw  # NOTE None-check is required
 
         pmid, pm = self.search_platoon(cur_loc, cav_nearby)
 
@@ -238,29 +238,29 @@ class PlatooningPlugin(object):
         min_angle = 0
 
         # if the platooning is not open to joining
-        if not pm.response_joining_request(self.ego_pos.location): #NOTE None-check is required
+        if not pm.response_joining_request(self.ego_pos.location):  # NOTE None-check is required
             return False, -1, []
 
         platoon_vehicle_list = []
 
-        for i, vehicle_manager in enumerate(pm.vehicle_manager_list):  #NOTE None-check is required
+        for i, vehicle_manager in enumerate(pm.vehicle_manager_list):  # NOTE None-check is required
             distance, angle = cal_distance_angle(vehicle_manager.vehicle.get_location(), cur_loc, cur_yaw)
             platoon_vehicle_list.append(vehicle_manager)
 
             if distance < min_distance:
                 min_distance = distance
                 min_index = i
-                min_angle = angle #NOTE Incompatible types
+                min_angle = angle  # NOTE Incompatible types
 
         # if the ego is in front of the platooning
         if min_index == 0 and min_angle > 90:
             self.front_vehicle = None
-            self.rear_vechile = pm.vehicle_manager_list[0] #NOTE None-check is required
+            self.rear_vechile = pm.vehicle_manager_list[0]  # NOTE None-check is required
             return True, min_index, platoon_vehicle_list
 
-        self.front_vehicle = pm.vehicle_manager_list[min_index] #NOTE None-check is required
+        self.front_vehicle = pm.vehicle_manager_list[min_index]  # NOTE None-check is required
 
-        if min_index < len(pm.vehicle_manager_list) - 1: #NOTE None-check is required
-            self.rear_vechile = pm.vehicle_manager_list[min_index + 1] #NOTE None-check is required
+        if min_index < len(pm.vehicle_manager_list) - 1:  # NOTE None-check is required
+            self.rear_vechile = pm.vehicle_manager_list[min_index + 1]  # NOTE None-check is required
 
         return True, min_index, platoon_vehicle_list

@@ -154,7 +154,7 @@ def test() -> None:
     to verify the loss computation works correctly.
     """
     torch.manual_seed(0)
-    loss = PixorLoss(None) #NOTE Argument 1 to "PixorLoss" has incompatible type
+    loss = PixorLoss(None)  # NOTE Argument 1 to "PixorLoss" has incompatible type
     pred = torch.sigmoid(torch.randn(1, 7, 2, 3))
     label = torch.zeros(1, 7, 2, 3)
     loss = loss(pred, label)

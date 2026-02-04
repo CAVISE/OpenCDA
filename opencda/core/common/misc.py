@@ -47,7 +47,7 @@ def draw_trajetory_points(
         world.debug.draw_point(wpt_t.location, size=size, color=color, life_time=lt)
 
 
-def get_speed(vehicle: carla.Vehicle, meters: bool=False) -> float:
+def get_speed(vehicle: carla.Vehicle, meters: bool = False) -> float:
     """
     Compute speed of a vehicle in Km/h.
 
@@ -135,7 +135,7 @@ def vector(location_1: carla.Location, location_2: carla.Location) -> List[float
         Start location of the vector.
     location_2 : carla.location
         End location of the vector.
-    
+
     Returns
     -------
     List[float]

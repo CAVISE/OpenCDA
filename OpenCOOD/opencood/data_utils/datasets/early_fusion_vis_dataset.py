@@ -78,7 +78,7 @@ class EarlyFusionVisDataset(basedataset.BaseDataset):
         # first find the ego vehicle's lidar pose
         for cav_id, cav_content in base_data_dict.items():
             if cav_content["ego"]:
-                ego_id = cav_id #NOTE Incompatible types
+                ego_id = cav_id  # NOTE Incompatible types
                 ego_lidar_pose = cav_content["params"]["lidar_pose"]
                 break
 
@@ -101,13 +101,13 @@ class EarlyFusionVisDataset(basedataset.BaseDataset):
         # exclude all repetitive objects
         unique_indices = [object_id_stack.index(x) for x in set(object_id_stack)]
         object_stack = np.vstack(object_stack)
-        object_stack = object_stack[unique_indices] # NOTE: mypy error - list doesn't support fancy indexing
+        object_stack = object_stack[unique_indices]  # NOTE: mypy error - list doesn't support fancy indexing
 
         # make sure bounding boxes across all frames have the same number
         object_bbx_center = np.zeros((self.params["postprocess"]["max_num"], 7))
         mask = np.zeros(self.params["postprocess"]["max_num"])
-        object_bbx_center[: object_stack.shape[0], :] = object_stack # NOTE: mypy error - list doesn't support fancy indexing
-        mask[: object_stack.shape[0]] = 1 # NOTE: mypy error - list doesn't support fancy indexing
+        object_bbx_center[: object_stack.shape[0], :] = object_stack  # NOTE: mypy error - list doesn't support fancy indexing
+        mask[: object_stack.shape[0]] = 1  # NOTE: mypy error - list doesn't support fancy indexing
 
         # convert list to numpy array, (N, 4)
         projected_lidar_stack = np.vstack(projected_lidar_stack)
@@ -164,7 +164,9 @@ class EarlyFusionVisDataset(basedataset.BaseDataset):
         transformation_matrix = x1_to_x2(selected_cav_base["params"]["lidar_pose"], ego_pose)
 
         # retrieve objects under ego coordinates
-        object_bbx_center, object_bbx_mask, object_ids = self.post_processor.generate_object_center([selected_cav_base], ego_pose) #NOTE None-check is required
+        object_bbx_center, object_bbx_mask, object_ids = self.post_processor.generate_object_center(
+            [selected_cav_base], ego_pose
+        )  # NOTE None-check is required
 
         # filter lidar
         lidar_np = selected_cav_base["lidar_np"]

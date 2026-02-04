@@ -42,13 +42,13 @@ class Canvas_BEV_heading_right(object):
     """
 
     def __init__(
-    self, 
-    canvas_shape: Tuple[int, int] = (800, 2800),
-    canvas_x_range: Tuple[float, float] = (-140, 140),
-    canvas_y_range: Tuple[float, float] = (-40, 40),
-    canvas_bg_color: Tuple[int, int, int] = (0, 0, 0),
-    left_hand: bool = True
-):
+        self,
+        canvas_shape: Tuple[int, int] = (800, 2800),
+        canvas_x_range: Tuple[float, float] = (-140, 140),
+        canvas_y_range: Tuple[float, float] = (-40, 40),
+        canvas_bg_color: Tuple[int, int, int] = (0, 0, 0),
+        left_hand: bool = True,
+    ):
         # Sanity check ratios
         if (canvas_shape[1] / canvas_shape[0]) != ((canvas_x_range[0] - canvas_x_range[1]) / (canvas_y_range[0] - canvas_y_range[1])):
             print("Not an error, but the x & y ranges are not proportional to canvas height & width.")

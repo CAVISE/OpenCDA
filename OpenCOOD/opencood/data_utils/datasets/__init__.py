@@ -19,7 +19,7 @@ GT_RANGE = [-140, -40, -3, 140, 40, 1]
 COM_RANGE = 70
 
 
-def build_dataset(dataset_cfg: Dict[str, Any], visualize: bool=False, train: bool=True, message_handler: Optional[object]=None) -> BaseDataset:
+def build_dataset(dataset_cfg: Dict[str, Any], visualize: bool = False, train: bool = True, message_handler: Optional[object] = None) -> BaseDataset:
     dataset_name = dataset_cfg["fusion"]["core_method"]
     error_message = f"{dataset_name} is not found. Please add your processor file's name in opencood/data_utils/datasets/init.py"
     assert dataset_name in ["LateFusionDataset", "EarlyFusionDataset", "IntermediateFusionDataset", "IntermediateFusionDatasetV2"], error_message

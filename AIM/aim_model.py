@@ -10,6 +10,10 @@ class AIMModel(ABC):
         ModelRegistry.register(cls)
 
     @abstractmethod
+    def __init__(self, **kwargs: Any):
+        pass
+
+    @abstractmethod
     def predict(self, features: List[npt.NDArray[float]], target_agent_ids: List[str]) -> npt.NDArray[float]:
         """
         Predict trajectories (or other outputs) for the given agents.

@@ -6,7 +6,7 @@ waypoints and calculating geometric properties like position, yaw, and curvature
 """
 
 import math
-from typing import List, Tuple, Optional, cast
+from typing import Sequence, Tuple, Optional, cast
 import numpy as np
 import numpy.typing as npt
 import bisect
@@ -232,11 +232,11 @@ class Spline2D:
     """
 
     def __init__(self, x: npt.ArrayLike, y: npt.ArrayLike):
-        self.s: List[float] = self.__calc_s(x, y)
+        self.s: Sequence[float] = self.__calc_s(x, y)
         self.sx = Spline(self.s, x)
         self.sy = Spline(self.s, y)
 
-    def __calc_s(self, x: npt.ArrayLike, y: npt.ArrayLike) -> List[float]:
+    def __calc_s(self, x: npt.ArrayLike, y: npt.ArrayLike) -> Sequence[float]:
         """
         Calculate cumulative arc length.
 
@@ -257,7 +257,7 @@ class Spline2D:
         self.ds = np.hypot(dx, dy)
         s = [0]
         s.extend(np.cumsum(self.ds))
-        return s #NOTE: Incompatible return value type (got "list[int]", expected "list[float]")
+        return s  # NOTE: Incompatible return value type (got "list[int]", expected "list[float]")
 
     def calc_position(self, s: float) -> Tuple[Optional[float], Optional[float]]:
         """

@@ -1,5 +1,7 @@
 import json
 from functools import cache
+from typing import Any, Dict
+import numpy.typing as npt
 
 import numpy as np
 
@@ -7,7 +9,27 @@ import numpy as np
 @cache
 def load_path_to_intention_config(
     intention_config_path: str,
-) -> dict:
+) -> Dict[str, Any]:
+    """
+    Load intentions configuration JSON and cache the result.
+
+    Parameters
+    ----------
+    intention_config_path : str
+        Path to the intentions JSON file.
+
+    Returns
+    -------
+    dict[str, Any]
+        Parsed JSON object as a Python mapping.
+
+    Raises
+    ------
+    FileNotFoundError
+        If the file does not exist.
+    KeyError
+        Not raised here; validation is done in helper functions.
+    """
     try:
         with open(intention_config_path, "r", encoding="utf-8") as f:
             data = json.load(f)
@@ -19,7 +41,27 @@ def load_path_to_intention_config(
 @cache
 def get_path_to_intention(
     intention_config_path: str,
-) -> dict:
+) -> Dict[str, str]:
+    """
+    Get mapping from route key ("from_to") to intention label.
+
+    Parameters
+    ----------
+    intention_config_path : str
+        Path to the intentions JSON file.
+
+    Returns
+    -------
+    dict[str, str]
+        Mapping like {"E4_E2": "left", ...}.
+
+    Raises
+    ------
+    KeyError
+        If "paths" key is missing.
+    TypeError
+        If "paths" is not a dict[str, str].
+    """
     config = load_path_to_intention_config(intention_config_path)
     if "paths" not in config:
         raise KeyError(f'There is no "paths" parameter in {intention_config_path}. Please specify it')
@@ -29,7 +71,27 @@ def get_path_to_intention(
 @cache
 def get_center_coodinates(
     intention_config_path: str,
-) -> dict:
+) -> Dict[str, float]:
+    """
+    Get center coordinates used for filtering/scene selection.
+
+    Parameters
+    ----------
+    intention_config_path : str
+        Path to the intentions JSON file.
+
+    Returns
+    -------
+    dict[str, float]
+        Dictionary with keys "x" and "y".
+
+    Raises
+    ------
+    KeyError
+        If "center_coordinates" key is missing.
+    TypeError
+        If the value is not a dict with numeric "x" and "y".
+    """
     config = load_path_to_intention_config(intention_config_path)
     if "center_coordinates" not in config:
         raise KeyError(
@@ -38,9 +100,22 @@ def get_center_coodinates(
     return config["center_coordinates"]
 
 
-def get_intention_from_vehicle_id(vehicle_id: str, intention_config_path: str) -> np.ndarray:
+def get_intention_from_vehicle_id(vehicle_id: str, intention_config_path: str) -> npt.NDArray[np.float64]:
     """
-    Parse the vehicle id to distinguish its intention.
+    Parse a vehicle id and return its one-hot intention vector.
+
+    Parameters
+    ----------
+    vehicle_id : str
+        Vehicle id encoded as "<from_edge>_<to_edge>_<...>".
+    intention_config_path : str
+        Path to the intentions JSON file.
+
+    Returns
+    -------
+    numpy.typing.NDArray[numpy.float64]
+        One-hot intention vector of shape (4,):
+        [left, straight, right, reserved].
     """
     path_to_intention = get_path_to_intention(intention_config_path)
 

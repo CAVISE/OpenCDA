@@ -128,7 +128,7 @@ class MapManager(object):
         self.topology = sorted(topology, key=lambda w: w.transform.location.z)
 
         # basic elements in HDMap: lane, crosswalk and traffic light
-        self.lane_info:  Dict[str, Dict[str, Any]] = {}
+        self.lane_info: Dict[str, Dict[str, Any]] = {}
         self.crosswalk_info: Dict[str, Dict[str, NDArray[np.float64]]] = {}
         self.traffic_light_info: Dict[str, Dict[str, Any]] = {}
         # this is mainly used for efficient filtering
@@ -289,7 +289,7 @@ class MapManager(object):
         final_agents = {}
 
         # convert center to list format
-        center = [self.center.location.x, self.center.location.y] #NOTE need a None-check
+        center = [self.center.location.x, self.center.location.y]  # NOTE need a None-check
 
         for agent_id, agent in agents_dict.items():
             location = agent["location"]
@@ -316,7 +316,7 @@ class MapManager(object):
         -------
         np.ndarray: indices of elements inside radius from center
         """
-        x_center, y_center, z_center = self.center.location.x, self.center.location.y, self.center.location.z #NOTE need a None-check
+        x_center, y_center, z_center = self.center.location.x, self.center.location.y, self.center.location.z  # NOTE need a None-check
 
         x_min_in = x_center > bounds[:, 0, 0] - half_extent
         y_min_in = y_center > bounds[:, 0, 1] - half_extent
@@ -660,7 +660,7 @@ class MapManager(object):
         # (4, 3) numpy array
         corners = np.array(corners)
         # for homogeneous transformation
-        corners = corners.T                                 
+        corners = corners.T
         corners = np.r_[corners, [np.ones(corners.shape[1])]]
         # convert to ego's coordinate frame
         corners = world_to_sensor(corners, self.center).T

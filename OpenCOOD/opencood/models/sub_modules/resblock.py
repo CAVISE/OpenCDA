@@ -233,7 +233,7 @@ class ResNetLayers(nn.Module):
         width_per_group: int = 64,
         replace_stride_with_dilation: Optional[List[bool]] = None,
         norm_layer: Optional[Callable[..., nn.Module]] = None,
-        inplanes: int=64,
+        inplanes: int = 64,
     ):
         super(ResNetLayers, self).__init__()
 

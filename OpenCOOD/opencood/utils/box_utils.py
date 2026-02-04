@@ -12,7 +12,7 @@ import torch
 import torch.nn.functional as F
 import opencood.utils.common_utils as common_utils
 from opencood.utils.transformation_utils import x1_to_x2
-from typing import Any, Dict, List, Tuple
+from typing import Dict, List, Tuple
 
 
 def corner_to_center(corner3d: npt.NDArray[np.floating], order: str = "lwh") -> npt.NDArray[np.floating]:

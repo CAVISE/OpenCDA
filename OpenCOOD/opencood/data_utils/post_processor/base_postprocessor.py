@@ -104,7 +104,7 @@ class BasePostprocessor(object):
         gt_box3d_list = torch.vstack(gt_box3d_list)
         # some of the bbx may be repetitive, use the id list to filter
         gt_box3d_selected_indices = [object_id_list.index(x) for x in set(object_id_list)]
-        gt_box3d_tensor = gt_box3d_list[gt_box3d_selected_indices] #NOTE different types ("list" / "tensor")
+        gt_box3d_tensor = gt_box3d_list[gt_box3d_selected_indices]  # NOTE different types ("list" / "tensor")
 
         # filter the gt_box to make sure all bbx are in the range
         mask = box_utils.get_mask_for_boxes_within_range_torch(gt_box3d_tensor)

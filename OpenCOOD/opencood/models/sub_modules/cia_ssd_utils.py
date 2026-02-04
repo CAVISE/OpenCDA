@@ -60,13 +60,19 @@ class SSFA(nn.Module):
             "Conv2d", 128, 128, n_layers=3, kernel_size=[3, 3, 3], stride=[1, 1, 1], padding=[0, 1, 1], sequential=False
         )
         self.bottom_up_block_0: nn.Sequential = nn.Sequential(*seq)
-        self.bottom_up_block_1: nn.Sequential = get_conv_layers("Conv2d", 128, 256, n_layers=3, kernel_size=[3, 3, 3], stride=[2, 1, 1], padding=[1, 1, 1])
+        self.bottom_up_block_1: nn.Sequential = get_conv_layers(
+            "Conv2d", 128, 256, n_layers=3, kernel_size=[3, 3, 3], stride=[2, 1, 1], padding=[1, 1, 1]
+        )
 
         self.trans_0: nn.Sequential = get_conv_layers("Conv2d", 128, 128, n_layers=1, kernel_size=[1], stride=[1], padding=[0])
         self.trans_1: nn.Sequential = get_conv_layers("Conv2d", 256, 256, n_layers=1, kernel_size=[1], stride=[1], padding=[0])
 
-        self.deconv_block_0: nn.Sequential = get_conv_layers("ConvTranspose2d", 256, 128, n_layers=1, kernel_size=[3], stride=[2], padding=[1], output_padding=[1])
-        self.deconv_block_1: nn.Sequential = get_conv_layers("ConvTranspose2d", 256, 128, n_layers=1, kernel_size=[3], stride=[2], padding=[1], output_padding=[1])
+        self.deconv_block_0: nn.Sequential = get_conv_layers(
+            "ConvTranspose2d", 256, 128, n_layers=1, kernel_size=[3], stride=[2], padding=[1], output_padding=[1]
+        )
+        self.deconv_block_1: nn.Sequential = get_conv_layers(
+            "ConvTranspose2d", 256, 128, n_layers=1, kernel_size=[3], stride=[2], padding=[1], output_padding=[1]
+        )
 
         self.conv_0: nn.Sequential = get_conv_layers("Conv2d", 128, 128, n_layers=1, kernel_size=[3], stride=[1], padding=[1])
         self.conv_1: nn.Sequential = get_conv_layers("Conv2d", 128, 128, n_layers=1, kernel_size=[3], stride=[1], padding=[1])

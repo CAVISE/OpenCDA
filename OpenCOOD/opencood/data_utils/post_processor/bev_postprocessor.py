@@ -51,7 +51,7 @@ class BevPostprocessor(BasePostprocessor):
     def generate_anchor_box(self) -> None:
         return None
 
-    def generate_label(self, **kwargs: Any) -> Dict[str, Any]: #NOTE Signature mismatch with supertype
+    def generate_label(self, **kwargs: Any) -> Dict[str, Any]:  # NOTE Signature mismatch with supertype
         """
         Generate targets for training.
 

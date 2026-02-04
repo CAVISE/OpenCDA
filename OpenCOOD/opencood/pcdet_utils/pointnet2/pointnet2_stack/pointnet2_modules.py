@@ -46,7 +46,7 @@ class StackSAModuleMSG(nn.Module):
         Stored pooling method.
     """
 
-    def __init__(self, *, radii: List[float], nsamples: List[int], mlps: List[List[int]], use_xyz: bool = True, pool_method: str="max_pool"):
+    def __init__(self, *, radii: List[float], nsamples: List[int], mlps: List[List[int]], use_xyz: bool = True, pool_method: str = "max_pool"):
         super().__init__()
 
         assert len(radii) == len(nsamples) == len(mlps)

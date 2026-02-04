@@ -32,6 +32,7 @@ class GNN_mtl_gnn(torch.nn.Module):
     linear5 : nn.Linear
         Output layer producing 60-dimensional trajectory predictions (30 timesteps × 2 coordinates).
     """
+
     def __init__(self, hidden_channels: int):
         super().__init__()
         torch.manual_seed(21)

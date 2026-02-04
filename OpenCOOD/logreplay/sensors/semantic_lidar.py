@@ -179,7 +179,7 @@ class SemanticLidar(BaseSensor):
 
         return spawn_point
 
-    def tick(self) -> Any: #NOTE Used 'Any' as hack for override mismatch (returns List[int] here, but base_sensor.py tick -> None)
+    def tick(self) -> Any:  # NOTE Used 'Any' as hack for override mismatch (returns List[int] here, but base_sensor.py tick -> None)
         """
         Process current LiDAR data and return visible vehicle IDs.
 

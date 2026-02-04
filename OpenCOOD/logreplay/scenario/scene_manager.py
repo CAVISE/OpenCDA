@@ -237,7 +237,7 @@ class SceneManager:
         """
         for veh_id, veh_content in self.veh_dict.items():
             if "cav" in veh_content:
-                self.map_manager.run_step(veh_id, veh_content, self.veh_dict) #NOTE need a None-check
+                self.map_manager.run_step(veh_id, veh_content, self.veh_dict)  # NOTE need a None-check
 
     def sensor_dumping(self, cur_timestamp: str) -> None:
         """
@@ -326,7 +326,7 @@ class SceneManager:
             veh_bp = blueprint_library.find(model)
             color = "0, 0, 255"
         else:
-            model = find_blue_print(bg_veh_content["extent"]) #NOTE need a None-check
+            model = find_blue_print(bg_veh_content["extent"])  # NOTE need a None-check
             if not model:
                 print("model net found for %s" % bg_veh_id)
             veh_bp = blueprint_library.find(model)
@@ -383,7 +383,7 @@ class SceneManager:
         for actor in actor_list:
             actor = cast(carla.Actor, actor)
             actor.destroy()
-        cast(MapManager, self.map_manager).destroy() # Tell type checker that self.map_manager is MapManager
+        cast(MapManager, self.map_manager).destroy()  # Tell type checker that self.map_manager is MapManager
         self.sensor_destory()
 
     def sensor_destory(self) -> None:

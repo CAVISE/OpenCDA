@@ -104,7 +104,7 @@ class DataDumper(object):
             if image is None:
                 continue
 
-            image_name = "%06d" % count + "_" + "camera%d" % i + ".png"
+            image_name = f"{count:06d}_camera{i}.png"
 
             cv2.imwrite(os.path.join(self.save_parent_folder, image_name), image)
 
@@ -132,12 +132,13 @@ class DataDumper(object):
         pcd_name = "%06d" % count + ".pcd"
         o3d.io.write_point_cloud(os.path.join(self.save_parent_folder, pcd_name), pointcloud=o3d_pcd, write_ascii=True)
 
-    def save_yaml_file(self,
+    def save_yaml_file(
+        self,
         perception_manager: Any,
         localization_manager: Any,
         behavior_agent: Optional[Any],
         count: int,
-    ) -> None:      
+    ) -> None:
         """
         Save objects positions/spped, true ego position,
         predicted ego position, sensor transformations.
@@ -156,7 +157,7 @@ class DataDumper(object):
         frame = count
 
         dump_yml: Dict[str, Any] = {}
-        vehicle_dict: Dict[int, Dict[str, Any]]  = {}
+        vehicle_dict: Dict[int, Dict[str, Any]] = {}
 
         # dump obstacle vehicles first
         objects = perception_manager.objects

@@ -19,9 +19,23 @@ directions = [
 ]
 
 
-def write_pretty_xml(element_tree, file_name):
-    """Format xml"""
-    rough_string = ET.tostring(element_tree.getroot(), "utf-8")
+def write_pretty_xml(element_tree: ET.ElementTree, file_name: str) -> None:
+    """
+    Write an ElementTree to disk as pretty-printed XML.
+
+    Parameters
+    ----------
+    element_tree : xml.etree.ElementTree.ElementTree
+        XML tree to serialize.
+    file_name : str
+        Output file path.
+
+    Returns
+    -------
+    None
+        Writes formatted XML content to `file_name`.
+    """
+    rough_string = ET.tostring(element_tree.getroot(), "utf-8")  # NOTE incompatible type "Element[str] | None"; expected "Element[Any]
 
     parsed = minidom.parseString(rough_string)
     pretty_xml = parsed.toprettyxml(indent="  ")
@@ -30,7 +44,27 @@ def write_pretty_xml(element_tree, file_name):
         f.write(pretty_xml)
 
 
-def generate(n: int, filename: str):
+def generate(n: int, filename: str) -> None:
+    """
+    Generate a SUMO routes file with randomly departing vehicles.
+
+    The function creates:
+    - One vehicle type (`vehicle.seat.leon`).
+    - A fixed set of 12 named routes (see global `directions` list).
+    - `n` vehicles assigned to a random route, with random inter-depart times.
+
+    Parameters
+    ----------
+    n : int
+        Number of vehicles to generate.
+    filename : str
+        Output `.rou.xml` file path.
+
+    Returns
+    -------
+    None
+        Writes an XML routes file to `filename`.
+    """
     routes = ET.Element("routes")
 
     ET.SubElement(

@@ -378,7 +378,7 @@ class TrafficLightDector(object):
         # Get the waypoints of these points, removing duplicates
         ini_wps: List[carla.Waypoint] = []
         for pt in area:
-            wpx = self._map.get_waypoint(pt) #NOTE self._map can be none
+            wpx = self._map.get_waypoint(pt)  # NOTE self._map can be none
             # As x_values are arranged in order, only the last one has to be checked
             if not ini_wps or ini_wps[-1].road_id != wpx.road_id or ini_wps[-1].lane_id != wpx.lane_id:
                 ini_wps.append(wpx)

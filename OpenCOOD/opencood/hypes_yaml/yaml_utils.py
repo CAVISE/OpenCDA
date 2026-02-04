@@ -27,7 +27,7 @@ def load_yaml(file: str | None, opt: Optional[Any] = None) -> Dict[str, Any]:
     if opt and opt.model_dir:
         file = os.path.join(opt.model_dir, "config.yaml")
 
-    stream = open(file, "r") #NOTE need a None-check
+    stream = open(file, "r")  # NOTE need a None-check
     loader = yaml.Loader
     loader.add_implicit_resolver(
         "tag:yaml.org,2002:float",
@@ -51,7 +51,7 @@ def load_yaml(file: str | None, opt: Optional[Any] = None) -> Dict[str, Any]:
     return param
 
 
-def load_voxel_params(param: Dict[str, Any]) -> Dict[str, Any]:  # noqa: DC02
+def load_voxel_params(param: Dict[str, Any]) -> Dict[str, Any]:
     """
     Based on the lidar range and resolution of voxel, calcuate the anchor box
     and target resolution.
@@ -93,7 +93,7 @@ def load_voxel_params(param: Dict[str, Any]) -> Dict[str, Any]:  # noqa: DC02
     return param
 
 
-def load_point_pillar_params(param: Dict[str, Any]) -> Dict[str, Any]:  # noqa: DC02
+def load_point_pillar_params(param: Dict[str, Any]) -> Dict[str, Any]:
     """
     Based on the lidar range and resolution of voxel, calcuate the anchor box
     and target resolution.
@@ -134,7 +134,7 @@ def load_point_pillar_params(param: Dict[str, Any]) -> Dict[str, Any]:  # noqa: 
     return param
 
 
-def load_second_params(param: Dict[str, Any]) -> Dict[str, Any]:  # noqa: DC02
+def load_second_params(param: Dict[str, Any]) -> Dict[str, Any]:
     """
     Based on the lidar range and resolution of voxel, calcuate the anchor box
     and target resolution.
@@ -175,7 +175,7 @@ def load_second_params(param: Dict[str, Any]) -> Dict[str, Any]:  # noqa: DC02
     return param
 
 
-def load_bev_params(param: Dict[str, Any]) -> Dict[str, Any]: # noqa: DC02
+def load_bev_params(param: Dict[str, Any]) -> Dict[str, Any]:
     """
     Load bev related geometry parameters s.t. boundary, resolutions, input
     shape, target shape etc.

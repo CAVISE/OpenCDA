@@ -15,7 +15,22 @@ import concurrent.futures
 from multiprocessing import Value, Lock
 
 
-def process_file(csv_file, intentuion_config):
+def process_file(csv_file: str, intentuion_config: str) -> None:
+    """
+    Preprocess a single SUMO CSV trajectory file into per-timestep graph samples.
+
+    Parameters
+    ----------
+    csv_file : str
+        Filename of the CSV inside the global `csv_folder`.
+    intentuion_config : str
+        Path to the intentions configuration used by `get_intention_from_vehicle_id`.
+
+    Returns
+    -------
+    None
+        Writes multiple `.pkl` samples to the global `preprocess_folder`.
+    """
     df = pd.read_csv(os.path.join(csv_folder, csv_file))
     all_features = list()
     for track_id, remain_df in df.groupby("TRACK_ID"):

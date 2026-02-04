@@ -9,10 +9,19 @@ import cvxpy
 import yaml
 import numpy as np
 
-from typing import Union
+from typing import Any, Dict, Optional, Sequence, List, Tuple
+import numpy.typing as npt
 
 
-def load_config():
+def load_config() -> Dict[str, Any]:
+    """
+    Load MPC configuration from YAML.
+
+    Returns
+    -------
+    dict
+        Parsed configuration object (nested dictionaries/lists).
+    """
     with open(r"configuration\MPC_config.yaml") as f:
         return yaml.safe_load(f)
 
@@ -27,6 +36,13 @@ base_params = cfg["mpc"]["base"]
 
 
 class P:
+    """
+    MPC and vehicle parameters loaded from configuration.
+
+    This class stores configuration constants as class attributes and is used as
+    a global parameter holder by the controller/state update logic.
+    """
+
     # System config
     NX = system_params["nx"]  # state vector: z = [x, y, v, phi]
     NU = system_params["nu"]  # input vector: u = [acceleration, steer]
@@ -70,14 +86,56 @@ class P:
 
 
 class Node:
-    def __init__(self, x=0.0, y=0.0, yaw=0.0, v=0.0, direct=1.0):  # current state
+    """
+    Vehicle kinematic state (x-y frame) and update step.
+
+    Parameters
+    ----------
+    x : float, optional
+        Position x [m].
+    y : float, optional
+        Position y [m].
+    yaw : float, optional
+        Heading angle [rad].
+    v : float, optional
+        Speed [m/s].
+    direct : float, optional
+        Direction multiplier (commonly 1.0 forward, -1.0 backward).
+
+    Attributes
+    ----------
+    x : float
+        Current x position [m].
+    y : float
+        Current y position [m].
+    yaw : float
+        Current heading [rad].
+    v : float
+        Current speed [m/s].
+    direct : float
+        Current direction multiplier.
+    """
+
+    def __init__(self, x: float = 0.0, y: float = 0.0, yaw: float = 0.0, v: float = 0.0, direct: float = 1.0):  # current state
         self.x = x
         self.y = y
         self.yaw = yaw
         self.v = v
         self.direct = direct
 
-    def update(self, a, delta, direct):
+    def update(self, a: float, delta: float, direct: float) -> None:
+        """
+        Update state using a simple kinematic bicycle-like model.
+
+        Parameters
+        ----------
+        a : float
+            Longitudinal acceleration command [m/s^2].
+        delta : float
+            Steering angle command [rad] (will be clamped to [-P.steer_max, P.steer_max]).
+        direct : float
+            Direction multiplier to apply during update (e.g., 1.0 or -1.0).
+        """
         delta = self.limit_input_delta(delta)
         self.x += self.v * math.cos(self.yaw) * P.dt
         self.y += self.v * math.sin(self.yaw) * P.dt
@@ -87,7 +145,20 @@ class Node:
         self.v = self.limit_speed(self.v)
 
     @staticmethod
-    def limit_input_delta(delta):
+    def limit_input_delta(delta: float) -> float:
+        """
+        Clamp steering angle to vehicle limits.
+
+        Parameters
+        ----------
+        delta : float
+            Steering angle [rad].
+
+        Returns
+        -------
+        float
+            Clamped steering angle in [-P.steer_max, P.steer_max].
+        """
         if delta >= P.steer_max:
             return P.steer_max
 
@@ -97,7 +168,20 @@ class Node:
         return delta
 
     @staticmethod
-    def limit_speed(v):
+    def limit_speed(v: float) -> float:
+        """
+        Clamp speed to vehicle limits.
+
+        Parameters
+        ----------
+        v : float
+            Speed [m/s].
+
+        Returns
+        -------
+        float
+            Clamped speed in [P.speed_min, P.speed_max].
+        """
         if v >= P.speed_max:
             return P.speed_max
 
@@ -262,14 +346,27 @@ class Node:
 #     return a_old, delta_old, x, y, yaw, v
 
 
-def linear_mpc_control_data_aug(z_ref, z0, a_old, delta_old):
+def linear_mpc_control_data_aug(
+    z_ref: npt.NDArray[np.float64], z0: Sequence[float], a_old: Optional[List[float]], delta_old: Optional[List[float]]
+) -> Tuple:
     """
-    linear mpc controller
-    :param z_ref: reference trajectory in T steps
-    :param z0: initial state vector
-    :param a_old: acceleration of T steps of last time
-    :param delta_old: delta of T steps of last time
-    :return: acceleration and delta strategy based on current information
+    Run iterative linear MPC over the augmented horizon.
+
+    Parameters
+    ----------
+    z_ref : numpy.typing.NDArray[numpy.float64]
+        Reference trajectory of shape (4, P.T_aug + 1). State order:
+        [x, y, v, yaw].
+    z0 : Sequence[float]
+        Initial state [x, y, v, yaw], length 4.
+    a_old : list[float] | None
+        Previous acceleration sequence of length P.T_aug. If None, initializes with zeros.
+    delta_old : list[float] | None
+        Previous steering sequence of length P.T_aug. If None, initializes with zeros.
+
+    Returns
+    -------
+    Acceleration and delta strategy based on current information
     """
 
     if a_old is None or delta_old is None:
@@ -292,15 +389,29 @@ def linear_mpc_control_data_aug(z_ref, z0, a_old, delta_old):
     return a_old, delta_old, x, y, yaw, v
 
 
-def predict_states_in_T_step(z0: list, a: np.ndarray, delta: np.ndarray, z_ref: np.ndarray, pred_len: int = P.T):
+def predict_states_in_T_step(
+    z0: Sequence[float], a: npt.NDArray[np.float64], delta: npt.NDArray[np.float64], z_ref: npt.NDArray[np.float64], pred_len: int = P.T
+) -> npt.NDArray[np.float64]:
     """
-    given the current state, using the acceleration and delta strategy of last time,
-    predict the states of vehicle in T steps.
-    :param z0: [4], initial state
-    :param a: [T], acceleration strategy of last time
-    :param delta: [T], delta strategy of last time
-    :param z_ref: [4, T+1], reference trajectory
-    :return: predict states in T steps (z_bar, used for calc linear motion model)
+    Predict vehicle states over a horizon using given control sequences.
+
+    Parameters
+    ----------
+    z0 : Sequence[float]
+        Initial state [x, y, v, yaw], length 4.
+    a : numpy.typing.NDArray[numpy.float64]
+        Acceleration sequence, shape (pred_len,).
+    delta : numpy.typing.NDArray[numpy.float64]
+        Steering sequence, shape (pred_len,).
+    z_ref : numpy.typing.NDArray[numpy.float64]
+        Reference trajectory used for sizing the output, shape (4, pred_len + 1).
+    pred_len : int, optional
+        Prediction horizon.
+
+    Returns
+    -------
+    z_bar : numpy.typing.NDArray[numpy.float64]
+        Predicted state trajectory of shape (4, pred_len + 1).
     """
 
     z_bar = z_ref * 0.0
@@ -320,15 +431,25 @@ def predict_states_in_T_step(z0: list, a: np.ndarray, delta: np.ndarray, z_ref: 
     return z_bar
 
 
-def predict_states_in_T_step_2(curr_state: Node, a: np.ndarray, delta: np.ndarray, T: int = P.T) -> np.ndarray:
+def predict_states_in_T_step_2(curr_state: Node, a: npt.NDArray[np.float64], delta: npt.NDArray[np.float64], T: int = P.T) -> npt.NDArray[np.float64]:
     """
-    given the current state, using the acceleration and delta strategy of last time,
-    predict the states of vehicle in T steps.
-    :param curr_state: [x, y, v, yaw], initial state
-    :param a: [T], acceleration strategy of last time
-    :param delta: [T], delta strategy of last time
-    :param T: num of future steps
-    :return: [4, T+1] predict states in T steps (including curr state)
+    Predict states over a horizon starting from a Node object.
+
+    Parameters
+    ----------
+    curr_state : Node
+        Current vehicle state. This object is updated in-place during prediction.
+    a : numpy.typing.NDArray[numpy.float64]
+        Acceleration sequence, shape (T,).
+    delta : numpy.typing.NDArray[numpy.float64]
+        Steering sequence, shape (T,).
+    T : int, optional
+        Prediction horizon.
+
+    Returns
+    -------
+    z_bar : numpy.typing.NDArray[numpy.float64]
+        Predicted state trajectory of shape (4, T + 1), including the current state.
     """
 
     z_bar = np.zeros((4, T + 1))
@@ -344,13 +465,29 @@ def predict_states_in_T_step_2(curr_state: Node, a: np.ndarray, delta: np.ndarra
     return z_bar
 
 
-def calc_linear_discrete_model(v, phi, delta):
+def calc_linear_discrete_model(
+    v: float, phi: float, delta: float
+) -> Tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
     """
-    calc linear and discrete time dynamic model.
-    :param v: speed: v_bar
-    :param phi: angle of vehicle: phi_bar
-    :param delta: steering angle: delta_bar
-    :return: A, B, C
+    Compute linearized discrete-time dynamics matrices.
+
+    Parameters
+    ----------
+    v : float
+        Linearization speed (v_bar).
+    phi : float
+        Linearization heading angle (phi_bar), radians.
+    delta : float
+        Linearization steering angle (delta_bar), radians.
+
+    Returns
+    -------
+    A : numpy.typing.NDArray[numpy.float64]
+        State transition matrix, shape (4, 4).
+    B : numpy.typing.NDArray[numpy.float64]
+        Input matrix, shape (4, 2).
+    C : numpy.typing.NDArray[numpy.float64]
+        Affine term, shape (4,).
     """
 
     cos_phi = math.cos(phi)
@@ -373,14 +510,28 @@ def calc_linear_discrete_model(v, phi, delta):
     return A, B, C
 
 
-def solve_linear_mpc(z_ref: np.ndarray, z_bar: np.ndarray, z0: list, d_bar: np.ndarray, pred_len: int = P.T):
+def solve_linear_mpc(
+    z_ref: npt.NDArray[np.float64], z_bar: npt.NDArray[np.float64], z0: Sequence[float], d_bar: npt.NDArray[np.float64], pred_len: int = P.T
+) -> Tuple:
     """
-    solve the quadratic optimization problem using cvxpy, solver: OSQP
-    :param z_ref: [4, 7], reference trajectory (desired trajectory: [x, y, v, yaw])
-    :param z_bar: [4, 7], predicted states in T steps
-    :param z0: [4], initial state
-    :param d_bar: [6], delta_bar
-    :return: optimal acceleration and steering strategy
+    Solve the linear MPC QP with CVXPY (OSQP).
+
+    Parameters
+    ----------
+    z_ref : numpy.typing.NDArray[numpy.float64]
+        Reference trajectory, shape (4, pred_len + 1).
+    z_bar : numpy.typing.NDArray[numpy.float64]
+        Predicted states used for linearization, shape (4, pred_len + 1).
+    z0 : Sequence[float]
+        Initial state [x, y, v, yaw], length 4.
+    d_bar : numpy.typing.NDArray[numpy.float64]
+        Steering angles used for linearization, shape (pred_len,).
+    pred_len : int, optional
+        Horizon length.
+
+    Returns
+    -------
+    Tuple
     """
 
     z = cvxpy.Variable((P.NX, pred_len + 1))
@@ -427,14 +578,24 @@ def solve_linear_mpc(z_ref: np.ndarray, z_bar: np.ndarray, z0: list, d_bar: np.n
     return a, delta, x, y, yaw, v
 
 
-def solve_linear_mpc_2(z_target: np.ndarray, z_bar: np.ndarray, z0: list, d_bar: np.ndarray):
+def solve_linear_mpc_2(z_target: npt.NDArray[np.float64], z_bar: npt.NDArray[np.float64], z0: List, d_bar: npt.NDArray[np.float64]) -> Tuple:
     """
-    solve the quadratic optimization problem using cvxpy, solver: OSQP
-    :param z_target: [4], target destination (desired: [x, y, v, yaw])
-    :param z_bar: [4, T+1], predicted states in T steps
-    :param z0: [4], initial state
-    :param d_bar: [T], delta_bar
-    :return: optimal acceleration and steering strategy
+    Solve MPC with a terminal target cost (CVXPY + OSQP).
+
+    Parameters
+    ----------
+    z_target : numpy.typing.NDArray[numpy.float64]
+        Target state [x, y, v, yaw], shape (4,).
+    z_bar : numpy.typing.NDArray[numpy.float64]
+        Predicted states used for linearization, shape (4, P.T + 1).
+    z0 : Sequence[float]
+        Initial state [x, y, v, yaw], length 4.
+    d_bar : numpy.typing.NDArray[numpy.float64]
+        Steering angles used for linearization, shape (P.T,).
+
+    Returns
+    -------
+    Optimal acceleration and steering strategy
     """
 
     z = cvxpy.Variable((P.NX, P.T + 1))
@@ -528,16 +689,31 @@ def solve_linear_mpc_2(z_target: np.ndarray, z_bar: np.ndarray, z0: list, d_bar:
 #     return angle
 
 
-def MPC_module(curr_state: Node, target_state: np.ndarray, a_old: list, delta_old: list, T: int = P.T) -> Union[list, list]:
+def MPC_module(
+    curr_state: Node, target_state: npt.NDArray[np.float64], a_old: List, delta_old: List, T: int = P.T
+) -> Tuple[List[float], List[float]]:
     """
-    :param curr_state: Node[x, y, v, yaw]
-    :param target_state: [4], [x, y, v, yaw]
-    :param a_old: [T], if init, input None
-    :param delta_old: [T], if init, input None
-    :param T: num of steps to arrive the destination
+    High-level MPC wrapper returning control sequences.
 
-    :return a: [T]
-    :return delta: [T]
+    Parameters
+    ----------
+    curr_state : Node
+        Current state (x, y, v, yaw).
+    target_state : numpy.typing.NDArray[numpy.float64]
+        Target state [x, y, v, yaw], shape (4,).
+    a_old : list[float] | None
+        Previous acceleration sequence of length T, or None to initialize.
+    delta_old : list[float] | None
+        Previous steering sequence of length T, or None to initialize.
+    T : int, optional
+        Horizon length. If a_old/delta_old are provided, their length must equal T.
+
+    Returns
+    -------
+    a_seq : list[float]
+        Acceleration sequence of length T.
+    delta_seq : list[float]
+        Steering sequence of length T.
     """
 
     if a_old is None or delta_old is None:

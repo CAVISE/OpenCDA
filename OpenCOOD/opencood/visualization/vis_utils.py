@@ -241,7 +241,7 @@ def visualize_single_sample_output_gt(
         Color rendering mode. Default is "constant".
     """
 
-    def custom_draw_geometry( pcd: o3d.geometry.PointCloud, pred: List[o3d.geometry.LineSet], gt: List[o3d.geometry.LineSet]) -> None:
+    def custom_draw_geometry(pcd: o3d.geometry.PointCloud, pred: List[o3d.geometry.LineSet], gt: List[o3d.geometry.LineSet]) -> None:
         vis = o3d.visualization.Visualizer()
         vis.create_window()
 

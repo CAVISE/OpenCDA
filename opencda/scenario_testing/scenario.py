@@ -103,7 +103,7 @@ class Scenario:
 
         data_dump = opt.record or (opt.with_coperception and opt.model_dir is not None)
 
-        logger.info("data dump is " + ("ON" if data_dump else "OFF"))
+        logger.info(f"data dump is {'ON' if data_dump else 'OFF'}")
 
         if data_dump:
             logger.info("beginning to record the simulation in simulation_output/data_dumping")
@@ -128,43 +128,45 @@ class Scenario:
                 self.coperception_model_manager = CoperceptionModelManager(opt=opt, current_time=current_time, message_handler=self.message_handler)
                 logger.info("created cooperception manager")
 
-        # [CoDrivingInt]
         if opt.with_mtp:
             logger.info("Codriving Model is initialized")
 
             net = sumolib.net.readNet(f"opencda/sumo-assets/{self.scenario_name}/{self.scenario_name}.net.xml")
             nodes = net.getNodes()
 
-            # TODO: Replace with params from scenario file
-            model = get_model("MTP")
-            self.codriving_model_manager = AIMModelManager(
-                model=model,
-                nodes=nodes,
-                excluded_nodes=None,  # scenario_params['excluded_nodes'] if scenario_params['excluded_nodes'] else None
-            )
-        # [CoDrivingInt]
+            aim_config = scenario_params.get("aim", {})
+            aim_model_name = aim_config.pop("model", "MTP")
+            model = get_model(aim_model_name, **aim_config)
 
-        self.platoon_list, self.node_ids["platoon"] = self.scenario_manager.create_platoon_manager( #NOTE Incompatible types in assignment (expression has type "dict[int, str]", target has type "list[int]")
-            map_helper=map_api.spawn_helper_2lanefree, data_dump=data_dump
+            self.codriving_model_manager = AIMModelManager(model=model, nodes=nodes, excluded_nodes=None)
+
+        self.platoon_list, self.node_ids["platoon"] = (
+            self.scenario_manager.create_platoon_manager(  # NOTE Incompatible types in assignment (expression has type "dict[int, str]", target has type "list[int]")
+                map_helper=map_api.spawn_helper_2lanefree, data_dump=data_dump
+            )
         )
         logger.info(f"created platoon list of size {len(self.platoon_list)}")
 
-        self.single_cav_list, self.node_ids["cav"] = self.scenario_manager.create_vehicle_manager( #NOTE Incompatible types in assignment (expression has type "dict[int, str]", target has type "list[int]")
-            application=["single"], map_helper=map_api.spawn_helper_2lanefree, data_dump=data_dump
+        self.single_cav_list, self.node_ids["cav"] = (
+            self.scenario_manager.create_vehicle_manager(  # NOTE Incompatible types in assignment (expression has type "dict[int, str]", target has type "list[int]")
+                application=["single"], map_helper=map_api.spawn_helper_2lanefree, data_dump=data_dump
+            )
         )
         logger.info(f"created single cavs of size {len(self.single_cav_list)}")
 
         _, self.bg_veh_list = self.scenario_manager.create_traffic_carla()
         logger.info(f"created background traffic of size {len(self.bg_veh_list)}")
 
-        self.rsu_list, self.node_ids["rsu"] = self.scenario_manager.create_rsu_manager(data_dump=data_dump) #NOTE Incompatible types in assignment (expression has type "dict[int, str]", target has type "list[int]")
+        self.rsu_list, self.node_ids["rsu"] = self.scenario_manager.create_rsu_manager(
+            data_dump=data_dump
+        )  # NOTE Incompatible types in assignment (expression has type "dict[int, str]", target has type "list[int]")
         logger.info(f"created RSU list of size {len(self.rsu_list)}")
 
         self.eval_manager = EvaluationManager(
             self.scenario_manager.cav_world, script_name=self.scenario_name, current_time=scenario_params["current_time"]
         )
 
-        self.spectator = self.scenario_manager.world.get_spectator() #NOTE None-check is required
+        self.spectator = self.scenario_manager.world.get_spectator()  # NOTE None-check is required
 
     def run(self, opt: argparse.Namespace) -> None:
         if self.coperception_model_manager is not None:
@@ -182,7 +184,7 @@ class Scenario:
         else:
             self.capi_loop(opt, directory_processor)
 
-    def default_loop(self, opt: Any, directory_processor: Any) -> None: 
+    def default_loop(self, opt: Any, directory_processor: Any) -> None:
         tick_number = -1
         while True:
             tick_number += 1
@@ -201,7 +203,9 @@ class Scenario:
                     self.spectator.set_transform(carla.Transform(transform.location + carla.Location(z=50), carla.Rotation(pitch=-90)))
 
             if opt.with_mtp:
-                self.codriving_model_manager.make_trajs(carla_vmanagers=self.single_cav_list) #NOTE incompatible type "list[VehicleManager]"; expected "set[Any]"" but set[Any] in "make_trajs" of "AIMModelManager" provide other mistakes
+                self.codriving_model_manager.make_trajs(
+                    carla_vmanagers=self.single_cav_list
+                )  # NOTE incompatible type "list[VehicleManager]"; expected "set[Any]"" but set[Any] in "make_trajs" of "AIMModelManager" provide other mistakes
 
             if self.coperception_model_manager is not None and tick_number > 0:
                 try:
@@ -253,7 +257,7 @@ class Scenario:
                     self.spectator.set_transform(carla.Transform(transform.location + carla.Location(z=50), carla.Rotation(pitch=-90)))
 
             if opt.with_mtp:
-                self.codriving_model_manager.make_trajs(carla_vmanagers=self.single_cav_list) #NOTE the same mistake as higher
+                self.codriving_model_manager.make_trajs(carla_vmanagers=self.single_cav_list)  # NOTE the same mistake as higher
 
             """
             # Tick 0 is an initialization tick. The simulation starts at tick 0, while the data dumper starts at tick 1.
@@ -274,20 +278,20 @@ class Scenario:
                     idx=0  # TODO: Figure out how to select the ego vehicle in cooperative perception models
                 )
 
-            message = self.message_handler.make_opencda_message() #NOTE None-check is required
+            message = self.message_handler.make_opencda_message()  # NOTE None-check is required
 
-            self.cav_world.comms_manager.send_message(message) #NOTE None-check is required
+            self.cav_world.comms_manager.send_message(message)  # NOTE None-check is required
             logger.info(f"{round(len(message) / (1 << 20), 3)} MB about to be sent")
 
-            message = self.cav_world.comms_manager.receive_message() #NOTE None-check is required
+            message = self.cav_world.comms_manager.receive_message()  # NOTE None-check is required
             logger.info(f"{round(len(message) / (1 << 20), 3)} MB were received")
 
-            self.message_handler.make_artery_data(message) #NOTE None-check is required
+            self.message_handler.make_artery_data(message)  # NOTE None-check is required
 
             if self.coperception_model_manager is not None and tick_number > 0:
                 self.coperception_model_manager.make_prediction(tick_number)
 
-            self.message_handler.clear_messages() #NOTE None-check is required
+            self.message_handler.clear_messages()  # NOTE None-check is required
 
             if self.platoon_list is not None:
                 logger.debug("updating platoons")

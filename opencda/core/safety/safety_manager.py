@@ -78,8 +78,8 @@ class SafetyManager:
         """
         status_dict: Dict[str, Any] = {}
         for sensor in self.sensors:
-            sensor.tick(data_dict)  #NOTE "object" has no attribute "tick"
-            status_dict.update(sensor.return_status()) #NOTE "object" has no attribute "return status"
+            sensor.tick(data_dict)  # NOTE "object" has no attribute "tick"
+            status_dict.update(sensor.return_status())  # NOTE "object" has no attribute "return status"
         if self.print_message:
             print_flag = False
             # only print message when it has hazard
@@ -92,4 +92,4 @@ class SafetyManager:
 
     def destroy(self) -> None:
         for sensor in self.sensors:
-            sensor.destroy() #NOTE "object" has no attribute "destroy"
+            sensor.destroy()  # NOTE "object" has no attribute "destroy"

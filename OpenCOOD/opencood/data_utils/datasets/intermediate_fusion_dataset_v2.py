@@ -182,7 +182,7 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
         # first find the ego vehicle's lidar pose
         for cav_id, cav_content in base_data_dict.items():
             if cav_content["ego"]:
-                ego_id = cav_id #NOTE Incompatible types
+                ego_id = cav_id  # NOTE Incompatible types
                 ego_lidar_pose = cav_content["params"]["lidar_pose"]
                 break
 
@@ -225,7 +225,7 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
         object_id_stack = []
         projected_lidar_stack = []
 
-        ego_cav_base = base_data_dict.get(ego_id) #NOTE Incompatible types
+        ego_cav_base = base_data_dict.get(ego_id)  # NOTE Incompatible types
         ego_cav_processed = self.get_item_single_car(ego_cav_base, ego_lidar_pose)
 
         object_id_stack += ego_cav_processed["object_ids"]
@@ -233,10 +233,10 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
         processed_features.append(ego_cav_processed["processed_features"])
         projected_lidar_stack.append(ego_cav_processed["projected_lidar"])
 
-        if ego_id in self.message_handler.current_message_artery: #NOTE None-check is required
+        if ego_id in self.message_handler.current_message_artery:  # NOTE None-check is required
             for cav_id, _ in base_data_dict.items():
-                if cav_id in self.message_handler.current_message_artery[ego_id]: #NOTE None-check is required
-                    with self.message_handler.handle_artery_message(ego_id, cav_id, self.module_name) as msg: #NOTE None-check is required
+                if cav_id in self.message_handler.current_message_artery[ego_id]:  # NOTE None-check is required
+                    with self.message_handler.handle_artery_message(ego_id, cav_id, self.module_name) as msg:  # NOTE None-check is required
                         projected = np.frombuffer(msg["projected_lidar"]["data"], np.dtype(msg["projected_lidar"]["dtype"]))
                         projected = projected.reshape(msg["projected_lidar"]["shape"])
 
@@ -359,7 +359,7 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
         merged_feature_dict = self.merge_features_to_dict(data["processed_features"])
 
         # generate the anchor boxes
-        anchor_box = self.post_processor.generate_anchor_box() #NOTE None-check is required
+        anchor_box = self.post_processor.generate_anchor_box()  # NOTE None-check is required
 
         # generate targets label
         label_dict = self.post_processor.generate_label(
@@ -377,9 +377,15 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
             if cur_mask.sum() == 0:
                 label_dict_no_coop.append(
                     {
-                        "pos_equal_one": np.zeros((*anchor_box.shape[:2], self.post_processor.anchor_num)), #NOTE Item "None" of "Any | None" has no attribute "anchor_num"
-                        "neg_equal_one": np.ones((*anchor_box.shape[:2], self.post_processor.anchor_num)),  #NOTE Item "None" of "Any | None" has no attribute "anchor_num"
-                        "targets": np.zeros((*anchor_box.shape[:2], self.post_processor.anchor_num * 7)),   #NOTE Item "None" of "Any | None" has no attribute "anchor_num"
+                        "pos_equal_one": np.zeros(
+                            (*anchor_box.shape[:2], self.post_processor.anchor_num)
+                        ),  # NOTE Item "None" of "Any | None" has no attribute "anchor_num"
+                        "neg_equal_one": np.ones(
+                            (*anchor_box.shape[:2], self.post_processor.anchor_num)
+                        ),  # NOTE Item "None" of "Any | None" has no attribute "anchor_num"
+                        "targets": np.zeros(
+                            (*anchor_box.shape[:2], self.post_processor.anchor_num * 7)
+                        ),  # NOTE Item "None" of "Any | None" has no attribute "anchor_num"
                     }
                 )
                 continue
@@ -389,7 +395,7 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
             bbx_center[: boxes[cur_mask].shape[0], :] = boxes[cur_mask]
             bbx_mask[: boxes[cur_mask].shape[0]] = 1
             label_dict_no_coop.append(
-                self.post_processor.generate_label( #NOTE None-check is required
+                self.post_processor.generate_label(  # NOTE None-check is required
                     gt_box_center=bbx_center,  # hwl
                     anchors=anchor_box,
                     mask=bbx_mask,
@@ -433,7 +439,9 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
         transformation_matrix = x1_to_x2(selected_cav_base["params"]["lidar_pose"], ego_pose)
 
         # retrieve objects under ego coordinates
-        object_bbx_center, object_bbx_mask, object_ids = self.post_processor.generate_object_center([selected_cav_base], ego_pose) #NOTE None-check is required
+        object_bbx_center, object_bbx_mask, object_ids = self.post_processor.generate_object_center(
+            [selected_cav_base], ego_pose
+        )  # NOTE None-check is required
 
         # filter lidar
         lidar_np = selected_cav_base["lidar_np"]
@@ -443,7 +451,7 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
         # project the lidar to ego space
         lidar_np[:, :3] = box_utils.project_points_by_matrix_torch(lidar_np[:, :3], transformation_matrix)
         lidar_np = mask_points_by_range(lidar_np, self.params["preprocess"]["cav_lidar_range"])
-        processed_lidar = self.pre_processor.preprocess(lidar_np) #NOTE None-check is required
+        processed_lidar = self.pre_processor.preprocess(lidar_np)  # NOTE None-check is required
 
         selected_cav_processed.update(
             {
@@ -539,15 +547,15 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
         # example: {'voxel_features':[np.array([1,2,3]]),
         # np.array([3,5,6]), ...]}
         merged_feature_dict = self.merge_features_to_dict(processed_lidar_list)
-        processed_lidar_torch_dict = self.pre_processor.collate_batch(merged_feature_dict) #NOTE None-check is required
+        processed_lidar_torch_dict = self.pre_processor.collate_batch(merged_feature_dict)  # NOTE None-check is required
         # [2, 3, 4, ..., M], M <= 5
         record_len = torch.from_numpy(np.array(record_len, dtype=int))
-        label_torch_dict = self.post_processor.collate_batch(label_dict_list) #NOTE None-check is required
+        label_torch_dict = self.post_processor.collate_batch(label_dict_list)  # NOTE None-check is required
         label_dict_no_coop_list_ = [label_dict for label_list in label_dict_no_coop_list for label_dict in label_list]
         for i in range(len(label_dict_no_coop_list_)):
             if isinstance(label_dict_no_coop_list_[i], list):
                 print("debug")
-        label_no_coop_torch_dict = self.post_processor.collate_batch(label_dict_no_coop_list_) #NOTE None-check is required
+        label_no_coop_torch_dict = self.post_processor.collate_batch(label_dict_no_coop_list_)  # NOTE None-check is required
         # object id is only used during inference, where batch size is 1.
         # so here we only get the first element.
         output_dict["ego"].update(
@@ -631,8 +639,8 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
         gt_box_tensor : Tensor
             Tensor of ground truth bounding boxes.
         """
-        pred_box_tensor, pred_score = self.post_processor.post_process(data_dict, output_dict) #NOTE None-check is required
-        gt_box_tensor = self.post_processor.generate_gt_bbx(data_dict) #NOTE None-check is required
+        pred_box_tensor, pred_score = self.post_processor.post_process(data_dict, output_dict)  # NOTE None-check is required
+        gt_box_tensor = self.post_processor.generate_gt_bbx(data_dict)  # NOTE None-check is required
 
         return pred_box_tensor, pred_score, gt_box_tensor
 
@@ -663,4 +671,4 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
         # we need to convert the pcd from [n, 5] -> [n, 4]
         pcd = pcd[:, 1:]
         # visualize the model output
-        self.post_processor.visualize(pred_box_tensor, gt_tensor, pcd, show_vis, save_path, dataset=dataset) #NOTE None-check is required
+        self.post_processor.visualize(pred_box_tensor, gt_tensor, pcd, show_vis, save_path, dataset=dataset)  # NOTE None-check is required

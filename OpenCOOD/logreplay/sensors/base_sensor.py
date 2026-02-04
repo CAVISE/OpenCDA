@@ -90,5 +90,5 @@ class BaseSensor:
         -------
         None
         """
-        self.sensor.destroy() #NOTE there is no self.sensor
+        self.sensor.destroy()  # NOTE there is no self.sensor
         cv2.destroyAllWindows()

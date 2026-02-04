@@ -43,7 +43,7 @@ def load_yaml(file: str) -> Dict[str, Any]:
 
     # load current time for data dumping and evaluation
     current_time = datetime.now()
-    current_time = current_time.strftime("%Y_%m_%d_%H_%M_%S") #NOTE: current_time changes type from datetime to str
+    current_time = current_time.strftime("%Y_%m_%d_%H_%M_%S")  # NOTE: current_time changes type from datetime to str
 
     param["current_time"] = current_time
 
@@ -56,11 +56,14 @@ def add_current_time(params: Dict[str, Any]) -> Tuple[Dict[str, Any], str]:
     """
     # load current time for data dumping and evaluation
     current_time = datetime.now()
-    current_time = current_time.strftime("%Y_%m_%d_%H_%M_%S") #NOTE: current_time changes type from datetime to str
+    current_time = current_time.strftime("%Y_%m_%d_%H_%M_%S")  # NOTE: current_time changes type from datetime to str
 
     params["current_time"] = current_time
 
-    return params, current_time #NOTE [mypy] Incompatible return type (got "tuple[dict[str, Any], datetime]", expected "tuple[dict[str, Any], str]").Caused by type mutation of 'current_time'
+    return (
+        params,
+        current_time,
+    )  # NOTE [mypy] Incompatible return type (got "tuple[dict[str, Any], datetime]", expected "tuple[dict[str, Any], str]").Caused by type mutation of 'current_time'
 
 
 def save_yaml(data: Any, save_name: str) -> None:

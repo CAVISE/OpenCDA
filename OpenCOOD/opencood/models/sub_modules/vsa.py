@@ -152,12 +152,12 @@ class VoxelSetAbstraction(nn.Module):
 
         if "bev" in self.model_cfg["features_source"]:
             c_bev = num_bev_features
-            c_in += c_bev #NOTE Unsupported operand types 
+            c_in += c_bev  # NOTE Unsupported operand types
 
         if "raw_points" in self.model_cfg["features_source"]:
             mlps = copy.copy(SA_cfg["raw_points"]["mlps"])
             for k in range(len(mlps)):
-                mlps[k] = [num_rawpoint_features - 3] + mlps[k] #NOTE Unsupported operand types 
+                mlps[k] = [num_rawpoint_features - 3] + mlps[k]  # NOTE Unsupported operand types
 
             self.SA_rawpoints = pointnet2_stack_modules.StackSAModuleMSG(
                 radii=SA_cfg["raw_points"]["pool_radius"], nsamples=SA_cfg["raw_points"]["n_sample"], mlps=mlps, use_xyz=True, pool_method="max_pool"

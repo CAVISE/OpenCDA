@@ -446,7 +446,7 @@ class Test:
     def test() -> None:
         """
         Test basic transformation and visualization.
-        
+
         Loads an image, applies transformation, and displays the result.
         """
         img = Test.load_img()
@@ -462,7 +462,7 @@ class Test:
     def test_combine_roi_and_cav_mask() -> None:
         """
         Test ROI and CAV mask combination with visualization.
-        
+
         Creates test data, applies mask generation, and displays the result.
         """
         B = 2

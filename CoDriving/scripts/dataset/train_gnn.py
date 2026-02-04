@@ -1,6 +1,7 @@
 import argparse
 import os
 import pickle
+from typing import Any, Tuple
 
 import numpy as np
 import torch
@@ -41,7 +42,33 @@ val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_w
 
 
 class GNN_mtl_gnn(torch.nn.Module):
-    def __init__(self, hidden_channels):
+    """
+    GNN-based MTL model using GraphConv layers (PyG).
+
+    Parameters
+    ----------
+    hidden_channels : int
+        Hidden feature dimension used by MLP and GraphConv layers.
+
+    Attributes
+    ----------
+    conv1 : torch_geometric.nn.conv.GraphConv
+        First GraphConv layer.
+    conv2 : torch_geometric.nn.conv.GraphConv
+        Second GraphConv layer.
+    linear1 : torch.nn.Linear
+        Linear layer mapping 5 -> 64.
+    linear2 : torch.nn.Linear
+        Linear layer mapping 64 -> hidden_channels.
+    linear3 : torch.nn.Linear
+        Residual linear layer hidden_channels -> hidden_channels.
+    linear4 : torch.nn.Linear
+        Residual linear layer hidden_channels -> hidden_channels.
+    linear5 : torch.nn.Linear
+        Output projection hidden_channels -> 60 (30 * 2).
+    """
+
+    def __init__(self, hidden_channels: int):
         super().__init__()
         torch.manual_seed(21)
         self.conv1 = GNNConv(hidden_channels, hidden_channels)
@@ -52,7 +79,20 @@ class GNN_mtl_gnn(torch.nn.Module):
         self.linear4 = nn.Linear(hidden_channels, hidden_channels)
         self.linear5 = nn.Linear(hidden_channels, 30 * 2)
 
-    def forward(self, x, edge_index):
+    def forward(self, x: torch.Tensor, edge_index: torch.Tensor) -> torch.Tensor:
+        """
+        Parameters
+        ----------
+        x : torch.Tensor
+            Node features of shape (N, 5).
+        edge_index : torch.Tensor
+            Graph edges in COO format, typically shape (2, E), dtype torch.long.
+
+        Returns
+        -------
+        torch.Tensor
+            Per-node output of shape (N, 60).
+        """
         x = self.linear1(x).relu()
         x = self.linear2(x).relu()
         x = self.linear3(x).relu() + x
@@ -64,7 +104,33 @@ class GNN_mtl_gnn(torch.nn.Module):
 
 
 class GNN_mtl_mlp(torch.nn.Module):
-    def __init__(self, hidden_channels):
+    """
+    MLP-only variant with the same forward signature as the GNN model.
+
+    Parameters
+    ----------
+    hidden_channels : int
+        Hidden feature dimension.
+
+    Attributes
+    ----------
+    conv1 : torch.nn.Linear
+        Linear layer hidden_channels -> hidden_channels.
+    conv2 : torch.nn.Linear
+        Linear layer hidden_channels -> hidden_channels.
+    linear1 : torch.nn.Linear
+        Linear layer 5 -> 64.
+    linear2 : torch.nn.Linear
+        Linear layer 64 -> hidden_channels.
+    linear3 : torch.nn.Linear
+        Residual linear layer hidden_channels -> hidden_channels.
+    linear4 : torch.nn.Linear
+        Residual linear layer hidden_channels -> hidden_channels.
+    linear5 : torch.nn.Linear
+        Output projection hidden_channels -> 60.
+    """
+
+    def __init__(self, hidden_channels: int):
         super().__init__()
         torch.manual_seed(21)
         self.conv1 = nn.Linear(hidden_channels, hidden_channels)
@@ -75,7 +141,20 @@ class GNN_mtl_mlp(torch.nn.Module):
         self.linear4 = nn.Linear(hidden_channels, hidden_channels)
         self.linear5 = nn.Linear(hidden_channels, 30 * 2)
 
-    def forward(self, x, edge_index):
+    def forward(self, x: torch.Tensor, edge_index: torch.Tensor) -> torch.Tensor:
+        """
+        Parameters
+        ----------
+        x : torch.Tensor
+            Node features of shape (N, 5).
+        edge_index : torch.Tensor
+            Unused (kept for API compatibility).
+
+        Returns
+        -------
+        torch.Tensor
+            Per-node output of shape (N, 60).
+        """
         x = self.linear1(x).relu()
         x = self.linear2(x).relu()
         x = self.linear3(x).relu() + x
@@ -90,9 +169,22 @@ model = GNN_mtl_mlp(hidden_channels=128).to(device) if mlp else GNN_mtl_gnn(hidd
 print(model)
 
 
-def rotation_matrix_back(yaw):
+def rotation_matrix_back(yaw: float) -> torch.Tensor:
     """
-    Rotate back.
+    Construct a 2D rotation matrix for converting predictions back to world frame.
+
+    Parameters
+    ----------
+    yaw : float
+        Yaw angle in radians.
+
+    Returns
+    -------
+    torch.Tensor
+        Rotation matrix of shape (2, 2), dtype float32 (on CPU).
+
+    Referrences
+    -------
     https://en.wikipedia.org/wiki/Rotation_matrix#Non-standard_orientation_of_the_coordinate_system
     """
     rotation = np.array([[np.cos(-np.pi / 2 + yaw), -np.sin(-np.pi / 2 + yaw)], [np.sin(-np.pi / 2 + yaw), np.cos(-np.pi / 2 + yaw)]])
@@ -100,18 +192,27 @@ def rotation_matrix_back(yaw):
     return rotation
 
 
-def train(model, device, data_loader, optimizer, collision_penalty=False):
-    """Performs an epoch of model training.
+def train(model: nn.Module, device: torch.device, data_loader: Any, optimizer: torch.optim.Optimizer, collision_penalty: bool = False) -> float:
+    """
+    Perform one training epoch.
 
-    Parameters:
-    model (nn.Module): Model to be trained.
-    device (torch.Device): Device used for training.
-    data_loader (torch.utils.data.DataLoader): Data loader containing all batches.
-    optimizer (torch.optim.Optimizer): Optimizer used to update model.
-    collision_penalty: set it to True if you want to use collision penalty.
+    Parameters
+    ----------
+    model : torch.nn.Module
+        Model to train.
+    device : torch.device
+        Target device.
+    data_loader : Any
+        PyG DataLoader yielding batches with attributes: x, y, edge_index, weights.
+    optimizer : torch.optim.Optimizer
+        Optimizer instance.
+    collision_penalty : bool, optional
+        If True, adds collision penalty term to the loss.
 
-    Returns:
-    float: Total loss for epoch.
+    Returns
+    -------
+    float
+        Average loss over the epoch.
     """
     model.train()
     total_loss = 0
@@ -151,15 +252,21 @@ def train(model, device, data_loader, optimizer, collision_penalty=False):
     return total_loss / len(data_loader)
 
 
-def evaluate(model, device, data_loader):
-    """Performs an epoch of model training.
+def evaluate(model: nn.Module, device: torch.device, data_loader: Any) -> Tuple[float, float, float, float, float, float]:
+    """ "
+    Evaluate model on a validation set.
 
-    Parameters:
-    model (nn.Module): Model to be trained.
-    device (torch.Device): Device used for training.
-    data_loader (torch.utils.data.DataLoader): Data loader containing all batches.
+    Parameters
+    ----------
+    model : torch.nn.Module
+        Model to evaluate.
+    device : torch.device
+        Target device.
+    data_loader : Any
+        PyG DataLoader yielding batches with attributes: x, y, edge_index, weights.
 
-    Returns:
+    Returns
+    -------
     list of evaluation metrics (including ADE, FDE, etc.).
     """
     step_weights = torch.ones(30, device=device)

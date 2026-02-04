@@ -5,7 +5,7 @@ This module implements double convolution blocks and sequential downsampling
 using configurable kernel sizes, strides, and padding.
 """
 
-from typing import Any, Dict, List, Union, Tuple
+from typing import Any, Dict, Union, Tuple
 import torch.nn as nn
 import torch
 

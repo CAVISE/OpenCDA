@@ -122,7 +122,10 @@ class BaseWindowAttention(nn.Module):
             Output tensor with the same shape as input (B, L, H, W, C) after
         applying window-based multi-head attention.
         """
-        _, _, h, w, _, m = *x.shape, self.heads  # 1 -> b, 2 -> length, 5 -> c # NOTE: This unpacking relies on dynamic tensor shape and device injection.Precise typing is impossible without refactoring the assignment.
+        _, _, h, w, _, m = (
+            *x.shape,
+            self.heads,
+        )  # 1 -> b, 2 -> length, 5 -> c # NOTE: This unpacking relies on dynamic tensor shape and device injection.Precise typing is impossible without refactoring the assignment.
 
         qkv = self.to_qkv(x).chunk(3, dim=-1)
         new_h = h // self.window_size

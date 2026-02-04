@@ -58,7 +58,9 @@ class FpvrcnnPostprocessor(VoxelPostprocessor):
         else:
             return self.post_process_stage2(data_dict)
 
-    def post_process_stage1(self, data_dict: Dict[str, Any], output_dict: Dict[str, Any]) -> Tuple[Optional[List[torch.Tensor]], Optional[List[torch.Tensor]]]:
+    def post_process_stage1(
+        self, data_dict: Dict[str, Any], output_dict: Dict[str, Any]
+    ) -> Tuple[Optional[List[torch.Tensor]], Optional[List[torch.Tensor]]]:
         """
         Process the first stage outputs of the model to 3D bounding boxes.
 
@@ -175,7 +177,7 @@ class FpvrcnnPostprocessor(VoxelPostprocessor):
         # shape: (N, 5)
         pred_box2d_list = torch.vstack(pred_box2d_list)
         # scores
-        scores = pred_box2d_list[:, -1] # NOTE: mypy error - list doesn't support numpy-style indexing
+        scores = pred_box2d_list[:, -1]  # NOTE: mypy error - list doesn't support numpy-style indexing
         # predicted 3d bbx
         pred_box3d_tensor = torch.vstack(pred_box3d_list)
         pred_box3d_original = torch.vstack(pred_box3d_original_list)

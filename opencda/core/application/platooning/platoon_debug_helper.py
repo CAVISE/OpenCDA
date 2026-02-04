@@ -33,7 +33,7 @@ class PlatoonDebugHelper(PlanDebugHelper):
         super(PlatoonDebugHelper, self).__init__(actor_id)
 
         self.time_gap_list: List[List[Optional[float]]] = [[]]
-        self.dist_gap_list: List[List[Optional[float]]]= [[]]
+        self.dist_gap_list: List[List[Optional[float]]] = [[]]
 
     def update(
         self,

@@ -122,7 +122,7 @@ class LocalPlanner(object):
         self.debug = config_yaml["debug"]
         self.debug_trajectory = config_yaml["debug_trajectory"]
 
-    def set_global_plan(self, current_plan: List[carla.Waypoint], clean: bool=False) -> None:
+    def set_global_plan(self, current_plan: List[carla.Waypoint], clean: bool = False) -> None:
         """
         Sets new global plan.
 
@@ -240,8 +240,8 @@ class LocalPlanner(object):
         ds = 0.1
 
         # retrieve current location, yaw angle
-        current_location = self._ego_pos.location #NOTE A None-check is required
-        current_yaw = self._ego_pos.rotation.yaw #NOTE A None-check is required 
+        current_location = self._ego_pos.location  # NOTE A None-check is required
+        current_yaw = self._ego_pos.rotation.yaw  # NOTE A None-check is required
 
         # retrieve the corresponding waypoint of the current location
         current_wpt = self._map.get_waypoint(current_location).next(1)[0]
@@ -345,7 +345,9 @@ class LocalPlanner(object):
                 continue
             if i <= len(s) // 2:
                 self._long_plan_debug.append(carla.Transform(carla.Location(ix, iy, 0)))
-            rx.append(ix) #NOTE Append float|None (from sp.calc_position) to List[float]. Runtime OK (assume non-None after hypot check). Fix: cast(float, ix) or if ix is not None: rx.append(ix)
+            rx.append(
+                ix
+            )  # NOTE Append float|None (from sp.calc_position) to List[float]. Runtime OK (assume non-None after hypot check). Fix: cast(float, ix) or if ix is not None: rx.append(ix)
             ry.append(iy)
             rk.append(max(min(sp.calc_curvature(i_s), 0.2), -0.2))
             ryaw.append(sp.calc_yaw(i_s))
@@ -383,7 +385,7 @@ class LocalPlanner(object):
         sample_num = 2.0 // dt
 
         break_flag = False
-        current_speed = current_speed / 3.6 #NOTE A None-check is required
+        current_speed = current_speed / 3.6  # NOTE A None-check is required
         sample_resolution = 0
 
         # use mean curvature to constrain the speed
@@ -395,7 +397,7 @@ class LocalPlanner(object):
 
         max_acc = 3.5
         # todo: hard-coded, need to be tuned
-        acceleration = max(min(max_acc, (target_speed / 3.6 - current_speed) / dt), -6.5) #NOTE A None-check is required
+        acceleration = max(min(max_acc, (target_speed / 3.6 - current_speed) / dt), -6.5)  # NOTE A None-check is required
 
         for i in range(1, int(sample_num) + 1):
             sample_resolution += current_speed * dt + 0.5 * acceleration * dt**2
@@ -436,7 +438,9 @@ class LocalPlanner(object):
 
             # check if the current waypoint is behind the vehicle.
             # if so, remove such waypoint.
-            _, angle = cal_distance_angle(waypoint.transform.location, self._ego_pos.location, self._ego_pos.rotation.yaw) #NOTE A None-check is required
+            _, angle = cal_distance_angle(
+                waypoint.transform.location, self._ego_pos.location, self._ego_pos.rotation.yaw
+            )  # NOTE A None-check is required
 
             if angle > 90:
                 # print('delete waypoint!')
@@ -499,14 +503,14 @@ class LocalPlanner(object):
                     self._trajectory_buffer.popleft()
 
     def run_step(
-    self,
-    rx: List[float],
-    ry: List[float],
-    rk: List[float],
-    target_speed: Optional[float] = None,
-    trajectory: Optional[Deque[Tuple[carla.Transform, float]]] = None,
-    following: bool = False
-) -> Tuple[float, carla.Waypoint]:
+        self,
+        rx: List[float],
+        ry: List[float],
+        rk: List[float],
+        target_speed: Optional[float] = None,
+        trajectory: Optional[Deque[Tuple[carla.Transform, float]]] = None,
+        following: bool = False,
+    ) -> Tuple[float, carla.Waypoint]:
         """
         Execute one step of local planning which involves
         running the longitudinal and lateral PID controllers to
@@ -561,7 +565,7 @@ class LocalPlanner(object):
             self._trajectory_buffer.clear()
             # if no spline points provided, return 0 and none target wpt
             if len(rx) == 0:
-                return 0, None 
+                return 0, None
             self.generate_trajectory(rx, ry, rk)
         elif trajectory:
             self._trajectory_buffer = trajectory.copy()

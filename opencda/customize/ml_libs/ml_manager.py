@@ -86,5 +86,5 @@ def is_vehicle_cococlass(label: int) -> bool:
     bool
         True if label corresponds to vehicle class, False otherwise.
     """
-    vehicle_class_array = np.array([1, 2, 3, 5, 7], dtype=np.int)
+    vehicle_class_array = np.array([1, 2, 3, 5, 7], dtype=int)
     return True if 0 in (label - vehicle_class_array) else False

@@ -183,7 +183,7 @@ class MapManager(object):
         final_agents = {}
 
         # convert center to list format
-        center = [self.center.location.x, self.center.location.y] # NOTE: self.center can be None here 
+        center = [self.center.location.x, self.center.location.y]  # NOTE: self.center can be None here
 
         for agent_id, agent in agents_dict.items():
             location = agent["location"]
@@ -210,7 +210,7 @@ class MapManager(object):
         -------
         np.ndarray: indices of elements inside radius from center
         """
-        x_center, y_center = self.center.location.x, self.center.location.y # NOTE: self.center can be None here 
+        x_center, y_center = self.center.location.x, self.center.location.y  # NOTE: self.center can be None here
 
         x_min_in = x_center > bounds[:, 0, 0] - half_extent
         y_min_in = y_center > bounds[:, 0, 1] - half_extent

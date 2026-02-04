@@ -1,30 +1,34 @@
 """
-Unit tests for drive profile plotting functionality.
+Unit tests for drive_profile_plotting module.
 
-This module contains test cases for the drive profile plotting functions
-in opencda.core.plan.drive_profile_plotting module.
+This module contains smoke tests to verify plotting functions run without errors.
 """
 
 import os
 import sys
 import unittest
 
+import matplotlib
+
+matplotlib.use("Agg")  # Non-GUI backend for CI/headless testing
+import matplotlib.pyplot as plt
 
 # temporary solution for relative imports in case opencda is not installed
-# if opencda is installed, no need to use the following line
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), ".")))
 
+from opencda.core.plan.drive_profile_plotting import (
+    draw_velocity_profile_single_plot,
+    draw_acceleration_profile_single_plot,
+    draw_ttc_profile_single_plot,
+    draw_time_gap_profile_singel_plot,
+    draw_dist_gap_profile_singel_plot,
+)
 
-from opencda.core.plan.drive_profile_plotting import draw_sub_plot
 
-
-class TestDriveProfile(unittest.TestCase):
+class TestDriveProfilePlotting(unittest.TestCase):
     """
-    Test suite for drive profile plotting functions.
-
-    Tests the visualization of vehicle driving profiles including speed,
-    acceleration, and other metrics over time.
+    Smoke tests for drive profile plotting functions.
     """
 
     def setUp(self) -> None:
@@ -38,17 +42,97 @@ class TestDriveProfile(unittest.TestCase):
         -------
         None
         """
-        self.mock_list = [[23, 25, 25, 44, 66], [44, 55, 25, 22, 33]]
+        self.mock_velocity = [[23, 25, 25, 30, 28], [20, 22, 24, 26, 28]]
+        self.mock_acceleration = [[0.5, 1.0, -0.5, 0.0, 0.2], [0.3, -0.2, 0.1, 0.0, -0.1]]
+        self.mock_ttc = [[5, 8, 10, 15, 20], [6, 9, 12, 18, 25]]
+        self.mock_time_gap = [[0.8, 0.9, 1.0, 1.1, 1.2], [0.7, 0.8, 0.9, 1.0, 1.1]]
+        self.mock_dist_gap = [[15, 18, 20, 22, 25], [12, 15, 18, 20, 22]]
 
-    def test_sub_plot(self) -> None:
+    def tearDown(self) -> None:
         """
-        Test subplot generation with multiple metric lists.
-
-        Verifies that the draw_sub_plot function successfully creates
-        visualizations when provided with multiple data series.
+        Clean up matplotlib figures after each test.
 
         Returns
         -------
         None
         """
-        assert draw_sub_plot(self.mock_list, self.mock_list, self.mock_list, self.mock_list, self.mock_list)
+        plt.close("all")
+
+    def _assert_figure_created(self) -> None:
+        """
+        Helper: verify at least one axis exists on current figure.
+
+        Returns
+        -------
+        None
+        """
+        fig = plt.gcf()
+        self.assertIsNotNone(fig)
+        self.assertGreaterEqual(len(fig.axes), 1, "Expected at least one axis on figure")
+
+    def test_draw_velocity_profile_single_plot(self) -> None:
+        """
+        Test velocity profile plotting runs without error.
+
+        Returns
+        -------
+        None
+        """
+        draw_velocity_profile_single_plot(self.mock_velocity)
+        self._assert_figure_created()
+
+    def test_draw_acceleration_profile_single_plot(self) -> None:
+        """
+        Test acceleration profile plotting runs without error.
+
+        Returns
+        -------
+        None
+        """
+        draw_acceleration_profile_single_plot(self.mock_acceleration)
+        self._assert_figure_created()
+
+    def test_draw_ttc_profile_single_plot(self) -> None:
+        """
+        Test TTC profile plotting runs without error.
+
+        Returns
+        -------
+        None
+        """
+        draw_ttc_profile_single_plot(self.mock_ttc)
+        self._assert_figure_created()
+
+    def test_draw_time_gap_profile_single_plot(self) -> None:
+        """
+        Test time gap profile plotting runs without error.
+
+        Returns
+        -------
+        None
+        """
+        draw_time_gap_profile_singel_plot(self.mock_time_gap)
+        self._assert_figure_created()
+
+    def test_draw_dist_gap_profile_single_plot(self) -> None:
+        """
+        Test distance gap profile plotting runs without error.
+
+        Returns
+        -------
+        None
+        """
+        draw_dist_gap_profile_singel_plot(self.mock_dist_gap)
+        self._assert_figure_created()
+
+    def test_single_profile(self) -> None:
+        """
+        Test plotting with single profile list.
+
+        Returns
+        -------
+        None
+        """
+        single_velocity = [[10, 15, 20, 25, 30]]
+        draw_velocity_profile_single_plot(single_velocity)
+        self._assert_figure_created()

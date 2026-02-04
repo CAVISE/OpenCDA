@@ -47,7 +47,7 @@ class CustomziedPeceptionManager(PerceptionManager):
     ):
         super(CustomizedLocalizationManager, self).__init__(vehicle, config_yaml, cav_world, data_dump)
 
-    def detect(self, ego_pos: Any) -> Dict[str, List[Any]]: #NOTE The function repeats twice
+    def detect(self, ego_pos: Any) -> Dict[str, List[Any]]:  # NOTE The function repeats twice
         def detect(self, ego_pos: Any) -> Dict[str, List[Any]]:
             """
             Perform object detection using sensor data.

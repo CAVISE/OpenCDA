@@ -221,9 +221,7 @@ def retrieve_city_object_info(
 
 
 def obj_in_range(
-    center: carla.Transform,
-    radius: float,
-    obj_info_dict: Dict[str, Dict[str, Dict[str, Union[List[float], float, List[List[float]]]]]]
+    center: carla.Transform, radius: float, obj_info_dict: Dict[str, Dict[str, Dict[str, Union[List[float], float, List[List[float]]]]]]
 ) -> Dict[str, Dict[str, Dict[str, Union[List[float], float, List[List[float]]]]]]:
     """
     Retrieve the object in range.
@@ -248,7 +246,9 @@ def obj_in_range(
         cur_objs: Dict[str, Dict[str, Union[List[float], float, List[List[float]]]]] = {}
         for obj_id, obj_info in obj_contents.items():
             corners_any: Any = obj_info["corners"]  # Using a temporary variable of type Any because Mypy cannot infer the type from the nested dict.
-            corners: List[List[float]] = cast(List[List[float]], corners_any) # The cast ensures corners is treated as List[List[float]] for static type checking.
+            corners: List[List[float]] = cast(
+                List[List[float]], corners_any
+            )  # The cast ensures corners is treated as List[List[float]] for static type checking.
             for corner in corners:
                 distance = math.sqrt((corner[0] - center.location.x) ** 2 + (corner[1] - center.location.y) ** 2)
                 if distance < radius:

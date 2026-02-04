@@ -59,11 +59,11 @@ class SumoTopology(object):
     """
 
     def __init__(
-    self,
-    topology: Dict[Tuple[str, int], Set[Tuple[str, int]]],
-    paths: Dict[Tuple[str, int], Set[Tuple[Tuple[str, int], Tuple[str, int]]]],
-    odr2sumo_ids: Dict[Tuple[str, int], Set[Tuple[str, int]]]
-):
+        self,
+        topology: Dict[Tuple[str, int], Set[Tuple[str, int]]],
+        paths: Dict[Tuple[str, int], Set[Tuple[Tuple[str, int], Tuple[str, int]]]],
+        odr2sumo_ids: Dict[Tuple[str, int], Set[Tuple[str, int]]],
+    ):
         # Contains only standard roads.
         self._topology = topology
         # Contaions only roads that belong to a junction.
@@ -106,7 +106,7 @@ class SumoTopology(object):
 
             s_coords = [float(edge.split(".", 1)[1]) for edge, _ in sumo_ids]
 
-            s_coords, sumo_ids = zip(   #NOTE error: Incompatible types in assignment
+            s_coords, sumo_ids = zip(  # NOTE error: Incompatible types in assignment
                 *sorted(zip(s_coords, sumo_ids))
             )  # TODO error: Incompatible types in assignment (expression has type "tuple[Any, ...]", variable has type "list[float]"
             index = bisect.bisect_left(s_coords, s, lo=1) - 1
@@ -320,7 +320,7 @@ class SumoTrafficLight(object):
     Phase = collections.namedtuple("Phase", "duration state min_dur max_dur next name")
     Connection = collections.namedtuple("Connection", "tlid from_road to_road from_lane to_lane link_index")
 
-    def __init__(self, tlid: str, program_id: str="0", offset: int =0, tltype: str="static"):
+    def __init__(self, tlid: str, program_id: str = "0", offset: int = 0, tltype: str = "static"):
         self.id = tlid
         self.program_id = program_id
         self.offset = offset

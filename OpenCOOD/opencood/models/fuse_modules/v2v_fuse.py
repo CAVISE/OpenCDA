@@ -5,7 +5,7 @@ This module implements V2VNet fusion mechanism using spatial transformation
 and iterative GRU-based message passing for multi-agent cooperative perception.
 """
 
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List
 import torch
 import torch.nn as nn
 from torch import Tensor

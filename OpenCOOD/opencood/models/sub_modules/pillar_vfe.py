@@ -239,12 +239,12 @@ class PillarVFE(nn.Module):
             features.append(points_dist)
         features = torch.cat(features, dim=-1)
 
-        voxel_count = features.shape[1] #NOTE "list" has no attribute "shape"
+        voxel_count = features.shape[1]  # NOTE "list" has no attribute "shape"
         mask = self.get_paddings_indicator(voxel_num_points, voxel_count, axis=0)
         mask = torch.unsqueeze(mask, -1).type_as(voxel_features)
         features *= mask
         for pfn in self.pfn_layers:
             features = pfn(features)
-        features = features.squeeze() #NOTE "list[Any]" has no attribute "squeeze"
+        features = features.squeeze()  # NOTE "list[Any]" has no attribute "squeeze"
         batch_dict["pillar_features"] = features
         return batch_dict

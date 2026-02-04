@@ -2,7 +2,7 @@ import os
 import random
 import shutil
 import xml.dom.minidom
-from typing import NoReturn
+from typing import Dict, List
 
 import numpy as np
 import pandas as pd
@@ -13,6 +13,24 @@ from utils.feature_utils import get_path_to_intention, get_center_coodinates
 
 
 def get_shortest_path(net_path: str, from_edge: str, to_edge: str) -> str:
+    """
+    Compute the shortest path between two edges in a SUMO network.
+
+    Parameters
+    ----------
+    net_path : str
+        Path to SUMO network file (e.g., *.net.xml).
+    from_edge : str
+        Source edge id.
+    to_edge : str
+        Destination edge id.
+
+    Returns
+    -------
+    str
+        Space-separated list of edge ids representing the shortest route.
+        Returns an empty string if no path exists.
+    """
     net = sumolib.net.readNet(net_path)
     from_edge = net.getEdge(from_edge)
     to_edge = net.getEdge(to_edge)
@@ -25,7 +43,19 @@ def get_shortest_path(net_path: str, from_edge: str, to_edge: str) -> str:
     return " ".join([i.getID() for i in edges_short])
 
 
-def save_csv(df: pd.DataFrame, name: str, dir: str = "./csv") -> NoReturn:
+def save_csv(df: pd.DataFrame, name: str, dir: str = "./csv") -> None:
+    """
+    Save a DataFrame as CSV into a directory.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Data to save.
+    name : str
+        Output filename without extension.
+    dir : str, optional
+        Output directory (default: "./csv").
+    """
     if not os.path.exists(dir):
         os.makedirs(dir)
 
@@ -41,19 +71,47 @@ def generate_fcd(
     total_time: int,
     step_length: float = 0.1,
     traffic_scale: float = 0.5,
-) -> NoReturn:
+) -> None:
+    """
+    Run SUMO and export an FCD (Floating Car Data) output file.
+
+    Parameters
+    ----------
+    sumocfg_path : str
+        Path to SUMO config (*.sumocfg).
+    fcd_path : str
+        Output path for FCD xml.
+    begin_time : int
+        Simulation begin time (seconds).
+    offset_time : int
+        Warm-up/offset time (seconds) included in SUMO run.
+    total_time : int
+        Main collection duration (seconds) included in SUMO run.
+    step_length : float, optional
+        SUMO simulation step length (default: 0.1).
+    traffic_scale : float, optional
+        Traffic scaling factor (default: 0.5).
+    """
     cmd = f"sumo -c {sumocfg_path} --fcd-output {fcd_path} --begin {begin_time} --end {begin_time + offset_time + total_time} \
             --step-length {step_length} --scale {traffic_scale}"
     os.system(cmd)
 
 
-def get_random_route(from_path: str, possible_paths: dict[str, list[str]]) -> str:
+def get_random_route(from_path: str, possible_paths: Dict[str, List[str]]) -> str:
     """
-    Args:
-        - from_path: e.g. from_edge id
+    Pick a random destination for a given start edge and return a route id.
 
-    Return:
-        - route name: e.g. '<from_edge>_<to_edge>'
+    Parameters
+    ----------
+    from_path : str
+        Start edge id.
+    possible_paths : Mapping[str, Sequence[str]]
+        Mapping `from_edge -> list of possible to_edges`.
+
+    Returns
+    -------
+    str
+        Route name in the format "<from_edge>_<to_edge>".
     """
     return f"{from_path}_{random.choice(list(possible_paths[from_path]))}"
 
@@ -66,20 +124,26 @@ def generate_routefile(
     num_seconds: int = 2000,
     create_new_vehicle_prob: float = 0.08,
     random_seed: int = 3,
-) -> NoReturn:
+) -> None:
     """
-    Generate *.rou.xml file. (for the separated road net)
+    Generate a SUMO routes (*.rou.xml) file for a given road network.
 
-    Args:
-        - sumo_files_path
-        - rou_xml_filename
-        - net_xml_filename
-        - from_edges: from and to_edges use to generate all possible routes between them
-        - to_edges
-        - num_seconds
-        - create_new_vehicle_prob: the prob of generating a new vehicle at a start point per second, e.g. 0.08 (normal), 0.12 (slightly busy)
-        - straight_prob
-        - random_seed
+    Parameters
+    ----------
+    sumo_files_path : str
+        Base directory that contains "map/", "intentions/", and where "route/" will be created.
+    rou_xml_filename : str
+        Output routes filename prefix (without extension).
+    net_xml_filename : str, optional
+        Network filename under `<sumo_files_path>/map/`.
+    intention_config_filename : str, optional
+        Intentions config filename under `<sumo_files_path>/intentions/`.
+    num_seconds : int, optional
+        Simulation duration used for spawning vehicles (in seconds).
+    create_new_vehicle_prob : float, optional
+        Probability of spawning a vehicle per second per start edge.
+    random_seed : int, optional
+        Random seed for reproducibility.
     """
     random.seed(random_seed)  # make tests reproducible
     num_vehicles = 0
@@ -93,7 +157,7 @@ def generate_routefile(
         route_file.write("""<routes>
     <vType id="typeWE" accel="2.5" decel="4.5" sigma="0.5" length="5" minGap="2.5" maxSpeed="40" guiShape="passenger"/>\n\n""")
 
-        possible_paths = {}
+        possible_paths: Dict[str, List[str]] = {}
         paths = get_path_to_intention(intention_config_path).keys()
         for path in paths:
             from_edge, to_edge = path.split("_")
@@ -117,6 +181,23 @@ def generate_routefile(
 
 
 def generate_sumocfg(sumo_files_path: str, rou_xml_filename: str, net_filename: str) -> str:
+    """
+    Create a SUMO configuration (*.sumocfg) file from a template.
+
+    Parameters
+    ----------
+    sumo_files_path : str
+        Base SUMO directory containing "sumocfg/template.sumocfg".
+    rou_xml_filename : str
+        Routes filename prefix (without extension).
+    net_filename : str
+        Network filename (without extension handling; must match template placeholders).
+
+    Returns
+    -------
+    str
+        Path to the generated *.sumocfg file.
+    """
     sumocfg_path = os.path.join(sumo_files_path, "sumocfg")
     os.makedirs(sumocfg_path, exist_ok=True)
     sumocfg_filename = os.path.join(sumocfg_path, f"{rou_xml_filename}.sumocfg")
@@ -132,14 +213,28 @@ def generate_sumocfg(sumo_files_path: str, rou_xml_filename: str, net_filename: 
     return sumocfg_filename
 
 
-def generate_csv_from_fcd(fcd_file: str, intention_config_path: str, time_per_scene: int, split: str = "train"):
+def generate_csv_from_fcd(fcd_file: str, intention_config_path: str, time_per_scene: int, split: str = "train") -> None:
+    """
+    Convert SUMO FCD XML into multiple scene CSV files.
+
+    Parameters
+    ----------
+    fcd_file : str
+        Path to SUMO FCD output XML.
+    intention_config_path : str
+        Path to intentions config (used to compute center coordinates).
+    time_per_scene : int
+        Scene duration in seconds (used to slice the global time stream).
+    split : str, optional
+        Dataset split name (default: "train"). Output directory is `csv/<split>`.
+    """
     csv_dir = os.path.join("csv", split)
     if os.path.exists(csv_dir):  # delete directory with old data if exists
         shutil.rmtree(csv_dir)
 
     DOMTree = xml.dom.minidom.parse(fcd_file)
     collection = DOMTree.documentElement
-    tracks = collection.getElementsByTagName("timestep")
+    tracks = collection.getElementsByTagName("timestep")  # NOTE None-check is required
     df = pd.DataFrame()
     tgt_agent_ids = []
     center_coordinates = get_center_coodinates(intention_config_path)
