@@ -124,6 +124,37 @@ def arg_parse() -> argparse.Namespace:
         "but would increase the tolerance for FP (False Positives).",
     )
 
+    # AdvCP arguments
+    parser.add_argument(
+        "--with-advcp", action="store_true", help="Whether to enable AdvCollaborativePerception module with attack/defense capabilities"
+    )
+    parser.add_argument("--advcp-config", type=str, default="opencda/core/common/advcp/advcp_config.yaml", help="Path to AdvCP configuration file")
+    parser.add_argument("--attackers-ratio", type=float, default=0.2, help="Ratio of CAVs to be attackers (0.0-1.0)")
+    parser.add_argument(
+        "--attack-type",
+        type=str,
+        default="lidar_remove_early",
+        choices=[
+            "lidar_remove_early",
+            "lidar_remove_intermediate",
+            "lidar_remove_late",
+            "lidar_spoof_early",
+            "lidar_spoof_intermediate",
+            "lidar_spoof_late",
+            "adv_shape",
+        ],
+        help="Type of attack to execute",
+    )
+    parser.add_argument(
+        "--attack-target",
+        type=str,
+        default="random",
+        choices=["random", "specific_vehicle", "all_non_attackers"],
+        help="Target selection strategy for attacks",
+    )
+    parser.add_argument("--apply-cad-defense", action="store_true", help="Enable CAD defense mechanism")
+    parser.add_argument("--defense-threshold", type=float, default=0.7, help="Trust threshold for CAD defense (0.0-1.0)")
+
     def verbosity_wrapper(arg: str) -> VerbosityLevel:
         return VerbosityLevel(int(arg))
 

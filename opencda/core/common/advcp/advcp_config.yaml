@@ -1,0 +1,236 @@
+# AdvCollaborativePerception (AdvCP) Configuration
+# Configuration for attack and defense mechanisms in collaborative perception
+
+# General configuration
+advcp:
+  enabled: true
+  version: "1.0.0"
+  description: "AdvCollaborativePerception module for OpenCDA"
+
+# Attack configuration
+attack:
+  enabled: true
+  types:
+    - "lidar_remove_early"
+    - "lidar_remove_intermediate"
+    - "lidar_remove_late"
+    - "lidar_spoof_early"
+    - "lidar_spoof_intermediate"
+    - "lidar_spoof_late"
+    - "adv_shape"
+  
+  attackers_ratio: 0.2  # 20% of CAVs will be attackers
+  interval: 10  # Attack interval in simulation ticks
+  max_attacks_per_tick: 5  # Maximum attacks per tick
+  
+  # Attack-specific configurations
+  lidar_remove_early:
+    enabled: true
+    dense: 3  # 0: no dense, 1: DenseA, 2: DenseAll, 3: Sampled
+    sync: 1  # 0: async, 1: sync
+    
+  lidar_remove_intermediate:
+    enabled: true
+    step: 100  # Optimization steps
+    sync: 1
+    init: true
+    online: true
+    
+  lidar_remove_late:
+    enabled: true
+    
+  lidar_spoof_early:
+    enabled: true
+    dense: 3
+    sync: 1
+    
+  lidar_spoof_intermediate:
+    enabled: true
+    step: 100
+    sync: 1
+    init: true
+    online: true
+    
+  lidar_spoof_late:
+    enabled: true
+    
+  adv_shape:
+    enabled: true
+    
+# Defense configuration
+defense:
+  enabled: true
+  
+  # Trust-based defense
+  trust_threshold: 0.7  # Trust threshold for accepting data
+  
+  # Consistency checking
+  consistency_window: 5  # Number of ticks to check consistency
+  min_consistency: 0.8  # Minimum consistency score
+  
+  # Anomaly detection
+  anomaly_threshold: 0.5  # Threshold for anomaly detection
+  
+  # Occupancy map
+  occupancy_resolution: 0.5  # Resolution in meters
+  occupancy_map_size: 100  # Map size in cells
+  
+  # CAD (Collaborative Anomaly Detection) parameters
+  cad_enabled: true
+  cad_threshold: 0.6
+  cad_window: 10
+  
+# Perception configuration
+perception:
+  model_name: "pointpillar"  # Model to use for perception
+  confidence_threshold: 0.5  # Detection confidence threshold
+  nms_threshold: 0.1  # Non-maximum suppression threshold
+  
+  # Sensor configuration
+  lidar_range: 100.0  # Maximum LiDAR range in meters
+  lidar_fov: 360.0  # LiDAR field of view in degrees
+  lidar_channels: 64  # Number of LiDAR channels
+  
+# Visualization configuration
+visualization:
+  enabled: true
+  show_attacks: true  # Show attack indicators
+  show_defenses: true  # Show defense indicators
+  show_trust_scores: true  # Show trust scores
+  
+  # Colors
+  attack_color: [1.0, 0.0, 0.0]  # Red for attacks
+  defense_color: [0.0, 1.0, 0.0]  # Green for defenses
+  trusted_color: [0.0, 0.0, 1.0]  # Blue for trusted CAVs
+  untrusted_color: [1.0, 0.5, 0.0]  # Orange for untrusted CAVs
+  
+  # Display settings
+  point_size: 1.0
+  line_width: 2.0
+  text_size: 12
+  
+# Logging configuration
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+  log_file: "advcp.log"
+  log_to_console: true
+  log_to_file: true
+  
+  # Log rotation
+  max_bytes: 10485760  # 10MB
+  backup_count: 5
+  
+# Metrics configuration
+metrics:
+  enabled: true
+  log_interval: 10  # Log metrics every N ticks
+  
+  # Metrics to track
+  track_attacks: true
+  track_defenses: true
+  track_performance: true
+  track_anomalies: true
+  
+  # Output configuration
+  output_directory: "simulation_output/advcp/metrics"
+  save_format: "json"  # json, csv, or both
+  
+# Simulation configuration
+simulation:
+  max_ticks: 10000  # Maximum simulation ticks
+  warm_up_ticks: 100  # Warm-up period before attacks start
+  
+  # Scenario configuration
+  scenario: "default"
+  map: "Town06"
+  num_cavs: 20  # Total number of CAVs
+  
+  # Timing configuration
+  tick_duration: 0.1  # Duration of each tick in seconds
+  real_time_factor: 1.0  # Real-time factor (1.0 = real-time)
+  
+# Data configuration
+data:
+  # Dataset configuration
+  dataset:
+    name: "OPV2V"
+    path: "data/OPV2V"
+    version: "1.0"
+    
+  # Model configuration
+  models:
+    path: "models/advcp"
+    pretrained_path: "models/pretrained"
+    
+  # Cache configuration
+  cache:
+    enabled: true
+    size: 1000  # Maximum number of samples to cache
+    ttl: 3600  # Time-to-live in seconds
+    
+# Security configuration
+security:
+  # Encryption configuration
+  encryption:
+    enabled: false
+    algorithm: "AES-256"
+    key_length: 256
+    
+  # Authentication configuration
+  authentication:
+    enabled: false
+    method: "token"
+    token_expiry: 3600  # Token expiry in seconds
+    
+  # Access control
+  access_control:
+    enabled: false
+    admin_roles: ["admin", "superuser"]
+    user_roles: ["user", "operator"]
+    
+# Performance configuration
+performance:
+  # Multi-threading
+  threading:
+    enabled: true
+    max_threads: 8
+    
+  # GPU acceleration
+  gpu:
+    enabled: true
+    device: "cuda:0"  # GPU device to use
+    memory_fraction: 0.8  # Fraction of GPU memory to use
+    
+  # Optimization
+  optimization:
+    enabled: true
+    batch_size: 32
+    num_workers: 4
+    pin_memory: true
+    
+# Testing configuration
+testing:
+  enabled: true
+  test_cases: ["basic", "attack_scenarios", "defense_scenarios"]
+  test_interval: 100  # Run tests every N ticks
+  
+  # Test metrics
+  metrics:
+    accuracy: true
+    precision: true
+    recall: true
+    f1_score: true
+    latency: true
+    throughput: true
+    
+# Development configuration
+development:
+  debug: false
+  profile: false
+  log_level: "INFO"
+  
+  # Hot reload
+  hot_reload:
+    enabled: false
+    watch_paths: ["opencda/core/common/advcp"]
+    reload_interval: 5  # Check for changes every N seconds
