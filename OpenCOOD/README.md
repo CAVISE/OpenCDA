@@ -74,7 +74,7 @@ want to explore the tasks that the origin dataset do not support. Check [here](l
 All the data can be downloaded from [UCLA BOX](https://ucla.app.box.com/v/UCLA-MobilityLab-OPV2V). If you have a good internet, you can directly
 download the complete large zip file such as `train.zip`. In case you suffer from downloading large files, we also split each data set into small chunks, which can be found
 in the directory ending with `_chunks`, such as `train_chunks`. After downloading, please run the following command to each set to merge those chunks together:
-```bash
+```python
 cat train.zip.part* > train.zip
 unzip train.zip
 ```
@@ -89,7 +89,7 @@ data and install OpenCOOD. To see more details of OPV2V data, please check [our 
 To quickly visualize the LiDAR stream in the OPV2V dataset, first modify the `validate_dir`
 in your `opencood/hypes_yaml/visualization.yaml` to the opv2v data path on your local machine, e.g. `opv2v/validate`,
 and the run the following commond:
-```bash
+```python
 cd ~/OpenCOOD
 python opencood/visualization/vis_data_sequence.py [--color_mode ${COLOR_RENDERING_MODE}]
 ```
@@ -100,7 +100,7 @@ Arguments Explanation:
 ### Train your model
 OpenCOOD uses yaml file to configure all the parameters for training. To train your own model
 from scratch or a continued checkpoint, run the following commonds:
-```bash
+```python
 python opencood/tools/train.py --hypes_yaml ${CONFIG_FILE} [--model_dir  ${CHECKPOINT_FOLDER} --half]
 ```
 Arguments Explanation:
@@ -111,7 +111,7 @@ given, the trainer will discard the `hypes_yaml` and load the `config.yaml` in t
 - `half` (optional): If set, the model will be trained with half precision. It cannot be set with multi-gpu training togetger.
 
 To train on **multiple gpus**, run the following command:
-```bash
+```
 CUDA_VISIBLE_DEVICES=0,1,2,3 python -m torch.distributed.launch --nproc_per_node=4  --use_env opencood/tools/train.py --hypes_yaml ${CONFIG_FILE} [--model_dir  ${CHECKPOINT_FOLDER}]
 ```
 
@@ -120,7 +120,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 python -m torch.distributed.launch --nproc_per_node
 Before you run the following command, first make sure the `validation_dir` in config.yaml under your checkpoint folder
 refers to the testing dataset path, e.g. `opv2v_data_dumping/test`.
 
-```bash
+```python
 python opencood/tools/inference.py --model_dir ${CHECKPOINT_FOLDER} --fusion_method ${FUSION_STRATEGY} [--show_vis] [--show_sequence]
 ```
 Arguments Explanation:
@@ -204,38 +204,74 @@ To play with OPV2V camera data, please check here: https://github.com/DerrickXuN
 ## Tutorials
 We have a series of tutorials to help you understand OpenCOOD more. Please check the series of our [tutorials](https://opencood.readthedocs.io/en/latest/md_files/config_tutorial.html).
 
+
+## Citation
+ If you are using our OpenCOOD framework or OPV2V dataset for your research, please cite the following paper:
+ ```bibtex
+@inproceedings{xu2022opencood,
+  author = {Runsheng Xu, Hao Xiang, Xin Xia, Xu Han, Jinlong Li, Jiaqi Ma},
+  title = {OPV2V: An Open Benchmark Dataset and Fusion Pipeline for Perception with Vehicle-to-Vehicle Communication},
+  booktitle = {2022 IEEE International Conference on Robotics and Automation (ICRA)},
+  year = {2022}}
+```
+
 ## Supported Projects
 OpenCOOD has supported several top conference papers in cooperative perception field.
 
-**V2V4Real: A large-scale real-world dataset for Vehicle-to-Vehicle Cooperative Perception**
+**V2V4Real: A large-scale real-world dataset for Vehicle-to-Vehicle Cooperative Perception** <br>
+ Runsheng Xu, Xin Xia, Jinlong Li, Hanzhao Li, Shuo Zhang, Zhengzhong Tu, Zonglin Meng, Hao Xiang, Xiaoyu Dong, Rui Song, Hongkai Yu, Bolei Zhou, Jiaqi Ma <br>
+*CVPR 2023* <br>
 [[Paper]]()[[Code]](https://github.com/ucla-mobility/V2V4Real)
 
-**Robust Collaborative 3D Object Detection in Presence of Pose Errors**
+**Robust Collaborative 3D Object Detection in Presence of Pose Errors** <br>
+Yifan Lu, Quanhao Li, Baoan Liu, Mehrdad Dianati, Chen Feng, Siheng Chen, Yanfeng Wang <br>
+*ICRA 2023* <br>
 [[Paper]](https://arxiv.org/abs/2211.07214)[[Code]](https://github.com/yifanlu0227/CoAlign)
 
-**Analyzing Infrastructure LiDAR Placement with Realistic LiDAR Simulation Library**
+
+**Analyzing Infrastructure LiDAR Placement with Realistic LiDAR Simulation Library** <br>
+Xinyu Cai, Wentao Jiang, Runsheng Xu, Wenquan Zhao, Jiaqi Ma, Si Liu, Yikang Li <br>
+*ICRA 2023* <br>
 [[Paper]](https://arxiv.org/abs/2211.15975)[[Code]](https://github.com/PJLab-ADG/LiDARSimLib-and-Placement-Evaluation)
 
-**Bridging the Domain Gap for Multi-Agent Perception**
+**Bridging the Domain Gap for Multi-Agent Perception** <br>
+Runsheng Xu, Jinlong Li, Xiaoyu Dong, Hongkai Yu, Jiaqi Ma∗<br>
+*ICRA 2023* <br>
 [[Paper]](https://arxiv.org/pdf/2210.08451.pdf)[[Code]](https://github.com/DerrickXuNu/MPDA)
 
-**Model Agnostic Multi-agent Perception**
+**Model Agnostic Multi-agent Perception** <br>
+Runsheng Xu, Weizhe Chen, Hao Xiang,  Xin Xia, Lantao Liu, Jiaqi Ma∗<br>
+*ICRA 2023* <br>
 [[Paper]](https://arxiv.org/abs/2203.13168)[[Code]](https://github.com/DerrickXuNu/model_anostic)
 
-**Learning for Vehicle-to-Vehicle Cooperative Perception under Lossy Communication**
+**Learning for Vehicle-to-Vehicle Cooperative Perception under Lossy Communication** <br>
+Jinlong Li, Runsheng Xu, Xinyu Liu, Jin Ma, Zicheng Chi, Jiaqi Ma, Hongkai Yu<br>
+*TIV 2023* <br>
 [[Paper]](https://ieeexplore.ieee.org/document/10077757) [[Code]](https://github.com/jinlong17/V2VLC)
 
-**Where2comm: Communication-Efficient Collaborative Perception via Spatial Confidence Maps**
-[[Paper]](https://arxiv.org/abs/2209.12836) [[Code]](https://github.com/MediaBrain-SJTU/Where2comm)
 
-**Adaptive Feature Fusion for Cooperative Perception using LiDAR Point Clouds**
+**Where2comm: Communication-Efficient Collaborative Perception via Spatial Confidence Maps** <br>
+Yue Hu, Shaoheng Fang, Zixing Lei, Yiqi Zhong, Siheng Chen<br>
+*Neurips 2022* <br>
+[[Paper]](https://arxiv.org/abs/2209.12836) [[Code]](https://github.774.gs/MediaBrain-SJTU/Where2comm)
+
+**Adaptive Feature Fusion for Cooperative Perception using LiDAR Point Clouds** <br>
+Donghao Qiao, Farhana Zulkernine<br>
+*WACV 2023* <br>
 [[Paper]](https://arxiv.org/abs/2208.00116)
 
-**CoBEVT: Cooperative Bird's Eye View Semantic Segmentation with Sparse Transformers**
+
+**CoBEVT: Cooperative Bird's Eye View Semantic Segmentation with Sparse Transformers** <br>
+Runsheng Xu*, Zhengzhong Tu*, Hao Xiang, Wei Shao, Bolei Zhou, Jiaqi Ma <br>
+*CoRL2022* <br>
 [[Paper]](https://arxiv.org/abs/2207.02202) [[Code]](https://github.com/DerrickXuNu/CoBEVT)
 
-**V2X-ViT: Vehicle-to-Everything Cooperative Perception with Vision Transformer**
+**V2X-ViT: Vehicle-to-Everything Cooperative Perception with Vision Transformer** <br>
+Runsheng Xu*, Hao Xiang*, Zhengzhong Tu*, Xin Xia, Ming-Hsuan Yang, Jiaqi Ma <br>
+*ECCV2022* <br>
 [[Paper]](https://arxiv.org/abs/2203.10638) [[Code]](https://github.com/DerrickXuNu/v2x-vit) [[Talk]](https://course.zhidx.com/c/MmQ1YWUyMzM1M2I3YzVlZjE1NzM=)
 
 **OPV2V: An Open Benchmark Dataset and Fusion Pipeline for Perception with Vehicle-to-Vehicle Communication** <br>
+Runsheng Xu*, Hao Xiang*, Xin Xia, Jinlong Li, Jiaqi Ma <br>
+*ICRA2022* <br>
 [[Paper]](https://arxiv.org/abs/2109.07644) [[Website]](https://mobility-lab.seas.ucla.edu/opv2v/) [[Code]](https://github.com/DerrickXuNu/OpenCOOD)

@@ -10,7 +10,7 @@ import os
 import re
 import shutil
 import logging
-from typing import Dict, List, Optional, Any
+from typing import List, Optional, Any
 from tqdm import tqdm
 
 import torch  # type: ignore
@@ -108,7 +108,7 @@ class CoperceptionModelManager:
     def update_dataset(self) -> None:
         """
         Refresh the dataset by updating internal database indices.
-        
+
         There are logs warning if no samples
         are found after the update.
         """
@@ -121,10 +121,10 @@ class CoperceptionModelManager:
     def make_prediction(self, tick_number: int) -> None:
         """
         Run inference on the dataset and compute evaluation metrics.
-    
+
         Processes all batches in the data loader, performs cooperative perception
         fusion according to the specified method.
-        
+
         Parameters
         ----------
         tick_number : int

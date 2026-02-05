@@ -1,58 +1,123 @@
-# OpenCDA (Fork)
-
-> **This is a fork of the original OpenCDA project**
-> Original authors: UCLA Mobility Lab
-> Original paper: [OpenCDA: An Open Cooperative Driving Automation Framework Integrated with Co-simulation](https://arxiv.org/abs/2107.06260)
-
----
-
-OpenCDA is a open co-simulation-based framework integrated with a prototype cooperative driving automation (CDA; see SAE J3216) pipeline as well as regular automated driving components (e.g., perception, localization, planning, control). The tool integrates automated driving simulation (CARLA), traffic simulation (SUMO), Co-simulation, detection framework (OpenCOOD) and V2X simulation framework (Artery).
-
-## Key Features
-
-- **Comprehensive CDA Pipeline**: Full stack from perception to control
-- **V2X Communication**: Vehicle-to-vehicle and vehicle-to-infrastructure
-- **CARLA Integration**: High-fidelity 3D simulation environment
-- **SUMO Co-simulation**: Large-scale traffic flow simulation
-- **Modular Design**: Easy customization and extension
-- **Platooning Support**: Built-in cooperative platooning algorithms
-- **Cooperative Perception Support**: Built-in cooperative perception algorithms
-- **Testing Framework**: Scenario-based testing and evaluation
-
-## Documentation
-
-Full fork documentation is not available yet...
-Full original documentation is available at: [OpenCDA Documentation](https://opencda-documentation.readthedocs.io/en/latest/index.html)
+# OpenCDA
+[![Build Status](https://travis-ci.com/ucla-mobility/OpenCDA.svg?branch=develop)](https://travis-ci.com/ucla-mobility/OpenCDA)
+[![Coverage Status](https://coveralls.io/repos/github/ucla-mobility/OpenCDA/badge.svg?branch=feature/readme_revise)](https://coveralls.io/github/ucla-mobility/OpenCDA?branch=feature/readme_revise)
+[![Documentation Status](https://readthedocs.org/projects/opencda-documentation/badge/?version=latest)](https://opencda-documentation.readthedocs.io/en/latest/?badge=latest)
 
 
-## Architecture
+OpenCDA is an open co-simulation-based **research/engineering framework** integrated with prototype cooperative driving automation (CDA; see [SAE J3216](https://www.sae.org/standards/content/j3216_202005/)) pipelines as well as regular automated driving components (e.g., perception, localization, planning, control).  It not only enables CDA evaluation in a CARLA + SUMO co-simulation environment but also provides a rich library of source codes of CDA research pipelines.
 
-OpenCDA consists of several key components:
+In collaboration with  [U.S.DOT CDA Research](https://its.dot.gov/cda/) and the [FHWA CARMA Program](https://highways.dot.gov/research/operations/CARMA), OpenCDA, as an open-source project, is designed and built to support <strong>early-stage fundamental research </strong>  for CDA research and development. Through collaboration with CARMA Collaborative, this tool provides a unique capability to the CDA research community and will interface with the [CARMA XiL tools](https://github.com/usdot-fhwa-stol/carma-simulation) being developed by U.S.DOT to support more advanced simulation testing of CDA Features.
 
+
+The key features of OpenCDA are:
+* <strong> Research Pipeline </strong>: OpenCDA provides rich research pipelines (i.e., open-source codes for basic and advanced CDA modules, such as platooning, cooperative perception).
+* <strong>Integration</strong>: OpenCDA utilizes CARLA and SUMO separately, as well as integrates them together.
+* <strong> Full-stack Simulation</strong>: OpenCDA provides a simple prototype automated driving and cooperative driving platform, <strong>all in Python</strong>, that contains perception, localization, planning, control, and V2X communication modules.
+* <strong>Modularity</strong>: OpenCDA is highly modularized.
+* <strong>Benchmark</strong>: OpenCDA offers benchmark testing scenarios, benchmark baseline maps, state-of-the-art benchmark algorithms, and benchmark evaluation metrics.
+* <strong>Connectivity and Cooperation</strong>: OpenCDA supports various levels and categories of cooperation between CAVs in simulation. This differentiates OpenCDA from other single vehicle simulation tools.
+
+
+Users could refer to [OpenCDA documentation](https://opencda-documentation.readthedocs.io/en/latest/) for more details.
+
+## What's New
+### March 2023
+* OpenCDA now supports Docker Installation! Many thanks to @GoodarzMehr!
+* OpenCDA has make the configuration system better! We provide a `default.yaml` as a template for all scenarios. Users now can
+only change the parts that are different from the default parameters, which makes the configuration file much cleaner.
+
+### Jan 2023
+* Our paper [The OpenCDA Open-source Ecosystem for Cooperative Driving Automation Research](https://ieeexplore.ieee.org/document/10045043)
+has been accepted by **IEEE Transactions on Intelligent Vehicles**. We extend the scope of the original OpenCDA simulation framework to a
+ecosystem, which contains a model zoo, a suite of driving simulators at various resolutions, large-scale real-world and simulated datasets, complete devel-opment toolkits for benchmark training/testing, and a scenario database/generator.
+### July 2022
+* Powered by OpenCDA, our paper [V2X-ViT: Vehicle-to-Everything Cooperative
+Perception with Vision Transformer](https://arxiv.org/pdf/2203.10638.pdf) has been accepted by **ECCV2022**! Check the codebase [v2x-vit](https://github.com/DerrickXuNu/v2x-vit) if interested.
+### March 2022
+* HD Map manager is online! It currently supports generating rasterization map that includes road topology, traffic light info, and dynamic objects around each cav in real-time. This can be
+used for RL planning, HD Map learning, scene understanding, etc.
+
+### Feb 2022
+* Our paper [*OPV2V: An Open Benchmark Dataset and Fusion Pipeline for Perception with Vehicle-to-Vehicle Communication*](https://arxiv.org/abs/2109.07644)
+  has been accepted by ICRA 2022! It utilizes  the offline Cooperative Perception(data dumping) function in OpenCDA. Check the benchmark codebase [OpenCOOD](https://github.com/DerrickXuNu/OpenCOOD) of OPV2V if interested.
+### Oct 2021
+ * CARLA 0.9.12 now supported; Different weather conditions are supported.
+ * Better traffic management supported: users now can set a customized range to background cars.
+
+
+## Major Components
+![teaser](docs/md_files/images/OpenCDA_new_diagrams.png)
+
+OpenCDA  consists of four major component: <strong>Cooperative Driving System</strong>,  <strong>Co-Simulation Tools</strong>, <strong>Data Manager and Repository</strong>,
+and  <strong>Scenario Manager</strong>.
+
+Check the [OpenCDA Introduction](https://opencda-documentation.readthedocs.io/en/latest/md_files/introduction.html) for more details.
+
+
+## Get Started
+
+ ![teaser](docs/md_files/images/platoon_joining_2lanefree_complete.gif)
+
+
+### Users Guide
+* [Overview](https://opencda-documentation.readthedocs.io/en/latest/md_files/introduction.html)
+* [Installation](https://opencda-documentation.readthedocs.io/en/latest/md_files/installation.html)
+* [Quick Start](https://opencda-documentation.readthedocs.io/en/latest/md_files/getstarted.html)
+* [Logic Flow](https://opencda-documentation.readthedocs.io/en/latest/md_files/logic_flow.html)
+* [Traffic Generation](https://opencda-documentation.readthedocs.io/en/latest/md_files/traffic_generation.html)
+
+
+Note: We continuously improve the performance of OpenCDA. Currently, it is mainly tested in our customized maps and
+ Carla town06 map; therefore, we <strong>DO NOT </strong> guarantee the same level of  robustness in other maps.
+
+### Developer Guide
+
+*  [Class Design](https://opencda-documentation.readthedocs.io/en/latest/md_files/developer_tutorial.html)
+*  [Customize Your Algorithms](https://opencda-documentation.readthedocs.io/en/latest/md_files/customization.html)
+*  [API Reference](https://opencda-documentation.readthedocs.io/en/latest/modules.html) <br>
+
+
+### Contribution Rule
+We welcome your contributions.
+- Please report bugs and improvements by submitting issues.
+- Submit your contributions using [pull requests](https://github.com/ucla-mobility/OpenCDA/pulls).
+ Please use [this template](.github/PR_TEMPLATE.md) for your pull requests.
+
+
+
+## Citation
+ If you are using our OpenCDA framework or codes for your development, please cite the following paper:
+ ```bibtex
+@inproceedings{xu2021opencda,
+  title={OpenCDA: an open cooperative driving automation framework integrated with co-simulation},
+  author={Xu, Runsheng and Guo, Yi and Han, Xu and Xia, Xin and Xiang, Hao and Ma, Jiaqi},
+  booktitle={2021 IEEE International Intelligent Transportation Systems Conference (ITSC)},
+  pages={1155--1162},
+  year={2021},
+  organization={IEEE}
+}
 ```
-OpenCDA
-├── core/               # Core autonomous driving modules
-│   ├── sensing/       # Perception and localization
-│   ├── plan/          # Behavior planning and local planning
-│   ├── actuation/     # Vehicle control
-│   └── application/   # Platooning and other applications
-├── customize/         # Customization examples
-├── scenario_testing/  # Testing framework
-└── co_simulation/     # CARLA-SUMO integration
-```
+The arxiv link to the paper:  https://arxiv.org/abs/2107.06260
 
-## License
+Also, under this LICENSE, OpenCDA is for non-commercial research only. Researchers can modify the source code for their own research only. Contracted work that generates corporate revenues and other general commercial use are prohibited under this LICENSE. See the LICENSE file for details and possible opportunities for commercial use.
 
-OpenCDA is released under the MIT License.
+## Contributors
+OpenCDA is mainly supported by the [UCLA Mobility Lab](https://mobility-lab.seas.ucla.edu/). <br>
 
-**Note**: This project is for non-commercial research and education purposes only. For commercial use, please contact the original authors.
+### Lab Principal Investigator:
+- Dr. Jiaqi Ma ([linkedin](https://www.linkedin.com/in/jiaqi-ma-17037838/),
+               [UCLA Samueli](https://samueli.ucla.edu/people/jiaqi-ma/))
 
-## Related Projects
+### Project Lead: <br>
+ - Runsheng Xu ([linkedin](https://www.linkedin.com/in/runsheng-xu/), [github](https://github.com/DerrickXuNu))  <br>
 
-- [Original OpenCDA](https://github.com/ucla-mobility/OpenCDA) - UCLA Mobility Lab
-- [Original OpenCOOD](https://github.com/DerrickXuNu/OpenCOOD) - detection framework
-- [CARLA Simulator](https://carla.org/) - Open-source simulator for autonomous driving
-- [SUMO](https://www.eclipse.org/sumo/) - Traffic simulation suite
-- [Artery](https://github.com/riebl/artery) - V2X simulation framework
+### Team Members:
+ - Xu Han ([linkedin](https://linkedin.com/in/xu-han-12851a64), [github](https://github.com/xuhan417))
+ - Hao Xiang ([linkedin](https://www.linkedin.com/in/hao-xiang-42bb5a1b2/), [github](https://github.com/XHwind))
+ - Zhaoliang Zheng([linkedin](https://www.linkedin.com/in/zhaoliang-zheng-905532171/)
+ - Zonglin Meng([linkedin](https://www.linkedin.com/in/zonglin-meng-a393b31ab/)
+ - Dr. Xin Xia ([linkedin](https://www.linkedin.com/in/yi-guo-4008baaa/))
 
-Based on: OpenCDA by UCLA Mobility Lab
+### External Contributor Acknowledgements
+- We would  like to acknowledge the great contributions from UC Davis Professor [Junshan Zhang's](https://faculty.engineering.ucdavis.edu/jzhang/) group,  particularly to Dr. [Wei Shao](https://scholar.google.com.au/citations?user=zbqNhWwAAAAJ&hl=en), who played a crucial role in this collaboration. Their expertise enabled the seamless integration of openScenario with OpenCDA.
+- We would like to thank @GoodarzMehr for his outstanding contribution in creating the OpenCDA Dockerfile.
