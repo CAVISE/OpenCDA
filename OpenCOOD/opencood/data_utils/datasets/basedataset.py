@@ -94,15 +94,41 @@ class BaseDataset(Dataset):
             self.transmission_speed = 27  # Mbps
             self.backbone_delay = 0  # ms
 
-        if self.train:
-            root_dir = params["root_dir"]
-        else:
-            root_dir = params["validate_dir"]
-
         if "train_params" not in params or "max_cav" not in params["train_params"]:
             self.max_cav = 7
         else:
             self.max_cav = params["train_params"]["max_cav"]
+
+        self.scenario_database = OrderedDict()
+        self.len_record = []
+
+        self.update_database()
+
+    def update_database(self):
+        """
+        Update the scenario database by re-scanning the root directory.
+
+        This is an optimized method to refresh the database and length
+        records without re-initializing the entire dataset object. It is
+        particularly useful for real-time simulations where new data
+        frames are added to the directory dynamically.
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        None
+        """
+        if self.train:
+            root_dir = self.params["root_dir"]
+        else:
+            root_dir = self.params["validate_dir"]
+
+        if not os.path.exists(root_dir):
+            logger.warning(f"Root directory {root_dir} does not exist.")
+            return
 
         # first load all paths of different scenarios
         scenario_folders = sorted([os.path.join(root_dir, x) for x in os.listdir(root_dir) if os.path.isdir(os.path.join(root_dir, x))])
@@ -164,8 +190,11 @@ class BaseDataset(Dataset):
                 else:
                     self.scenario_database[i][cav_id]["ego"] = False
 
+        if not self.len_record:
+            self.len_record = [0]
+
     def __len__(self):
-        return self.len_record[-1]
+        return self.len_record[-1] if self.len_record else 0
 
     def __getitem__(self, idx):
         """
