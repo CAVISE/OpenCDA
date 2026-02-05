@@ -168,3 +168,19 @@ def test_destroy_calls_both_destroy(mocker, minimal_rsu_config, mock_cav_world):
     rsu.destroy()
     deps["perception"].destroy.assert_called_once_with()
     deps["localizer"].destroy.assert_called_once_with()
+
+
+def test_update_info_v2x_does_not_raise_and_has_no_side_effects(mocker, minimal_rsu_config, mock_cav_world):
+    """update_info_v2x() is currently a no-op: should not raise and must not trigger side effects."""
+    deps = _patch_rsu_manager_deps(mocker)
+    from opencda.core.common.rsu_manager import RSUManager
+
+    rsu = RSUManager(Mock(), minimal_rsu_config, Mock(), mock_cav_world, data_dumping=False)
+
+    # Guard against accidental future logic being added to update_info_v2x().
+    deps["localizer"].reset_mock()
+    deps["perception"].reset_mock()
+
+    assert rsu.update_info_v2x() is None
+    assert deps["localizer"].mock_calls == []
+    assert deps["perception"].mock_calls == []

@@ -268,3 +268,25 @@ def test_platoon_application_uses_platooning_agent(mocker, minimal_vehicle_confi
 
     vm = VehicleManager(Mock(id=10), minimal_vehicle_config, ["platoon"], Mock(), mock_cav_world, prefix="platoon")
     assert vm.agent is deps["platoon_agent"]
+
+
+def test_update_info_v2x_does_not_raise(mocker, minimal_vehicle_config, mock_cav_world):
+    """update_info_v2x() is currently a no-op: should not raise and must not trigger side effects."""
+    deps = _patch_vehicle_manager_deps(mocker)
+    from opencda.core.common.vehicle_manager import VehicleManager
+
+    vm = VehicleManager(Mock(id=10), minimal_vehicle_config, ["single"], Mock(), mock_cav_world, prefix="cav")
+
+    # Guard against future accidental behavior in update_info_v2x().
+    for k in ("v2x", "localizer", "perception", "map_manager", "safety", "agent", "controller"):
+        deps[k].reset_mock()
+
+    assert vm.update_info_v2x() is None
+
+    assert deps["v2x"].mock_calls == []
+    assert deps["localizer"].mock_calls == []
+    assert deps["perception"].mock_calls == []
+    assert deps["map_manager"].mock_calls == []
+    assert deps["safety"].mock_calls == []
+    assert deps["agent"].mock_calls == []
+    assert deps["controller"].mock_calls == []

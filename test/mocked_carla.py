@@ -24,11 +24,21 @@ class _FloatAttrMixin:
     """Mixin providing __eq__ with math.isclose for float attributes."""
 
     _cmp_attrs: tuple = ()
+    _rel_tol: float = 1e-9
+    _abs_tol: float = 1e-9
 
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
             return False
-        return all(math.isclose(getattr(self, attr), getattr(other, attr)) for attr in self._cmp_attrs)
+        return all(
+            math.isclose(
+                float(getattr(self, attr)),
+                float(getattr(other, attr)),
+                rel_tol=self._rel_tol,
+                abs_tol=self._abs_tol,
+            )
+            for attr in self._cmp_attrs
+        )
 
 
 class Location(_FloatAttrMixin):
@@ -42,6 +52,8 @@ class Location(_FloatAttrMixin):
         self.z = z
 
     def __add__(self, other):
+        if not isinstance(other, Location):
+            return NotImplemented
         return Location(self.x + other.x, self.y + other.y, self.z + other.z)
 
     def __repr__(self):
@@ -73,6 +85,9 @@ class Transform:
     def __init__(self, *args, **kwargs):
         # New style: Transform(location, rotation)
         if len(args) == 2 and isinstance(args[0], Location) and isinstance(args[1], Rotation):
+            # Strict contract: new-style signature does not accept any kwargs.
+            if kwargs:
+                raise TypeError(f"Unexpected keyword arguments for Transform(location, rotation): {list(kwargs.keys())}")
             self.location = args[0]
             self.rotation = args[1]
             return
