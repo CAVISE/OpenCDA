@@ -1,4 +1,4 @@
-class Defender():
+class Defender:
     def __init__(self):
         self.name = "base"
 

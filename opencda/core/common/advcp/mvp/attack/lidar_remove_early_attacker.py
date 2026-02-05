@@ -2,14 +2,11 @@ import copy
 import os
 import open3d as o3d
 import numpy as np
-import time
-import random
-import pickle
 
 from .attacker import Attacker
 from .adv_shape_attacker import AdvShapeAttacker
-from mvp.config import model_3d_path, model_3d_examples
-from mvp.data.util import rotation_matrix, get_point_indices_in_bbox, get_open3d_bbox, get_distance, bbox_sensor_to_map, pcd_sensor_to_map, pcd_map_to_sensor, sort_lidar_points, numpy_to_open3d, bbox_to_corners
+from mvp.config import model_3d_path
+from mvp.data.util import rotation_matrix, get_open3d_bbox, get_distance, pcd_map_to_sensor, sort_lidar_points
 from mvp.tools.ray_tracing import get_model_mesh, ray_intersection, get_wall_mesh
 from mvp.tools.ground_detection import get_ground_plane, get_ground_mesh
 
@@ -45,7 +42,7 @@ class LidarRemoveEarlyAttacker(Attacker):
         self.meshes = [self.mesh.select_by_index(vertex_indices) for vertex_indices in adv_attacker.mesh_divide]
 
         # In the mode of injecting dense points, fix the distance between the target and the sensor.
-        self.dense_distance = 10 # (m)
+        self.dense_distance = 10  # (m)
 
     def run(self, multi_frame_case, attack_opts):
         new_case = copy.deepcopy(multi_frame_case)
@@ -53,7 +50,7 @@ class LidarRemoveEarlyAttacker(Attacker):
         frame_ids = attack_opts["frame_ids"]
         if self.sync != 0:
             frame_ids = [frame_ids[0] - 1] + frame_ids
-        
+
         last_info = None
         last_bbox_to_remove = None
         for frame_id in frame_ids:
@@ -62,18 +59,20 @@ class LidarRemoveEarlyAttacker(Attacker):
             bbox_to_remove = single_vehicle_case["gt_bboxes"][object_index]
             lidar_poses = {vehicle_id: multi_frame_case[frame_id][vehicle_id]["lidar_pose"] for vehicle_id in multi_frame_case[frame_id]}
             core_function = self.run_core_sample if self.dense == 3 else self.run_core
-            x, info = core_function(single_vehicle_case, {
-                "attacker_vehicle_id": attack_opts["attacker_vehicle_id"],
-                "object_id": attack_opts["object_id"],
-                "bbox": attack_opts["bboxes"][frame_id] if "bboxes" in attack_opts else None,
-                "lidar_poses": lidar_poses,
-                "attacker_vehicle_id": attack_opts["attacker_vehicle_id"]
-            })
+            x, info = core_function(
+                single_vehicle_case,
+                {
+                    "attacker_vehicle_id": attack_opts["attacker_vehicle_id"],
+                    "object_id": attack_opts["object_id"],
+                    "bbox": attack_opts["bboxes"][frame_id] if "bboxes" in attack_opts else None,
+                    "lidar_poses": lidar_poses,
+                },
+            )
 
             if self.sync != 0 and last_info is not None:
                 x = copy.deepcopy(multi_frame_case[frame_id][attack_opts["attacker_vehicle_id"]])
                 shift_vector = bbox_to_remove[:3] - last_bbox_to_remove[:3]
-                
+
                 append_data = []
                 if last_info["replace_data"] is not None and last_info["replace_data"].shape[0] > 0:
                     append_data.append(last_info["replace_data"] + shift_vector)
@@ -147,7 +146,7 @@ class LidarRemoveEarlyAttacker(Attacker):
         new_meshes = []
         for mesh in meshes:
             x = copy.deepcopy(mesh)
-            scale = np.max((bbox[3:6] + 0.6) / np.array([4.9, 2.5, 2.0])) 
+            scale = np.max((bbox[3:6] + 0.6) / np.array([4.9, 2.5, 2.0]))
             x = x.scale(scale, np.array([0, 0, 0]).T)
             x = x.rotate(rotation_matrix(0, bbox[6], 0), np.zeros(3).T)
             x = x.translate(bbox[:3])
@@ -155,11 +154,11 @@ class LidarRemoveEarlyAttacker(Attacker):
         return new_meshes
 
     def run_core(self, single_vehicle_case, attack_opts):
-        """ attack_opts: {
-                "frame_ids": [-1],
-                "attacker_vehicle_id": int,
-                "object_id": int
-            }
+        """attack_opts: {
+            "frame_ids": [-1],
+            "attacker_vehicle_id": int,
+            "object_id": int
+        }
         """
         new_case = copy.deepcopy(single_vehicle_case)
         attacker_pcd = new_case["lidar"][:, :3]
@@ -169,7 +168,7 @@ class LidarRemoveEarlyAttacker(Attacker):
             elif "object_id" in attack_opts:
                 object_index = new_case["object_ids"].index(attack_opts["object_id"])
             bbox_to_remove = new_case["gt_bboxes"][object_index]
-        except:
+        except (ValueError, IndexError, KeyError):
             print("The target object is not available")
             bbox_to_remove = attack_opts["bbox"]
 
@@ -178,14 +177,14 @@ class LidarRemoveEarlyAttacker(Attacker):
         extended_bbox_to_remove[3:5] += 0.6
         extended_bbox_to_remove[5] = 10
         bbox_to_remove_o3d = get_open3d_bbox(extended_bbox_to_remove)
-        
+
         point_indices = bbox_to_remove_o3d.get_point_indices_within_bounding_box(o3d.utility.Vector3dVector(attacker_pcd))
         point_indices = np.array(point_indices)
         if point_indices.shape[0] == 0:
             return new_case, {}
 
         points = attacker_pcd
-        distance = np.sum(points ** 2, axis=1) ** 0.5
+        distance = np.sum(points**2, axis=1) ** 0.5
         direction = points / np.tile(distance.reshape((-1, 1)), (1, 3))
         direction = []
         for i in np.arange(-15, 5, 0.2):
@@ -228,16 +227,14 @@ class LidarRemoveEarlyAttacker(Attacker):
                 if i == object_index:
                     continue
                 bbox = new_case["gt_bboxes"][i]
-                meshes.append(
-                    get_model_mesh(default_car_model, bbox)
-                )
-        
+                meshes.append(get_model_mesh(default_car_model, bbox))
+
         intersect_points = ray_intersection(meshes, selected_rays)
 
         extra_points_list = []
         for extra_rays in extra_rays_list:
             extra_intersect_points = ray_intersection(meshes, extra_rays)
-            extra_index_mask = (extra_intersect_points[:,0] ** 2 < 10000)
+            extra_index_mask = extra_intersect_points[:, 0] ** 2 < 10000
             extra_intersect_points = extra_intersect_points[extra_index_mask]
             extra_point_indices = bbox_to_remove_o3d.get_point_indices_within_bounding_box(o3d.utility.Vector3dVector(extra_intersect_points))
             extra_intersect_points = extra_intersect_points[extra_point_indices]
@@ -258,29 +255,24 @@ class LidarRemoveEarlyAttacker(Attacker):
             attacker_pcd = np.vstack([attacker_pcd, append_data])
             attacker_pcd, _ = sort_lidar_points(attacker_pcd)
         else:
-            in_range_mask = (intersect_points[:,0] ** 2 < 10000)
+            in_range_mask = intersect_points[:, 0] ** 2 < 10000
             replace_indices = point_indices[in_range_mask]
             replace_data = intersect_points[in_range_mask]
             ignore_indices = point_indices[np.logical_not(in_range_mask)]
             attacker_pcd[replace_indices, :3] = replace_data
 
-        info = {
-            "replace_indices": replace_indices,
-            "replace_data": replace_data,
-            "ignore_indices": ignore_indices,
-            "append_data": append_data
-        }
+        info = {"replace_indices": replace_indices, "replace_data": replace_data, "ignore_indices": ignore_indices, "append_data": append_data}
 
         new_case["lidar"] = np.hstack([attacker_pcd, np.ones((attacker_pcd.shape[0], 1))])
 
         return new_case, info
 
     def run_core_sample(self, single_vehicle_case, attack_opts):
-        """ attack_opts: {
-                "frame_ids": [-1],
-                "attacker_vehicle_id": int,
-                "object_id": int
-            }
+        """attack_opts: {
+            "frame_ids": [-1],
+            "attacker_vehicle_id": int,
+            "object_id": int
+        }
         """
         new_case = copy.deepcopy(single_vehicle_case)
         attacker_pcd = new_case["lidar"][:, :3]
@@ -290,12 +282,12 @@ class LidarRemoveEarlyAttacker(Attacker):
             elif "object_id" in attack_opts:
                 object_index = new_case["object_ids"].index(attack_opts["object_id"])
             bbox_to_remove = new_case["gt_bboxes"][object_index]
-        except:
+        except (ValueError, IndexError, KeyError):
             print("The target object is not available")
             bbox_to_remove = attack_opts["bbox"]
 
         points = attacker_pcd
-        distance = np.sum(points ** 2, axis=1) ** 0.5
+        distance = np.sum(points**2, axis=1) ** 0.5
         direction = points / np.tile(distance.reshape((-1, 1)), (1, 3))
         rays = np.hstack([np.zeros((direction.shape[0], 3)), direction])
 
@@ -304,13 +296,13 @@ class LidarRemoveEarlyAttacker(Attacker):
             meshes = self.get_meshes(bbox_to_remove)
         else:
             meshes = self.post_process_meshes(self.meshes, bbox_to_remove)
-        
+
         # Gets casted points on edges.
         replace_mask_list = []
         replace_data_list = []
         for i in range(len(meshes)):
             intersect_points = ray_intersection([meshes[i]], rays)
-            in_range_mask = (intersect_points[:,0] ** 2 < 10000)
+            in_range_mask = intersect_points[:, 0] ** 2 < 10000
             replace_mask_list.append(in_range_mask)
             replace_data_list.append(intersect_points)
 
@@ -334,21 +326,14 @@ class LidarRemoveEarlyAttacker(Attacker):
         replace_indices = np.argwhere(np.logical_or.reduce(replace_mask_list)).reshape(-1).astype(np.int32)
         for i in replace_indices:
             replace_data.append(
-                replace_data_list[
-                    np.random.choice(mesh_weight.shape[0], p=point_sampling_weight[i]/np.sum(point_sampling_weight[i]))
-                ][i]
+                replace_data_list[np.random.choice(mesh_weight.shape[0], p=point_sampling_weight[i] / np.sum(point_sampling_weight[i]))][i]
             )
         replace_data = np.array(replace_data)
 
         ignore_indices = None
         append_data = None
 
-        info = {
-            "replace_indices": replace_indices,
-            "replace_data": replace_data,
-            "ignore_indices": ignore_indices,
-            "append_data": append_data
-        }
+        info = {"replace_indices": replace_indices, "replace_data": replace_data, "ignore_indices": ignore_indices, "append_data": append_data}
 
         new_case["lidar"] = self.apply_ray_tracing(new_case["lidar"], **info)
 

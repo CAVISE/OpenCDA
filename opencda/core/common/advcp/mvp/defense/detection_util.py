@@ -10,7 +10,7 @@ def filter_segmentation(pcd, lidar_seg, lidar_pose, in_lane_mask=None, point_hei
     object_segments = []
     for info in lidar_seg["info"]:
         object_points = pcd[info["indices"]]
-        if np.min(np.sum(object_points[:,:2] ** 2, axis=1)) > max_range ** 2:
+        if np.min(np.sum(object_points[:, :2] ** 2, axis=1)) > max_range**2:
             continue
         object_points = pcd_sensor_to_map(object_points, lidar_pose)
         if point_height is not None:
@@ -18,7 +18,7 @@ def filter_segmentation(pcd, lidar_seg, lidar_pose, in_lane_mask=None, point_hei
                 continue
         if scipy.spatial.distance.cdist(object_points[:, :2], object_points[:, :2]).max() > 8:
             continue
-        occupied_area = points_to_polygon(object_points[:,:2])
+        occupied_area = points_to_polygon(object_points[:, :2])
         if occupied_area.area > 20:
             continue
         if occupied_area.area < 0.5:
@@ -34,7 +34,7 @@ def get_detection_from_segmentation(pcd, object_segments):
     detections = []
     for object_segment in object_segments:
         object_points = pcd[object_segment]
-        cnt = object_points[:,:2].reshape((-1,1,2)).astype(np.float32)
+        cnt = object_points[:, :2].reshape((-1, 1, 2)).astype(np.float32)
         box = cv2.minAreaRect(cnt)
         detections.append(list(box[0]))
     detections = np.array(detections)

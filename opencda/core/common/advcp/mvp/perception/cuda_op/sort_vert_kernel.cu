@@ -21,20 +21,20 @@ __device__ bool compare_vertices(float x1, float y1, float x2, float y2){
         return true;
     if (y1 < 0 && y2 > 0)
         return false;
-    
+
     float n1 = x1*x1 + y1*y1 + EPSILON;
     float n2 = x2*x2 + y2*y2 + EPSILON;
-    
+
     if (y1 > 0 && y2 > 0){
         if (fabs(x1)*x1/n1 - fabs(x2)*x2/n2 > EPSILON)
             return true;
-        else 
-            return false;   
+        else
+            return false;
     }
     if (y1 < 0 && y2 < 0) {
         if (fabs(x1)*x1/n1 - fabs(x2)*x2/n2 < EPSILON)
             return true;
-        else 
+        else
             return false;
     }
 }
@@ -49,7 +49,7 @@ __global__ void sort_vertices_kernel(int b, int n, int m,
     mask += batch_idx * n * m;
     num_valid += batch_idx * n;
     idx += batch_idx * n * MAX_NUM_VERT_IDX;
-    
+
     int index = threadIdx.x;        // index of polygon
     int stride = blockDim.x;
     for (int i = index; i<n; i+=stride){
@@ -61,7 +61,7 @@ __global__ void sort_vertices_kernel(int b, int n, int m,
             }
         }
         if (num_valid[i] < 3){
-            // not enough vertices, take an invalid intersection point 
+            // not enough vertices, take an invalid intersection point
             // (zero padding)
             for (int j=0; j<MAX_NUM_VERT_IDX; ++j){
                 idx[i*MAX_NUM_VERT_IDX + j] = pad;
@@ -73,7 +73,7 @@ __global__ void sort_vertices_kernel(int b, int n, int m,
                 // initilize with a "big" value
                 float x_min = 1;
                 float y_min = -EPSILON;
-                int i_take = 0;                
+                int i_take = 0;
                 for (int k=0; k<m; ++k){
                     float x = vertices[i*m*2 + k*2 + 0];
                     float y = vertices[i*m*2 + k*2 + 1];
@@ -82,19 +82,19 @@ __global__ void sort_vertices_kernel(int b, int n, int m,
                             x_min = x;
                             y_min = y;
                             i_take = k;
-                        } 
+                        }
                     } else {
                         int i2 = idx[i*MAX_NUM_VERT_IDX + j - 1];
                         float x2 = vertices[i*m*2 + i2*2 + 0];
                         float y2 = vertices[i*m*2 + i2*2 + 1];
                         if (mask[i*m+k] &&
-                            compare_vertices(x, y, x_min, y_min) && 
+                            compare_vertices(x, y, x_min, y_min) &&
                             compare_vertices(x2, y2, x, y)
                             ){
                             x_min = x;
                             y_min = y;
                             i_take = k;
-                        } 
+                        }
                     }
                     idx[i*MAX_NUM_VERT_IDX + j] = i_take;
                 }
@@ -125,7 +125,7 @@ __global__ void sort_vertices_kernel(int b, int n, int m,
                     for (int j = 5; j<MAX_NUM_VERT_IDX; ++j){
                         idx[i*MAX_NUM_VERT_IDX + j] = pad;
                     }
-                }                            
+                }
             }
 
             // TODO: still might need to cover some other corner cases :(

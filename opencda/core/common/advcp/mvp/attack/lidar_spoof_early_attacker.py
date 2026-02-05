@@ -2,13 +2,11 @@ import copy
 import os
 import open3d as o3d
 import numpy as np
-import time
-import random
 import pickle
 
 from .attacker import Attacker
 from mvp.config import model_3d_path, model_3d_examples
-from mvp.data.util import rotation_matrix, get_distance, pcd_map_to_sensor, sort_lidar_points, get_point_indices_in_bbox
+from mvp.data.util import rotation_matrix, get_distance, pcd_map_to_sensor, sort_lidar_points
 from mvp.tools.ray_tracing import get_model_mesh, ray_intersection
 
 
@@ -41,38 +39,40 @@ class LidarSpoofEarlyAttacker(Attacker):
         self.meshes = meshes
 
         # In the mode of injecting dense points, fix the distance between the target and the sensor.
-        self.dense_distance = 10 # (m)
-
+        self.dense_distance = 10  # (m)
 
     def run(self, multi_frame_case, attack_opts):
-        """ attack_opts: {
-                "frame_ids": [-1],
-                "attacker_vehicle_id": int,
-                "positions": list([7])
-            }
+        """attack_opts: {
+            "frame_ids": [-1],
+            "attacker_vehicle_id": int,
+            "positions": list([7])
+        }
         """
         new_case = copy.deepcopy(multi_frame_case)
         attack_info = []
         frame_ids = attack_opts["frame_ids"]
         if self.sync != 0:
             frame_ids = [frame_ids[0] - 1] + frame_ids
-        
+
         last_info = None
         for frame_id in frame_ids:
             single_vehicle_case = multi_frame_case[frame_id][attack_opts["attacker_vehicle_id"]]
             lidar_poses = {vehicle_id: multi_frame_case[frame_id][vehicle_id]["lidar_pose"] for vehicle_id in multi_frame_case[frame_id]}
             core_function = self.run_core_sample if self.dense == 3 else self.run_core
 
-            x, info = core_function(single_vehicle_case, {
-                "position": attack_opts["positions"][frame_id],
-                "lidar_poses": lidar_poses,
-                "attacker_vehicle_id": attack_opts["attacker_vehicle_id"]
-            })
+            x, info = core_function(
+                single_vehicle_case,
+                {
+                    "position": attack_opts["positions"][frame_id],
+                    "lidar_poses": lidar_poses,
+                    "attacker_vehicle_id": attack_opts["attacker_vehicle_id"],
+                },
+            )
 
             if self.sync != 0 and last_info is not None:
                 x = copy.deepcopy(multi_frame_case[frame_id][attack_opts["attacker_vehicle_id"]])
                 shift_vector = attack_opts["positions"][frame_id][:3] - attack_opts["positions"][frame_id - 1][:3]
-                
+
                 append_data = []
                 if last_info["replace_data"] is not None and last_info["replace_data"].shape[0] > 0:
                     append_data.append(last_info["replace_data"] + shift_vector)
@@ -112,7 +112,7 @@ class LidarSpoofEarlyAttacker(Attacker):
         new_meshes = []
         for mesh in meshes:
             x = copy.deepcopy(mesh)
-            scale = np.min(bbox[3:6] / model_3d_examples[self.default_car_model][3:6]) 
+            scale = np.min(bbox[3:6] / model_3d_examples[self.default_car_model][3:6])
             x = x.scale(scale, np.array([0, 0, 0]).T)
             x = x.rotate(rotation_matrix(0, bbox[6], 0), np.zeros(3).T)
             x = x.translate(bbox[:3])
@@ -123,7 +123,7 @@ class LidarSpoofEarlyAttacker(Attacker):
         new_case = copy.deepcopy(single_vehicle_case)
         attacker_pcd = new_case["lidar"][:, :3]
 
-        distance = np.sum(attacker_pcd ** 2, axis=1) ** 0.5
+        distance = np.sum(attacker_pcd**2, axis=1) ** 0.5
         direction = attacker_pcd / np.tile(distance.reshape((-1, 1)), (1, 3))
         rays = np.hstack([np.zeros((direction.shape[0], 3)), direction])
 
@@ -150,15 +150,15 @@ class LidarSpoofEarlyAttacker(Attacker):
         car_mesh = get_model_mesh(self.default_car_model, attack_opts["position"])
 
         intersect_points = ray_intersection([car_mesh], rays)
-        in_range_mask = (intersect_points[:,0] ** 2 < 10000)
-        occlusion_mask =  (attacker_pcd[:,0] / intersect_points[:,0] > 1)
+        in_range_mask = intersect_points[:, 0] ** 2 < 10000
+        occlusion_mask = attacker_pcd[:, 0] / intersect_points[:, 0] > 1
 
         extra_points_list = []
         for extra_rays in extra_rays_list:
             extra_intersect_points = ray_intersection([car_mesh], extra_rays)
-            extra_index_mask = (extra_intersect_points[:,0] ** 2 < 10000)
+            extra_index_mask = extra_intersect_points[:, 0] ** 2 < 10000
             extra_points_list.append(extra_intersect_points[extra_index_mask])
-        
+
         ignore_indices = None
         append_data = None
         replace_indices = None
@@ -178,22 +178,17 @@ class LidarSpoofEarlyAttacker(Attacker):
             attacker_pcd = np.vstack([attacker_pcd, append_data])
             attacker_pcd, _ = sort_lidar_points(attacker_pcd)
 
-        info = {
-            "replace_indices": replace_indices,
-            "replace_data": replace_data,
-            "ignore_indices": ignore_indices,
-            "append_data": append_data
-        }
+        info = {"replace_indices": replace_indices, "replace_data": replace_data, "ignore_indices": ignore_indices, "append_data": append_data}
 
         new_case["lidar"] = np.hstack([attacker_pcd, np.ones((attacker_pcd.shape[0], 1))])
         return new_case, info
 
     def run_core_sample(self, single_vehicle_case, attack_opts):
-        """ attack_opts: {
-                "frame_ids": [-1],
-                "attacker_vehicle_id": int,
-                "object_id": int
-            }
+        """attack_opts: {
+            "frame_ids": [-1],
+            "attacker_vehicle_id": int,
+            "object_id": int
+        }
         """
         np.random.seed(0)
         new_case = copy.deepcopy(single_vehicle_case)
@@ -201,19 +196,19 @@ class LidarSpoofEarlyAttacker(Attacker):
         bbox_to_spoof = attack_opts["position"]
 
         points = attacker_pcd
-        distance = np.sum(points ** 2, axis=1) ** 0.5
+        distance = np.sum(points**2, axis=1) ** 0.5
         direction = points / np.tile(distance.reshape((-1, 1)), (1, 3))
         rays = np.hstack([np.zeros((direction.shape[0], 3)), direction])
 
         # Gets meshes
         meshes = self.post_process_meshes(self.meshes, bbox_to_spoof)
-        
+
         # Gets casted points on edges.
         replace_mask_list = []
         replace_data_list = []
         for i in range(len(meshes)):
             intersect_points = ray_intersection([meshes[i]], rays)
-            in_range_mask = (intersect_points[:,0] ** 2 < 10000)
+            in_range_mask = intersect_points[:, 0] ** 2 < 10000
             replace_mask_list.append(in_range_mask)
             replace_data_list.append(intersect_points)
 
@@ -237,9 +232,7 @@ class LidarSpoofEarlyAttacker(Attacker):
         replace_indices = np.argwhere(np.logical_or.reduce(replace_mask_list)).reshape(-1).astype(np.int32)
         for i in replace_indices:
             replace_data.append(
-                replace_data_list[
-                    np.random.choice(mesh_weight.shape[0], p=point_sampling_weight[i]/np.sum(point_sampling_weight[i]))
-                ][i]
+                replace_data_list[np.random.choice(mesh_weight.shape[0], p=point_sampling_weight[i] / np.sum(point_sampling_weight[i]))][i]
             )
 
         replace_data = np.array(replace_data)
@@ -247,12 +240,7 @@ class LidarSpoofEarlyAttacker(Attacker):
         ignore_indices = None
         append_data = None
 
-        info = {
-            "replace_indices": replace_indices,
-            "replace_data": replace_data,
-            "ignore_indices": ignore_indices,
-            "append_data": append_data
-        }
+        info = {"replace_indices": replace_indices, "replace_data": replace_data, "ignore_indices": ignore_indices, "append_data": append_data}
 
         new_case["lidar"] = self.apply_ray_tracing(new_case["lidar"], **info)
 

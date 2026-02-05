@@ -1,14 +1,10 @@
-import random
-import pickle
-import numpy as np
 import copy
 
 from .attacker import Attacker
-from mvp.data.util import bbox_map_to_sensor, bbox_sensor_to_map, pcd_sensor_to_map
 
 
 class LidarSpoofLateAttacker(Attacker):
-    def __init__ (self, perception, dataset=None):
+    def __init__(self, perception, dataset=None):
         super().__init__()
         self.name = "lidar_spoof"
         self.dataset = dataset
@@ -29,10 +25,7 @@ class LidarSpoofLateAttacker(Attacker):
                 result = self.perception.attack_late(multi_vehicle_case, ego_id, attacker_id, mode="spoof", bbox=bbox_to_spoof)
                 case[frame_id][ego_id]["pred_bboxes"] = result["pred_bboxes"]
                 case[frame_id][ego_id]["pred_scores"] = result["pred_scores"]
-                attack_results[-1][ego_id] = {
-                    "pred_bboxes": result["pred_bboxes"],
-                    "pred_scores": result["pred_scores"]
-                }
+                attack_results[-1][ego_id] = {"pred_bboxes": result["pred_bboxes"], "pred_scores": result["pred_scores"]}
         return case, attack_results
 
     def build_benchmark_meta(self, write=False, max_cnt=500):

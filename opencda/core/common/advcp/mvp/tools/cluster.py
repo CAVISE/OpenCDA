@@ -1,4 +1,3 @@
-import open3d as o3d
 import numpy as np
 
 from mvp.data.util import numpy_to_open3d

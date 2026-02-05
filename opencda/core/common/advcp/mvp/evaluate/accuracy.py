@@ -1,7 +1,3 @@
-import numpy as np
-import pickle
-import os
-
 from mvp.data.util import get_point_indices_in_bbox
 from mvp.tools.iou import iou3d
 

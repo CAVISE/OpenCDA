@@ -1,6 +1,6 @@
 import os
 import open3d as o3d
-import numpy as np 
+import numpy as np
 
 from mvp.data.util import rotation_matrix, bbox_shift, bbox_rotate
 from mvp.config import model_3d_path, model_3d_examples
@@ -11,7 +11,7 @@ def get_model_mesh(model_3d_name, bbox):
     model_bbox = np.array(model_3d_examples[model_3d_name])
     translate = bbox[:3]
     rotate = bbox[6]
-    scale = np.min(bbox[3:6] / model_bbox[3:6]) 
+    scale = np.min(bbox[3:6] / model_bbox[3:6])
     if scale is not None:
         mesh.scale(scale, np.array([0, 0, 0]).T)
     if rotate is not None:
@@ -23,7 +23,7 @@ def get_model_mesh(model_3d_name, bbox):
 
 def get_wall_mesh(bbox):
     wall = o3d.geometry.TriangleMesh.create_box(width=bbox[3], height=bbox[4], depth=bbox[5])
-    wall.translate(np.array([-bbox[3]/2, -bbox[4]/2, 0]).T)
+    wall.translate(np.array([-bbox[3] / 2, -bbox[4] / 2, 0]).T)
     wall.rotate(rotation_matrix(0, bbox[6], 0), np.zeros(3).T)
     wall.translate(np.array([bbox[0], bbox[1], bbox[2]]).T)
     return wall
@@ -63,14 +63,18 @@ def ray_intersection(meshes, rays):
 
     intersection = np.zeros((ray_size, 3))
     for i in range(ray_size):
-        data = {key:value[i] for key, value in ans.items()}
+        data = {key: value[i] for key, value in ans.items()}
         # default filter: no intersection
         if data["t_hit"] > 10000:
             intersect_point = np.array([np.inf, np.inf, np.inf])
         else:
             mesh = mesh_id_map[data["geometry_ids"]]
             triangle_vertices = mesh.triangles[data["primitive_ids"]]
-            intersect_point = (1 - np.sum(data["primitive_uvs"])) * mesh.vertices[triangle_vertices[0]] + data["primitive_uvs"][0] * mesh.vertices[triangle_vertices[1]] + data["primitive_uvs"][1] * mesh.vertices[triangle_vertices[2]]
+            intersect_point = (
+                (1 - np.sum(data["primitive_uvs"])) * mesh.vertices[triangle_vertices[0]]
+                + data["primitive_uvs"][0] * mesh.vertices[triangle_vertices[1]]
+                + data["primitive_uvs"][1] * mesh.vertices[triangle_vertices[2]]
+            )
         intersection[i] = intersect_point
-    
+
     return intersection

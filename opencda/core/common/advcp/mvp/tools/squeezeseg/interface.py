@@ -1,47 +1,44 @@
-import os, sys
-from mvp.config import third_party_root, model_root
-squeezeseg_root = os.path.join(third_party_root, "SqueezeSegV3")
-sys.path.append(os.path.join(squeezeseg_root, "src"))
-import numpy as np
-import torch
-import torch.backends.cudnn as cudnn
-import yaml
-from tasks.semantic.modules.segmentator import *
-from tasks.semantic.postproc.KNN import KNN
-from common.laserscan import LaserScan
+import os
+import sys
 
-from mvp.config import class_id_map, class_id_inv_map
+from mvp.config import class_id_inv_map, third_party_root, model_root
 from mvp.tools.cluster import get_clusters
 from mvp.tools.ground_detection import get_ground_plane
 
+squeezeseg_root = os.path.join(third_party_root, "SqueezeSegV3")
+sys.path.append(os.path.join(squeezeseg_root, "src"))
 
-class SqueezeSegInterface():
+import numpy as np  # noqa: E402
+import torch  # noqa: E402
+import torch.backends.cudnn as cudnn  # noqa: E402
+import yaml  # noqa: E402
+from tasks.semantic.modules.segmentator import Segmentator  # noqa: E402
+from tasks.semantic.postproc.KNN import KNN  # noqa: E402
+from common.laserscan import LaserScan  # noqa: E402
+
+
+class SqueezeSegInterface:
     def __init__(self):
-        self.modeldir = os.path.join(model_root, "SqueezeSegV3")  
+        self.modeldir = os.path.join(model_root, "SqueezeSegV3")
         arch_cfg_path = os.path.join(self.modeldir, "arch_cfg.yaml")
         data_cfg_path = os.path.join(self.modeldir, "data_cfg.yaml")
-        self.ARCH = yaml.safe_load(open(arch_cfg_path, 'r'))
-        self.DATA = yaml.safe_load(open(data_cfg_path, 'r'))
+        self.ARCH = yaml.safe_load(open(arch_cfg_path, "r"))
+        self.DATA = yaml.safe_load(open(data_cfg_path, "r"))
         self.n_classes = len(self.DATA["learning_map_inv"])
         self.sensor = self.ARCH["dataset"]["sensor"]
         self.max_points = self.ARCH["dataset"]["max_points"]
-        self.sensor_img_means = torch.tensor(self.sensor["img_means"],
-                                            dtype=torch.float)
-        self.sensor_img_stds = torch.tensor(self.sensor["img_stds"],
-                                            dtype=torch.float)
+        self.sensor_img_means = torch.tensor(self.sensor["img_means"], dtype=torch.float)
+        self.sensor_img_stds = torch.tensor(self.sensor["img_stds"], dtype=torch.float)
         self.batch_size = 1
 
         # concatenate the encoder and the head
         with torch.no_grad():
-            self.model = Segmentator(self.ARCH,
-                                    self.n_classes,
-                                    self.modeldir)
+            self.model = Segmentator(self.ARCH, self.n_classes, self.modeldir)
 
         # use knn post processing?
         self.post = None
         if self.ARCH["post"]["KNN"]["use"]:
-            self.post = KNN(self.ARCH["post"]["KNN"]["params"],
-                            self.n_classes)
+            self.post = KNN(self.ARCH["post"]["KNN"]["params"], self.n_classes)
 
         # GPU?
         self.gpu = False
@@ -54,12 +51,14 @@ class SqueezeSegInterface():
             self.model.cuda()
 
     def preprocess(self, lidar):
-        scan = LaserScan(project=True,
-                        H=self.sensor["img_prop"]["height"],
-                        W=self.sensor["img_prop"]["width"],
-                        fov_up=self.sensor["fov_up"],
-                        fov_down=self.sensor["fov_down"])
-        scan.set_points(lidar[:,:3], lidar[:,3])
+        scan = LaserScan(
+            project=True,
+            H=self.sensor["img_prop"]["height"],
+            W=self.sensor["img_prop"]["width"],
+            fov_up=self.sensor["fov_up"],
+            fov_down=self.sensor["fov_down"],
+        )
+        scan.set_points(lidar[:, :3], lidar[:, 3])
 
         # make a tensor of the uncompressed data (with the max num points)
         unproj_n_points = scan.points.shape[0]
@@ -67,7 +66,6 @@ class SqueezeSegInterface():
         unproj_xyz[:unproj_n_points] = torch.from_numpy(scan.points)
         unproj_range = torch.full([self.max_points], -1.0, dtype=torch.float)
         unproj_range[:unproj_n_points] = torch.from_numpy(scan.unproj_range)
-        unproj_labels = []
 
         # get points and labels
         proj_range = torch.from_numpy(scan.proj_range).clone()
@@ -78,9 +76,7 @@ class SqueezeSegInterface():
         proj_x[:unproj_n_points] = torch.from_numpy(scan.proj_x)
         proj_y = torch.full([self.max_points], -1, dtype=torch.long)
         proj_y[:unproj_n_points] = torch.from_numpy(scan.proj_y)
-        proj = torch.cat([proj_range.unsqueeze(0).clone(),
-                        proj_xyz.clone().permute(2,0,1),
-                        proj_remission.unsqueeze(0).clone()])
+        proj = torch.cat([proj_range.unsqueeze(0).clone(), proj_xyz.clone().permute(2, 0, 1), proj_remission.unsqueeze(0).clone()])
 
         proj = (proj - self.sensor_img_means[:, None, None]) / self.sensor_img_stds[:, None, None]
         proj = proj * proj_mask.float()
@@ -119,11 +115,7 @@ class SqueezeSegInterface():
 
             if self.post:
                 # knn postproc
-                unproj_argmax = self.post(proj_range,
-                                            unproj_range,
-                                            proj_argmax,
-                                            p_x,
-                                            p_y)
+                unproj_argmax = self.post(proj_range, unproj_range, proj_argmax, p_x, p_y)
             else:
                 # put in original pointcloud using indexes
                 unproj_argmax = proj_argmax[p_y, p_x]
@@ -152,7 +144,4 @@ class SqueezeSegInterface():
         for cluster_indices in cluster_indices_list:
             info.append({"indices": object_indices[cluster_indices], "category_id": class_id_inv_map["car"]})
 
-        return {
-            "class": new_pred_np,
-            "info": info
-        }
+        return {"class": new_pred_np, "info": info}

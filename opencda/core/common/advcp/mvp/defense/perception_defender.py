@@ -1,6 +1,5 @@
 import os
 import numpy as np
-import copy
 from shapely.ops import unary_union
 from shapely.geometry import MultiPolygon
 import pickle
@@ -9,7 +8,6 @@ from .defender import Defender
 from mvp.data.util import bbox_sensor_to_map
 from mvp.tools.polygon_space import bbox_to_polygon
 from mvp.config import data_root
-from mvp.tools.iou import iou3d
 
 
 class PerceptionDefender(Defender):
@@ -54,7 +52,7 @@ class PerceptionDefender(Defender):
                     gt_bbox_index = j
                     break
             metrics["remove"].append((error_area, occupied_area_error, occupied_area_gt_error, gt_bbox_index))
-        
+
         for i, bbox_area in enumerate(pred_bbox_areas):
             error_area = bbox_area.intersection(free_areas)
             free_area_error = error_area.area
@@ -71,7 +69,7 @@ class PerceptionDefender(Defender):
         try:
             map_name = multi_frame_case[0][list(multi_frame_case[0].keys())[0]]["map"]
             lane_areas = self.lane_areas_map[map_name]
-        except:
+        except (KeyError, IndexError):
             lane_areas = None
         vehicle_ids = list(multi_frame_case[0].keys()) if "vehicle_ids" not in defend_opts else defend_opts["vehicle_ids"]
 
@@ -122,7 +120,7 @@ class PerceptionDefender(Defender):
                 vehicle_metrics = self.run_core(pred_bboxes, gt_bboxes, filtered_occupied_areas, free_areas, vehicle_data["ego_area"])
                 vehicle_metrics["lidar_pose"] = vehicle_data["lidar_pose"]
                 metrics[frame_id][vehicle_id] = vehicle_metrics
-        
+
         score = self.score(metrics)
         return multi_frame_case, score, metrics
 
@@ -141,10 +139,10 @@ class PerceptionDefender(Defender):
         return area.intersection(perception_range).area > 0.95 * area.area
 
     def _load_map(self, map_names=None):
-        self.lane_areas_map  ={}
+        self.lane_areas_map = {}
         if map_names is None:
             map_names = ["Town01", "Town02", "Town03", "Town04", "Town05", "Town06", "Town07", "Town10HD"]
-        
+
         for map_name in map_names:
             with open(os.path.join(data_root, "carla/{}_lane_areas.pkl".format(map_name)), "rb") as f:
                 self.lane_areas_map[map_name] = pickle.load(f)

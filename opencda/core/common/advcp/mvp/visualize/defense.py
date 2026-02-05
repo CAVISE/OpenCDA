@@ -1,27 +1,21 @@
 import numpy as np
-import open3d as o3d
-from mvp.data.util import rotation_matrix
-import cv2
 import matplotlib.pyplot as plt
-import matplotlib
 
 from .general import get_xylims, draw_bbox_2d, draw_bboxes_2d, draw_polygons, draw_pointclouds, show_or_save
-from mvp.config import model_3d_examples
-from mvp.data.util import bbox_shift, bbox_rotate, pcd_sensor_to_map, bbox_sensor_to_map
+from mvp.data.util import pcd_sensor_to_map, bbox_sensor_to_map
 from mvp.config import color_map
-from mvp.tools.sensor_calib import parse_lidar_bboxes, parse_camera_bboxes
 
 
 def draw_ground_segmentation(pcd_data, inliers, show=False, save=None):
-    fig, ax = plt.subplots(figsize=(30,30))
-    pointcloud = pcd_data[:,:3]
+    fig, ax = plt.subplots(figsize=(30, 30))
+    pointcloud = pcd_data[:, :3]
     xlim, ylim = get_xylims(pointcloud)
     ax.set_xlim(xlim)
     ax.set_ylim(ylim)
-    ax.set_aspect('equal', adjustable='box')
+    ax.set_aspect("equal", adjustable="box")
 
-    ax.scatter(pointcloud[:,0], pointcloud[:,1], s=0.01, c="black")
-    ax.scatter(pointcloud[inliers,0], pointcloud[inliers,1], s=0.01, c="red") 
+    ax.scatter(pointcloud[:, 0], pointcloud[:, 1], s=0.01, c="black")
+    ax.scatter(pointcloud[inliers, 0], pointcloud[inliers, 1], s=0.01, c="red")
     if show:
         plt.show()
     if save is not None:
@@ -39,7 +33,7 @@ def draw_sensor_calib(pcd_on_camera, camera_image, camera_seg=None, lidar_seg=No
     ax.imshow(camera_image, origin="upper", extent=image_extent)
 
     if pcd_on_camera is not None:
-        in_screen_mask = (pcd_on_camera[:,2] > 0)
+        in_screen_mask = pcd_on_camera[:, 2] > 0
         if lidar_seg is not None:
             # for i, info in enumerate(lidar_seg["info"]):
             #     points = pcd_on_camera[info["indices"]]
@@ -48,10 +42,10 @@ def draw_sensor_calib(pcd_on_camera, camera_image, camera_seg=None, lidar_seg=No
             for class_id in classes.tolist():
                 class_mask = lidar_seg["class"] == class_id
                 indices = np.argwhere(in_screen_mask * class_mask > 0).reshape(-1)
-                points = pcd_on_camera[indices,:]
-                ax.scatter(points[:,0], points[:,1], s=0.02, color=(np.array(color_map[class_id])/255).tolist())
+                points = pcd_on_camera[indices, :]
+                ax.scatter(points[:, 0], points[:, 1], s=0.02, color=(np.array(color_map[class_id]) / 255).tolist())
         else:
-            ax.scatter(pcd_on_camera[:,0], pcd_on_camera[:,1], s=0.02, c="blue")
+            ax.scatter(pcd_on_camera[:, 0], pcd_on_camera[:, 1], s=0.02, c="blue")
     ax.set_xlim(image_extent[:2])
     ax.set_ylim(image_extent[-2:])
 
@@ -63,7 +57,7 @@ def draw_sensor_calib(pcd_on_camera, camera_image, camera_seg=None, lidar_seg=No
 
 
 def draw_polygon_areas(case, show=False, save=None, tag=""):
-    fig, ax = plt.subplots(figsize=(30,30))
+    fig, ax = plt.subplots(figsize=(30, 30))
     color_map = ["r", "g", "b", "k", "y"]
 
     for i, vehicle_id in enumerate(case):
@@ -73,12 +67,12 @@ def draw_polygon_areas(case, show=False, save=None, tag=""):
             lidar = vehicle_data["lidar"]
             lidar_pose = vehicle_data["lidar_pose"]
             pcd = pcd_sensor_to_map(lidar, lidar_pose)
-            plt.scatter(pcd[:,0], pcd[:,1], s=0.1, c=color_map[i])
-        
+            plt.scatter(pcd[:, 0], pcd[:, 1], s=0.1, c=color_map[i])
+
         if "gt_bboxes" in vehicle_data:
             bboxes_to_draw = [(bbox_sensor_to_map(vehicle_data["gt_bboxes"], vehicle_data["lidar_pose"]), None, "g")]
             draw_bbox_2d(ax, bboxes_to_draw)
-        
+
         if "pred_bboxes" in vehicle_data:
             bboxes_to_draw = [(bbox_sensor_to_map(vehicle_data["pred_bboxes"], vehicle_data["lidar_pose"]), None, color_map[i])]
             draw_bbox_2d(ax, bboxes_to_draw)
@@ -97,7 +91,7 @@ def draw_polygon_areas(case, show=False, save=None, tag=""):
             plt.plot(x, y, color_map[i])
             plt.text(x[0], y[0], str(vehicle_id))
 
-    ax.set_aspect('equal', adjustable='box')
+    ax.set_aspect("equal", adjustable="box")
 
     if show:
         plt.show()
@@ -116,10 +110,10 @@ def draw_object_tracking(point_clouds, detections, predictions, show=False, save
         xlim, ylim = get_xylims(point_cloud)
         ax.set_xlim(xlim)
         ax.set_ylim(ylim)
-        ax.set_aspect('equal', adjustable='box')
-        ax.scatter(point_cloud[:,0], point_cloud[:,1], s=0.01, c="black")
-        ax.scatter(predictions[frame_id][:,0], predictions[frame_id][:,1], s=50, c="red")
-        ax.scatter(detections[frame_id][:,0], detections[frame_id][:,1], s=50, c="blue")
+        ax.set_aspect("equal", adjustable="box")
+        ax.scatter(point_cloud[:, 0], point_cloud[:, 1], s=0.01, c="black")
+        ax.scatter(predictions[frame_id][:, 0], predictions[frame_id][:, 1], s=50, c="red")
+        ax.scatter(detections[frame_id][:, 0], detections[frame_id][:, 1], s=50, c="blue")
 
     if show:
         plt.show()
@@ -129,7 +123,7 @@ def draw_object_tracking(point_clouds, detections, predictions, show=False, save
 
 
 def visualize_defense(case, metrics, show=False, save=None):
-    fig, ax = plt.subplots(figsize=(30,30))
+    fig, ax = plt.subplots(figsize=(30, 30))
     vehicle_color_map = ["r", "g", "b", "k", "y"]
 
     frame_data = case[-1]
@@ -145,16 +139,20 @@ def visualize_defense(case, metrics, show=False, save=None):
 
     for i, vehicle_id in enumerate(vehicle_ids):
         if "pred_bboxes" in frame_data[vehicle_id]:
-            draw_bboxes_2d(ax, bbox_sensor_to_map(frame_data[vehicle_id]["gt_bboxes"], frame_data[vehicle_id]["lidar_pose"]), None, color="g", linewidth=2)
-            draw_bboxes_2d(ax, bbox_sensor_to_map(frame_data[vehicle_id]["pred_bboxes"], frame_data[vehicle_id]["lidar_pose"]), None, color="r", linewidth=2)
-    
+            draw_bboxes_2d(
+                ax, bbox_sensor_to_map(frame_data[vehicle_id]["gt_bboxes"], frame_data[vehicle_id]["lidar_pose"]), None, color="g", linewidth=2
+            )
+            draw_bboxes_2d(
+                ax, bbox_sensor_to_map(frame_data[vehicle_id]["pred_bboxes"], frame_data[vehicle_id]["lidar_pose"]), None, color="r", linewidth=2
+            )
+
     error_areas = []
     for vehicle_id in metrics[0]:
         for t in ["spoof", "remove"]:
             error_areas += [x[0] for x in metrics[0][vehicle_id][t]]
     draw_polygons(ax, error_areas, color="y", alpha=0.8, border=False)
 
-    ax.set_aspect('equal', adjustable='box')
+    ax.set_aspect("equal", adjustable="box")
     show_or_save(show=show, save=save)
 
 
@@ -165,13 +163,11 @@ def draw_roc(value, label, show=False, save=None):
     best_thres = 0
     best_TPR = 0
     best_FPR = 0
-    for thres in np.arange(value.min()-0.02, value.max()+0.02, 0.02).tolist():
+    for thres in np.arange(value.min() - 0.02, value.max() + 0.02, 0.02).tolist():
         TP = np.sum((value > thres) * (label > 0))
         FP = np.sum((value > thres) * (label <= 0))
         P = np.sum(label > 0)
         N = np.sum(label <= 0)
-        PP = TP + FP
-        PN = P + N - PP
         TPR = TP / P
         FPR = FP / N
         if TPR * (1 - FPR) > roc_auc:
@@ -181,14 +177,14 @@ def draw_roc(value, label, show=False, save=None):
             best_FPR = FPR
         tpr_data.append(TPR)
         fpr_data.append(FPR)
-    
-    plt.plot(fpr_data, tpr_data, 'b', label = 'AUC = %0.2f' % roc_auc)
-    plt.legend(loc = 'lower right')
-    plt.plot([0, 1], [0, 1],'r--')
+
+    plt.plot(fpr_data, tpr_data, "b", label="AUC = %0.2f" % roc_auc)
+    plt.legend(loc="lower right")
+    plt.plot([0, 1], [0, 1], "r--")
     plt.xlim([0, 1])
     plt.ylim([0, 1])
-    plt.ylabel('True Positive Rate')
-    plt.xlabel('False Positive Rate')
-    plt.gca().set_aspect('equal', adjustable='box')
+    plt.ylabel("True Positive Rate")
+    plt.xlabel("False Positive Rate")
+    plt.gca().set_aspect("equal", adjustable="box")
     show_or_save(show=show, save=save)
     return best_TPR, best_FPR, roc_auc, best_thres

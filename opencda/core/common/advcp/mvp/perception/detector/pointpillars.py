@@ -20,12 +20,12 @@ class PointPillarsDetector(Detector):
         write_bin(pointcloud, self.bin_path)
         result, _ = inference_detector(self.model, self.bin_path)
         if bboxes:
-            b = result[0]['boxes_3d'].tensor.detach().numpy()
+            b = result[0]["boxes_3d"].tensor.detach().numpy()
             output["bboxes"] = b
         if scores:
-            s = result[0]['scores_3d'].detach().numpy()
+            s = result[0]["scores_3d"].detach().numpy()
             output["scores"] = s
-        if scores:
-            l = result[0]['labels_3d'].detach().numpy()
-            output["labels"] = l
+        if labels:
+            labels = result[0]["labels_3d"].detach().numpy()
+            output["labels"] = labels
         return output

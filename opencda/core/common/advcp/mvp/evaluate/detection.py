@@ -21,13 +21,20 @@ def evaluate_single_vehicle(gt_bboxes, pred_bboxes, iou_thres=0.7):
     FP = PP - TP
     FN = P - TP
 
-    TP_bbox_mask = (np.max(iou, axis=1) >= iou_thres)
-    FP_bbox_mask = (np.max(iou, axis=0) < iou_thres)
-    FN_bbox_mask = (np.max(iou, axis=1) < iou_thres)
+    TP_bbox_mask = np.max(iou, axis=1) >= iou_thres
+    FP_bbox_mask = np.max(iou, axis=0) < iou_thres
+    FN_bbox_mask = np.max(iou, axis=1) < iou_thres
 
     report["metrics"] = {
-        "P": P, "PP": PP, "TP": TP, "FP": FP, "FN": FN, "iou_mask": iou_mask,
-        "TP_bbox_mask": TP_bbox_mask, "FP_bbox_mask": FP_bbox_mask, "FN_bbox_mask": FN_bbox_mask
+        "P": P,
+        "PP": PP,
+        "TP": TP,
+        "FP": FP,
+        "FN": FN,
+        "iou_mask": iou_mask,
+        "TP_bbox_mask": TP_bbox_mask,
+        "FP_bbox_mask": FP_bbox_mask,
+        "FN_bbox_mask": FN_bbox_mask,
     }
 
     return report

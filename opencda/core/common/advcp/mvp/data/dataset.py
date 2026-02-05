@@ -1,4 +1,4 @@
-class Dataset():
+class Dataset:
     def __init__(self, name=""):
         self.name = name
 
@@ -7,5 +7,5 @@ class Dataset():
         for frame_id, frame_data in enumerate(feature_data):
             for vehicle_id, vehicle_data in frame_data.items():
                 case[frame_id][vehicle_id].update(vehicle_data)
-        
+
         return case

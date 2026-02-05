@@ -15,9 +15,7 @@ def lidar_segmentation_dbscan(full_pcd, ground_indices, cluster_thres=0.5, min_p
     info = []
     for label in np.unique(labels):
         indices = np.argwhere(labels == label).reshape(-1)
-        info.append({
-            "indices": non_ground_indices[indices]
-        })
+        info.append({"indices": non_ground_indices[indices]})
 
     return {"info": info}
 
@@ -28,11 +26,11 @@ def lidar_segmentation_slr(full_pcd, ground_indices, cluster_thres=0.5):
     non_ground_indices = np.argwhere(non_ground_mask > 0).reshape(-1)
     pcd = full_pcd[non_ground_mask]
 
-    distance = np.sqrt(np.sum(pcd[:,:2] ** 2, axis=1))
-    angle = np.arctan2(distance, -pcd[:,2])
+    distance = np.sqrt(np.sum(pcd[:, :2] ** 2, axis=1))
+    angle = np.arctan2(distance, -pcd[:, 2])
     angle_delta = angle - np.concatenate((np.array([angle[0]]), angle[:-1]), axis=None)
-    rings = np.cumsum((angle_delta < - 0.2 / 180 * np.pi).astype(np.int8))
-    prev_pcd = np.vstack((np.array([pcd[0,:]]), pcd[:-1,:]))
+    rings = np.cumsum((angle_delta < -0.2 / 180 * np.pi).astype(np.int8))
+    prev_pcd = np.vstack((np.array([pcd[0, :]]), pcd[:-1, :]))
     dist_delta = np.sqrt(np.sum((pcd - prev_pcd) ** 2, axis=1))
     breaks = dist_delta > cluster_thres
 
@@ -48,13 +46,13 @@ def lidar_segmentation_slr(full_pcd, ground_indices, cluster_thres=0.5):
             continue
 
         # Finds cluster in the same ring.
-        if rings[i] != rings[i-1]:
+        if rings[i] != rings[i - 1]:
             ring_start = i
         else:
             # The last point is the same ring.
             if breaks[i] == 0:
-                instance_label[i] = instance_label[i-1]
-            if i < pcd.shape[0] - 1 and rings[i] != rings[i+1]:
+                instance_label[i] = instance_label[i - 1]
+            if i < pcd.shape[0] - 1 and rings[i] != rings[i + 1]:
                 # It is the last point in this ring.
                 if np.sqrt(np.sum((pcd[i] - pcd[ring_start]) ** 2)) <= cluster_thres:
                     if instance_label[i] == 0:
@@ -90,7 +88,7 @@ def lidar_segmentation_slr(full_pcd, ground_indices, cluster_thres=0.5):
         if len(np.unique(rings[indices])) <= 3:
             continue
         info.append({"indices": non_ground_indices[indices]})
-    
+
     return {"class": point_class, "info": info}
 
 
@@ -98,6 +96,7 @@ def lidar_segmentation(pcd, method="cluster", **kwargs):
     if method == "squeezeseq":
         if "interface" not in kwargs or kwargs["interface"] is None:
             from .squeezeseg.interface import SqueezeSegInterface
+
             interface = SqueezeSegInterface()
         else:
             interface = kwargs["interface"]

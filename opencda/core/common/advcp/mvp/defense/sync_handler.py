@@ -1,11 +1,9 @@
 import numpy as np
-import cv2
 import shapely
 import copy
 
 from mvp.tools.object_tracking import Tracker
 from mvp.data.util import pcd_sensor_to_map, pcd_map_to_sensor, get_point_indices_in_bbox, bbox_sensor_to_map
-from mvp.tools.squeezeseg.interface import SqueezeSegInterface
 from mvp.tools.polygon_space import get_occupied_space, get_free_space
 from mvp.tools.ground_detection import get_ground_plane
 from mvp.tools.lidar_seg import lidar_segmentation
@@ -21,7 +19,7 @@ class SyncObjectState:
         self.timestamp = timestamp
 
     def update(self, location, timestamp):
-        assert(timestamp > self.timestamp)
+        assert timestamp > self.timestamp
         velocity = (location - self.location) / (timestamp - self.timestamp)
         self.acceleration = (velocity - self.velocity) / (timestamp - self.timestamp)
         self.velocity = velocity
@@ -51,7 +49,7 @@ class SyncHandler:
             self.states[object_id].update(location, timestamp)
 
     def predict_object(self, object_id, timestamp):
-        assert(object_id in self.states)
+        assert object_id in self.states
         return self.states[object_id].predict(timestamp)
 
     def update_pcd_gt(self, lidar_pose, gt_bboxes, object_ids, timestamp):
@@ -91,7 +89,7 @@ class SyncHandler:
         return pcd_map_to_sensor(pcd2, new_lidar_pose)
 
     def predict_area(self, free_areas, occupied_areas, detections, timestamp):
-        assert(detections.shape[0] == len(occupied_areas))
+        assert detections.shape[0] == len(occupied_areas)
         new_occupied_areas = []
         for _, object_state in self.states.items():
             match = np.argwhere(np.sum(detections - object_state.location, axis=1) == 0).reshape(-1)
@@ -107,7 +105,7 @@ class SyncHandler:
             for free_area in free_areas:
                 new_free_areas.append(free_area.difference(new_area))
             free_areas = new_free_areas
-        
+
         return free_areas, occupied_areas
 
 
@@ -128,7 +126,7 @@ def preprocess_sync_gt(case, vehicle_id, lidar_seg_api):
 
     pcd = pcd_sensor_to_map(pcd_sensor, lidar_pose)
     lidar_seg = lidar_segmentation(pcd_sensor, method="squeezeseq", interface=lidar_seg_api)
-    object_mask = (lidar_seg["class"] == 1)
+    object_mask = lidar_seg["class"] == 1
     object_segments = filter_segmentation(pcd_sensor, lidar_seg)
     detections = get_detection_from_segmentation(pcd, object_segments)
     occupied_areas = get_occupied_space(pcd, object_segments)
@@ -156,7 +154,7 @@ def preprocess_sync(case, vehicle_id, lidar_seg_api):
 
         sync.update_pcd(detections, frame_id * 0.1)
 
-    object_mask = (lidar_seg["class"] == 1)
+    object_mask = lidar_seg["class"] == 1
     occupied_areas = get_occupied_space(pcd, object_segments)
     plane, _ = get_ground_plane(pcd, method="ransac")
     free_areas = get_free_space(pcd, lidar_pose[:3], plane, object_mask, max_range=50)

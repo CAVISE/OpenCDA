@@ -3,12 +3,10 @@ import os
 import copy
 import numpy as np
 
-from mvp.config import data_root
-from mvp.data.util import write_pcd, read_pcd, sort_lidar_points
-from mvp.visualize.attack import draw_attack
+from mvp.data.util import sort_lidar_points
 
 
-class Attacker():
+class Attacker:
     def __init__(self):
         self.attack_list = None
         self.name = "base"
@@ -22,12 +20,12 @@ class Attacker():
         raise NotImplementedError
 
     def save_benchmark_meta(self):
-        with open(os.path.join(self.dataset.root_path, "attack", "{}.pkl".format(self.name)), 'wb') as f:
+        with open(os.path.join(self.dataset.root_path, "attack", "{}.pkl".format(self.name)), "wb") as f:
             pickle.dump(self.attack_list, f)
 
     def load_benchmark_meta(self):
         try:
-            with open(os.path.join(self.dataset.root_path, "attack", "{}.pkl".format(self.name)), 'rb') as f:
+            with open(os.path.join(self.dataset.root_path, "attack", "{}.pkl".format(self.name)), "rb") as f:
                 self.attack_list = pickle.load(f)
         except Exception as e:
             print("no benchmark found", e)
@@ -39,7 +37,6 @@ class Attacker():
             if resume:
                 if os.path.exists(os.path.join(pcd_dir, "attack_info.pkl")):
                     continue
-            attacker = attack["attack_meta"]["attacker_vehicle_id"]
             case_id = attack["attack_meta"]["case_id"]
             case = self.dataset.get_case(case_id, "multi_frame")
             new_case = copy.deepcopy(case)
@@ -70,7 +67,7 @@ class Attacker():
             for i in frame_ids:
                 try:
                     case[i][attacker]["lidar"] = self.apply_ray_tracing(case[i][attacker]["lidar"], **attack_info[i])
-                except:
+                except (KeyError, IndexError):
                     pass
         return attack, case
 
@@ -81,7 +78,7 @@ class Attacker():
         if ignore_indices is not None and ignore_indices.shape[0] > 0:
             try:
                 lidar = np.delete(lidar, ignore_indices, axis=0)
-            except:
+            except IndexError:
                 pass
         if append_data is not None and append_data.shape[0] > 0:
             tmp_pcd = np.vstack([lidar[:, :3], append_data])
