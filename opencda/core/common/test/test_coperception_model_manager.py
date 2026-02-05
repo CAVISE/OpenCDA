@@ -120,9 +120,9 @@ class TestCoperceptionModelManager:
         assert manager.device == "device(cuda)"
         manager_deps["model"].cuda.assert_called_once()
 
-    def test_make_dataset(self, manager_deps):
+    def test_update_dataset(self, manager_deps):
         """
-        Verify make_dataset calls the correct build_dataset and creates a DataLoader.
+        Verify update_dataset calls the correct build_dataset and creates a DataLoader.
         We patch the symbol inside the module under test to ensure we capture the call.
         """
         dataset_mock = DummyDataset()
@@ -132,7 +132,7 @@ class TestCoperceptionModelManager:
             opt = DummyOpt()
             manager = CoperceptionModelManager(opt, "2023_01_01")
 
-            manager.make_dataset()
+            manager.update_dataset()
 
             mock_build.assert_called_with(manager_deps["hypes"], visualize=True, train=False, message_handler=None)
             assert manager.opencood_dataset == dataset_mock

@@ -55,7 +55,7 @@ class CoperceptionModelManager:
             0.7: {"tp": [], "fp": [], "gt": 0, "score": []},
         }
 
-    def make_dataset(self):
+    def update_dataset(self):
         logger.debug("Refreshing dataset indices")
         self.opencood_dataset.update_database()
 
