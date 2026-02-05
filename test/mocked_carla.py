@@ -22,19 +22,18 @@ import numpy as np
 
 class _FloatAttrMixin:
     """Mixin providing __eq__ with math.isclose for float attributes."""
+
     _cmp_attrs: tuple = ()
 
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
             return False
-        return all(
-            math.isclose(getattr(self, attr), getattr(other, attr))
-            for attr in self._cmp_attrs
-        )
+        return all(math.isclose(getattr(self, attr), getattr(other, attr)) for attr in self._cmp_attrs)
 
 
 class Location(_FloatAttrMixin):
     """A mock class for carla.Location."""
+
     _cmp_attrs = ("x", "y", "z")
 
     def __init__(self, x=0.0, y=0.0, z=0.0):
@@ -51,6 +50,7 @@ class Location(_FloatAttrMixin):
 
 class Rotation(_FloatAttrMixin):
     """A mock class for carla.Rotation."""
+
     _cmp_attrs = ("pitch", "yaw", "roll")
 
     def __init__(self, pitch=0.0, yaw=0.0, roll=0.0):
@@ -98,9 +98,7 @@ class Transform:
             self.rotation = Rotation(pitch=pitch, yaw=yaw, roll=roll)
             return
 
-        raise TypeError(
-            "Unsupported Transform signature. Use Transform(location, rotation) or Transform(x, y, z, pitch=0, yaw=0, roll=0)."
-        )
+        raise TypeError("Unsupported Transform signature. Use Transform(location, rotation) or Transform(x, y, z, pitch=0, yaw=0, roll=0).")
 
     def __repr__(self):
         return f"Transform(location={self.location!r}, rotation={self.rotation!r})"
@@ -113,6 +111,7 @@ class Transform:
 
 class Vector3D(_FloatAttrMixin):
     """A mock class for carla.Vector3D."""
+
     _cmp_attrs = ("x", "y", "z")
 
     def __init__(self, x=0.0, y=0.0, z=0.0):
@@ -125,16 +124,19 @@ class Vector3D(_FloatAttrMixin):
 
 
 # Default corners for deterministic BoundingBox (unit cube centered at origin)
-_DEFAULT_CORNERS = np.array([
-    [-0.5, -0.5, -0.5],
-    [-0.5, -0.5,  0.5],
-    [-0.5,  0.5, -0.5],
-    [-0.5,  0.5,  0.5],
-    [ 0.5, -0.5, -0.5],
-    [ 0.5, -0.5,  0.5],
-    [ 0.5,  0.5, -0.5],
-    [ 0.5,  0.5,  0.5],
-], dtype=np.float64)
+_DEFAULT_CORNERS = np.array(
+    [
+        [-0.5, -0.5, -0.5],
+        [-0.5, -0.5, 0.5],
+        [-0.5, 0.5, -0.5],
+        [-0.5, 0.5, 0.5],
+        [0.5, -0.5, -0.5],
+        [0.5, -0.5, 0.5],
+        [0.5, 0.5, -0.5],
+        [0.5, 0.5, 0.5],
+    ],
+    dtype=np.float64,
+)
 
 
 class BoundingBox:
