@@ -36,25 +36,31 @@ class CoperceptionModelManager:
         self.data_loader = None
         self.message_handler = message_handler
 
+        logger.info("Initial Dataset Building")
+        self.opencood_dataset = build_dataset(self.hypes, visualize=True, train=False, message_handler=self.message_handler)
+
+        self.data_loader = DataLoader(
+            self.opencood_dataset,
+            batch_size=1,
+            num_workers=0,
+            collate_fn=self.opencood_dataset.collate_batch_test,
+            shuffle=False,
+            pin_memory=False,
+            drop_last=False,
+        )
+
         self.final_result_stat = {
             0.3: {"tp": [], "fp": [], "gt": 0, "score": []},
             0.5: {"tp": [], "fp": [], "gt": 0, "score": []},
             0.7: {"tp": [], "fp": [], "gt": 0, "score": []},
         }
 
-    def make_dataset(self):
-        logger.info("Dataset Building")
-        self.opencood_dataset = build_dataset(self.hypes, visualize=True, train=False, message_handler=self.message_handler)
-        logger.info(f"{len(self.opencood_dataset)} samples found.")
-        self.data_loader = DataLoader(
-            self.opencood_dataset,
-            batch_size=1,
-            num_workers=16,
-            collate_fn=self.opencood_dataset.collate_batch_test,
-            shuffle=False,
-            pin_memory=False,
-            drop_last=False,
-        )
+    def update_dataset(self):
+        logger.debug("Refreshing dataset indices")
+        self.opencood_dataset.update_database()
+
+        if len(self.opencood_dataset) == 0:
+            logger.warning("No samples found in dataset after update.")
 
     def make_prediction(self, tick_number):
         assert self.opt.fusion_method in ["late", "early", "intermediate"]
