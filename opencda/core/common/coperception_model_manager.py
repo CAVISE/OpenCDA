@@ -86,52 +86,54 @@ class CoperceptionModelManager:
         self.data_loader = None
         self.message_handler = message_handler
 
-        self.final_result_stat: Dict[float, Dict[str, Any]] = {
-            0.3: {"tp": [], "fp": [], "gt": 0, "score": []},
-            0.5: {"tp": [], "fp": [], "gt": 0, "score": []},
-            0.7: {"tp": [], "fp": [], "gt": 0, "score": []},
-        }
-
-    def make_dataset(self) -> None:
-        """
-        Build the OpenCOOD dataset and create DataLoader.
-
-        Creates dataset instance from configuration and initializes
-        DataLoader for batch processing.
-        """
-        logger.info("Dataset Building")
+        logger.info("Initial Dataset Building")
         self.opencood_dataset = build_dataset(self.hypes, visualize=True, train=False, message_handler=self.message_handler)
-        logger.info(f"{len(self.opencood_dataset)} samples found.")  # NOTE None-check is required
+
         self.data_loader = DataLoader(
             self.opencood_dataset,
             batch_size=1,
-            num_workers=16,
-            collate_fn=self.opencood_dataset.collate_batch_test,  # NOTE None-check is required
+            num_workers=0,
+            collate_fn=self.opencood_dataset.collate_batch_test,
             shuffle=False,
             pin_memory=False,
             drop_last=False,
         )
 
+        self.final_result_stat = {
+            0.3: {"tp": [], "fp": [], "gt": 0, "score": []},
+            0.5: {"tp": [], "fp": [], "gt": 0, "score": []},
+            0.7: {"tp": [], "fp": [], "gt": 0, "score": []},
+        }
+
+    def update_dataset(self) -> None:
+        """
+        Refresh the dataset by updating internal database indices.
+        
+        There are logs warning if no samples
+        are found after the update.
+        """
+        logger.debug("Refreshing dataset indices")
+        self.opencood_dataset.update_database()
+
+        if len(self.opencood_dataset) == 0:
+            logger.warning("No samples found in dataset after update.")
+
     def make_prediction(self, tick_number: int) -> None:
         """
-        Run cooperative perception inference on the dataset.
-
-        Performs model inference using specified fusion method, evaluates predictions,
-        and optionally saves/visualizes results.
-
+        Run inference on the dataset and compute evaluation metrics.
+    
+        Processes all batches in the data loader, performs cooperative perception
+        fusion according to the specified method.
+        
         Parameters
         ----------
         tick_number : int
-            Current simulation tick number for naming output files.
+            The current simulation tick number, used for naming output files.
 
         Raises
         ------
-        AssertionError
-            If fusion method is not one of 'late', 'early', 'intermediate'.
-        AssertionError
-            If both show_vis and show_sequence options are enabled.
         NotImplementedError
-            If fusion method is not supported.
+            If an unsupported fusion method is encountered during execution.
         """
         assert self.opt.fusion_method in ["late", "early", "intermediate"]
         assert not (self.opt.show_vis and self.opt.show_sequence), "you can only visualize the results in single image mode or video mode"
