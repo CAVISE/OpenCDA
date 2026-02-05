@@ -63,7 +63,8 @@ jobs:
           python-version: '3.12'
       - name: Run pre-commit
         uses: pre-commit/action@v3.0.1
+        env:
+          SKIP: ruff-check,ruff-format,pretty-format-json
         with:
           extra_args: >-
-            --config .github/pre-commit-config-ci.yaml
             --all-files
