@@ -104,7 +104,7 @@ class BaseDataset(Dataset):
 
         self.update_database()
 
-    def update_database(self):
+    def update_database(self, memory_data=None):
         """
         Update the scenario database by re-scanning the root directory.
 
@@ -121,6 +121,11 @@ class BaseDataset(Dataset):
         -------
         None
         """
+        if memory_data is not None:
+            self.scenario_database = memory_data
+            self.len_record = [1]
+            return
+
         if self.train:
             root_dir = self.params["root_dir"]
         else:

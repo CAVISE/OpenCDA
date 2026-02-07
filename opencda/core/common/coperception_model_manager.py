@@ -3,6 +3,7 @@ import re
 import shutil
 import logging
 from tqdm import tqdm
+from collections import OrderedDict
 
 import torch  # type: ignore
 import open3d as o3d
@@ -55,9 +56,9 @@ class CoperceptionModelManager:
             0.7: {"tp": [], "fp": [], "gt": 0, "score": []},
         }
 
-    def update_dataset(self):
+    def update_dataset(self, data=None):
         logger.debug("Refreshing dataset indices")
-        self.opencood_dataset.update_database()
+        self.opencood_dataset.update_database(memory_data=data)
 
         if len(self.opencood_dataset) == 0:
             logger.warning("No samples found in dataset after update.")
@@ -223,3 +224,65 @@ class DirectoryProcessor:
                 os.remove(item_path)  # Удаляем файлы и символические ссылки
             elif os.path.isdir(item_path):
                 shutil.rmtree(item_path)
+
+    def retrieve_data_structure(self, tick_number):
+        """
+        Scans the source directory for the current tick and builds the
+        dictionary structure required by BaseDataset without copying files.
+        """
+        number = f"{tick_number:06d}"
+
+        # Logic to find the latest generated folder (matching original logic)
+        subdirectories = sorted([d for d in os.listdir(self.source_directory) if os.path.isdir(os.path.join(self.source_directory, d))])
+
+        if len(subdirectories) < 2:
+            # Not enough data yet
+            return None
+
+        # According to original logic, we take subdirectories[-2]
+        data_directory = os.path.join(self.source_directory, subdirectories[-2])
+
+        # Find camera postfixes
+        # camera_postfixes = self.detect_cameras(data_directory)
+
+        # Find CAV folders inside
+        inner_subdirectories = sorted([d for d in os.listdir(data_directory) if os.path.isdir(os.path.join(data_directory, d))])
+
+        # Prepare the structure: {scenario_id: {cav_id: {timestamp: ...}}}
+        # We simulate scenario_id = 0
+        scenario_data = OrderedDict()
+        scenario_data[0] = OrderedDict()
+
+        # Reorder if necessary (RSU at the end) like in BaseDataset
+        if len(inner_subdirectories) > 0 and "rsu" in inner_subdirectories[0]:
+            inner_subdirectories = inner_subdirectories[1:] + [inner_subdirectories[0]]
+
+        for j, folder in enumerate(inner_subdirectories):
+            cav_id = folder
+            scenario_data[0][cav_id] = OrderedDict()
+
+            # Timestamp is based on the tick number string
+            timestamp = number
+            scenario_data[0][cav_id][timestamp] = OrderedDict()
+
+            # Construct absolute paths to the SOURCE files
+            # (No copying needed, we just point to where simulation wrote them)
+            base_path = os.path.join(data_directory, folder, number)
+
+            scenario_data[0][cav_id][timestamp]["yaml"] = base_path + ".yaml"
+            scenario_data[0][cav_id][timestamp]["lidar"] = base_path + ".pcd"
+
+            # Cameras
+            camera_files = []
+            # We assume standard 4 cameras logic or use detected postfixes
+            # To be safe and compatible with BaseDataset expected 4 cams:
+            for k in range(4):
+                cam_path = os.path.join(data_directory, folder, f"{number}_camera{k}.png")
+                camera_files.append(cam_path)
+
+            scenario_data[0][cav_id][timestamp]["camera0"] = camera_files
+
+            # Determine Ego (first in list is ego)
+            scenario_data[0][cav_id]["ego"] = j == 0
+
+        return scenario_data
