@@ -23,9 +23,10 @@ class AIMModelManager:
 
         :return: None
         """
-        self.CONTROL_RADIUS = 20
-        self.THRESHOLD = 1
-        self.FORCE_VALUE = 1
+        self.CONTROL_RADIUS = 15
+        self.THRESHOLD = 10
+        self.FORCE_VALUE = 20
+
         self.mtp_controlled_vehicles = set()
 
         self.cav_ids = set()
@@ -285,7 +286,7 @@ class AIMModelManager:
         curr_pos = np.array(traci.vehicle.getPosition(vehicle_id))
         nearest_node = self._get_nearest_node(curr_pos)
         control_center = nearest_node.getCoord()
-        return self.get_opencda_intention(waypoints, control_center, self.CONTROL_RADIUS)
+        return self.get_opencda_intention(waypoints, control_center)
 
     def encoding_scenario_features(self):
         """
