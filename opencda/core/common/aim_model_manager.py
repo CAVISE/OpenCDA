@@ -6,9 +6,9 @@ import numpy as np
 import pickle as pkl
 from scipy.spatial import distance
 
-from CoDriving.scripts.constants import CONTROL_RADIUS, THRESHOLD, FORCE_VALUE
 from opencda.co_simulation.sumo_integration.bridge_helper import BridgeHelper
 from AIM import AIMModel
+
 
 logger = logging.getLogger("cavise.codriving_model_manager")
 
@@ -23,6 +23,10 @@ class AIMModelManager:
 
         :return: None
         """
+        self.CONTROL_RADIUS = 15
+        self.THRESHOLD = 10
+        self.FORCE_VALUE = 20
+
         self.mtp_controlled_vehicles = set()
 
         self.cav_ids = set()
@@ -109,7 +113,7 @@ class AIMModelManager:
             control_center = np.array(nearest_node.getCoord())
             distance_to_center = np.linalg.norm(curr_pos - control_center)
 
-            if distance_to_center < CONTROL_RADIUS:
+            if distance_to_center < self.CONTROL_RADIUS:
                 self.mtp_controlled_vehicles.add(vehicle_id)
 
                 pred_delta = predictions[idx].reshape(30, 2).detach().cpu().numpy()
@@ -133,7 +137,7 @@ class AIMModelManager:
 
                 pos = cav.vehicle.get_location()
 
-                global_delta = np.where(np.abs(global_delta) <= THRESHOLD, np.sign(global_delta) * FORCE_VALUE, global_delta)
+                global_delta = np.where(np.abs(global_delta) <= self.THRESHOLD, np.sign(global_delta) * self.FORCE_VALUE, global_delta)
 
                 next_loc = carla.Location(
                     x=pos.x + global_delta[0],
@@ -165,18 +169,16 @@ class AIMModelManager:
         }
         """
         for vehicle_id in self.cav_ids:
-            # Get current vehicle position and find nearest node
             position = np.array(traci.vehicle.getPosition(vehicle_id))
             nearest_node = self._get_nearest_node(position)
 
-            # Skip excluded regions
             if self.excluded_nodes and nearest_node in self.excluded_nodes:
                 continue
 
             control_center = np.array(nearest_node.getCoord())
             distance_to_center = np.linalg.norm(position - control_center)
 
-            if distance_to_center < CONTROL_RADIUS:
+            if distance_to_center < self.CONTROL_RADIUS:
                 # Initialize trajectory if this is a new vehicle
                 if vehicle_id not in self.trajs:
                     self.trajs[vehicle_id] = []
@@ -191,16 +193,13 @@ class AIMModelManager:
                 rel_x = position[0] - node_x
                 rel_y = position[1] - node_y
 
-                # Determine intention
                 if not self.trajs[vehicle_id] or self.trajs[vehicle_id][-1][-1] == "null":
                     intention = self.get_intention(vehicle_id)
                 else:
                     intention = self.trajs[vehicle_id][-1][-1]
 
-                # Append current state to trajectory
                 self.trajs[vehicle_id] = [(rel_x, rel_y, speed, yaw_rad, yaw_deg_sumo, intention)]
 
-        # Remove trajectories of vehicles that have left the scene
         for vehicle_id in list(self.trajs):
             if vehicle_id not in self.cav_ids:
                 del self.trajs[vehicle_id]
@@ -235,7 +234,7 @@ class AIMModelManager:
         position = np.array([rel_x, rel_y])
         return np.linalg.norm(position)
 
-    def get_opencda_intention(self, waypoints, mid, radius=CONTROL_RADIUS):
+    def get_opencda_intention(self, waypoints, mid):
         """
         Gets intention by averaged rotation to pass 3 next waypoints.
 
@@ -254,10 +253,10 @@ class AIMModelManager:
 
         in_sumo_transform = carla.Transform(location, rotation)
         mid = BridgeHelper.get_carla_transform(in_sumo_transform, carla.Vector3D(0, 0, 0))
-        if self.get_distance(mid, waypoints[0]) > radius:
+        if self.get_distance(mid, waypoints[0]) > self.CONTROL_RADIUS:
             logger.debug("Car not int radius")
             return "null"
-        while self.get_distance(mid, waypoints[waypoint_index]) > radius:
+        while self.get_distance(mid, waypoints[waypoint_index]) > self.CONTROL_RADIUS:
             waypoint_index += 1
             if waypoint_index >= len(waypoints):
                 logger.debug("No waypoints in radius")
@@ -266,7 +265,7 @@ class AIMModelManager:
 
         first_waypoint = waypoints[waypoint_index]
         first_waypoint_index = waypoint_index
-        while (self.get_distance(mid, waypoints[waypoint_index]) <= radius) and waypoint_index < len(waypoints) - 1:
+        while (self.get_distance(mid, waypoints[waypoint_index]) <= self.CONTROL_RADIUS) and waypoint_index < len(waypoints) - 1:
             waypoint_index += 1
 
         # average the values of several points to reduce noise
@@ -287,7 +286,7 @@ class AIMModelManager:
         curr_pos = np.array(traci.vehicle.getPosition(vehicle_id))
         nearest_node = self._get_nearest_node(curr_pos)
         control_center = nearest_node.getCoord()
-        return self.get_opencda_intention(waypoints, control_center, CONTROL_RADIUS)
+        return self.get_opencda_intention(waypoints, control_center)
 
     def encoding_scenario_features(self):
         """
@@ -303,7 +302,7 @@ class AIMModelManager:
             position = np.array(last_position[:2])
             distance_to_origin = np.linalg.norm(position)
 
-            if distance_to_origin < CONTROL_RADIUS:
+            if distance_to_origin < self.CONTROL_RADIUS:
                 motion_features = np.array(last_position[:-2])
                 intention_vector = self.get_intention_vector(last_position[-1])
                 feature_vector = np.concatenate((motion_features, intention_vector)).reshape(1, -1)
