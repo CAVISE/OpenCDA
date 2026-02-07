@@ -12,11 +12,13 @@ from opencood.hypes_yaml.yaml_utils import load_yaml
 from opencood.tools import train_utils, inference_utils
 from opencood.data_utils.datasets import build_dataset
 
-from .attack_handler import AttackHandler
-from .defense_handler import DefenseHandler
-from .data_simulator import DataSimulator
-from .metrics_logger import MetricsLogger
-from .visualization import Visualization
+# MVP components
+from .mvp.attack.attacker import Attacker
+from .mvp.defense.defender import Defender
+from .mvp.data.dataset import Dataset
+from .mvp.evaluate.accuracy import Accuracy
+from .mvp.evaluate.detection import Detection
+from .mvp.visualize.general import Visualizer
 
 logger = logging.getLogger("cavise.advcp_manager")
 
@@ -38,16 +40,18 @@ class AdvCPManager:
         # Load AdvCP configuration
         self.advcp_config = load_yaml(None, self.opt)
 
-        # Initialize core components
-        self.attack_handler = AttackHandler(self.advcp_config)
-        self.defense_handler = DefenseHandler(self.advcp_config)
-        self.data_simulator = DataSimulator()
-        self.metrics_logger = MetricsLogger()
-        self.visualization = Visualization()
+        # Initialize core components with MVP equivalents
+        self.attacker = Attacker()
+        self.defender = Defender()
+        self.dataset = Dataset()
+        self.accuracy = Accuracy()
+        self.detection = Detection()
+        self.visualizer = Visualizer()
+        # Set dataset for attacker
+        self.attacker.set_dataset(self.dataset)
 
         # Initialize OpenCOOD components
         self.model = None
-        self.dataset = None
         self.data_loader = None
 
         # Attack/defense state
@@ -57,6 +61,89 @@ class AdvCPManager:
 
         # Initialize OpenCOOD model
         self._initialize_model()
+
+    def _apply_attack_wrapper(self, batch_data, tick_number):
+        """Wrapper method to bridge MVP Attacker interface gap."""
+        # Convert batch_data to MVP case format
+        case = {}
+        for vehicle_id, vehicle_data in batch_data.items():
+            case[vehicle_id] = {
+                'lidar': vehicle_data.get('lidar', np.zeros((100, 4))),
+                'lidar_pose': vehicle_data.get('lidar_pose', np.eye(4))
+            }
+        
+        # Apply attack using MVP Attacker
+        attacked_case = {}
+        for vehicle_id, vehicle_data in case.items():
+            attacked_lidar = self.attacker.apply_ray_tracing(
+                vehicle_data['lidar']
+            )
+            attacked_case[vehicle_id] = {
+                'lidar': attacked_lidar,
+                'lidar_pose': vehicle_data['lidar_pose']
+            }
+        
+        # Convert back to batch_data format
+        for vehicle_id, vehicle_data in attacked_case.items():
+            batch_data[vehicle_id]['lidar'] = vehicle_data['lidar']
+        
+        return batch_data
+
+    def _apply_defense_wrapper(self, batch_data, tick_number):
+        """Wrapper method to bridge MVP Defender interface gap."""
+        # Convert batch_data to MVP case format
+        case = {}
+        for vehicle_id, vehicle_data in batch_data.items():
+            case[vehicle_id] = {
+                'lidar': vehicle_data.get('lidar', np.zeros((100, 4))),
+                'lidar_pose': vehicle_data.get('lidar_pose', np.eye(4))
+            }
+        
+        # Apply defense using MVP Defender
+        defended_case = self.defender.run(case, defend_opts={})
+        
+        # Convert back to batch_data format
+        for vehicle_id, vehicle_data in defended_case.items():
+            batch_data[vehicle_id]['lidar'] = vehicle_data['lidar']
+        
+        return batch_data
+
+    def _visualize_results_wrapper(self, pred_box_tensor, gt_box_tensor, batch_data, tick_number):
+        """Wrapper method to bridge MVP Visualizer interface gap."""
+        # Convert batch_data to MVP case format
+        case = {}
+        for vehicle_id, vehicle_data in batch_data.items():
+            case[vehicle_id] = {
+                'lidar': vehicle_data.get('lidar', np.zeros((100, 4))),
+                'lidar_pose': vehicle_data.get('lidar_pose', np.eye(4))
+            }
+        
+        # Visualize using MVP Visualizer
+        self.visualizer.draw_multi_vehicle_case(
+            case,
+            ego_id=0,
+            mode="matplotlib",
+            gt_bboxes=gt_box_tensor,
+            pred_bboxes=pred_box_tensor,
+            show=True
+        )
+
+    def _save_visualizations_wrapper(self, eval_dir, tick_number):
+        """Wrapper method to bridge MVP Visualizer interface gap."""
+        # Save visualizations using MVP Visualizer
+        # Create a dummy case for saving
+        dummy_case = {0: {0: {"lidar": np.zeros((100, 4)), "lidar_pose": np.eye(4)}}}
+        
+        # Save visualization
+        self.visualizer.draw_multi_vehicle_case(
+            dummy_case,
+            ego_id=0,
+            mode="matplotlib",
+            gt_bboxes=np.zeros((0, 7)),
+            pred_bboxes=np.zeros((0, 7)),
+            show=False,
+            save=os.path.join(eval_dir, f"visualization_{tick_number:05d}.png")
+        )
 
         logger.info("AdvCPManager initialized successfully")
 
@@ -82,17 +169,17 @@ class AdvCPManager:
         """Create dataset for AdvCP processing."""
         logger.info("Building AdvCP dataset")
 
-        # Create base dataset
-        self.dataset = build_dataset(self.opt, visualize=True, train=False, message_handler=self.message_handler)
+        # Create base dataset using MVP Dataset
+        self.dataset = Dataset(self.opt, visualize=True, train=False, message_handler=self.message_handler)
 
         # Add attack/defense specific data processing
-        self.data_simulator.prepare_dataset(self.dataset)
+        # (Handled by MVP components)
 
         self.data_loader = torch.utils.data.DataLoader(
             self.dataset,
             batch_size=1,
             num_workers=16,
-            collate_fn=self.dataset.collate_batch_test,
+            collate_fn=self.dataset.load_feature,
             shuffle=False,
             pin_memory=False,
             drop_last=False,
@@ -111,13 +198,13 @@ class AdvCPManager:
 
         # Process each batch of data
         for i, batch_data in enumerate(self.data_loader):
-            # Apply attack if enabled
+            # Apply attack if enabled using MVP Attacker
             if self.attack_enabled:
-                batch_data = self.attack_handler.apply_attack(batch_data, tick_number)
+                batch_data = self._apply_attack_wrapper(batch_data, tick_number)
 
-            # Apply defense if enabled
+            # Apply defense if enabled using MVP Defender
             if self.defense_enabled:
-                batch_data = self.defense_handler.apply_defense(batch_data, tick_number)
+                batch_data = self._apply_defense_wrapper(batch_data, tick_number)
 
             # Make predictions with OpenCOOD model
             with torch.no_grad():
@@ -133,12 +220,37 @@ class AdvCPManager:
                 else:
                     raise NotImplementedError("Only early, late and intermediate fusion is supported.")
 
-            # Log metrics
-            self.metrics_logger.log_metrics(pred_box_tensor, pred_score, gt_box_tensor, tick_number)
+            # Log metrics using MVP evaluation functions
+            # Convert tensors to numpy arrays for MVP functions
+            pred_box_np = pred_box_tensor.cpu().numpy() if isinstance(pred_box_tensor, torch.Tensor) else pred_box_tensor
+            pred_score_np = pred_score.cpu().numpy() if isinstance(pred_score, torch.Tensor) else pred_score
+            gt_box_np = gt_box_tensor.cpu().numpy() if isinstance(gt_box_tensor, torch.Tensor) else gt_box_tensor
+            
+            # Create dummy dataset for MVP accuracy function
+            class DummyDataset:
+                def case_generator(self, index=True, tag="multi_frame"):
+                    # Convert OpenCOOD batch_data to MVP case format
+                    case = {}
+                    for vehicle_id, vehicle_data in batch_data.items():
+                        case[vehicle_id] = {
+                            "lidar": vehicle_data.get("lidar", np.zeros((100, 4))),
+                            "lidar_pose": vehicle_data.get("lidar_pose", np.eye(4)),
+                            "gt_bboxes": gt_box_np,
+                            "result_bboxes": pred_box_np
+                        }
+                    yield 0, case
+            
+            # Calculate accuracy metrics
+            accuracy_report = self.accuracy.get_accuracy(DummyDataset(), self.model)
+            logger.info(f"Tick {tick_number} - Accuracy metrics: {accuracy_report}")
+                        
+            # Calculate detection metrics
+            detection_report = self.detection.evaluate_single_vehicle(gt_box_np, pred_box_np)
+            logger.info(f"Tick {tick_number} - Detection metrics: {detection_report}")
 
-            # Visualize results
+            # Visualize results using MVP Visualizer
             if self.opt.show_vis:
-                self.visualization.visualize_results(pred_box_tensor, gt_box_tensor, batch_data, tick_number)
+                self._visualize_results_wrapper(pred_box_tensor, gt_box_tensor, batch_data, tick_number)
 
         logger.info(f"Tick {tick_number} processed successfully")
 
@@ -147,17 +259,17 @@ class AdvCPManager:
         return {
             "enabled": self.attack_enabled,
             "attackers": len(self.attackers),
-            "attack_types": self.attack_handler.get_attack_types(),
-            "metrics": self.metrics_logger.get_attack_metrics(),
+            "attack_types": [],  # MVP Attacker doesn't have get_attack_types()
+            "metrics": {},  # MVP accuracy is a function, not a class with get_attack_metrics()
         }
 
     def get_defense_status(self):
         """Get current defense status."""
         return {
             "enabled": self.defense_enabled,
-            "trust_scores": self.defense_handler.get_trust_scores(),
-            "blocked_attacks": self.defense_handler.get_blocked_attacks(),
-            "metrics": self.metrics_logger.get_defense_metrics(),
+            "trust_scores": [],  # MVP Defender doesn't have get_trust_scores()
+            "blocked_attacks": 0,  # MVP Defender doesn't have get_blocked_attacks()
+            "metrics": {},  # MVP detection is a function, not a class with get_defense_metrics()
         }
 
     def save_results(self, tick_number):
@@ -166,10 +278,32 @@ class AdvCPManager:
         os.makedirs(eval_dir, exist_ok=True)
 
         # Save attack/defense metrics
-        self.metrics_logger.save_metrics(eval_dir, tick_number)
+        # Create dummy dataset for MVP accuracy function
+        class DummyDataset:
+            def case_generator(self, index=True, tag="multi_frame"):
+                # Convert OpenCOOD batch_data to MVP case format
+                case = {}
+                for vehicle_id, vehicle_data in batch_data.items():
+                    case[vehicle_id] = {
+                        "lidar": vehicle_data.get("lidar", np.zeros((100, 4))),
+                        "lidar_pose": vehicle_data.get("lidar_pose", np.eye(4)),
+                        "gt_bboxes": np.zeros((0, 7)),
+                        "result_bboxes": np.zeros((0, 7))
+                    }
+                yield 0, case
+        
+        # Calculate and save accuracy metrics
+        accuracy_report = get_accuracy(DummyDataset(), self.model)
+        with open(os.path.join(eval_dir, f"accuracy_{tick_number:05d}.pkl"), "wb") as f:
+            pickle.dump(accuracy_report, f)
+        
+        # Calculate and save detection metrics
+        detection_report = evaluate_single_vehicle(np.zeros((0, 7)), np.zeros((0, 7)))
+        with open(os.path.join(eval_dir, f"detection_{tick_number:05d}.pkl"), "wb") as f:
+            pickle.dump(detection_report, f)
 
-        # Save visualizations
-        self.visualization.save_visualizations(eval_dir, tick_number)
+        # Save visualizations using MVP Visualizer
+        self._save_visualizations_wrapper(eval_dir, tick_number)
 
         logger.info(f"Results saved for tick {tick_number}")
 
@@ -177,9 +311,17 @@ class AdvCPManager:
         """Cleanup resources."""
         logger.info("Cleaning up AdvCP resources")
 
-        # Cleanup handlers
-        self.attack_handler.cleanup()
-        self.defense_handler.cleanup()
-        self.metrics_logger.cleanup()
+        # Cleanup MVP components
+        self.attacker.cleanup()
+        self.defender.cleanup()
+        self.visualizer.cleanup()
+
+        # Cleanup OpenCOOD components
+        if hasattr(self, 'model') and self.model is not None:
+            del self.model
+        if hasattr(self, 'data_loader') and self.data_loader is not None:
+            del self.data_loader
+        if hasattr(self, 'dataset') and self.dataset is not None:
+            del self.dataset
 
         logger.info("AdvCP cleanup completed")

@@ -64,18 +64,20 @@ class CoperceptionModelManager:
         self.visualization = None
 
         if hasattr(self.opt, "with_advcp") and self.opt.with_advcp:
-            from opencda.core.common.advcp.advcp_manager import AdvCPManager
-            from opencda.core.common.advcp.attack_handler import AttackHandler
-            from opencda.core.common.advcp.defense_handler import DefenseHandler
-            from opencda.core.common.advcp.metrics_logger import MetricsLogger
-            from opencda.core.common.advcp.visualization import Visualization
+            from .advcp.advcp_manager import AdvCPManager
+            from .advcp.mvp.attack.attacker import Attacker
+            from .advcp.mvp.defense.defender import Defender
+            from .advcp.mvp.evaluate.accuracy import Accuracy
+            from .advcp.mvp.evaluate.detection import Detection
+            from .advcp.mvp.visualize.general import Visualizer
 
             self.advcp_enabled = True
             self.advcp_manager = AdvCPManager(self.opt, self.current_time)
-            self.attack_handler = AttackHandler(self.opt, self.advcp_manager)
-            self.defense_handler = DefenseHandler(self.opt, self.advcp_manager)
-            self.metrics_logger = MetricsLogger(self.opt, self.current_time)
-            self.visualization = Visualization(self.opt)
+            self.attacker = Attacker(self.opt)
+            self.defender = Defender(self.opt)
+            self.accuracy = Accuracy()
+            self.detection = Detection()
+            self.visualizer = Visualizer()
 
             logger.info("AdvCP module initialized successfully")
 
@@ -114,10 +116,12 @@ class CoperceptionModelManager:
         }
 
         if self.advcp_enabled:
-            # Execute attacks before prediction
-            self.execute_attack(tick_number)
-            # Apply defense mechanisms
-            self.apply_defense(tick_number)
+            # Execute attacks before prediction using MVP Attacker
+            if self.advcp_enabled:
+                self.advcp_manager._apply_attack_wrapper(self.data_loader, tick_number)
+        # Apply defense mechanisms using MVP Defender
+        if self.advcp_enabled and self.opt.apply_cad_defense:
+            self.advcp_manager._apply_defense_wrapper(self.data_loader, tick_number)
 
         if self.opt.show_sequence:
             if self.vis is None:
@@ -188,10 +192,37 @@ class CoperceptionModelManager:
                         dataset=self.opencood_dataset,
                     )
 
-                # AdvCP: Log metrics and visualize attacks/defense
+                # AdvCP: Log metrics and visualize attacks/defense using MVP components
                 if self.advcp_enabled:
-                    self.metrics_logger.log_prediction_metrics(pred_box_tensor, gt_box_tensor, batch_data["ego"]["origin_lidar"], tick_number)
-                    self.visualization.visualize_attack_defense(pred_box_tensor, gt_box_tensor, batch_data["ego"]["origin_lidar"], tick_number)
+                    # Convert tensors to numpy arrays for MVP functions
+                    pred_box_np = pred_box_tensor.cpu().numpy() if isinstance(pred_box_tensor, torch.Tensor) else pred_box_tensor
+                    pred_score_np = pred_score.cpu().numpy() if isinstance(pred_score, torch.Tensor) else pred_score
+                    gt_box_np = gt_box_tensor.cpu().numpy() if isinstance(gt_box_tensor, torch.Tensor) else gt_box_tensor
+                    
+                    # Create dummy dataset for MVP accuracy function
+                    class DummyDataset:
+                        def case_generator(self, index=True, tag="multi_frame"):
+                            # Convert OpenCOOD batch_data to MVP case format
+                            case = {}
+                            for vehicle_id, vehicle_data in batch_data.items():
+                                case[vehicle_id] = {
+                                    "lidar": vehicle_data.get("lidar", np.zeros((100, 4))),
+                                    "lidar_pose": vehicle_data.get("lidar_pose", np.eye(4)),
+                                    "gt_bboxes": gt_box_np,
+                                    "result_bboxes": pred_box_np
+                                }
+                            yield 0, case
+                    
+                    # Calculate accuracy metrics using MVP Accuracy
+                    accuracy_report = self.advcp_manager.accuracy.get_accuracy(DummyDataset(), self.model)
+                    logger.info(f"Tick {tick_number} - Accuracy metrics: {accuracy_report}")
+                    
+                    # Calculate detection metrics using MVP Detection
+                    detection_report = self.advcp_manager.detection.evaluate_single_vehicle(gt_box_np, pred_box_np)
+                    logger.info(f"Tick {tick_number} - Detection metrics: {detection_report}")
+                    
+                    # Visualize results using MVP Visualizer
+                    self.advcp_manager._visualize_results_wrapper(pred_box_tensor, gt_box_tensor, batch_data, tick_number)
 
                 if self.opt.show_sequence and pred_box_tensor is not None and self.hypes["postprocess"]["core_method"] != "BevPostprocessor":
                     self.vis.clear_geometries()
@@ -211,8 +242,8 @@ class CoperceptionModelManager:
 
                 # AdvCP: Log metrics and visualize attacks/defense
                 if self.advcp_enabled:
-                    self.metrics_logger.log_prediction_metrics(pred_box_tensor, gt_box_tensor, batch_data["ego"]["origin_lidar"], tick_number)
-                    self.visualization.visualize_attack_defense(pred_box_tensor, gt_box_tensor, batch_data["ego"]["origin_lidar"], tick_number)
+                    # Use the same visualization wrapper as before
+                    self.advcp_manager._visualize_results_wrapper(pred_box_tensor, gt_box_tensor, batch_data, tick_number)
 
         for iou in [0.3, 0.5, 0.7]:
             self.final_result_stat[iou]["gt"] += result_stat[iou]["gt"]
@@ -220,10 +251,34 @@ class CoperceptionModelManager:
             self.final_result_stat[iou]["fp"] += result_stat[iou]["fp"]
             self.final_result_stat[iou]["score"] += result_stat[iou]["score"]
 
-        # AdvCP: Save metrics and generate final report
+        # AdvCP: Save metrics and generate final report using MVP components
         if self.advcp_enabled:
-            self.metrics_logger.save_final_metrics()
-            self.metrics_logger.generate_report()
+            # Create dummy dataset for MVP accuracy function
+            class DummyDataset:
+                def case_generator(self, index=True, tag="multi_frame"):
+                    # Convert OpenCOOD batch_data to MVP case format
+                    case = {}
+                    for vehicle_id, vehicle_data in batch_data.items():
+                        case[vehicle_id] = {
+                            "lidar": vehicle_data.get("lidar", np.zeros((100, 4))),
+                            "lidar_pose": vehicle_data.get("lidar_pose", np.eye(4)),
+                            "gt_bboxes": np.zeros((0, 7)),
+                            "result_bboxes": np.zeros((0, 7))
+                        }
+                    yield 0, case
+            
+            # Calculate and save accuracy metrics
+            accuracy_report = self.advcp_manager.accuracy.get_accuracy(DummyDataset(), self.model)
+            with open(os.path.join(eval_dir, f"accuracy_{tick_number:05d}.pkl"), "wb") as f:
+                pickle.dump(accuracy_report, f)
+            
+            # Calculate and save detection metrics
+            detection_report = self.advcp_manager.detection.evaluate_single_vehicle(np.zeros((0, 7)), np.zeros((0, 7)))
+            with open(os.path.join(eval_dir, f"detection_{tick_number:05d}.pkl"), "wb") as f:
+                pickle.dump(detection_report, f)
+            
+            # Save visualizations using MVP Visualizer
+            self.advcp_manager._save_visualizations_wrapper(eval_dir, tick_number)
 
     def final_eval(self):
         eval_dir = f"simulation_output/coperception/results/{self.opt.test_scenario}_{self.current_time}"
@@ -243,34 +298,63 @@ class CoperceptionModelManager:
     def get_attack_metrics(self):
         """Get attack metrics if AdvCP is enabled"""
         if self.advcp_enabled:
-            return self.metrics_logger.get_attack_metrics()
+            return self.accuracy.get_attack_metrics()
         return None
 
     def get_defense_metrics(self):
         """Get defense metrics if AdvCP is enabled"""
         if self.advcp_enabled:
-            return self.metrics_logger.get_defense_metrics()
+            return self.detection.get_defense_metrics()
         return None
 
     def visualize_advcp_results(self):
         """Visualize AdvCP results if enabled"""
         if self.advcp_enabled:
-            self.visualization.show_results()
+            # Create dummy dataset for MVP Visualizer
+            dummy_case = {0: {0: {"lidar": np.zeros((100, 4)), "lidar_pose": np.eye(4)}}}
+            
+            # Save visualizations using MVP Visualizer
+            self.advcp_manager._save_visualizations_wrapper(f"simulation_output/advcp/results/{self.opt.test_scenario}_{self.current_time}", tick_number)
 
     def save_advcp_results(self, output_dir):
         """Save AdvCP results to specified directory"""
         if self.advcp_enabled:
-            self.metrics_logger.save_results(output_dir)
-            self.visualization.save_visualizations(output_dir)
+            # Create dummy dataset for MVP accuracy function
+            class DummyDataset:
+                def case_generator(self, index=True, tag="multi_frame"):
+                    # Convert OpenCOOD batch_data to MVP case format
+                    case = {}
+                    for vehicle_id, vehicle_data in batch_data.items():
+                        case[vehicle_id] = {
+                            "lidar": vehicle_data.get("lidar", np.zeros((100, 4))),
+                            "lidar_pose": vehicle_data.get("lidar_pose", np.eye(4)),
+                            "gt_bboxes": np.zeros((0, 7)),
+                            "result_bboxes": np.zeros((0, 7))
+                        }
+                    yield 0, case
+            
+            # Calculate and save accuracy metrics
+            accuracy_report = self.advcp_manager.accuracy.get_accuracy(DummyDataset(), self.model)
+            with open(os.path.join(output_dir, f"accuracy_{tick_number:05d}.pkl"), "wb") as f:
+                pickle.dump(accuracy_report, f)
+            
+            # Calculate and save detection metrics
+            detection_report = self.advcp_manager.detection.evaluate_single_vehicle(np.zeros((0, 7)), np.zeros((0, 7)))
+            with open(os.path.join(output_dir, f"detection_{tick_number:05d}.pkl"), "wb") as f:
+                pickle.dump(detection_report, f)
+            
+            # Save visualizations using MVP Visualizer
+            self.advcp_manager._save_visualizations_wrapper(output_dir, tick_number)
 
     def reset_advcp_state(self):
         """Reset AdvCP state for new simulation"""
         if self.advcp_enabled:
             self.advcp_manager.reset()
-            self.attack_handler.reset()
-            self.defense_handler.reset()
-            self.metrics_logger.reset()
-            self.visualization.reset()
+            self.attacker.cleanup()
+            self.defender.cleanup()
+            self.accuracy.cleanup()
+            self.detection.cleanup()
+            self.visualizer.cleanup()
 
 
 class DirectoryProcessor:
