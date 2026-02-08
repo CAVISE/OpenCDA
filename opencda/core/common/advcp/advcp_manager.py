@@ -112,6 +112,26 @@ class AdvCPManager:
         self.defender = PerceptionDefender()
         logger.info("Initialized CAD defense mechanism")
 
+    def _get_coperception_data(self, tick_number: int) -> Dict:
+        """
+        Get raw perception data from coperception manager without causing circular dependency.
+        This method directly accesses the raw data from real-time simulations.
+
+        Args:
+            tick_number: Current simulation tick number
+
+        Returns:
+            Dictionary containing raw perception data
+        """
+        # Direct access to raw data without calling make_prediction
+        raw_data = self.coperception_manager._get_raw_data(tick_number)
+
+        if raw_data is None:
+            logger.warning(f"No raw data available for tick {tick_number}")
+            return {}
+
+        return raw_data
+
     def process_tick(self, tick_number: int) -> Tuple[Optional[Dict], Optional[float], Optional[Dict]]:
         """
         Process a single simulation tick with AdvCP capabilities.
@@ -126,8 +146,8 @@ class AdvCPManager:
         if not self.with_advcp:
             return None, None, None
 
-        # Get current perception data from coperception manager
-        coperception_data = self.coperception_manager.make_prediction(tick_number)
+        # Get current perception data from coperception manager without circular dependency
+        coperception_data = self._get_coperception_data(tick_number)
 
         # Apply attack if enabled
         if self.attacker:

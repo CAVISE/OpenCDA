@@ -2,6 +2,7 @@ import os
 import re
 import shutil
 import logging
+from typing import Dict, Optional
 from tqdm import tqdm
 
 import torch  # type: ignore
@@ -35,6 +36,10 @@ class CoperceptionModelManager:
         self.opencood_dataset = None
         self.data_loader = None
         self.message_handler = message_handler
+
+        # Store current batch data to avoid circular dependency with AdvCP
+        self._current_batch_data = None
+        self._current_batch_index = None
 
         logger.info("Initial Dataset Building")
         self.opencood_dataset = build_dataset(self.hypes, visualize=True, train=False, message_handler=self.message_handler)
@@ -72,6 +77,32 @@ class CoperceptionModelManager:
         if len(self.opencood_dataset) == 0:
             logger.warning("No samples found in dataset after update.")
 
+    def _get_raw_data(self, tick_number: int) -> Optional[Dict]:
+        """
+        Get raw perception data for a specific tick without running prediction.
+        This method is used by AdvCPManager to avoid circular dependency.
+
+        Args:
+            tick_number: The tick number to retrieve data for
+
+        Returns:
+            Dictionary containing raw perception data, or None if data not available
+        """
+        # Check if we have stored data for the requested tick
+        if self._current_batch_index == tick_number and self._current_batch_data is not None:
+            return self._current_batch_data
+
+        # If not, try to get it from the dataset directly
+        try:
+            # Access the dataset directly to get raw data
+            if tick_number < len(self.opencood_dataset):
+                raw_data = self.opencood_dataset[tick_number]
+                return raw_data
+        except Exception as e:
+            logger.warning(f"Failed to get raw data for tick {tick_number}: {e}")
+
+        return None
+
     def make_prediction(self, tick_number):
         assert self.opt.fusion_method in ["late", "early", "intermediate"]
         assert not (self.opt.show_vis and self.opt.show_sequence), "you can only visualize the results in single image mode or video mode"
@@ -103,6 +134,10 @@ class CoperceptionModelManager:
 
         for i, batch_data in tqdm(enumerate(self.data_loader), total=len(self.data_loader)):
             with torch.no_grad():
+                # Store current batch data for AdvCPManager to avoid circular dependency
+                self._current_batch_index = i
+                self._current_batch_data = batch_data
+
                 batch_data = train_utils.to_device(batch_data, self.device)
 
                 # Apply AdvCP if enabled
