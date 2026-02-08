@@ -62,7 +62,47 @@ def _get_coperception_data(self, tick_number: int) -> Dict:
         logger.warning(f"No raw data for tick {tick_number}")
         return {}
     return raw_data
+
+# Updated process_tick() signature
+def process_tick(self, tick_number: int, batch_data: Optional[Dict] = None, 
+                 predictions: Optional[Dict] = None) -> Tuple[Optional[Dict], Optional[float], Optional[Dict]]:
+    """
+    Process a single simulation tick with AdvCP capabilities.
+    
+    Args:
+        tick_number: Current simulation tick number
+        batch_data: Pre-inference batch data (for early/intermediate attacks)
+        predictions: Post-inference predictions (for late attacks)
+    
+    Returns:
+        Tuple of (modified_data, defense_score, defense_metrics)
+    """
+    # Determine attack stage and get appropriate data
+    if self.attack_type in ["lidar_remove_late", "lidar_spoof_late"]:
+        # Late attacks need predictions (after inference)
+        if predictions is None:
+            logger.error("Late attacks require predictions, but none provided")
+            return None, None, None
+        data_to_attack = predictions
+    else:
+        # Early/intermediate attacks need raw data (before inference)
+        if batch_data is None:
+            data_to_attack = self._get_coperception_data(tick_number)
+        else:
+            data_to_attack = batch_data
 ```
+
+### Attack Stage Differentiation
+
+**Early/Intermediate Attacks:**
+- Work on raw point clouds before inference
+- Need `batch_data` parameter
+- Examples: `lidar_remove_early`, `lidar_spoof_early`, `lidar_remove_intermediate`, `lidar_spoof_intermediate`
+
+**Late Attacks:**
+- Work on predictions after inference
+- Need `predictions` parameter with `pred_bboxes`, `pred_scores`, `gt_bboxes`
+- Examples: `lidar_remove_late`, `lidar_spoof_late`
 
 ## Attack Types
 
@@ -184,34 +224,6 @@ opencda/core/common/advcp/
 ### Output
 
 Visualizations saved to `simulation_output/coperception/vis_3d/` and `vis_bev/` with tick-numbered filenames.
-
-## Circular Dependency Fix
-
-### Problem
-
-- `AdvCPManager.process_tick()` called `CoperceptionModelManager.make_prediction()`
-- `CoperceptionModelManager.make_prediction()` called `AdvCPManager.process_tick()`
-- This caused infinite recursion
-
-### Solution
-
-- `CoperceptionModelManager` stores current `batch_data` in `_current_batch_data`
-- Added `_get_raw_data(tick_number)` method for direct data access
-- `AdvCPManager` uses new `_get_coperception_data()` instead of `make_prediction()`
-- Breaks circular dependency without data loss
-
-### Benefits
-
-- ✅ No infinite recursion
-- ✅ No data loss
-- ✅ No race conditions
-- ✅ AdvCPManager gets same data from real-time simulations
-
-## Output Data
-
-- `modified_data` - Modified predictions (bboxes, scores)
-- `score` - Trust score from CAD defense
-- `metrics` - Additional metrics for analysis
 
 ## Summary
 
