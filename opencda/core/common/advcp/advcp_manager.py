@@ -1,327 +1,286 @@
-"""
-AdvCPManager - Main coordinator for AdvCollaborativePerception module.
-Extends CoperceptionModelManager to integrate attack and defense mechanisms.
-"""
-
 import os
 import logging
+import yaml
+from typing import Dict, List, Optional, Tuple
+from opencda.core.common.coperception_model_manager import CoperceptionModelManager
 
-import torch
 
-from opencood.hypes_yaml.yaml_utils import load_yaml
-from opencood.tools import train_utils, inference_utils
-from opencood.data_utils.datasets import build_dataset
+from mvp.attack.lidar_remove_early_attacker import LidarRemoveEarlyAttacker
+from mvp.attack.lidar_remove_intermediate_attacker import LidarRemoveIntermediateAttacker
+from mvp.attack.lidar_remove_late_attacker import LidarRemoveLateAttacker
+from mvp.attack.lidar_spoof_early_attacker import LidarSpoofEarlyAttacker
+from mvp.attack.lidar_spoof_intermediate_attacker import LidarSpoofIntermediateAttacker
+from mvp.attack.lidar_spoof_late_attacker import LidarSpoofLateAttacker
+from mvp.attack.adv_shape_attacker import AdvShapeAttacker
 
-# MVP components
-from .mvp.attack.attacker import Attacker
-from .mvp.defense.defender import Defender
-from .mvp.data.dataset import Dataset
-from .mvp.evaluate.accuracy import Accuracy
-from .mvp.evaluate.detection import Detection
-from .mvp.visualize.general import Visualizer
+from mvp.defense.perception_defender import PerceptionDefender
 
 logger = logging.getLogger("cavise.advcp_manager")
 
 
 class AdvCPManager:
-    def __init__(self, opt, current_time, message_handler=None):
+    """
+    Advanced Collaborative Perception (AdvCP) Manager for applying attacks and defenses
+    on collaborative perception data in real-time.
+    """
+
+    def __init__(self, opt: Dict, current_time: str, coperception_manager: "CoperceptionModelManager", message_handler: Optional[callable] = None):
         """
-        Initialize AdvCPManager with configuration and attack/defense handlers.
+        Initialize AdvCP Manager.
 
         Args:
-            opt: Configuration options
+            opt: Configuration options including AdvCP settings
             current_time: Current timestamp for logging
+            coperception_manager: Instance of CoperceptionModelManager
             message_handler: Optional message handler for communication
         """
         self.opt = opt
         self.current_time = current_time
+        self.coperception_manager = coperception_manager
         self.message_handler = message_handler
 
         # Load AdvCP configuration
-        self.advcp_config = load_yaml(None, self.opt)
+        self.advcp_config = self._load_advcp_config()
 
-        # Initialize core components with MVP equivalents
-        self.attacker = Attacker()
-        self.defender = Defender()
-        self.dataset = Dataset()
-        self.accuracy = Accuracy()
-        self.detection = Detection()
-        self.visualizer = Visualizer()
-        # Set dataset for attacker
-        self.attacker.set_dataset(self.dataset)
+        # Initialize attack and defense components
+        self.attacker = None
+        self.defender = None
+        self._initialize_attacker()
+        self._initialize_defender()
 
-        # Initialize OpenCOOD components
-        self.model = None
-        self.data_loader = None
+        # Attack/Defense flags
+        self.with_advcp = opt.get("with_advcp", False)
+        self.apply_cad_defense = opt.get("apply_cad_defense", False)
 
-        # Attack/defense state
-        self.attackers = []
-        self.defense_enabled = self.advcp_config.get("defense", {}).get("enabled", False)
-        self.attack_enabled = self.advcp_config.get("attack", {}).get("enabled", False)
+        # Attack parameters
+        self.attackers_ratio = opt.get("attackers_ratio", 0.2)
+        self.attack_type = opt.get("attack_type", "lidar_remove_early")
+        self.attack_target = opt.get("attack_target", "random")
 
-        # Initialize OpenCOOD model
-        self._initialize_model()
+        # Defense parameters
+        self.defense_threshold = opt.get("defense_threshold", 0.7)
 
-    def _apply_attack_wrapper(self, batch_data, tick_number):
-        """Wrapper method to bridge MVP Attacker interface gap."""
-        # Convert batch_data to MVP case format
-        case = {}
-        for vehicle_id, vehicle_data in batch_data.items():
-            case[vehicle_id] = {
-                'lidar': vehicle_data.get('lidar', np.zeros((100, 4))),
-                'lidar_pose': vehicle_data.get('lidar_pose', np.eye(4))
-            }
-        
-        # Apply attack using MVP Attacker
-        attacked_case = {}
-        for vehicle_id, vehicle_data in case.items():
-            attacked_lidar = self.attacker.apply_ray_tracing(
-                vehicle_data['lidar']
-            )
-            attacked_case[vehicle_id] = {
-                'lidar': attacked_lidar,
-                'lidar_pose': vehicle_data['lidar_pose']
-            }
-        
-        # Convert back to batch_data format
-        for vehicle_id, vehicle_data in attacked_case.items():
-            batch_data[vehicle_id]['lidar'] = vehicle_data['lidar']
-        
-        return batch_data
+        logger.info("AdvCP Manager initialized with configuration:")
+        logger.info(f"  with_advcp: {self.with_advcp}")
+        logger.info(f"  attack_type: {self.attack_type}")
+        logger.info(f"  attack_target: {self.attack_target}")
+        logger.info(f"  apply_cad_defense: {self.apply_cad_defense}")
+        logger.info(f"  defense_threshold: {self.defense_threshold}")
 
-    def _apply_defense_wrapper(self, batch_data, tick_number):
-        """Wrapper method to bridge MVP Defender interface gap."""
-        # Convert batch_data to MVP case format
-        case = {}
-        for vehicle_id, vehicle_data in batch_data.items():
-            case[vehicle_id] = {
-                'lidar': vehicle_data.get('lidar', np.zeros((100, 4))),
-                'lidar_pose': vehicle_data.get('lidar_pose', np.eye(4))
-            }
-        
-        # Apply defense using MVP Defender
-        defended_case = self.defender.run(case, defend_opts={})
-        
-        # Convert back to batch_data format
-        for vehicle_id, vehicle_data in defended_case.items():
-            batch_data[vehicle_id]['lidar'] = vehicle_data['lidar']
-        
-        return batch_data
+    def _load_advcp_config(self) -> Dict:
+        """Load AdvCP configuration from YAML file."""
+        config_path = self.opt.get("advcp_config", "opencda/core/common/advcp/advcp_config.yaml")
 
-    def _visualize_results_wrapper(self, pred_box_tensor, gt_box_tensor, batch_data, tick_number):
-        """Wrapper method to bridge MVP Visualizer interface gap."""
-        # Convert batch_data to MVP case format
-        case = {}
-        for vehicle_id, vehicle_data in batch_data.items():
-            case[vehicle_id] = {
-                'lidar': vehicle_data.get('lidar', np.zeros((100, 4))),
-                'lidar_pose': vehicle_data.get('lidar_pose', np.eye(4))
-            }
-        
-        # Visualize using MVP Visualizer
-        self.visualizer.draw_multi_vehicle_case(
-            case,
-            ego_id=0,
-            mode="matplotlib",
-            gt_bboxes=gt_box_tensor,
-            pred_bboxes=pred_box_tensor,
-            show=True
-        )
+        if not os.path.exists(config_path):
+            logger.warning(f"AdvCP config file not found at {config_path}. Using default settings.")
+            return {}
 
-    def _save_visualizations_wrapper(self, eval_dir, tick_number):
-        """Wrapper method to bridge MVP Visualizer interface gap."""
-        # Save visualizations using MVP Visualizer
-        # Create a dummy case for saving
-        dummy_case = {0: {0: {"lidar": np.zeros((100, 4)), "lidar_pose": np.eye(4)}}}
-        
-        # Save visualization
-        self.visualizer.draw_multi_vehicle_case(
-            dummy_case,
-            ego_id=0,
-            mode="matplotlib",
-            gt_bboxes=np.zeros((0, 7)),
-            pred_bboxes=np.zeros((0, 7)),
-            show=False,
-            save=os.path.join(eval_dir, f"visualization_{tick_number:05d}.png")
-        )
+        with open(config_path, "r") as f:
+            config = yaml.safe_load(f)
 
-        logger.info("AdvCPManager initialized successfully")
+        return config or {}
 
-    def _initialize_model(self):
-        """Initialize OpenCOOD model with attack/defense capabilities."""
-        # Load base model configuration
-        base_hypes = load_yaml(None, self.opt)
+    def _initialize_attacker(self) -> None:
+        """Initialize the appropriate attacker based on configuration."""
+        if not self.with_advcp:
+            return
 
-        # Create model with attack/defense extensions
-        self.model = train_utils.create_model(base_hypes)
+        attack_class_map = {
+            "lidar_remove_early": LidarRemoveEarlyAttacker,
+            "lidar_remove_intermediate": LidarRemoveIntermediateAttacker,
+            "lidar_remove_late": LidarRemoveLateAttacker,
+            "lidar_spoof_early": LidarSpoofEarlyAttacker,
+            "lidar_spoof_intermediate": LidarSpoofIntermediateAttacker,
+            "lidar_spoof_late": LidarSpoofLateAttacker,
+            "adv_shape": AdvShapeAttacker,
+        }
 
-        if torch.cuda.is_available():
-            self.model.cuda()
+        attack_class = attack_class_map.get(self.attack_type)
+        if not attack_class:
+            logger.error(f"Unsupported attack type: {self.attack_type}")
+            return
 
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        # Create attacker instance with dataset from coperception manager
+        self.attacker = attack_class(dataset=self.coperception_manager.opencood_dataset)
+        logger.info(f"Initialized {self.attack_type} attacker")
 
-        # Load pretrained weights
-        _, self.model = train_utils.load_saved_model(self.opt.model_dir, self.model)
+    def _initialize_defender(self) -> None:
+        """Initialize the defender if CAD defense is enabled."""
+        if not self.apply_cad_defense:
+            return
 
-        logger.info("OpenCOOD model initialized with attack/defense capabilities")
+        self.defender = PerceptionDefender()
+        logger.info("Initialized CAD defense mechanism")
 
-    def make_dataset(self):
-        """Create dataset for AdvCP processing."""
-        logger.info("Building AdvCP dataset")
-
-        # Create base dataset using MVP Dataset
-        self.dataset = Dataset(self.opt, visualize=True, train=False, message_handler=self.message_handler)
-
-        # Add attack/defense specific data processing
-        # (Handled by MVP components)
-
-        self.data_loader = torch.utils.data.DataLoader(
-            self.dataset,
-            batch_size=1,
-            num_workers=16,
-            collate_fn=self.dataset.load_feature,
-            shuffle=False,
-            pin_memory=False,
-            drop_last=False,
-        )
-
-        logger.info(f"{len(self.dataset)} samples found for AdvCP processing")
-
-    def process_tick(self, tick_number):
+    def process_tick(self, tick_number: int) -> Tuple[Optional[Dict], Optional[float], Optional[Dict]]:
         """
-        Process a single simulation tick with attack/defense mechanisms.
+        Process a single simulation tick with AdvCP capabilities.
 
         Args:
             tick_number: Current simulation tick number
+
+        Returns:
+            Tuple of (modified_data, defense_score, defense_metrics) if AdvCP is enabled,
+            otherwise (None, None, None)
         """
-        logger.info(f"Processing tick {tick_number}")
+        if not self.with_advcp:
+            return None, None, None
 
-        # Process each batch of data
-        for i, batch_data in enumerate(self.data_loader):
-            # Apply attack if enabled using MVP Attacker
-            if self.attack_enabled:
-                batch_data = self._apply_attack_wrapper(batch_data, tick_number)
+        # Get current perception data from coperception manager
+        coperception_data = self.coperception_manager.make_prediction(tick_number)
 
-            # Apply defense if enabled using MVP Defender
-            if self.defense_enabled:
-                batch_data = self._apply_defense_wrapper(batch_data, tick_number)
+        # Apply attack if enabled
+        if self.attacker:
+            modified_data = self._apply_attack(coperception_data, tick_number)
+        else:
+            modified_data = coperception_data
 
-            # Make predictions with OpenCOOD model
-            with torch.no_grad():
-                batch_data = train_utils.to_device(batch_data, self.device)
+        # Apply defense if enabled
+        defense_score = None
+        defense_metrics = None
+        if self.apply_cad_defense and self.defender:
+            modified_data, defense_score, defense_metrics = self._apply_defense(modified_data, tick_number)
 
-                # Perform fusion based on method
-                if self.opt.fusion_method == "late":
-                    pred_box_tensor, pred_score, gt_box_tensor = inference_utils.inference_late_fusion(batch_data, self.model, self.dataset)
-                elif self.opt.fusion_method == "early":
-                    pred_box_tensor, pred_score, gt_box_tensor = inference_utils.inference_early_fusion(batch_data, self.model, self.dataset)
-                elif self.opt.fusion_method == "intermediate":
-                    pred_box_tensor, pred_score, gt_box_tensor = inference_utils.inference_intermediate_fusion(batch_data, self.model, self.dataset)
-                else:
-                    raise NotImplementedError("Only early, late and intermediate fusion is supported.")
+        return modified_data, defense_score, defense_metrics
 
-            # Log metrics using MVP evaluation functions
-            # Convert tensors to numpy arrays for MVP functions
-            pred_box_np = pred_box_tensor.cpu().numpy() if isinstance(pred_box_tensor, torch.Tensor) else pred_box_tensor
-            pred_score_np = pred_score.cpu().numpy() if isinstance(pred_score, torch.Tensor) else pred_score
-            gt_box_np = gt_box_tensor.cpu().numpy() if isinstance(gt_box_tensor, torch.Tensor) else gt_box_tensor
-            
-            # Create dummy dataset for MVP accuracy function
-            class DummyDataset:
-                def case_generator(self, index=True, tag="multi_frame"):
-                    # Convert OpenCOOD batch_data to MVP case format
-                    case = {}
-                    for vehicle_id, vehicle_data in batch_data.items():
-                        case[vehicle_id] = {
-                            "lidar": vehicle_data.get("lidar", np.zeros((100, 4))),
-                            "lidar_pose": vehicle_data.get("lidar_pose", np.eye(4)),
-                            "gt_bboxes": gt_box_np,
-                            "result_bboxes": pred_box_np
-                        }
-                    yield 0, case
-            
-            # Calculate accuracy metrics
-            accuracy_report = self.accuracy.get_accuracy(DummyDataset(), self.model)
-            logger.info(f"Tick {tick_number} - Accuracy metrics: {accuracy_report}")
-                        
-            # Calculate detection metrics
-            detection_report = self.detection.evaluate_single_vehicle(gt_box_np, pred_box_np)
-            logger.info(f"Tick {tick_number} - Detection metrics: {detection_report}")
+    def _apply_attack(self, data: Dict, tick_number: int) -> Dict:
+        """
+        Apply attack to the perception data.
 
-            # Visualize results using MVP Visualizer
-            if self.opt.show_vis:
-                self._visualize_results_wrapper(pred_box_tensor, gt_box_tensor, batch_data, tick_number)
+        Args:
+            data: Perception data from coperception manager
+            tick_number: Current simulation tick number
 
-        logger.info(f"Tick {tick_number} processed successfully")
+        Returns:
+            Modified perception data with attack applied
+        """
+        if not self.attacker:
+            return data
 
-    def get_attack_status(self):
-        """Get current attack status."""
-        return {
-            "enabled": self.attack_enabled,
-            "attackers": len(self.attackers),
-            "attack_types": [],  # MVP Attacker doesn't have get_attack_types()
-            "metrics": {},  # MVP accuracy is a function, not a class with get_attack_metrics()
+        # Determine which vehicles are attackers based on ratio
+        attacker_vehicles = self._select_attacker_vehicles()
+
+        # Prepare attack options
+        attack_opts = {
+            "frame_ids": [tick_number],
+            "attacker_vehicle_id": None,  # Will be set per vehicle
+            "object_id": None,  # Will be set per vehicle
+            "bboxes": None,  # Will be set per vehicle
+            "positions": None,  # For spoofing attacks
         }
 
-    def get_defense_status(self):
-        """Get current defense status."""
+        modified_data = {}
+        for vehicle_id, vehicle_data in data.items():
+            if vehicle_id in attacker_vehicles:
+                # This vehicle is an attacker
+                attack_opts["attacker_vehicle_id"] = vehicle_id
+
+                # Select target based on attack_target strategy
+                target_info = self._select_attack_target(vehicle_data, vehicle_id)
+                if target_info:
+                    attack_opts["object_id"] = target_info["object_id"]
+                    attack_opts["bboxes"] = target_info["bboxes"]
+                    attack_opts["positions"] = target_info["positions"]
+
+                # Apply attack
+                try:
+                    modified_vehicle_data, _ = self.attacker.run({vehicle_id: vehicle_data}, attack_opts)
+                    modified_data[vehicle_id] = modified_vehicle_data[vehicle_id]
+                except Exception as e:
+                    logger.error(f"Attack failed for vehicle {vehicle_id}: {e}")
+                    modified_data[vehicle_id] = vehicle_data  # Fallback to original data
+            else:
+                # Non-attacker vehicle, keep original data
+                modified_data[vehicle_id] = vehicle_data
+
+        return modified_data
+
+    def _select_attacker_vehicles(self) -> List[str]:
+        """Select which vehicles will be attackers based on ratio."""
+        if self.attack_target == "all_non_attackers":
+            # All vehicles except one are attackers
+            all_vehicles = list(self.coperception_manager.opencood_dataset.vehicle_ids)
+            return all_vehicles[:-1] if len(all_vehicles) > 1 else all_vehicles
+
+        # Randomly select attackers based on ratio
+        all_vehicles = list(self.coperception_manager.opencood_dataset.vehicle_ids)
+        num_attackers = max(1, int(len(all_vehicles) * self.attackers_ratio))
+
+        import random
+
+        random.seed(42)  # For reproducibility
+        return random.sample(all_vehicles, num_attackers)
+
+    def _select_attack_target(self, vehicle_data: Dict, vehicle_id: str) -> Optional[Dict]:
+        """Select attack target based on strategy."""
+        if self.attack_target == "random":
+            # Randomly select a target object
+            if len(vehicle_data["object_ids"]) > 0:
+                import random
+
+                random.seed(42)
+                obj_idx = random.randint(0, len(vehicle_data["object_ids"]) - 1)
+                return {"object_id": vehicle_data["object_ids"][obj_idx], "bboxes": [vehicle_data["gt_bboxes"][obj_idx]], "positions": None}
+
+        elif self.attack_target == "specific_vehicle":
+            # Attack a specific predefined vehicle (for testing)
+            # This would need to be configured in the attack options
+            pass
+
+        elif self.attack_target == "all_non_attackers":
+            # Attack all objects from non-attacker vehicles
+            # This would require coordination between attackers
+            pass
+
+        return None
+
+    def _apply_defense(self, data: Dict, tick_number: int) -> Tuple[Dict, Optional[float], Optional[Dict]]:
+        """
+        Apply CAD defense to the perception data.
+
+        Args:
+            data: Perception data (possibly already attacked)
+            tick_number: Current simulation tick number
+
+        Returns:
+            Tuple of (defended_data, defense_score, defense_metrics)
+        """
+        if not self.defender:
+            return data, None, None
+
+        try:
+            # Prepare multi-frame case for defense (using current tick data)
+            multi_frame_case = {tick_number: data}
+
+            # Defense options
+            defend_opts = {"frame_ids": [tick_number], "vehicle_ids": list(data.keys())}
+
+            # Run defense
+            defended_data, score, metrics = self.defender.run(multi_frame_case, defend_opts)
+
+            # Return only the data for the current tick
+            return defended_data[tick_number], score, metrics
+
+        except Exception as e:
+            logger.error(f"Defense failed: {e}")
+            return data, None, None
+
+    def get_attack_statistics(self) -> Dict:
+        """Get statistics about applied attacks."""
+        if not self.attacker:
+            return {}
+
+        # This would need to be implemented based on the attacker's capabilities
+        # For now, return basic information
+        return {"attack_type": self.attack_type, "attackers_count": len(self._select_attacker_vehicles()), "enabled": self.with_advcp}
+
+    def get_defense_statistics(self) -> Dict:
+        """Get statistics about applied defenses."""
+        if not self.defender:
+            return {}
+
         return {
-            "enabled": self.defense_enabled,
-            "trust_scores": [],  # MVP Defender doesn't have get_trust_scores()
-            "blocked_attacks": 0,  # MVP Defender doesn't have get_blocked_attacks()
-            "metrics": {},  # MVP detection is a function, not a class with get_defense_metrics()
+            "defense_enabled": self.apply_cad_defense,
+            "threshold": self.defense_threshold,
+            "applied": False,  # Would need to track this
         }
-
-    def save_results(self, tick_number):
-        """Save results for the current tick."""
-        eval_dir = f"simulation_output/advcp/results/{self.opt.test_scenario}_{self.current_time}"
-        os.makedirs(eval_dir, exist_ok=True)
-
-        # Save attack/defense metrics
-        # Create dummy dataset for MVP accuracy function
-        class DummyDataset:
-            def case_generator(self, index=True, tag="multi_frame"):
-                # Convert OpenCOOD batch_data to MVP case format
-                case = {}
-                for vehicle_id, vehicle_data in batch_data.items():
-                    case[vehicle_id] = {
-                        "lidar": vehicle_data.get("lidar", np.zeros((100, 4))),
-                        "lidar_pose": vehicle_data.get("lidar_pose", np.eye(4)),
-                        "gt_bboxes": np.zeros((0, 7)),
-                        "result_bboxes": np.zeros((0, 7))
-                    }
-                yield 0, case
-        
-        # Calculate and save accuracy metrics
-        accuracy_report = get_accuracy(DummyDataset(), self.model)
-        with open(os.path.join(eval_dir, f"accuracy_{tick_number:05d}.pkl"), "wb") as f:
-            pickle.dump(accuracy_report, f)
-        
-        # Calculate and save detection metrics
-        detection_report = evaluate_single_vehicle(np.zeros((0, 7)), np.zeros((0, 7)))
-        with open(os.path.join(eval_dir, f"detection_{tick_number:05d}.pkl"), "wb") as f:
-            pickle.dump(detection_report, f)
-
-        # Save visualizations using MVP Visualizer
-        self._save_visualizations_wrapper(eval_dir, tick_number)
-
-        logger.info(f"Results saved for tick {tick_number}")
-
-    def cleanup(self):
-        """Cleanup resources."""
-        logger.info("Cleaning up AdvCP resources")
-
-        # Cleanup MVP components
-        self.attacker.cleanup()
-        self.defender.cleanup()
-        self.visualizer.cleanup()
-
-        # Cleanup OpenCOOD components
-        if hasattr(self, 'model') and self.model is not None:
-            del self.model
-        if hasattr(self, 'data_loader') and self.data_loader is not None:
-            del self.data_loader
-        if hasattr(self, 'dataset') and self.dataset is not None:
-            del self.dataset
-
-        logger.info("AdvCP cleanup completed")

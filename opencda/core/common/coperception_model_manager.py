@@ -55,45 +55,15 @@ class CoperceptionModelManager:
             0.7: {"tp": [], "fp": [], "gt": 0, "score": []},
         }
 
-        # AdvCP integration
-        self.advcp_enabled = False
+        # Initialize AdvCP Manager if enabled
         self.advcp_manager = None
-        self.attack_handler = None
-        self.defense_handler = None
-        self.metrics_logger = None
-        self.visualization = None
+        if self.opt.get("with_advcp", False):
+            from opencda.core.common.advcp.advcp_manager import AdvCPManager
+            from opencda.core.common.advcp.advcp_config import load_advcp_config
 
-        if hasattr(self.opt, "with_advcp") and self.opt.with_advcp:
-            from .advcp.advcp_manager import AdvCPManager
-            from .advcp.mvp.attack.attacker import Attacker
-            from .advcp.mvp.defense.defender import Defender
-            from .advcp.mvp.evaluate.accuracy import Accuracy
-            from .advcp.mvp.evaluate.detection import Detection
-            from .advcp.mvp.visualize.general import Visualizer
-
-            self.advcp_enabled = True
-            self.advcp_manager = AdvCPManager(self.opt, self.current_time)
-            self.attacker = Attacker(self.opt)
-            self.defender = Defender(self.opt)
-            self.accuracy = Accuracy()
-            self.detection = Detection()
-            self.visualizer = Visualizer()
-
-            logger.info("AdvCP module initialized successfully")
-
-    def make_dataset(self):
-        logger.info("Dataset Building")
-        self.opencood_dataset = build_dataset(self.hypes, visualize=True, train=False, message_handler=self.message_handler)
-        logger.info(f"{len(self.opencood_dataset)} samples found.")
-        self.data_loader = DataLoader(
-            self.opencood_dataset,
-            batch_size=1,
-            num_workers=16,
-            collate_fn=self.opencood_dataset.collate_batch_test,
-            shuffle=False,
-            pin_memory=False,
-            drop_last=False,
-        )
+            advcp_config = load_advcp_config(self.opt)
+            self.advcp_manager = AdvCPManager(advcp_config, current_time, self, message_handler)
+            logger.info("AdvCP Manager initialized and integrated with CoperceptionManager")
 
     def update_dataset(self):
         logger.debug("Refreshing dataset indices")
@@ -115,14 +85,6 @@ class CoperceptionModelManager:
             0.7: {"tp": [], "fp": [], "gt": 0, "score": []},
         }
 
-        if self.advcp_enabled:
-            # Execute attacks before prediction using MVP Attacker
-            if self.advcp_enabled:
-                self.advcp_manager._apply_attack_wrapper(self.data_loader, tick_number)
-        # Apply defense mechanisms using MVP Defender
-        if self.advcp_enabled and self.opt.apply_cad_defense:
-            self.advcp_manager._apply_defense_wrapper(self.data_loader, tick_number)
-
         if self.opt.show_sequence:
             if self.vis is None:
                 self.vis = o3d.visualization.Visualizer()  # noqa: DC05
@@ -142,16 +104,74 @@ class CoperceptionModelManager:
         for i, batch_data in tqdm(enumerate(self.data_loader), total=len(self.data_loader)):
             with torch.no_grad():
                 batch_data = train_utils.to_device(batch_data, self.device)
-                if self.opt.fusion_method == "late":
-                    pred_box_tensor, pred_score, gt_box_tensor = inference_utils.inference_late_fusion(batch_data, self.model, self.opencood_dataset)
-                elif self.opt.fusion_method == "early":
-                    pred_box_tensor, pred_score, gt_box_tensor = inference_utils.inference_early_fusion(batch_data, self.model, self.opencood_dataset)
-                elif self.opt.fusion_method == "intermediate":
-                    pred_box_tensor, pred_score, gt_box_tensor = inference_utils.inference_intermediate_fusion(
-                        batch_data, self.model, self.opencood_dataset
-                    )
+
+                # Apply AdvCP if enabled
+                if self.advcp_manager and self.advcp_manager.with_advcp:
+                    # Get original prediction
+                    if self.opt.fusion_method == "late":
+                        original_pred_box_tensor, original_pred_score, original_gt_box_tensor = inference_utils.inference_late_fusion(
+                            batch_data, self.model, self.opencood_dataset
+                        )
+                    elif self.opt.fusion_method == "early":
+                        original_pred_box_tensor, original_pred_score, original_gt_box_tensor = inference_utils.inference_early_fusion(
+                            batch_data, self.model, self.opencood_dataset
+                        )
+                    elif self.opt.fusion_method == "intermediate":
+                        original_pred_box_tensor, original_pred_score, original_gt_box_tensor = inference_utils.inference_intermediate_fusion(
+                            batch_data, self.model, self.opencood_dataset
+                        )
+                    else:
+                        raise NotImplementedError("Only early, late and intermediate fusion is supported.")
+
+                    # Apply AdvCP attacks/defenses
+                    modified_data, defense_score, defense_metrics = self.advcp_manager.process_tick(i)
+
+                    if modified_data:
+                        # Extract modified predictions from AdvCP data
+                        pred_box_tensor = None
+                        pred_score = None
+                        gt_box_tensor = None
+
+                        for vehicle_id, vehicle_data in modified_data.items():
+                            if "pred_bboxes" in vehicle_data and "pred_scores" in vehicle_data:
+                                if pred_box_tensor is None:
+                                    pred_box_tensor = torch.from_numpy(vehicle_data["pred_bboxes"]).to(self.device)
+                                    pred_score = torch.from_numpy(vehicle_data["pred_scores"]).to(self.device)
+                                else:
+                                    pred_box_tensor = torch.cat(
+                                        [pred_box_tensor, torch.from_numpy(vehicle_data["pred_bboxes"]).to(self.device)], dim=0
+                                    )
+                                    pred_score = torch.cat([pred_score, torch.from_numpy(vehicle_data["pred_scores"]).to(self.device)], dim=0)
+
+                        if pred_box_tensor is None:
+                            # Fallback to original predictions if AdvCP failed
+                            pred_box_tensor = original_pred_box_tensor
+                            pred_score = original_pred_score
+                            gt_box_tensor = original_gt_box_tensor
+                        else:
+                            # Use modified predictions from AdvCP
+                            gt_box_tensor = original_gt_box_tensor
+                    else:
+                        # No AdvCP applied, use original predictions
+                        pred_box_tensor = original_pred_box_tensor
+                        pred_score = original_pred_score
+                        gt_box_tensor = original_gt_box_tensor
                 else:
-                    raise NotImplementedError("Only early, late and intermediate fusion is supported.")
+                    # No AdvCP, use original predictions
+                    if self.opt.fusion_method == "late":
+                        pred_box_tensor, pred_score, gt_box_tensor = inference_utils.inference_late_fusion(
+                            batch_data, self.model, self.opencood_dataset
+                        )
+                    elif self.opt.fusion_method == "early":
+                        pred_box_tensor, pred_score, gt_box_tensor = inference_utils.inference_early_fusion(
+                            batch_data, self.model, self.opencood_dataset
+                        )
+                    elif self.opt.fusion_method == "intermediate":
+                        pred_box_tensor, pred_score, gt_box_tensor = inference_utils.inference_intermediate_fusion(
+                            batch_data, self.model, self.opencood_dataset
+                        )
+                    else:
+                        raise NotImplementedError("Only early, late and intermediate fusion is supported.")
 
                 eval_utils.caluclate_tp_fp(pred_box_tensor, pred_score, gt_box_tensor, result_stat, 0.3)
                 eval_utils.caluclate_tp_fp(pred_box_tensor, pred_score, gt_box_tensor, result_stat, 0.5)
@@ -192,38 +212,6 @@ class CoperceptionModelManager:
                         dataset=self.opencood_dataset,
                     )
 
-                # AdvCP: Log metrics and visualize attacks/defense using MVP components
-                if self.advcp_enabled:
-                    # Convert tensors to numpy arrays for MVP functions
-                    pred_box_np = pred_box_tensor.cpu().numpy() if isinstance(pred_box_tensor, torch.Tensor) else pred_box_tensor
-                    pred_score_np = pred_score.cpu().numpy() if isinstance(pred_score, torch.Tensor) else pred_score
-                    gt_box_np = gt_box_tensor.cpu().numpy() if isinstance(gt_box_tensor, torch.Tensor) else gt_box_tensor
-                    
-                    # Create dummy dataset for MVP accuracy function
-                    class DummyDataset:
-                        def case_generator(self, index=True, tag="multi_frame"):
-                            # Convert OpenCOOD batch_data to MVP case format
-                            case = {}
-                            for vehicle_id, vehicle_data in batch_data.items():
-                                case[vehicle_id] = {
-                                    "lidar": vehicle_data.get("lidar", np.zeros((100, 4))),
-                                    "lidar_pose": vehicle_data.get("lidar_pose", np.eye(4)),
-                                    "gt_bboxes": gt_box_np,
-                                    "result_bboxes": pred_box_np
-                                }
-                            yield 0, case
-                    
-                    # Calculate accuracy metrics using MVP Accuracy
-                    accuracy_report = self.advcp_manager.accuracy.get_accuracy(DummyDataset(), self.model)
-                    logger.info(f"Tick {tick_number} - Accuracy metrics: {accuracy_report}")
-                    
-                    # Calculate detection metrics using MVP Detection
-                    detection_report = self.advcp_manager.detection.evaluate_single_vehicle(gt_box_np, pred_box_np)
-                    logger.info(f"Tick {tick_number} - Detection metrics: {detection_report}")
-                    
-                    # Visualize results using MVP Visualizer
-                    self.advcp_manager._visualize_results_wrapper(pred_box_tensor, gt_box_tensor, batch_data, tick_number)
-
                 if self.opt.show_sequence and pred_box_tensor is not None and self.hypes["postprocess"]["core_method"] != "BevPostprocessor":
                     self.vis.clear_geometries()
                     pcd, pred_o3d_box, gt_o3d_box = vis_utils.visualize_inference_sample_dataloader(
@@ -240,144 +228,32 @@ class CoperceptionModelManager:
                     self.vis.poll_events()
                     self.vis.update_renderer()
 
-                # AdvCP: Log metrics and visualize attacks/defense
-                if self.advcp_enabled:
-                    # Use the same visualization wrapper as before
-                    self.advcp_manager._visualize_results_wrapper(pred_box_tensor, gt_box_tensor, batch_data, tick_number)
-
         for iou in [0.3, 0.5, 0.7]:
             self.final_result_stat[iou]["gt"] += result_stat[iou]["gt"]
             self.final_result_stat[iou]["tp"] += result_stat[iou]["tp"]
             self.final_result_stat[iou]["fp"] += result_stat[iou]["fp"]
             self.final_result_stat[iou]["score"] += result_stat[iou]["score"]
 
-        # AdvCP: Save metrics and generate final report using MVP components
-        if self.advcp_enabled:
-            # Create dummy dataset for MVP accuracy function
-            class DummyDataset:
-                def case_generator(self, index=True, tag="multi_frame"):
-                    # Convert OpenCOOD batch_data to MVP case format
-                    case = {}
-                    for vehicle_id, vehicle_data in batch_data.items():
-                        case[vehicle_id] = {
-                            "lidar": vehicle_data.get("lidar", np.zeros((100, 4))),
-                            "lidar_pose": vehicle_data.get("lidar_pose", np.eye(4)),
-                            "gt_bboxes": np.zeros((0, 7)),
-                            "result_bboxes": np.zeros((0, 7))
-                        }
-                    yield 0, case
-            
-            # Calculate and save accuracy metrics
-            accuracy_report = self.advcp_manager.accuracy.get_accuracy(DummyDataset(), self.model)
-            with open(os.path.join(eval_dir, f"accuracy_{tick_number:05d}.pkl"), "wb") as f:
-                pickle.dump(accuracy_report, f)
-            
-            # Calculate and save detection metrics
-            detection_report = self.advcp_manager.detection.evaluate_single_vehicle(np.zeros((0, 7)), np.zeros((0, 7)))
-            with open(os.path.join(eval_dir, f"detection_{tick_number:05d}.pkl"), "wb") as f:
-                pickle.dump(detection_report, f)
-            
-            # Save visualizations using MVP Visualizer
-            self.advcp_manager._save_visualizations_wrapper(eval_dir, tick_number)
+        # Update AdvCP statistics if enabled
+        if self.advcp_manager and self.advcp_manager.with_advcp:
+            attack_stats = self.advcp_manager.get_attack_statistics()
+            defense_stats = self.advcp_manager.get_defense_statistics()
+
+            if attack_stats:
+                logger.info(f"AdvCP Attack Statistics: {attack_stats}")
+            if defense_stats:
+                logger.info(f"AdvCP Defense Statistics: {defense_stats}")
 
     def final_eval(self):
         eval_dir = f"simulation_output/coperception/results/{self.opt.test_scenario}_{self.current_time}"
         os.makedirs(eval_dir, exist_ok=True)
         eval_utils.eval_final_results(self.final_result_stat, eval_dir, self.opt.global_sort_detections)
 
-    def execute_attack(self, tick_number):
-        """Execute attacks if AdvCP is enabled and it's time for an attack"""
-        if self.advcp_enabled:
-            self.attack_handler.execute_attack(tick_number)
-
-    def apply_defense(self, tick_number):
-        """Apply defense mechanisms if AdvCP is enabled"""
-        if self.advcp_enabled and self.opt.apply_cad_defense:
-            self.defense_handler.apply_defense(tick_number)
-
-    def get_attack_metrics(self):
-        """Get attack metrics if AdvCP is enabled"""
-        if self.advcp_enabled:
-            return self.accuracy.get_attack_metrics()
-        return None
-
-    def get_defense_metrics(self):
-        """Get defense metrics if AdvCP is enabled"""
-        if self.advcp_enabled:
-            return self.detection.get_defense_metrics()
-        return None
-
-    def visualize_advcp_results(self):
-        """Visualize AdvCP results if enabled"""
-        if self.advcp_enabled:
-            # Create dummy dataset for MVP Visualizer
-            dummy_case = {0: {0: {"lidar": np.zeros((100, 4)), "lidar_pose": np.eye(4)}}}
-            
-            # Save visualizations using MVP Visualizer
-            self.advcp_manager._save_visualizations_wrapper(f"simulation_output/advcp/results/{self.opt.test_scenario}_{self.current_time}", tick_number)
-
-    def save_advcp_results(self, output_dir):
-        """Save AdvCP results to specified directory"""
-        if self.advcp_enabled:
-            # Create dummy dataset for MVP accuracy function
-            class DummyDataset:
-                def case_generator(self, index=True, tag="multi_frame"):
-                    # Convert OpenCOOD batch_data to MVP case format
-                    case = {}
-                    for vehicle_id, vehicle_data in batch_data.items():
-                        case[vehicle_id] = {
-                            "lidar": vehicle_data.get("lidar", np.zeros((100, 4))),
-                            "lidar_pose": vehicle_data.get("lidar_pose", np.eye(4)),
-                            "gt_bboxes": np.zeros((0, 7)),
-                            "result_bboxes": np.zeros((0, 7))
-                        }
-                    yield 0, case
-            
-            # Calculate and save accuracy metrics
-            accuracy_report = self.advcp_manager.accuracy.get_accuracy(DummyDataset(), self.model)
-            with open(os.path.join(output_dir, f"accuracy_{tick_number:05d}.pkl"), "wb") as f:
-                pickle.dump(accuracy_report, f)
-            
-            # Calculate and save detection metrics
-            detection_report = self.advcp_manager.detection.evaluate_single_vehicle(np.zeros((0, 7)), np.zeros((0, 7)))
-            with open(os.path.join(output_dir, f"detection_{tick_number:05d}.pkl"), "wb") as f:
-                pickle.dump(detection_report, f)
-            
-            # Save visualizations using MVP Visualizer
-            self.advcp_manager._save_visualizations_wrapper(output_dir, tick_number)
-
-    def reset_advcp_state(self):
-        """Reset AdvCP state for new simulation"""
-        if self.advcp_enabled:
-            self.advcp_manager.reset()
-            self.attacker.cleanup()
-            self.defender.cleanup()
-            self.accuracy.cleanup()
-            self.detection.cleanup()
-            self.visualizer.cleanup()
-
 
 class DirectoryProcessor:
     def __init__(self, source_directory="data_dumping", now_directory="data_dumping/sample/now"):
         self.source_directory = source_directory
         self.now_directory = now_directory
-
-    def process_advcp_data(self, tick_number):
-        """Process AdvCP-specific data for the given tick"""
-        if not hasattr(self, "advcp_enabled") or not self.advcp_enabled:
-            return
-
-        # Process attack data
-        attack_data_dir = os.path.join(self.source_directory, f"advcp_attacks_{tick_number:06d}")
-        if os.path.exists(attack_data_dir):
-            # Process attack data files
-            pass
-
-        # Process defense data
-        defense_data_dir = os.path.join(self.source_directory, f"advcp_defense_{tick_number:06d}")
-        if os.path.exists(defense_data_dir):
-            # Process defense data files
-            pass
 
     def detect_cameras(self, data_directory):
         inner_subdirectories = sorted([d for d in os.listdir(data_directory) if os.path.isdir(os.path.join(data_directory, d))])
