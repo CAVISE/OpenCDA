@@ -22,6 +22,23 @@ def _install_stub(name: str, module: ModuleType) -> None:
     sys.modules[name] = module
 
 
+def _install_stub_if_missing(name: str, module: ModuleType) -> None:
+    """Install stub module only if it's not already present (avoids duplication across conftest files)."""
+    if name not in sys.modules:
+        sys.modules[name] = module
+
+
+# Heavy external deps stubs for tests under test/ (torch/open3d/opencood may be absent in CI)
+torch_stub = types.ModuleType("torch")
+torch_stub.cuda = SimpleNamespace(is_available=lambda: False)
+torch_stub.hub = SimpleNamespace(load=Mock())
+torch_stub.device = lambda *args, **kwargs: "cpu"
+_install_stub_if_missing("torch", torch_stub)
+
+_install_stub_if_missing("open3d", types.ModuleType("open3d"))
+_install_stub_if_missing("opencood", types.ModuleType("opencood"))
+
+
 def _make_placeholder_module(mod_name: str, **attrs) -> ModuleType:
     m = types.ModuleType(mod_name)
     for k, v in attrs.items():

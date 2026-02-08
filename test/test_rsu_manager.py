@@ -184,3 +184,35 @@ def test_update_info_v2x_does_not_raise_and_has_no_side_effects(mocker, minimal_
     assert rsu.update_info_v2x() is None
     assert deps["localizer"].mock_calls == []
     assert deps["perception"].mock_calls == []
+
+
+def test_update_info_localizer_failure_propagates_and_stops_chain(mocker, minimal_rsu_config, mock_cav_world):
+    """If localizer.localize() fails, update_info() should propagate and not call perception."""
+    deps = _patch_rsu_manager_deps(mocker)
+    from opencda.core.common.rsu_manager import RSUManager
+
+    rsu = RSUManager(Mock(), minimal_rsu_config, Mock(), mock_cav_world, data_dumping=False)
+    deps["localizer"].localize.side_effect = RuntimeError("localize failed")
+
+    with pytest.raises(RuntimeError, match="localize failed"):
+        rsu.update_info()
+
+    deps["perception"].detect.assert_not_called()
+
+
+def test_update_info_perception_failure_propagates(mocker, minimal_rsu_config, mock_cav_world):
+    """If perception.detect() fails, update_info() should propagate the error."""
+    deps = _patch_rsu_manager_deps(mocker)
+    from opencda.core.common.rsu_manager import RSUManager
+
+    rsu = RSUManager(Mock(), minimal_rsu_config, Mock(), mock_cav_world, data_dumping=False)
+
+    ego_pos = Mock()
+    deps["localizer"].get_ego_pos.return_value = ego_pos
+    deps["perception"].detect.side_effect = RuntimeError("detect failed")
+
+    with pytest.raises(RuntimeError, match="detect failed"):
+        rsu.update_info()
+
+    deps["localizer"].localize.assert_called_once_with()
+    deps["perception"].detect.assert_called_once_with(ego_pos)

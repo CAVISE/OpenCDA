@@ -290,3 +290,121 @@ def test_update_info_v2x_does_not_raise(mocker, minimal_vehicle_config, mock_cav
     assert deps["safety"].mock_calls == []
     assert deps["agent"].mock_calls == []
     assert deps["controller"].mock_calls == []
+
+
+def test_update_info_localizer_failure_propagates_and_stops_chain(mocker, minimal_vehicle_config, mock_cav_world):
+    """If localizer.localize() fails, update_info() should propagate and not call downstream modules."""
+    deps = _patch_vehicle_manager_deps(mocker)
+    from opencda.core.common.vehicle_manager import VehicleManager
+
+    vehicle = Mock(id=10)
+    vehicle.get_world.return_value = Mock()
+    carla_map = Mock()
+    vm = VehicleManager(vehicle, minimal_vehicle_config, ["single"], carla_map, mock_cav_world, prefix="cav")
+
+    deps["localizer"].localize.side_effect = RuntimeError("localize failed")
+
+    with pytest.raises(RuntimeError, match="localize failed"):
+        vm.update_info()
+
+    deps["perception"].detect.assert_not_called()
+    deps["map_manager"].update_information.assert_not_called()
+    deps["safety"].update_info.assert_not_called()
+    deps["v2x"].update_info.assert_not_called()
+    deps["agent"].update_information.assert_not_called()
+    deps["controller"].update_info.assert_not_called()
+
+
+def test_update_info_perception_failure_propagates_and_stops_chain(mocker, minimal_vehicle_config, mock_cav_world):
+    """If perception.detect() fails, update_info() should propagate and not call later steps."""
+    deps = _patch_vehicle_manager_deps(mocker)
+    from opencda.core.common.vehicle_manager import VehicleManager
+
+    vehicle = Mock(id=10)
+    vehicle.get_world.return_value = Mock()
+    carla_map = Mock()
+    vm = VehicleManager(vehicle, minimal_vehicle_config, ["single"], carla_map, mock_cav_world, prefix="cav")
+
+    ego_pos = Mock()
+    ego_spd = Mock()
+    deps["localizer"].get_ego_pos.return_value = ego_pos
+    deps["localizer"].get_ego_spd.return_value = ego_spd
+    deps["perception"].detect.side_effect = RuntimeError("detect failed")
+
+    with pytest.raises(RuntimeError, match="detect failed"):
+        vm.update_info()
+
+    deps["map_manager"].update_information.assert_not_called()
+    deps["safety"].update_info.assert_not_called()
+    deps["v2x"].update_info.assert_not_called()
+    deps["agent"].update_information.assert_not_called()
+    deps["controller"].update_info.assert_not_called()
+
+
+def test_update_info_agent_failure_propagates_and_stops_before_controller(mocker, minimal_vehicle_config, mock_cav_world):
+    """If agent.update_information() fails, update_info() should propagate and controller.update_info must not run."""
+    deps = _patch_vehicle_manager_deps(mocker)
+    from opencda.core.common.vehicle_manager import VehicleManager
+
+    vehicle = Mock(id=10)
+    vehicle.get_world.return_value = Mock()
+    carla_map = Mock()
+    vm = VehicleManager(vehicle, minimal_vehicle_config, ["single"], carla_map, mock_cav_world, prefix="cav")
+
+    ego_pos = Mock()
+    ego_spd = Mock()
+    objects = [{"id": 1}]
+
+    deps["localizer"].get_ego_pos.return_value = ego_pos
+    deps["localizer"].get_ego_spd.return_value = ego_spd
+    deps["perception"].detect.return_value = objects
+    deps["agent"].update_information.side_effect = RuntimeError("agent failed")
+
+    with pytest.raises(RuntimeError, match="agent failed"):
+        vm.update_info()
+
+    deps["map_manager"].update_information.assert_called_once_with(ego_pos)
+    deps["safety"].update_info.assert_called_once()
+    deps["v2x"].update_info.assert_called_once_with(ego_pos, ego_spd)
+    deps["controller"].update_info.assert_not_called()
+
+
+def test_run_step_agent_failure_propagates_and_skips_controller(mocker, minimal_vehicle_config, mock_cav_world):
+    """If agent.run_step() fails, run_step() should propagate and controller must not run."""
+    deps = _patch_vehicle_manager_deps(mocker)
+    from opencda.core.common.vehicle_manager import VehicleManager
+
+    vm = VehicleManager(Mock(id=10), minimal_vehicle_config, ["single"], Mock(), mock_cav_world, prefix="cav")
+    deps["agent"].run_step.side_effect = RuntimeError("planner failed")
+
+    with pytest.raises(RuntimeError, match="planner failed"):
+        vm.run_step(target_speed=5.0)
+
+    deps["map_manager"].run_step.assert_called_once_with()
+    deps["controller"].run_step.assert_not_called()
+
+
+def test_run_step_controller_failure_propagates_and_skips_data_dump(mocker, minimal_vehicle_config, mock_cav_world):
+    """If controller.run_step() fails, run_step() should propagate and data dumper must not run."""
+    deps = _patch_vehicle_manager_deps(mocker)
+    from opencda.core.common.vehicle_manager import VehicleManager
+
+    vm = VehicleManager(
+        Mock(id=10),
+        minimal_vehicle_config,
+        ["single"],
+        Mock(),
+        mock_cav_world,
+        prefix="cav",
+        data_dumping=True,
+        current_time="t0",
+    )
+
+    deps["agent"].run_step.return_value = (10.0, "target_pos")
+    deps["controller"].run_step.side_effect = RuntimeError("control failed")
+
+    deps["dumper"].reset_mock()
+    with pytest.raises(RuntimeError, match="control failed"):
+        vm.run_step(target_speed=5.0)
+
+    deps["dumper"].run_step.assert_not_called()
