@@ -132,35 +132,50 @@ class AdvCPManager:
 
         return raw_data
 
-    def process_tick(self, tick_number: int) -> Tuple[Optional[Dict], Optional[float], Optional[Dict]]:
+    def process_tick(self, tick_number: int, batch_data: Optional[Dict] = None, 
+                  predictions: Optional[Dict] = None) -> Tuple[Optional[Dict], Optional[float], Optional[Dict]]:
         """
         Process a single simulation tick with AdvCP capabilities.
 
         Args:
             tick_number: Current simulation tick number
+            batch_data: Pre-inference batch data (for early/intermediate attacks)
+            predictions: Post-inference predictions (for late attacks)
 
         Returns:
-            Tuple of (modified_data, defense_score, defense_metrics) if AdvCP is enabled,
-            otherwise (None, None, None)
+            Tuple of (modified_data, defense_score, defense_metrics)
         """
         if not self.with_advcp:
             return None, None, None
-
-        # Get current perception data from coperception manager without circular dependency
-        coperception_data = self._get_coperception_data(tick_number)
-
-        # Apply attack if enabled
-        if self.attacker:
-            modified_data = self._apply_attack(coperception_data, tick_number)
+    
+        # Determine attack stage
+        if self.attack_type in ["lidar_remove_late", "lidar_spoof_late"]:
+            # Late attacks need predictions
+            if predictions is None:
+                logger.error("Late attacks require predictions, but none provided")
+                return None, None, None
+            data_to_attack = predictions
         else:
-            modified_data = coperception_data
-
+            # Early/intermediate attacks need raw data
+            if batch_data is None:
+                data_to_attack = self._get_coperception_data(tick_number)
+            else:
+                data_to_attack = batch_data
+        
+        # Apply attack
+        if self.attacker:
+            modified_data = self._apply_attack(data_to_attack, tick_number)
+        else:
+            modified_data = data_to_attack
+        
         # Apply defense if enabled
         defense_score = None
         defense_metrics = None
         if self.apply_cad_defense and self.defender:
-            modified_data, defense_score, defense_metrics = self._apply_defense(modified_data, tick_number)
-
+            modified_data, defense_score, defense_metrics = self._apply_defense(
+                modified_data, tick_number
+            )
+        
         return modified_data, defense_score, defense_metrics
 
     def _apply_attack(self, data: Dict, tick_number: int) -> Dict:

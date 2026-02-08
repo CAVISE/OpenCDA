@@ -159,7 +159,20 @@ class CoperceptionModelManager:
                         raise NotImplementedError("Only early, late and intermediate fusion is supported.")
 
                     # Apply AdvCP attacks/defenses
-                    modified_data, defense_score, defense_metrics = self.advcp_manager.process_tick(i)
+                    # Prepare predictions for late attacks
+                    predictions = None
+                    if self.advcp_manager.attack_type in ["lidar_remove_late", "lidar_spoof_late"]:
+                        predictions = {
+                            "pred_bboxes": original_pred_box_tensor,
+                            "pred_scores": original_pred_score,
+                            "gt_bboxes": original_gt_box_tensor
+                        }
+                    
+                    modified_data, defense_score, defense_metrics = self.advcp_manager.process_tick(
+                        i, 
+                        batch_data=batch_data,
+                        predictions=predictions
+                    )
 
                     if modified_data:
                         # Extract modified predictions from AdvCP data
