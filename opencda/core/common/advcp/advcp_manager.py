@@ -14,6 +14,7 @@ from mvp.attack.lidar_spoof_late_attacker import LidarSpoofLateAttacker
 from mvp.attack.adv_shape_attacker import AdvShapeAttacker
 
 from mvp.defense.perception_defender import PerceptionDefender
+from mvp.perception.opencood_perception import OpencoodPerception
 
 logger = logging.getLogger("cavise.advcp_manager")
 
@@ -45,8 +46,10 @@ class AdvCPManager:
         # Initialize attack and defense components
         self.attacker = None
         self.defender = None
+        self.perception = None
         self._initialize_attacker()
         self._initialize_defender()
+        self._initialize_perception()
 
         # Attack/Defense flags
         self.with_advcp = opt.get("with_advcp", False)
@@ -112,6 +115,26 @@ class AdvCPManager:
         self.defender = PerceptionDefender()
         logger.info("Initialized CAD defense mechanism")
 
+    def _initialize_perception(self) -> None:
+        """Initialize OpencoodPerception for preprocessing raw data to OpenCOOD format."""
+        if not self.with_advcp:
+            return
+
+        try:
+            # Get fusion method and model name from coperception manager
+            fusion_method = self.coperception_manager.opt.get("fusion_method", "early")
+            model_name = self.opt.get("model_name", "pointpillar")
+
+            # Initialize OpencoodPerception
+            self.perception = OpencoodPerception(
+                fusion_method=fusion_method,
+                model_name=model_name
+            )
+            logger.info(f"Initialized OpencoodPerception with fusion_method={fusion_method}, model_name={model_name}")
+        except Exception as e:
+            logger.warning(f"Failed to initialize OpencoodPerception: {e}")
+            self.perception = None
+
     def _get_coperception_data(self, tick_number: int) -> Dict:
         """
         Get raw perception data from coperception manager without causing circular dependency.
@@ -148,7 +171,7 @@ class AdvCPManager:
         if not self.with_advcp:
             return None, None, None
     
-        # Determine attack stage
+        # Determine attack stage and prepare data accordingly
         if self.attack_type in ["lidar_remove_late", "lidar_spoof_late"]:
             # Late attacks need predictions
             if predictions is None:
@@ -156,13 +179,52 @@ class AdvCPManager:
                 return None, None, None
             data_to_attack = predictions
         else:
-            # Early/intermediate attacks need raw data
-            if batch_data is None:
-                data_to_attack = self._get_coperception_data(tick_number)
+            # Early/intermediate attacks need RAW data (not preprocessed batch_data)
+            # Get raw data from coperception manager
+            raw_data = self._get_coperception_data(tick_number)
+            if raw_data is None:
+                logger.warning(f"No raw data available for tick {tick_number}")
+                return None, None, None
+            
+            # Apply attack to raw data
+            if self.attacker:
+                attacked_data = self._apply_attack(raw_data, tick_number)
             else:
-                data_to_attack = batch_data
+                attacked_data = raw_data
+            
+            # Convert attacked raw data back to OpenCOOD format using preprocessor
+            if self.perception is not None:
+                try:
+                    # Determine ego vehicle ID (typically the first vehicle or "ego")
+                    ego_id = self._get_ego_vehicle_id(raw_data)
+                    
+                    # Apply appropriate preprocessor based on attack type
+                    if self.attack_type in ["lidar_remove_early", "lidar_spoof_early"]:
+                        preprocessed_data = self.perception.early_preprocess(attacked_data, ego_id)
+                    elif self.attack_type in ["lidar_remove_intermediate", "lidar_spoof_intermediate"]:
+                        preprocessed_data = self.perception.intermediate_preprocess(attacked_data, ego_id)
+                    else:
+                        logger.warning(f"Unknown attack type for preprocessing: {self.attack_type}")
+                        preprocessed_data = None
+                    
+                    if preprocessed_data is not None:
+                        # Apply defense if enabled
+                        defense_score = None
+                        defense_metrics = None
+                        if self.apply_cad_defense and self.defender:
+                            preprocessed_data, defense_score, defense_metrics = self._apply_defense(
+                                preprocessed_data, tick_number
+                            )
+                        
+                        return preprocessed_data, defense_score, defense_metrics
+                except Exception as e:
+                    logger.error(f"Failed to preprocess attacked data: {e}")
+                    return None, None, None
+            else:
+                logger.warning("OpencoodPerception not initialized, cannot preprocess attacked data")
+                return None, None, None
         
-        # Apply attack
+        # For late attacks, apply attack to predictions
         if self.attacker:
             modified_data = self._apply_attack(data_to_attack, tick_number)
         else:
@@ -183,7 +245,7 @@ class AdvCPManager:
         Apply attack to the perception data.
 
         Args:
-            data: Perception data from coperception manager
+            data: Perception data from coperception manager (raw format for early/intermediate)
             tick_number: Current simulation tick number
 
         Returns:
@@ -192,6 +254,19 @@ class AdvCPManager:
         if not self.attacker:
             return data
 
+        # For early/intermediate attacks, data is in raw format {vehicle_id: {...}}
+        # For late attacks, data is predictions dict
+        
+        # Check if this is a late attack (predictions format)
+        if self.attack_type in ["lidar_remove_late", "lidar_spoof_late"]:
+            # Late attacks work on predictions, return as-is for now
+            # Late attacks need special handling that's not fully implemented yet
+            return data
+        
+        # For early/intermediate attacks, format data as multi-frame case
+        # Attacks expect: multi_frame_case[frame_id][vehicle_id]
+        multi_frame_case = {tick_number: data}
+        
         # Determine which vehicles are attackers based on ratio
         attacker_vehicles = self._select_attacker_vehicles()
 
@@ -204,31 +279,20 @@ class AdvCPManager:
             "positions": None,  # For spoofing attacks
         }
 
-        modified_data = {}
-        for vehicle_id, vehicle_data in data.items():
-            if vehicle_id in attacker_vehicles:
-                # This vehicle is an attacker
-                attack_opts["attacker_vehicle_id"] = vehicle_id
-
-                # Select target based on attack_target strategy
-                target_info = self._select_attack_target(vehicle_data, vehicle_id)
-                if target_info:
-                    attack_opts["object_id"] = target_info["object_id"]
-                    attack_opts["bboxes"] = target_info["bboxes"]
-                    attack_opts["positions"] = target_info["positions"]
-
-                # Apply attack
-                try:
-                    modified_vehicle_data, _ = self.attacker.run({vehicle_id: vehicle_data}, attack_opts)
-                    modified_data[vehicle_id] = modified_vehicle_data[vehicle_id]
-                except Exception as e:
-                    logger.error(f"Attack failed for vehicle {vehicle_id}: {e}")
-                    modified_data[vehicle_id] = vehicle_data  # Fallback to original data
+        # Apply attack to each attacker vehicle
+        try:
+            # Run the attacker on the multi-frame case
+            attacked_case, attack_info = self.attacker.run(multi_frame_case, attack_opts)
+            
+            # Extract the attacked data for the current tick
+            if tick_number in attacked_case:
+                return attacked_case[tick_number]
             else:
-                # Non-attacker vehicle, keep original data
-                modified_data[vehicle_id] = vehicle_data
-
-        return modified_data
+                logger.warning(f"Attack did not return data for tick {tick_number}")
+                return data
+        except Exception as e:
+            logger.error(f"Attack failed: {e}")
+            return data
 
     def _select_attacker_vehicles(self) -> List[str]:
         """Select which vehicles will be attackers based on ratio."""
@@ -268,6 +332,27 @@ class AdvCPManager:
             pass
 
         return None
+
+    def _get_ego_vehicle_id(self, raw_data: Dict) -> str:
+        """
+        Get the ego vehicle ID from raw data.
+        
+        Args:
+            raw_data: Raw perception data dictionary
+            
+        Returns:
+            Ego vehicle ID (typically "ego" or the first vehicle ID)
+        """
+        # Try to find "ego" key first
+        if "ego" in raw_data:
+            return "ego"
+        
+        # Otherwise, return the first vehicle ID
+        if isinstance(raw_data, dict) and len(raw_data) > 0:
+            return list(raw_data.keys())[0]
+        
+        # Fallback
+        return "ego"
 
     def _apply_defense(self, data: Dict, tick_number: int) -> Tuple[Dict, Optional[float], Optional[Dict]]:
         """

@@ -163,3 +163,6 @@ opencda/core/common/advcp/architecture_diagram_description.md
 opencda/core/common/advcp/architecture_diagram.py
 opencda/core/common/advcp/logic_diagram_description.md
 opencda/core/common/advcp/logic_diagram.py
+
+.DS_Store
+**/.DS_Store
