@@ -78,13 +78,13 @@ class CommunicationManager:
             received_message = proto_capi.Message()
             received_message.ParseFromString(reply)
 
-            if (received_message.WhichOneof("message") != "artery" or received_message.order != self.message_order):
+            if received_message.WhichOneof("message") != "artery" or received_message.order != self.message_order:
                 logger.warning(f"Unexpected reply from Artery. Retry #{attempt + 1}...")
                 continue
 
             self.message_order += 1
             return received_message.artery
-        
+
         raise RuntimeError("Result did not arrive within timeout")
 
     def destroy(self) -> None:
