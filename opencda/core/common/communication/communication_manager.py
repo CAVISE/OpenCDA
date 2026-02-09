@@ -37,7 +37,7 @@ class CommunicationManager:
 
         if self.socket is None:
             raise RuntimeError("Socket is not initialized")
-        
+
         self.socket.setsockopt(zmq.RCVTIMEO, 2000)
 
         for attempt in range(self.artery_retries):
@@ -67,7 +67,7 @@ class CommunicationManager:
     def receive_message(self) -> proto_capi.Message:
         if self.socket is None:
             raise RuntimeError("Socket is not initialized")
-        
+
         self.socket.setsockopt(zmq.RCVTIMEO, max(1, int(self.artery_timeout * 1000 / self.artery_retries)))
 
         for attempt in range(self.artery_retries):
