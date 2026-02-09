@@ -11,6 +11,7 @@ The **AdvCP (Advanced Collaborative Perception)** module provides adversarial at
 ### Key Components
 
 - **AdvCPManager** - Main controller for attacks and defenses ([`advcp_manager.py`](advcp_manager.py))
+- **OpencoodPerception** - Preprocessing component for converting raw data to OpenCOOD format ([`mvp/perception/opencood_perception.py`](mvp/perception/opencood_perception.py))
 - **Attacker** - Adversarial attack components (LiDAR removal/spoofing)
 - **Defender** - CAD Defense (Consistency-Aware Defense)
 
@@ -28,14 +29,33 @@ CoperceptionModelManager.make_prediction(tick_number):
         self._current_batch_data = batch_data
 
         if with_advcp:
-            # 1. Get original predictions
-            original_pred = inference_utils.inference_xxx_fusion()
+            # 1. For late attacks: get original predictions first
+            if attack_type in ["lidar_remove_late", "lidar_spoof_late"]:
+                original_pred = inference_utils.inference_xxx_fusion()
+                predictions = {
+                    "pred_bboxes": original_pred[0],
+                    "pred_scores": original_pred[1],
+                    "gt_bboxes": original_pred[2]
+                }
+            else:
+                predictions = None
 
             # 2. Apply AdvCP (no recursion)
-            modified_data, defense_score, metrics = advcp_manager.process_tick(i)
+            modified_data, defense_score, metrics = advcp_manager.process_tick(
+                i, batch_data=batch_data, predictions=predictions
+            )
 
             # 3. Use modified data
-            pred_box_tensor = extract_from(modified_data)
+            if attack_type in ["lidar_remove_early", "lidar_spoof_early",
+                              "lidar_remove_intermediate", "lidar_spoof_intermediate"]:
+                # For early/intermediate attacks: run inference on preprocessed data
+                modified_batch_data = opencood_dataset.collate_batch_test([modified_data])
+                pred_box_tensor, pred_score, gt = inference_utils.inference_xxx_fusion(
+                    modified_batch_data, model, opencood_dataset
+                )
+            else:
+                # For late attacks: use modified predictions directly
+                pred_box_tensor = extract_from(modified_data)
         else:
             # Normal inference
             pred_box_tensor, pred_score, gt = inference_utils.inference_xxx_fusion()
@@ -47,11 +67,16 @@ CoperceptionModelManager.make_prediction(tick_number):
 # In CoperceptionModelManager
 def _get_raw_data(self, tick_number: int) -> Optional[Dict]:
     """Returns raw data without running prediction"""
-    if self._current_batch_index == tick_number and self._current_batch_data is not None:
-        return self._current_batch_data
-    # Fallback: access dataset directly
-    if tick_number < len(self.opencood_dataset):
-        return self.opencood_dataset[tick_number]
+    # Directly access the dataset to get raw data (before preprocessing)
+    # This is critical for AdvCP attacks which need raw numpy LiDAR data
+    try:
+        if tick_number < len(self.opencood_dataset):
+            # Get raw data directly from dataset __getitem__
+            # This returns data BEFORE train_utils.to_device() preprocessing
+            raw_data = self.opencood_dataset[tick_number]
+            return raw_data
+    except Exception as e:
+        logger.warning(f"Failed to get raw data for tick {tick_number}: {e}")
     return None
 
 # In AdvCPManager
@@ -59,49 +84,97 @@ def _get_coperception_data(self, tick_number: int) -> Dict:
     """Gets data directly without calling make_prediction()"""
     raw_data = self.coperception_manager._get_raw_data(tick_number)
     if raw_data is None:
-        logger.warning(f"No raw data for tick {tick_number}")
+        logger.warning(f"No raw data available for tick {tick_number}")
         return {}
     return raw_data
 
 # Updated process_tick() signature
-def process_tick(self, tick_number: int, batch_data: Optional[Dict] = None, 
+def process_tick(self, tick_number: int, batch_data: Optional[Dict] = None,
                  predictions: Optional[Dict] = None) -> Tuple[Optional[Dict], Optional[float], Optional[Dict]]:
     """
     Process a single simulation tick with AdvCP capabilities.
-    
+
     Args:
         tick_number: Current simulation tick number
         batch_data: Pre-inference batch data (for early/intermediate attacks)
         predictions: Post-inference predictions (for late attacks)
-    
+
     Returns:
         Tuple of (modified_data, defense_score, defense_metrics)
     """
-    # Determine attack stage and get appropriate data
+    # Determine attack stage and prepare data accordingly
     if self.attack_type in ["lidar_remove_late", "lidar_spoof_late"]:
-        # Late attacks need predictions (after inference)
+        # Late attacks need both raw data and predictions
+        raw_data = self._get_coperception_data(tick_number)
+        if raw_data is None:
+            logger.warning(f"No raw data available for tick {tick_number}")
+            return None, None, None
+
         if predictions is None:
             logger.error("Late attacks require predictions, but none provided")
             return None, None, None
-        data_to_attack = predictions
+
+        # Apply late attack to raw data (which internally uses predictions)
+        modified_predictions = self._apply_attack(raw_data, predictions, tick_number)
+
+        # Apply defense if enabled
+        if self.apply_cad_defense and self.defender:
+            defended_data, defense_score, defense_metrics = self._apply_defense(
+                raw_data, modified_predictions, tick_number
+            )
+            return defended_data, defense_score, defense_metrics
+
+        return modified_predictions, None, None
     else:
-        # Early/intermediate attacks need raw data (before inference)
-        if batch_data is None:
-            data_to_attack = self._get_coperception_data(tick_number)
-        else:
-            data_to_attack = batch_data
+        # Early/intermediate attacks need RAW data (not preprocessed batch_data)
+        raw_data = self._get_coperception_data(tick_number)
+        if raw_data is None:
+            logger.warning(f"No raw data available for tick {tick_number}")
+            return None, None, None
+
+        # Apply attack to raw data
+        attacked_data = self._apply_attack(raw_data, tick_number)
+
+        # Convert attacked raw data back to OpenCOOD format using preprocessor
+        if self.perception is not None:
+            ego_id = self._get_ego_vehicle_id(raw_data)
+
+            # Apply appropriate preprocessor based on attack type
+            if self.attack_type in ["lidar_remove_early", "lidar_spoof_early"]:
+                preprocessed_data = self.perception.early_preprocess(attacked_data, ego_id)
+            elif self.attack_type in ["lidar_remove_intermediate", "lidar_spoof_intermediate"]:
+                preprocessed_data = self.perception.intermediate_preprocess(attacked_data, ego_id)
+            else:
+                preprocessed_data = None
+
+            if preprocessed_data is not None:
+                # Apply defense if enabled
+                if self.apply_cad_defense and self.defender:
+                    preprocessed_data, defense_score, defense_metrics = self._apply_defense(
+                        preprocessed_data, tick_number
+                    )
+                    return preprocessed_data, defense_score, defense_metrics
+
+                return preprocessed_data, None, None
+
+        return None, None, None
 ```
 
 ### Attack Stage Differentiation
 
 **Early/Intermediate Attacks:**
 - Work on raw point clouds before inference
-- Need `batch_data` parameter
+- Get raw data via `_get_coperception_data()` method
+- Apply attack to raw LiDAR data
+- Convert attacked data back to OpenCOOD format using `OpencoodPerception`
+- Run inference on preprocessed attacked data
 - Examples: `lidar_remove_early`, `lidar_spoof_early`, `lidar_remove_intermediate`, `lidar_spoof_intermediate`
 
 **Late Attacks:**
 - Work on predictions after inference
-- Need `predictions` parameter with `pred_bboxes`, `pred_scores`, `gt_bboxes`
+- Get original predictions first via `inference_utils.inference_xxx_fusion()`
+- Apply attack directly to predictions (modify `pred_bboxes`, `pred_scores`)
+- No preprocessing needed
 - Examples: `lidar_remove_late`, `lidar_spoof_late`
 
 ## Attack Types
@@ -185,7 +258,8 @@ opencda/core/common/advcp/
 └── mvp/                      # Implementations
     ├── attack/               # 7 attack types
     ├── defense/              # CAD defense
-    ├── perception/           # OpenCOOD wrapper
+    ├── perception/           # OpenCOOD wrapper and preprocessing
+    │   └── opencood_perception.py  # Preprocessing component
     ├── data/                 # Datasets and utilities
     ├── tools/                # Ray tracing, seg, tracking
     └── visualize/            # Visualization
@@ -234,6 +308,15 @@ The **AdvCP (Advanced Collaborative Perception)** module is a comprehensive fram
 - Implements point removal, point spoofing, and adversarial shape attacks
 - Provides CAD defense using geometric consistency checks
 - Includes full visualization and evaluation tooling
+- Uses `OpencoodPerception` for preprocessing raw data to OpenCOOD format
 - All components are in `mvp/` submodule and are activated only when `with_advcp=True`
 
 The attacks modify LiDAR point clouds at **sensor level** (early), **feature level** (intermediate), or **detection level** (late), while defense operates on **occupancy maps** derived from fused perceptions.
+
+### Key Implementation Details:
+
+- **No circular dependency**: AdvCP gets raw data via `_get_coperception_data()` without calling `make_prediction()`
+- **OpencoodPerception**: Converts attacked raw data back to OpenCOOD format for early/intermediate attacks
+- **Late attacks**: Work directly on predictions without preprocessing
+- **Early/Intermediate attacks**: Require preprocessing before running inference
+- **Defense**: Applied after attack/preprocessing, using geometric consistency checks

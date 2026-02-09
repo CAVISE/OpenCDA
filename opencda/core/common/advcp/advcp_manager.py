@@ -47,9 +47,9 @@ class AdvCPManager:
         self.attacker = None
         self.defender = None
         self.perception = None
+        self._initialize_perception()
         self._initialize_attacker()
         self._initialize_defender()
-        self._initialize_perception()
 
         # Attack/Defense flags
         self.with_advcp = opt.get("with_advcp", False)
@@ -103,8 +103,20 @@ class AdvCPManager:
             logger.error(f"Unsupported attack type: {self.attack_type}")
             return
 
-        # Create attacker instance with dataset from coperception manager
-        self.attacker = attack_class(dataset=self.coperception_manager.opencood_dataset)
+        # Create attacker instance with appropriate parameters
+        # Late and intermediate attackers require perception parameter
+        if self.attack_type in ["lidar_remove_late", "lidar_spoof_late", 
+                                  "lidar_remove_intermediate", "lidar_spoof_intermediate"]:
+            if self.perception is None:
+                logger.error(f"Perception not initialized, cannot create {self.attack_type} attacker")
+                return
+            self.attacker = attack_class(perception=self.perception, dataset=self.coperception_manager.opencood_dataset)
+        elif self.attack_type == "adv_shape":
+            # AdvShapeAttacker accepts perception as optional parameter
+            self.attacker = attack_class(perception=self.perception, dataset=self.coperception_manager.opencood_dataset)
+        else:
+            # Early attackers only need dataset
+            self.attacker = attack_class(dataset=self.coperception_manager.opencood_dataset)
         logger.info(f"Initialized {self.attack_type} attacker")
 
     def _initialize_defender(self) -> None:
@@ -173,11 +185,36 @@ class AdvCPManager:
     
         # Determine attack stage and prepare data accordingly
         if self.attack_type in ["lidar_remove_late", "lidar_spoof_late"]:
-            # Late attacks need predictions
+            # Late attacks need both raw data and predictions
+            # Raw data is needed for the attack to work (to extract target bbox, etc.)
+            # Predictions are the output that will be modified
+            raw_data = self._get_coperception_data(tick_number)
+            if raw_data is None:
+                logger.warning(f"No raw data available for tick {tick_number}")
+                return None, None, None
+            
             if predictions is None:
                 logger.error("Late attacks require predictions, but none provided")
                 return None, None, None
-            data_to_attack = predictions
+            
+            # Apply late attack to raw data (which internally uses predictions)
+            if self.attacker:
+                modified_predictions = self._apply_attack(raw_data, predictions, tick_number)
+            else:
+                modified_predictions = predictions
+            
+            # Apply defense if enabled
+            defense_score = None
+            defense_metrics = None
+            if self.apply_cad_defense and self.defender:
+                # For late attacks, we need to convert predictions back to format expected by defender
+                # The defender expects multi_frame_case with raw data + predictions
+                defended_data, defense_score, defense_metrics = self._apply_defense(
+                    raw_data, modified_predictions, tick_number
+                )
+                return defended_data, defense_score, defense_metrics
+            
+            return modified_predictions, defense_score, defense_metrics
         else:
             # Early/intermediate attacks need RAW data (not preprocessed batch_data)
             # Get raw data from coperception manager
@@ -223,29 +260,14 @@ class AdvCPManager:
             else:
                 logger.warning("OpencoodPerception not initialized, cannot preprocess attacked data")
                 return None, None, None
-        
-        # For late attacks, apply attack to predictions
-        if self.attacker:
-            modified_data = self._apply_attack(data_to_attack, tick_number)
-        else:
-            modified_data = data_to_attack
-        
-        # Apply defense if enabled
-        defense_score = None
-        defense_metrics = None
-        if self.apply_cad_defense and self.defender:
-            modified_data, defense_score, defense_metrics = self._apply_defense(
-                modified_data, tick_number
-            )
-        
-        return modified_data, defense_score, defense_metrics
 
-    def _apply_attack(self, data: Dict, tick_number: int) -> Dict:
+    def _apply_attack(self, data: Dict, predictions: Optional[Dict] = None, tick_number: int = None) -> Dict:
         """
         Apply attack to the perception data.
 
         Args:
-            data: Perception data from coperception manager (raw format for early/intermediate)
+            data: Perception data from coperception manager (raw format for all attacks)
+            predictions: Optional predictions dict (for late attacks)
             tick_number: Current simulation tick number
 
         Returns:
@@ -254,14 +276,77 @@ class AdvCPManager:
         if not self.attacker:
             return data
 
-        # For early/intermediate attacks, data is in raw format {vehicle_id: {...}}
-        # For late attacks, data is predictions dict
-        
-        # Check if this is a late attack (predictions format)
+        # Check if this is a late attack
         if self.attack_type in ["lidar_remove_late", "lidar_spoof_late"]:
-            # Late attacks work on predictions, return as-is for now
-            # Late attacks need special handling that's not fully implemented yet
-            return data
+            # Late attacks need raw data and predictions
+            if predictions is None:
+                logger.error("Late attacks require predictions parameter")
+                return predictions if predictions is not None else data
+            
+            # Format data as multi-frame case for late attacks
+            # Late attacks expect: multi_frame_case[frame_id][vehicle_id]
+            multi_frame_case = {tick_number: data}
+            
+            # Add predictions to the multi-frame case for the ego vehicle
+            ego_id = self._get_ego_vehicle_id(data)
+            if ego_id in multi_frame_case[tick_number]:
+                # Convert predictions to numpy arrays if they are tensors
+                pred_bboxes = predictions["pred_bboxes"]
+                pred_scores = predictions["pred_scores"]
+                
+                if hasattr(pred_bboxes, 'cpu'):
+                    pred_bboxes = pred_bboxes.cpu().numpy()
+                if hasattr(pred_scores, 'cpu'):
+                    pred_scores = pred_scores.cpu().numpy()
+                
+                multi_frame_case[tick_number][ego_id]["pred_bboxes"] = pred_bboxes
+                multi_frame_case[tick_number][ego_id]["pred_scores"] = pred_scores
+            
+            # Determine attacker and victim vehicles
+            attacker_vehicles = self._select_attacker_vehicles()
+            if len(attacker_vehicles) == 0:
+                logger.warning("No attacker vehicles available")
+                return predictions
+            
+            attacker_id = attacker_vehicles[0]
+            victim_id = ego_id  # Attack the ego vehicle
+            
+            # Select attack target
+            attack_target = self._select_attack_target(data[attacker_id], attacker_id)
+            
+            # Prepare attack options
+            attack_opts = {
+                "frame_ids": [tick_number],
+                "attacker_vehicle_id": attacker_id,
+                "victim_vehicle_id": victim_id,
+            }
+            
+            if attack_target:
+                if "object_id" in attack_target:
+                    attack_opts["object_id"] = attack_target["object_id"]
+                if "bboxes" in attack_target:
+                    attack_opts["bboxes"] = attack_target["bboxes"]
+                if "positions" in attack_target:
+                    attack_opts["positions"] = {tick_number: attack_target["positions"]}
+            
+            # Apply late attack
+            try:
+                attacked_case, attack_info = self.attacker.run(multi_frame_case, attack_opts)
+                
+                # Extract the modified predictions for the ego vehicle
+                if tick_number in attacked_case and ego_id in attacked_case[tick_number]:
+                    modified_predictions = {
+                        "pred_bboxes": attacked_case[tick_number][ego_id].get("pred_bboxes", predictions["pred_bboxes"]),
+                        "pred_scores": attacked_case[tick_number][ego_id].get("pred_scores", predictions["pred_scores"]),
+                        "gt_bboxes": predictions.get("gt_bboxes")
+                    }
+                    return modified_predictions
+                else:
+                    logger.warning(f"Late attack did not return data for tick {tick_number}")
+                    return predictions
+            except Exception as e:
+                logger.error(f"Late attack failed: {e}")
+                return predictions
         
         # For early/intermediate attacks, format data as multi-frame case
         # Attacks expect: multi_frame_case[frame_id][vehicle_id]
@@ -317,7 +402,7 @@ class AdvCPManager:
             if len(vehicle_data["object_ids"]) > 0:
                 import random
 
-                random.seed(42)
+                random.seed(22)
                 obj_idx = random.randint(0, len(vehicle_data["object_ids"]) - 1)
                 return {"object_id": vehicle_data["object_ids"][obj_idx], "bboxes": [vehicle_data["gt_bboxes"][obj_idx]], "positions": None}
 

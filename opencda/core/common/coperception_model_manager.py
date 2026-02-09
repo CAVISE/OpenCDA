@@ -146,7 +146,7 @@ class CoperceptionModelManager:
                     original_pred_box_tensor = None
                     original_pred_score = None
                     original_gt_box_tensor = None
-                    
+
                     if self.advcp_manager.attack_type in ["lidar_remove_late", "lidar_spoof_late"]:
                         # Late attacks need predictions
                         if self.opt.fusion_method == "late":
@@ -168,28 +168,28 @@ class CoperceptionModelManager:
                         predictions = {
                             "pred_bboxes": original_pred_box_tensor,
                             "pred_scores": original_pred_score,
-                            "gt_bboxes": original_gt_box_tensor
+                            "gt_bboxes": original_gt_box_tensor,
                         }
                     else:
                         # Early/intermediate attacks don't need predictions
                         predictions = None
-                    
+
                     # Apply AdvCP attacks/defenses
-                    modified_data, defense_score, defense_metrics = self.advcp_manager.process_tick(
-                        i, 
-                        batch_data=batch_data,
-                        predictions=predictions
-                    )
+                    modified_data, defense_score, defense_metrics = self.advcp_manager.process_tick(i, batch_data=batch_data, predictions=predictions)
 
                     if modified_data:
                         # For early/intermediate attacks, modified_data is preprocessed OpenCOOD format
                         # We need to run inference on it to get predictions
-                        if self.advcp_manager.attack_type in ["lidar_remove_early", "lidar_spoof_early", 
-                                                              "lidar_remove_intermediate", "lidar_spoof_intermediate"]:
+                        if self.advcp_manager.attack_type in [
+                            "lidar_remove_early",
+                            "lidar_spoof_early",
+                            "lidar_remove_intermediate",
+                            "lidar_spoof_intermediate",
+                        ]:
                             # Convert modified_data to batch format and run inference
                             modified_batch_data = self.opencood_dataset.collate_batch_test([modified_data])
                             modified_batch_data = train_utils.to_device(modified_batch_data, self.device)
-                            
+
                             # Run inference on attacked data
                             if self.opt.fusion_method == "early":
                                 pred_box_tensor, pred_score, gt_box_tensor = inference_utils.inference_early_fusion(

@@ -22,7 +22,7 @@ CoperceptionModelManager.make_prediction(tick_number):
             original_pred = inference_utils.inference_xxx_fusion()
 
             # 2. Применить AdvCP (без рекурсии)
-            modified_data, defense_score, metrics = advcp_manager.process_tick(i)
+            modified_data, defense_score, metrics = advcp_manager.process_tick(i, batch_data, original_pred)
 
             # 3. Использовать модифицированные данные
             pred_box_tensor = extract_from(modified_data)
@@ -53,16 +53,83 @@ def _get_coperception_data(self, tick_number: int) -> Dict:
         return {}
     return raw_data
 
-def process_tick(self, tick_number: int) -> Tuple[Optional[Dict], Optional[float], Optional[Dict]]:
+def process_tick(self, tick_number: int, batch_data: Optional[Dict] = None,
+                  predictions: Optional[Dict] = None) -> Tuple[Optional[Dict], Optional[float], Optional[Dict]]:
     """Обрабатывает тик без circular dependency"""
     if not self.with_advcp:
         return None, None, None
-    # Получаем данные напрямую, а не через make_prediction()
-    coperception_data = self._get_coperception_data(tick_number)
-    # ... остальной код атаки/защиты
+
+    # Определяем этап атаки и подготавливаем данные соответствующим образом
+    if self.attack_type in ["lidar_remove_late", "lidar_spoof_late"]:
+        # Late атаки требуют и сырые данные, и предсказания
+        raw_data = self._get_coperception_data(tick_number)
+        if raw_data is None:
+            return None, None, None
+
+        if predictions is None:
+            logger.error("Late атаки требуют predictions, но они не предоставлены")
+            return None, None, None
+
+        # Применяем late атаку к предсказаниям
+        modified_predictions = self._apply_attack(raw_data, predictions, tick_number)
+
+        # Применяем защиту если включена
+        if self.apply_cad_defense and self.defender:
+            defended_data, defense_score, defense_metrics = self._apply_defense(
+                raw_data, modified_predictions, tick_number
+            )
+            return defended_data, defense_score, defense_metrics
+
+        return modified_predictions, None, None
+    else:
+        # Early/intermediate атаки требуют СЫРЫЕ данные (не preprocessed batch_data)
+        raw_data = self._get_coperception_data(tick_number)
+        if raw_data is None:
+            return None, None, None
+
+        # Применяем атаку к сырым данным
+        attacked_data = self._apply_attack(raw_data, tick_number)
+
+        # Конвертируем атакованные сырые данные обратно в формат OpenCOOD
+        if self.perception is not None:
+            ego_id = self._get_ego_vehicle_id(raw_data)
+
+            # Применяем соответствующий препроцессор в зависимости от типа атаки
+            if self.attack_type in ["lidar_remove_early", "lidar_spoof_early"]:
+                preprocessed_data = self.perception.early_preprocess(attacked_data, ego_id)
+            elif self.attack_type in ["lidar_remove_intermediate", "lidar_spoof_intermediate"]:
+                preprocessed_data = self.perception.intermediate_preprocess(attacked_data, ego_id)
+            else:
+                preprocessed_data = None
+
+            if preprocessed_data is not None:
+                # Применяем защиту если включена
+                if self.apply_cad_defense and self.defender:
+                    preprocessed_data, defense_score, defense_metrics = self._apply_defense(
+                        preprocessed_data, tick_number
+                    )
+                    return preprocessed_data, defense_score, defense_metrics
+
+                return preprocessed_data, None, None
+
+        return None, None, None
 ```
 
 ## Структура AdvCPManager
+
+### 0. OpencoodPerception (Preprocessing Component)
+
+**Назначение:** Препроцессинг сырых данных в формат OpenCOOD
+
+**Методы:**
+- `early_preprocess()` - для early fusion атак
+- `intermediate_preprocess()` - для intermediate fusion атак
+- `late_preprocess()` - для late fusion атак
+
+**Использование:**
+- Инициализируется при включении AdvCP
+- Используется для конвертации атакованных сырых данных обратно в формат OpenCOOD
+- Требуется для early/intermediate атак после применения атаки
 
 ### 1. Атаки (Attack Engine)
 
@@ -73,21 +140,31 @@ def process_tick(self, tick_number: int) -> Tuple[Optional[Dict], Optional[float
 
 **Типы атак по уровню:**
 
-| Уровень | Атака | Что модифицирует | Инструменты |
-| --- | --- | --- | --- |
-| **Early** | Удаление/Спуфинг точек | Сырые LiDAR точки | Ray Casting Engine |
-| **Intermediate** | Удаление/Спуфинг фич | Промежуточные признаки | Adversarial Generator |
-| **Late** | Удаление/Спуфинг боксов | Финальные bounding boxes | Прямая модификация |
+| Уровень | Атака | Что модифицирует | Требуемые данные | Инструменты |
+| --- | --- | --- | --- | --- |
+| **Early** | Удаление/Спуфинг точек | Сырые LiDAR точки | Сырые данные | Ray Casting Engine |
+| **Intermediate** | Удаление/Спуфинг фич | Промежуточные признаки | Сырые данные + Perception | Adversarial Generator |
+| **Late** | Удаление/Спуфинг боксов | Финальные bounding boxes | Сырые данные + Предсказания | Прямая модификация |
 
 **Пример работы атаки:**
 
 ```python
-Attacker.run(multi_vehicle_case, attack_opts):
+# Late атаки (требуют predictions)
+Attacker.run(multi_frame_case, attack_opts):
+    # multi_frame_case содержит сырые данные + predictions для ego vehicle
     for attacker_vehicle:
-        # Модифицировать данные (точки/фичи/боксы)
-        modified_data[vehicle_id] = {
+        # Модифицировать predictions (боксы/скоры)
+        modified_predictions = {
             "pred_bboxes": ...,  # измененные боксы
             "pred_scores": ...,  # измененные скоры
+        }
+    return modified_predictions
+
+# Early/Intermediate атаки (требуют только сырые данные)
+Attacker.run(multi_frame_case, attack_opts):
+    for attacker_vehicle:
+        # Модифицировать сырые данные (точки/фичи)
+        modified_data[vehicle_id] = {
             "lidar": ...,       # измененные точки (early)
             "features": ...     # измененные фичи (intermediate)
         }
@@ -111,7 +188,19 @@ Attacker.run(multi_vehicle_case, attack_opts):
 3. **Возврат:**
 
 ```python
-defended_data, score, metrics = defender.run(multi_frame_case, opts)
+def _apply_defense(self, data: Dict, tick_number: int) -> Tuple[Dict, Optional[float], Optional[Dict]]:
+    """Применяет защиту к данным"""
+    if not self.defender:
+        return data, None, None
+
+    # Подготовка multi-frame case для защиты
+    multi_frame_case = {tick_number: data}
+    defend_opts = {"frame_ids": [tick_number], "vehicle_ids": list(data.keys())}
+
+    # Запуск защиты
+    defended_data, score, metrics = self.defender.run(multi_frame_case, defend_opts)
+
+    return defended_data[tick_number], score, metrics
 ```
 
 **Инструменты защиты:**
@@ -139,7 +228,7 @@ class CoperceptionModelManager:
 
         # Инициализация AdvCP (если включен)
         if opt.get("with_advcp"):
-            self.advcp_manager = AdvCPManager(advcp_config, ...)
+            self.advcp_manager = AdvCPManager(opt, current_time, self, message_handler)
 
     def make_prediction(self, tick_number):
         for batch_data in self.data_loader:
@@ -147,8 +236,10 @@ class CoperceptionModelManager:
                 # Оригинальный инференс
                 original_pred = inference_utils.inference_xxx_fusion(batch_data, ...)
 
-                # AdvCP обработка
-                modified_data, defense_score, metrics = self.advcp_manager.process_tick(tick_number)
+                # AdvCP обработка (передаем batch_data и predictions)
+                modified_data, defense_score, metrics = self.advcp_manager.process_tick(
+                    tick_number, batch_data, original_pred
+                )
 
                 # Извлечение предсказаний
                 if modified_data:

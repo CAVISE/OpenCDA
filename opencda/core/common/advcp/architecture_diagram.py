@@ -12,28 +12,15 @@ No OPV2V dataset dependency, no separate dataset initialization in AdvCP.
 """
 
 from diagrams import Diagram, Cluster, Edge
-from diagrams.onprem.compute import Server
-from diagrams.onprem.container import Docker
-from diagrams.generic.compute import Rack
 from diagrams.programming.language import Python
-from diagrams.onprem.client import Client
 from diagrams.generic.storage import Storage
 
-graph_attr = {
-    "splines": "spline",
-    "nodesep": "1.5",
-    "ranksep": "1.8",
-    "fontsize": "12",
-    "dpi": "150",
-    "rankdir": "LR"
-}
+graph_attr = {"splines": "spline", "nodesep": "1.5", "ranksep": "1.8", "fontsize": "12", "dpi": "150", "rankdir": "LR"}
 
 edge_attr = {"fontsize": "10", "penwidth": "1.2"}
 node_attr = {"fontsize": "10", "width": "1.2", "height": "0.8"}
 
-with Diagram("AdvCP Module Architecture (Current)", show=False, direction="LR",
-             graph_attr=graph_attr, node_attr=node_attr, edge_attr=edge_attr):
-
+with Diagram("AdvCP Module Architecture (Current)", show=False, direction="LR", graph_attr=graph_attr, node_attr=node_attr, edge_attr=edge_attr):
     # ==================== OPENCDA CORE ====================
     with Cluster("OpenCDA Core"):
         coperception_mgr = Python("CoperceptionModelManager\nMain Perception Manager")
@@ -51,6 +38,9 @@ with Diagram("AdvCP Module Architecture (Current)", show=False, direction="LR",
     # ==================== ADVCP MODULE ====================
     with Cluster("AdvCP Module"):
         advcp_mgr = Python("AdvCPManager\nprocess_tick()")
+
+        with Cluster("Preprocessing"):
+            perception = Python("OpencoodPerception\nearly/intermediate_preprocess()")
 
         with Cluster("Attack Components"):
             attacker = Python("Attacker\n(lidar_remove/spoof)")
@@ -75,8 +65,8 @@ with Diagram("AdvCP Module Architecture (Current)", show=False, direction="LR",
     # 3. Store current batch data (for AdvCP)
     coperception_mgr >> Edge(label="store in\n_current_batch_data", color="orange", style="dashed") >> coperception_mgr
 
-    # 4. Original inference (before AdvCP)
-    coperception_mgr >> Edge(label="inference_*_fusion()", color="blue") >> inference_utils
+    # 4. Original inference (before AdvCP, for late attacks)
+    coperception_mgr >> Edge(label="if late attack:\ninference_*_fusion()", color="blue") >> inference_utils
     inference_utils >> Edge(label="original_pred, original_gt", color="blue") >> coperception_mgr
 
     # 5. Model usage
@@ -89,26 +79,37 @@ with Diagram("AdvCP Module Architecture (Current)", show=False, direction="LR",
     advcp_mgr >> Edge(label="_get_coperception_data()", color="orange") >> coperception_mgr
     coperception_mgr >> Edge(label="_get_raw_data()\nreturn stored batch_data", color="orange") >> advcp_mgr
 
-    # 6. Attack flow (conditional)
-    advcp_mgr >> Edge(label="if attack enabled\n_apply_attack()", color="green", style="bold") >> attacker
-    attacker >> Edge(label="modified_data\n(pred_bboxes, pred_scores)", color="green", style="bold") >> advcp_mgr
+    # 8. Attack flow (conditional based on attack type)
+    advcp_mgr >> Edge(label="if late attack:\n_apply_attack(predictions)", color="green", style="bold") >> attacker
+    attacker >> Edge(label="modified predictions\n(pred_bboxes, pred_scores)", color="green", style="bold") >> advcp_mgr
 
-    # 7. Defense flow (conditional, after attack)
+    advcp_mgr >> Edge(label="if early/inter attack:\n_apply_attack(raw_data)", color="green", style="bold") >> attacker
+    attacker >> Edge(label="modified raw data\n(LiDAR points)", color="green", style="bold") >> advcp_mgr
+
+    # 9. Preprocessing for early/intermediate attacks
+    advcp_mgr >> Edge(label="if early/inter attack:\npreprocess to OpenCOOD", color="blue") >> perception
+    perception >> Edge(label="early_preprocess() or\nintermediate_preprocess()", color="blue") >> advcp_mgr
+
+    # 10. Defense flow (conditional, after attack/preprocessing)
     advcp_mgr >> Edge(label="if defense enabled\n_apply_defense()", color="red", style="bold") >> defender
     defender >> Edge(label="defended_data, score, metrics", color="red", style="bold") >> advcp_mgr
 
-    # 8. Return modified or original predictions
+    # 11. Return modified or original predictions
     advcp_mgr >> Edge(label="return\n(modified_data, score, metrics)", color="purple") >> coperception_mgr
 
-    # 9. Evaluation
+    # 12. For early/intermediate attacks: run inference on preprocessed data
+    coperception_mgr >> Edge(label="if early/inter attack:\ninference on modified_data", color="blue") >> inference_utils
+    inference_utils >> Edge(label="predictions from\nattacked data", color="blue") >> coperception_mgr
+
+    # 13. Evaluation
     coperception_mgr >> Edge(label="pred_box_tensor,\n pred_score, gt_box_tensor", color="blue") >> eval_utils
     eval_utils >> Edge(label="TP/FP/Stats", color="blue") >> coperception_mgr
 
-    # 10. Visualization (optional)
+    # 14. Visualization (optional)
     coperception_mgr >> Edge(label="if save_vis/show_vis", color="purple", style="dashed") >> simple_vis
     simple_vis >> Edge(label="rendered images", color="purple", style="dashed") >> coperception_mgr
 
-    # 11. Model reference
+    # 15. Model reference
     coperception_mgr >> Edge(label="model", color="blue", style="dotted") >> opencood_model
 
 print("AdvCP Architecture Diagram generated successfully!")
