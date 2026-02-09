@@ -37,10 +37,11 @@ class CommunicationManager:
 
         if self.socket is None:
             raise RuntimeError("Socket is not initialized")
+        
+        self.socket.setsockopt(zmq.RCVTIMEO, 2000)
 
         for attempt in range(self.artery_retries):
             try:
-                self.socket.setsockopt(zmq.RCVTIMEO, 2000)
                 self.socket.send(serialized_message)
             except zmq.Again:
                 logger.warning(f"Send timeout on attempt #{attempt + 1}")
@@ -66,10 +67,11 @@ class CommunicationManager:
     def receive_message(self) -> proto_capi.Message:
         if self.socket is None:
             raise RuntimeError("Socket is not initialized")
+        
+        self.socket.setsockopt(zmq.RCVTIMEO, max(1, int(self.artery_timeout * 1000 / self.artery_retries)))
 
         for attempt in range(self.artery_retries):
             try:
-                self.socket.setsockopt(zmq.RCVTIMEO, max(1, int(self.artery_timeout * 1000 / self.artery_retries)))
                 reply = self.socket.recv()
             except zmq.Again:
                 logger.warning(f"Result did not arrive from Artery. Retry #{attempt + 1}...")
