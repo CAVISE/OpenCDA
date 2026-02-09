@@ -16,7 +16,6 @@ import opencda.scenario_testing.utils.customized_map_api as map_api
 from opencda.core.common.cav_world import CavWorld
 from opencda.core.common.vehicle_manager import VehicleManager
 from opencda.core.common.rsu_manager import RSUManager
-from opencda.core.common.communication.payload_handler import PayloadHandler
 from opencda.core.application.platooning.platooning_manager import PlatooningManager
 from opencda.core.common.aim_model_manager import AIMModelManager
 from AIM import get_model
@@ -48,8 +47,8 @@ class Scenario:
         self.scenario_params, current_time = add_current_time(scenario_params)
         logger.info(f"running scenario with name: {self.scenario_name}; current time: {current_time}")
 
-        self.cav_world = CavWorld(opt.apply_ml, opt.with_capi)
-        logger.info(f"created cav world, using apply_ml = {opt.apply_ml}, with_capi = {opt.with_capi}")
+        self.cav_world = CavWorld(opt.apply_ml)
+        logger.info(f"created cav world, using apply_ml = {opt.apply_ml}")
 
         self.payload_manager = None
         self.communication_manager = None
@@ -94,10 +93,13 @@ class Scenario:
             )
 
         if opt.with_capi:
+            from opencda.core.common.communication import toolchain
+            toolchain.CommunicationToolchain.handle_messages(["entity", "opencda", "artery", "capi", "ack"])
             from opencda.core.common.communication.communication_manager import CommunicationManager
+            from opencda.core.common.communication.payload_handler import PayloadHandler
 
             self.communication_manager = CommunicationManager(
-                artery_address=f"tcp://{opt.artery_address}", artery_retries=opt.artery_retries, artery_timeout=opt.artery_timeout
+                artery_address=f"tcp://{opt.artery_host}", artery_retries=opt.artery_retries, artery_timeout=opt.artery_timeout
             )
             self.payload_handler = PayloadHandler()
             logger.info("running: creating message handler")

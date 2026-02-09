@@ -53,7 +53,7 @@ class PayloadHandler:
                 entity_id = entity_info.id
                 self.current_artery_payload[ego_id][entity_id] = pickle.loads(entity_info.auxillary)
 
-    def clear_messages(self):
+    def clear_messages(self) -> None:
         # Clear opencda and artery dict messages to avoid usage of date from previous ticks
         self.current_opencda_payload = {}
         self.current_artery_payload = {}
