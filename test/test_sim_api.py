@@ -72,7 +72,7 @@ def _make_mock_world():
 
 def _make_mock_client(world):
     """Create a mocked CARLA client bound to the provided world."""
-    client = Mock(spec_set=["set_timeout", "get_world", "load_world"])
+    client = Mock(spec_set=["set_timeout", "get_world", "load_world", "get_trafficmanager"])
     client.set_timeout = Mock()
     client.get_world.return_value = world
     return client
@@ -1263,3 +1263,134 @@ def test_create_platoon_manager_spawn_position_is_converted_to_transform(mocker,
 
     assert spawn_custom_actor.call_args_list[0].args[0] == expected_t1
     assert spawn_custom_actor.call_args_list[1].args[0] == expected_t2
+
+
+def test_create_rsu_manager_single_rsu(mocker, minimal_rsu_config):
+    """create_rsu_manager creates one RSU when scenario has one entry and returns correct carla-id mapping."""
+    from test import mocked_carla as carla
+
+    params = _minimal_scenario_params()
+    params["rsu_base"] = minimal_rsu_config
+    params["scenario"] = {"rsu_list": [{"id": 3, "spawn_position": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]}]}
+
+    sm, world, _ = _make_scenario_manager(mocker, params)
+
+    bp_lib = Mock(spec_set=["find"])
+    static_bp = Mock(spec_set=[])
+    bp_lib.find.return_value = static_bp
+    world.get_blueprint_library.return_value = bp_lib
+
+    actor = Mock(spec_set=["id"])
+    actor.id = 999
+    world.spawn_actor.return_value = actor
+
+    rsu_mgr = Mock()
+    rsu_mgr.rid = "rsu-3"
+    rsu_ctor = mocker.patch("opencda.scenario_testing.utils.sim_api.RSUManager", return_value=rsu_mgr)
+
+    rsu_list, rsu_ids = sm.create_rsu_manager(data_dump=False)
+
+    assert rsu_list == [rsu_mgr]
+    assert rsu_ids == {999: "rsu-3"}
+
+    bp_lib.find.assert_called_once_with("static.prop.gnome")
+
+    expected_transform = carla.Transform(
+        carla.Location(1.0, 2.0, 3.0),
+        carla.Rotation(pitch=6.0, yaw=5.0, roll=4.0),
+    )
+    world.spawn_actor.assert_called_once_with(static_bp, expected_transform)
+
+    rsu_ctor.assert_called_once()
+    assert rsu_ctor.call_args.args[0] is world
+    assert rsu_ctor.call_args.args[2] is sm.carla_map
+    assert rsu_ctor.call_args.args[3] is sm.cav_world
+    assert rsu_ctor.call_args.args[4] == "t0"
+    assert rsu_ctor.call_args.args[5] is False
+
+
+def test_create_traffic_carla_with_vehicle_list_uses_spawn_vehicles_by_list(mocker):
+    """create_traffic_carla uses spawn_vehicles_by_list when vehicle_list is a list."""
+    params = _minimal_scenario_params()
+    params["carla_traffic_manager"] = {
+        "global_distance": 2.0,
+        "sync_mode": True,
+        "set_osm_mode": False,
+        "global_speed_perc": 10,
+        "auto_lane_change": True,
+        "random": False,
+        "vehicle_list": [{"spawn_position": [0.0, 0.0, 0.3, 0.0, 0.0, 0.0]}],
+    }
+
+    sm, world, client = _make_scenario_manager(mocker, params)
+
+    tm = Mock(
+        spec_set=[
+            "set_global_distance_to_leading_vehicle",
+            "set_synchronous_mode",
+            "set_osm_mode",
+            "global_percentage_speed_difference",
+        ]
+    )
+    tm.set_global_distance_to_leading_vehicle = Mock()
+    tm.set_synchronous_mode = Mock()
+    tm.set_osm_mode = Mock()
+    tm.global_percentage_speed_difference = Mock()
+    client.get_trafficmanager.return_value = tm
+
+    sm.spawn_vehicles_by_list = Mock(return_value=["V1"])
+    sm.spawn_vehicle_by_range = Mock(return_value=["SHOULD_NOT_HAPPEN"])
+
+    out_tm, bg_list = sm.create_traffic_carla()
+
+    assert out_tm is tm
+    assert bg_list == ["V1"]
+    sm.spawn_vehicles_by_list.assert_called_once_with(tm, params["carla_traffic_manager"], [])
+    sm.spawn_vehicle_by_range.assert_not_called()
+
+
+def test_create_traffic_carla_with_range_uses_spawn_vehicle_by_range(mocker):
+    """create_traffic_carla uses spawn_vehicle_by_range when vehicle_list is not a list (range-based spawning)."""
+    params = _minimal_scenario_params()
+    params["carla_traffic_manager"] = {
+        "global_distance": 2.0,
+        "sync_mode": True,
+        "set_osm_mode": False,
+        "global_speed_perc": 10,
+        "auto_lane_change": True,
+        "random": False,
+        "vehicle_list": "RANGE_MODE",
+        "range": [[0.0, 1.0, 0.0, 1.0, 1.0, 1.0, 1]],
+        "ignore_lights_percentage": 0,
+        "ignore_signs_percentage": 0,
+        "ignore_vehicles_percentage": 0,
+        "ignore_walkers_percentage": 0,
+        "random_left_lanechange_percentage": 0,
+        "random_right_lanechange_percentage": 0,
+    }
+
+    sm, world, client = _make_scenario_manager(mocker, params)
+
+    tm = Mock(
+        spec_set=[
+            "set_global_distance_to_leading_vehicle",
+            "set_synchronous_mode",
+            "set_osm_mode",
+            "global_percentage_speed_difference",
+        ]
+    )
+    tm.set_global_distance_to_leading_vehicle = Mock()
+    tm.set_synchronous_mode = Mock()
+    tm.set_osm_mode = Mock()
+    tm.global_percentage_speed_difference = Mock()
+    client.get_trafficmanager.return_value = tm
+
+    sm.spawn_vehicles_by_list = Mock(return_value=["SHOULD_NOT_HAPPEN"])
+    sm.spawn_vehicle_by_range = Mock(return_value=["V2"])
+
+    out_tm, bg_list = sm.create_traffic_carla()
+
+    assert out_tm is tm
+    assert bg_list == ["V2"]
+    sm.spawn_vehicle_by_range.assert_called_once_with(tm, params["carla_traffic_manager"], [])
+    sm.spawn_vehicles_by_list.assert_not_called()
