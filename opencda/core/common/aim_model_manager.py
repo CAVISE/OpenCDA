@@ -6,11 +6,11 @@ import numpy as np
 import pickle as pkl
 from scipy.spatial import distance
 
-from CoDriving.scripts.constants import CONTROL_RADIUS, THRESHOLD, FORCE_VALUE
 from opencda.co_simulation.sumo_integration.bridge_helper import BridgeHelper
 from AIM import AIMModel
 
-logger = logging.getLogger("cavise.opencda.opencda.core.common.codriving_model_manager")
+
+logger = logging.getLogger("cavise.codriving_model_manager")
 
 
 class AIMModelManager:
@@ -23,6 +23,10 @@ class AIMModelManager:
 
         :return: None
         """
+        self.CONTROL_RADIUS = 15
+        self.THRESHOLD = 10
+        self.FORCE_VALUE = 20
+
         self.mtp_controlled_vehicles = set()
 
         self.cav_ids = set()
@@ -71,18 +75,6 @@ class AIMModelManager:
                 return vmanager
         return None
 
-    def _is_carla_id(self, vid):
-        """
-        Checks if there exists virtual manager with selected vid.
-
-        :param vid: virtual manager id (string)
-        :return: boolean value
-        """
-        for vmanager in self.carla_vmanagers:
-            if vmanager.vid == vid:
-                return True
-        return False
-
     def make_trajs(self, carla_vmanagers):
         """
         Creates new trajectories based on model predictions, assigns CAVs new destinations.
@@ -90,15 +82,12 @@ class AIMModelManager:
         :param carla_vmanagers: carla virtual managers
         :return: None
         """
-        # List of cars from SUMO and CARLA
-        self.cav_ids = traci.vehicle.getIDList()
-
+        # List of cars from CARLA
         self.carla_vmanagers = carla_vmanagers
+        self.cav_ids = [vmanager.vid for vmanager in self.carla_vmanagers]
 
-        # Обновляем траектории всех машин (SUMO + CARLA)
         self.update_trajs()
 
-        # Получаем признаки агентов и список их идентификаторов
         features, target_agent_ids = self.encoding_scenario_features()
         num_agents = features.shape[0]
 
@@ -111,11 +100,9 @@ class AIMModelManager:
 
         predictions = self.model.predict(features, target_agent_ids)
 
-        # Обрабатываем каждого агента
         for idx in range(num_agents):
             vehicle_id = target_agent_ids[idx]
 
-            # Получаем текущую позицию
             pos_x, pos_y = traci.vehicle.getPosition(vehicle_id)
             curr_pos = np.array([pos_x, pos_y])
 
@@ -126,7 +113,7 @@ class AIMModelManager:
             control_center = np.array(nearest_node.getCoord())
             distance_to_center = np.linalg.norm(curr_pos - control_center)
 
-            if distance_to_center < CONTROL_RADIUS:
+            if distance_to_center < self.CONTROL_RADIUS:
                 self.mtp_controlled_vehicles.add(vehicle_id)
 
                 pred_delta = predictions[idx].reshape(30, 2).detach().cpu().numpy()
@@ -143,38 +130,29 @@ class AIMModelManager:
                 rotation = self.rotation_matrix_back(yaw)
                 global_delta = (rotation @ local_delta).squeeze()
                 global_delta[1] *= -1
-                if self._is_carla_id(vehicle_id):
-                    cav = self._get_vmanager_by_vid(vehicle_id)
-                    if cav is None:
-                        continue
 
-                    pos = cav.vehicle.get_location()
+                cav = self._get_vmanager_by_vid(vehicle_id)
+                if cav is None:
+                    continue
 
-                    global_delta = np.where(np.abs(global_delta) <= THRESHOLD, np.sign(global_delta) * FORCE_VALUE, global_delta)
+                pos = cav.vehicle.get_location()
 
-                    next_loc = carla.Location(
-                        x=pos.x + global_delta[0],
-                        y=pos.y - global_delta[1],
-                        z=pos.z,
-                    )
+                global_delta = np.where(np.abs(global_delta) <= self.THRESHOLD, np.sign(global_delta) * self.FORCE_VALUE, global_delta)
 
-                    cav.set_destination(pos, next_loc, clean=True, end_reset=False)
-                    cav.update_info_v2x()
+                next_loc = carla.Location(
+                    x=pos.x + global_delta[0],
+                    y=pos.y - global_delta[1],
+                    z=pos.z,
+                )
 
-                    if len(cav.agent.get_local_planner().get_waypoint_buffer()) == 0:
-                        logger.warning(f"{vehicle_id}: waypoint buffer is empty after set_destination!")
-                else:
-                    try:
-                        next_x = pos_x + global_delta[0]
-                        next_y = pos_y + global_delta[1]
-                        angle = self.get_yaw(vehicle_id, np.array([next_x, next_y]), self.yaw_dict)
-                        traci.vehicle.moveToXY(vehicle_id, edgeID=-1, lane=-1, x=next_x, y=next_y, angle=angle, keepRoute=2)
-                    except traci.TraCIException as e:
-                        logger.error(f"Failed to move vehicle {vehicle_id}: {e}")
+                cav.set_destination(pos, next_loc, clean=True, end_reset=False)
+                cav.update_info_v2x()
+
+                if len(cav.agent.get_local_planner().get_waypoint_buffer()) == 0:
+                    logger.warning(f"{vehicle_id}: waypoint buffer is empty after set_destination!")
             elif vehicle_id in self.mtp_controlled_vehicles:
-                if self._is_carla_id(vehicle_id):
-                    cav = self._get_vmanager_by_vid(vehicle_id)
-                    cav.set_destination(cav.vehicle.get_location(), cav.agent.end_waypoint.transform.location, clean=True, end_reset=True)
+                cav = self._get_vmanager_by_vid(vehicle_id)
+                cav.set_destination(cav.vehicle.get_location(), cav.agent.end_waypoint.transform.location, clean=True, end_reset=True)
 
                 self.mtp_controlled_vehicles.remove(vehicle_id)
 
@@ -191,18 +169,16 @@ class AIMModelManager:
         }
         """
         for vehicle_id in self.cav_ids:
-            # Get current vehicle position and find nearest node
             position = np.array(traci.vehicle.getPosition(vehicle_id))
             nearest_node = self._get_nearest_node(position)
 
-            # Skip excluded regions
             if self.excluded_nodes and nearest_node in self.excluded_nodes:
                 continue
 
             control_center = np.array(nearest_node.getCoord())
             distance_to_center = np.linalg.norm(position - control_center)
 
-            if distance_to_center < CONTROL_RADIUS:
+            if distance_to_center < self.CONTROL_RADIUS:
                 # Initialize trajectory if this is a new vehicle
                 if vehicle_id not in self.trajs:
                     self.trajs[vehicle_id] = []
@@ -217,16 +193,13 @@ class AIMModelManager:
                 rel_x = position[0] - node_x
                 rel_y = position[1] - node_y
 
-                # Determine intention
                 if not self.trajs[vehicle_id] or self.trajs[vehicle_id][-1][-1] == "null":
                     intention = self.get_intention(vehicle_id)
                 else:
                     intention = self.trajs[vehicle_id][-1][-1]
 
-                # Append current state to trajectory
-                self.trajs[vehicle_id].append((rel_x, rel_y, speed, yaw_rad, yaw_deg_sumo, intention))
+                self.trajs[vehicle_id] = [(rel_x, rel_y, speed, yaw_rad, yaw_deg_sumo, intention)]
 
-        # Remove trajectories of vehicles that have left the scene
         for vehicle_id in list(self.trajs):
             if vehicle_id not in self.cav_ids:
                 del self.trajs[vehicle_id]
@@ -261,7 +234,7 @@ class AIMModelManager:
         position = np.array([rel_x, rel_y])
         return np.linalg.norm(position)
 
-    def get_opencda_intention(self, waypoints, mid, radius=CONTROL_RADIUS):
+    def get_opencda_intention(self, waypoints, mid):
         """
         Gets intention by averaged rotation to pass 3 next waypoints.
 
@@ -280,10 +253,10 @@ class AIMModelManager:
 
         in_sumo_transform = carla.Transform(location, rotation)
         mid = BridgeHelper.get_carla_transform(in_sumo_transform, carla.Vector3D(0, 0, 0))
-        if self.get_distance(mid, waypoints[0]) > radius:
+        if self.get_distance(mid, waypoints[0]) > self.CONTROL_RADIUS:
             logger.debug("Car not int radius")
             return "null"
-        while self.get_distance(mid, waypoints[waypoint_index]) > radius:
+        while self.get_distance(mid, waypoints[waypoint_index]) > self.CONTROL_RADIUS:
             waypoint_index += 1
             if waypoint_index >= len(waypoints):
                 logger.debug("No waypoints in radius")
@@ -292,7 +265,7 @@ class AIMModelManager:
 
         first_waypoint = waypoints[waypoint_index]
         first_waypoint_index = waypoint_index
-        while (self.get_distance(mid, waypoints[waypoint_index]) <= radius) and waypoint_index < len(waypoints) - 1:
+        while (self.get_distance(mid, waypoints[waypoint_index]) <= self.CONTROL_RADIUS) and waypoint_index < len(waypoints) - 1:
             waypoint_index += 1
 
         # average the values of several points to reduce noise
@@ -306,38 +279,14 @@ class AIMModelManager:
         rotation = (mean_yaw - first_waypoint[0].transform.rotation.yaw + 360) % 360
         return self.get_intention_by_rotation(rotation)
 
-    def get_sumo_intention(self, sumo_id):
-        """
-        Distinguishes CAV intention from SUMO based on its rotation.
-
-        :param sumo_id: SUMO CAV ID
-        :return: intention
-        """
-        route = traci.vehicle.getRoute(sumo_id)
-        index = traci.vehicle.getRouteIndex(sumo_id)
-
-        current_edge = route[index]
-        if index + 1 < len(route):
-            next_edge = route[index + 1]
-        else:
-            logger.debug("Last node")
-            return "null"
-        current_angle = traci.edge.getAngle(current_edge)
-        next_angle = traci.edge.getAngle(next_edge)
-        rotation = (next_angle - current_angle + 360) % 360
-        return self.get_intention_by_rotation(rotation)
-
     def get_intention(self, vehicle_id):
-        if self._is_carla_id(vehicle_id):
-            cav = self._get_vmanager_by_vid(vehicle_id)
-            cav.set_destination(cav.vehicle.get_location(), cav.agent.end_waypoint.transform.location, clean=True, end_reset=True)
-            waypoints = cav.agent.get_local_planner().get_waypoint_buffer()
-            curr_pos = np.array(traci.vehicle.getPosition(vehicle_id))
-            nearest_node = self._get_nearest_node(curr_pos)
-            control_center = nearest_node.getCoord()
-            return self.get_opencda_intention(waypoints, control_center, CONTROL_RADIUS)
-        else:
-            return self.get_sumo_intention(vehicle_id)
+        cav = self._get_vmanager_by_vid(vehicle_id)
+        cav.set_destination(cav.vehicle.get_location(), cav.agent.end_waypoint.transform.location, clean=True, end_reset=True)
+        waypoints = cav.agent.get_local_planner().get_waypoint_buffer()
+        curr_pos = np.array(traci.vehicle.getPosition(vehicle_id))
+        nearest_node = self._get_nearest_node(curr_pos)
+        control_center = nearest_node.getCoord()
+        return self.get_opencda_intention(waypoints, control_center)
 
     def encoding_scenario_features(self):
         """
@@ -353,7 +302,7 @@ class AIMModelManager:
             position = np.array(last_position[:2])
             distance_to_origin = np.linalg.norm(position)
 
-            if distance_to_origin < CONTROL_RADIUS:
+            if distance_to_origin < self.CONTROL_RADIUS:
                 motion_features = np.array(last_position[:-2])
                 intention_vector = self.get_intention_vector(last_position[-1])
                 feature_vector = np.concatenate((motion_features, intention_vector)).reshape(1, -1)
@@ -446,58 +395,37 @@ class AIMModelManager:
         else:
             intention = self.trajs[vehicle_id][-1][-1]
 
-        if self._is_carla_id(vehicle_id):
-            control_center = nearest_node.getCoord()
-            diff = control_center - pos
-            if abs(diff[0]) > abs(diff[1]):
-                if diff[0] < 0:
-                    start = "right"
-                else:
-                    start = "left"
+        control_center = nearest_node.getCoord()
+        diff = control_center - pos
+        if abs(diff[0]) > abs(diff[1]):
+            if diff[0] < 0:
+                start = "right"
             else:
-                if diff[1] < 0:
-                    start = "up"
-                else:
-                    start = "down"
-
-            end = self.get_end(start, intention)
-            v = f"{start}_{end}"
-            if vehicle_id not in self.yaw_id:
-                self.yaw_id[vehicle_id] = {nearest_node: v}
-            else:
-                if nearest_node not in self.yaw_id[vehicle_id]:
-                    # With new nearest node intantion may changes, so we reset trajectory to default and get intention for new node
-                    cav = self._get_vmanager_by_vid(vehicle_id)
-                    cav.set_destination(cav.vehicle.get_location(), cav.agent.end_waypoint.transform.location, clean=True, end_reset=True)
-                    intention = self.get_intention(vehicle_id)
-                    end = self.get_end(start, intention)
-                    v = f"{start}_{end}"
-                    self.yaw_id[vehicle_id] = {nearest_node: v}
-
-                    # Update intention in trajs
-                    previous_traj = self.trajs[vehicle_id][-1]
-                    self.trajs[vehicle_id].append(
-                        (previous_traj[0], previous_traj[1], previous_traj[2], previous_traj[3], previous_traj[4], intention)
-                    )
-            route = self.yaw_id[vehicle_id][nearest_node]
-        else:
-            rotation = traci.vehicle.getAngle(vehicle_id)
-            if rotation < 45 or rotation > 315:
-                start = "down"
-            elif rotation < 135:
                 start = "left"
-            elif rotation > 225:
+        else:
+            if diff[1] < 0:
                 start = "up"
             else:
-                start = "right"
-            end = self.get_end(start, intention)
-            v = f"{start}_{end}"
-            if vehicle_id not in self.yaw_id:
+                start = "down"
+
+        end = self.get_end(start, intention)
+        v = f"{start}_{end}"
+        if vehicle_id not in self.yaw_id:
+            self.yaw_id[vehicle_id] = {nearest_node: v}
+        else:
+            if nearest_node not in self.yaw_id[vehicle_id]:
+                # With new nearest node intantion may changes, so we reset trajectory to default and get intention for new node
+                cav = self._get_vmanager_by_vid(vehicle_id)
+                cav.set_destination(cav.vehicle.get_location(), cav.agent.end_waypoint.transform.location, clean=True, end_reset=True)
+                intention = self.get_intention(vehicle_id)
+                end = self.get_end(start, intention)
+                v = f"{start}_{end}"
                 self.yaw_id[vehicle_id] = {nearest_node: v}
-            else:
-                if nearest_node not in self.yaw_id[vehicle_id]:
-                    self.yaw_id[vehicle_id] = {nearest_node: v}
-            route = self.yaw_id[vehicle_id][nearest_node]
+
+                # Update intention in trajs
+                previous_traj = self.trajs[vehicle_id][-1]
+                self.trajs[vehicle_id] = [(previous_traj[0], previous_traj[1], previous_traj[2], previous_traj[3], previous_traj[4], intention)]
+        route = self.yaw_id[vehicle_id][nearest_node]
 
         if route not in yaw_dict:
             logging.warning(f"Route '{route}' not found for vehicle {vehicle_id}. Using default yaw.")

@@ -89,6 +89,12 @@ sumo:
   client_order: 2
   step_length: ${world.fixed_delta_seconds}
 
+aim:
+  model: "MTP"
+  underling_model: "GNN_mtl_gnn"
+  hidden_channels: 128
+  weight: "model_rot_gnn_mtl_np_sumo_0911_e3_1930.pth"
+
 # define scenario. In this scenario, only a single CAV will be spawned
 scenario:
   # rsu_list:
