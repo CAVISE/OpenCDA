@@ -7,6 +7,7 @@ data from the CARLA server instance for use by the GlobalRoutePlanner.
 
 from typing import List, Dict, Any
 import numpy as np
+import carla
 
 
 class GlobalRoutePlannerDAO(object):
@@ -31,7 +32,7 @@ class GlobalRoutePlannerDAO(object):
         The CARLA world map reference.
     """
 
-    def __init__(self, wmap: Any, sampling_resolution: float):
+    def __init__(self, wmap: carla.Map, sampling_resolution: float):
         self._sampling_resolution = sampling_resolution
         self._wmap = wmap
 
@@ -82,7 +83,7 @@ class GlobalRoutePlannerDAO(object):
             topology.append(seg_dict)
         return topology
 
-    def get_waypoint(self, location: Any) -> Any:
+    def get_waypoint(self, location: carla.Location) -> carla.Waypoint:
         """
         Get waypoint at specified location.
 

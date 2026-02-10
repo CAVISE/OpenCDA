@@ -16,6 +16,7 @@ from opencda.core.sensing.perception.obstacle_vehicle import is_vehicle_cococlas
 from opencda.core.sensing.perception.static_obstacle import StaticObstacle
 from typing import Dict, List, Union, Any
 import torch
+import carla
 
 
 VIRIDIS = np.array(cm.get_cmap("plasma").colors)
@@ -152,7 +153,7 @@ def o3d_camera_lidar_fusion(
     yolo_bbx: torch.Tensor,
     lidar_3d: npt.NDArray[np.float32],
     projected_lidar: npt.NDArray[np.float32],
-    lidar_sensor: Any,  # carla.Sensor type
+    lidar_sensor: carla.Sensor,
 ) -> Dict[str, List[Union[ObstacleVehicle, StaticObstacle]]]:
     """
     Utilize the 3D lidar points to extend the 2D bounding box

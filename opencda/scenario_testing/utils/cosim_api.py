@@ -17,6 +17,7 @@ from opencda.co_simulation.sumo_integration.bridge_helper import BridgeHelper
 from opencda.co_simulation.sumo_integration.constants import INVALID_ACTOR_ID
 from opencda.co_simulation.sumo_integration.sumo_simulation import SumoSimulation
 from opencda.scenario_testing.utils.sim_api import ScenarioManager
+from opencda.core.common.cav_world import CavWorld
 
 logger = logging.getLogger("cavise.cosim_api")
 
@@ -78,7 +79,7 @@ class CoScenarioManager(ScenarioManager):
         node_ids: Dict[str, Dict[int, str]],
         xodr_path: Optional[str] = None,
         town: Optional[str] = None,
-        cav_world: Optional[Any] = None,
+        cav_world: Optional[CavWorld] = None,
         sumo_file_parent_path: Optional[str] = None,
         carla_host: str = "carla",
         carla_timeout: float = 30.0,

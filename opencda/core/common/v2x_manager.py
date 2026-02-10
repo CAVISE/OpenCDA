@@ -2,11 +2,12 @@
 
 from collections import deque
 from typing import Any, Deque, Dict, Optional, Tuple
-import weakref
 import carla
 import numpy as np
 from opencda.core.application.platooning.platooning_plugin import PlatooningPlugin
 from opencda.core.common.misc import compute_distance
+from opencda.core.application.platooning.fsm import FSM
+from opencda.core.common.cav_world import CavWorld
 
 
 class V2XManager(object):
@@ -43,7 +44,7 @@ class V2XManager(object):
 
     """
 
-    def __init__(self, cav_world: Any, config_yaml: Dict[str, Any], vid: str):
+    def __init__(self, cav_world: CavWorld, config_yaml: Dict[str, Any], vid: str):
         # if disabled, no cooperation will be operated
         self.cda_enabled = config_yaml["enabled"]
         self.communication_range = config_yaml["communication_range"]
@@ -57,7 +58,7 @@ class V2XManager(object):
         # used for platooning communication
         self.platooning_plugin = PlatooningPlugin(self.communication_range, self.cda_enabled)
 
-        self.cav_world = weakref.ref(cav_world)()
+        self.cav_world: cav_world
 
         # ego position buffer. use deque so we can simulate lagging
         self.ego_pos: Deque[carla.Transform] = deque(maxlen=100)
@@ -168,7 +169,7 @@ class V2XManager(object):
 
         Parameters
         ----------
-        platooning_object : platoon object)
+        platooning_object : platoon object
             Platooning world that contains all platoon information.
 
         platooning_id : int
@@ -184,15 +185,14 @@ class V2XManager(object):
         """
         self.platooning_plugin.set_platoon(in_id, platooning_object, platooning_id, leader)
 
-    def set_platoon_status(self, status: str) -> None:
+    def set_platoon_status(self, status: FSM) -> None:
         """
         Set the cav to a different fsm status.
 
         Parameters
         ----------
-        status : str
+        status : FSM
             fsm status.
-
         """
         self.platooning_plugin.set_status(status)
 

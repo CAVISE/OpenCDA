@@ -22,6 +22,7 @@ from opencood.tools import train_utils, inference_utils
 from opencood.data_utils.datasets import build_dataset
 from opencood.visualization import simple_vis, vis_utils
 from opencood.utils import eval_utils
+from opencda.core.common.communication.serialize import MessageHandler
 
 logger = logging.getLogger("cavise.coperception_model_manager")
 
@@ -39,7 +40,7 @@ class CoperceptionModelManager:
         Configuration options containing model paths and fusion methods.
     current_time : str
         Timestamp string for organizing output files.
-    message_handler : Any, optional
+    message_handler : MessageHandler, optional
         Handler for V2X message processing. Default is None.
 
     Attributes
@@ -62,13 +63,13 @@ class CoperceptionModelManager:
         OpenCOOD dataset instance.
     data_loader : DataLoader or None
         PyTorch DataLoader for batch processing.
-    message_handler : Any or None
+    message_handler : message_handler or None
         V2X message handler.
     final_result_stat : [float, Dict[str, Union[List[Any], int]]]
         Accumulated evaluation statistics across all predictions.
     """
 
-    def __init__(self, opt: Any, current_time: str, message_handler: Optional[Any] = None):
+    def __init__(self, opt: Any, current_time: str, message_handler: Optional[MessageHandler] = None):
         self.opt = opt
         self.hypes = yaml_utils.load_yaml(None, self.opt)
         self.model = train_utils.create_model(self.hypes)

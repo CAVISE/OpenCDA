@@ -2,15 +2,14 @@
 
 import math
 import importlib
-from typing import Dict, List, Tuple, Union, Any
-
+from typing import Dict, List, Tuple, Union
 import numpy as np
 import carla
 
 
 def draw_trajetory_points(
     world: carla.World,
-    waypoints: List[Union[carla.Waypoint, carla.Transform, Tuple[carla.Waypoint, Any], List[Any]]],
+    waypoints: List[Union[carla.Waypoint, carla.Transform, Tuple[carla.Waypoint, carla.Transform], List[carla.Transform]]],
     z: float = 0.25,
     color: carla.Color = carla.Color(255, 0, 0),
     lt: float = 5,

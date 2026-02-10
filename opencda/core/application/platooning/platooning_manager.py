@@ -7,9 +7,8 @@ member management, and performance evaluation.
 """
 
 import uuid
-import weakref
 import logging
-from typing import List, Any, Tuple
+from typing import Dict, List, Any, Tuple
 
 import carla
 
@@ -17,6 +16,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 import opencda.core.plan.drive_profile_plotting as open_plt
+from opencda.core.common.vehicle_manager import VehicleManager
+from opencda.core.common.cav_world import CavWorld
 
 
 logger = logging.getLogger("cavise.platooning_manager")
@@ -33,7 +34,7 @@ class PlatooningManager(object):
     ----------
     config_yaml : dict
         Configuration dictionary for platoon parameters.
-    cav_world : Any
+    cav_world :
         CAV world object that stores all CAV information.
 
     Attributes
@@ -54,11 +55,11 @@ class PlatooningManager(object):
         Original planned target speed of the platoon leader.
     recover_speed_counter : int
         Counter recording number of speed recovery attempts.
-    cav_world : Any
+    cav_world : CavWorld
         Reference to the CAV world object.
     """
 
-    def __init__(self, config_yaml: dict, cav_world: Any):
+    def __init__(self, config_yaml: Dict[str, Any], cav_world: CavWorld):
         self.pmid = str(uuid.uuid1())
 
         self.vehicle_manager_list: List = []
@@ -73,15 +74,15 @@ class PlatooningManager(object):
         self.recover_speed_counter = 0
 
         cav_world.update_platooning(self)
-        self.cav_world = weakref.ref(cav_world)()
+        self.cav_world = cav_world
 
-    def set_lead(self, vehicle_manager: Any) -> None:
+    def set_lead(self, vehicle_manager: VehicleManager) -> None:
         """
         Set the leader of the platoon.
 
         Parameters
         ----------
-        vehicle_manager : Any
+        vehicle_manager : VehicleManager
             The vehicle manager to be designated as leader.
         """
         self.add_member(vehicle_manager, leader=True)
@@ -89,13 +90,13 @@ class PlatooningManager(object):
         # this variable is used to control leader speed
         self.origin_leader_target_speed = vehicle_manager.agent.max_speed - vehicle_manager.agent.speed_lim_dist
 
-    def add_member(self, vehicle_manager: Any, leader: bool = False) -> None:
+    def add_member(self, vehicle_manager: VehicleManager, leader: bool = False) -> None:
         """
         Add member to the current platoon.
 
         Parameters
         ----------
-        vehicle_manager : Any
+        vehicle_manager : VehicleManager
             The vehicle manager to add to the platoon.
         leader : bool, optional
             Indicator of whether this CAV is a leader. Default is False.
@@ -103,13 +104,13 @@ class PlatooningManager(object):
         self.vehicle_manager_list.append(vehicle_manager)
         vehicle_manager.v2x_manager.set_platoon(len(self.vehicle_manager_list) - 1, platooning_object=self, platooning_id=self.pmid, leader=leader)
 
-    def set_member(self, vehicle_manager: Any, index: int, lead: bool = False) -> None:
+    def set_member(self, vehicle_manager: VehicleManager, index: int, lead: bool = False) -> None:
         """
         Set member at specific index in the platoon.
 
         Parameters
         ----------
-        vehicle_manager : Any
+        vehicle_manager : VehicleManager
             The vehicle manager to insert.
         index : int
             The platoon index position for the vehicle.

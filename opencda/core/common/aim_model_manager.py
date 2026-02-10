@@ -17,14 +17,6 @@ logger = logging.getLogger("cavise.codriving_model_manager")
 
 class AIMModelManager:
     def __init__(self, model: AIMModel, nodes: List[Any], excluded_nodes: Optional[List[Any]] = None):
-        """
-        :param model_name: model name contained in the filename
-        :param pretrained: filepath to saved model state
-        :param nodes: intersections present in the simulation
-        :param excluded_nodes: nodes that do not use AIM
-
-        :return: None
-        """
         self.mtp_controlled_vehicles: Set = set()
 
         self.cav_ids: Set = set()
@@ -90,7 +82,7 @@ class AIMModelManager:
                 return vmanager
         return None
 
-    def make_trajs(self, carla_vmanagers):
+    def make_trajs(self, carla_vmanagers: Set[Any]) -> None:
         """
         Create trajectories based on model predictions.
 
@@ -169,7 +161,9 @@ class AIMModelManager:
                     logger.warning(f"{vehicle_id}: waypoint buffer is empty after set_destination!")
             elif vehicle_id in self.mtp_controlled_vehicles:
                 cav = self._get_vmanager_by_vid(vehicle_id)
-                cav.set_destination(cav.vehicle.get_location(), cav.agent.end_waypoint.transform.location, clean=True, end_reset=True)
+                cav.set_destination(
+                    cav.vehicle.get_location(), cav.agent.end_waypoint.transform.location, clean=True, end_reset=True
+                )  # NOTE Item "None" of "Any | None" has no attribute "agent", set_destination, "vehicle"
 
                 self.mtp_controlled_vehicles.remove(vehicle_id)
 
@@ -326,9 +320,24 @@ class AIMModelManager:
         rotation = (mean_yaw - first_waypoint[0].transform.rotation.yaw + 360) % 360
         return self.get_intention_by_rotation(rotation)
 
-    def get_intention(self, vehicle_id):
+    def get_intention(self, vehicle_id: str) -> str:
+        """
+        Get predicted intention of vehicle based on trajectory waypoints.
+
+        Parameters
+        ----------
+        vehicle_id : str
+            Vehicle ID in SUMO simulation.
+
+        Returns
+        -------
+        str
+            Intention category
+        """
         cav = self._get_vmanager_by_vid(vehicle_id)
-        cav.set_destination(cav.vehicle.get_location(), cav.agent.end_waypoint.transform.location, clean=True, end_reset=True)
+        cav.set_destination(
+            cav.vehicle.get_location(), cav.agent.end_waypoint.transform.location, clean=True, end_reset=True
+        )  # NOTE need "if cav is None:" check
         waypoints = cav.agent.get_local_planner().get_waypoint_buffer()
         curr_pos = np.array(traci.vehicle.getPosition(vehicle_id))
         nearest_node = self._get_nearest_node(curr_pos)
@@ -506,7 +515,9 @@ class AIMModelManager:
             if nearest_node not in self.yaw_id[vehicle_id]:
                 # With new nearest node intantion may changes, so we reset trajectory to default and get intention for new node
                 cav = self._get_vmanager_by_vid(vehicle_id)
-                cav.set_destination(cav.vehicle.get_location(), cav.agent.end_waypoint.transform.location, clean=True, end_reset=True)
+                cav.set_destination(
+                    cav.vehicle.get_location(), cav.agent.end_waypoint.transform.location, clean=True, end_reset=True
+                )  # NOTE need "if cav is None:" check
                 intention = self.get_intention(vehicle_id)
                 end = self.get_end(start, intention)
                 v = f"{start}_{end}"

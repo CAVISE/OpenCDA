@@ -6,7 +6,6 @@ control (CACC) and platooning operations, including various joining strategies
 and gap maintenance algorithms.
 """
 
-import weakref
 from collections import deque
 import logging
 from typing import Deque, Optional, Tuple, Dict, List, Any, Union
@@ -18,6 +17,8 @@ from opencda.core.application.platooning.fsm import FSM
 from opencda.core.application.platooning.platoon_debug_helper import PlatoonDebugHelper
 from opencda.core.common.misc import compute_distance, cal_distance_angle
 from opencda.core.plan.behavior_agent import BehaviorAgent
+from opencda.core.common.v2x_manager import V2XManager
+from opencda.core.common.vehicle_manager import VehicleManager
 
 logger = logging.getLogger("cavise.platoon_behavior_agent")
 
@@ -58,17 +59,17 @@ class PlatooningBehaviorAgent(BehaviorAgent):
     def __init__(
         self,
         vehicle: carla.Vehicle,
-        vehicle_manager: Any,
-        v2x_manager: Any,
+        vehicle_manager: VehicleManager,
+        v2x_manager: V2XManager,
         behavior_yaml: Dict[str, Any],
         platoon_yaml: Dict[str, Any],
         carla_map: carla.Map,
     ):
         super(PlatooningBehaviorAgent, self).__init__(vehicle, carla_map, behavior_yaml)
 
-        self.vehicle_manager = weakref.ref(vehicle_manager)()
+        self.vehicle_manager = vehicle_manager
         # communication manager
-        self.v2x_manager = weakref.ref(v2x_manager)()
+        self.v2x_manager = v2x_manager
 
         # used for gap keeping
         self.inter_gap = platoon_yaml["inter_gap"]
@@ -90,10 +91,10 @@ class PlatooningBehaviorAgent(BehaviorAgent):
 
     def run_step(
         self,
-        target_speed: float = None,
+        target_speed: Optional[float] = None,
         collision_detector_enabled: bool = True,
         lane_change_allowed: bool = True,
-    ) -> Tuple[float, Optional[carla.Waypoint]]:
+    ) -> Tuple[float, carla.Waypoint]:  # NOTE Mypy reports "Missing return statement" here.
         """
         Run a single step for navigation under platooning agent.
         Finite state machine is used to switch between different
@@ -370,7 +371,7 @@ class PlatooningBehaviorAgent(BehaviorAgent):
 
             return self._local_planner.run_step([], [], [], trajectory=ego_trajetory)
 
-    def platooning_merge_management(self, frontal_vehicle_vm: Any) -> Tuple[float, Optional[carla.Waypoint]]:
+    def platooning_merge_management(self, frontal_vehicle_vm: object) -> Tuple[float, Optional[carla.Waypoint]]:
         """
         Merge vehicle into the platoon.
 

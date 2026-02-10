@@ -57,7 +57,7 @@ class CollisionSensor(object):
         self._threshold = params["col_thresh"]
 
     @staticmethod
-    def _on_collision(weak_self: weakref.ref, event: Any) -> None:
+    def _on_collision(weak_self: weakref.ref, event: carla.CollisionEvent) -> None:
         """
         Callback for collision events.
 
@@ -226,7 +226,7 @@ class TrafficLightDector(object):
         Distance to the active traffic light.
     """
 
-    def __init__(self, params: Dict[str, Any], vehicle: Any):
+    def __init__(self, params: Dict[str, Any], vehicle: carla.Vehicle):
         self.ran_light = False
         self._map = None
         self.veh_extent = vehicle.bounding_box.extent.x

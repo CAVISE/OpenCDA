@@ -9,7 +9,8 @@ including bounding box projections and point cloud transformations.
 import numpy as np
 import numpy.typing as npt
 from matplotlib import cm
-from typing import Any, Tuple
+from typing import Tuple
+import carla
 
 from opencda.opencda_carla import Transform
 
@@ -17,7 +18,7 @@ VIRIDIS = np.array(cm.get_cmap("viridis").colors)
 VID_RANGE = np.linspace(0.0, 1.0, VIRIDIS.shape[0])
 
 
-def get_camera_intrinsic(sensor: Any) -> npt.NDArray[np.float64]:
+def get_camera_intrinsic(sensor: carla.Sensor) -> npt.NDArray[np.float64]:
     """
     Retrieve the camera intrinsic matrix.
 
@@ -44,14 +45,14 @@ def get_camera_intrinsic(sensor: Any) -> npt.NDArray[np.float64]:
     return matrix_k
 
 
-def create_bb_points(vehicle: Any) -> npt.NDArray[np.float64]:
+def create_bb_points(vehicle: carla.Vehicle) -> npt.NDArray[np.float64]:
     """
     Extract the eight vertices of the bounding box from the vehicle.
 
     Parameters
     ----------
-    vehicle : opencda object
-        Opencda ObstacleVehicle that has attributes.
+    vehicle : carla.Vehicle
+        Ego vehicle.
 
     Returns
     -------
@@ -74,7 +75,7 @@ def create_bb_points(vehicle: Any) -> npt.NDArray[np.float64]:
     return bbx
 
 
-def x_to_world_transformation(transform: Any) -> npt.NDArray[np.float64]:
+def x_to_world_transformation(transform: carla.Transform) -> npt.NDArray[np.float64]:
     """
     Get the transformation matrix from x(it can be vehicle or sensor)
     coordinates to world coordinate.
@@ -121,7 +122,7 @@ def x_to_world_transformation(transform: Any) -> npt.NDArray[np.float64]:
     return matrix
 
 
-def bbx_to_world(cords: npt.NDArray[np.float64], vehicle: Any) -> npt.NDArray[np.float64]:
+def bbx_to_world(cords: npt.NDArray[np.float64], vehicle: carla.Vehicle) -> npt.NDArray[np.float64]:
     """
     Convert bounding box coordinate at vehicle reference to world reference.
 
@@ -129,8 +130,8 @@ def bbx_to_world(cords: npt.NDArray[np.float64], vehicle: Any) -> npt.NDArray[np
     ----------
     cords : npt.NDArray
         Bounding box coordinates with 8 vertices, shape (8, 4)
-    vehicle : opencda object
-        Opencda ObstacleVehicle.
+    vehicle : carla.Vehicle
+        Ego vehicle.
 
     Returns
     -------
@@ -156,7 +157,7 @@ def bbx_to_world(cords: npt.NDArray[np.float64], vehicle: Any) -> npt.NDArray[np
     return bb_world_cords
 
 
-def world_to_sensor(cords: npt.NDArray[np.float64], sensor_transform: Any) -> npt.NDArray[np.float64]:
+def world_to_sensor(cords: npt.NDArray[np.float64], sensor_transform: carla.Transform) -> npt.NDArray[np.float64]:
     """
     Transform coordinates from world reference to sensor reference.
 
@@ -181,7 +182,7 @@ def world_to_sensor(cords: npt.NDArray[np.float64], sensor_transform: Any) -> np
     return sensor_cords
 
 
-def sensor_to_world(cords: npt.NDArray[np.float64], sensor_transform: Any) -> npt.NDArray[np.float64]:
+def sensor_to_world(cords: npt.NDArray[np.float64], sensor_transform: carla.Transform) -> npt.NDArray[np.float64]:
     """
     Project coordinates in sensor to world reference.
 
@@ -205,7 +206,7 @@ def sensor_to_world(cords: npt.NDArray[np.float64], sensor_transform: Any) -> np
     return world_cords
 
 
-def vehicle_to_sensor(cords: npt.NDArray[np.float64], vehicle: Any, sensor_transform: Any) -> npt.NDArray[np.float64]:
+def vehicle_to_sensor(cords: npt.NDArray[np.float64], vehicle: carla.Vehicle, sensor_transform: carla.Transform) -> npt.NDArray[np.float64]:
     """
     Transform coordinates from vehicle reference to sensor reference.
 
@@ -214,8 +215,8 @@ def vehicle_to_sensor(cords: npt.NDArray[np.float64], vehicle: Any, sensor_trans
     cords : npt.NDArray
          Coordinates under vehicle reference, shape (n, 4).
 
-    vehicle : opencda object
-        Carla ObstacleVehicle.
+    vehicle : carla.Vehicle
+        Ego vehicle.
 
     sensor_transform : carla.Transform
         Sensor position in the world.
@@ -232,7 +233,7 @@ def vehicle_to_sensor(cords: npt.NDArray[np.float64], vehicle: Any, sensor_trans
     return sensor_cord
 
 
-def get_bounding_box(vehicle: Any, camera: Any, sensor_transform: Any) -> npt.NDArray[np.float64]:
+def get_bounding_box(vehicle: carla.Vehicle, camera: carla.sensor, sensor_transform: carla.Transform) -> npt.NDArray[np.float64]:
     """
     Get vehicle bounding box and project to sensor image.
 
@@ -296,7 +297,7 @@ def p3d_to_p2d_bb(p3d_bb: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
     return p2d_bb
 
 
-def get_2d_bb(vehicle: Any, sensor: Any, senosr_transform: Any) -> npt.NDArray[np.float64]:
+def get_2d_bb(vehicle: carla.Vehicle, sensor: carla.sensor, senosr_transform: carla.Transform) -> npt.NDArray[np.float64]:
     """
     Summarize 2D bounding box creation.
 
@@ -323,7 +324,7 @@ def get_2d_bb(vehicle: Any, sensor: Any, senosr_transform: Any) -> npt.NDArray[n
 
 
 def project_lidar_to_camera(
-    lidar: Any, camera: Any, point_cloud: npt.NDArray[np.float64], rgb_image: npt.NDArray[np.uint8]
+    lidar: carla.sensor, camera: carla.sensor, point_cloud: npt.NDArray[np.float64], rgb_image: npt.NDArray[np.uint8]
 ) -> Tuple[npt.NDArray[np.uint8], npt.NDArray[np.float64]]:
     """
     Project lidar to camera space.

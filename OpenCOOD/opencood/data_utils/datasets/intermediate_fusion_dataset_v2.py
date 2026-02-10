@@ -21,6 +21,7 @@ from opencood.utils.pcd_utils import mask_points_by_range, mask_ego_points, shuf
 from opencood.utils.transformation_utils import x1_to_x2
 from opencood.pcdet_utils.roiaware_pool3d.roiaware_pool3d_utils import points_in_boxes_cpu
 from typing import Dict, List, Any, Tuple, Optional, Union
+from opencda.core.common.communication.serialize import MessageHandler
 from torch import Tensor
 from numpy.typing import NDArray
 
@@ -71,7 +72,7 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
         Identifier for the module.
     """
 
-    def __init__(self, params: Dict[str, Any], visualize: bool, train: bool = True, message_handler: Optional[Any] = None):
+    def __init__(self, params: Dict[str, Any], visualize: bool, train: bool = True, message_handler: Optional[MessageHandler] = None):
         super(IntermediateFusionDatasetV2, self).__init__(params, visualize, train)
         self.pre_processor = build_preprocessor(params["preprocess"], train)
         self.post_processor = post_processor.build_postprocessor(params["postprocess"], train)

@@ -81,7 +81,7 @@ class ObstacleVehicle(object):
     vehicle : carla.Vehicle
         The carla.Vehicle object.
 
-    lidar : carla.sensor.lidar
+    lidar : carla.sensor
         The lidar sensor.
 
     sumo2carla_ids : dict
@@ -111,8 +111,8 @@ class ObstacleVehicle(object):
         self,
         corners: Optional[npt.NDArray[np.float64]],
         o3d_bbx: Optional[o3d.geometry.AxisAlignedBoundingBox],
-        vehicle: Optional[Any] = None,
-        lidar: Optional[Any] = None,
+        vehicle: Optional[carla.Vehicle] = None,
+        lidar: Optional[carla.Sensor] = None,
         sumo2carla_ids: Optional[Dict[str, int]] = None,
     ):
         if not vehicle:

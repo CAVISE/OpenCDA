@@ -20,6 +20,7 @@ from opencood.data_utils.pre_processor import build_preprocessor
 from opencood.utils import box_utils
 from opencood.utils.pcd_utils import mask_points_by_range, mask_ego_points, shuffle_points, downsample_lidar_minimum
 from opencood.utils.transformation_utils import x1_to_x2
+from opencda.core.common.communication.serialize import MessageHandler
 
 from typing import Dict, List, Tuple, Any, Optional
 from numpy.typing import npt
@@ -52,7 +53,7 @@ class LateFusionDataset(basedataset.BaseDataset):
         Whether to include visualization data.
     train : bool, optional
         Whether the dataset is used for training. Default is True.
-    message_handler : Optional[Any], optional
+    message_handler : Optional[MessageHandler], optional
         Handler for inter-vehicle communication. Default is None.
 
     Attributes
@@ -61,11 +62,11 @@ class LateFusionDataset(basedataset.BaseDataset):
         Module for preprocessing LiDAR data.
     post_processor : object
         Module for post-processing detection results.
-    message_handler : Any or None
+    message_handler : MessageHandler or None
         Handler for inter-vehicle communication.
     """
 
-    def __init__(self, params: Dict[str, Any], visualize: bool, train: bool = True, message_handler: Optional[Any] = None):
+    def __init__(self, params: Dict[str, Any], visualize: bool, train: bool = True, message_handler: Optional[MessageHandler] = None):
         super(LateFusionDataset, self).__init__(params, visualize, train)
         self.pre_processor = build_preprocessor(params["preprocess"], train)
         self.post_processor = build_postprocessor(params["postprocess"], train)

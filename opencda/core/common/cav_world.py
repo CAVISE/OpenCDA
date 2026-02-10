@@ -8,6 +8,10 @@ SUMO-CARLA ID mappings during co-simulation.
 
 import importlib
 from typing import Dict, Any, Optional, Set
+from opencda.core.application.platooning.platooning_manager import PlatooningManager
+from opencda.core.common.rsu_manager import RSUManager
+from opencda.core.common.vehicle_manager import VehicleManager
+import carla
 
 
 class CavWorld(object):
@@ -66,7 +70,7 @@ class CavWorld(object):
         # this is used only when co-simulation activated.
         self.sumo2carla_ids: Dict[str, int] = {}
 
-    def update_vehicle_manager(self, vehicle_manager: Any) -> None:
+    def update_vehicle_manager(self, vehicle_manager: VehicleManager) -> None:
         """
         Update created CAV manager to the world.
 
@@ -78,7 +82,7 @@ class CavWorld(object):
         self.vehicle_id_set.add(vehicle_manager.vehicle.id)
         self._vehicle_manager_dict.update({vehicle_manager.vid: vehicle_manager})
 
-    def update_platooning(self, platooning_manager: Any) -> None:
+    def update_platooning(self, platooning_manager: PlatooningManager) -> None:
         """
         Add created platooning.
 
@@ -89,7 +93,7 @@ class CavWorld(object):
         """
         self._platooning_dict.update({platooning_manager.pmid: platooning_manager})
 
-    def update_rsu_manager(self, rsu_manager: Any) -> None:
+    def update_rsu_manager(self, rsu_manager: RSUManager) -> None:
         """
         Add rsu manager.
 
@@ -124,7 +128,7 @@ class CavWorld(object):
         """
         return self._platooning_dict
 
-    def locate_vehicle_manager(self, loc: Any) -> Optional[Any]:
+    def locate_vehicle_manager(self, loc: carla.Location) -> Optional[VehicleManager]:
         """
         Locate the vehicle manager based on the given location.
 

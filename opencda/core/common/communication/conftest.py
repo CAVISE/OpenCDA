@@ -1,11 +1,12 @@
 import os
+import pytest
 
 # Force headless Matplotlib backend for ALL tests to avoid GUI windows / hangs on Windows.
 # Must be set before importing matplotlib.pyplot anywhere.
 os.environ.setdefault("MPLBACKEND", "Agg")
 
 
-def pytest_configure(config):
+def pytest_configure(config: pytest.Config) -> None:
     # Import here to ensure env var is set first.
     import matplotlib
 

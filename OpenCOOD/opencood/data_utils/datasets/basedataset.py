@@ -109,12 +109,12 @@ class BaseDataset(Dataset):
         else:
             self.max_cav = params["train_params"]["max_cav"]
 
-        self.scenario_database = OrderedDict()
-        self.len_record = []
+        self.scenario_database: OrderedDict = OrderedDict()
+        self.len_record: List[int] = []
 
         self.update_database()
 
-    def update_database(self):
+    def update_database(self) -> None:
         """
         Update the scenario database by re-scanning the root directory.
 
@@ -144,8 +144,8 @@ class BaseDataset(Dataset):
         scenario_folders = sorted([os.path.join(root_dir, x) for x in os.listdir(root_dir) if os.path.isdir(os.path.join(root_dir, x))])
         # Structure: {scenario_id : {cav_1 : {timestamp1 : {yaml: path,
         # lidar: path, cameras:list of path}}}}
-        self.scenario_database: OrderedDict[int, OrderedDict] = OrderedDict()
-        self.len_record: List[int] = []
+        self.scenario_database = OrderedDict()
+        self.len_record = []
 
         # loop over all scenarios
         for i, scenario_folder in enumerate(scenario_folders):

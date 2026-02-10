@@ -5,8 +5,9 @@ This module provides functions for visualizing predictions and ground truth
 bounding boxes with point clouds in both 3D and bird's eye view perspectives.
 """
 
-from typing import Optional, List, Union, Any
+from typing import Optional, List, Union
 import logging
+import torch
 
 from matplotlib import pyplot as plt
 import numpy as np
@@ -18,16 +19,16 @@ logger = logging.getLogger("cavise.OpenCOOD.simple_vis")
 
 
 def visualize(
-    pred_box_tensor: Optional[Any],
-    gt_tensor: Any,
-    pcd: Union[List[Any], Any],
+    pred_box_tensor: Optional[torch.Tensor],
+    gt_tensor: torch.Tensor,
+    pcd: Union[List[torch.Tensor], torch.Tensor],
     pc_range: List[float],
     save_path: str,
     method: str = "3d",
     vis_gt_box: bool = True,
     vis_pred_box: bool = True,
     left_hand: bool = False,
-    uncertainty: Optional[Any] = None,
+    uncertainty: Optional[torch.Tensor] = None,
 ) -> None:
     """
     Visualize the prediction, ground truth with point cloud together.

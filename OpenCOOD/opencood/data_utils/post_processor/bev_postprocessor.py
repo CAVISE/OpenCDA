@@ -12,6 +12,7 @@ import torch.nn.functional as F
 
 from opencood.utils.transformation_utils import dist_to_continuous
 from opencood.data_utils.post_processor.base_postprocessor import BasePostprocessor
+from opencood.data_utils.datasets.basedataset import BaseDataset
 from opencood.utils import box_utils
 from opencood.visualization import vis_utils
 from typing import Dict, List, Tuple, Optional, Any, Union
@@ -337,7 +338,7 @@ class BevPostprocessor(BasePostprocessor):
 
         return corners
 
-    def post_process_debug(self, data_dict: Dict[str, Any], output_dict: Dict[str, torch.Tensor]) -> torch.Tensor:
+    def post_process_debug(self, data_dict: Dict[str, torch.Tensor], output_dict: Dict[str, torch.Tensor]) -> torch.Tensor:
         """
         Process the outputs of the model to 2D bounding box for debug purpose.
         Step1: convert each cav's output to bounding box format
@@ -405,7 +406,12 @@ class BevPostprocessor(BasePostprocessor):
 
     @staticmethod
     def visualize(
-        pred_box_tensor: torch.Tensor, gt_tensor: torch.Tensor, pcd: torch.Tensor, show_vis: bool, save_path: str, dataset: Optional[Any] = None
+        pred_box_tensor: torch.Tensor,
+        gt_tensor: torch.Tensor,
+        pcd: torch.Tensor,
+        show_vis: bool,
+        save_path: str,
+        dataset: Optional[BaseDataset] = None,
     ) -> None:
         """
         Visualize the BEV 2D prediction, ground truth with point cloud together.

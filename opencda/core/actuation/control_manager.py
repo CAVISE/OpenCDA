@@ -10,6 +10,7 @@ import importlib
 from typing import Any, Dict
 import numpy as np
 import numpy.typing as npt
+import carla
 
 
 class ControlManager:
@@ -45,7 +46,7 @@ class ControlManager:
         """
         self.controller.update_info(ego_pos, ego_speed)
 
-    def run_step(self, target_speed: float, waypoint: Any) -> Any:
+    def run_step(self, target_speed: float, waypoint: carla.Waypoint) -> carla.VehicleControl:
         """
         Execute one control step to generate vehicle control commands.
 
@@ -53,12 +54,12 @@ class ControlManager:
         ----------
         target_speed : float
             The desired speed.
-        waypoint : Any
+        waypoint : carla.Waypoint
             The target waypoint (Transform) to navigate towards.
 
         Returns
         -------
-        Any
+        carla.VehicleControl
             The control commands to be applied to the vehicle.
         """
         control_command = self.controller.run_step(target_speed, waypoint)

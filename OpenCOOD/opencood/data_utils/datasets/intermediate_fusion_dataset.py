@@ -18,6 +18,7 @@ import opencood.data_utils.datasets
 import opencood.data_utils.post_processor as post_processor
 from opencood.utils import box_utils
 from opencood.data_utils.datasets import basedataset
+from opencda.core.common.communication.serialize import MessageHandler
 from opencood.data_utils.pre_processor import build_preprocessor
 from opencood.utils.pcd_utils import mask_points_by_range, mask_ego_points, shuffle_points, downsample_lidar_minimum
 from typing import Dict, List, Tuple, Any, Optional
@@ -41,7 +42,7 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
         Whether to enable visualization features.
     train : bool, optional
         Whether the dataset is for training. Default is True.
-    message_handler : Any, optional
+    message_handler : MessageHandler, optional
         Handler for inter-vehicle message passing. Default is None.
 
     Attributes
@@ -54,13 +55,13 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
         Preprocessor for LiDAR data.
     post_processor : BasePostprocessor
         Post-processor for object detection outputs.
-    message_handler : Any
+    message_handler : MessageHandler
         Handler for message passing between vehicles.
     module_name : str
         Name identifier for the module.
     """
 
-    def __init__(self, params: Dict[str, Any], visualize: bool, train: bool = True, message_handler: Optional[Any] = None):
+    def __init__(self, params: Dict[str, Any], visualize: bool, train: bool = True, message_handler: Optional[MessageHandler] = None):
         super(IntermediateFusionDataset, self).__init__(params, visualize, train)
 
         # if project first, cav's lidar will first be projected to

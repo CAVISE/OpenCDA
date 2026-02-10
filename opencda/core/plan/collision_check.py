@@ -9,7 +9,7 @@ collision checking along trajectories.
 import math
 from math import sin, cos
 from scipy import spatial
-from typing import List, Tuple, Optional, Any
+from typing import List, Tuple, Optional
 
 import carla
 import numpy as np
@@ -112,10 +112,10 @@ class CollisionChecker:
     def adjacent_lane_collision_check(
         self,
         ego_loc: carla.Location,
-        target_wpt: Any,
+        target_wpt: carla.Waypoint,
         overtake: bool,
-        carla_map: Any,
-        world: Any,
+        carla_map: carla.Map,
+        world: carla.World,
     ) -> Tuple[List[float], List[float], List[float]]:
         """
         Generate a straight line in the adjacent lane for collision detection during overtake/lane change.
@@ -194,9 +194,9 @@ class CollisionChecker:
         path_x: List[float],
         path_y: List[float],
         path_yaw: List[float],
-        obstacle_vehicle: Any,
+        obstacle_vehicle: carla.Vehicle,
         speed: float,
-        carla_map: Any,
+        carla_map: carla.Map,
         adjacent_check: bool = False,
     ) -> bool:
         """

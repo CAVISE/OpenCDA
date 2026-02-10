@@ -1,3 +1,4 @@
+from typing import Any, Generator
 import pytest
 from unittest.mock import MagicMock, patch
 import pathlib
@@ -5,24 +6,24 @@ import pathlib
 from opencda.core.common.communication.toolchain import CommunicationToolchain, MessageConfig
 
 
-def _norm(s) -> str:
+def _norm(s: Any) -> str:
     # Normalize paths for stable assertions (avoid platform-specific separators in stringified args)
     return str(s).replace("\\", "/")
 
 
 class TestCommunicationToolchain:
     @pytest.fixture
-    def mock_subprocess(self):
+    def mock_subprocess(self) -> Generator:
         # Patch specifically where it's used in the module
         with patch("opencda.core.common.communication.toolchain.subprocess.run") as mock_run:
             yield mock_run
 
     @pytest.fixture
-    def mock_importlib(self):
+    def mock_importlib(self) -> Generator:
         with patch("opencda.core.common.communication.toolchain.importlib.invalidate_caches") as mock_inv:
             yield mock_inv
 
-    def test_handle_messages_default_config(self, mock_subprocess, mock_importlib):
+    def test_handle_messages_default_config(self, mock_subprocess: MagicMock, mock_importlib: MagicMock) -> None:
         """Test handle_messages with default configuration."""
         mock_process = MagicMock()
         mock_process.returncode = 0
@@ -40,7 +41,7 @@ class TestCommunicationToolchain:
         assert _norm(args[2]) == "--python_out=opencda/core/common/communication/protos/cavise"
         assert "msg1.proto" in str(args[3])
 
-    def test_handle_messages_custom_config(self, mock_subprocess, mock_importlib):
+    def test_handle_messages_custom_config(self, mock_subprocess: MagicMock, mock_importlib: MagicMock) -> None:
         """Test handle_messages with custom configuration."""
         mock_process = MagicMock()
         mock_process.returncode = 0
@@ -60,7 +61,7 @@ class TestCommunicationToolchain:
         assert "src/msgA.proto" in joined_args
         assert "src/msgB.proto" in joined_args
 
-    def test_generate_message_success_logs(self, mock_subprocess, caplog):
+    def test_generate_message_success_logs(self, mock_subprocess: MagicMock, caplog: pytest.LogCaptureFixture) -> None:
         """Test successful generation logs info."""
         mock_process = MagicMock()
         mock_process.returncode = 0
@@ -74,7 +75,7 @@ class TestCommunicationToolchain:
 
         assert "generated protos for: msg1" in caplog.text
 
-    def test_generate_message_failure_exits(self, mock_subprocess, caplog):
+    def test_generate_message_failure_exits(self, mock_subprocess: MagicMock, caplog: pytest.LogCaptureFixture) -> None:
         """Test failure generates error log and system exit."""
         mock_process = MagicMock()
         mock_process.returncode = 1
@@ -94,7 +95,7 @@ class TestCommunicationToolchain:
         assert "failed to generate protos" in caplog.text
         assert "STDERR: Protocol error" in caplog.text
 
-    def test_handle_messages_empty_list(self, mock_subprocess, mock_importlib):
+    def test_handle_messages_empty_list(self, mock_subprocess: MagicMock, mock_importlib: MagicMock) -> None:
         """Test behavior with empty message list."""
         mock_process = MagicMock()
         mock_process.returncode = 0

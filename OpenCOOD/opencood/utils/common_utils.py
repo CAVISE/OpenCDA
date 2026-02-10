@@ -195,7 +195,7 @@ def torch_tensor_to_numpy(torch_tensor: torch.Tensor) -> npt.NDArray:
     return torch_tensor.numpy() if not torch_tensor.is_cuda else torch_tensor.cpu().detach().numpy()
 
 
-def get_voxel_centers(voxel_coords: Any, downsample_times: Any, voxel_size: Any, point_cloud_range: Any) -> Any:
+def get_voxel_centers(voxel_coords: npt.NDArray, downsample_times: int, voxel_size: npt.NDArray, point_cloud_range: npt.NDArray) -> torch.Tensor:
     """
     Calculate voxel center coordinates.
 

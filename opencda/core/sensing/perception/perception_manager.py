@@ -22,6 +22,7 @@ from opencda.core.common.misc import cal_distance_angle, get_speed, get_speed_su
 from opencda.core.sensing.perception.obstacle_vehicle import ObstacleVehicle
 from opencda.core.sensing.perception.static_obstacle import TrafficLight
 from opencda.core.sensing.perception.o3d_lidar_libs import o3d_visualizer_init, o3d_pointcloud_encode, o3d_visualizer_show, o3d_camera_lidar_fusion
+from opencda.core.common.cav_world import CavWorld
 
 logger = logging.getLogger("cavise.perception_manager")
 
@@ -119,7 +120,7 @@ class CameraSensor:
         return spawn_point
 
     @staticmethod
-    def _on_rgb_image_event(weak_self: weakref.ref, event: Any) -> None:
+    def _on_rgb_image_event(weak_self: weakref.ref, event: carla.Image) -> None:
         """
         Callback for RGB camera image events.
 
@@ -172,7 +173,7 @@ class LidarSensor:
 
     """
 
-    def __init__(self, vehicle: Optional[Any], world: Any, config_yaml: Dict[str, Any], global_position: Optional[List[float]]):
+    def __init__(self, vehicle: Optional[carla.Vehicle], world: carla.World, config_yaml: Dict[str, Any], global_position: Optional[List[float]]):
         if vehicle is not None:
             world = vehicle.get_world()
         blueprint = world.get_blueprint_library().find("sensor.lidar.ray_cast")
@@ -210,7 +211,7 @@ class LidarSensor:
         self.sensor.listen(lambda event: LidarSensor._on_data_event(weak_self, event))
 
     @staticmethod
-    def _on_data_event(weak_self: weakref.ref, event: Any) -> None:
+    def _on_data_event(weak_self: weakref.ref, event: carla.LidarMeasurement) -> None:
         """
         Callback for LiDAR data events.
 
@@ -263,7 +264,7 @@ class SemanticLidarSensor:
         Lidar sensor that will be attached to the vehicle.
     """
 
-    def __init__(self, vehicle: Optional[Any], world: Any, config_yaml: Dict[str, Any], global_position: Optional[List[float]]):
+    def __init__(self, vehicle: Optional[carla.Vehicle], world: carla.World, config_yaml: Dict[str, Any], global_position: Optional[List[float]]):
         if vehicle is not None:
             world = vehicle.get_world()
 
@@ -371,12 +372,12 @@ class PerceptionManager:
 
     def __init__(
         self,
-        vehicle: Optional[Any],
+        vehicle: Optional[carla.World],
         config_yaml: Dict[str, Any],
-        cav_world: Any,
+        cav_world: CavWorld,
         infra_id: Any,
         data_dump: bool = False,
-        carla_world: Optional[Any] = None,
+        carla_world: Optional[carla.World] = None,
     ):
         self.vehicle = vehicle
         self.carla_world = carla_world if carla_world is not None else self.vehicle.get_world()  # NOTE None-check is required
@@ -452,7 +453,7 @@ class PerceptionManager:
         # traffic light detection related
         self.traffic_thresh = config_yaml["traffic_light_thresh"] if "traffic_light_thresh" in config_yaml else 50  # noqa: DC05
 
-    def dist(self, a: Any) -> float:
+    def dist(self, a: carla.actor) -> float:
         """
         A fast method to retrieve the obstacle distance the ego
         vehicle from the server directly.
@@ -486,7 +487,7 @@ class PerceptionManager:
         """
         self.ego_pos = ego_pos
 
-        objects: Dict[str, List[Any]] = {"vehicles": [], "traffic_lights": []}
+        objects: Dict[str, List] = {"vehicles": [], "traffic_lights": []}
 
         if not self.activate:
             objects = self.deactivate_mode(objects)

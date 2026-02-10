@@ -13,6 +13,8 @@ from opencda.core.sensing.perception.perception_manager import PerceptionManager
 from opencda.core.sensing.perception.obstacle_vehicle import ObstacleVehicle
 from opencda.core.sensing.perception.static_obstacle import TrafficLight
 from opencda.core.sensing.localization.localization_manager import CustomizedLocalizationManager
+from opencda.core.common.cav_world import CavWorld
+import carla
 
 
 class CustomziedPeceptionManager(PerceptionManager):
@@ -28,7 +30,7 @@ class CustomziedPeceptionManager(PerceptionManager):
         CARLA vehicle actor.
     config_yaml : Dict[str, Any]
         Configuration dictionary from YAML file.
-    cav_world : Any
+    cav_world : CavWorld
         Connected and automated vehicle world object.
     data_dump : bool, optional
         Whether to dump sensor data to disk. Default is False.
@@ -40,9 +42,9 @@ class CustomziedPeceptionManager(PerceptionManager):
 
     def __init__(
         self,
-        vehicle: Any,
+        vehicle: carla.Vehicle,
         config_yaml: Dict[str, Any],
-        cav_world: Any,
+        cav_world: CavWorld,
         data_dump: bool = False,
     ):
         super(CustomizedLocalizationManager, self).__init__(vehicle, config_yaml, cav_world, data_dump)

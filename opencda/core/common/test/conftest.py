@@ -1,5 +1,6 @@
 import sys
 import types
+from typing import Dict
 from unittest.mock import MagicMock, Mock
 import pytest
 
@@ -30,7 +31,7 @@ _MOCKED_MODULE_NAMES = [
 ]
 
 
-def _install_mocks():
+def _install_mocks() -> None:
     """
     Installs mock modules into sys.modules.
     This is called via pytest_configure to ensure mocks exist before test collection imports.
@@ -167,7 +168,7 @@ def _install_mocks():
     sys.modules.update(new_modules)
 
 
-def _uninstall_mocks():
+def _uninstall_mocks() -> None:
     """
     Restores original modules or removes mocks.
     """
@@ -179,16 +180,16 @@ def _uninstall_mocks():
 
 
 # Pytest hooks for setup/teardown at the start/end of the process
-def pytest_configure(config):
+def pytest_configure(config) -> None:
     _install_mocks()
 
 
-def pytest_unconfigure(config):
+def pytest_unconfigure(config) -> None:
     _uninstall_mocks()
 
 
 @pytest.fixture
-def fake_heavy_deps():
+def fake_heavy_deps() -> Dict[str, types.ModuleType]:
     """
     Returns the currently mocked modules from sys.modules for use in tests.
     """

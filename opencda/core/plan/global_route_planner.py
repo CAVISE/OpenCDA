@@ -46,7 +46,7 @@ class GlobalRoutePlanner(object):
         Previously computed road decision for continuity.
     """
 
-    def __init__(self, dao: Any):
+    def __init__(self, dao: object):
         self._dao: Any = dao
         self._topology: Optional[List[Dict[str, Any]]] = None
         self._graph: Optional[nx.DiGraph] = None

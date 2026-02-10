@@ -1,3 +1,4 @@
+from typing import Generator, Tuple
 import pytest
 import zmq
 from opencda.core.common.communication.manager import CommunicationManager
@@ -42,7 +43,15 @@ def _safe_close_manager(manager: CommunicationManager) -> None:
 
 
 @pytest.fixture
-def zmq_pair():
+def zmq_pair() -> Generator[Tuple[CommunicationManager, CommunicationManager], None, None]:
+    """
+    Pytest fixture providing ZMQ server/client pair.
+
+    Yields
+    ------
+    Tuple[CommunicationManager, CommunicationManager]
+        (server, client) connected via tcp://127.0.0.1:5555
+    """
     address = "tcp://127.0.0.1:5555"
     server = CommunicationManager(address)
     client = CommunicationManager(address)
@@ -56,7 +65,15 @@ def zmq_pair():
     _safe_close_manager(client)
 
 
-def test_socket_creation_bind_and_connect(caplog):
+def test_socket_creation_bind_and_connect(caplog: pytest.LogCaptureFixture) -> None:
+    """
+    Test socket creation logs correct bind message.
+
+    Parameters
+    ----------
+    caplog : pytest.LogCaptureFixture
+        Pytest log capture fixture.
+    """
     address = "inproc://creation_test"
     manager = CommunicationManager(address)
 
@@ -68,7 +85,15 @@ def test_socket_creation_bind_and_connect(caplog):
     _safe_close_manager(manager)
 
 
-def test_send_and_receive_message(zmq_pair):
+def test_send_and_receive_message(zmq_pair: Tuple[CommunicationManager, CommunicationManager]) -> None:
+    """
+    Test message send/receive between server and client.
+
+    Parameters
+    ----------
+    zmq_pair : Tuple[CommunicationManager, CommunicationManager]
+        Server/client pair from fixture.
+    """
     server, client = zmq_pair
 
     message = b"Hello, CommunicationManager!"
@@ -84,7 +109,15 @@ def test_send_and_receive_message(zmq_pair):
     assert received == message
 
 
-def test_send_error_logged(caplog):
+def test_send_error_logged(caplog: pytest.LogCaptureFixture) -> None:
+    """
+    Test send error logging when socket closed.
+
+    Parameters
+    ----------
+    caplog : pytest.LogCaptureFixture
+        Pytest log capture fixture.
+    """
     address = "inproc://bad_send"
     manager = CommunicationManager(address)
 
@@ -99,7 +132,20 @@ def test_send_error_logged(caplog):
     _safe_close_manager(manager)
 
 
-def test_receive_error_logged(caplog):
+def test_receive_error_logged(caplog: pytest.LogCaptureFixture) -> None:
+    """
+    Test receive error handling returns None and logs error.
+
+    Parameters
+    ----------
+    caplog : pytest.LogCaptureFixture
+        Pytest log capture fixture.
+
+    Returns
+    -------
+    None
+        Implicit via assertions.
+    """
     address = "inproc://bad_recv"
     manager = CommunicationManager(address)
 
@@ -115,6 +161,6 @@ def test_receive_error_logged(caplog):
     _safe_close_manager(manager)
 
 
-def test_close_without_socket_does_not_crash():
+def test_close_without_socket_does_not_crash() -> None:
     manager = CommunicationManager("inproc://noop")
     _safe_close_manager(manager)

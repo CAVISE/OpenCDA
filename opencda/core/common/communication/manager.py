@@ -60,7 +60,7 @@ class CommunicationManager:
         except zmq.ZMQError as error:
             logger.error(f"error upon socket creation: {error}")
 
-    def send_message(self, message: str) -> None:
+    def send_message(self, message: str | bytes) -> None:
         """
         Send message through ZeroMQ socket.
 

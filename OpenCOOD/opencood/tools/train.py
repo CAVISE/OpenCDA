@@ -149,9 +149,9 @@ def main() -> None:
 
     for epoch in range(init_epoch, max(epoches, init_epoch)):
         if hypes["lr_scheduler"]["core_method"] != "cosineannealwarm":
-            scheduler.step(epoch)
+            scheduler.step(epoch)  # NOTE need a "if scheduler is None:" check
         if hypes["lr_scheduler"]["core_method"] == "cosineannealwarm":
-            scheduler.step_update(epoch * num_steps + 0)
+            scheduler.step_update(epoch * num_steps + 0)  # NOTE need a "if scheduler is None:" check
         for param_group in optimizer.param_groups:
             print("learning rate %.7f" % param_group["lr"])
 
@@ -187,7 +187,7 @@ def main() -> None:
                 scaler.update()
 
             if hypes["lr_scheduler"]["core_method"] == "cosineannealwarm":
-                scheduler.step_update(epoch * num_steps + i)
+                scheduler.step_update(epoch * num_steps + i)  # NOTE need a " if scheduler is None:" check
 
         if epoch % hypes["train_params"]["save_freq"] == 0:
             torch.save(model_without_ddp.state_dict(), os.path.join(saved_path, "net_epoch%d.pth" % (epoch + 1)))

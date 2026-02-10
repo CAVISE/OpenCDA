@@ -11,6 +11,7 @@ import numpy as np
 from opencda.core.common.misc import get_speed
 from opencda.core.sensing.perception import sensor_transformation as st
 from opencda.scenario_testing.utils.yaml_utils import save_yaml
+from opencda.core.sensing.perception.perception_manager import PerceptionManager
 
 
 class DataDumper(object):
@@ -46,7 +47,7 @@ class DataDumper(object):
 
     """
 
-    def __init__(self, perception_manager: Any, vehicle_id: str, save_time: str):
+    def __init__(self, perception_manager: PerceptionManager, vehicle_id: str, save_time: str):
         self.rgb_camera = perception_manager.rgb_camera
         self.lidar = perception_manager.lidar
 
@@ -61,7 +62,7 @@ class DataDumper(object):
 
         self.count = 0
 
-    def run_step(self, perception_manager: Any, localization_manager: Any, behavior_agent: Optional[Any]) -> None:
+    def run_step(self, perception_manager: PerceptionManager, localization_manager: Any, behavior_agent: Optional[Any]) -> None:
         """
         Dump data at running time.
 

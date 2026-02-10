@@ -8,6 +8,7 @@ off-road detection with optional human takeover capabilities.
 
 import logging
 from typing import Dict, Any
+import carla
 
 from opencda.core.safety.sensors import CollisionSensor, TrafficLightDector, StuckDetector, OffRoadDetector
 
@@ -42,7 +43,7 @@ class SafetyManager:
 
     Attributes
     ----------
-    vehicle : carla.Actor
+    vehicle : carla.Vehicle
         The monitored vehicle.
     print_message : bool
         Flag indicating whether to print safety messages.
@@ -50,7 +51,7 @@ class SafetyManager:
         List of safety sensor instances.
     """
 
-    def __init__(self, vehicle: Any, params: Dict[str, Any]):
+    def __init__(self, vehicle: carla.Vehicle, params: Dict[str, Any]):
         self.vehicle = vehicle
         self.print_message: bool = params["print_message"]
         self.sensors = [

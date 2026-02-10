@@ -7,7 +7,7 @@ including speed, acceleration, and time-to-collision tracking and visualization.
 
 import warnings
 
-from typing import Any, List, Tuple
+from typing import List, Tuple
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -68,7 +68,7 @@ class PlanDebugHelper(object):
                 self.acc_list[0].append((self.speed_list[0][-1] - self.speed_list[0][-2]) / 0.05)
             self.ttc_list[0].append(ttc)
 
-    def evaluate(self) -> Tuple[Any, str]:
+    def evaluate(self) -> Tuple[plt.Figure, str]:
         """
         Evaluate the target vehicle and visualize the plot.
 

@@ -4,8 +4,8 @@ Evaluation manager.
 
 import os
 import logging
-from typing import Any
 from opencda.scenario_testing.evaluations.utils import lprint
+from opencda.core.common.cav_world import CavWorld
 
 logger = logging.getLogger("cavise.evaluate_manager")
 
@@ -33,7 +33,7 @@ class EvaluationManager(object):
 
     """
 
-    def __init__(self, cav_world: Any, script_name: str, current_time: str) -> None:
+    def __init__(self, cav_world: CavWorld, script_name: str, current_time: str) -> None:
         self.cav_world = cav_world
 
         current_path = os.path.dirname(os.path.realpath(__file__))
@@ -60,10 +60,12 @@ class EvaluationManager(object):
 
     def kinematics_eval(self, log_file: str) -> None:
         """
-        vehicle kinematics related evaluation.
+        Vehicle kinematics related evaluation.
 
-        Args:
-            -log_file (File): The log file to write the data.
+        Parameters
+        ----------
+        log_file : str
+            The log file path to write the data.
 
         """
         lprint(log_file, "***********Kinematics Module***********")
@@ -84,8 +86,10 @@ class EvaluationManager(object):
         """
         Localization module evaluation.
 
-        Args:
-            -log_file (File): The log file to write the data.
+        Parameters
+        ----------
+        log_file : str
+            The log file path to write the data.
         """
         lprint(log_file, "***********Localization Module***********")
         for vid, vm in self.cav_world.get_vehicle_managers().items():
@@ -106,9 +110,10 @@ class EvaluationManager(object):
         """
         Platooning evaluation.
 
-        Args:
-            -log_file (File): The log file to write the data.
-
+        Parameters
+        ----------
+        log_file : str
+            The log file path to write the data.
         """
         lprint(log_file, "***********Platooning Analysis***********")
 

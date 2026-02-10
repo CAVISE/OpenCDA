@@ -1,3 +1,4 @@
+from typing import Any, Dict, Tuple
 import pytest
 from opencda.core.common.communication.serialize import MessageHandler
 from opencda.core.common.communication.protos.cavise import capi_pb2 as proto_capi  # noqa: E402
@@ -5,16 +6,33 @@ from google.protobuf.descriptor import FieldDescriptor  # noqa: E402
 
 
 @pytest.fixture
-def mh():
+def mh() -> MessageHandler:
+    """
+    Fixture providing MessageHandler instance.
+
+    Returns
+    -------
+    MessageHandler
+        Fresh MessageHandler instance.
+    """
     return MessageHandler()
 
 
-def _pick_entity_field_and_payload():
+def _pick_entity_field_and_payload() -> Tuple[
+    FieldDescriptor, Dict[str, Any]
+]:  # NOTE: mypy false positive - pytest.skip() raises SkipException (no return needed)
     """
-    Pick a real protobuf field (other than 'id') from OpenCDA_message.entity
-    and generate a valid MessageHandler payload for it.
+    Pick protobuf field and generate valid MessageHandler payload.
 
-    This keeps the test stable even if the proto schema changes.
+    Returns
+    -------
+    Tuple[FieldDescriptor, Dict[str, Any]]
+        (field_descriptor, payload_dict)
+
+    Raises
+    ------
+    pytest.skip
+        No suitable protobuf fields found.
     """
     ent = proto_capi.OpenCDA_message().entity.add()
     desc = ent.DESCRIPTOR
@@ -60,7 +78,8 @@ def _pick_entity_field_and_payload():
     pytest.skip("No suitable protobuf fields found for OpenCDA_message.entity (other than id).")
 
 
-def test_add_new_entities(mh):
+def test_add_new_entities(mh: MessageHandler) -> None:
+    """Test adding entities to opencda/artery message storage."""
     assert mh.current_message_opencda == {}
     assert mh.current_message_artery == {}
 
@@ -82,7 +101,8 @@ def test_add_new_entities(mh):
     assert mh.current_message_artery == {}
 
 
-def test_reuse_same_entity_module(mh):
+def test_reuse_same_entity_module(mh: MessageHandler) -> None:
+    """Test reusing same entity/module overwrites correctly."""
     with mh.handle_opencda_message("cav-1", "mod") as msg:
         msg["a"] = {"type": "int32", "label": "LABEL_OPTIONAL", "data": 10}
 
@@ -93,7 +113,12 @@ def test_reuse_same_entity_module(mh):
     assert mh.current_message_opencda["cav-1"]["mod"]["b"]["data"] == 20
 
 
-def test_make_opencda_message_serialization_roundtrip(mh):
+def test_make_opencda_message_serialization_roundtrip(mh: MessageHandler) -> None:
+    """
+    Test full OpenCDA message serialization/deserialization roundtrip.
+
+    Validates protobuf field correctly serializes to bytes and parses back.
+    """
     field, payload = _pick_entity_field_and_payload()
 
     with mh.handle_opencda_message("cav-123", "mod") as msg:
@@ -121,7 +146,10 @@ def test_make_opencda_message_serialization_roundtrip(mh):
         assert getattr(ent0, field.name) == payload["data"]
 
 
-def test_make_artery_data_populates_current_message_artery(mh):
+def test_make_artery_data_populates_current_message_artery(mh: MessageHandler) -> None:
+    """
+    Test make_artery_data populates current_message_artery from protobuf.
+    """
     # make_artery_data only fills modules that exist in current_message_opencda for a given entity_id
     with mh.handle_opencda_message("cav-123", "mod") as _:
         pass

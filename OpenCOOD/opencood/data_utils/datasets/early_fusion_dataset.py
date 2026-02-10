@@ -22,6 +22,7 @@ from opencood.data_utils.datasets import basedataset
 from opencood.data_utils.pre_processor import build_preprocessor
 from opencood.utils.pcd_utils import mask_points_by_range, mask_ego_points, shuffle_points, downsample_lidar_minimum
 from opencood.utils.transformation_utils import x1_to_x2
+from opencda.core.common.communication.serialize import MessageHandler
 
 logger = logging.getLogger("cavise.OpenCOOD.opencood.data_utils.datasets.early_fusion_dataset")
 
@@ -38,7 +39,7 @@ class EarlyFusionDataset(basedataset.BaseDataset):
         Whether to include visualization data.
     train : bool
         Whether the dataset is used for training. Default is True.
-    message_handler : Optional[Any]
+    message_handler : Optional[message_handler]
         Handler for inter-vehicle communication. Default is None.
 
     Attributes
@@ -47,7 +48,7 @@ class EarlyFusionDataset(basedataset.BaseDataset):
         Preprocessor for point cloud data.
     post_processor : Any
         Postprocessor for generating labels and bounding boxes.
-    message_handler : Optional[Any]
+    message_handler : Optional[message_handler]
         Handler for inter-vehicle communication.
     module_name : str
         Identifier for the module.
@@ -58,7 +59,7 @@ class EarlyFusionDataset(basedataset.BaseDataset):
         params: Dict[str, Any],
         visualize: bool,
         train: bool = True,
-        message_handler: Optional[Any] = None,
+        message_handler: Optional[MessageHandler] = None,
     ):
         super().__init__(params, visualize, train)
 

@@ -6,6 +6,7 @@ and predictions using Open3D and Matplotlib.
 """
 
 import time
+import torch
 from typing import List, Tuple, Any, Union
 
 import cv2
@@ -473,7 +474,7 @@ def visualize_inference_sample_dataloader(
     return o3d_pcd, pred_o3d_box, gt_o3d_box
 
 
-def visualize_sequence_dataloader(dataloader: Any, order: str, color_mode: str = "constant") -> None:
+def visualize_sequence_dataloader(dataloader: torch.utils.data.DataLoader, order: str, color_mode: str = "constant") -> None:
     """
     Visualize the batch data in animation.
 

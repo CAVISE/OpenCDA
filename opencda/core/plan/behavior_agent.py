@@ -170,7 +170,7 @@ class BehaviorAgent(object):
         # print message in debug mode
         self.debug = False if "debug" not in config_yaml else config_yaml["debug"]
 
-    def update_information(self, ego_pos: Any, ego_speed: float, objects: Dict[str, Any]) -> None:
+    def update_information(self, ego_pos: carla.Transform, ego_speed: float, objects: Dict[str, Any]) -> None:
         """
         Update the perception and localization information
         to the behavior agent.
@@ -264,8 +264,8 @@ class BehaviorAgent(object):
 
     def set_destination(
         self,
-        start_location: Any,
-        end_location: Any,
+        start_location: carla.location,
+        end_location: carla.location,
         clean: bool = False,
         end_reset: bool = True,
         clean_history: bool = False,

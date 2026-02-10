@@ -79,7 +79,7 @@ class PlatooningPlugin(object):
         self.front_vehicle = None
         self.rear_vechile = None
 
-    def update_info(self, ego_pos: Any, ego_spd: float) -> None:
+    def update_info(self, ego_pos: carla.Transform, ego_spd: float) -> None:
         """
         Update ego vehicle position and speed.
 
@@ -161,7 +161,7 @@ class PlatooningPlugin(object):
         """
         self.status = status
 
-    def search_platoon(self, ego_loc: Any, cav_nearby: Dict[Any, Any]) -> Tuple[Optional[int], Optional[Any]]:
+    def search_platoon(self, ego_loc: carla.Location, cav_nearby: Dict[str, Any]) -> Tuple[Optional[int], Optional[Any]]:
         """
         Search for platoon candidates within communication range.
 
@@ -199,7 +199,7 @@ class PlatooningPlugin(object):
 
         return pmid, pm
 
-    def match_platoon(self, cav_nearby: Dict[Any, Any]) -> Tuple[bool, int, List[Any]]:
+    def match_platoon(self, cav_nearby: Dict[str, Any]) -> Tuple[bool, int, List[Any]]:
         """
         Find the best position to join a platoon.
 

@@ -43,7 +43,7 @@ class GnssSensor(object):
         Timestamp of the latest GNSS measurement.
     """
 
-    def __init__(self, vehicle: Any, config: Dict[str, Any]):
+    def __init__(self, vehicle: carla.Vehicle, config: Dict[str, Any]):
         world = vehicle.get_world()
         blueprint = world.get_blueprint_library().find("sensor.other.gnss")
 
