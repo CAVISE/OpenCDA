@@ -2,6 +2,10 @@
 Basic class of CAV
 """
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from opencda.core.common.cav_world import CavWorld
 import logging
 from typing import Any, Dict, List, Optional, Set
 import carla
