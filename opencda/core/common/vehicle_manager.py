@@ -238,7 +238,7 @@ class VehicleManager(object):
         # TODO: Implement
         pass
 
-    def run_step(self, target_speed: Optional[float] = None) -> carla.VehicleControl:
+    def run_step(self, target_speed: Optional[float] = None) -> Any:  # NOTE: Any due to missing carla.VehicleControl
         """
         Execute one step of navigation.
         """

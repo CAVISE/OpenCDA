@@ -741,7 +741,7 @@ class BehaviorAgent(object):
 
     def run_step(
         self, target_speed: Optional[float] = None, collision_detector_enabled: bool = True, lane_change_allowed: bool = True
-    ) -> carla.VehicleControl:
+    ) -> Any:  # NOTE: Any due to missing carla.VehicleControl
         """
         Execute one step of navigation
 

@@ -203,7 +203,7 @@ class Controller:
 
         return np.clip((self._lat_k_p * _dot) + (self._lat_k_d * _de) + (self._lat_k_i * _ie), -1.0, 1.0)
 
-    def run_step(self, target_speed: float, waypoint: Optional[carla.Location]) -> carla.VehicleControl:
+    def run_step(self, target_speed: float, waypoint: Optional[carla.Location]) -> Any:  # NOTE: Any due to missing carla.VehicleControl
         """
         Execute complete control step with both longitudinal and lateral PID.
 

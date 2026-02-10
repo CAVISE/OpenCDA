@@ -223,7 +223,7 @@ class PlatooningManager(object):
         # update the center location of the platoon
         self.cal_center_loc()
 
-    def run_step(self) -> List[carla.VehicleControl]:
+    def run_step(self) -> List[Any]:  # NOTE: Any due to missing carla.VehicleControl
         """
         Execute one control step for each vehicle in the platoon.
 
