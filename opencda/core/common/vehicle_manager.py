@@ -15,7 +15,6 @@ from opencda.core.safety.safety_manager import SafetyManager
 from opencda.core.plan.behavior_agent import BehaviorAgent
 from opencda.core.map.map_manager import MapManager
 from opencda.core.common.data_dumper import DataDumper
-from opencda.core.common.cav_world import CavWorld
 
 logger = logging.getLogger("cavise.vehicle_manager")
 
@@ -81,7 +80,7 @@ class VehicleManager(object):
         config_yaml: Dict[str, Any],
         application: List[str],
         carla_map: carla.Map,
-        cav_world: CavWorld,
+        cav_world: "CavWorld",
         current_time: str = "",
         data_dumping: bool = False,
         autogenerate_id_on_failure: bool = True,  # TODO: Link with scenario config

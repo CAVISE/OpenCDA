@@ -6,6 +6,7 @@ and automated vehicle (CAV) information, machine learning models, and
 SUMO-CARLA ID mappings during co-simulation.
 """
 
+from __future__ import annotations
 import importlib
 from typing import Dict, Any, Optional, Set
 from opencda.core.application.platooning.platooning_manager import PlatooningManager
@@ -47,8 +48,8 @@ class CavWorld(object):
     def __init__(self, apply_ml: bool = False, with_capi: bool = False):
         self.vehicle_id_set: Set[int] = set()
         self._vehicle_manager_dict: Dict[str, Any] = {}
-        self._platooning_dict: Dict[str, Any] = {}
-        self._rsu_manager_dict: Dict[str, Any] = {}
+        self._platooning_dict: Dict[str, "VehicleManager"] = {}
+        self._rsu_manager_dict: Dict[str, "RSUManager"] = {}
         self.ml_manager = None
         # CAVISE communication protocol manager
         self.comms_manager = None
@@ -128,7 +129,7 @@ class CavWorld(object):
         """
         return self._platooning_dict
 
-    def locate_vehicle_manager(self, loc: carla.Location) -> Optional[VehicleManager]:
+    def locate_vehicle_manager(self, loc: carla.Location) -> Optional["VehicleManager"]:
         """
         Locate the vehicle manager based on the given location.
 

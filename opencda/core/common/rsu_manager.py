@@ -9,7 +9,6 @@ import carla
 from opencda.core.common.data_dumper import DataDumper
 from opencda.core.sensing.perception.perception_manager import PerceptionManager
 from opencda.core.sensing.localization.rsu_localization_manager import LocalizationManager
-from opencda.core.common.cav_world import CavWorld
 
 logger = logging.getLogger("cavise.rsu_manager")
 
@@ -53,14 +52,14 @@ class RSUManager(object):
     """
 
     current_id = 1
-    used_ids: Set[int] = set()
+    used_ids: Set[str] = set()
 
     def __init__(
         self,
         carla_world: carla.World,
         config_yaml: Dict,
         carla_map: carla.Map,
-        cav_world: CavWorld,
+        cav_world: "CavWorld",
         current_time: str = "",
         data_dumping: bool = False,
         autogenerate_id_on_failure: bool = True,
