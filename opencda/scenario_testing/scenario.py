@@ -216,7 +216,7 @@ class Scenario:
                 except Exception as e:
                     logger.warning(f"An error occurred during proceesing {tick_number} tick: {e}")
 
-                self.coperception_model_manager.make_dataset()
+                self.coperception_model_manager.update_dataset()
                 self.coperception_model_manager.make_prediction(tick_number)
 
             if self.platoon_list is not None:
@@ -273,7 +273,7 @@ class Scenario:
                 except Exception as e:
                     logger.warning(f"An error occurred during proceesing {tick_number} tick: {e}")
 
-                self.coperception_model_manager.make_dataset()
+                self.coperception_model_manager.update_dataset()
                 self.coperception_model_manager.opencood_dataset.extract_data(
                     idx=0  # TODO: Figure out how to select the ego vehicle in cooperative perception models
                 )
