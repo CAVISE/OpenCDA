@@ -11,7 +11,7 @@ RUN mkdir -p $XDG_RUNTIME_DIR && \
     chmod 700 $XDG_RUNTIME_DIR && \
     ln -sf /usr/bin/python3 /usr/bin/python
 
-ARG PROTOC_VERSION=33.0
+ARG PROTOC_VERSION=33.5
 ARG PROTOC_ZIP=protoc-${PROTOC_VERSION}-linux-x86_64.zip
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
@@ -28,7 +28,7 @@ RUN apt-get update && \
         python3-pip=24.0+dfsg-1ubuntu1.3 \
         python3-dev=3.12.3-0ubuntu2.1 \
         vulkan-tools=1.3.275.0+dfsg1-1 \
-        libglib2.0-0=2.80.0-6ubuntu3.7  \
+        libglib2.0-0=2.80.0-6ubuntu1 \
     && \
     curl -LO https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/${PROTOC_ZIP} && \
     unzip -o ${PROTOC_ZIP} -d /usr/local && \
@@ -44,6 +44,6 @@ ENV PATH="${HOME}/.local/bin:${PATH}"
 
 # Python Version: 3.12.3
 COPY opencda/requirements.txt requirements.txt
-RUN python3 -m pip install --no-cache-dir --break-system-packages --upgrade pip==24.0 setuptools==69.5.1 wheel==0.43.0 && \
+RUN python3 -m pip install --no-cache-dir --break-system-packages --upgrade pip==26.0.1 setuptools==82.0.0 wheel==0.46.3 && \
     python3 -m pip install --no-cache-dir --break-system-packages -r requirements.txt && \
     python3 -m pip install --no-cache-dir --break-system-packages spconv-cu126==2.3.8
