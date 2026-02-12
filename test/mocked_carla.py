@@ -230,15 +230,7 @@ class Vehicle:
         self.bounding_box = BoundingBox(bbox_corners)
         self.transform = Transform(x=12, y=12, z=12)
 
-    def get_transform(self) -> Transform:
-        """
-        Get the current transform of the camera.
-
-        Returns
-        -------
-        Transform
-            Current camera transform.
-        """
+    def get_transform(self):
         return self.transform
 
     def get_world(self):
@@ -257,15 +249,7 @@ class Camera:
         self._callback = None
         self.is_listening = False
 
-    def get_transform(self) -> Transform:
-        """
-        Get the current transform of the LiDAR.
-
-        Returns
-        -------
-        Transform
-            Current LiDAR transform.
-        """
+    def get_transform(self):
         return self.transform
 
     def listen(self, callback):
@@ -294,15 +278,7 @@ class Lidar:
         self._callback = None
         self.is_listening = False
 
-    def get_transform(self) -> Transform:
-        """
-        Get the current transform of the vehicle.
-
-        Returns
-        -------
-        Transform
-            Current vehicle transform.
-        """
+    def get_transform(self):
         return self.transform
 
     def listen(self, callback):

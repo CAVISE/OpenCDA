@@ -1,9 +1,5 @@
 """
 Unit test for Localization DebugHelper.
-
-This module contains unit tests for the PlatoonDebugHelper class, which
-tracks and evaluates platooning performance metrics such as speed, acceleration,
-time-to-collision, and inter-vehicle gaps.
 """
 
 import unittest
@@ -11,56 +7,19 @@ from opencda.core.application.platooning.platoon_debug_helper import PlatoonDebu
 
 
 class TestPlanDebugHelper(unittest.TestCase):
-    """
-    Test suite for PlatoonDebugHelper class.
-
-    Tests initialization, metric tracking updates, and performance evaluation
-    for platooning applications.
-    """
-
-    def setUp(self) -> None:
-        """
-        Set up test fixtures.
-
-        Creates a PlatoonDebugHelper instance with mock actor ID and
-        initializes the frame counter.
-
-        Returns
-        -------
-        None
-        """
+    def setUp(self):
         self.actor_id = 10
         self.platoon_debug_helper = PlatoonDebugHelper(actor_id=self.actor_id)
         self.platoon_debug_helper.count = 100
 
-    def test_parameters(self) -> None:
-        """
-        Test initialization of metric tracking lists.
-
-        Validates that all metric lists (speed, acceleration, TTC, time gap,
-        distance gap) are properly initialized as list types.
-
-        Returns
-        -------
-        None
-        """
+    def test_parameters(self):
         assert isinstance(self.platoon_debug_helper.speed_list[0], list)
         assert isinstance(self.platoon_debug_helper.acc_list[0], list)
         assert isinstance(self.platoon_debug_helper.ttc_list[0], list)
         assert isinstance(self.platoon_debug_helper.time_gap_list[0], list)
         assert isinstance(self.platoon_debug_helper.dist_gap_list[0], list)
 
-    def test_update(self) -> None:
-        """
-        Test metric update functionality.
-
-        Verifies that the update method correctly increments frame count
-        and maintains proper list lengths for all tracked metrics.
-
-        Returns
-        -------
-        None
-        """
+    def test_update(self):
         self.platoon_debug_helper.update(90, 2, 0.8, 10)
 
         assert self.platoon_debug_helper.count == 101
@@ -70,17 +29,7 @@ class TestPlanDebugHelper(unittest.TestCase):
         assert len(self.platoon_debug_helper.time_gap_list) == 1
         assert len(self.platoon_debug_helper.dist_gap_list) == 1
 
-    def test_evaluate(self) -> None:
-        """
-        Test performance evaluation and report generation.
-
-        Validates that the evaluate method returns both a figure object
-        and a text report string after metrics have been collected.
-
-        Returns
-        -------
-        None
-        """
+    def test_evaluate(self):
         self.platoon_debug_helper.update(90, 2, 0.8, 10)
         figure, txt = self.platoon_debug_helper.evaluate()
         assert figure and isinstance(txt, str)

@@ -1,8 +1,5 @@
 """
-Unit tests for machine learning manager.
-
-This module contains unit tests for the MLManager class, which handles
-object detection and visualization using machine learning models.
+Unit test for ML Manager.
 """
 
 import os
@@ -87,24 +84,7 @@ class _FakeDetector:
 
 
 class TestMlManager(unittest.TestCase):
-    """
-    Test suite for MLManager class.
-
-    Tests object detection initialization, inference, and 2D bounding box
-    visualization capabilities.
-    """
-
-    def setUp(self) -> None:
-        """
-        Set up test fixtures.
-
-        Loads test image and initializes MLManager instance for object
-        detection testing.
-
-        Returns
-        -------
-        None
-        """
+    def setUp(self):
         current_path = os.path.dirname(os.path.realpath(__file__))
         self.data = cv2.imread(os.path.join(current_path, "data/test.jpg"))
         # Make sure torch.hub exists in the imported module even if torch is not real PyTorch
@@ -123,30 +103,10 @@ class TestMlManager(unittest.TestCase):
 
         self.ml_manager = MLManager()
 
-    def test_parameters(self) -> None:
-        """
-        Test object detector initialization.
-
-        Validates that the object detector is properly initialized and
-        available in the MLManager instance.
-
-        Returns
-        -------
-        None
-        """
+    def test_parameters(self):
         assert self.ml_manager.object_detector
 
-    def test_draw_2d_bbx(self) -> None:
-        """
-        Test 2D bounding box detection and visualization.
-
-        Verifies that object detection runs successfully and that bounding
-        boxes can be drawn on the image without changing its dimensions.
-
-        Returns
-        -------
-        None
-        """
+    def test_draw_2d_bbx(self):
         results = self.ml_manager.object_detector(self.data)
         assert len(results) == 1
         assert self.ml_manager.draw_2d_box(results, self.data, 0).shape == self.data.shape
