@@ -37,7 +37,7 @@ pandas==2.3.3
 Pillow==11.3.0
 
 # Protobuf & Code Generation
-protobuf==6.33.0
+protobuf==6.33.5
 protoc-wheel==21.1
 
 # Multimedia & GUI
@@ -63,5 +63,5 @@ torch --index-url https://download.pytorch.org/whl/cu128
 torch_geometric==2.7.0
 torchvision --index-url https://download.pytorch.org/whl/cu128
 tqdm==4.67.1
-traci==1.24.0
+traci==1.26.0
 typing-extensions==4.15.0
