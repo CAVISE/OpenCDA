@@ -4,6 +4,8 @@
 # headless plotting
 matplotlib==3.10.7
 
+mypy-protobuf==5.0.0
+
 # keep networkx unpinned here; pin it via constraints for py310 if needed
 networkx
 
