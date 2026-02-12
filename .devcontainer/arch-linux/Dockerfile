@@ -53,9 +53,7 @@ RUN echo "${USER} ALL=(ALL:ALL) NOPASSWD: ALL" > /etc/sudoers.d/${USER}
 
 WORKDIR /workspaces/opencda
 COPY .python-version .python-version
-COPY requirements_ci.txt requirements_ci.txt
 COPY requirements.txt requirements.txt
-COPY requirements_cavise.txt requirements_cavise.txt
 
 ENV HOME=/home/${USER}
 ENV PYENV_ROOT=${HOME}/.pyenv
@@ -63,7 +61,7 @@ ENV PATH=${PYENV_ROOT}/shims:${PYENV_ROOT}/bin:${PATH}
 
 RUN pyenv install "$(pyenv local)" && pyenv local && pyenv rehash
 RUN pip3 install --no-cache-dir --break-system-packages \
-    -r requirements.txt -r requirements_ci.txt -r requirements_cavise.txt traci
+    -r requirements.txt
 
 ENV PYTHONPATH=/workspaces/opencda
 ENV SUMO_HOME=/usr/local/share/sumo
