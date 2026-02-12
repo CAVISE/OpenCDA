@@ -2,7 +2,6 @@ import torch
 import numpy as np
 
 from einops import rearrange
-from opencood.utils.common_utils import torch_tensor_to_numpy
 
 from typing import List, Tuple
 
@@ -35,10 +34,10 @@ def regroup(dense_feature: torch.Tensor, record_len: List[int], max_len: int) ->
         mask[i, j] = 1 if CAV j exists in sample i, else 0.
 
     """
-    cum_sum_len = list(np.cumsum(torch_tensor_to_numpy(record_len)))
+    cum_sum_len = list(np.cumsum(record_len))
     split_features = torch.tensor_split(dense_feature, cum_sum_len[:-1])
-    regroup_features: List[torch.Tensor] = []
-    mask: List[torch.Tensor] = []
+    regroup_features_list: List[torch.Tensor] = []
+    mask_rows: List[List[int]] = []
 
     for split_feature in split_features:
         # M, C, H, W
@@ -46,7 +45,7 @@ def regroup(dense_feature: torch.Tensor, record_len: List[int], max_len: int) ->
 
         # the maximum M is 5 as most 5 cavs
         padding_len = max_len - feature_shape[0]
-        mask.append([1] * feature_shape[0] + [0] * padding_len)
+        mask_rows.append([1] * feature_shape[0] + [0] * padding_len)
 
         padding_tensor = torch.zeros(padding_len, feature_shape[1], feature_shape[2], feature_shape[3])
         padding_tensor = padding_tensor.to(split_feature.device)
@@ -55,12 +54,12 @@ def regroup(dense_feature: torch.Tensor, record_len: List[int], max_len: int) ->
 
         # 1, 5C, H, W
         split_feature = split_feature.view(-1, feature_shape[2], feature_shape[3]).unsqueeze(0)
-        regroup_features.append(split_feature)
+        regroup_features_list.append(split_feature)
 
     # B, 5C, H, W
-    regroup_features = torch.cat(regroup_features, dim=0)
+    regroup_features = torch.cat(regroup_features_list, dim=0)
     # B, L, C, H, W
     regroup_features = rearrange(regroup_features, "b (l c) h w -> b l c h w", l=max_len)
-    mask = torch.from_numpy(np.array(mask)).to(regroup_features.device)
+    mask = torch.from_numpy(np.array(mask_rows)).to(regroup_features.device)
 
     return regroup_features, mask

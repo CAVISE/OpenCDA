@@ -10,7 +10,7 @@ import torch
 
 from opencood.data_utils.post_processor.voxel_postprocessor import VoxelPostprocessor
 from opencood.utils import box_utils
-from typing import Dict, List, Tuple, Any, Union
+from typing import Dict, List, Tuple, Any, Optional, cast
 
 
 class CiassdPostprocessor(VoxelPostprocessor):
@@ -39,8 +39,8 @@ class CiassdPostprocessor(VoxelPostprocessor):
         self.anchor_num = self.params["anchor_args"]["num"]
 
     def post_process(
-        self, data_dict: Dict[str, Dict[str, torch.Tensor]], output_dict: Dict[str, Dict[str, torch.Tensor]]
-    ) -> Union[Tuple[torch.Tensor, torch.Tensor], Tuple[List[torch.Tensor], List[torch.Tensor]]]:
+        self, data_dict: Dict[str, Dict[str, torch.Tensor]], output_dict: Dict[str, Dict[str, Any]]
+    ) -> Tuple[Optional[torch.Tensor], Optional[torch.Tensor]]:
         """
         Process the outputs of the model to 2D/3D bounding box.
 
@@ -64,10 +64,10 @@ class CiassdPostprocessor(VoxelPostprocessor):
             The groundtruth bounding box tensor.
         """
         # the final bounding box list
-        global batch_num_box_count
-        pred_box3d_original_list = []
-        pred_box3d_list = []
-        pred_box2d_list = []
+        pred_box3d_original_list: List[torch.Tensor] = []
+        pred_box3d_list: List[torch.Tensor] = []
+        pred_box2d_list: List[torch.Tensor] = []
+        batch_num_box_count: List[int] = []
 
         for cav_id, cav_content in data_dict.items():
             assert cav_id in output_dict
@@ -81,7 +81,7 @@ class CiassdPostprocessor(VoxelPostprocessor):
             anchor_box = cav_content["anchor_box"]
 
             # prediction result
-            preds_dict = output_dict[cav_id]["preds_dict_stage1"]
+            preds_dict = cast(Dict[str, torch.Tensor], output_dict[cav_id]["preds_dict_stage1"])
 
             # preds
             prob = preds_dict["cls_preds"]
@@ -94,7 +94,7 @@ class CiassdPostprocessor(VoxelPostprocessor):
             # (N, W*L*anchor_num, 7)
             batch_box3d = self.delta_to_boxes3d(reg, anchor_box, False)
             mask = torch.gt(prob, self.params["target_args"]["score_threshold"])
-            batch_num_box_count = [int(m.sum()) for m in mask]  # NOTE Name "batch_num_box_count" is not defined
+            batch_num_box_count = [int(m.sum()) for m in mask]
             mask = mask.view(1, -1)
             mask_reg = mask.unsqueeze(2).repeat(1, 1, 7)
 
@@ -119,9 +119,9 @@ class CiassdPostprocessor(VoxelPostprocessor):
             # convert output to bounding box
             if len(boxes3d) != 0:
                 # (N, 8, 3)
-                boxes3d_corner = box_utils.boxes_to_corners_3d(boxes3d, order=self.params["order"])
+                boxes3d_corner = cast(torch.Tensor, box_utils.boxes_to_corners_3d(boxes3d, order=self.params["order"]))
                 # (N, 8, 3)
-                projected_boxes3d = box_utils.project_box3d(boxes3d_corner, transformation_matrix)
+                projected_boxes3d = cast(torch.Tensor, box_utils.project_box3d(boxes3d_corner, transformation_matrix))
                 # convert 3d bbx to 2d, (N,4)
                 projected_boxes2d = box_utils.corner_to_standup_box_torch(projected_boxes3d)
                 # (N, 5)
@@ -133,9 +133,9 @@ class CiassdPostprocessor(VoxelPostprocessor):
         if len(pred_box2d_list) == 0 or len(pred_box3d_list) == 0:
             return None, None
         # shape: (N, 5)
-        pred_box2d_list = torch.vstack(pred_box2d_list)
+        pred_box2d_tensor = torch.vstack(pred_box2d_list)
         # scores
-        scores = pred_box2d_list[:, -1]  # NOTE: mypy error - list doesn't support numpy-style indexing
+        scores = pred_box2d_tensor[:, -1]
         # predicted 3d bbx
         pred_box3d_tensor = torch.vstack(pred_box3d_list)
         pred_box3d_original = torch.vstack(pred_box3d_original_list)
@@ -150,7 +150,8 @@ class CiassdPostprocessor(VoxelPostprocessor):
             scores = scores[keep_index]
 
             # nms
-            keep_index = box_utils.nms_rotated(pred_box3d_tensor, scores, self.params["nms_thresh"])
+            keep_index_np = box_utils.nms_rotated(pred_box3d_tensor, scores, self.params["nms_thresh"])
+            keep_index = torch.as_tensor(keep_index_np, device=pred_box3d_tensor.device)
 
             pred_box3d_tensor = pred_box3d_tensor[keep_index]
 
@@ -168,14 +169,16 @@ class CiassdPostprocessor(VoxelPostprocessor):
             cur_idx = 0
             batch_pred_boxes3d = []
             batch_scores = []
-            for n in batch_num_box_count:  # NOTE Name "batch_num_box_count" is not defined
+            for n in batch_num_box_count:
                 cur_boxes = pred_box3d_tensor[cur_idx : cur_idx + n]
                 cur_scores = scores[cur_idx : cur_idx + n]
                 # nms
-                keep_index = box_utils.nms_rotated(cur_boxes, cur_scores, self.params["nms_thresh"])
+                keep_index_np = box_utils.nms_rotated(cur_boxes, cur_scores, self.params["nms_thresh"])
+                keep_index = torch.as_tensor(keep_index_np, device=cur_boxes.device)
                 cur_boxes = pred_box3d_original[cur_idx : cur_idx + n]  # [:, [0, 1, 2, 5, 4, 3, 6]] # hwl -> lwh
                 batch_pred_boxes3d.append(cur_boxes[keep_index])
                 batch_scores.append(cur_scores[keep_index])
                 cur_idx += n
-
-            return batch_pred_boxes3d, batch_scores
+            if len(batch_pred_boxes3d) == 0:
+                return None, None
+            return torch.vstack(batch_pred_boxes3d), torch.cat(batch_scores)

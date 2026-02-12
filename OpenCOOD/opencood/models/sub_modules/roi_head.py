@@ -6,7 +6,7 @@ detections using RoI-aware pooling and multi-layer perceptrons for classificatio
 IoU prediction, and bounding box regression.
 """
 
-from typing import Dict, List, Tuple, Optional, Any
+from typing import Any, Dict, List, Optional, Tuple, cast
 import copy
 
 import torch.nn as nn
@@ -105,24 +105,21 @@ class RoIHead(nn.Module):
         NotImplementedError
             If weight_init is not one of the supported methods.
         """
-        if weight_init == "kaiming":
-            init_func = nn.init.kaiming_normal_
-        elif weight_init == "xavier":
-            init_func = nn.init.xavier_normal_
-        elif weight_init == "normal":
-            init_func = nn.init.normal_
-        else:
+        if weight_init not in {"kaiming", "xavier", "normal"}:
             raise NotImplementedError
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d) or isinstance(m, nn.Conv1d):
                 if weight_init == "normal":
-                    init_func(m.weight, mean=0, std=0.001)
+                    nn.init.normal_(m.weight, mean=0, std=0.001)
+                elif weight_init == "kaiming":
+                    nn.init.kaiming_normal_(m.weight)
                 else:
-                    init_func(m.weight)
+                    nn.init.xavier_normal_(m.weight)
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0)
-        nn.init.normal_(self.reg_layers[-1].weight, mean=0, std=0.001)
+        last_reg_layer = cast(nn.Conv1d, self.reg_layers[-1])
+        nn.init.normal_(last_reg_layer.weight, mean=0, std=0.001)
 
     def _make_fc_layers(self, input_channels: int, fc_list: List[int], output_channels: Optional[int] = None) -> Tuple[nn.Sequential, int]:
         """
@@ -144,10 +141,10 @@ class RoIHead(nn.Module):
         pre_channel : int
             Output channel dimension.
         """
-        fc_layers = []
+        fc_modules: List[nn.Module] = []
         pre_channel = input_channels
         for k in range(len(fc_list)):
-            fc_layers.extend(
+            fc_modules.extend(
                 [
                     nn.Conv1d(pre_channel, fc_list[k], kernel_size=1, bias=False),
                     # nn.BatchNorm1d(fc_list[k]),
@@ -156,10 +153,10 @@ class RoIHead(nn.Module):
             )
             pre_channel = fc_list[k]
             if self.model_cfg["dp_ratio"] > 0:
-                fc_layers.append(nn.Dropout(self.model_cfg["dp_ratio"]))
+                fc_modules.append(nn.Dropout(self.model_cfg["dp_ratio"]))
         if output_channels is not None:
-            fc_layers.append(nn.Conv1d(pre_channel, output_channels, kernel_size=1, bias=True))
-        fc_layers = nn.Sequential(*fc_layers)
+            fc_modules.append(nn.Conv1d(pre_channel, output_channels, kernel_size=1, bias=True))
+        fc_layers = nn.Sequential(*fc_modules)
         return fc_layers, pre_channel
 
     def get_global_grid_points_of_roi(self, rois: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -183,7 +180,8 @@ class RoIHead(nn.Module):
 
         # (B, 6x6x6, 3)
         local_roi_grid_points = self.get_dense_grid_points(rois, batch_size_rcnn, self.grid_size)
-        global_roi_grid_points = common_utils.rotate_points_along_z(local_roi_grid_points.clone(), rois[:, 6]).squeeze(dim=1)
+        rotated_points = cast(torch.Tensor, common_utils.rotate_points_along_z(local_roi_grid_points.clone(), rois[:, 6]))
+        global_roi_grid_points = rotated_points.squeeze(dim=1)
         global_center = rois[:, 0:3].clone()
         global_roi_grid_points += global_center.unsqueeze(dim=1)
         return global_roi_grid_points, local_roi_grid_points
@@ -254,11 +252,11 @@ class RoIHead(nn.Module):
             "record_len": [],
         }
         # pred_boxes = [boxes[:, [0, 1, 2, 5, 4, 3, 6]] for boxes in batch_dict['boxes_fused']]
-        pred_boxes = batch_dict["boxes_fused"]
+        pred_boxes = cast(List[torch.Tensor], batch_dict["boxes_fused"])
         gt_boxes = [b[m][:, [0, 1, 2, 5, 4, 3, 6]].float() for b, m in zip(batch_dict["object_bbx_center"], batch_dict["object_bbx_mask"].bool())]
         for rois, gts in zip(pred_boxes, gt_boxes):
             gts[:, -1] *= 1
-            ious: torch.Tensor = boxes_iou3d_gpu(rois, gts)
+            ious = cast(torch.Tensor, boxes_iou3d_gpu(rois, gts))
             max_ious, gt_inds = ious.max(dim=1)
             gt_of_rois = gts[gt_inds]
             rcnn_labels = (max_ious > 0.3).float()
@@ -276,9 +274,11 @@ class RoIHead(nn.Module):
             gt_of_rois[:, 6] = gt_of_rois[:, 6] - roi_ry
 
             # transfer LiDAR coords to local coords
-            gt_of_rois = common_utils.rotate_points_along_z(points=gt_of_rois.view(-1, 1, gt_of_rois.shape[-1]), angle=-roi_ry.view(-1)).view(
-                -1, gt_of_rois.shape[-1]
+            rotated_gt = cast(
+                torch.Tensor,
+                common_utils.rotate_points_along_z(points=gt_of_rois.view(-1, 1, gt_of_rois.shape[-1]), angle=-roi_ry.view(-1)),
             )
+            gt_of_rois = rotated_gt.view(-1, gt_of_rois.shape[-1])
 
             # flip orientation if rois have opposite orientation
             heading_label = (

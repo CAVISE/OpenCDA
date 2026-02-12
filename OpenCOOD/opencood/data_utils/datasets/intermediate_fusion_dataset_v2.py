@@ -20,10 +20,17 @@ from opencood.data_utils.pre_processor import build_preprocessor
 from opencood.utils.pcd_utils import mask_points_by_range, mask_ego_points, shuffle_points
 from opencood.utils.transformation_utils import x1_to_x2
 from opencood.pcdet_utils.roiaware_pool3d.roiaware_pool3d_utils import points_in_boxes_cpu
-from typing import Dict, List, Any, Tuple, Optional, Union
+from typing import Dict, List, Any, Tuple, Optional, Union, TypedDict
 from opencda.core.common.communication.serialize import MessageHandler
 from torch import Tensor
 from numpy.typing import NDArray
+
+
+class _ProcessedData(TypedDict):
+    processed_features: List[Dict[str, Union[List[NDArray[np.float32]], NDArray[np.float32]]]]
+    object_stack: List[NDArray[np.float32]]
+    object_id_stack: List[int]
+    projected_lidar_stack: List[NDArray[np.float32]]
 
 
 # TODO: У модели fpvrcnn_intermediate_fusion в этом датасете возникает проблема с весами
@@ -79,6 +86,11 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
 
         self.message_handler = message_handler
         self.module_name = "OpenCOOD.IntermediateFusionDatasetV2"
+
+        if "cur_ego_pose_flag" in params["fusion"]["args"]:
+            self.cur_ego_pose_flag = params["fusion"]["args"]["cur_ego_pose_flag"]
+        else:
+            self.cur_ego_pose_flag = True
 
     @staticmethod
     def __wrap_ndarray(ndarray: NDArray[np.float32]) -> Dict[str, Any]:
@@ -156,7 +168,7 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
                         "data": self.__wrap_ndarray(selected_cav_processed["projected_lidar"]),
                     }
 
-    def __find_ego_vehicle(self, base_data_dict: Dict[str, Any]) -> Tuple[int, List[float]]:
+    def __find_ego_vehicle(self, base_data_dict: Dict[str, Any]) -> Tuple[str, List[float]]:
         """
         Find the ego vehicle in the base data dictionary.
 
@@ -167,7 +179,7 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
 
         Returns
         -------
-        ego_id : int
+        ego_id : str
             ID of the ego vehicle.
         ego_lidar_pose : List[float]
             Lidar pose of the ego vehicle.
@@ -177,25 +189,23 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
         NotImplementedError
             If no ego vehicle is found or if the first element is not ego.
         """
-        ego_id = -1
-        ego_lidar_pose = []
+        ego_id: str = ""
+        ego_lidar_pose: List[float] = []
 
         # first find the ego vehicle's lidar pose
         for cav_id, cav_content in base_data_dict.items():
             if cav_content["ego"]:
-                ego_id = cav_id  # NOTE Incompatible types
+                ego_id = cav_id
                 ego_lidar_pose = cav_content["params"]["lidar_pose"]
                 break
 
         assert cav_id == list(base_data_dict.keys())[0], "The first element in the OrderedDict must be ego"
-        assert ego_id != -1
+        assert ego_id != ""
         assert len(ego_lidar_pose) > 0
 
         return ego_id, ego_lidar_pose
 
-    def __process_with_messages(
-        self, ego_id: int, ego_lidar_pose: List[float], base_data_dict: Dict[str, Any]
-    ) -> Dict[str, Union[List[Any], NDArray[np.float32]]]:
+    def __process_with_messages(self, ego_id: str, ego_lidar_pose: List[float], base_data_dict: Dict[str, Any]) -> _ProcessedData:
         """
         Process data with message handling for inter-vehicle communication.
 
@@ -221,12 +231,14 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
             - object_id_stack: List of object IDs
             - projected_lidar_stack: List of projected LiDAR point clouds
         """
-        processed_features = []
-        object_stack = []
-        object_id_stack = []
-        projected_lidar_stack = []
+        processed_features: List[Dict[str, Union[List[NDArray[np.float32]], NDArray[np.float32]]]] = []
+        object_stack: List[NDArray[np.float32]] = []
+        object_id_stack: List[int] = []
+        projected_lidar_stack: List[NDArray[np.float32]] = []
 
-        ego_cav_base = base_data_dict.get(ego_id)  # NOTE Incompatible types
+        ego_cav_base = base_data_dict.get(ego_id)
+        if ego_cav_base is None:
+            raise ValueError("Ego vehicle data not found in base_data_dict.")
         ego_cav_processed = self.get_item_single_car(ego_cav_base, ego_lidar_pose)
 
         object_id_stack += ego_cav_processed["object_ids"]
@@ -234,10 +246,10 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
         processed_features.append(ego_cav_processed["processed_features"])
         projected_lidar_stack.append(ego_cav_processed["projected_lidar"])
 
-        if ego_id in self.message_handler.current_message_artery:  # NOTE None-check is required
+        if self.message_handler is not None and ego_id in self.message_handler.current_message_artery:
             for cav_id, _ in base_data_dict.items():
-                if cav_id in self.message_handler.current_message_artery[ego_id]:  # NOTE None-check is required
-                    with self.message_handler.handle_artery_message(ego_id, cav_id, self.module_name) as msg:  # NOTE None-check is required
+                if cav_id in self.message_handler.current_message_artery[ego_id]:
+                    with self.message_handler.handle_artery_message(ego_id, cav_id, self.module_name) as msg:
                         projected = np.frombuffer(msg["projected_lidar"]["data"], np.dtype(msg["projected_lidar"]["dtype"]))
                         projected = projected.reshape(msg["projected_lidar"]["shape"])
 
@@ -270,9 +282,7 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
             "projected_lidar_stack": projected_lidar_stack,
         }
 
-    def __process_without_messages(
-        self, ego_lidar_pose: List[float], base_data_dict: Dict[str, Any]
-    ) -> Dict[str, Union[List[Any], NDArray[np.float32]]]:
+    def __process_without_messages(self, ego_lidar_pose: List[float], base_data_dict: Dict[str, Any]) -> _ProcessedData:
         """
         Process data without using message passing.
 
@@ -288,10 +298,10 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
         Dict[str, Union[List[Any], NDArray[np.float32]]]
             Dictionary containing processed data (same structure as __process_with_messages).
         """
-        processed_features = []
-        object_stack = []
-        object_id_stack = []
-        projected_lidar_stack = []
+        processed_features: List[Dict[str, Union[List[NDArray[np.float32]], NDArray[np.float32]]]] = []
+        object_stack: List[NDArray[np.float32]] = []
+        object_id_stack: List[int] = []
+        projected_lidar_stack: List[NDArray[np.float32]] = []
 
         for cav_id, selected_cav_base in base_data_dict.items():
             dx = selected_cav_base["params"]["lidar_pose"][0] - ego_lidar_pose[0]
@@ -345,8 +355,9 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
             data = self.__process_without_messages(ego_lidar_pose, base_data_dict)
 
         # exclude all repetitive objects
-        unique_indices = [data["object_id_stack"].index(x) for x in set(data["object_id_stack"])]
-        object_stack_all = np.vstack(data["object_id_stack"])
+        object_id_stack = data["object_id_stack"]
+        unique_indices = [object_id_stack.index(x) for x in set(object_id_stack)]
+        object_stack_all = np.vstack(data["object_stack"])
         object_stack_all = object_stack_all[unique_indices]
 
         # make sure bounding boxes across all frames have the same number
@@ -360,10 +371,12 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
         merged_feature_dict = self.merge_features_to_dict(data["processed_features"])
 
         # generate the anchor boxes
-        anchor_box = self.post_processor.generate_anchor_box()  # NOTE None-check is required
+        post_processor = self.post_processor
+        assert post_processor is not None
+        anchor_box = post_processor.generate_anchor_box()
 
         # generate targets label
-        label_dict = self.post_processor.generate_label(
+        label_dict = post_processor.generate_label(
             gt_box_center=object_bbx_center,  # hwl
             anchors=anchor_box,
             mask=mask,
@@ -373,20 +386,16 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
         object_stack_filtered = []
         label_dict_no_coop = []
         for boxes, points in zip(data["object_stack"], data["projected_lidar_stack"]):
-            point_indices = points_in_boxes_cpu(points[:, :3], boxes[:, [0, 1, 2, 5, 4, 3, 6]])
-            cur_mask = point_indices.sum(axis=1) > 0
+            points_tensor = torch.as_tensor(points[:, :3])
+            boxes_tensor = torch.as_tensor(boxes[:, [0, 1, 2, 5, 4, 3, 6]])
+            point_indices = points_in_boxes_cpu(points_tensor, boxes_tensor)
+            cur_mask = point_indices.sum(dim=1) > 0
             if cur_mask.sum() == 0:
                 label_dict_no_coop.append(
                     {
-                        "pos_equal_one": np.zeros(
-                            (*anchor_box.shape[:2], self.post_processor.anchor_num)
-                        ),  # NOTE Item "None" of "Any | None" has no attribute "anchor_num"
-                        "neg_equal_one": np.ones(
-                            (*anchor_box.shape[:2], self.post_processor.anchor_num)
-                        ),  # NOTE Item "None" of "Any | None" has no attribute "anchor_num"
-                        "targets": np.zeros(
-                            (*anchor_box.shape[:2], self.post_processor.anchor_num * 7)
-                        ),  # NOTE Item "None" of "Any | None" has no attribute "anchor_num"
+                        "pos_equal_one": np.zeros((*anchor_box.shape[:2], post_processor.anchor_num)),
+                        "neg_equal_one": np.ones((*anchor_box.shape[:2], post_processor.anchor_num)),
+                        "targets": np.zeros((*anchor_box.shape[:2], post_processor.anchor_num * 7)),
                     }
                 )
                 continue
@@ -396,7 +405,7 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
             bbx_center[: boxes[cur_mask].shape[0], :] = boxes[cur_mask]
             bbx_mask[: boxes[cur_mask].shape[0]] = 1
             label_dict_no_coop.append(
-                self.post_processor.generate_label(  # NOTE None-check is required
+                post_processor.generate_label(
                     gt_box_center=bbx_center,  # hwl
                     anchors=anchor_box,
                     mask=bbx_mask,
@@ -407,7 +416,7 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
             {
                 "object_bbx_center": object_bbx_center,
                 "object_bbx_mask": mask,
-                "object_ids": [data["object_id_stack"][i] for i in unique_indices],
+                "object_ids": [object_id_stack[i] for i in unique_indices],
                 "anchor_box": anchor_box,
                 "processed_lidar": merged_feature_dict,
                 "label_dict": label_dict,
@@ -440,9 +449,12 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
         transformation_matrix = x1_to_x2(selected_cav_base["params"]["lidar_pose"], ego_pose)
 
         # retrieve objects under ego coordinates
-        object_bbx_center, object_bbx_mask, object_ids = self.post_processor.generate_object_center(
-            [selected_cav_base], ego_pose
-        )  # NOTE None-check is required
+        post_processor = self.post_processor
+        pre_processor = self.pre_processor
+        assert post_processor is not None
+        assert pre_processor is not None
+
+        object_bbx_center, object_bbx_mask, object_ids = post_processor.generate_object_center([selected_cav_base], ego_pose)
 
         # filter lidar
         lidar_np = selected_cav_base["lidar_np"]
@@ -452,7 +464,7 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
         # project the lidar to ego space
         lidar_np[:, :3] = box_utils.project_points_by_matrix_torch(lidar_np[:, :3], transformation_matrix)
         lidar_np = mask_points_by_range(lidar_np, self.params["preprocess"]["cav_lidar_range"])
-        processed_lidar = self.pre_processor.preprocess(lidar_np)  # NOTE None-check is required
+        processed_lidar = pre_processor.preprocess(lidar_np)
 
         selected_cav_processed.update(
             {
@@ -542,29 +554,33 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
             origin_lidar.append(ego_dict["origin_lidar"])
 
         # convert to numpy, (B, max_num, 7)
-        object_bbx_center = torch.from_numpy(np.array(object_bbx_center))
-        object_bbx_mask = torch.from_numpy(np.array(object_bbx_mask))
+        object_bbx_center_tensor = torch.from_numpy(np.array(object_bbx_center))
+        object_bbx_mask_tensor = torch.from_numpy(np.array(object_bbx_mask))
 
         # example: {'voxel_features':[np.array([1,2,3]]),
         # np.array([3,5,6]), ...]}
         merged_feature_dict = self.merge_features_to_dict(processed_lidar_list)
-        processed_lidar_torch_dict = self.pre_processor.collate_batch(merged_feature_dict)  # NOTE None-check is required
+        pre_processor = self.pre_processor
+        post_processor = self.post_processor
+        assert pre_processor is not None
+        assert post_processor is not None
+        processed_lidar_torch_dict = pre_processor.collate_batch(merged_feature_dict)
         # [2, 3, 4, ..., M], M <= 5
-        record_len = torch.from_numpy(np.array(record_len, dtype=int))
-        label_torch_dict = self.post_processor.collate_batch(label_dict_list)  # NOTE None-check is required
+        record_len_tensor = torch.from_numpy(np.array(record_len, dtype=int))
+        label_torch_dict = post_processor.collate_batch(label_dict_list)
         label_dict_no_coop_list_ = [label_dict for label_list in label_dict_no_coop_list for label_dict in label_list]
         for i in range(len(label_dict_no_coop_list_)):
             if isinstance(label_dict_no_coop_list_[i], list):
                 print("debug")
-        label_no_coop_torch_dict = self.post_processor.collate_batch(label_dict_no_coop_list_)  # NOTE None-check is required
+        label_no_coop_torch_dict = post_processor.collate_batch(label_dict_no_coop_list_)
         # object id is only used during inference, where batch size is 1.
         # so here we only get the first element.
         output_dict["ego"].update(
             {
-                "object_bbx_center": object_bbx_center,
-                "object_bbx_mask": object_bbx_mask,
+                "object_bbx_center": object_bbx_center_tensor,
+                "object_bbx_mask": object_bbx_mask_tensor,
                 "processed_lidar": processed_lidar_torch_dict,
-                "record_len": record_len,
+                "record_len": record_len_tensor,
                 "label_dict": {"stage1": label_no_coop_torch_dict, "stage2": label_torch_dict},
                 "object_ids": object_ids[0],
             }
@@ -580,8 +596,8 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
                 idx += 1
         origin_lidar = np.concatenate(coords, axis=0)
 
-        origin_lidar = torch.from_numpy(origin_lidar)
-        output_dict["ego"].update({"origin_lidar": origin_lidar})
+        origin_lidar_tensor = torch.from_numpy(origin_lidar)
+        output_dict["ego"].update({"origin_lidar": origin_lidar_tensor})
 
         return output_dict
 
@@ -640,13 +656,15 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
         gt_box_tensor : Tensor
             Tensor of ground truth bounding boxes.
         """
-        pred_box_tensor, pred_score = self.post_processor.post_process(data_dict, output_dict)  # NOTE None-check is required
-        gt_box_tensor = self.post_processor.generate_gt_bbx(data_dict)  # NOTE None-check is required
+        post_processor = self.post_processor
+        assert post_processor is not None
+        pred_box_tensor, pred_score = post_processor.post_process(data_dict, output_dict)
+        gt_box_tensor = post_processor.generate_gt_bbx(data_dict)
 
         return pred_box_tensor, pred_score, gt_box_tensor
 
     def visualize_result(
-        self, pred_box_tensor: Tensor, gt_tensor: Tensor, pcd: NDArray[np.float32], show_vis: bool, save_path: str, dataset: Optional[Any] = None
+        self, pred_box_tensor: Tensor, gt_tensor: Tensor, pcd: NDArray[np.float64], show_vis: bool, save_path: str, dataset: Optional[Any] = None
     ) -> None:
         """
         Visualize the model's predictions and ground truth.
@@ -672,4 +690,6 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
         # we need to convert the pcd from [n, 5] -> [n, 4]
         pcd = pcd[:, 1:]
         # visualize the model output
-        self.post_processor.visualize(pred_box_tensor, gt_tensor, pcd, show_vis, save_path, dataset=dataset)  # NOTE None-check is required
+        post_processor = self.post_processor
+        assert post_processor is not None
+        post_processor.visualize(pred_box_tensor, gt_tensor, pcd, show_vis, save_path, dataset=dataset)

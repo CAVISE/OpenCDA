@@ -85,7 +85,7 @@ class Controller:
         self._lon_k_d = args["lon"]["k_d"]  # noqa: DC05
         self._lon_k_i = args["lon"]["k_i"]  # noqa: DC05
 
-        self._lon_ebuffe: Deque = deque(maxlen=10)
+        self._lon_ebuffer: Deque[float] = deque(maxlen=10)
 
         # lateral related
         self.max_steering = args["max_steering"]
@@ -94,13 +94,13 @@ class Controller:
         self._lat_k_d = args["lat"]["k_d"]  # noqa: DC05
         self._lat_k_i = args["lat"]["k_i"]  # noqa: DC05
 
-        self._lat_ebuffer: Deque = deque(maxlen=10)
+        self._lat_ebuffer: Deque[float] = deque(maxlen=10)
 
         # simulation time-step
         self.dt = args["dt"]
 
         # current speed and localization retrieved from sensing layer
-        self.current_transform = None
+        self.current_transform: Optional[carla.Transform] = None
         self.current_speed = 0.0
         # past steering
         self.past_steering = 0.0
@@ -152,16 +152,16 @@ class Controller:
             Desired acceleration value clipped to [-1.0, 1.0] range.
         """
         error = target_speed - self.current_speed
-        self._lat_ebuffer.append(error)
+        self._lon_ebuffer.append(error)
 
-        if len(self._lat_ebuffer) >= 2:
-            _de = (self._lat_ebuffer[-1] - self._lat_ebuffer[-2]) / self.dt
-            _ie = sum(self._lat_ebuffer) * self.dt
+        if len(self._lon_ebuffer) >= 2:
+            _de = (self._lon_ebuffer[-1] - self._lon_ebuffer[-2]) / self.dt
+            _ie = sum(self._lon_ebuffer) * self.dt
         else:
             _de = 0.0
             _ie = 0.0
 
-        return np.clip((self._lat_k_p * error) + (self._lat_k_d * _de) + (self._lat_k_i * _ie), -1.0, 1.0)
+        return np.clip((self._lon_k_p * error) + (self._lon_k_d * _de) + (self._lon_k_i * _ie), -1.0, 1.0)
 
     def lat_run_step(self, target_location: carla.Location) -> float:
         """
@@ -180,10 +180,11 @@ class Controller:
         float
             Desired steering angle value clipped to [-1.0, 1.0] range.
         """
-        v_begin = self.current_transform.location  # NOTE None-check is required
+        assert self.current_transform is not None
+        v_begin = self.current_transform.location
         v_end = v_begin + carla.Location(
             x=math.cos(math.radians(self.current_transform.rotation.yaw)),
-            y=math.sin(math.radians(self.current_transform.rotation.yaw)),  # NOTE None-check is required
+            y=math.sin(math.radians(self.current_transform.rotation.yaw)),
         )
         v_vec = np.array([v_end.x - v_begin.x, v_end.y - v_begin.y, 0.0])
         w_vec = np.array([target_location.x - v_begin.x, target_location.y - v_begin.y, 0.0])
@@ -193,17 +194,17 @@ class Controller:
         if _cross[2] < 0:
             _dot *= -1.0
 
-        self._lon_ebuffer.append(_dot)  # NOTE "Controller" has no attribute "_lon_ebuffer"
-        if len(self._lon_ebuffer) >= 2:
-            _de = (self._lon_ebuffer[-1] - self._lon_ebuffer[-2]) / self.dt
-            _ie = sum(self._lon_ebuffer) * self.dt
+        self._lat_ebuffer.append(_dot)
+        if len(self._lat_ebuffer) >= 2:
+            _de = (self._lat_ebuffer[-1] - self._lat_ebuffer[-2]) / self.dt
+            _ie = sum(self._lat_ebuffer) * self.dt
         else:
             _de = 0.0
             _ie = 0.0
 
         return np.clip((self._lat_k_p * _dot) + (self._lat_k_d * _de) + (self._lat_k_i * _ie), -1.0, 1.0)
 
-    def run_step(self, target_speed: float, waypoint: Optional[carla.Location]) -> Any:  # NOTE: Any due to missing carla.VehicleControl
+    def run_step(self, target_speed: float, waypoint: Optional[carla.Location]) -> Any:
         """
         Execute complete control step with both longitudinal and lateral PID.
 

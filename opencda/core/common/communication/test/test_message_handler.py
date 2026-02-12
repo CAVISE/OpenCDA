@@ -18,9 +18,7 @@ def mh() -> MessageHandler:
     return MessageHandler()
 
 
-def _pick_entity_field_and_payload() -> Tuple[
-    FieldDescriptor, Dict[str, Any]
-]:  # NOTE: mypy false positive - pytest.skip() raises SkipException (no return needed)
+def _pick_entity_field_and_payload() -> Tuple[FieldDescriptor, Dict[str, Any]]:
     """
     Pick protobuf field and generate valid MessageHandler payload.
 

@@ -172,7 +172,7 @@ class KalmanFilter(object):
         xPred = self.motion_model(self.xEst, u)
         # sensor measurement prediction
         zPred = self.observation_model(xPred)
-        y = z - zPred
+        y_residual = z - zPred
 
         # projection matrix
         H = np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0]])
@@ -184,7 +184,7 @@ class KalmanFilter(object):
         S = np.linalg.inv(H @ PPred @ H.T + self.R)
         K = PPred @ H.T @ S
 
-        self.xEst = xPred + K @ y
+        self.xEst = xPred + K @ y_residual
         self.PEst = K @ H @ PPred
 
         return self.xEst[0][0], self.xEst[1][0], self.xEst[2][0], self.xEst[3][0]

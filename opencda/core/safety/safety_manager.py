@@ -7,7 +7,7 @@ off-road detection with optional human takeover capabilities.
 """
 
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, Protocol, List
 import carla
 
 from opencda.core.safety.sensors import CollisionSensor, TrafficLightDector, StuckDetector, OffRoadDetector
@@ -54,7 +54,15 @@ class SafetyManager:
     def __init__(self, vehicle: carla.Vehicle, params: Dict[str, Any]):
         self.vehicle = vehicle
         self.print_message: bool = params["print_message"]
-        self.sensors = [
+
+        class _SafetySensor(Protocol):
+            def tick(self, data_dict: Dict[str, Any]) -> None: ...
+
+            def return_status(self) -> Dict[str, bool]: ...
+
+            def destroy(self) -> None: ...
+
+        self.sensors: List[_SafetySensor] = [
             CollisionSensor(vehicle, params["collision_sensor"]),
             StuckDetector(params["stuck_dector"]),
             OffRoadDetector(params["offroad_dector"]),
@@ -79,8 +87,8 @@ class SafetyManager:
         """
         status_dict: Dict[str, Any] = {}
         for sensor in self.sensors:
-            sensor.tick(data_dict)  # NOTE "object" has no attribute "tick"
-            status_dict.update(sensor.return_status())  # NOTE "object" has no attribute "return status"
+            sensor.tick(data_dict)
+            status_dict.update(sensor.return_status())
         if self.print_message:
             print_flag = False
             # only print message when it has hazard
@@ -93,4 +101,4 @@ class SafetyManager:
 
     def destroy(self) -> None:
         for sensor in self.sensors:
-            sensor.destroy()  # NOTE "object" has no attribute "destroy"
+            sensor.destroy()

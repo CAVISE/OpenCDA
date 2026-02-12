@@ -4,7 +4,7 @@ Used to load and write yaml files
 
 import re
 from typing import Any, Dict, Tuple
-import yaml
+import yaml  # type: ignore[import-untyped]
 from datetime import datetime
 from omegaconf import OmegaConf
 
@@ -42,10 +42,9 @@ def load_yaml(file: str) -> Dict[str, Any]:
     param = yaml.load(stream, Loader=loader)
 
     # load current time for data dumping and evaluation
-    current_time = datetime.now()
-    current_time = current_time.strftime("%Y_%m_%d_%H_%M_%S")  # NOTE: current_time changes type from datetime to str
+    current_time_str = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
 
-    param["current_time"] = current_time
+    param["current_time"] = current_time_str
 
     return param
 
@@ -55,15 +54,14 @@ def add_current_time(params: Dict[str, Any]) -> Tuple[Dict[str, Any], str]:
     Add current time to the params dictionary.
     """
     # load current time for data dumping and evaluation
-    current_time = datetime.now()
-    current_time = current_time.strftime("%Y_%m_%d_%H_%M_%S")  # NOTE: current_time changes type from datetime to str
+    current_time_str = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
 
-    params["current_time"] = current_time
+    params["current_time"] = current_time_str
 
     return (
         params,
-        current_time,
-    )  # NOTE [mypy] Incompatible return type (got "tuple[dict[str, Any], datetime]", expected "tuple[dict[str, Any], str]").Caused by type mutation of 'current_time'
+        current_time_str,
+    )
 
 
 def save_yaml(data: Any, save_name: str) -> None:

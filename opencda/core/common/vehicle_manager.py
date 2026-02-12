@@ -144,12 +144,12 @@ class VehicleManager(object):
         # safety manager
         self.safety_manager = SafetyManager(vehicle=vehicle, params=config_yaml["safety_manager"])
         # behavior agent
-        self.agent = None
+        self.agent: BehaviorAgent
         if "platoon" in application:
             platoon_config = config_yaml["platoon"]
             self.agent = PlatooningBehaviorAgent(vehicle, self, self.v2x_manager, behavior_config, platoon_config, carla_map)
         else:
-            self.agent = BehaviorAgent(vehicle, carla_map, behavior_config)  # NOTE: A None-check is required to satisfy type checking.
+            self.agent = BehaviorAgent(vehicle, carla_map, behavior_config)
 
         # Control module
         self.controller = ControlManager(control_config)
@@ -198,7 +198,7 @@ class VehicleManager(object):
         Returns
         -------
         """
-        self.agent.set_destination(start_location, end_location, clean, end_reset)  # NOTE: A None-check is required
+        self.agent.set_destination(start_location, end_location, clean, end_reset)
 
     def update_info(self) -> None:
         """
@@ -210,6 +210,8 @@ class VehicleManager(object):
 
         ego_pos = self.localizer.get_ego_pos()
         ego_spd = self.localizer.get_ego_spd()
+        if ego_pos is None:
+            return
 
         # object detection
         objects = self.perception_manager.detect(ego_pos)
@@ -230,7 +232,7 @@ class VehicleManager(object):
 
         # leave this for platooning for now
         self.v2x_manager.update_info(ego_pos, ego_spd)
-        self.agent.update_information(ego_pos, ego_spd, objects)  # NOTE: A None-check is required
+        self.agent.update_information(ego_pos, ego_spd, objects)
         # pass position and speed info to controller
         self.controller.update_info(ego_pos, ego_spd)
 
@@ -238,13 +240,13 @@ class VehicleManager(object):
         # TODO: Implement
         pass
 
-    def run_step(self, target_speed: Optional[float] = None) -> Any:  # NOTE: Any due to missing carla.VehicleControl
+    def run_step(self, target_speed: Optional[float] = None) -> Any:
         """
         Execute one step of navigation.
         """
         # visualize the bev map if needed
         self.map_manager.run_step()
-        target_speed, target_pos = self.agent.run_step(target_speed)  # NOTE: A None-check is required to satisfy type checking.
+        target_speed, target_pos = self.agent.run_step(target_speed)
         control = self.controller.run_step(target_speed, target_pos)
 
         # dump data

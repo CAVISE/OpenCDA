@@ -384,6 +384,7 @@ class BackBone(nn.Module):
         nn.Sequential
             Sequential container of residual blocks.
         """
+        downsample: nn.Module
         if self.use_bn:
             # downsample the H*W by 1/2
             downsample = nn.Sequential(
@@ -527,9 +528,11 @@ class PIXOR(nn.Module):
 
         prior = 0.01
         self.header.clshead.weight.data.fill_(-math.log((1.0 - prior) / prior))
-        self.header.clshead.bias.data.fill_(0)
+        if self.header.clshead.bias is not None:
+            self.header.clshead.bias.data.fill_(0)
         self.header.reghead.weight.data.fill_(0)
-        self.header.reghead.bias.data.fill_(0)
+        if self.header.reghead.bias is not None:
+            self.header.reghead.bias.data.fill_(0)
 
     def forward(self, data_dict: Dict[str, Any]) -> Dict[str, torch.Tensor]:
         """

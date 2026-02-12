@@ -1,6 +1,6 @@
 import numpy as np
 import carla
-from numpy.typing import npt
+import numpy.typing as npt
 
 
 def get_camera_intrinsic(sensor: carla.Sensor) -> npt.NDArray[np.float64]:
@@ -9,7 +9,7 @@ def get_camera_intrinsic(sensor: carla.Sensor) -> npt.NDArray[np.float64]:
 
     Parameters
     ----------
-    sensor : carla.sensor
+    sensor : carla.Sensor
         Carla rgb camera object.
 
     Returns

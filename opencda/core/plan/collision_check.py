@@ -176,6 +176,8 @@ class CollisionChecker:
         rx, ry, ryaw = [], [], []
         for i_s in s:
             ix, iy = sp.calc_position(i_s)
+            if ix is None or iy is None:
+                continue
             rx.append(ix)
             ry.append(iy)
             ryaw.append(sp.calc_yaw(i_s))
@@ -187,7 +189,7 @@ class CollisionChecker:
         #         255, 255, 0) if overtake else carla.Color(
         #         255, 255, 255), size=0.05, lt=0.2)
 
-        return rx, ry, ryaw  # NOTE: calc_position returns Optional;
+        return rx, ry, ryaw
 
     def collision_circle_check(
         self,

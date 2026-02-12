@@ -1,10 +1,11 @@
+from typing import Any, List
 import os
 
 from setuptools import setup
 from torch.utils.cpp_extension import BuildExtension, CUDAExtension
 
 
-def make_cuda_ext(name, module, sources):
+def make_cuda_ext(name: str, module: str, sources: List[str]) -> Any:
     cuda_ext = CUDAExtension(name="%s.%s" % (module, name), sources=[os.path.join(*module.split("."), src) for src in sources])
     return cuda_ext
 

@@ -20,7 +20,7 @@ from matplotlib import cm
 from opencood.utils import box_utils
 from opencood.utils import common_utils
 
-VIRIDIS = np.array(cm.get_cmap("plasma").colors)
+VIRIDIS = plt.get_cmap("plasma")(np.linspace(0.0, 1.0, 256))[:, :3]
 VID_RANGE = np.linspace(0.0, 1.0, VIRIDIS.shape[0])
 
 
@@ -197,7 +197,7 @@ def color_encoding(intensity: npt.NDArray[np.floating], mode: str = "intensity")
         min_value = -1.5
         max_value = 0.5
         norm = matplotlib.colors.Normalize(vmin=min_value, vmax=max_value)
-        cmap = cm.jet
+        cmap = plt.get_cmap("jet")
         m = cm.ScalarMappable(norm=norm, cmap=cmap)
 
         colors = m.to_rgba(intensity)

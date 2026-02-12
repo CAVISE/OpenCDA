@@ -1,6 +1,7 @@
 """This module contains a local planner to perform
 low-level waypoint following based on PID controllers."""
 
+from __future__ import annotations
 from collections import deque
 from enum import Enum
 import statistics
@@ -86,12 +87,13 @@ class LocalPlanner(object):
     # Minimum distance to target waypoint as a percentage
     # (e.g. within 80% of total distance)
 
-    def __init__(self, agent: carla.agent, carla_map: carla.Map, config_yaml: Dict):
+    def __init__(self, agent: carla.Vehicle, carla_map: carla.Map, config_yaml: Dict):
         self._vehicle = agent.vehicle
         self._map = carla_map
 
         self._ego_pos: Optional[carla.Transform] = None
         self._ego_speed: Optional[float] = None
+        self._target_speed: float = 0.0
 
         # waypoint pop out thresholding
         self._min_distance = config_yaml["min_dist"]
@@ -239,9 +241,12 @@ class LocalPlanner(object):
         # [m] distance of each interpolated points
         ds = 0.1
 
+        if self._ego_pos is None:
+            raise ValueError("Ego position is not set. Call update_information() before generate_path().")
+
         # retrieve current location, yaw angle
-        current_location = self._ego_pos.location  # NOTE A None-check is required
-        current_yaw = self._ego_pos.rotation.yaw  # NOTE A None-check is required
+        current_location = self._ego_pos.location
+        current_yaw = self._ego_pos.rotation.yaw
 
         # retrieve the corresponding waypoint of the current location
         current_wpt = self._map.get_waypoint(current_location).next(1)[0]
@@ -341,13 +346,13 @@ class LocalPlanner(object):
         # we only need the interpolation points until next waypoint
         for i, i_s in enumerate(s):
             ix, iy = sp.calc_position(i_s)
+            if ix is None or iy is None:
+                continue
             if abs(ix - x[index]) <= ds and abs(iy - y[index]) <= ds:
                 continue
             if i <= len(s) // 2:
                 self._long_plan_debug.append(carla.Transform(carla.Location(ix, iy, 0)))
-            rx.append(
-                ix
-            )  # NOTE Append float|None (from sp.calc_position) to List[float]. Runtime OK (assume non-None after hypot check). Fix: cast(float, ix) or if ix is not None: rx.append(ix)
+            rx.append(ix)
             ry.append(iy)
             rk.append(max(min(sp.calc_curvature(i_s), 0.2), -0.2))
             ryaw.append(sp.calc_yaw(i_s))
@@ -378,6 +383,9 @@ class LocalPlanner(object):
         # unit sampling resolution
         dt = self.dt
 
+        if self._ego_speed is None:
+            raise ValueError("Ego speed is not set. Call update_information() before generate_trajectory().")
+
         target_speed = self._target_speed
         current_speed = self._ego_speed
 
@@ -385,7 +393,7 @@ class LocalPlanner(object):
         sample_num = 2.0 // dt
 
         break_flag = False
-        current_speed = current_speed / 3.6  # NOTE A None-check is required
+        current_speed = current_speed / 3.6
         sample_resolution = 0
 
         # use mean curvature to constrain the speed
@@ -397,7 +405,7 @@ class LocalPlanner(object):
 
         max_acc = 3.5
         # todo: hard-coded, need to be tuned
-        acceleration = max(min(max_acc, (target_speed / 3.6 - current_speed) / dt), -6.5)  # NOTE A None-check is required
+        acceleration = max(min(max_acc, (target_speed / 3.6 - current_speed) / dt), -6.5)
 
         for i in range(1, int(sample_num) + 1):
             sample_resolution += current_speed * dt + 0.5 * acceleration * dt**2
@@ -424,6 +432,9 @@ class LocalPlanner(object):
         Remove the waypoints in the global route plan which has dramatic
         change of yaw angle. Such waypoint can cause bad vehicle dynnamics.
         """
+        if self._ego_pos is None:
+            raise ValueError("Ego position is not set. Call update_information() before buffer_filter().")
+
         prev_wpt = None
 
         tmp = self._waypoint_buffer.copy()
@@ -438,9 +449,7 @@ class LocalPlanner(object):
 
             # check if the current waypoint is behind the vehicle.
             # if so, remove such waypoint.
-            _, angle = cal_distance_angle(
-                waypoint.transform.location, self._ego_pos.location, self._ego_pos.rotation.yaw
-            )  # NOTE A None-check is required
+            _, angle = cal_distance_angle(waypoint.transform.location, self._ego_pos.location, self._ego_pos.rotation.yaw)
 
             if angle > 90:
                 # print('delete waypoint!')
@@ -549,7 +558,8 @@ class LocalPlanner(object):
 
         """
 
-        self._target_speed: float = target_speed
+        if target_speed is not None:
+            self._target_speed = target_speed
 
         # Buffering the waypoints. Always keep the waypoint buffer alive
         if len(self._waypoint_buffer) < self.waypoint_update_freq:
@@ -574,6 +584,9 @@ class LocalPlanner(object):
         self.target_waypoint, self._target_speed = self._trajectory_buffer[min(1, len(self._trajectory_buffer) - 1)]
 
         # Purge the queue of obsolete waypoints
+        if self._ego_pos is None:
+            raise ValueError("Ego position is not set. Call update_information() before run_step().")
+
         vehicle_transform = self._ego_pos
         self.pop_buffer(vehicle_transform)
 
@@ -583,8 +596,8 @@ class LocalPlanner(object):
             # self._trajectory_buffer, size=0.1, arrow_size=0.2, z=0.1, lt=0.1)
 
         if self.debug:
-            draw_trajetory_points(self._vehicle.get_world(), self._waypoint_buffer, z=0.1, size=0.1, color=carla.Color(0, 0, 255), lt=0.2)
-            draw_trajetory_points(self._vehicle.get_world(), self._history_buffer, z=0.1, size=0.1, color=carla.Color(255, 0, 255), lt=0.2)
+            draw_trajetory_points(self._vehicle.get_world(), list(self._waypoint_buffer), z=0.1, size=0.1, color=carla.Color(0, 0, 255), lt=0.2)
+            draw_trajetory_points(self._vehicle.get_world(), list(self._history_buffer), z=0.1, size=0.1, color=carla.Color(255, 0, 255), lt=0.2)
 
         return self._target_speed, self.target_waypoint.transform.location if hasattr(
             self.target_waypoint, "is_junction"

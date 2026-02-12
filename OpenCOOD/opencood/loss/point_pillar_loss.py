@@ -43,9 +43,10 @@ class WeightedSmoothL1Loss(nn.Module):
     def __init__(self, beta: float = 1.0 / 9.0, code_weights: Optional[List[float]] = None):
         super(WeightedSmoothL1Loss, self).__init__()
         self.beta = beta
+        self.code_weights: Optional[torch.Tensor] = None
         if code_weights is not None:
-            self.code_weights = np.array(code_weights, dtype=np.float32)
-            self.code_weights = torch.from_numpy(self.code_weights).cuda()
+            code_weights_arr = np.array(code_weights, dtype=np.float32)
+            self.code_weights = torch.from_numpy(code_weights_arr).cuda()
 
     @staticmethod
     def smooth_l1_loss(diff: torch.Tensor, beta: float) -> torch.Tensor:

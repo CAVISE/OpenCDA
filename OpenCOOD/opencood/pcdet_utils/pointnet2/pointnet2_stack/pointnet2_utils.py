@@ -6,12 +6,12 @@ ball query, feature grouping, farthest point sampling, and feature interpolation
 All operations have custom autograd functions for efficient backpropagation.
 """
 
-from typing import Any, Tuple
+from typing import Any, Optional, Tuple
 import torch
 import torch.nn as nn
 from torch.autograd import Function, Variable
 
-from opencood.pcdet_utils.pointnet2.pointnet2_stack import pointnet2_stack_cuda as pointnet2
+from opencood.pcdet_utils.pointnet2.pointnet2_stack import pointnet2_stack_cuda as pointnet2  # type: ignore[attr-defined]
 
 
 class BallQuery(Function):
@@ -57,7 +57,7 @@ class BallQuery(Function):
 
         B = xyz_batch_cnt.shape[0]
         M = new_xyz.shape[0]
-        idx = torch.cuda.IntTensor(M, nsample).zero_()
+        idx = torch.zeros((M, nsample), dtype=torch.int32, device=xyz.device)
 
         pointnet2.ball_query_wrapper(B, M, radius, nsample, new_xyz, new_xyz_batch_cnt, xyz, xyz_batch_cnt, idx)
         empty_ball_mask = idx[:, 0] == -1
@@ -65,8 +65,8 @@ class BallQuery(Function):
         return idx, empty_ball_mask
 
     @staticmethod
-    def backward(ctx: Any, a: Any = None) -> Tuple[None, None, None, None]:
-        return None, None, None, None
+    def backward(ctx: Any, a: Any = None) -> Tuple[None, None, None, None, None, None]:
+        return None, None, None, None, None, None
 
 
 ball_query = BallQuery.apply
@@ -116,7 +116,7 @@ class GroupingOperation(Function):
         M, nsample = idx.size()
         N, C = features.size()
         B = idx_batch_cnt.shape[0]
-        output = torch.cuda.FloatTensor(M, C, nsample)
+        output = torch.empty((M, C, nsample), dtype=features.dtype, device=features.device)
 
         pointnet2.group_points_wrapper(B, M, C, nsample, features, features_batch_cnt, idx, idx_batch_cnt, output)
 
@@ -149,7 +149,7 @@ class GroupingOperation(Function):
         B, N, idx, features_batch_cnt, idx_batch_cnt = ctx.for_backwards
 
         M, C, nsample = grad_out.size()
-        grad_features = Variable(torch.cuda.FloatTensor(N, C).zero_())
+        grad_features = Variable(torch.zeros((N, C), dtype=grad_out.dtype, device=grad_out.device))
 
         grad_out_data = grad_out.data.contiguous()
         pointnet2.group_points_grad_wrapper(B, M, C, N, nsample, grad_out_data, idx, idx_batch_cnt, features_batch_cnt, grad_features.data)
@@ -191,8 +191,13 @@ class QueryAndGroup(nn.Module):
         self.radius, self.nsample, self.use_xyz = radius, nsample, use_xyz
 
     def forward(
-        self, xyz: torch.Tensor, xyz_batch_cnt: torch.Tensor, new_xyz: torch.Tensor, new_xyz_batch_cnt: torch.Tensor, features: torch.Tensor = None
-    ) -> torch.Tensor:
+        self,
+        xyz: torch.Tensor,
+        xyz_batch_cnt: torch.Tensor,
+        new_xyz: torch.Tensor,
+        new_xyz_batch_cnt: torch.Tensor,
+        features: Optional[torch.Tensor] = None,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Query neighbors and group their features.
 

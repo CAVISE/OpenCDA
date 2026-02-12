@@ -11,7 +11,7 @@ import torch
 from opencood.data_utils.post_processor.voxel_postprocessor import VoxelPostprocessor
 from opencood.utils import box_utils
 from opencood.utils import common_utils
-from typing import Dict, List, Tuple, Optional, Any, Union
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 
 class FpvrcnnPostprocessor(VoxelPostprocessor):
@@ -34,10 +34,10 @@ class FpvrcnnPostprocessor(VoxelPostprocessor):
         super(FpvrcnnPostprocessor, self).__init__(anchor_params, train)
 
     def post_process(
-        self, data_dict: Dict[str, Any], output_dict: Dict[str, Any], stage1: bool = False
-    ) -> Union[Tuple[torch.Tensor, torch.Tensor], Tuple[List[torch.Tensor], List[torch.Tensor]]]:
+        self, data_dict: Dict[str, Dict[str, Any]], output_dict: Dict[str, Dict[str, torch.Tensor]]
+    ) -> Tuple[Optional[torch.Tensor], Optional[torch.Tensor]]:
         """
-        Process model outputs through the appropriate stage.
+        Process second-stage FPV-RCNN outputs.
 
         Parameters
         ----------
@@ -45,18 +45,14 @@ class FpvrcnnPostprocessor(VoxelPostprocessor):
             Dictionary containing input data.
         output_dict : Dict[str, Any]
             Dictionary containing model outputs.
-        stage1 : bool, optional
-            Whether to use stage1 processing. Default is False.
 
         Returns
         -------
-        Union[Tuple[torch.Tensor, torch.Tensor], Tuple[List[torch.Tensor], List[torch.Tensor]]]
+        Tuple[Optional[torch.Tensor], Optional[torch.Tensor]]
             Tuple of (boxes, scores) with the processed detections.
         """
-        if stage1:
-            return self.post_process_stage1(data_dict, output_dict)
-        else:
-            return self.post_process_stage2(data_dict)
+        _ = output_dict
+        return self.post_process_stage2(data_dict)
 
     def post_process_stage1(
         self, data_dict: Dict[str, Any], output_dict: Dict[str, Any]
@@ -83,9 +79,9 @@ class FpvrcnnPostprocessor(VoxelPostprocessor):
             List of confidence scores corresponding to predicted boxes.
         """
         # the final bounding box list
-        pred_box3d_original_list = []
-        pred_box3d_list = []
-        pred_box2d_list = []
+        pred_box3d_original_list: List[torch.Tensor] = []
+        pred_box3d_list: List[torch.Tensor] = []
+        pred_box2d_list: List[torch.Tensor] = []
 
         for cav_id, cav_content in data_dict.items():
             assert cav_id in output_dict
@@ -99,7 +95,7 @@ class FpvrcnnPostprocessor(VoxelPostprocessor):
             anchor_box = cav_content["anchor_box"]
 
             # prediction result
-            preds_dict = output_dict[cav_id]["preds_dict_stage1"]
+            preds_dict = cast(Dict[str, torch.Tensor], output_dict[cav_id]["preds_dict_stage1"])
 
             # preds
             prob = preds_dict["cls_preds"]
@@ -163,7 +159,7 @@ class FpvrcnnPostprocessor(VoxelPostprocessor):
                 # (N, 8, 3)
                 boxes3d_corner = box_utils.boxes_to_corners_3d(boxes3d, order=self.params["order"])
                 # (N, 8, 3)
-                projected_boxes3d = box_utils.project_box3d(boxes3d_corner, transformation_matrix)
+                projected_boxes3d = cast(torch.Tensor, box_utils.project_box3d(boxes3d_corner, transformation_matrix))
                 # convert 3d bbx to 2d, (N,4)
                 projected_boxes2d = box_utils.corner_to_standup_box_torch(projected_boxes3d)
                 # (N, 5)
@@ -172,12 +168,12 @@ class FpvrcnnPostprocessor(VoxelPostprocessor):
                 pred_box2d_list.append(boxes2d_score)
                 pred_box3d_list.append(projected_boxes3d)
 
-        if len(pred_box2d_list) == 0 or len(pred_box3d_list) == 0:
+        if len(pred_box2d_list) == 0 or len(pred_box3d_list) == 0 or len(pred_box3d_original_list) == 0:
             return None, None
         # shape: (N, 5)
-        pred_box2d_list = torch.vstack(pred_box2d_list)
+        pred_box2d_tensor = torch.vstack(pred_box2d_list)
         # scores
-        scores = pred_box2d_list[:, -1]  # NOTE: mypy error - list doesn't support numpy-style indexing
+        scores = pred_box2d_tensor[:, -1]
         # predicted 3d bbx
         pred_box3d_tensor = torch.vstack(pred_box3d_list)
         pred_box3d_original = torch.vstack(pred_box3d_original_list)
@@ -230,9 +226,11 @@ class FpvrcnnPostprocessor(VoxelPostprocessor):
 
         boxes_local = box_utils.box_decode(rcnn_reg, rois_anchor)
         # boxes_local = rcnn_reg + rois_anchor
-        detections = common_utils.rotate_points_along_z(points=boxes_local.view(-1, 1, boxes_local.shape[-1]), angle=roi_ry.view(-1)).view(
-            -1, boxes_local.shape[-1]
+        rotated_detections = cast(
+            torch.Tensor,
+            common_utils.rotate_points_along_z(points=boxes_local.view(-1, 1, boxes_local.shape[-1]), angle=roi_ry.view(-1)),
         )
+        detections = rotated_detections.view(-1, boxes_local.shape[-1])
         detections[:, :3] = detections[:, :3] + roi_center
         detections[:, 6] = detections[:, 6] + roi_ry
         mask = rcnn_score >= 0.01
@@ -246,6 +244,6 @@ class FpvrcnnPostprocessor(VoxelPostprocessor):
             # (N, 8, 3)
             boxes3d_corner = box_utils.boxes_to_corners_3d(boxes3d, order=self.params["order"])
             # (N, 8, 3)
-            projected_boxes3d = box_utils.project_box3d(boxes3d_corner, data_dict["ego"]["transformation_matrix"])
+            projected_boxes3d = cast(torch.Tensor, box_utils.project_box3d(boxes3d_corner, data_dict["ego"]["transformation_matrix"]))
 
         return projected_boxes3d, scores[mask]

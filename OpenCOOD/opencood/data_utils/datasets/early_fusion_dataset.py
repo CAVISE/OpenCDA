@@ -69,7 +69,7 @@ class EarlyFusionDataset(basedataset.BaseDataset):
         self.message_handler = message_handler
         self.module_name = "OpenCOOD.EarlyFusionDataset"
 
-    def __find_ego_vehicle(self, base_data_dict: Dict[str, Dict[str, Any]]) -> Tuple[int, List[float]]:
+    def __find_ego_vehicle(self, base_data_dict: Dict[str, Dict[str, Any]]) -> Tuple[str, List[float]]:
         """
         Find the ego vehicle in the base data dictionary.
 
@@ -83,17 +83,17 @@ class EarlyFusionDataset(basedataset.BaseDataset):
         Tuple[int, List[float]]
             Tuple containing ego vehicle ID and its LiDAR pose.
         """
-        ego_id = -1
+        ego_id = ""
         ego_lidar_pose = []
 
         # first find the ego vehicle's lidar pose
         for cav_id, cav_content in base_data_dict.items():
             if cav_content["ego"]:
-                ego_id = cav_id  # NOTE Incompatible types
+                ego_id = cav_id
                 ego_lidar_pose = cav_content["params"]["lidar_pose"]
                 break
 
-        assert ego_id != -1
+        assert ego_id != ""
         assert len(ego_lidar_pose) > 0
 
         return ego_id, ego_lidar_pose
@@ -145,7 +145,7 @@ class EarlyFusionDataset(basedataset.BaseDataset):
 
     def __process_with_messages(
         self,
-        ego_id: int,
+        ego_id: str,
         ego_lidar_pose: List[float],
         base_data_dict: Dict[str, Any],
     ) -> Dict[str, Any]:
@@ -170,16 +170,21 @@ class EarlyFusionDataset(basedataset.BaseDataset):
         object_id_stack = []
         projected_lidar_stack = []
 
-        ego_cav_base = base_data_dict.get(ego_id)  # NOTE there should be a check for None
+        message_handler = self.message_handler
+        assert message_handler is not None
+
+        ego_cav_base = base_data_dict.get(ego_id)
+        if ego_cav_base is None:
+            raise ValueError("Ego vehicle data not found in base_data_dict.")
         ego_cav_processed = self.get_item_single_car(ego_cav_base, ego_lidar_pose)
         object_id_stack += ego_cav_processed["object_ids"]
         object_stack.append(ego_cav_processed["object_bbx_center"])
         projected_lidar_stack.append(ego_cav_processed["projected_lidar"])
 
-        if ego_id in self.message_handler.current_message_artery:  # NOTE there should be a check for None
+        if ego_id in message_handler.current_message_artery:
             for cav_id, _ in base_data_dict.items():
-                if cav_id in self.message_handler.current_message_artery[ego_id]:  # NOTE there should be a check for None
-                    with self.message_handler.handle_artery_message(ego_id, cav_id, self.module_name) as msg:  # NOTE there should be a check for None
+                if cav_id in message_handler.current_message_artery[ego_id]:
+                    with message_handler.handle_artery_message(ego_id, cav_id, self.module_name) as msg:
                         object_id_stack += msg["object_ids"]
 
                         bbx = np.frombuffer(msg["object_bbx_center"]["data"], np.dtype(msg["object_bbx_center"]["dtype"]))
@@ -302,16 +307,19 @@ class EarlyFusionDataset(basedataset.BaseDataset):
         object_bbx_center[object_bbx_center_valid.shape[0] :] = 0
         unique_indices = list(np.array(unique_indices)[range_mask])
 
+        pre_processor = self.pre_processor
+        post_processor = self.post_processor
+        assert pre_processor is not None
+        assert post_processor is not None
+
         # pre-process the lidar to voxel/bev/downsampled lidar
-        lidar_dict = self.pre_processor.preprocess(projected_lidar_stack)  # NOTE there should be a check for None
+        lidar_dict = pre_processor.preprocess(projected_lidar_stack)
 
         # generate the anchor boxes
-        anchor_box = self.post_processor.generate_anchor_box()  # NOTE there should be a check for None
+        anchor_box = post_processor.generate_anchor_box()
 
         # generate targets label
-        label_dict = self.post_processor.generate_label(
-            gt_box_center=object_bbx_center, anchors=anchor_box, mask=mask
-        )  # NOTE there should be a check for None
+        label_dict = post_processor.generate_label(gt_box_center=object_bbx_center, anchors=anchor_box, mask=mask)
 
         processed_data_dict["ego"].update(
             {
@@ -357,9 +365,9 @@ class EarlyFusionDataset(basedataset.BaseDataset):
         transformation_matrix = x1_to_x2(selected_cav_base["params"]["lidar_pose"], ego_pose)
 
         # retrieve objects under ego coordinates
-        object_bbx_center, object_bbx_mask, object_ids = self.post_processor.generate_object_center(
-            [selected_cav_base], ego_pose
-        )  # NOTE there should be a check for None
+        post_processor = self.post_processor
+        assert post_processor is not None
+        object_bbx_center, object_bbx_mask, object_ids = post_processor.generate_object_center([selected_cav_base], ego_pose)
 
         # filter lidar
         lidar_np = selected_cav_base["lidar_np"]
@@ -375,7 +383,7 @@ class EarlyFusionDataset(basedataset.BaseDataset):
 
         return selected_cav_processed
 
-    def collate_batch_test(self, batch: Dict[str, Dict[str, Any]]) -> Dict[str, Dict[str, torch.Tensor]]:
+    def collate_batch_test(self, batch: List[Dict[str, Dict[str, Any]]]) -> Dict[str, Dict[str, torch.Tensor]]:
         """
         Customized collate function for pytorch dataloader during testing
         for late fusion dataset.
@@ -400,11 +408,11 @@ class EarlyFusionDataset(basedataset.BaseDataset):
         """
         # currently, we only support batch size of 1 during testing
         assert len(batch) <= 1, "Batch size 1 is required during testing!"
-        batch = batch[0]  # NOTE Incompatible types
+        batch_dict = batch[0]
 
         output_dict: Dict[str, Dict] = {}
 
-        for cav_id, cav_content in batch.items():
+        for cav_id, cav_content in batch_dict.items():
             output_dict.update({cav_id: {}})
             # shape: (1, max_num, 7)
             object_bbx_center = torch.from_numpy(np.array([cav_content["object_bbx_center"]]))
@@ -419,9 +427,13 @@ class EarlyFusionDataset(basedataset.BaseDataset):
                 origin_lidar = [cav_content["origin_lidar"]]
 
             # processed lidar dictionary
-            processed_lidar_torch_dict = self.pre_processor.collate_batch([cav_content["processed_lidar"]])  # NOTE there should be a check for None
+            pre_processor = self.pre_processor
+            post_processor = self.post_processor
+            assert pre_processor is not None
+            assert post_processor is not None
+            processed_lidar_torch_dict = pre_processor.collate_batch([cav_content["processed_lidar"]])
             # label dictionary
-            label_torch_dict = self.post_processor.collate_batch([cav_content["label_dict"]])  # NOTE there should be a check for None
+            label_torch_dict = post_processor.collate_batch([cav_content["label_dict"]])
 
             # save the transformation matrix (4, 4) to ego vehicle
             transformation_matrix_torch = torch.from_numpy(np.identity(4)).float()
@@ -438,9 +450,9 @@ class EarlyFusionDataset(basedataset.BaseDataset):
             )
 
             if self.visualize:
-                origin_lidar = np.array(downsample_lidar_minimum(pcd_np_list=origin_lidar))
-                origin_lidar = torch.from_numpy(origin_lidar)
-                output_dict[cav_id].update({"origin_lidar": origin_lidar})
+                origin_lidar_arr = np.array(downsample_lidar_minimum(pcd_np_list=origin_lidar))
+                origin_lidar_tensor = torch.from_numpy(origin_lidar_arr)
+                output_dict[cav_id].update({"origin_lidar": origin_lidar_tensor})
 
         return output_dict
 
@@ -463,7 +475,9 @@ class EarlyFusionDataset(basedataset.BaseDataset):
         gt_box_tensor : torch.Tensor
             The tensor of gt bounding box.
         """
-        pred_box_tensor, pred_score = self.post_processor.post_process(data_dict, output_dict)  # NOTE there should be a check for None
-        gt_box_tensor = self.post_processor.generate_gt_bbx(data_dict)  # NOTE there should be a check for None
+        post_processor = self.post_processor
+        assert post_processor is not None
+        pred_box_tensor, pred_score = post_processor.post_process(data_dict, output_dict)
+        gt_box_tensor = post_processor.generate_gt_bbx(data_dict)
 
         return pred_box_tensor, pred_score, gt_box_tensor

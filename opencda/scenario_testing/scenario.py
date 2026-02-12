@@ -56,7 +56,7 @@ class Scenario:
 
         xodr_path = None
         if opt.xodr:
-            xodr_path = Path("opencda/sumo-assets") / self.scenario_name / f"{self.scenario_name}.xodr"
+            xodr_path = str(Path("opencda/sumo-assets") / self.scenario_name / f"{self.scenario_name}.xodr")
             logger.info(f"loading xodr map with name: {xodr_path}")
 
         town = None
@@ -85,7 +85,7 @@ class Scenario:
                 scenario_params=scenario_params,
                 apply_ml=opt.apply_ml,
                 carla_version=opt.version,
-                xodr_path=str(xodr_path),
+                xodr_path=xodr_path,
                 town=town,
                 cav_world=self.cav_world,
                 carla_host=opt.carla_host,
@@ -140,33 +140,27 @@ class Scenario:
 
             self.codriving_model_manager = AIMModelManager(model=model, nodes=nodes, excluded_nodes=None)
 
-        self.platoon_list, self.node_ids["platoon"] = (
-            self.scenario_manager.create_platoon_manager(  # NOTE Incompatible types in assignment (expression has type "dict[int, str]", target has type "list[int]")
-                map_helper=map_api.spawn_helper_2lanefree, data_dump=data_dump
-            )
+        self.platoon_list, self.node_ids["platoon"] = self.scenario_manager.create_platoon_manager(
+            map_helper=map_api.spawn_helper_2lanefree, data_dump=data_dump
         )
         logger.info(f"created platoon list of size {len(self.platoon_list)}")
 
-        self.single_cav_list, self.node_ids["cav"] = (
-            self.scenario_manager.create_vehicle_manager(  # NOTE Incompatible types in assignment (expression has type "dict[int, str]", target has type "list[int]")
-                application=["single"], map_helper=map_api.spawn_helper_2lanefree, data_dump=data_dump
-            )
+        self.single_cav_list, self.node_ids["cav"] = self.scenario_manager.create_vehicle_manager(
+            application=["single"], map_helper=map_api.spawn_helper_2lanefree, data_dump=data_dump
         )
         logger.info(f"created single cavs of size {len(self.single_cav_list)}")
 
         _, self.bg_veh_list = self.scenario_manager.create_traffic_carla()
         logger.info(f"created background traffic of size {len(self.bg_veh_list)}")
 
-        self.rsu_list, self.node_ids["rsu"] = self.scenario_manager.create_rsu_manager(
-            data_dump=data_dump
-        )  # NOTE Incompatible types in assignment (expression has type "dict[int, str]", target has type "list[int]")
+        self.rsu_list, self.node_ids["rsu"] = self.scenario_manager.create_rsu_manager(data_dump=data_dump)
         logger.info(f"created RSU list of size {len(self.rsu_list)}")
 
         self.eval_manager = EvaluationManager(
             self.scenario_manager.cav_world, script_name=self.scenario_name, current_time=scenario_params["current_time"]
         )
 
-        self.spectator = self.scenario_manager.world.get_spectator()  # NOTE None-check is required
+        self.spectator = self.scenario_manager.world.get_spectator()
 
     def run(self, opt: argparse.Namespace) -> None:
         if self.coperception_model_manager is not None:
@@ -203,9 +197,7 @@ class Scenario:
                     self.spectator.set_transform(carla.Transform(transform.location + carla.Location(z=50), carla.Rotation(pitch=-90)))
 
             if opt.with_mtp:
-                self.codriving_model_manager.make_trajs(
-                    carla_vmanagers=self.single_cav_list
-                )  # NOTE incompatible type "list[VehicleManager]"; expected "set[Any]"" but set[Any] in "make_trajs" of "AIMModelManager" provide other mistakes
+                self.codriving_model_manager.make_trajs(carla_vmanagers=self.single_cav_list)
 
             if self.coperception_model_manager is not None and tick_number > 0:
                 try:
@@ -257,7 +249,7 @@ class Scenario:
                     self.spectator.set_transform(carla.Transform(transform.location + carla.Location(z=50), carla.Rotation(pitch=-90)))
 
             if opt.with_mtp:
-                self.codriving_model_manager.make_trajs(carla_vmanagers=self.single_cav_list)  # NOTE the same mistake as higher
+                self.codriving_model_manager.make_trajs(carla_vmanagers=self.single_cav_list)
 
             """
             # Tick 0 is an initialization tick. The simulation starts at tick 0, while the data dumper starts at tick 1.
@@ -278,20 +270,20 @@ class Scenario:
                     idx=0  # TODO: Figure out how to select the ego vehicle in cooperative perception models
                 )
 
-            message = self.message_handler.make_opencda_message()  # NOTE None-check is required
+            message = self.message_handler.make_opencda_message()
 
-            self.cav_world.comms_manager.send_message(message)  # NOTE None-check is required
+            self.cav_world.comms_manager.send_message(message)
             logger.info(f"{round(len(message) / (1 << 20), 3)} MB about to be sent")
 
-            message = self.cav_world.comms_manager.receive_message()  # NOTE None-check is required
+            message = self.cav_world.comms_manager.receive_message()
             logger.info(f"{round(len(message) / (1 << 20), 3)} MB were received")
 
-            self.message_handler.make_artery_data(message)  # NOTE None-check is required
+            self.message_handler.make_artery_data(message)
 
             if self.coperception_model_manager is not None and tick_number > 0:
                 self.coperception_model_manager.make_prediction(tick_number)
 
-            self.message_handler.clear_messages()  # NOTE None-check is required
+            self.message_handler.clear_messages()
 
             if self.platoon_list is not None:
                 logger.debug("updating platoons")

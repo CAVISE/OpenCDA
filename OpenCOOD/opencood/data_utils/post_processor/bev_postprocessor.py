@@ -15,7 +15,7 @@ from opencood.data_utils.post_processor.base_postprocessor import BasePostproces
 from opencood.data_utils.datasets.basedataset import BaseDataset
 from opencood.utils import box_utils
 from opencood.visualization import vis_utils
-from typing import Dict, List, Tuple, Optional, Any, Union
+from typing import Any, Dict, List, Optional, Tuple, Union, cast
 
 
 class BevPostprocessor(BasePostprocessor):
@@ -52,7 +52,7 @@ class BevPostprocessor(BasePostprocessor):
     def generate_anchor_box(self) -> None:
         return None
 
-    def generate_label(self, **kwargs: Any) -> Dict[str, Any]:  # NOTE Signature mismatch with supertype
+    def generate_label(self, **kwargs: Any) -> Dict[str, Any]:
         """
         Generate targets for training.
 
@@ -79,7 +79,7 @@ class BevPostprocessor(BasePostprocessor):
         # (n, 7)
         gt_box_center_valid = gt_box_center[masks == 1]
         # (n, 4, 3)
-        bev_corners = box_utils.boxes_to_corners2d(gt_box_center_valid, self.params["order"])
+        bev_corners = cast(np.ndarray, box_utils.boxes_to_corners2d(gt_box_center_valid, self.params["order"]))
 
         _ = gt_box_center_valid.shape[0]  # n
         # (n, 4, 2)
@@ -188,14 +188,11 @@ class BevPostprocessor(BasePostprocessor):
 
         """
         if isinstance(reg_map, np.ndarray):
-            target_mean = self.target_mean
-            target_std_dev = self.target_std_dev
+            return reg_map * self.target_std_dev + self.target_mean
 
-        else:
-            target_mean = torch.from_numpy(self.target_mean).to(reg_map.device)
-            target_std_dev = torch.from_numpy(self.target_std_dev).to(reg_map.device)
-        reg_map = reg_map * target_std_dev + target_mean
-        return reg_map
+        target_mean_tensor = torch.from_numpy(self.target_mean).to(reg_map.device)
+        target_std_dev_tensor = torch.from_numpy(self.target_std_dev).to(reg_map.device)
+        return reg_map * target_std_dev_tensor + target_mean_tensor
 
     @staticmethod
     def collate_batch(label_batch_list: List) -> Dict:
@@ -261,7 +258,7 @@ class BevPostprocessor(BasePostprocessor):
             prob = torch.sigmoid(prob)
             # regression map -- (label_shape[0], label_shape[1], 6)
             reg_map = output_dict[cav_id]["reg"].squeeze(0).permute(1, 2, 0)
-            reg_map = self.denormalize_reg_map(reg_map)
+            reg_map = cast(torch.Tensor, self.denormalize_reg_map(reg_map))
             threshold = self.params["target_args"]["score_threshold"]
             mask = torch.gt(prob, threshold)
 
@@ -273,7 +270,7 @@ class BevPostprocessor(BasePostprocessor):
                 # (number of high confidence bbx, 4, 3)
                 box3d = F.pad(corners2d, (0, 1))
                 # (number of high confidence bbx, 4, 2)
-                projected_boxes2d = box_utils.project_points_by_matrix_torch(box3d.view(-1, 3), transformation_matrix)[:, :2]
+                projected_boxes2d = cast(torch.Tensor, box_utils.project_points_by_matrix_torch(box3d.view(-1, 3), transformation_matrix))[:, :2]
 
                 projected_boxes2d = projected_boxes2d.view(-1, 4, 2)
                 scores = prob[mask]
@@ -373,7 +370,7 @@ class BevPostprocessor(BasePostprocessor):
 
         # regression map -- (label_shape[0], label_shape[1], 6)
         reg_map = output_dict["reg"].squeeze(0).permute(1, 2, 0)
-        reg_map = self.denormalize_reg_map(reg_map)
+        reg_map = cast(torch.Tensor, self.denormalize_reg_map(reg_map))
 
         threshold = 0.5
         mask = torch.gt(prob, threshold)
@@ -387,7 +384,7 @@ class BevPostprocessor(BasePostprocessor):
             box3d = F.pad(corners2d, (0, 1))
 
             # (number of high confidence bbx, 4, 2)
-            projected_boxes2d = box_utils.project_points_by_matrix_torch(box3d.view(-1, 3), transformation_matrix)[:, :2]
+            projected_boxes2d = cast(torch.Tensor, box_utils.project_points_by_matrix_torch(box3d.view(-1, 3), transformation_matrix))[:, :2]
             projected_boxes2d = projected_boxes2d.view(-1, 4, 2)
             scores = prob[mask]
             pred_box2d_list.append(projected_boxes2d)

@@ -116,7 +116,7 @@ class V2VNetFusion(nn.Module):
         """
         cum_sum_len = torch.cumsum(record_len, dim=0)
         split_x = torch.tensor_split(x, cum_sum_len[:-1].cpu())
-        return split_x
+        return list(split_x)
 
     def forward(self, x: Tensor, record_len: Tensor, pairwise_t_matrix: Tensor) -> Tensor:
         """
@@ -158,7 +158,7 @@ class V2VNetFusion(nn.Module):
             # iterate each batch
             for b in range(B):
                 # number of valid agent
-                N = record_len[b]
+                N = int(record_len[b].item())
                 # (N,N,4,4)
                 # t_matrix[i, j]-> from i to j
                 t_matrix = pairwise_t_matrix[b][:N, :N, :, :]

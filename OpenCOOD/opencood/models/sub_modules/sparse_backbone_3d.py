@@ -67,9 +67,10 @@ def post_act_block(
     else:
         raise NotImplementedError
 
+    assert norm_fn is not None
     m = SparseSequential(
         conv,
-        norm_fn(out_channels),  # NOTE None-check is required
+        norm_fn(out_channels),
         nn.ReLU(),
     )
 

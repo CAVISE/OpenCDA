@@ -184,13 +184,11 @@ class SumoTLLogic(object):
         self.tlid = tlid
         self.states = states
 
-        self._landmark2link: Dict[
-            str, List[Tuple[str, int]]
-        ] = {}  # NOTE using List[Tuple[str, int] provide mistakes below but using List[Tuple[str, str]]] also provide mistakes
-        self._link2landmark: Dict[Tuple[str, str], str] = {}
-        for link_index, landmark_id in parameters.items():
+        self._landmark2link: Dict[str, List[Tuple[str, int]]] = {}
+        self._link2landmark: Dict[Tuple[str, int], str] = {}
+        for link_index_key, landmark_id in parameters.items():
             # Link index information is added in the parameter as 'linkSignalID:x'
-            link_index = int(link_index.split(":")[1])  # NOTE Incompatible types in assignment (expression has type "int", variable has type "str")
+            link_index = int(str(link_index_key).split(":")[1])
 
             if landmark_id not in self._landmark2link:
                 self._landmark2link[landmark_id] = []
@@ -653,11 +651,11 @@ class SumoSimulation(object):
             traci.vehicle.add(id, "carla_route", typeID=type_id)
         except traci.exceptions.TraCIException as error:
             logger.error(f"Spawn sumo actor failed: {error}")
-            return INVALID_ACTOR_ID  # NOTE Incompatible return value type
+            return INVALID_ACTOR_ID
 
         if color is not None:
-            color = color.split(",")  # NOTE Incompatible types in assignment
-            traci.vehicle.setColor(id, color)
+            color_values = [int(value) for value in color.split(",")]
+            traci.vehicle.setColor(id, color_values)
 
         self._sequential_id += 1  # noqa: DC05
 

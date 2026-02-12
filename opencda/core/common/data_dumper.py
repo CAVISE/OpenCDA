@@ -11,7 +11,7 @@ import numpy as np
 from opencda.core.common.misc import get_speed
 from opencda.core.sensing.perception import sensor_transformation as st
 from opencda.scenario_testing.utils.yaml_utils import save_yaml
-from opencda.core.sensing.perception.perception_manager import PerceptionManager
+from opencda.core.sensing.perception.perception_manager import PerceptionManager, CameraSensor, LidarSensor
 
 
 class DataDumper(object):
@@ -48,8 +48,8 @@ class DataDumper(object):
     """
 
     def __init__(self, perception_manager: PerceptionManager, vehicle_id: str, save_time: str):
-        self.rgb_camera = perception_manager.rgb_camera
-        self.lidar = perception_manager.lidar
+        self.rgb_camera: List[CameraSensor] = perception_manager.rgb_camera or []
+        self.lidar: Optional[LidarSensor] = perception_manager.lidar
 
         self.save_time = save_time
         self.vehicle_id = vehicle_id
@@ -118,6 +118,8 @@ class DataDumper(object):
         count : int
             Current step count.
         """
+        if self.lidar is None or self.lidar.data is None:
+            return
         point_cloud = self.lidar.data
         # frame = self.lidar.frame
 
@@ -191,6 +193,8 @@ class DataDumper(object):
         # dump ego pose and speed, if vehicle does not exist, then it is
         # a rsu(road side unit).
         predicted_ego_pos = localization_manager.get_ego_pos()
+        if predicted_ego_pos is None:
+            return
         true_ego_pos = localization_manager.vehicle.get_transform() if hasattr(localization_manager, "vehicle") else localization_manager.true_ego_pos
 
         dump_yml.update(
@@ -220,6 +224,8 @@ class DataDumper(object):
         dump_yml.update({"ego_speed": float(localization_manager.get_ego_spd())})
 
         # dump lidar sensor coordinates under world coordinate system
+        if self.lidar is None:
+            return
         lidar_transformation = self.lidar.sensor.get_transform()
         dump_yml.update(
             {
@@ -253,8 +259,8 @@ class DataDumper(object):
 
             # dump intrinsic matrix
             camera_intrinsic = st.get_camera_intrinsic(camera.sensor)
-            camera_intrinsic = self.matrix2list(camera_intrinsic)
-            camera_param.update({"intrinsic": camera_intrinsic})
+            camera_intrinsic_list = self.matrix2list(camera_intrinsic)
+            camera_param.update({"intrinsic": camera_intrinsic_list})
 
             # dump extrinsic matrix lidar2camera
             lidar2world = st.x_to_world_transformation(self.lidar.sensor.get_transform())

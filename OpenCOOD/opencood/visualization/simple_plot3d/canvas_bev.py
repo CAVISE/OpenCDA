@@ -7,7 +7,7 @@ This module provides canvas classes for bird's eye view (BEV) visualization
 of 3D point clouds and bounding boxes in different coordinate systems.
 """
 
-from typing import Tuple, Optional, Union, List
+from typing import List, Optional, Tuple, Union, cast
 
 import numpy as np
 import numpy.typing as npt
@@ -146,18 +146,19 @@ class Canvas_BEV_heading_right(object):
         if len(canvas_xy) == 0:
             return
 
+        draw_colors: npt.NDArray[np.uint8]
         if colors is None:
-            colors = np.full((len(canvas_xy), 3), fill_value=255, dtype=np.uint8)
+            draw_colors = np.full((len(canvas_xy), 3), fill_value=255, dtype=np.uint8)
         elif isinstance(colors, tuple):
             assert len(colors) == 3
             colors_tmp = np.zeros((len(canvas_xy), 3), dtype=np.uint8)
             colors_tmp[..., :] = np.array(colors)
-            colors = colors_tmp
+            draw_colors = colors_tmp
         elif isinstance(colors, np.ndarray):
             assert len(colors) == len(canvas_xy)
-            colors = colors.astype(np.uint8)
+            draw_colors = colors.astype(np.uint8)
         elif isinstance(colors, str):
-            colors = matplotlib.cm.get_cmap(colors)
+            cmap = matplotlib.cm.get_cmap(colors)
             if colors_operand is None:
                 # Get distances from (0, 0) (albeit potentially clipped)
                 origin_center = self.get_canvas_coords(np.zeros((1, 2)))[0][0]
@@ -169,16 +170,16 @@ class Canvas_BEV_heading_right(object):
 
             # Get cmap colors - note that cmap returns (*input_shape, 4), with
             # colors scaled 0 ~ 1
-            colors = (colors(colors_operand)[:, :3] * 255).astype(np.uint8)
+            draw_colors = (cmap(colors_operand)[:, :3] * 255).astype(np.uint8)
         else:
-            raise Exception("colors type {} was not an expected type".format(type(colors)))
+            raise TypeError(f"colors type {type(colors)} was not an expected type")
 
         # Here the order is different from Canvas_BEV
         if radius == -1:
-            self.canvas[canvas_xy[:, 1], canvas_xy[:, 0], :] = colors
+            self.canvas[canvas_xy[:, 1], canvas_xy[:, 0], :] = draw_colors
         else:
-            for color, (x, y) in zip(colors.tolist(), canvas_xy.tolist()):
-                self.canvas = cv2.circle(self.canvas, (x, y), radius, color, -1, lineType=cv2.LINE_AA)
+            for color, (x, y) in zip(draw_colors.tolist(), canvas_xy.tolist()):
+                self.canvas = cast(npt.NDArray[np.uint8], cv2.circle(self.canvas, (x, y), radius, color, -1, lineType=cv2.LINE_AA))
 
     def draw_boxes(
         self,
@@ -212,18 +213,19 @@ class Canvas_BEV_heading_right(object):
             Corner index (0 ~ 3) of 3D box to write text at. Default is 0.
         """
         # Setup colors
+        draw_colors: npt.NDArray[np.uint8]
         if colors is None:
-            colors = np.full((len(boxes), 3), fill_value=255, dtype=np.uint8)
+            draw_colors = np.full((len(boxes), 3), fill_value=255, dtype=np.uint8)
         elif isinstance(colors, tuple):
             assert len(colors) == 3
             colors_tmp = np.zeros((len(boxes), 3), dtype=np.uint8)
             colors_tmp[..., : len(colors)] = np.array(colors)
-            colors = colors_tmp
+            draw_colors = colors_tmp
         elif isinstance(colors, np.ndarray):
             assert len(colors) == len(boxes)
-            colors = colors.astype(np.uint8)
+            draw_colors = colors.astype(np.uint8)
         else:
-            raise Exception("colors type {} was not an expected type".format(type(colors)))
+            raise TypeError(f"colors type {type(colors)} was not an expected type")
 
         boxes = np.copy(boxes)  # prevent in-place modifications
 
@@ -251,24 +253,30 @@ class Canvas_BEV_heading_right(object):
         ## Draw onto canvas
         # Draw the outer boundaries
         idx_draw_pairs = [(0, 1), (1, 2), (2, 3), (3, 0)]
-        for i, (color, curr_box_corners) in enumerate(zip(colors.tolist(), bev_corners_canvas)):
+        for i, (color, curr_box_corners) in enumerate(zip(draw_colors.tolist(), bev_corners_canvas)):
             curr_box_corners = curr_box_corners.astype(np.int32)
             for start, end in idx_draw_pairs:
                 # Notice Difference Here
-                self.canvas = cv2.line(
-                    self.canvas,
-                    tuple(curr_box_corners[start].tolist()),
-                    tuple(curr_box_corners[end].tolist()),
-                    color=color,
-                    thickness=box_line_thickness,
+                self.canvas = cast(
+                    npt.NDArray[np.uint8],
+                    cv2.line(
+                        self.canvas,
+                        tuple(curr_box_corners[start].tolist()),
+                        tuple(curr_box_corners[end].tolist()),
+                        color=color,
+                        thickness=box_line_thickness,
+                    ),
                 )
             if texts is not None:
-                self.canvas = cv2.putText(
-                    self.canvas,
-                    str(texts[i]),
-                    tuple(curr_box_corners[text_corner].tolist()),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    box_text_size,
-                    color=color,
-                    thickness=box_line_thickness,
+                self.canvas = cast(
+                    npt.NDArray[np.uint8],
+                    cv2.putText(
+                        self.canvas,
+                        str(texts[i]),
+                        tuple(curr_box_corners[text_corner].tolist()),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        box_text_size,
+                        color=color,
+                        thickness=box_line_thickness,
+                    ),
                 )

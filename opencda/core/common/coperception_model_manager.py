@@ -10,18 +10,20 @@ import os
 import re
 import shutil
 import logging
-from typing import List, Optional, Any
+from typing import Any, Dict, List, Optional
 from tqdm import tqdm
 
-import torch  # type: ignore
+import torch
 import open3d as o3d
-from torch.utils.data import DataLoader  # type: ignore
+from torch.utils.data import DataLoader
 
 import opencood.hypes_yaml.yaml_utils as yaml_utils
-from opencood.tools import train_utils, inference_utils
+import opencood.tools.train_utils as train_utils
+import opencood.tools.inference_utils as inference_utils
 from opencood.data_utils.datasets import build_dataset
-from opencood.visualization import simple_vis, vis_utils
-from opencood.utils import eval_utils
+import opencood.visualization.simple_vis as simple_vis
+import opencood.visualization.vis_utils as vis_utils
+import opencood.utils.eval_utils as eval_utils
 from opencda.core.common.communication.serialize import MessageHandler
 
 logger = logging.getLogger("cavise.coperception_model_manager")
@@ -74,7 +76,7 @@ class CoperceptionModelManager:
         self.hypes = yaml_utils.load_yaml(None, self.opt)
         self.model = train_utils.create_model(self.hypes)
         self.current_time = current_time
-        self.vis = None
+        self.vis: Any = None
 
         if torch.cuda.is_available():
             self.model.cuda()
@@ -83,14 +85,12 @@ class CoperceptionModelManager:
         self.saved_path = self.opt.model_dir
         _, self.model = train_utils.load_saved_model(self.saved_path, self.model)
 
-        self.opencood_dataset = None
-        self.data_loader = None
         self.message_handler = message_handler
 
         logger.info("Initial Dataset Building")
-        self.opencood_dataset = build_dataset(self.hypes, visualize=True, train=False, message_handler=self.message_handler)
+        self.opencood_dataset: Any = build_dataset(self.hypes, visualize=True, train=False, message_handler=self.message_handler)
 
-        self.data_loader = DataLoader(
+        self.data_loader: DataLoader[Any] = DataLoader(
             self.opencood_dataset,
             batch_size=1,
             num_workers=0,
@@ -100,7 +100,7 @@ class CoperceptionModelManager:
             drop_last=False,
         )
 
-        self.final_result_stat = {
+        self.final_result_stat: Dict[float, Dict[str, Any]] = {
             0.3: {"tp": [], "fp": [], "gt": 0, "score": []},
             0.5: {"tp": [], "fp": [], "gt": 0, "score": []},
             0.7: {"tp": [], "fp": [], "gt": 0, "score": []},
@@ -142,13 +142,13 @@ class CoperceptionModelManager:
 
         # Create the dictionary for evaluation.
         # also store the confidence score for each prediction
-        result_stat = {
+        result_stat: Dict[float, Dict[str, Any]] = {
             0.3: {"tp": [], "fp": [], "gt": 0, "score": []},
             0.5: {"tp": [], "fp": [], "gt": 0, "score": []},
             0.7: {"tp": [], "fp": [], "gt": 0, "score": []},
         }
 
-        if self.opt.show_sequence:  # NOTE None-check is required
+        if self.opt.show_sequence:
             if self.vis is None:
                 self.vis = o3d.visualization.Visualizer()  # noqa: DC05
                 self.vis.create_window()  # noqa: DC05
@@ -164,9 +164,7 @@ class CoperceptionModelManager:
                 vis_aabbs_gt.append(o3d.geometry.LineSet())
                 vis_aabbs_pred.append(o3d.geometry.LineSet())
 
-        for i, batch_data in tqdm(
-            enumerate(self.data_loader), total=len(self.data_loader)
-        ):  # NOTE Argument 1 to "len" has incompatible type "None"; expected "Sized
+        for i, batch_data in tqdm(enumerate(self.data_loader), total=len(self.data_loader)):
             with torch.no_grad():
                 batch_data = train_utils.to_device(batch_data, self.device)
                 if self.opt.fusion_method == "late":
@@ -210,7 +208,7 @@ class CoperceptionModelManager:
 
                 if self.opt.show_vis:
                     vis_save_path = ""
-                    self.opencood_dataset.visualize_result(  # NOTE None-check is required
+                    self.opencood_dataset.visualize_result(
                         pred_box_tensor,
                         gt_box_tensor,
                         batch_data["ego"]["origin_lidar"],
@@ -220,20 +218,20 @@ class CoperceptionModelManager:
                     )
 
                 if self.opt.show_sequence and pred_box_tensor is not None and self.hypes["postprocess"]["core_method"] != "BevPostprocessor":
-                    self.vis.clear_geometries()  # NOTE None-check is required
+                    self.vis.clear_geometries()
                     pcd, pred_o3d_box, gt_o3d_box = vis_utils.visualize_inference_sample_dataloader(
                         pred_box_tensor, gt_box_tensor, batch_data["ego"]["origin_lidar"], vis_pcd, mode="constant"
                     )
                     if i == 0:
-                        self.vis.add_geometry(pcd)  # NOTE None-check is required
+                        self.vis.add_geometry(pcd)
                         vis_utils.linset_assign_list(self.vis, vis_aabbs_pred, pred_o3d_box, update_mode="add")
                         vis_utils.linset_assign_list(self.vis, vis_aabbs_gt, gt_o3d_box, update_mode="add")
                     else:
                         vis_utils.linset_assign_list(self.vis, vis_aabbs_pred, pred_o3d_box)
                         vis_utils.linset_assign_list(self.vis, vis_aabbs_gt, gt_o3d_box)
-                    self.vis.update_geometry(pcd)  # NOTE None-check is required
-                    self.vis.poll_events()  # NOTE None-check is required
-                    self.vis.update_renderer()  # NOTE None-check is required
+                    self.vis.update_geometry(pcd)
+                    self.vis.poll_events()
+                    self.vis.update_renderer()
 
         for iou in [0.3, 0.5, 0.7]:
             self.final_result_stat[iou]["gt"] += result_stat[iou]["gt"]

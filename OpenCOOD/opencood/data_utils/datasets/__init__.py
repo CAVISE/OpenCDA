@@ -3,15 +3,18 @@ from opencood.data_utils.datasets.early_fusion_dataset import EarlyFusionDataset
 from opencood.data_utils.datasets.intermediate_fusion_dataset import IntermediateFusionDataset
 from opencood.data_utils.datasets.intermediate_fusion_dataset_v2 import IntermediateFusionDatasetV2
 from opencood.data_utils.datasets.basedataset import BaseDataset
+from opencda.core.common.communication.serialize import MessageHandler
 
 from typing import Dict, Any, Optional
 
-__all__ = {
+DATASET_REGISTRY = {
     "LateFusionDataset": LateFusionDataset,
     "EarlyFusionDataset": EarlyFusionDataset,
     "IntermediateFusionDataset": IntermediateFusionDataset,
     "IntermediateFusionDatasetV2": IntermediateFusionDatasetV2,
-}  # TODO error: Type of __all__ must be "Sequence[str]", not "dict[str, type[BaseDataset]]
+}
+
+__all__ = list(DATASET_REGISTRY.keys())
 
 # the final range for evaluation
 GT_RANGE = [-140, -40, -3, 140, 40, 1]
@@ -19,11 +22,13 @@ GT_RANGE = [-140, -40, -3, 140, 40, 1]
 COM_RANGE = 70
 
 
-def build_dataset(dataset_cfg: Dict[str, Any], visualize: bool = False, train: bool = True, message_handler: Optional[object] = None) -> BaseDataset:
+def build_dataset(
+    dataset_cfg: Dict[str, Any], visualize: bool = False, train: bool = True, message_handler: Optional[MessageHandler] = None
+) -> BaseDataset:
     dataset_name = dataset_cfg["fusion"]["core_method"]
     error_message = f"{dataset_name} is not found. Please add your processor file's name in opencood/data_utils/datasets/init.py"
     assert dataset_name in ["LateFusionDataset", "EarlyFusionDataset", "IntermediateFusionDataset", "IntermediateFusionDatasetV2"], error_message
 
-    dataset = __all__[dataset_name](params=dataset_cfg, visualize=visualize, train=train, message_handler=message_handler)
+    dataset = DATASET_REGISTRY[dataset_name](params=dataset_cfg, visualize=visualize, train=train, message_handler=message_handler)
 
     return dataset

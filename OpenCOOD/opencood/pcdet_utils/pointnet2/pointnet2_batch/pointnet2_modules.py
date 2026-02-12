@@ -6,13 +6,15 @@ multi-scale set abstraction (MSG), single-scale set abstraction (SA), and
 feature propagation (FP) for hierarchical point cloud processing.
 """
 
-from typing import List, Tuple
+from typing import List, Tuple, Optional, Any, cast
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from opencood.pcdet_utils.pointnet2.pointnet2_batch import pointnet2_utils
+from opencood.pcdet_utils.pointnet2.pointnet2_batch import pointnet2_utils as _pointnet2_utils
+
+pointnet2_utils = cast(Any, _pointnet2_utils)
 
 
 class _PointnetSAModuleBase(nn.Module):
@@ -34,14 +36,16 @@ class _PointnetSAModuleBase(nn.Module):
         Pooling method: 'max_pool' or 'avg_pool'.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
-        self.npoint = None
-        self.groupers = None
-        self.mlps = None
+        self.npoint: Optional[int] = None
+        self.groupers: nn.ModuleList = nn.ModuleList()
+        self.mlps: nn.ModuleList = nn.ModuleList()
         self.pool_method = "max_pool"
 
-    def forward(self, xyz: torch.Tensor, features: torch.Tensor = None, new_xyz=None) -> Tuple[torch.Tensor, torch.Tensor]:
+    def forward(
+        self, xyz: torch.Tensor, features: Optional[torch.Tensor] = None, new_xyz: Optional[torch.Tensor] = None
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Set abstraction with multi-scale feature extraction.
 
@@ -67,11 +71,14 @@ class _PointnetSAModuleBase(nn.Module):
 
         xyz_flipped = xyz.transpose(1, 2).contiguous()
         if new_xyz is None:
-            new_xyz = (
-                pointnet2_utils.gather_operation(xyz_flipped, pointnet2_utils.furthest_point_sample(xyz, self.npoint)).transpose(1, 2).contiguous()
-                if self.npoint is not None
-                else None
-            )
+            if self.npoint is not None:
+                new_xyz = (
+                    pointnet2_utils.gather_operation(xyz_flipped, pointnet2_utils.furthest_point_sample(xyz, self.npoint))
+                    .transpose(1, 2)
+                    .contiguous()
+                )
+            else:
+                new_xyz = xyz[:, :1, :].contiguous()
 
         for i in range(len(self.groupers)):
             new_features = self.groupers[i](xyz, new_xyz, features)  # (B, C, npoint, nsample)
@@ -130,13 +137,13 @@ class PointnetSAModuleMSG(_PointnetSAModuleBase):
     def __init__(
         self,
         *,
-        npoint: int,
-        radii: List[float],
-        nsamples: List[int],
+        npoint: Optional[int],
+        radii: List[Optional[float]],
+        nsamples: List[Optional[int]],
         mlps: List[List[int]],
         bn: bool = True,
         use_xyz: bool = True,
-        pool_method="max_pool",
+        pool_method: str = "max_pool",
     ):
         super().__init__()
 
@@ -146,11 +153,12 @@ class PointnetSAModuleMSG(_PointnetSAModuleBase):
         self.groupers = nn.ModuleList()
         self.mlps = nn.ModuleList()
         for i in range(len(radii)):
-            radius = radii[i]
-            nsample = nsamples[i]
-            self.groupers.append(
-                pointnet2_utils.QueryAndGroup(radius, nsample, use_xyz=use_xyz) if npoint is not None else pointnet2_utils.GroupAll(use_xyz)
-            )
+            radius = radii[i] if radii[i] is not None else 0.0
+            nsample = nsamples[i] if nsamples[i] is not None else 0
+            if npoint is None:
+                self.groupers.append(pointnet2_utils.GroupAll(use_xyz))
+            else:
+                self.groupers.append(pointnet2_utils.QueryAndGroup(radius, nsample, use_xyz=use_xyz))
             mlp_spec = mlps[i]
             if use_xyz:
                 mlp_spec[0] += 3
@@ -196,12 +204,12 @@ class PointnetSAModule(PointnetSAModuleMSG):
         self,
         *,
         mlp: List[int],
-        npoint: int = None,
-        radius: float = None,
-        nsample: int = None,
+        npoint: Optional[int] = None,
+        radius: Optional[float] = None,
+        nsample: Optional[int] = None,
         bn: bool = True,
         use_xyz: bool = True,
-        pool_method="max_pool",
+        pool_method: str = "max_pool",
     ):
         super().__init__(mlps=[mlp], npoint=npoint, radii=[radius], nsamples=[nsample], bn=bn, use_xyz=use_xyz, pool_method=pool_method)
 
@@ -234,7 +242,9 @@ class PointnetFPModule(nn.Module):
             shared_mlps.extend([nn.Conv2d(mlp[k], mlp[k + 1], kernel_size=1, bias=False), nn.BatchNorm2d(mlp[k + 1]), nn.ReLU()])
         self.mlp = nn.Sequential(*shared_mlps)
 
-    def forward(self, unknown: torch.Tensor, known: torch.Tensor, unknow_feats: torch.Tensor, known_feats: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, unknown: torch.Tensor, known: Optional[torch.Tensor], unknow_feats: Optional[torch.Tensor], known_feats: torch.Tensor
+    ) -> torch.Tensor:
         """
         Propagate features from known to unknown points via interpolation.
 

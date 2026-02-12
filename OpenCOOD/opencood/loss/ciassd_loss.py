@@ -9,7 +9,7 @@ import torch.nn as nn
 
 from opencood.data_utils.post_processor.voxel_postprocessor import VoxelPostprocessor
 from opencood.pcdet_utils.iou3d_nms.iou3d_nms_utils import aligned_boxes_iou3d_gpu
-from typing import Dict, Any, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple, cast
 from torch import Tensor
 
 
@@ -175,7 +175,12 @@ class CiassdLoss(nn.Module):
         boxes3d_tgt = VoxelPostprocessor.delta_to_boxes3d(target_dict["targets"], output_dict["anchor_box"], False)[pos_pred_mask]
         iou_weights = reg_weights[pos_pred_mask].view(-1)
         iou_pos_targets = (
-            aligned_boxes_iou3d_gpu(boxes3d_pred.float()[:, [0, 1, 2, 5, 4, 3, 6]], boxes3d_tgt.float()[:, [0, 1, 2, 5, 4, 3, 6]]).detach().squeeze()
+            cast(
+                Tensor,
+                aligned_boxes_iou3d_gpu(boxes3d_pred.float()[:, [0, 1, 2, 5, 4, 3, 6]], boxes3d_tgt.float()[:, [0, 1, 2, 5, 4, 3, 6]]),
+            )
+            .detach()
+            .squeeze()
         )
         iou_pos_targets = 2 * iou_pos_targets.view(-1) - 1
         iou_loss = weighted_smooth_l1_loss(iou_pos_preds, iou_pos_targets, weights=iou_weights, sigma=self.iou["sigma"])

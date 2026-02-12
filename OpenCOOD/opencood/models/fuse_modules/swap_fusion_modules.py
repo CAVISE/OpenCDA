@@ -112,7 +112,7 @@ class Attention(nn.Module):
             *x.shape,
             x.device,
             self.heads,
-        )  # eighth variable is device # NOTE: This unpacking relies on dynamic tensor shape and device injection.Precise typing is impossible without refactoring the assignment.
+        )  # eighth variable is device
 
         # flatten
         x = rearrange(x, "b l x y w1 w2 d -> (b x y) (l w1 w2) d")
@@ -343,6 +343,7 @@ class SwapFusionEncoder(nn.Module):
             self.mask = args["mask"]
 
         for i in range(self.depth):
+            block: nn.Module
             if self.mask:
                 block = SwapFusionBlockMask(input_dim, mlp_dim, dim_head, window_size, agent_size, drop_out)
 

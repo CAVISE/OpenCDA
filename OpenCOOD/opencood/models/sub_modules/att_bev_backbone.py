@@ -134,7 +134,7 @@ class AttBEVBackbone(nn.Module):
                         )
                     )
                 else:
-                    stride = np.round(1 / stride).astype(np.int)
+                    stride = int(np.round(1 / stride))
                     self.deblocks.append(
                         nn.Sequential(
                             nn.Conv2d(num_filters[idx], num_upsample_filters[idx], stride, stride=stride, bias=False),

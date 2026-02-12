@@ -139,7 +139,7 @@ class FPVRCNN(nn.Module):
         data_dict, output_dict = {}, {}
         data_dict["ego"], output_dict["ego"] = batch_dict, batch_dict
 
-        pred_box3d_list, scores_list = self.post_processor.post_process(data_dict, output_dict, stage1=True)
+        pred_box3d_list, scores_list = self.post_processor.post_process_stage1(data_dict, output_dict)
         batch_dict["det_boxes"] = pred_box3d_list
         batch_dict["det_scores"] = scores_list
 
@@ -152,7 +152,5 @@ class FPVRCNN(nn.Module):
 
 
 if __name__ == "__main__":
-    model = SSFA(
-        None
-    )  # NOTE Argument 1 to "SSFA" has incompatible type "None"; expected "dict[Any, Any]". Using Optional in the SSFA can cause problems
+    model = SSFA({})
     print(model)

@@ -171,8 +171,6 @@ class BaseDataset(Dataset):
 
                 # save all yaml files to the dictionary
                 cav_path = os.path.join(scenario_folder, cav_id)
-
-                # use the frame number as key, the full path as the values
                 yaml_files = sorted([os.path.join(cav_path, x) for x in os.listdir(cav_path) if x.endswith(".yaml") and "additional" not in x])
                 timestamps = self.extract_timestamps(yaml_files)
 
@@ -430,15 +428,17 @@ class BaseDataset(Dataset):
 
         np.random.seed(self.seed)
         xyz_noise = np.random.normal(0, xyz_std, 3)
-        ryp_std = cast(NDArray[np.float64], np.random.normal(0, ryp_std, 3))
-        noise_pose = [
-            pose[0] + xyz_noise[0],
-            pose[1] + xyz_noise[1],
-            pose[2] + xyz_noise[2],
-            pose[3],
-            pose[4] + ryp_std[1],
-            pose[5],
-        ]  # NOTE Value of type "float" is not indexable
+        ryp_noise = cast(NDArray[np.float64], np.random.normal(0, ryp_std, 3))
+        noise_pose = np.array(
+            [
+                pose[0] + xyz_noise[0],
+                pose[1] + xyz_noise[1],
+                pose[2] + xyz_noise[2],
+                pose[3],
+                pose[4] + ryp_noise[1],
+                pose[5],
+            ]
+        )
         return noise_pose
 
     def reform_param(
@@ -619,23 +619,27 @@ class BaseDataset(Dataset):
                 origin_lidar.append(ego_dict["origin_lidar"])
 
         # convert to numpy, (B, max_num, 7)
-        object_bbx_center = torch.from_numpy(np.array(object_bbx_center))
-        object_bbx_mask = torch.from_numpy(np.array(object_bbx_mask))
+        object_bbx_center_tensor = torch.from_numpy(np.array(object_bbx_center))
+        object_bbx_mask_tensor = torch.from_numpy(np.array(object_bbx_mask))
 
-        processed_lidar_torch_dict = self.pre_processor.collate_batch(processed_lidar_list)  # NOTE None-check is required
-        label_torch_dict = self.post_processor.collate_batch(label_dict_list)  # NOTE None-check is required
+        pre_processor = self.pre_processor
+        post_processor = self.post_processor
+        assert pre_processor is not None
+        assert post_processor is not None
+        processed_lidar_torch_dict = pre_processor.collate_batch(processed_lidar_list)
+        label_torch_dict = post_processor.collate_batch(label_dict_list)
         output_dict["ego"].update(
             {
-                "object_bbx_center": object_bbx_center,
-                "object_bbx_mask": object_bbx_mask,
+                "object_bbx_center": object_bbx_center_tensor,
+                "object_bbx_mask": object_bbx_mask_tensor,
                 "processed_lidar": processed_lidar_torch_dict,
                 "label_dict": label_torch_dict,
             }
         )
         if self.visualize:
-            origin_lidar = np.array(downsample_lidar_minimum(pcd_np_list=origin_lidar))
-            origin_lidar = torch.from_numpy(origin_lidar)
-            output_dict["ego"].update({"origin_lidar": origin_lidar})
+            origin_lidar_arr = np.array(downsample_lidar_minimum(pcd_np_list=origin_lidar))
+            origin_lidar_tensor = torch.from_numpy(origin_lidar_arr)
+            output_dict["ego"].update({"origin_lidar": origin_lidar_tensor})
 
         return output_dict
 
@@ -667,4 +671,6 @@ class BaseDataset(Dataset):
             Dataset object for additional context. Default is None.
         """
         # visualize the model output
-        self.post_processor.visualize(pred_box_tensor, gt_tensor, pcd, show_vis, save_path, dataset=dataset)  # NOTE None-check is required
+        post_processor = self.post_processor
+        assert post_processor is not None
+        post_processor.visualize(pred_box_tensor, gt_tensor, pcd, show_vis, save_path, dataset=dataset)

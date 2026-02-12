@@ -11,8 +11,8 @@ import torch
 import torch.nn as nn
 
 from opencood.models.fuse_modules.self_attn import AttFusion
-from opencood.models.pixor import Bottleneck, BackBone, Header
-from typing import Dict, Any, List, Type
+from opencood.models.pixor import BasicBlock, Bottleneck, BackBone, Header
+from typing import Any, Dict, List, Type, Union
 
 
 class BackBoneIntermediate(BackBone):
@@ -43,14 +43,14 @@ class BackBoneIntermediate(BackBone):
         Attention fusion module for layer 5 features.
     """
 
-    def __init__(self, block: Type[nn.Module], num_block: List[int], geom: Dict[str, Any], use_bn: bool = True):
+    def __init__(self, block: Type[Union[BasicBlock, Bottleneck]], num_block: List[int], geom: Dict[str, Any], use_bn: bool = True):
         super(BackBoneIntermediate, self).__init__(block, num_block, geom, use_bn)
 
         self.fusion_net3 = AttFusion(192)
         self.fusion_net4 = AttFusion(256)
         self.fusion_net5 = AttFusion(384)
 
-    def forward(self, x: torch.Tensor, record_len: torch.Tensor) -> torch.Tensor:  # NOTE  incompatible with supertype "BackBone"
+    def forward(self, x: torch.Tensor, record_len: torch.Tensor) -> torch.Tensor:  # type: ignore[override]
         """
         Forward pass through backbone with intermediate fusion.
 
@@ -113,9 +113,11 @@ class PIXORIntermediate(nn.Module):
 
         prior = 0.01
         self.header.clshead.weight.data.fill_(-math.log((1.0 - prior) / prior))
-        self.header.clshead.bias.data.fill_(0)
+        if self.header.clshead.bias is not None:
+            self.header.clshead.bias.data.fill_(0)
         self.header.reghead.weight.data.fill_(0)
-        self.header.reghead.bias.data.fill_(0)
+        if self.header.reghead.bias is not None:
+            self.header.reghead.bias.data.fill_(0)
 
     def forward(self, data_dict: Dict[str, Any]) -> Dict[str, torch.Tensor]:
         """

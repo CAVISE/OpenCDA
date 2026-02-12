@@ -10,7 +10,7 @@ import numpy.typing as npt
 import cv2
 import matplotlib
 
-from typing import Tuple, Optional, Union, List
+from typing import Tuple, Optional, Union, List, cast
 
 
 class Canvas_3D(object):
@@ -65,13 +65,8 @@ class Canvas_3D(object):
         self.canvas_bg_color = canvas_bg_color
         self.left_hand = left_hand
         if left_hand:
-            camera_center_coords = list(camera_center_coords)
-            camera_center_coords[1] = -camera_center_coords[1]
-            camera_center_coords = tuple(camera_center_coords)
-
-            camera_focus_coords = list(camera_focus_coords)
-            camera_focus_coords[1] = -camera_focus_coords[1]
-            camera_focus_coords = tuple(camera_focus_coords)
+            camera_center_coords = (camera_center_coords[0], -camera_center_coords[1], camera_center_coords[2])
+            camera_focus_coords = (camera_focus_coords[0], -camera_focus_coords[1], camera_focus_coords[2])
 
         self.camera_center_coords = camera_center_coords
         self.camera_focus_coords = camera_focus_coords
@@ -93,7 +88,7 @@ class Canvas_3D(object):
 
         self.clear_canvas()
 
-    def clear_canvas(self):
+    def clear_canvas(self) -> None:
         """
         Clear canvas and reset to background color.
 
@@ -196,19 +191,20 @@ class Canvas_3D(object):
         if len(canvas_xy) == 0:
             return
 
+        colors_arr: npt.NDArray[np.uint8]
         if colors is None:
-            colors = np.full((len(canvas_xy), 3), fill_value=255, dtype=np.uint8)
+            colors_arr = np.full((len(canvas_xy), 3), fill_value=255, dtype=np.uint8)
         elif isinstance(colors, tuple):
             assert len(colors) == 3
             colors_tmp = np.zeros((len(canvas_xy), 3), dtype=np.uint8)
             colors_tmp[..., : len(colors)] = np.array(colors)
-            colors = colors_tmp
+            colors_arr = colors_tmp
         elif isinstance(colors, np.ndarray):
             assert len(colors) == len(canvas_xy)
-            colors = colors.astype(np.uint8)
+            colors_arr = colors.astype(np.uint8)
         elif isinstance(colors, str):
             assert colors_operand is not None
-            colors = matplotlib.cm.get_cmap(colors)
+            cmap = matplotlib.cm.get_cmap(colors)
 
             # Normalize 0 ~ 1 for cmap
             colors_operand = colors_operand - colors_operand.min()
@@ -216,15 +212,15 @@ class Canvas_3D(object):
 
             # Get cmap colors - note that cmap returns (*input_shape, 4), with
             # colors scaled 0 ~ 1
-            colors = (colors(colors_operand)[:, :3] * 255).astype(np.uint8)
+            colors_arr = (cmap(colors_operand)[:, :3] * 255).astype(np.uint8)
         else:
             raise Exception("colors type {} was not an expected type".format(type(colors)))
 
         if radius == -1:
-            self.canvas[canvas_xy[:, 0], canvas_xy[:, 1], :] = colors
+            self.canvas[canvas_xy[:, 0], canvas_xy[:, 1], :] = colors_arr
         else:
-            for color, (x, y) in zip(colors.tolist(), canvas_xy.tolist()):
-                self.canvas = cv2.circle(self.canvas, (y, x), radius, color, -1, lineType=cv2.LINE_AA)
+            for color, (x, y) in zip(colors_arr.tolist(), canvas_xy.tolist()):
+                self.canvas = cast(npt.NDArray[np.uint8], cv2.circle(self.canvas, (y, x), radius, color, -1, lineType=cv2.LINE_AA))
 
     def draw_boxes(
         self,
@@ -269,28 +265,32 @@ class Canvas_3D(object):
             Corner index (0-7) where text is placed.
         """
         # Setup colors
+        colors_arr: npt.NDArray[np.uint8]
         if colors is None:
-            colors = np.full((len(boxes), 3), fill_value=255, dtype=np.uint8)
+            colors_arr = np.full((len(boxes), 3), fill_value=255, dtype=np.uint8)
         elif isinstance(colors, tuple):
             assert len(colors) == 3
             colors_tmp = np.zeros((len(boxes), 3), dtype=np.uint8)
             colors_tmp[..., : len(colors)] = np.array(colors)
-            colors = colors_tmp
+            colors_arr = colors_tmp
         elif isinstance(colors, np.ndarray):
             assert len(colors) == len(boxes)
-            colors = colors.astype(np.uint8)
+            colors_arr = colors.astype(np.uint8)
         else:
             raise Exception("colors type {} was not an expected type".format(type(colors)))
 
         corners = boxes  # N x 8 x 3
 
         # Now we have corners. Need them on the canvas 2D space.
-        corners_xy, valid_mask = self.get_canvas_coords(corners.reshape(-1, 3), depth_min=depth_min)
+        corners_xy, valid_mask = cast(
+            Tuple[npt.NDArray[np.int32], npt.NDArray[np.bool_]],
+            self.get_canvas_coords(corners.reshape(-1, 3), depth_min=depth_min, return_depth=False),
+        )
         corners_xy = corners_xy.reshape(-1, 8, 2)
         valid_mask = valid_mask.reshape(-1, 8)
 
         # Now draw them with lines in correct places
-        for i, (color, curr_corners_xy, curr_valid_mask) in enumerate(zip(colors.tolist(), corners_xy.tolist(), valid_mask.tolist())):
+        for i, (color, curr_corners_xy, curr_valid_mask) in enumerate(zip(colors_arr.tolist(), corners_xy.tolist(), valid_mask.tolist())):
             if not draw_incomplete_boxes and sum(curr_valid_mask) != 8:
                 # Some corner is invalid, don't draw the box at all.
                 continue
@@ -299,26 +299,32 @@ class Canvas_3D(object):
                 if not (curr_valid_mask[start] and curr_valid_mask[end]):
                     continue  # start or end is not valid
 
-                self.canvas = cv2.line(
-                    self.canvas,
-                    (curr_corners_xy[start][1], curr_corners_xy[start][0]),
-                    (curr_corners_xy[end][1], curr_corners_xy[end][0]),
-                    color=color,
-                    thickness=box_line_thickness,
-                    lineType=cv2.LINE_AA,
+                self.canvas = cast(
+                    npt.NDArray[np.uint8],
+                    cv2.line(
+                        self.canvas,
+                        (curr_corners_xy[start][1], curr_corners_xy[start][0]),
+                        (curr_corners_xy[end][1], curr_corners_xy[end][0]),
+                        color=color,
+                        thickness=box_line_thickness,
+                        lineType=cv2.LINE_AA,
+                    ),
                 )
 
             # If even a single line was drawn, add text as well.
             if sum(curr_valid_mask) > 0:
                 if texts is not None:
-                    self.canvas = cv2.putText(
-                        self.canvas,
-                        str(texts[i]),
-                        (curr_corners_xy[text_corner][1], curr_corners_xy[text_corner][0]),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        box_text_size,
-                        color,
-                        thickness=box_line_thickness,
+                    self.canvas = cast(
+                        npt.NDArray[np.uint8],
+                        cv2.putText(
+                            self.canvas,
+                            str(texts[i]),
+                            (curr_corners_xy[text_corner][1], curr_corners_xy[text_corner][0]),
+                            cv2.FONT_HERSHEY_SIMPLEX,
+                            box_text_size,
+                            color,
+                            thickness=box_line_thickness,
+                        ),
                     )
 
     @staticmethod
@@ -372,10 +378,10 @@ class Canvas_3D(object):
         """
         center_x, center_y, center_z = camera_center_coords
         focus_x, focus_y, focus_z = camera_focus_coords
-        az, el, depth = Canvas_3D.cart2sph(np.array([[focus_x - center_x, focus_y - center_y, focus_z - center_z]]))
-        az = float(az)
-        el = float(el)
-        depth = float(depth)
+        az_arr, el_arr, depth_arr = Canvas_3D.cart2sph(np.array([[focus_x - center_x, focus_y - center_y, focus_z - center_z]]))
+        az = float(az_arr[0])
+        el = float(el_arr[0])
+        _ = float(depth_arr[0])
 
         ### First, construct extrinsics
         ## Rotation matrix

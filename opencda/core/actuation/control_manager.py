@@ -8,8 +8,6 @@ different control algorithms while maintaining a consistent interface.
 
 import importlib
 from typing import Any, Dict
-import numpy as np
-import numpy.typing as npt
 import carla
 
 
@@ -33,20 +31,20 @@ class ControlManager:
         controller = getattr(importlib.import_module("opencda.core.actuation.%s" % controller_type), "Controller")
         self.controller = controller(control_config["args"])
 
-    def update_info(self, ego_pos: npt.NDArray[np.float32], ego_speed: npt.NDArray[np.float32]) -> None:
+    def update_info(self, ego_pos: carla.Transform, ego_speed: float) -> None:
         """
         Update ego vehicle information for controller.
 
         Parameters
         ----------
-        ego_pos : NDArray[np.float32]
+        ego_pos : carla.Transform
             Ego vehicle position.
-        ego_speed : NDArray[np.float32]
-            Ego vehicle speed.
+        ego_speed : float
+            Ego vehicle speed (km/h).
         """
         self.controller.update_info(ego_pos, ego_speed)
 
-    def run_step(self, target_speed: float, waypoint: carla.Waypoint) -> Any:  # NOTE: Any due to missing carla.VehicleControl
+    def run_step(self, target_speed: float, waypoint: carla.Waypoint) -> Any:
         """
         Execute one control step to generate vehicle control commands.
 

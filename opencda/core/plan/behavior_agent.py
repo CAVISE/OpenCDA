@@ -8,10 +8,9 @@ for autonomous vehicles in CARLA simulator.
 
 import logging
 import sys
-from typing import Deque, List, Dict, Tuple, Optional, Any
+from typing import Deque, List, Dict, Tuple, Optional, Any, Sequence
 
 import numpy as np
-import numpy.typing as npt
 import carla
 
 from opencda.core.common.misc import get_speed, positive, cal_distance_angle
@@ -127,8 +126,8 @@ class BehaviorAgent(object):
         # safety related
         self.safety_time = config_yaml["safety_time"]
         self.emergency_param = config_yaml["emergency_param"]
-        self.break_distance = 0
-        self.ttc = 1000
+        self.break_distance: float = 0.0
+        self.ttc: float = 1000.0
         # collision checker
         self._collision_check = CollisionChecker(time_ahead=config_yaml["collision_time_ahead"])
         self.ignore_traffic_light = config_yaml["ignore_traffic_light"]
@@ -169,6 +168,16 @@ class BehaviorAgent(object):
         self.debug_helper = PlanDebugHelper(self.vehicle.id)
         # print message in debug mode
         self.debug = False if "debug" not in config_yaml else config_yaml["debug"]
+
+    def _require_ego_pos(self) -> carla.Transform:
+        if self._ego_pos is None:
+            raise ValueError("Ego position is not set. Call update_information() before using BehaviorAgent.")
+        return self._ego_pos
+
+    def _require_end_waypoint(self) -> carla.Waypoint:
+        if self.end_waypoint is None:
+            raise ValueError("End waypoint is not set. Call set_destination() before run_step().")
+        return self.end_waypoint
 
     def update_information(self, ego_pos: carla.Transform, ego_speed: float, objects: Dict[str, Any]) -> None:
         """
@@ -264,8 +273,8 @@ class BehaviorAgent(object):
 
     def set_destination(
         self,
-        start_location: carla.location,
-        end_location: carla.location,
+        start_location: carla.Location,
+        end_location: carla.Location,
         clean: bool = False,
         end_reset: bool = True,
         clean_history: bool = False,
@@ -402,9 +411,9 @@ class BehaviorAgent(object):
 
     def collision_manager(
         self,
-        rx: npt.NDArray[np.float64],
-        ry: npt.NDArray[np.float64],
-        ryaw: npt.NDArray[np.float64],
+        rx: Sequence[float],
+        ry: Sequence[float],
+        ryaw: Sequence[float],
         waypoint: carla.Waypoint,
         adjacent_check: bool = False,
     ) -> Tuple[bool, Optional[Any], float]:
@@ -441,12 +450,16 @@ class BehaviorAgent(object):
             return v.get_location().distance(waypoint.transform.location)
 
         vehicle_state = False
-        min_distance = 100000
-        target_vehicle = None
+        min_distance: float = 100000.0
+        target_vehicle: Optional[Any] = None
+
+        path_x = list(rx)
+        path_y = list(ry)
+        path_yaw = list(ryaw)
 
         for vehicle in self.obstacle_vehicles:
             collision_free = self._collision_check.collision_circle_check(
-                rx, ry, ryaw, vehicle, self._ego_speed / 3.6, self._map, adjacent_check=adjacent_check
+                path_x, path_y, path_yaw, vehicle, self._ego_speed / 3.6, self._map, adjacent_check=adjacent_check
             )
             if not collision_free:
                 vehicle_state = True
@@ -456,7 +469,7 @@ class BehaviorAgent(object):
                 distance = positive(dist(vehicle) - 3)
 
                 if distance < min_distance:
-                    min_distance = distance  # NOTE Incompatible types in assignment
+                    min_distance = distance
                     target_vehicle = vehicle
 
         return vehicle_state, target_vehicle, min_distance
@@ -479,6 +492,8 @@ class BehaviorAgent(object):
             True if overtake cannot be executed (vehicle still in dangerous
             state), False if overtake was successfully initiated.
         """
+        ego_pos = self._require_ego_pos()
+
         # obstacle vehicle's location
         obstacle_vehicle_loc = obstacle_vehicle.get_location()
         obstacle_vehicle_wpt = self._map.get_waypoint(obstacle_vehicle_loc)
@@ -501,15 +516,13 @@ class BehaviorAgent(object):
             # this not the real plan path, but just a quick path to check
             # collision
             rx, ry, ryaw = self._collision_check.adjacent_lane_collision_check(
-                ego_loc=self._ego_pos.location,
+                ego_loc=ego_pos.location,
                 target_wpt=left_wpt,
                 carla_map=self._map,
                 overtake=True,
-                world=self.vehicle.get_world(),  # NOTE: _ego_pos is Optional, need extra checks
+                world=self.vehicle.get_world(),
             )
-            vehicle_state, _, _ = self.collision_manager(
-                rx, ry, ryaw, self._map.get_waypoint(self._ego_pos.location), True
-            )  # NOTE: _ego_pos is Optional, need extra checks
+            vehicle_state, _, _ = self.collision_manager(rx, ry, ryaw, self._map.get_waypoint(ego_pos.location), True)
             if not vehicle_state:
                 logger.info("Left overtake is operated")
                 self.overtake_counter = 100
@@ -529,16 +542,14 @@ class BehaviorAgent(object):
             and right_wpt.lane_type == carla.LaneType.Driving
         ):
             rx, ry, ryaw = self._collision_check.adjacent_lane_collision_check(
-                ego_loc=self._ego_pos.location,
+                ego_loc=ego_pos.location,
                 target_wpt=right_wpt,
                 overtake=True,
                 carla_map=self._map,
-                world=self.vehicle.get_world(),  # NOTE: _ego_pos is Optional, need extra checks
+                world=self.vehicle.get_world(),
             )
 
-            vehicle_state, _, _ = self.collision_manager(
-                rx, ry, ryaw, self._map.get_waypoint(self._ego_pos.location), True
-            )  # NOTE: _ego_pos is Optional, need extra checks
+            vehicle_state, _, _ = self.collision_manager(rx, ry, ryaw, self._map.get_waypoint(ego_pos.location), True)
             if not vehicle_state:
                 logger.info("Right overtake is operated")
                 self.overtake_counter = 100
@@ -562,7 +573,8 @@ class BehaviorAgent(object):
         vehicle_state : boolean
             Whether the lane change is dangerous.
         """
-        ego_wpt = self._map.get_waypoint(self._ego_pos.location)  # NOTE: _ego_pos is Optional, need extra checks
+        ego_pos = self._require_ego_pos()
+        ego_wpt = self._map.get_waypoint(ego_pos.location)
         ego_lane_id = ego_wpt.lane_id
         target_wpt = None
 
@@ -575,15 +587,13 @@ class BehaviorAgent(object):
             return True
 
         rx, ry, ryaw = self._collision_check.adjacent_lane_collision_check(
-            ego_loc=self._ego_pos.location,
+            ego_loc=ego_pos.location,
             target_wpt=target_wpt,
             overtake=False,
             carla_map=self._map,
-            world=self.vehicle.get_world(),  # NOTE: _ego_pos is Optional, need extra checks
+            world=self.vehicle.get_world(),
         )
-        vehicle_state, _, _ = self.collision_manager(
-            rx, ry, ryaw, self._map.get_waypoint(self._ego_pos.location), adjacent_check=True
-        )  # NOTE: _ego_pos is Optional, need extra checks
+        vehicle_state, _, _ = self.collision_manager(rx, ry, ryaw, self._map.get_waypoint(ego_pos.location), adjacent_check=True)
         return not vehicle_state
 
     def car_following_manager(self, vehicle: carla.Vehicle, distance: float, target_speed: Optional[float] = None) -> float:
@@ -614,7 +624,7 @@ class BehaviorAgent(object):
 
         delta_v = max(1, (self._ego_speed - vehicle_speed) / 3.6)
         ttc = distance / delta_v if delta_v != 0 else distance / np.nextafter(0.0, 1.0)
-        self.ttc = ttc  # NOTE Incompatible types in assignment (expression has type "float | Any" variable has type "int")
+        self.ttc = ttc
         # Under safety time distance, slow down.
         if self.safety_time > ttc > 0.0:
             target_speed = min(positive(vehicle_speed - self.speed_decrease), target_speed)
@@ -658,10 +668,9 @@ class BehaviorAgent(object):
         flag : boolean
             It is True if the current ego vehicle's position is close to destination
         """
-        flag = (
-            abs(self._ego_pos.location.x - self.end_waypoint.transform.location.x) <= 10
-            and abs(self._ego_pos.location.y - self.end_waypoint.transform.location.y) <= 10
-        )
+        ego_pos = self._require_ego_pos()
+        end_waypoint = self._require_end_waypoint()
+        flag = abs(ego_pos.location.x - end_waypoint.transform.location.x) <= 10 and abs(ego_pos.location.y - end_waypoint.transform.location.y) <= 10
         return flag
 
     def check_lane_change_permission(self, lane_change_allowed: bool, collision_detector_enabled: bool, rk: List[float]) -> bool:
@@ -739,9 +748,7 @@ class BehaviorAgent(object):
             )
         return reset_target
 
-    def run_step(
-        self, target_speed: Optional[float] = None, collision_detector_enabled: bool = True, lane_change_allowed: bool = True
-    ) -> Any:  # NOTE: Any due to missing carla.VehicleControl
+    def run_step(self, target_speed: Optional[float] = None, collision_detector_enabled: bool = True, lane_change_allowed: bool = True) -> Any:
         """
         Execute one step of navigation
 
@@ -761,7 +768,10 @@ class BehaviorAgent(object):
             Vehicle control of the next step.
         """
         # retrieve ego location
-        ego_vehicle_loc = self._ego_pos.location
+        ego_pos = self._require_ego_pos()
+        end_waypoint = self._require_end_waypoint()
+
+        ego_vehicle_loc = ego_pos.location
         ego_vehicle_wp = self._map.get_waypoint(ego_vehicle_loc)
         waipoint_buffer = self.get_local_planner().get_waypoint_buffer()
         # ttc reset to 1000 at the beginning
@@ -796,7 +806,7 @@ class BehaviorAgent(object):
             self.overtake_allowed = True and self.overtake_allowed_origin
             self.lane_change_allowed = True
             self.destination_push_flag = 0
-            self.set_destination(ego_vehicle_loc, self.end_waypoint.transform.location, clean=True, clean_history=True)
+            self.set_destination(ego_vehicle_loc, end_waypoint.transform.location, clean=True, clean_history=True)
 
         # intersection behavior. if the car is near a intersection, no overtake is allowed
         if is_intersection:
@@ -843,11 +853,11 @@ class BehaviorAgent(object):
             car_following_flag = True
         # 6. overtake handeling
         elif is_hazard and self.overtake_allowed and self.overtake_counter <= 0:
+            if obstacle_vehicle is None:
+                raise RuntimeError("Collision hazard detected but obstacle vehicle is None.")
             obstacle_speed = get_speed(obstacle_vehicle)
-            obstacle_lane_id = self._map.get_waypoint(
-                obstacle_vehicle.get_location()
-            ).lane_id  # NOTE "None" of "Any | None" has no attribute "get_location"
-            ego_lane_id = self._map.get_waypoint(self._ego_pos.location).lane_id  # NOTE Item "None" of "Any | None" has no attribute "location"
+            obstacle_lane_id = self._map.get_waypoint(obstacle_vehicle.get_location()).lane_id
+            ego_lane_id = self._map.get_waypoint(ego_pos.location).lane_id
             # overtake the obstacle vehicle only when speed is bigger and the
             # lane id is the same
             if ego_lane_id == obstacle_lane_id:
@@ -864,6 +874,8 @@ class BehaviorAgent(object):
 
         # 7. Car following behavior
         if car_following_flag:
+            if obstacle_vehicle is None:
+                raise RuntimeError("Car-following selected but obstacle vehicle is None.")
             if distance < max(self.break_distance, 3):
                 return 0, None
 

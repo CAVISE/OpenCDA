@@ -16,7 +16,7 @@ ROAD_COLOR = (17, 17, 31)
 Lane_COLOR = {"normal": (255, 217, 82), "red": (255, 0, 0), "yellow": (255, 255, 0), "green": (0, 255, 0)}
 
 
-def cv2_subpixel(coords: npt.NDArray[np.float32]) -> npt.NDArray[np.int64]:
+def cv2_subpixel(coords: npt.NDArray[np.float32]) -> npt.NDArray[np.int32]:
     """
     Cast coordinates to numpy.int but keep fractional part by previously multiplying by 2**CV2_SHIFT.
 
@@ -33,11 +33,11 @@ def cv2_subpixel(coords: npt.NDArray[np.float32]) -> npt.NDArray[np.int64]:
         XY coordinates as int for cv2 shift draw.
     """
     coords = coords * CV2_SHIFT_VALUE
-    coords = coords.astype(np.int64)
-    return coords
+    coords_int: npt.NDArray[np.int32] = coords.astype(np.int32)
+    return coords_int
 
 
-def draw_agent(agent_list: List[npt.NDArray[np.float32]], image: npt.NDArray[np.uint8]) -> npt.NDArray[np.uint8]:
+def draw_agent(agent_list: List[npt.NDArray[np.int32]], image: npt.NDArray[np.uint8]) -> npt.NDArray[np.uint8]:
     """
     Draw agent mask on image.
 
@@ -54,12 +54,12 @@ def draw_agent(agent_list: List[npt.NDArray[np.float32]], image: npt.NDArray[np.
         Drawn image.
     """
     for agent_corner in agent_list:
-        agent_corner = agent_corner.reshape(-1, 2)
-        cv2.fillPoly(image, [agent_corner], AGENT_COLOR, **CV2_SUB_VALUES)
+        agent_corner = agent_corner.reshape(-1, 2).astype(np.int32)
+        cv2.fillPoly(image, [agent_corner], AGENT_COLOR, lineType=CV2_SUB_VALUES["lineType"], shift=CV2_SUB_VALUES["shift"])
     return image
 
 
-def draw_road(lane_area_list: List[npt.NDArray[np.float32]], image: npt.NDArray[np.uint8]) -> npt.NDArray[np.uint8]:
+def draw_road(lane_area_list: List[npt.NDArray[np.int32]], image: npt.NDArray[np.uint8]) -> npt.NDArray[np.uint8]:
     """
     Draw poly for road.
 
@@ -76,12 +76,12 @@ def draw_road(lane_area_list: List[npt.NDArray[np.float32]], image: npt.NDArray[
         Drawn image.
     """
     for lane_area in lane_area_list:
-        lane_area = lane_area.reshape(-1, 2)
-        cv2.fillPoly(image, [lane_area], ROAD_COLOR, **CV2_SUB_VALUES)
+        lane_area = lane_area.reshape(-1, 2).astype(np.int32)
+        cv2.fillPoly(image, [lane_area], ROAD_COLOR, lineType=CV2_SUB_VALUES["lineType"], shift=CV2_SUB_VALUES["shift"])
     return image
 
 
-def draw_lane(lane_area_list: List[npt.NDArray[np.float32]], lane_type_list: List[str], image: npt.NDArray[np.uint8]) -> npt.NDArray[np.uint8]:
+def draw_lane(lane_area_list: List[npt.NDArray[np.int32]], lane_type_list: List[str], image: npt.NDArray[np.uint8]) -> npt.NDArray[np.uint8]:
     """
     Draw lanes on image (polylines).
 
@@ -100,6 +100,20 @@ def draw_lane(lane_area_list: List[npt.NDArray[np.float32]], lane_type_list: Lis
         Drawn image.
     """
     for lane_area, lane_type in zip(lane_area_list, lane_type_list):
-        cv2.polylines(image, lane_area, False, Lane_COLOR[lane_type], **CV2_SUB_VALUES)
+        lane_arr = np.asarray(lane_area, dtype=np.int32)
+        if lane_arr.ndim == 2:
+            polylines = [np.ascontiguousarray(lane_arr)]
+        elif lane_arr.ndim == 3:
+            polylines = [np.ascontiguousarray(seg) for seg in lane_arr]
+        else:
+            continue
+        cv2.polylines(
+            image,
+            polylines,
+            False,
+            Lane_COLOR[lane_type],
+            lineType=CV2_SUB_VALUES["lineType"],
+            shift=CV2_SUB_VALUES["shift"],
+        )
 
     return image

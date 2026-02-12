@@ -48,7 +48,7 @@ class CavWorld(object):
     def __init__(self, apply_ml: bool = False, with_capi: bool = False):
         self.vehicle_id_set: Set[int] = set()
         self._vehicle_manager_dict: Dict[str, Any] = {}
-        self._platooning_dict: Dict[str, "VehicleManager"] = {}
+        self._platooning_dict: Dict[str, "PlatooningManager"] = {}
         self._rsu_manager_dict: Dict[str, "RSUManager"] = {}
         self.ml_manager = None
         # CAVISE communication protocol manager

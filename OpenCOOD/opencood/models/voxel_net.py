@@ -13,7 +13,6 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 
 from opencood.models.sub_modules.pillar_vfe import PillarVFE
-from opencood.utils.common_utils import torch_tensor_to_numpy
 
 
 class Conv2d(nn.Module):
@@ -50,6 +49,7 @@ class Conv2d(nn.Module):
     def __init__(self, in_channels: int, out_channels: int, k: int, s: int, p: int, activation: bool = True, batch_norm: bool = True):
         super(Conv2d, self).__init__()
         self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=k, stride=s, padding=p)
+        self.bn: nn.BatchNorm2d | None
         if batch_norm:
             self.bn = nn.BatchNorm2d(out_channels)
         else:
@@ -117,6 +117,7 @@ class Conv3d(nn.Module):
     ):
         super(Conv3d, self).__init__()
         self.conv = nn.Conv3d(in_channels, out_channels, kernel_size=k, stride=s, padding=p)
+        self.bn: nn.BatchNorm3d | None
         if batch_norm:
             self.bn = nn.BatchNorm3d(out_channels)
         else:
@@ -373,17 +374,17 @@ class RPN(nn.Module):
         super(RPN, self).__init__()
         self.anchor_num = anchor_num
 
-        self.block_1 = [Conv2d(128, 128, 3, 2, 1)]
-        self.block_1 += [Conv2d(128, 128, 3, 1, 1) for _ in range(3)]
-        self.block_1 = nn.Sequential(*self.block_1)
+        block_1: list[nn.Module] = [Conv2d(128, 128, 3, 2, 1)]
+        block_1 += [Conv2d(128, 128, 3, 1, 1) for _ in range(3)]
+        self.block_1 = nn.Sequential(*block_1)
 
-        self.block_2 = [Conv2d(128, 128, 3, 2, 1)]
-        self.block_2 += [Conv2d(128, 128, 3, 1, 1) for _ in range(5)]
-        self.block_2 = nn.Sequential(*self.block_2)
+        block_2: list[nn.Module] = [Conv2d(128, 128, 3, 2, 1)]
+        block_2 += [Conv2d(128, 128, 3, 1, 1) for _ in range(5)]
+        self.block_2 = nn.Sequential(*block_2)
 
-        self.block_3 = [Conv2d(128, 256, 3, 2, 1)]
-        self.block_3 += [nn.Conv2d(256, 256, 3, 1, 1) for _ in range(5)]
-        self.block_3 = nn.Sequential(*self.block_3)
+        block_3: list[nn.Module] = [Conv2d(128, 256, 3, 2, 1)]
+        block_3 += [nn.Conv2d(256, 256, 3, 1, 1) for _ in range(5)]
+        self.block_3 = nn.Sequential(*block_3)
 
         self.deconv_1 = nn.Sequential(nn.ConvTranspose2d(256, 256, 4, 4, 0), nn.BatchNorm2d(256))
         self.deconv_2 = nn.Sequential(nn.ConvTranspose2d(128, 256, 2, 2, 0), nn.BatchNorm2d(256))
@@ -514,7 +515,6 @@ class VoxelNet(nn.Module):
         # feature learning network
         vwfs = self.svfe(batch_dict)["pillar_features"]
 
-        voxel_coords = torch_tensor_to_numpy(voxel_coords)
         vwfs = self.voxel_indexing(vwfs, voxel_coords)
 
         # convolutional middle network

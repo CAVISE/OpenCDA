@@ -12,7 +12,7 @@ import torch
 import torch.nn.functional as F
 import opencood.utils.common_utils as common_utils
 from opencood.utils.transformation_utils import x1_to_x2
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, cast
 
 
 def corner_to_center(corner3d: npt.NDArray[np.floating], order: str = "lwh") -> npt.NDArray[np.floating]:
@@ -141,7 +141,11 @@ def boxes2d_to_corners2d(boxes2d: npt.NDArray[np.floating] | torch.Tensor, order
     input_shape = boxes2d.shape
     boxes2d = boxes2d.view(-1, 5)
     corners2d = boxes2d[:, None, 2:4].repeat(1, 4, 1) * template[None, :, :]
-    corners2d = common_utils.rotate_points_along_z_2d(corners2d.view(-1, 2), boxes2d[:, 4].repeat_interleave(4)).view(-1, 4, 2)
+    rotated_corners = cast(
+        torch.Tensor,
+        common_utils.rotate_points_along_z_2d(corners2d.view(-1, 2), boxes2d[:, 4].repeat_interleave(4)),
+    )
+    corners2d = rotated_corners.view(-1, 4, 2)
     corners2d += boxes2d[:, None, 0:2]
     corners2d = corners2d.view(*(input_shape[:-1]), 4, 2)
     return corners2d
@@ -210,7 +214,8 @@ def boxes_to_corners_3d(boxes3d: npt.NDArray[np.floating] | torch.Tensor, order:
     )
 
     corners3d = boxes3d_[:, None, 3:6].repeat(1, 8, 1) * template[None, :, :]
-    corners3d = common_utils.rotate_points_along_z(corners3d.view(-1, 8, 3), boxes3d_[:, 6]).view(-1, 8, 3)
+    rotated_corners3d = cast(torch.Tensor, common_utils.rotate_points_along_z(corners3d.view(-1, 8, 3), boxes3d_[:, 6]))
+    corners3d = rotated_corners3d.view(-1, 8, 3)
     corners3d += boxes3d_[:, None, 0:3]
 
     return corners3d.numpy() if is_numpy else corners3d
@@ -366,7 +371,7 @@ def mask_boxes_outside_range_numpy(
 
     new_boxes = boxes.copy()
     if boxes.shape[1] == 7:
-        new_boxes = boxes_to_corners_3d(new_boxes, order)
+        new_boxes = cast(npt.NDArray[np.float64], boxes_to_corners_3d(new_boxes, order))
 
     mask = ((new_boxes >= limit_range[0:3]) & (new_boxes <= limit_range[3:6])).all(axis=2)
     mask = mask.sum(axis=1) >= min_num_corners  # (N)
@@ -447,7 +452,7 @@ def project_world_objects(object_dict: Dict, output_dict: Dict, lidar_pose: List
         bbx_lidar = np.dot(object2lidar, bbx).T
         bbx_lidar = np.expand_dims(bbx_lidar[:, :3], 0)
         bbx_lidar = corner_to_center(bbx_lidar, order=order)
-        bbx_lidar = mask_boxes_outside_range_numpy(bbx_lidar, lidar_range, order)
+        bbx_lidar = cast(npt.NDArray[np.float64], mask_boxes_outside_range_numpy(bbx_lidar, lidar_range, order))
 
         if bbx_lidar.shape[0] > 0:
             output_dict.update({object_id: bbx_lidar})
@@ -532,14 +537,14 @@ def nms_rotated(boxes: torch.Tensor, scores: torch.Tensor, threshold: float) -> 
     """
     if boxes.shape[0] == 0:
         return np.array([], dtype=np.int32)
-    boxes = boxes.cpu().detach().numpy()
-    scores = scores.cpu().detach().numpy()
+    boxes_np = boxes.cpu().detach().numpy()
+    scores_np = scores.cpu().detach().numpy()
 
-    polygons = common_utils.convert_format(boxes)
+    polygons = common_utils.convert_format(boxes_np)
 
     top = 1000
     # Get indicies of boxes sorted by scores (highest first)
-    ixs = scores.argsort()[::-1][:top]
+    ixs = scores_np.argsort()[::-1][:top]
 
     pick = []
     while len(ixs) > 0:

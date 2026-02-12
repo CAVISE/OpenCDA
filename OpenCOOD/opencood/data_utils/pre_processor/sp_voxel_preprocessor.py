@@ -188,21 +188,21 @@ class SpVoxelPreprocessor(BasePreprocessor):
             - voxel_num_points : torch.Tensor
                 Concatenated number of points per voxel from all frames
         """
-        voxel_features = []
-        voxel_num_points = []
-        voxel_coords = []
+        voxel_features_list: List[np.ndarray] = []
+        voxel_num_points_list: List[np.ndarray] = []
+        voxel_coords_list: List[np.ndarray] = []
 
         for i in range(len(batch)):
-            voxel_features.append(batch[i]["voxel_features"])
-            voxel_num_points.append(batch[i]["voxel_num_points"])
+            voxel_features_list.append(batch[i]["voxel_features"])
+            voxel_num_points_list.append(batch[i]["voxel_num_points"])
             coords = batch[i]["voxel_coords"]
-            voxel_coords.append(np.pad(coords, ((0, 0), (1, 0)), mode="constant", constant_values=i))
+            voxel_coords_list.append(np.pad(coords, ((0, 0), (1, 0)), mode="constant", constant_values=i))
 
-        voxel_num_points = torch.from_numpy(np.concatenate(voxel_num_points))
-        voxel_features = torch.from_numpy(np.concatenate(voxel_features))
-        voxel_coords = torch.from_numpy(np.concatenate(voxel_coords))
+        voxel_num_points_tensor = torch.from_numpy(np.concatenate(voxel_num_points_list))
+        voxel_features_tensor = torch.from_numpy(np.concatenate(voxel_features_list))
+        voxel_coords_tensor = torch.from_numpy(np.concatenate(voxel_coords_list))
 
-        return {"voxel_features": voxel_features, "voxel_coords": voxel_coords, "voxel_num_points": voxel_num_points}
+        return {"voxel_features": voxel_features_tensor, "voxel_coords": voxel_coords_tensor, "voxel_num_points": voxel_num_points_tensor}
 
     @staticmethod
     def collate_batch_dict(batch: Dict[str, List[np.ndarray]]) -> Dict[str, torch.Tensor]:
@@ -227,13 +227,13 @@ class SpVoxelPreprocessor(BasePreprocessor):
             - voxel_num_points : torch.Tensor
                 Concatenated number of points per voxel from all frames
         """
-        voxel_features = torch.from_numpy(np.concatenate(batch["voxel_features"]))
-        voxel_num_points = torch.from_numpy(np.concatenate(batch["voxel_num_points"]))
+        voxel_features_tensor = torch.from_numpy(np.concatenate(batch["voxel_features"]))
+        voxel_num_points_tensor = torch.from_numpy(np.concatenate(batch["voxel_num_points"]))
         coords = batch["voxel_coords"]
-        voxel_coords = []
+        voxel_coords_list: List[np.ndarray] = []
 
         for i in range(len(coords)):
-            voxel_coords.append(np.pad(coords[i], ((0, 0), (1, 0)), mode="constant", constant_values=i))
-        voxel_coords = torch.from_numpy(np.concatenate(voxel_coords))
+            voxel_coords_list.append(np.pad(coords[i], ((0, 0), (1, 0)), mode="constant", constant_values=i))
+        voxel_coords_tensor = torch.from_numpy(np.concatenate(voxel_coords_list))
 
-        return {"voxel_features": voxel_features, "voxel_coords": voxel_coords, "voxel_num_points": voxel_num_points}
+        return {"voxel_features": voxel_features_tensor, "voxel_coords": voxel_coords_tensor, "voxel_num_points": voxel_num_points_tensor}

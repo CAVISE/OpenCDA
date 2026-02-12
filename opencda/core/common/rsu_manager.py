@@ -81,13 +81,11 @@ class RSUManager(object):
                     logger.warning(f"Duplicate RSU ID detected: {candidate!r}.")
                     raise ValueError(f"Duplicate RSU ID detected: {candidate!r}.")
                 self.rid = candidate
-                RSUManager.used_ids.add(self.rid)  # NOTE error Argument 1 to "add" of "set" has incompatible type "str"; expected "int"
+                RSUManager.used_ids.add(self.rid)
 
             except (ValueError, TypeError):
                 if autogenerate_id_on_failure:
-                    self.rid = (
-                        self.__generate_unique_rsu_id()
-                    )  # NOTE error: "__generate_unique_rsu_id" of "RSUManager" does not return a value (it only ever returns None)
+                    self.rid = self.__generate_unique_rsu_id()
                     logger.warning(f"Invalid or unavailable RSU ID in config: {config_id!r}. Assigned auto-generated ID: {self.rid}")
                 else:
                     logger.error(f"Invalid or unavailable RSU ID in config: {config_id!r}.")
@@ -134,7 +132,7 @@ class RSUManager(object):
         while True:
             candidate = f"rsu-{RSUManager.current_id}"
             if candidate not in RSUManager.used_ids:
-                RSUManager.used_ids.add(candidate)  # NOTE Argument 1 to "add" of "set" has incompatible type "str"; expected "int"
+                RSUManager.used_ids.add(candidate)
                 RSUManager.current_id += 1
                 return candidate
             RSUManager.current_id += 1

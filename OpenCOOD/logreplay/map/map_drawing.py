@@ -14,6 +14,8 @@ from typing import List, Dict, Any, Optional
 # sub-pixel drawing precision constants
 CV2_SUB_VALUES = {"shift": 9, "lineType": cv2.LINE_AA}
 CV2_SHIFT_VALUE = 2 ** CV2_SUB_VALUES["shift"]
+CV2_SHIFT = CV2_SUB_VALUES["shift"]
+CV2_LINE_TYPE = CV2_SUB_VALUES["lineType"]
 
 AGENT_COLOR = (255, 255, 255)
 ROAD_COLOR = (255, 255, 255)
@@ -44,7 +46,7 @@ def cv2_subpixel(coords: NDArray) -> NDArray:
         XY coordinates as int for cv2 shift draw.
     """
     coords = coords * CV2_SHIFT_VALUE
-    coords = coords.astype(np.int)
+    coords = coords.astype(np.int32)
     return coords
 
 
@@ -65,8 +67,8 @@ def draw_agent(agent_list: List[NDArray], image: NDArray) -> NDArray:
     Drawn image.
     """
     for agent_corner in agent_list:
-        agent_corner = agent_corner.reshape(-1, 2)
-        cv2.fillPoly(image, [agent_corner], AGENT_COLOR, **CV2_SUB_VALUES)
+        agent_corner_arr = np.asarray(agent_corner).reshape(-1, 2)
+        cv2.fillPoly(image, [agent_corner_arr], AGENT_COLOR, lineType=CV2_LINE_TYPE, shift=CV2_SHIFT)
     return image
 
 
@@ -92,8 +94,8 @@ def draw_road(lane_area_list: List[NDArray], image: NDArray, visualize: bool = F
     color = ROAD_COLOR if not visualize else ROAD_COLOR_VIS
 
     for lane_area in lane_area_list:
-        lane_area = lane_area.reshape(-1, 2)
-        cv2.fillPoly(image, [lane_area], color, **CV2_SUB_VALUES)
+        lane_area_arr = np.asarray(lane_area).reshape(-1, 2)
+        cv2.fillPoly(image, [lane_area_arr], color, lineType=CV2_LINE_TYPE, shift=CV2_SHIFT)
     return image
 
 
@@ -151,7 +153,15 @@ def draw_lane(
     for lane_area, lane_type, inter_flag in zip(lane_area_list, lane_type_list, intersection_list):
         if inter_flag:
             continue
-        cv2.polylines(image, lane_area, False, Lane_COLOR[lane_type] if vis else (255, 255, 255), **CV2_SUB_VALUES)
+        lane_area_arr = np.asarray(lane_area).reshape(-1, 1, 2)
+        cv2.polylines(
+            image,
+            [lane_area_arr],
+            False,
+            Lane_COLOR[lane_type] if vis else (255, 255, 255),
+            lineType=CV2_LINE_TYPE,
+            shift=CV2_SHIFT,
+        )
 
     return image
 
@@ -201,6 +211,6 @@ def draw_city_objects(city_obj_info: Dict[str, Dict[str, Any]], image: NDArray) 
     """
     for obj_category, obj_content in city_obj_info.items():
         for _, obj in obj_content.items():
-            obj_corner = obj["corner_area"].reshape(-1, 2)
-            cv2.fillPoly(image, [obj_corner], OBJ_COLOR_MAP[obj_category], **CV2_SUB_VALUES)
+            obj_corner = np.asarray(obj["corner_area"]).reshape(-1, 2)
+            cv2.fillPoly(image, [obj_corner], OBJ_COLOR_MAP[obj_category], lineType=CV2_LINE_TYPE, shift=CV2_SHIFT)
     return image

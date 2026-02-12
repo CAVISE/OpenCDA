@@ -5,7 +5,7 @@ This module implements Where2comm, a communication-efficient multi-agent fusion
 method that selectively shares features based on confidence maps.
 """
 
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Dict, List, Optional, Tuple, Any, Sequence, Protocol, cast
 
 import numpy as np
 import random
@@ -49,6 +49,7 @@ class Communication(nn.Module):
         super(Communication, self).__init__()
         # Threshold of objectiveness
         self.threshold = args["threshold"]
+        self.gaussian_filter: Optional[nn.Conv2d] = None
         if "gaussian_smooth" in args:
             # Gaussian Smooth
             self.smooth = True
@@ -56,7 +57,8 @@ class Communication(nn.Module):
             c_sigma = args["gaussian_smooth"]["c_sigma"]
             self.gaussian_filter = nn.Conv2d(1, 1, kernel_size=kernel_size, stride=1, padding=(kernel_size - 1) // 2)
             self.init_gaussian_filter(kernel_size, c_sigma)
-            self.gaussian_filter.requires_grad = False
+            for param in self.gaussian_filter.parameters():
+                param.requires_grad_(False)
         else:
             self.smooth = False
 
@@ -75,10 +77,12 @@ class Communication(nn.Module):
         x, y = np.mgrid[0 - center : k_size - center, 0 - center : k_size - center]
         gaussian_kernel = 1 / (2 * np.pi * sigma) * np.exp(-(np.square(x) + np.square(y)) / (2 * np.square(sigma)))
 
+        assert self.gaussian_filter is not None
         self.gaussian_filter.weight.data = torch.Tensor(gaussian_kernel).to(self.gaussian_filter.weight.device).unsqueeze(0).unsqueeze(0)
-        self.gaussian_filter.bias.data.zero_()
+        if self.gaussian_filter.bias is not None:
+            self.gaussian_filter.bias.data.zero_()
 
-    def forward(self, batch_confidence_maps: List[torch.Tensor], B: int) -> Tuple[List, List]:
+    def forward(self, batch_confidence_maps: List[torch.Tensor], B: int) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Generate communication masks based on confidence maps.
 
@@ -99,11 +103,12 @@ class Communication(nn.Module):
 
         _, _, H, W = batch_confidence_maps[0].shape
 
-        communication_masks = []
-        communication_rates = []
+        communication_masks: List[torch.Tensor] = []
+        communication_rates: List[torch.Tensor] = []
         for b in range(B):
             ori_communication_maps, _ = batch_confidence_maps[b].sigmoid().max(dim=1, keepdim=True)
             if self.smooth:
+                assert self.gaussian_filter is not None
                 communication_maps = self.gaussian_filter(ori_communication_maps)
             else:
                 communication_maps = ori_communication_maps
@@ -130,9 +135,9 @@ class Communication(nn.Module):
 
             communication_masks.append(communication_mask)
             communication_rates.append(communication_rate)
-        communication_rates = sum(communication_rates) / B
-        communication_masks = torch.cat(communication_masks, dim=0)
-        return communication_masks, communication_rates
+        communication_rates_tensor = torch.stack(communication_rates, dim=0).mean()
+        communication_masks_tensor = torch.cat(communication_masks, dim=0)
+        return communication_masks_tensor, communication_rates_tensor
 
 
 class AttentionFusion(nn.Module):
@@ -176,6 +181,11 @@ class AttentionFusion(nn.Module):
         x = self.att(x, x, x)
         x = x.permute(1, 2, 0).view(cav_num, C, H, W)[0]  # C, W, H before
         return x
+
+
+class _BackboneWithBlocks(Protocol):
+    blocks: Sequence[nn.Module]
+    deblocks: Sequence[nn.Module]
 
 
 class Where2comm(nn.Module):
@@ -229,6 +239,7 @@ class Where2comm(nn.Module):
             print("constructing a partially connected communication graph")
 
         self.multi_scale = args["multi_scale"]
+        self.fuse_modules: nn.Module
         if self.multi_scale:
             layer_nums = args["layer_nums"]
             num_filters = args["num_filters"]
@@ -260,7 +271,7 @@ class Where2comm(nn.Module):
         """
         cum_sum_len = torch.cumsum(record_len, dim=0)
         split_x = torch.tensor_split(x, cum_sum_len[:-1].cpu())
-        return split_x
+        return list(split_x)
 
     def forward(
         self,
@@ -269,7 +280,7 @@ class Where2comm(nn.Module):
         record_len: torch.Tensor,
         pairwise_t_matrix: torch.Tensor,
         backbone: Optional[nn.Module] = None,
-    ) -> torch.Tensor:
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Forward pass for Where2comm fusion.
 
@@ -296,11 +307,17 @@ class Where2comm(nn.Module):
         _, C, H, W = x.shape
         B = pairwise_t_matrix.shape[0]
 
+        communication_rates = torch.tensor(1.0, device=x.device)
+
         if self.multi_scale:
+            if backbone is None:
+                raise ValueError("backbone must be provided when multi_scale is True")
+            backbone_modules = cast(_BackboneWithBlocks, backbone)
+            fuse_modules = cast(nn.ModuleList, self.fuse_modules)
             ups = []
 
             for i in range(self.num_levels):
-                x = backbone.blocks[i](x)  # NOTE None-check is required
+                x = backbone_modules.blocks[i](x)
 
                 # 1. Communication (mask the features)
                 if i == 0:
@@ -322,15 +339,15 @@ class Where2comm(nn.Module):
                 batch_node_features = self.regroup(x, record_len)
 
                 # 3. Fusion
-                x_fuse = []
+                x_fuse_list: List[torch.Tensor] = []
                 for b in range(B):
                     neighbor_feature = batch_node_features[b]
-                    x_fuse.append(self.fuse_modules[i](neighbor_feature))
-                x_fuse = torch.stack(x_fuse)
+                    x_fuse_list.append(fuse_modules[i](neighbor_feature))
+                x_fuse = torch.stack(x_fuse_list)
 
                 # 4. Deconv
-                if len(backbone.deblocks) > 0:  # NOTE None-check is required
-                    ups.append(backbone.deblocks[i](x_fuse))  # NOTE None-check is required
+                if len(backbone_modules.deblocks) > 0:
+                    ups.append(backbone_modules.deblocks[i](x_fuse))
                 else:
                     ups.append(x_fuse)
 
@@ -339,9 +356,10 @@ class Where2comm(nn.Module):
             elif len(ups) == 1:
                 x_fuse = ups[0]
 
-            if len(backbone.deblocks) > self.num_levels:  # NOTE None-check is required
-                x_fuse = backbone.deblocks[-1](x_fuse)  # NOTE None-check is required
+            if len(backbone_modules.deblocks) > self.num_levels:
+                x_fuse = backbone_modules.deblocks[-1](x_fuse)
         else:
+            fuse_module = cast(AttentionFusion, self.fuse_modules)
             # 1. Communication (mask the features)
             if self.fully:
                 communication_rates = torch.tensor(1).to(x.device)
@@ -357,9 +375,9 @@ class Where2comm(nn.Module):
             batch_node_features = self.regroup(x, record_len)
 
             # 3. Fusion
-            x_fuse = []
+            x_fuse_list = []
             for b in range(B):
                 neighbor_feature = batch_node_features[b]
-                x_fuse.append(self.fuse_modules(neighbor_feature))
-            x_fuse = torch.stack(x_fuse)
+                x_fuse_list.append(fuse_module(neighbor_feature))
+            x_fuse = torch.stack(x_fuse_list)
         return x_fuse, communication_rates

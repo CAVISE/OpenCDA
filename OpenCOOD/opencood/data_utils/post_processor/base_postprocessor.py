@@ -10,7 +10,7 @@ import numpy as np
 import torch
 
 from opencood.utils import box_utils
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Any, Dict, List, Optional, Tuple, cast
 import numpy.typing as npt
 
 
@@ -54,7 +54,7 @@ class BasePostprocessor(object):
         # TODO: needs to be overloaded
         return None
 
-    def generate_label(self, *argv: Any) -> Dict[str, torch.Tensor]:
+    def generate_label(self, *argv: Any, **kwargs: Any) -> Dict[str, Any]:
         """
         Generate labels for training.
 
@@ -79,7 +79,7 @@ class BasePostprocessor(object):
         gt_box3d_tensor : torch.Tensor
             The groundtruth bounding box tensor, shape (N, 8, 3).
         """
-        gt_box3d_list = []
+        gt_box3d_list: List[torch.Tensor] = []
         # used to avoid repetitive bounding box
         object_id_list = []
 
@@ -93,18 +93,18 @@ class BasePostprocessor(object):
             object_bbx_center = object_bbx_center[object_bbx_mask == 1]
 
             # convert center to corner
-            object_bbx_corner = box_utils.boxes_to_corners_3d(object_bbx_center, self.params["order"])
-            projected_object_bbx_corner = box_utils.project_box3d(object_bbx_corner.float(), transformation_matrix)
+            object_bbx_corner = cast(torch.Tensor, box_utils.boxes_to_corners_3d(object_bbx_center, self.params["order"]))
+            projected_object_bbx_corner = cast(torch.Tensor, box_utils.project_box3d(object_bbx_corner.float(), transformation_matrix))
             gt_box3d_list.append(projected_object_bbx_corner)
 
             # append the corresponding ids
             object_id_list += object_ids
 
         # gt bbx 3d
-        gt_box3d_list = torch.vstack(gt_box3d_list)
+        gt_box3d_tensor = torch.vstack(gt_box3d_list)
         # some of the bbx may be repetitive, use the id list to filter
         gt_box3d_selected_indices = [object_id_list.index(x) for x in set(object_id_list)]
-        gt_box3d_tensor = gt_box3d_list[gt_box3d_selected_indices]  # NOTE different types ("list" / "tensor")
+        gt_box3d_tensor = gt_box3d_tensor[gt_box3d_selected_indices]
 
         # filter the gt_box to make sure all bbx are in the range
         mask = box_utils.get_mask_for_boxes_within_range_torch(gt_box3d_tensor)

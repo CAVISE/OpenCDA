@@ -235,9 +235,11 @@ class SceneManager:
         Invokes HDMap manager to rasterize and save bird's eye view maps
         for each connected autonomous vehicle in the current frame.
         """
+        if self.map_manager is None:
+            return
         for veh_id, veh_content in self.veh_dict.items():
             if "cav" in veh_content:
-                self.map_manager.run_step(veh_id, veh_content, self.veh_dict)  # NOTE need a None-check
+                self.map_manager.run_step(veh_id, veh_content, self.veh_dict)
 
     def sensor_dumping(self, cur_timestamp: str) -> None:
         """
@@ -321,14 +323,17 @@ class SceneManager:
         blueprint_library = self.world.get_blueprint_library()
 
         cur_pose = self.structure_transform_bg_veh(bg_veh_content["location"], bg_veh_content["angle"])
+        model: str
         if str(bg_veh_id) in self.cav_id_list:
             model = "vehicle.lincoln.mkz_2017"
             veh_bp = blueprint_library.find(model)
             color = "0, 0, 255"
         else:
-            model = find_blue_print(bg_veh_content["extent"])  # NOTE need a None-check
-            if not model:
+            model_candidate = find_blue_print(bg_veh_content["extent"])
+            if not model_candidate:
                 print("model net found for %s" % bg_veh_id)
+                model_candidate = "vehicle.lincoln.mkz_2017"
+            model = model_candidate
             veh_bp = blueprint_library.find(model)
 
             color = random.choice(veh_bp.get_attribute("color").recommended_values)

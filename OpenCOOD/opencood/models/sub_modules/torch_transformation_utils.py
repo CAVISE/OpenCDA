@@ -189,7 +189,7 @@ def normal_transform_pixel(height: int, width: int, device: Union[torch.device, 
     Tensor
         Normalization matrix with shape (1, 3, 3).
     """
-    tr_mat = torch.Tensor([[1.0, 0.0, -1.0], [0.0, 1.0, -1.0], [0.0, 0.0, 1.0]], device=device, dtype=dtype)  # 3x3
+    tr_mat = torch.tensor([[1.0, 0.0, -1.0], [0.0, 1.0, -1.0], [0.0, 0.0, 1.0]], device=device, dtype=dtype)  # 3x3
 
     # prevent divide by zero bugs
     width_denom = eps if width == 1 else width - 1.0

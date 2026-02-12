@@ -83,13 +83,13 @@ class PlanDebugHelper(object):
         # draw speed, acc and ttc plotting
         figure = plt.figure()
         plt.subplot(311)
-        open_plt.draw_velocity_profile_single_plot(self.speed_list)
+        open_plt.draw_velocity_profile_single_plot([np.array(v, dtype=float) for v in self.speed_list])
 
         plt.subplot(312)
-        open_plt.draw_acceleration_profile_single_plot(self.acc_list)
+        open_plt.draw_acceleration_profile_single_plot([np.array(v, dtype=float) for v in self.acc_list])
 
         plt.subplot(313)
-        open_plt.draw_ttc_profile_single_plot(self.ttc_list)
+        open_plt.draw_ttc_profile_single_plot([np.array(v, dtype=float) for v in self.ttc_list])
 
         figure.suptitle("planning profile of actor id %d" % self.actor_id)
 

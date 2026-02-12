@@ -5,7 +5,7 @@ This module provides various utility functions for data type checking and conver
 as well as common operations used throughout the OpenCOOD project.
 """
 
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Dict, List, Tuple, Union, Sequence
 
 import numpy as np
 import torch
@@ -195,7 +195,12 @@ def torch_tensor_to_numpy(torch_tensor: torch.Tensor) -> npt.NDArray:
     return torch_tensor.numpy() if not torch_tensor.is_cuda else torch_tensor.cpu().detach().numpy()
 
 
-def get_voxel_centers(voxel_coords: npt.NDArray, downsample_times: int, voxel_size: npt.NDArray, point_cloud_range: npt.NDArray) -> torch.Tensor:
+def get_voxel_centers(
+    voxel_coords: torch.Tensor,
+    downsample_times: int,
+    voxel_size: Union[Sequence[float], npt.NDArray[np.floating]],
+    point_cloud_range: Union[Sequence[float], npt.NDArray[np.floating]],
+) -> torch.Tensor:
     """
     Calculate voxel center coordinates.
 
@@ -217,7 +222,7 @@ def get_voxel_centers(voxel_coords: npt.NDArray, downsample_times: int, voxel_si
     """
     assert voxel_coords.shape[1] == 3
     voxel_centers = voxel_coords[:, [2, 1, 0]].float()  # (xyz)
-    voxel_size = torch.tensor(voxel_size, device=voxel_centers.device).float() * downsample_times
-    pc_range = torch.tensor(point_cloud_range[0:3], device=voxel_centers.device).float()
-    voxel_centers = (voxel_centers + 0.5) * voxel_size + pc_range
+    voxel_size_tensor = torch.tensor(voxel_size, device=voxel_centers.device).float() * downsample_times
+    pc_range_tensor = torch.tensor(point_cloud_range[0:3], device=voxel_centers.device).float()
+    voxel_centers = (voxel_centers + 0.5) * voxel_size_tensor + pc_range_tensor
     return voxel_centers

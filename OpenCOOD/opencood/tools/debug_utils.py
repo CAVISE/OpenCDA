@@ -62,11 +62,12 @@ def test_bev_post_processing() -> None:
 
     print("Dataset Building")
     opencood_dataset = build_dataset(hypes, visualize=True, train=False)
+    dataset = opencood_dataset
     data_loader = DataLoader(
-        opencood_dataset,
+        dataset,
         batch_size=1,
         num_workers=0,
-        collate_fn=opencood_dataset.collate_batch_test,
+        collate_fn=dataset.collate_batch_test,  # type: ignore[attr-defined]
         shuffle=False,
         pin_memory=False,
         drop_last=False,
@@ -87,8 +88,15 @@ def test_bev_post_processing() -> None:
         batch_data = train_utils.to_device(batch_data, device)
         label_map = batch_data["ego"]["label_dict"]["label_map"]
         output_dict = {"cls": label_map[:, 0, :, :], "reg": label_map[:, 1:, :, :]}
-        gt_box_tensor, _ = opencood_dataset.post_processor.post_process_debug(batch_data["ego"], output_dict)
-        vis_utils.visualize_single_sample_output_bev(gt_box_tensor, batch_data["ego"]["origin_lidar"].squeeze(0), opencood_dataset)
+        post_processor = getattr(dataset, "post_processor", None)
+        assert post_processor is not None
+        gt_box_tensor = post_processor.post_process_debug(batch_data["ego"], output_dict)
+        vis_utils.visualize_single_sample_output_bev(
+            gt_box_tensor,
+            gt_box_tensor,
+            batch_data["ego"]["origin_lidar"].squeeze(0),
+            dataset,
+        )
 
 
 if __name__ == "__main__":

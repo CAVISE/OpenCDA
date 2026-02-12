@@ -31,7 +31,7 @@ def regroup(x: torch.Tensor, record_len: torch.Tensor) -> List[torch.Tensor]:
     """
     cum_sum_len = torch.cumsum(record_len, dim=0)
     split_x = torch.tensor_split(x, cum_sum_len[:-1].cpu())
-    return split_x
+    return list(split_x)
 
 
 def normalize_pairwise_tfm(pairwise_t_matrix: torch.Tensor, H: int, W: int, discrete_ratio: float, downsample_rate: int = 1) -> torch.Tensor:
@@ -125,7 +125,7 @@ class Att_w_Warp(nn.Module):
         B, L = normalized_affine_matrix.shape[:2]
         split_x = regroup(xx, record_len)
         batch_node_features = split_x
-        out = []
+        out_list: List[torch.Tensor] = []
         # iterate each batch
         for b in range(B):
             N = record_len[b]
@@ -137,7 +137,7 @@ class Att_w_Warp(nn.Module):
             x = x.view(cav_num, C, -1).permute(2, 0, 1)  #  (H*W, cav_num, C), perform self attention on each pixel.
             h = self.att(x, x, x)
             h = h.permute(1, 2, 0).view(cav_num, C, H, W)[0, ...]  # C, W, H before
-            out.append(h)
+            out_list.append(h)
 
-        out = torch.stack(out)
-        return out
+        out_tensor = torch.stack(out_list)
+        return out_tensor

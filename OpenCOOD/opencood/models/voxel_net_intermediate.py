@@ -5,7 +5,7 @@ This module implements a VoxelNet variant that performs intermediate fusion
 of features from multiple agents using attention mechanisms.
 """
 
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 import numpy as np
 import torch
@@ -15,7 +15,6 @@ from torch.autograd import Variable
 
 from opencood.models.voxel_net import RPN, CML
 from opencood.models.sub_modules.pillar_vfe import PillarVFE
-from opencood.utils.common_utils import torch_tensor_to_numpy
 from opencood.models.fuse_modules.self_attn import AttFusion
 from opencood.models.sub_modules.auto_encoder import AutoEncoder
 
@@ -58,6 +57,7 @@ class Conv2d(nn.Module):
     ):
         super(Conv2d, self).__init__()
         self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=k, stride=s, padding=p, bias=bias)
+        self.bn: nn.BatchNorm2d | None
         if batch_norm:
             self.bn = nn.BatchNorm2d(out_channels)
         else:
@@ -210,7 +210,7 @@ class VoxelNetIntermediate(nn.Module):
 
         return dense_feature.transpose(0, 1)
 
-    def regroup(self, dense_feature: torch.Tensor, record_len: list) -> torch.Tensor:
+    def regroup(self, dense_feature: torch.Tensor, record_len: List[int]) -> torch.Tensor:
         """
         Regroup the data based on the record_len.
 
@@ -228,7 +228,7 @@ class VoxelNetIntermediate(nn.Module):
         """
         cum_sum_len = list(np.cumsum(record_len))
         split_features = torch.tensor_split(dense_feature, cum_sum_len[:-1])
-        regroup_features = []
+        regroup_features_list: List[torch.Tensor] = []
 
         for split_feature in split_features:
             # M, C, H, W
@@ -243,10 +243,10 @@ class VoxelNetIntermediate(nn.Module):
 
             # 1, 5C, H, W
             split_feature = split_feature.view(-1, feature_shape[2], feature_shape[3]).unsqueeze(0)
-            regroup_features.append(split_feature)
+            regroup_features_list.append(split_feature)
 
         # B, 5C, H, W
-        regroup_features = torch.cat(regroup_features, dim=0)
+        regroup_features = torch.cat(regroup_features_list, dim=0)
 
         return regroup_features
 
@@ -284,7 +284,6 @@ class VoxelNetIntermediate(nn.Module):
         # feature learning network
         vwfs = self.svfe(batch_dict)["pillar_features"]
 
-        voxel_coords = torch_tensor_to_numpy(voxel_coords)
         vwfs = self.voxel_indexing(vwfs, voxel_coords)
 
         # convolutional middle network

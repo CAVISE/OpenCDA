@@ -1,5 +1,6 @@
 import zmq
 import logging
+from typing import Optional
 
 logger = logging.getLogger("cavise.communication")
 
@@ -28,7 +29,7 @@ class CommunicationManager:
     def __init__(self, address: str) -> None:
         self.address = address
         self.context = zmq.Context()
-        self.socket = None
+        self.socket: Optional[zmq.Socket[bytes]] = None
 
     def create_socket(self, socket_type: int, start_func: str) -> None:
         """
@@ -50,12 +51,13 @@ class CommunicationManager:
             If socket creation, binding, or connection fails.
         """
         try:
-            self.socket = self.context.socket(socket_type)
+            socket = self.context.socket(socket_type)
+            self.socket = socket
             if start_func == "bind":
-                self.socket.bind(self.address)  # NOTE None-check is required
+                socket.bind(self.address)
                 logger.info(f"socket is open in {start_func} mode at {self.address}")
             if start_func == "connect":
-                self.socket.connect(self.address)  # NOTE None-check is required
+                socket.connect(self.address)
                 logger.info(f"socket is open in {start_func} mode at {self.address}")
         except zmq.ZMQError as error:
             logger.error(f"error upon socket creation: {error}")
@@ -77,12 +79,13 @@ class CommunicationManager:
             If socket is not initialized.
         """
         try:
-            self.socket.send(message)  # NOTE None-check is required
+            assert self.socket is not None
+            self.socket.send(message)
             logger.info(f"message sent to {self.address}")
         except zmq.ZMQError as error:
             logger.error(f"error upon sending message: {error}")
 
-    def receive_message(self) -> bytes:  # NOTE Need to return empty bytes
+    def receive_message(self) -> bytes:
         """
         Receive message from ZeroMQ socket.
 
@@ -99,8 +102,10 @@ class CommunicationManager:
             If socket is not initialized.
         """
         try:
+            assert self.socket is not None
             received_data = self.socket.recv()
             logger.info(f"message received from {self.address}")
             return received_data
         except zmq.ZMQError as error:
             logger.error(f"error upon receiving message: {error}")
+            return b""

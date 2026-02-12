@@ -126,4 +126,4 @@ class AttFusion(nn.Module):
         """
         cum_sum_len = torch.cumsum(record_len, dim=0)
         split_x = torch.tensor_split(x, cum_sum_len[:-1].cpu())
-        return split_x
+        return list(split_x)

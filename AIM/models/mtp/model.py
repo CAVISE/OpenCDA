@@ -17,7 +17,6 @@ class MTP(AIMModel):
     """
 
     def __init__(self, **kwargs: Any):
-        super().__init__()
         self._models = {"GNN_mtl_gnn": GNN_mtl_gnn}
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         hidden_channels = kwargs.get("hidden_channels", 128)
@@ -26,7 +25,7 @@ class MTP(AIMModel):
         self.model = self._models[underling_model](hidden_channels=hidden_channels)
 
         weights_path = files(__package__).joinpath(f"{underling_model}/weights/{weight}")
-        checkpoint = torch.load(weights_path, map_location=torch.device("cpu"))
+        checkpoint = torch.load(str(weights_path), map_location=torch.device("cpu"))
         self.model.load_state_dict(checkpoint)
         self.model = self.model.to(self.device)
 
@@ -54,7 +53,7 @@ class MTP(AIMModel):
         return predictions
 
     @staticmethod
-    def _transform_sumo2carla(states: npt.NDArray[float]) -> npt.NDArray[float]:
+    def _transform_sumo2carla(states: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
         """
         Transform coordinates from SUMO to CARLA coordinate system.
 
@@ -76,3 +75,4 @@ class MTP(AIMModel):
             states[:, 3] -= np.deg2rad(90)
         else:
             raise NotImplementedError
+        return states

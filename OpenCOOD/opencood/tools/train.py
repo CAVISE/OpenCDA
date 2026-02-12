@@ -8,6 +8,7 @@ supporting distributed training, mixed precision, and learning rate scheduling.
 import argparse
 import os
 import statistics
+from typing import Any, Optional
 
 import torch
 import tqdm
@@ -74,6 +75,8 @@ def main() -> None:
     print("-----------------Dataset Building------------------")
     opencood_train_dataset = build_dataset(hypes, visualize=False, train=True)
     opencood_validate_dataset = build_dataset(hypes, visualize=False, train=False)
+    sampler_train: Optional[DistributedSampler[Any]] = None
+    sampler_val: Optional[DistributedSampler[Any]] = None
 
     if opt.distributed:
         sampler_train = DistributedSampler(opencood_train_dataset)
@@ -129,7 +132,7 @@ def main() -> None:
         model_without_ddp = model.module
 
     # define the loss
-    criterion = train_utils.create_loss(hypes)
+    criterion: Any = train_utils.create_loss(hypes)
 
     # optimizer setup
     optimizer = train_utils.setup_optimizer(hypes, model_without_ddp)
@@ -148,14 +151,14 @@ def main() -> None:
     epoches = hypes["train_params"]["epoches"]
 
     for epoch in range(init_epoch, max(epoches, init_epoch)):
-        if hypes["lr_scheduler"]["core_method"] != "cosineannealwarm":
-            scheduler.step(epoch)  # NOTE need a "if scheduler is None:" check
-        if hypes["lr_scheduler"]["core_method"] == "cosineannealwarm":
-            scheduler.step_update(epoch * num_steps + 0)  # NOTE need a "if scheduler is None:" check
+        if scheduler is not None and hypes["lr_scheduler"]["core_method"] != "cosineannealwarm":
+            scheduler.step(epoch)
+        if scheduler is not None and hypes["lr_scheduler"]["core_method"] == "cosineannealwarm" and hasattr(scheduler, "step_update"):
+            scheduler.step_update(epoch * num_steps + 0)
         for param_group in optimizer.param_groups:
             print("learning rate %.7f" % param_group["lr"])
 
-        if opt.distributed:
+        if opt.distributed and sampler_train is not None:
             sampler_train.set_epoch(epoch)
 
         pbar2 = tqdm.tqdm(total=len(train_loader), leave=True)
@@ -186,8 +189,8 @@ def main() -> None:
                 scaler.step(optimizer)
                 scaler.update()
 
-            if hypes["lr_scheduler"]["core_method"] == "cosineannealwarm":
-                scheduler.step_update(epoch * num_steps + i)  # NOTE need a " if scheduler is None:" check
+            if scheduler is not None and hypes["lr_scheduler"]["core_method"] == "cosineannealwarm" and hasattr(scheduler, "step_update"):
+                scheduler.step_update(epoch * num_steps + i)
 
         if epoch % hypes["train_params"]["save_freq"] == 0:
             torch.save(model_without_ddp.state_dict(), os.path.join(saved_path, "net_epoch%d.pth" % (epoch + 1)))

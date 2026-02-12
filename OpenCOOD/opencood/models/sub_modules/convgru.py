@@ -276,7 +276,7 @@ class ConvGRU(nn.Module):
             cur_layer_input = layer_output
 
             layer_output_list.append(layer_output)
-            last_state_list.append([h])
+            last_state_list.append(h)
 
         if not self.return_all_layers:
             layer_output_list = layer_output_list[-1:]
@@ -304,7 +304,14 @@ class ConvGRU(nn.Module):
         """
         init_states = []
         for i in range(self.num_layers):
-            init_states.append(self.cell_list[i].init_hidden(batch_size).to(device).to(dtype))
+            cell = self.cell_list[i]
+            assert isinstance(cell, ConvGRUCell)
+            init_state = cell.init_hidden(batch_size)
+            if device is not None:
+                init_state = init_state.to(device)
+            if dtype is not None:
+                init_state = init_state.to(dtype=dtype)
+            init_states.append(init_state)
         return init_states
 
     @staticmethod

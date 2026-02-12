@@ -5,7 +5,7 @@ This module implements the V2X Transformer architecture for fusing features
 from multiple agents using attention mechanisms and temporal encoding.
 """
 
-from typing import Dict, List, Union, Any
+from typing import Dict, Any, cast, Tuple
 import math
 
 import torch
@@ -44,10 +44,14 @@ class STTF(nn.Module):
         Feature downsampling rate.
     """
 
-    def __init__(self, args: Dict[str, Union[float, List[float], int]]):
+    def __init__(self, args: Dict[str, Any]):
         super(STTF, self).__init__()
-        self.discrete_ratio: float = args["voxel_size"][0]  # NOTE Value of type "float | list[float] | int" is not indexable
-        self.downsample_rate = args["downsample_rate"]
+        voxel_size = args["voxel_size"]
+        if isinstance(voxel_size, list):
+            self.discrete_ratio = float(voxel_size[0])
+        else:
+            self.discrete_ratio = float(voxel_size)
+        self.downsample_rate = float(args["downsample_rate"])
 
     def forward(self, x: torch.Tensor, mask: torch.Tensor, spatial_correction_matrix: torch.Tensor) -> torch.Tensor:
         """
@@ -112,7 +116,7 @@ class RelTemporalEncoding(nn.Module):
         emb = nn.Embedding(max_len, n_hid)
         emb.weight.data[:, 0::2] = torch.sin(position * div_term) / math.sqrt(n_hid)
         emb.weight.data[:, 1::2] = torch.cos(position * div_term) / math.sqrt(n_hid)
-        emb.requires_grad = False
+        emb.weight.requires_grad_(False)
         self.RTE_ratio = RTE_ratio
         self.emb = emb
         self.lin = nn.Linear(n_hid, n_hid)
@@ -265,7 +269,10 @@ class V2XFusionBlock(nn.Module):
         Tensor
             Fused features with shape (B, L, H, W, C).
         """
-        for cav_attn, pwindow_attn in self.layers:
+        for layer_idx in range(len(self.layers)):
+            layer = cast(nn.ModuleList, self.layers[layer_idx])
+            cav_attn = cast(Any, layer[0])
+            pwindow_attn = cast(Any, layer[1])
             x = cav_attn(x, mask=mask, prior_encoding=prior_encoding) + x
             x = pwindow_attn(x) + x
         return x
@@ -383,9 +390,18 @@ class V2XTEncoder(nn.Module):
         com_mask = (
             mask.unsqueeze(1).unsqueeze(2).unsqueeze(3)
             if not self.use_roi_mask
-            else get_roi_and_cav_mask(x.shape, mask, spatial_correction_matrix, self.discrete_ratio, self.downsample_rate)
+            else get_roi_and_cav_mask(
+                cast(Tuple[int, int, int, int, int], tuple(int(v) for v in x.shape)),
+                mask,
+                spatial_correction_matrix,
+                self.discrete_ratio,
+                self.downsample_rate,
+            )
         )
-        for attn, ff in self.layers:
+        for layer_idx in range(len(self.layers)):
+            layer = cast(nn.ModuleList, self.layers[layer_idx])
+            attn = cast(Any, layer[0])
+            ff = cast(Any, layer[1])
             x = attn(x, mask=com_mask, prior_encoding=prior_encoding)
             x = ff(x) + x
         return x

@@ -228,7 +228,7 @@ class TrafficLightDector(object):
 
     def __init__(self, params: Dict[str, Any], vehicle: carla.Vehicle):
         self.ran_light = False
-        self._map = None
+        self._map: carla.Map | None = None
         self.veh_extent = vehicle.bounding_box.extent.x
 
         self._light_dis_thresh = params["light_dist_thresh"]
@@ -358,6 +358,8 @@ class TrafficLightDector(object):
         return carla.Vector3D(x_, y_, point.z)
 
     def _get_traffic_light_trigger_waypoints(self, traffic_light: carla.Actor) -> List[carla.Waypoint]:
+        if self._map is None:
+            return []
         # Get the transform information for the traffic light
         base_transform = traffic_light.get_transform()
         base_rot = base_transform.rotation.yaw
@@ -378,7 +380,7 @@ class TrafficLightDector(object):
         # Get the waypoints of these points, removing duplicates
         ini_wps: List[carla.Waypoint] = []
         for pt in area:
-            wpx = self._map.get_waypoint(pt)  # NOTE self._map can be none
+            wpx = self._map.get_waypoint(pt)
             # As x_values are arranged in order, only the last one has to be checked
             if not ini_wps or ini_wps[-1].road_id != wpx.road_id or ini_wps[-1].lane_id != wpx.lane_id:
                 ini_wps.append(wpx)

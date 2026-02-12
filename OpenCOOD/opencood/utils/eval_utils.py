@@ -65,7 +65,7 @@ def caluclate_tp_fp(
     det_boxes: Optional[torch.Tensor],
     det_score: Optional[torch.Tensor],
     gt_boxes: torch.Tensor,
-    result_stat: Dict[float, Dict[str, List[Any]]],
+    result_stat: Dict[float, Dict[str, Any]],
     iou_thresh: float,
 ) -> None:
     """
@@ -93,17 +93,17 @@ def caluclate_tp_fp(
     fp = []
     tp = []
     gt = gt_boxes.shape[0]
-    if det_boxes is not None:
+    if det_boxes is not None and det_score is not None:
         # convert bounding boxes to numpy array
-        det_boxes = common_utils.torch_tensor_to_numpy(det_boxes)
-        det_score = common_utils.torch_tensor_to_numpy(det_score)
-        gt_boxes = common_utils.torch_tensor_to_numpy(gt_boxes)
+        det_boxes_np = common_utils.torch_tensor_to_numpy(det_boxes)
+        det_score_np = common_utils.torch_tensor_to_numpy(det_score)
+        gt_boxes_np = common_utils.torch_tensor_to_numpy(gt_boxes)
 
         # sort the prediction bounding box by score
-        score_order_descend = np.argsort(-det_score)
-        det_score = det_score[score_order_descend]  # from high to low
-        det_polygon_list = list(common_utils.convert_format(det_boxes))
-        gt_polygon_list = list(common_utils.convert_format(gt_boxes))
+        score_order_descend = np.argsort(-det_score_np)
+        det_score_np = det_score_np[score_order_descend]  # from high to low
+        det_polygon_list = list(common_utils.convert_format(det_boxes_np))
+        gt_polygon_list = list(common_utils.convert_format(gt_boxes_np))
 
         # match prediction and gt bounding box
         for i in range(score_order_descend.shape[0]):
@@ -121,7 +121,7 @@ def caluclate_tp_fp(
             gt_index = np.argmax(ious)
             gt_polygon_list.pop(gt_index)
 
-        result_stat[iou_thresh]["score"] += det_score.tolist()
+        result_stat[iou_thresh]["score"] += det_score_np.tolist()
 
     result_stat[iou_thresh]["fp"] += fp
     result_stat[iou_thresh]["tp"] += tp
@@ -195,7 +195,7 @@ def calculate_ap(result_stat: Dict[float, Dict[str, Any]], iou: float, global_so
     return ap, mrec, mprec
 
 
-def eval_final_results(result_stat: Dict[float, Dict[str, List[Any]]], save_path: str, global_sort_detections: bool) -> None:
+def eval_final_results(result_stat: Dict[float, Dict[str, Any]], save_path: str, global_sort_detections: bool) -> None:
     """
     Evaluate and save final detection results.
 

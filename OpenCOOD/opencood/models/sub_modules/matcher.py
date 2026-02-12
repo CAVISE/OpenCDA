@@ -157,8 +157,8 @@ class Matcher(nn.Module):
         scores_fused : list of Tensor
             Fused confidence scores for each scene with shape (N_clusters,).
         """
-        boxes_fused = []
-        scores_fused = []
+        boxes_fused_list: List[torch.Tensor] = []
+        scores_fused_list: List[torch.Tensor] = []
         for cl, sl in zip(clusters, scores):
             for c, s in zip(cl, sl):
                 # reverse direction for non-dominant direction of boxes
@@ -182,22 +182,20 @@ class Matcher(nn.Module):
                     1,
                 )
                 center_dim = c[:, :-1] * s_normalized[:, None]
-                boxes_fused.append(torch.cat([center_dim.sum(dim=0), theta]))
+                boxes_fused_list.append(torch.cat([center_dim.sum(dim=0), theta]))
                 s_sorted = torch.sort(s, descending=True).values
-                s_fused = 0
+                s_fused = torch.tensor(0.0, device=s.device)
                 for i, ss in enumerate(s_sorted):
-                    s_fused += ss ** (i + 1)
-                s_fused = torch.tensor([min(s_fused, 1.0)], device=s.device)
-                scores_fused.append(s_fused)
+                    s_fused = s_fused + ss ** (i + 1)
+                s_fused_tensor = torch.minimum(s_fused, torch.tensor(1.0, device=s.device)).view(1)
+                scores_fused_list.append(s_fused_tensor)
 
-        assert len(boxes_fused) > 0
-        boxes_fused = torch.stack(boxes_fused, dim=0)
+        assert len(boxes_fused_list) > 0
+        boxes_fused_tensor = torch.stack(boxes_fused_list, dim=0)
         len_records = [len(c) for c in clusters]
-        boxes_fused = [boxes_fused[sum(len_records[:i]) : sum(len_records[:i]) + length] for i, length in enumerate(len_records)]
-        scores_fused = torch.stack(scores_fused, dim=0)
-        scores_fused = [
-            scores_fused[sum(len_records[:i]) : sum(len_records[:i]) + length] for i, length in enumerate(len_records)
-        ]  # NOTE: Explicit type annotation required - mypy infers List[List[int]] from list comprehension instead of List[int]
+        boxes_fused = [boxes_fused_tensor[sum(len_records[:i]) : sum(len_records[:i]) + length] for i, length in enumerate(len_records)]
+        scores_fused_tensor = torch.stack(scores_fused_list, dim=0)
+        scores_fused = [scores_fused_tensor[sum(len_records[:i]) : sum(len_records[:i]) + length] for i, length in enumerate(len_records)]
 
         return boxes_fused, scores_fused
 

@@ -6,7 +6,7 @@ This module implements voxel-based set abstraction for processing multi-scale
 """
 
 import copy
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 import torch
 import torch.nn as nn
@@ -151,13 +151,17 @@ class VoxelSetAbstraction(nn.Module):
             c_in += sum([x[-1] for x in mlps])
 
         if "bev" in self.model_cfg["features_source"]:
+            if num_bev_features is None:
+                raise ValueError("num_bev_features must be provided when 'bev' is in features_source")
             c_bev = num_bev_features
-            c_in += c_bev  # NOTE Unsupported operand types
+            c_in += c_bev
 
         if "raw_points" in self.model_cfg["features_source"]:
+            if num_rawpoint_features is None:
+                raise ValueError("num_rawpoint_features must be provided when 'raw_points' is in features_source")
             mlps = copy.copy(SA_cfg["raw_points"]["mlps"])
             for k in range(len(mlps)):
-                mlps[k] = [num_rawpoint_features - 3] + mlps[k]  # NOTE Unsupported operand types
+                mlps[k] = [num_rawpoint_features - 3] + mlps[k]
 
             self.SA_rawpoints = pointnet2_stack_modules.StackSAModuleMSG(
                 radii=SA_cfg["raw_points"]["pool_radius"], nsamples=SA_cfg["raw_points"]["n_sample"], mlps=mlps, use_xyz=True, pool_method="max_pool"
@@ -208,7 +212,7 @@ class VoxelSetAbstraction(nn.Module):
         point_bev_features = torch.cat(point_bev_features_list, dim=0)  # (B, N, C0)
         return point_bev_features
 
-    def get_sampled_points(self, batch_dict: Dict[str, torch.Tensor]) -> torch.Tensor:
+    def get_sampled_points(self, batch_dict: Dict[str, Any]) -> torch.Tensor:
         """
         Sample keypoints using Furthest Point Sampling (FPS).
 
@@ -224,7 +228,7 @@ class VoxelSetAbstraction(nn.Module):
         Tensor
             Sampled keypoints with shape (B, num_keypoints, 4).
         """
-        batch_size = batch_dict["batch_size"]
+        batch_size = int(batch_dict["batch_size"])
         if self.model_cfg["point_source"] == "raw_points":
             src_points = batch_dict["origin_lidar"][:, 1:]
             batch_indices = batch_dict["origin_lidar"][:, 0].long()
@@ -236,7 +240,8 @@ class VoxelSetAbstraction(nn.Module):
         else:
             raise NotImplementedError
 
-        keypoints_batch = torch.randn((batch_size, self.model_cfg["num_keypoints"], 4), device=src_points.device)
+        num_keypoints = int(self.model_cfg["num_keypoints"])
+        keypoints_batch = torch.randn((batch_size, num_keypoints, 4), device=src_points.device)
         keypoints_batch[..., 0] = keypoints_batch[..., 0] * 140
         keypoints_batch[..., 1] = keypoints_batch[..., 0] * 40
         # points with height flag 10 are padding/invalid, for later filtering
@@ -250,7 +255,8 @@ class VoxelSetAbstraction(nn.Module):
             # 50000 is approximately the number of points in one full pcd
             num_kpts = int(self.model_cfg["num_keypoints"] * sampled_points.shape[1] / 50000) + 1
             num_kpts = min(num_kpts, self.model_cfg["num_keypoints"])
-            cur_pt_idxs = pointnet2_stack_utils.furthest_point_sample(sampled_points[:, :, 0:3].contiguous(), num_kpts).long()
+            furthest_point_sample = cast(Any, pointnet2_stack_utils).furthest_point_sample
+            cur_pt_idxs = furthest_point_sample(sampled_points[:, :, 0:3].contiguous(), num_kpts).long()
 
             if sampled_points.shape[1] < num_kpts:
                 empty_num = num_kpts - sampled_points.shape[1]
@@ -263,7 +269,7 @@ class VoxelSetAbstraction(nn.Module):
         # keypoints = torch.cat(keypoints_list, dim=0)  # (B, M, 3)
         return keypoints_batch
 
-    def forward(self, batch_dict: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
+    def forward(self, batch_dict: Dict[str, Any]) -> Dict[str, Any]:
         """
         Forward pass for multi-scale feature aggregation.
 
@@ -313,7 +319,10 @@ class VoxelSetAbstraction(nn.Module):
         point_features_list = []
         if "bev" in self.model_cfg["features_source"]:
             point_bev_features = self.interpolate_from_bev_features(
-                keypoints[..., :3], batch_dict["spatial_features"], batch_dict["batch_size"], bev_stride=batch_dict["spatial_features_stride"]
+                keypoints[..., :3],
+                batch_dict["spatial_features"],
+                int(batch_dict["batch_size"]),
+                bev_stride=int(batch_dict["spatial_features_stride"]),
             )
             point_features_list.append(point_bev_features[kpt_mask])
 

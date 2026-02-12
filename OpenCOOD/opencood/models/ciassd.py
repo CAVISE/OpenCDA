@@ -91,7 +91,5 @@ class CIASSD(nn.Module):
 
 
 if __name__ == "__main__":
-    model = SSFA(
-        None
-    )  # NOTE Argument 1 to "SSFA" has incompatible type "None"; expected "dict[Any, Any]". Using Optional in the SSFA can cause problems
+    model = SSFA({})
     print(model)

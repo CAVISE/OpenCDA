@@ -131,10 +131,11 @@ class HGTCavAttention(nn.Module):
             v_list = []
 
             for i in range(x.shape[-2]):
+                type_idx = int(types[b, i].item())
                 # (H,W,1,C)
-                q_list.append(self.q_linears[types[b, i]](x[b, :, :, i, :].unsqueeze(2)))
-                k_list.append(self.k_linears[types[b, i]](x[b, :, :, i, :].unsqueeze(2)))
-                v_list.append(self.v_linears[types[b, i]](x[b, :, :, i, :].unsqueeze(2)))
+                q_list.append(self.q_linears[type_idx](x[b, :, :, i, :].unsqueeze(2)))
+                k_list.append(self.k_linears[type_idx](x[b, :, :, i, :].unsqueeze(2)))
+                v_list.append(self.v_linears[type_idx](x[b, :, :, i, :].unsqueeze(2)))
             # (1,H,W,L,C)
             q_batch.append(torch.cat(q_list, dim=2).unsqueeze(0))
             k_batch.append(torch.cat(k_list, dim=2).unsqueeze(0))
@@ -212,7 +213,8 @@ class HGTCavAttention(nn.Module):
         for b in range(x.shape[0]):
             out_list = []
             for i in range(x.shape[-2]):
-                out_list.append(self.a_linears[types[b, i]](x[b, :, :, i, :].unsqueeze(2)))
+                type_idx = int(types[b, i].item())
+                out_list.append(self.a_linears[type_idx](x[b, :, :, i, :].unsqueeze(2)))
             out_batch.append(torch.cat(out_list, dim=2).unsqueeze(0))
         out = torch.cat(out_batch, dim=0)
         return out

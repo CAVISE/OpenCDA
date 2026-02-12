@@ -102,15 +102,14 @@ class SumoTopology(object):
         else:
             # Ensures that all the related sumo edges belongs to the same
             # opendrive road but to different lane sections.
-            assert set([edge.split(".", 1)[0] for edge, _ in sumo_ids]) == 1
+            assert len(set([edge.split(".", 1)[0] for edge, _ in sumo_ids])) == 1
 
             s_coords = [float(edge.split(".", 1)[1]) for edge, _ in sumo_ids]
 
-            s_coords, sumo_ids = zip(  # NOTE error: Incompatible types in assignment
-                *sorted(zip(s_coords, sumo_ids))
-            )  # TODO error: Incompatible types in assignment (expression has type "tuple[Any, ...]", variable has type "list[float]"
-            index = bisect.bisect_left(s_coords, s, lo=1) - 1
-            return sumo_ids[index]
+            sorted_pairs = sorted(zip(s_coords, sumo_ids))
+            sorted_s_coords, sorted_sumo_ids = zip(*sorted_pairs)
+            index = bisect.bisect_left(sorted_s_coords, s, lo=1) - 1
+            return sorted_sumo_ids[index]
 
     def is_junction(self, odr_road_id: str, odr_lane_id: int) -> bool:
         """
@@ -606,7 +605,11 @@ def _netconvert_carla_impl(xodr_file: str, output: str, tmpdir: str, guess_tls: 
                 # When the landmarks does not belong to a junction (i.e., belongs to a std road),
                 # we place the traffic light between that std road and its successor.
                 elif not wp.is_junction and not sumo_topology.is_junction(road_id, lane_id):
-                    from_edge, from_lane = sumo_topology.get_sumo_id(road_id, lane_id, landmark.s)  # TODO error: "None" object is not iterable
+                    from_id = sumo_topology.get_sumo_id(road_id, lane_id, landmark.s)
+                    if from_id is None:
+                        logging.warning("No SUMO id found for road %s lane %s.", road_id, lane_id)
+                        continue
+                    from_edge, from_lane = from_id
 
                     for to_edge, to_lane in sumo_topology.get_successors(from_edge, from_lane):
                         tlid = SumoTrafficLight.generate_tl_id(from_edge, to_edge)

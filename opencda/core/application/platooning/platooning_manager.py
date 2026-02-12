@@ -6,6 +6,8 @@ multiple vehicles in a platoon formation, including leader-follower dynamics,
 member management, and performance evaluation.
 """
 
+from __future__ import annotations
+from typing import TYPE_CHECKING
 import uuid
 import logging
 from typing import Dict, List, Any, Tuple
@@ -16,8 +18,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 import opencda.core.plan.drive_profile_plotting as open_plt
-from opencda.core.common.vehicle_manager import VehicleManager
-from opencda.core.common.cav_world import CavWorld
+
+if TYPE_CHECKING:
+    from opencda.core.common.vehicle_manager import VehicleManager
+    from opencda.core.common.cav_world import CavWorld
 
 
 logger = logging.getLogger("cavise.platooning_manager")
@@ -192,7 +196,7 @@ class PlatooningManager(object):
 
             # find the corresponding vehicle manager and add it to the leader's
             # whitelist
-            request_vm = self.cav_world.locate_vehicle_manager(request_loc)  # NOTE: A None-check is required
+            request_vm = self.cav_world.locate_vehicle_manager(request_loc)
             self.vehicle_manager_list[0].agent.add_white_list(request_vm)
 
             return True
@@ -223,7 +227,7 @@ class PlatooningManager(object):
         # update the center location of the platoon
         self.cal_center_loc()
 
-    def run_step(self) -> List[Any]:  # NOTE: Any due to missing carla.VehicleControl
+    def run_step(self) -> List[Any]:
         """
         Execute one control step for each vehicle in the platoon.
 

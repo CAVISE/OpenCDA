@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
 from typing import Any, List
+import numpy as np
 import numpy.typing as npt
+import torch
 from .registry import ModelRegistry
 
 
@@ -14,7 +16,7 @@ class AIMModel(ABC):
         pass
 
     @abstractmethod
-    def predict(self, features: List[npt.NDArray[float]], target_agent_ids: List[str]) -> npt.NDArray[float]:
+    def predict(self, features: npt.NDArray[np.float64], target_agent_ids: List[str]) -> torch.Tensor:
         """
         Predict trajectories (or other outputs) for the given agents.
 

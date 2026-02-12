@@ -40,6 +40,7 @@ class BaseSensor:
     def __init__(
         self, agent_id: str, vehicle: Optional[carla.Actor], world: carla.World, config: Dict[str, Any], global_position: Optional[List[float]]
     ):
+        self.sensor: Optional[carla.Actor] = None
         return
 
     def visualize_data(self) -> None:
@@ -90,5 +91,6 @@ class BaseSensor:
         -------
         None
         """
-        self.sensor.destroy()  # NOTE there is no self.sensor
+        if self.sensor is not None:
+            self.sensor.destroy()
         cv2.destroyAllWindows()

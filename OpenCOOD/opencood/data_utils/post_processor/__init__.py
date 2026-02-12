@@ -1,16 +1,18 @@
-from typing import Any, Dict
+from typing import Any, Dict, Type
 from opencood.data_utils.post_processor.voxel_postprocessor import VoxelPostprocessor
 from opencood.data_utils.post_processor.bev_postprocessor import BevPostprocessor
 from opencood.data_utils.post_processor.ciassd_postprocessor import CiassdPostprocessor
 from opencood.data_utils.post_processor.fpvrcnn_postprocessor import FpvrcnnPostprocessor
 from opencood.data_utils.post_processor.base_postprocessor import BasePostprocessor
 
-__all__ = {
+POSTPROCESSOR_REGISTRY: Dict[str, Type[BasePostprocessor]] = {
     "VoxelPostprocessor": VoxelPostprocessor,
     "BevPostprocessor": BevPostprocessor,
     "CiassdPostprocessor": CiassdPostprocessor,
     "FpvrcnnPostprocessor": FpvrcnnPostprocessor,
 }
+
+__all__ = list(POSTPROCESSOR_REGISTRY.keys())
 
 
 def build_postprocessor(anchor_cfg: Dict[str, Any], train: bool) -> BasePostprocessor:
@@ -32,6 +34,6 @@ def build_postprocessor(anchor_cfg: Dict[str, Any], train: bool) -> BasePostproc
     """
     process_method_name = anchor_cfg["core_method"]
     assert process_method_name in ["VoxelPostprocessor", "BevPostprocessor", "CiassdPostprocessor", "FpvrcnnPostprocessor"]
-    anchor_generator = __all__[process_method_name](anchor_params=anchor_cfg, train=train)
+    anchor_generator = POSTPROCESSOR_REGISTRY[process_method_name](anchor_params=anchor_cfg, train=train)
 
     return anchor_generator

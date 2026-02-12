@@ -194,7 +194,7 @@ class BEVSemanticCamera(BaseSensor):
         # we need to remove the alpha channel
         image = image[:, :, :3]
         # self.image is the dumped data
-        self.image = np.array(self.labels_to_array(image), dtype=np.int)
+        self.image = np.array(self.labels_to_array(image), dtype=int)
         self.vis_image = cv2.cvtColor(self.labels_to_cityscapes_palette(self.image), cv2.COLOR_BGR2RGB)
 
         self.frame = event.frame
@@ -231,6 +231,8 @@ class BEVSemanticCamera(BaseSensor):
         cv2.imwrite(output_vis_name, self.vis_image)
 
         # dump the label
+        if self.image is None:
+            return
         output_label_name = os.path.join(output_root, cur_timestamp + "_bev_sem_label.png")
         cv2.imwrite(output_label_name, self.image)
 

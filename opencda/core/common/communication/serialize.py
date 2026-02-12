@@ -106,7 +106,7 @@ class MessageHandler:
 
         yield self.current_message_artery[ego_id][id][module]
 
-    def make_opencda_message(self) -> str:
+    def make_opencda_message(self) -> bytes:
         opencda_message = proto_capi.OpenCDA_message()
 
         for entity_id, modules_dict in self.current_message_opencda.items():

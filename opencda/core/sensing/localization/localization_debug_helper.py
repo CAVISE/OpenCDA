@@ -178,8 +178,13 @@ class LocDebugHelper(object):
 
             plt.cla()
             plt.title("actor id %d localization trajectory" % self.actor_id)
+
             # for stopping simulation with the esc key.
-            plt.gcf().canvas.mpl_connect("key_release_event", lambda event: [plt.close() if event.key == "escape" else None])
+            def _on_key_release(event: object) -> None:
+                if getattr(event, "key", None) == "escape":
+                    plt.close()
+
+            plt.gcf().canvas.mpl_connect("key_release_event", _on_key_release)
 
             plt.plot(self.hTrue[0, 1:].flatten() * self.x_scale, self.hTrue[1, 1:].flatten() * self.y_scale, "-b", label="groundtruth")
             plt.plot(self.hz[0, 1:] * self.x_scale, self.hz[1, 1:] * self.y_scale, ".g", label="gnss noise data")

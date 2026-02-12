@@ -149,7 +149,7 @@ class PointPillarCoAlign(nn.Module):
         fused_feature_list = []
         for i, fuse_module in enumerate(self.fusion_net):
             fused_feature_list.append(fuse_module(feature_list[i], record_len, normalized_affine_matrix))
-        fused_feature = self.backbone.decode_multiscale_feature(fused_feature_list)
+        fused_feature = self.backbone.decode_multiscale_feature(tuple(fused_feature_list))
 
         # downsample feature to reduce memory
         if self.shrink_flag:

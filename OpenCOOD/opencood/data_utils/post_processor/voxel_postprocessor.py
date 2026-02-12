@@ -16,7 +16,7 @@ from opencood.data_utils.post_processor.base_postprocessor import BasePostproces
 from opencood.utils import box_utils
 from opencood.utils.box_overlaps import bbox_overlaps
 from opencood.visualization import vis_utils
-from typing import Dict, List, Tuple, Optional, Any
+from typing import Dict, List, Tuple, Optional, Any, cast
 
 
 class VoxelPostprocessor(BasePostprocessor):
@@ -101,7 +101,7 @@ class VoxelPostprocessor(BasePostprocessor):
 
         return anchors
 
-    def generate_label(self, **kwargs: Any) -> Dict[str, torch.Tensor]:  # NOTE Signature mismatch with supertype
+    def generate_label(self, *argv: Any, **kwargs: Any) -> Dict[str, Any]:
         """
         Generate targets for training.
 
@@ -154,11 +154,11 @@ class VoxelPostprocessor(BasePostprocessor):
         # (n, 8, 3)
         gt_box_corner_valid = box_utils.boxes_to_corners_3d(gt_box_center_valid, self.params["order"])
         # (H*W*anchor_num, 8, 3)
-        anchors_corner = box_utils.boxes_to_corners_3d(anchors, order=self.params["order"])
+        anchors_corner = cast(np.ndarray, box_utils.boxes_to_corners_3d(anchors, order=self.params["order"]))
         # (H*W*anchor_num, 4)
         anchors_standup_2d = box_utils.corner2d_to_standup_box(anchors_corner)
         # (n, 4)
-        gt_standup_2d = box_utils.corner2d_to_standup_box(gt_box_corner_valid)
+        gt_standup_2d = box_utils.corner2d_to_standup_box(cast(np.ndarray, gt_box_corner_valid))
 
         # (H*W*anchor_n)
         iou = bbox_overlaps(
@@ -239,11 +239,11 @@ class VoxelPostprocessor(BasePostprocessor):
             neg_equal_one.append(label_batch_list[i]["neg_equal_one"])
             targets.append(label_batch_list[i]["targets"])
 
-        pos_equal_one = torch.from_numpy(np.array(pos_equal_one))
-        neg_equal_one = torch.from_numpy(np.array(neg_equal_one))
-        targets = torch.from_numpy(np.array(targets))
+        pos_equal_one_tensor = torch.from_numpy(np.array(pos_equal_one))
+        neg_equal_one_tensor = torch.from_numpy(np.array(neg_equal_one))
+        targets_tensor = torch.from_numpy(np.array(targets))
 
-        return {"targets": targets, "pos_equal_one": pos_equal_one, "neg_equal_one": neg_equal_one}
+        return {"targets": targets_tensor, "pos_equal_one": pos_equal_one_tensor, "neg_equal_one": neg_equal_one_tensor}
 
     def post_process(
         self, data_dict: Dict[str, Dict[str, Any]], output_dict: Dict[str, Dict[str, torch.Tensor]]
@@ -272,8 +272,8 @@ class VoxelPostprocessor(BasePostprocessor):
             Returns None if no predictions.
         """
         # the final bounding box list
-        pred_box3d_list = []
-        pred_box2d_list = []
+        pred_box3d_list: List[torch.Tensor] = []
+        pred_box2d_list: List[torch.Tensor] = []
 
         for cav_id, cav_content in data_dict.items():
             assert cav_id in output_dict
@@ -306,9 +306,9 @@ class VoxelPostprocessor(BasePostprocessor):
             # convert output to bounding box
             if len(boxes3d) != 0:
                 # (N, 8, 3)
-                boxes3d_corner = box_utils.boxes_to_corners_3d(boxes3d, order=self.params["order"])
+                boxes3d_corner = cast(torch.Tensor, box_utils.boxes_to_corners_3d(boxes3d, order=self.params["order"]))
                 # (N, 8, 3)
-                projected_boxes3d = box_utils.project_box3d(boxes3d_corner, transformation_matrix)
+                projected_boxes3d = cast(torch.Tensor, box_utils.project_box3d(boxes3d_corner, transformation_matrix))
                 # convert 3d bbx to 2d, (N,4)
                 projected_boxes2d = box_utils.corner_to_standup_box_torch(projected_boxes3d)
                 # (N, 5)
@@ -320,9 +320,9 @@ class VoxelPostprocessor(BasePostprocessor):
         if len(pred_box2d_list) == 0 or len(pred_box3d_list) == 0:
             return None, None
         # shape: (N, 5)
-        pred_box2d_list = torch.vstack(pred_box2d_list)
+        pred_box2d_tensor = torch.vstack(pred_box2d_list)
         # scores
-        scores = pred_box2d_list[:, -1]  # NOTE: mypy error - list doesn't support numpy-style indexing
+        scores = pred_box2d_tensor[:, -1]
         # predicted 3d bbx
         pred_box3d_tensor = torch.vstack(pred_box3d_list)
         # remove large bbx
@@ -334,7 +334,8 @@ class VoxelPostprocessor(BasePostprocessor):
         scores = scores[keep_index]
 
         # nms
-        keep_index = box_utils.nms_rotated(pred_box3d_tensor, scores, self.params["nms_thresh"])
+        keep_index_np = box_utils.nms_rotated(pred_box3d_tensor, scores, self.params["nms_thresh"])
+        keep_index = torch.as_tensor(keep_index_np, device=pred_box3d_tensor.device)
 
         pred_box3d_tensor = pred_box3d_tensor[keep_index]
 

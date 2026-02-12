@@ -5,12 +5,13 @@ This module provides functions for visualizing predictions and ground truth
 bounding boxes with point clouds in both 3D and bird's eye view perspectives.
 """
 
-from typing import Optional, List, Union
+from typing import List, Optional, Tuple, Union, cast
 import logging
 import torch
 
 from matplotlib import pyplot as plt
 import numpy as np
+import numpy.typing as npt
 
 import opencood.visualization.simple_plot3d.canvas_3d as canvas_3d
 import opencood.visualization.simple_plot3d.canvas_bev as canvas_bev
@@ -58,9 +59,9 @@ def visualize(
     uncertainty : torch.Tensor or None, optional
         Uncertainty values for predictions. Default is None.
     """
-    pc_range = [int(i) for i in pc_range]
+    pc_range_int = [int(i) for i in pc_range]
     if isinstance(pcd, list):
-        pcd_np = [x.cpu().numpy() for x in pcd]
+        pcd_np = np.concatenate([x.cpu().numpy() for x in pcd], axis=0)
     else:
         pcd_np = pcd.cpu().numpy()
 
@@ -106,15 +107,15 @@ def visualize(
         gt_name = [""] * gt_box_np.shape[0]
 
     if method == "bev":
-        canvas = canvas_bev.Canvas_BEV_heading_right(
-            canvas_shape=((pc_range[4] - pc_range[1]) * 10, (pc_range[3] - pc_range[0]) * 10),
-            canvas_x_range=(pc_range[0], pc_range[3]),
-            canvas_y_range=(pc_range[1], pc_range[4]),
+        bev_canvas = canvas_bev.Canvas_BEV_heading_right(
+            canvas_shape=((pc_range_int[4] - pc_range_int[1]) * 10, (pc_range_int[3] - pc_range_int[0]) * 10),
+            canvas_x_range=(pc_range_int[0], pc_range_int[3]),
+            canvas_y_range=(pc_range_int[1], pc_range_int[4]),
             left_hand=left_hand,
         )
 
-        canvas_xy, valid_mask = canvas.get_canvas_coords(pcd_np)  # Get Canvas Coords
-        canvas.draw_canvas_points(canvas_xy[valid_mask])
+        canvas_xy, valid_mask = bev_canvas.get_canvas_coords(pcd_np)  # Get Canvas Coords
+        bev_canvas.draw_canvas_points(canvas_xy[valid_mask])
         # color_list = [(0, 206, 209),(255, 215,0)]
         # for i, pcd_np_t in enumerate(pcd_np[1:2]):
         #     canvas_xy, valid_mask = canvas.get_canvas_coords(pcd_np_t) # Get Canvas Coords
@@ -122,26 +123,31 @@ def visualize(
         box_line_thickness = 5
         if vis_gt_box:
             # canvas.draw_boxes(gt_box_np,colors=(0,255,0), texts=gt_name)
-            canvas.draw_boxes(gt_box_np, colors=(0, 255, 0), texts=gt_name, box_line_thickness=box_line_thickness)
+            bev_canvas.draw_boxes(gt_box_np, colors=(0, 255, 0), texts=gt_name, box_line_thickness=box_line_thickness)
 
         if vis_pred_box and pred_box_tensor is not None:
-            canvas.draw_boxes(pred_box_np, colors=(255, 0, 0), texts=pred_name, box_line_thickness=box_line_thickness)
+            bev_canvas.draw_boxes(pred_box_np, colors=(255, 0, 0), texts=pred_name, box_line_thickness=box_line_thickness)
+        canvas_img = bev_canvas.canvas
 
     elif method == "3d":
-        canvas = canvas_3d.Canvas_3D(left_hand=left_hand)
-        canvas_xy, valid_mask = canvas.get_canvas_coords(pcd_np)
-        canvas.draw_canvas_points(canvas_xy[valid_mask])
+        canvas3d = canvas_3d.Canvas_3D(left_hand=left_hand)
+        canvas_xy, valid_mask = cast(
+            Tuple[npt.NDArray[np.int32], npt.NDArray[np.bool_]],
+            canvas3d.get_canvas_coords(pcd_np),
+        )
+        canvas3d.draw_canvas_points(canvas_xy[valid_mask])
 
         if vis_gt_box:
-            canvas.draw_boxes(gt_box_np, colors=(0, 255, 0), texts=gt_name)
+            canvas3d.draw_boxes(gt_box_np, colors=(0, 255, 0), texts=gt_name)
         if vis_pred_box and pred_box_tensor is not None:
-            canvas.draw_boxes(pred_box_np, colors=(255, 0, 0), texts=pred_name)
+            canvas3d.draw_boxes(pred_box_np, colors=(255, 0, 0), texts=pred_name)
+        canvas_img = canvas3d.canvas
     else:
-        raise (f"Not Completed for f{method} visualization.")
+        raise NotImplementedError(f"Not Completed for {method} visualization.")
 
     plt.axis("off")
 
-    plt.imshow(canvas.canvas)
+    plt.imshow(canvas_img)
 
     plt.tight_layout()
     plt.savefig(save_path, transparent=False, dpi=400, pad_inches=0.0)

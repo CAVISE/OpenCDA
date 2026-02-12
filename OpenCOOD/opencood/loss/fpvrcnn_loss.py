@@ -125,7 +125,8 @@ class FpvrcnnLoss(nn.Module):
         not_selsected = torch.randperm(num_pos)[: num_pos - num_pos_smps]
         # not_selsected_indices = pos_indices[not_selsected]
         weights[:, pos_indices[not_selsected]] = 0
-        loss_reg = weighted_smooth_l1_loss(rcnn_reg, tgt_reg, weights=weights / max(weights.sum(), 1)).sum()
+        norm = torch.clamp(weights.sum(), min=1.0)
+        loss_reg = weighted_smooth_l1_loss(rcnn_reg, tgt_reg, weights=weights / norm).sum()
 
         loss_cls_reduced = loss_cls * self.cls["weight"]
         loss_iou_reduced = loss_iou * self.iou["weight"]
@@ -233,6 +234,8 @@ def weighted_sigmoid_binary_cross_entropy(
     if weights is not None:
         weights = weights.unsqueeze(-1)
     if class_indices is not None:
+        if weights is None:
+            weights = torch.ones_like(preds)
         weights = weights * indices_to_dense_vector(class_indices, preds.shape[2]).view(1, 1, -1).type_as(preds)
     per_entry_cross_ent = nn.functional.binary_cross_entropy_with_logits(preds, tgts, weight=weights, reduction="none")
     return per_entry_cross_ent

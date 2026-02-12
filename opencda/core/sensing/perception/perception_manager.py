@@ -6,6 +6,9 @@ cooperative autonomous driving, including camera, LiDAR, and semantic LiDAR
 sensors with optional visualization and ML-based detection.
 """
 
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
 import weakref
 import sys
 import logging
@@ -22,7 +25,9 @@ from opencda.core.common.misc import cal_distance_angle, get_speed, get_speed_su
 from opencda.core.sensing.perception.obstacle_vehicle import ObstacleVehicle
 from opencda.core.sensing.perception.static_obstacle import TrafficLight
 from opencda.core.sensing.perception.o3d_lidar_libs import o3d_visualizer_init, o3d_pointcloud_encode, o3d_visualizer_show, o3d_camera_lidar_fusion
-from opencda.core.common.cav_world import CavWorld
+
+if TYPE_CHECKING:
+    from opencda.core.common.cav_world import CavWorld
 
 logger = logging.getLogger("cavise.perception_manager")
 
@@ -50,7 +55,7 @@ class CameraSensor:
     ----------
     image : np.ndarray
         Current received rgb image.
-    sensor : carla.sensor
+    sensor : carla.Sensor
         The carla sensor that mounts at the vehicle.
 
     """
@@ -168,7 +173,7 @@ class LidarSensor:
     o3d_pointcloud : 03d object
         Received point cloud, saved in o3d.Pointcloud format.
 
-    sensor : carla.sensor
+    sensor : carla.Sensor
         Lidar sensor that will be attached to the vehicle.
 
     """
@@ -260,7 +265,7 @@ class SemanticLidarSensor:
     o3d_pointcloud : 03d object
         Received point cloud, saved in o3d.Pointcloud format.
 
-    sensor : carla.sensor
+    sensor : carla.Sensor
         Lidar sensor that will be attached to the vehicle.
     """
 
@@ -372,15 +377,20 @@ class PerceptionManager:
 
     def __init__(
         self,
-        vehicle: Optional[carla.World],
+        vehicle: Optional[carla.Vehicle],
         config_yaml: Dict[str, Any],
         cav_world: CavWorld,
         infra_id: Any,
         data_dump: bool = False,
         carla_world: Optional[carla.World] = None,
     ):
-        self.vehicle = vehicle
-        self.carla_world = carla_world if carla_world is not None else self.vehicle.get_world()  # NOTE None-check is required
+        self.vehicle: Optional[carla.Vehicle] = vehicle
+        if carla_world is None:
+            if vehicle is None:
+                raise ValueError("Either vehicle or carla_world must be provided to PerceptionManager.")
+            self.carla_world = vehicle.get_world()
+        else:
+            self.carla_world = carla_world
         self._map = self.carla_world.get_map()
 
         self.id = infra_id
@@ -395,7 +405,7 @@ class PerceptionManager:
         self.lidar_visualize = config_yaml["lidar"]["visualize"]
         self.global_position = config_yaml["global_position"] if "global_position" in config_yaml else None
 
-        self.cav_world = weakref.ref(cav_world)()
+        self.cav_world: CavWorld = cav_world
         ml_manager = cav_world.ml_manager
 
         if self.activate and data_dump:
@@ -409,8 +419,8 @@ class PerceptionManager:
 
         # we only spawn the camera when perception module is activated or
         # camera visualization is needed
+        self.rgb_camera: List[CameraSensor] = []
         if self.activate or self.camera_visualize or data_dump:
-            self.rgb_camera: Optional[List[CameraSensor]] = []
             mount_position = config_yaml["camera"]["positions"]
             assert len(mount_position) == self.camera_num, "The camera number has to be the same as the length of the relative positions list"
 
@@ -418,15 +428,14 @@ class PerceptionManager:
                 self.rgb_camera.append(CameraSensor(vehicle, self.carla_world, mount_position[i], self.global_position))
 
         else:
-            self.rgb_camera = None
             logger.warning(
                 "Variable rgb_camera is None. Dumping, detection function or camera visualization should be activated to avoid this behavior"
             )
 
         # we only spawn the LiDAR when perception module is activated or lidar
         # visualization is needed
-        self.lidar = None
-        self.o3d_vis = None
+        self.lidar: Optional[LidarSensor] = None
+        self.o3d_vis: Optional[o3d.visualization.Visualizer] = None
 
         if self.lidar_visualize or self.activate or data_dump:
             self.lidar = LidarSensor(vehicle, self.carla_world, config_yaml["lidar"], self.global_position)
@@ -446,7 +455,7 @@ class PerceptionManager:
         # count how many steps have been passed
         self.count = 0
         # ego position
-        self.ego_pos = None
+        self.ego_pos: Optional[carla.Transform] = None
 
         # the dictionary contains all objects
         self.objects: Dict[str, List[Any]] = {}
@@ -468,7 +477,9 @@ class PerceptionManager:
         distance : float
             The distance between ego and the target actor.
         """
-        return a.get_location().distance(self.ego_pos.location)  # NOTE None-check is required
+        if self.ego_pos is None:
+            raise ValueError("Ego position is not set. Call detect() before dist().")
+        return a.get_location().distance(self.ego_pos.location)
 
     def detect(self, ego_pos: carla.Transform) -> Dict[str, List]:
         """
@@ -515,9 +526,19 @@ class PerceptionManager:
          objects: dict
             Updated object dictionary.
         """
+        if self.ml_manager is None:
+            logger.warning("ML manager is not available; returning empty detections.")
+            return objects
+        if not self.rgb_camera:
+            logger.warning("No RGB cameras available; returning empty detections.")
+            return objects
+        if self.lidar is None:
+            logger.warning("No LiDAR available; returning empty detections.")
+            return objects
+
         # retrieve current cameras and lidar data
-        rgb_images = []
-        for rgb_camera in self.rgb_camera:  # NOTE None-check is required
+        rgb_images: List[npt.NDArray[np.uint8]] = []
+        for rgb_camera in self.rgb_camera:
             while rgb_camera.image is None:
                 continue
             rgb_images.append(cv2.cvtColor(np.array(rgb_camera.image), cv2.COLOR_BGR2RGB))
@@ -525,20 +546,21 @@ class PerceptionManager:
         # yolo detection
         yolo_detection = self.ml_manager.object_detector(rgb_images)
         # rgb_images for drawing
-        rgb_draw_images = []
+        rgb_draw_images: List[npt.NDArray[np.uint8]] = []
 
-        for i, rgb_camera in enumerate(self.rgb_camera):  # NOTE incompatible types
+        for i, rgb_camera in enumerate(self.rgb_camera):
             # lidar projection
-            rgb_image, projected_lidar = st.project_lidar_to_camera(
-                self.lidar.sensor, rgb_camera.sensor, self.lidar.data, np.array(rgb_camera.image)
-            )  # NOTE None-check is required
+            while self.lidar.data is None:
+                continue
+            lidar_data = self.lidar.data
+            rgb_image, projected_lidar = st.project_lidar_to_camera(self.lidar.sensor, rgb_camera.sensor, lidar_data, np.array(rgb_camera.image))
 
             rgb_draw_images.append(rgb_image)
 
             # camera lidar fusion
             objects = o3d_camera_lidar_fusion(
-                objects, yolo_detection.xyxy[i], self.lidar.data, projected_lidar, self.lidar.sensor
-            )  # NOTE None-check is required
+                objects, yolo_detection.xyxy[i], lidar_data.astype(np.float32), projected_lidar.astype(np.float32), self.lidar.sensor
+            )
 
             # calculate the speed. current we retrieve from the server
             # directly.
@@ -553,11 +575,12 @@ class PerceptionManager:
                 cv2.imshow(f"Camera {i} of actor {self.id} (perception activated)", rgb_image)
             cv2.waitKey(1)
 
-        if self.lidar_visualize:
-            while self.lidar.data is None:  # NOTE None-check is required
+        if self.lidar_visualize and self.lidar is not None:
+            while self.lidar.data is None:
                 continue
-            o3d_pointcloud_encode(self.lidar.data, self.lidar.o3d_pointcloud)  # NOTE None-check is required
-            o3d_visualizer_show(self.o3d_vis, self.count, self.lidar.o3d_pointcloud, objects)
+            o3d_pointcloud_encode(self.lidar.data, self.lidar.o3d_pointcloud)
+            if self.o3d_vis is not None:
+                o3d_visualizer_show(self.o3d_vis, self.count, self.lidar.o3d_pointcloud, objects)
         # add traffic light
         objects = self.retrieve_traffic_lights(objects)
         self.objects = objects
@@ -596,14 +619,14 @@ class PerceptionManager:
         # visualization is required.
         sensor = self.lidar.sensor if self.lidar else None
 
-        vehicle_list = [ObstacleVehicle(None, None, v, sensor, self.cav_world.sumo2carla_ids) for v in vehicle_list]  # NOTE None-check is required
+        vehicle_list = [ObstacleVehicle(None, None, v, sensor, self.cav_world.sumo2carla_ids) for v in vehicle_list]
 
         objects.update({"vehicles": vehicle_list})
 
-        if self.camera_visualize:
+        if self.camera_visualize and self.rgb_camera:
             names = ["front", "right", "left", "back"]
 
-            for i, rgb_camera in enumerate(self.rgb_camera):  # NOTE Incompatible types
+            for i, rgb_camera in enumerate(self.rgb_camera):
                 if i > self.camera_num - 1 or i > self.camera_visualize - 1:
                     break
                 while self.rgb_camera[0].image is None:
@@ -619,12 +642,13 @@ class PerceptionManager:
                 cv2.imshow(f"{names[i]} camera of actor {self.id}, perception deactivated", rgb_image)
                 cv2.waitKey(1)
 
-        if self.lidar_visualize:
-            while self.lidar.data is None:  # NOTE None-check is required
+        if self.lidar_visualize and self.lidar is not None:
+            while self.lidar.data is None:
                 continue
-            o3d_pointcloud_encode(self.lidar.data, self.lidar.o3d_pointcloud)  # NOTE None-check is required
+            o3d_pointcloud_encode(self.lidar.data, self.lidar.o3d_pointcloud)
             # render the raw lidar
-            o3d_visualizer_show(self.o3d_vis, self.count, self.lidar.o3d_pointcloud, objects)  # NOTE None-check is required
+            if self.o3d_vis is not None:
+                o3d_visualizer_show(self.o3d_vis, self.count, self.lidar.o3d_pointcloud, objects)
 
         # add traffic light
         objects = self.retrieve_traffic_lights(objects)
@@ -693,7 +717,9 @@ class PerceptionManager:
             Indicate the index of the current camera.
 
         """
-        camera_transform = self.rgb_camera[camera_index].sensor.get_transform()  # NOTE "None" is not indexable
+        if camera_index >= len(self.rgb_camera):
+            return rgb_image
+        camera_transform = self.rgb_camera[camera_index].sensor.get_transform()
         camera_location = camera_transform.location
         camera_rotation = camera_transform.rotation
 
@@ -701,7 +727,7 @@ class PerceptionManager:
             # we only draw the bounding box in the fov of camera
             _, angle = cal_distance_angle(v.get_location(), camera_location, camera_rotation.yaw)
             if angle < 60:
-                bbx_camera = st.get_2d_bb(v, self.rgb_camera[camera_index].sensor, camera_transform)  # NOTE "None" is not indexable
+                bbx_camera = st.get_2d_bb(v, self.rgb_camera[camera_index].sensor, camera_transform)
                 cv2.rectangle(
                     rgb_image, (int(bbx_camera[0, 0]), int(bbx_camera[0, 1])), (int(bbx_camera[1, 0]), int(bbx_camera[1, 1])), (255, 0, 0), 2
                 )
@@ -740,8 +766,8 @@ class PerceptionManager:
 
                     # the case where the obstacle vehicle is controled by
                     # sumo
-                    if self.cav_world.sumo2carla_ids:  # NOTE None-check is required
-                        sumo_speed = get_speed_sumo(self.cav_world.sumo2carla_ids, v.id)  # NOTE None-check is required
+                    if self.cav_world.sumo2carla_ids:
+                        sumo_speed = get_speed_sumo(self.cav_world.sumo2carla_ids, v.id)
                         if sumo_speed > 0:
                             # TODO: consider the yaw angle in the future
                             speed_vector = carla.Vector3D(sumo_speed, 0, 0)
@@ -767,7 +793,9 @@ class PerceptionManager:
         world = self.carla_world
         tl_list = world.get_actors().filter("traffic.traffic_light*")
 
-        vehicle_location = self.ego_pos.location  # NOTE "None" has no attribute "location"
+        if self.ego_pos is None:
+            return objects
+        vehicle_location = self.ego_pos.location
         vehicle_waypoint = self._map.get_waypoint(vehicle_location)
 
         activate_tl, light_trigger_location = self._get_active_light(tl_list, vehicle_location, vehicle_waypoint)
@@ -845,7 +873,8 @@ class PerceptionManager:
             cv2.destroyAllWindows()
 
         if self.lidar_visualize:
-            self.o3d_vis.destroy_window()
+            if self.o3d_vis is not None:
+                self.o3d_vis.destroy_window()
 
         if self.data_dump:
             self.semantic_lidar.sensor.destroy()

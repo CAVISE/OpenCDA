@@ -5,7 +5,7 @@ This module extends the default OpenCDA localization manager with a customized
 Extended Kalman Filter implementation for improved position estimation.
 """
 
-from typing import Dict, Any
+from typing import Any, Dict, cast
 import carla
 
 from opencda.core.sensing.localization.localization_manager import LocalizationManager
@@ -45,6 +45,4 @@ class CustomizedLocalizationManager(LocalizationManager):
         carla_map: carla.Map,
     ):
         super(CustomizedLocalizationManager, self).__init__(vehicle, config_yaml, carla_map)
-        self.kf = ExtentedKalmanFilter(
-            self.dt
-        )  # NOTE Incompatible types in assignment (expression has type "ExtentedKalmanFilter", variable has type "KalmanFilter")
+        self.kf = cast(Any, ExtentedKalmanFilter(self.dt))

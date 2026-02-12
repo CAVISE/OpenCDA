@@ -164,18 +164,18 @@ class VoxelPreprocessor(BasePreprocessor):
             - voxel_coords : torch.Tensor
                 Concatenated voxel coordinates with batch indices prepended
         """
-        voxel_features = []
-        voxel_coords = []
+        voxel_features_list: List[NDArray] = []
+        voxel_coords_list: List[NDArray] = []
 
         for i in range(len(batch)):
-            voxel_features.append(batch[i]["voxel_features"])
+            voxel_features_list.append(batch[i]["voxel_features"])
             coords = batch[i]["voxel_coords"]
-            voxel_coords.append(np.pad(coords, ((0, 0), (1, 0)), mode="constant", constant_values=i))
+            voxel_coords_list.append(np.pad(coords, ((0, 0), (1, 0)), mode="constant", constant_values=i))
 
-        voxel_features = torch.from_numpy(np.concatenate(voxel_features))
-        voxel_coords = torch.from_numpy(np.concatenate(voxel_coords))
+        voxel_features_tensor = torch.from_numpy(np.concatenate(voxel_features_list))
+        voxel_coords_tensor = torch.from_numpy(np.concatenate(voxel_coords_list))
 
-        return {"voxel_features": voxel_features, "voxel_coords": voxel_coords}
+        return {"voxel_features": voxel_features_tensor, "voxel_coords": voxel_coords_tensor}
 
     @staticmethod
     def collate_batch_dict(batch: Dict[str, List[NDArray]]) -> Dict[str, torch.Tensor]:
@@ -198,12 +198,12 @@ class VoxelPreprocessor(BasePreprocessor):
             - voxel_coords : torch.Tensor
                 Concatenated voxel coordinates with batch indices prepended
         """
-        voxel_features = torch.from_numpy(np.concatenate(batch["voxel_features"]))
+        voxel_features_tensor = torch.from_numpy(np.concatenate(batch["voxel_features"]))
         coords = batch["voxel_coords"]
-        voxel_coords = []
+        voxel_coords_list: List[NDArray] = []
 
         for i in range(len(coords)):
-            voxel_coords.append(np.pad(coords[i], ((0, 0), (1, 0)), mode="constant", constant_values=i))
-        voxel_coords = torch.from_numpy(np.concatenate(voxel_coords))
+            voxel_coords_list.append(np.pad(coords[i], ((0, 0), (1, 0)), mode="constant", constant_values=i))
+        voxel_coords_tensor = torch.from_numpy(np.concatenate(voxel_coords_list))
 
-        return {"voxel_features": voxel_features, "voxel_coords": voxel_coords}
+        return {"voxel_features": voxel_features_tensor, "voxel_coords": voxel_coords_tensor}

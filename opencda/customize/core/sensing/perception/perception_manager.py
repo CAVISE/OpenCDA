@@ -12,7 +12,6 @@ import numpy as np
 from opencda.core.sensing.perception.perception_manager import PerceptionManager
 from opencda.core.sensing.perception.obstacle_vehicle import ObstacleVehicle
 from opencda.core.sensing.perception.static_obstacle import TrafficLight
-from opencda.core.sensing.localization.localization_manager import CustomizedLocalizationManager
 from opencda.core.common.cav_world import CavWorld
 import carla
 
@@ -46,31 +45,10 @@ class CustomziedPeceptionManager(PerceptionManager):
         config_yaml: Dict[str, Any],
         cav_world: CavWorld,
         data_dump: bool = False,
-    ):
-        super(CustomizedLocalizationManager, self).__init__(vehicle, config_yaml, cav_world, data_dump)
+    ) -> None:
+        super(CustomziedPeceptionManager, self).__init__(vehicle, config_yaml, cav_world, data_dump)
 
-    def detect(self, ego_pos: Any) -> Dict[str, List[Any]]:  # NOTE The function repeats twice
-        def detect(self, ego_pos: Any) -> Dict[str, List[Any]]:
-            """
-            Perform object detection using sensor data.
-
-            Processes RGB camera images and LiDAR data to detect vehicles,
-            traffic lights, and other objects in the environment.
-
-            Parameters
-            ----------
-            ego_pos : Any
-                Ego vehicle position for coordinate transformations.
-
-            Returns
-            -------
-            Dict[str, List[Any]]
-                Dictionary containing detected objects with keys:
-                - 'vehicles': List of ObstacleVehicle objects
-                - 'traffic_lights': List of TrafficLight objects
-                - 'other_objects_you_wanna_add': List of additional detected objects
-            """
-
+    def detect(self, ego_pos: Any) -> Dict[str, List[Any]]:
         objects: Dict[str, List[Any]] = {"vehicles": [], "traffic_lights": [], "other_objects_you_wanna_add": []}
 
         # retrieve current rgb images from all cameras
@@ -87,7 +65,6 @@ class CustomziedPeceptionManager(PerceptionManager):
         # this is where you put your algorithm #
         ########################################
         # objects = your_algorithm(rgb_images, lidar_data)
-        assert isinstance(type(objects["vehicles"]), ObstacleVehicle)
-        assert isinstance(type(objects["traffic_lights"]), TrafficLight)
+        _ = (ObstacleVehicle, TrafficLight, ego_pos)
 
         return objects

@@ -8,7 +8,7 @@ multi-scale feature extraction and fusion.
 
 import torch
 from torch import nn
-from typing import Dict, List, Union
+from typing import Dict, List, Union, overload, Literal
 
 
 class SSFA(nn.Module):
@@ -119,6 +119,36 @@ class SSFA(nn.Module):
         return x_output.contiguous()
 
 
+@overload
+def get_conv_layers(
+    conv_name: str,
+    in_channels: int,
+    out_channels: int,
+    n_layers: int,
+    kernel_size: List[int],
+    stride: List[int],
+    padding: List[int],
+    relu_last: bool = True,
+    sequential: Literal[True] = True,
+    **kwargs: List[int],
+) -> nn.Sequential: ...
+
+
+@overload
+def get_conv_layers(
+    conv_name: str,
+    in_channels: int,
+    out_channels: int,
+    n_layers: int,
+    kernel_size: List[int],
+    stride: List[int],
+    padding: List[int],
+    relu_last: bool = True,
+    sequential: Literal[False] = False,
+    **kwargs: List[int],
+) -> List[nn.Module]: ...
+
+
 def get_conv_layers(
     conv_name: str,
     in_channels: int,
@@ -164,7 +194,7 @@ def get_conv_layers(
     nn.Sequential or list of nn.Module
         Sequential container or list of modules (Conv-BN-ReLU blocks).
     """
-    seq = []
+    seq: List[nn.Module] = []
     for i in range(n_layers):
         seq.extend(
             [

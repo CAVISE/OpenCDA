@@ -8,7 +8,7 @@ deep learning models.
 
 import glob
 import importlib
-import yaml
+import yaml  # type: ignore[import-untyped]
 import sys
 import os
 import re
@@ -19,7 +19,6 @@ import torch
 import torch.optim as optim
 from torch.optim import Optimizer
 from torch import nn
-from torch.optim.lr_scheduler import _LRScheduler
 
 
 def load_saved_model(saved_path: str, model: nn.Module) -> Tuple[int, nn.Module]:
@@ -224,7 +223,7 @@ def setup_optimizer(hypes: Dict[str, Any], model: nn.Module) -> Optimizer:
         return optimizer_method(filter(lambda p: p.requires_grad, model.parameters()), lr=method_dict["lr"])
 
 
-def setup_lr_schedular(hypes: Dict[str, Any], optimizer: Optimizer, n_iter_per_epoch: int) -> _LRScheduler | None:
+def setup_lr_schedular(hypes: Dict[str, Any], optimizer: Optimizer, n_iter_per_epoch: int) -> Any:
     """
     Set up a learning rate scheduler based on the configuration.
 
@@ -247,6 +246,7 @@ def setup_lr_schedular(hypes: Dict[str, Any], optimizer: Optimizer, n_iter_per_e
     """
     lr_schedule_config = hypes["lr_scheduler"]
 
+    scheduler: Any
     if lr_schedule_config["core_method"] == "step":
         from torch.optim.lr_scheduler import StepLR
 

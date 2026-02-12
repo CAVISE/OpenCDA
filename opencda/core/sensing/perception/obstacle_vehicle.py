@@ -30,7 +30,7 @@ def is_vehicle_cococlass(label: int) -> bool:
     bool
         True if the label belongs to the vehicle class, False otherwise.
     """
-    vehicle_class_array = np.array([1, 2, 3, 5, 7], dtype=np.int)
+    vehicle_class_array = np.array([1, 2, 3, 5, 7], dtype=int)
     return True if 0 in (label - vehicle_class_array) else False
 
 
@@ -81,7 +81,7 @@ class ObstacleVehicle(object):
     vehicle : carla.Vehicle
         The carla.Vehicle object.
 
-    lidar : carla.sensor
+    lidar : carla.Sensor
         The lidar sensor.
 
     sumo2carla_ids : dict
@@ -116,6 +116,8 @@ class ObstacleVehicle(object):
         sumo2carla_ids: Optional[Dict[str, int]] = None,
     ):
         if not vehicle:
+            if corners is None:
+                raise ValueError("corners must be provided when vehicle is None.")
             self.bounding_box = BoundingBox(corners)
             self.location = self.bounding_box.location
             # todo: next version will add rotation estimation
@@ -183,7 +185,7 @@ class ObstacleVehicle(object):
         """
         self.velocity = velocity
 
-    def set_vehicle(self, vehicle: carla.Vehicle, lidar: carla.sensor.lidar, sumo2carla_ids: Dict) -> None:
+    def set_vehicle(self, vehicle: carla.Vehicle, lidar: carla.Sensor, sumo2carla_ids: Dict) -> None:
         """
         Assign the attributes from carla.Vehicle to ObstacleVehicle.
 
@@ -191,7 +193,7 @@ class ObstacleVehicle(object):
         ----------
         vehicle : carla.Vehicle
             The carla.Vehicle object.
-        lidar : carla.sensor.lidar
+        lidar : carla.Sensor.lidar
             The lidar sensor, it is used to project world coordinates to
              sensor coordinates.
         sumo2carla_ids : dict

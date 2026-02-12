@@ -9,6 +9,7 @@ ground truth bounding boxes.
 import argparse
 import os
 import time
+from typing import Any, Dict, cast
 from tqdm import tqdm
 
 import torch
@@ -77,12 +78,13 @@ def main() -> None:
 
     print("Dataset Building")
     opencood_dataset = build_dataset(hypes, visualize=True, train=False)
+    dataset = cast(Any, opencood_dataset)
     print(f"{len(opencood_dataset)} samples found.")
     data_loader = DataLoader(
-        opencood_dataset,
+        dataset,
         batch_size=1,
         num_workers=16,
-        collate_fn=opencood_dataset.collate_batch_test,
+        collate_fn=dataset.collate_batch_test,
         shuffle=False,
         pin_memory=False,
         drop_last=False,
@@ -102,7 +104,7 @@ def main() -> None:
 
     # Create the dictionary for evaluation.
     # also store the confidence score for each prediction
-    result_stat = {
+    result_stat: Dict[float, Dict[str, Any]] = {
         0.3: {"tp": [], "fp": [], "gt": 0, "score": []},
         0.5: {"tp": [], "fp": [], "gt": 0, "score": []},
         0.7: {"tp": [], "fp": [], "gt": 0, "score": []},
@@ -155,8 +157,8 @@ def main() -> None:
                         os.makedirs(vis_save_path)
                     vis_save_path = os.path.join(vis_save_path, "%05d.png" % i)
 
-                opencood_dataset.visualize_result(
-                    pred_box_tensor, gt_box_tensor, batch_data["ego"]["origin_lidar"], opt.show_vis, vis_save_path, dataset=opencood_dataset
+                dataset.visualize_result(
+                    pred_box_tensor, gt_box_tensor, batch_data["ego"]["origin_lidar"], opt.show_vis, vis_save_path, dataset=dataset
                 )
 
             if opt.show_sequence:

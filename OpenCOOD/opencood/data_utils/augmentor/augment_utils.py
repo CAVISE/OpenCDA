@@ -9,7 +9,7 @@ operations.
 import numpy as np
 from numpy.typing import NDArray
 from opencood.utils import common_utils
-from typing import Tuple
+from typing import Tuple, cast
 
 
 def global_rotation(
@@ -36,7 +36,7 @@ def global_rotation(
             Rotated points.
     """
     noise_rotation = np.random.uniform(rot_range[0], rot_range[1])
-    points = common_utils.rotate_points_along_z(points[np.newaxis, :, :], np.array([noise_rotation]))[0]
+    points = cast(NDArray[np.float64], common_utils.rotate_points_along_z(points[np.newaxis, :, :], np.array([noise_rotation]))[0])
 
     gt_boxes[:, 0:3] = common_utils.rotate_points_along_z(gt_boxes[np.newaxis, :, 0:3], np.array([noise_rotation]))[0]
     gt_boxes[:, 6] += noise_rotation

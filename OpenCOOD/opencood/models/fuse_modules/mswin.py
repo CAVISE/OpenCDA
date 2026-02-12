@@ -7,6 +7,7 @@ for efficient processing of spatial features.
 
 import torch
 import torch.nn as nn
+from typing import Optional
 
 import numpy as np
 
@@ -125,7 +126,7 @@ class BaseWindowAttention(nn.Module):
         _, _, h, w, _, m = (
             *x.shape,
             self.heads,
-        )  # 1 -> b, 2 -> length, 5 -> c # NOTE: This unpacking relies on dynamic tensor shape and device injection.Precise typing is impossible without refactoring the assignment.
+        )  # 1 -> b, 2 -> length, 5 -> c
 
         qkv = self.to_qkv(x).chunk(3, dim=-1)
         new_h = h // self.window_size
@@ -244,12 +245,13 @@ class PyramidWindowAttention(nn.Module):
         output : torch.Tensor
             Fused multi-scale attention output with same shape as input.
         """
-        output = None
+        output: Optional[torch.Tensor] = None
         # naive fusion will just sum up all window attention output and do a
         # mean
         if self.fuse_mehod == "naive":
             for wmsa in self.pwmsa:
                 output = wmsa(x) if output is None else output + wmsa(x)
+            assert output is not None
             return output / len(self.pwmsa)
 
         elif self.fuse_mehod == "split_attn":
@@ -257,3 +259,4 @@ class PyramidWindowAttention(nn.Module):
             for wmsa in self.pwmsa:
                 window_list.append(wmsa(x))
             return self.split_attn(window_list)
+        raise ValueError(f"Unsupported fuse method: {self.fuse_mehod}")

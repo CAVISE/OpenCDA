@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 from opencood.version import __version__
 
 
-def _read_requirements_file():
+def _read_requirements_file() -> list[str]:
     """Return the elements in requirements.txt."""
     req_file_path = "%s/requirements.txt" % dirname(realpath(__file__))
     with open(req_file_path) as f:

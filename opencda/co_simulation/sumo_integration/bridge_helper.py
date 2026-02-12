@@ -5,7 +5,7 @@ import logging
 import math
 import random
 import os
-from typing import Any, List, Optional, Tuple
+from typing import Any, Optional, Tuple
 
 import carla  # pylint: disable=import-error
 import traci  # pylint: disable=import-error
@@ -31,7 +31,7 @@ class BridgeHelper(object):
         Dictionary mapping vehicle type IDs to their attributes.
     """
 
-    blueprint_library: List[Any] = []
+    blueprint_library: Any = []
     offset: Tuple = (0, 0)
     dir_path = os.path.dirname(os.path.realpath(__file__))
 
@@ -171,7 +171,7 @@ class BridgeHelper(object):
         type_id = sumo_actor.type_id
 
         if type_id in [bp.id for bp in blueprint_library]:
-            blueprint = blueprint_library.filter(type_id)[0]  # NOTE "list" has no attribute "filter"
+            blueprint = blueprint_library.filter(type_id)[0]
             logging.debug("[BridgeHelper] sumo vtype %s found in carla blueprints", type_id)
         else:
             blueprint = BridgeHelper._get_recommended_carla_blueprint(sumo_actor)

@@ -88,7 +88,7 @@ class ResBEVBackbone(nn.Module):
                         )
                     )
                 else:
-                    stride = np.round(1 / stride).astype(np.int)
+                    stride = int(np.round(1 / stride))
                     self.deblocks.append(
                         nn.Sequential(
                             nn.Conv2d(num_filters[idx], num_upsample_filters[idx], stride, stride=stride, bias=False),
@@ -170,14 +170,17 @@ class ResBEVBackbone(nn.Module):
                 ups.append(self.deblocks[i](x[i]))
             else:
                 ups.append(x[i])
+        fused: torch.Tensor
         if len(ups) > 1:
-            x = torch.cat(ups, dim=1)
+            fused = torch.cat(ups, dim=1)
         elif len(ups) == 1:
-            x = ups[0]
+            fused = ups[0]
+        else:
+            raise RuntimeError("No multiscale features to decode.")
 
         if len(self.deblocks) > self.num_levels:
-            x = self.deblocks[-1](x)
-        return x
+            fused = self.deblocks[-1](fused)
+        return fused
 
     def get_layer_i_feature(self, spatial_features: torch.Tensor, layer_i: int) -> torch.Tensor:
         """

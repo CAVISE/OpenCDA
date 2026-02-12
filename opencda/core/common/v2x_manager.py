@@ -1,5 +1,7 @@
 """Communication manager for cooperation"""
 
+from __future__ import annotations
+from typing import TYPE_CHECKING
 from collections import deque
 from typing import Any, Deque, Dict, Optional, Tuple
 import carla
@@ -7,7 +9,9 @@ import numpy as np
 from opencda.core.application.platooning.platooning_plugin import PlatooningPlugin
 from opencda.core.common.misc import compute_distance
 from opencda.core.application.platooning.fsm import FSM
-from opencda.core.common.cav_world import CavWorld
+
+if TYPE_CHECKING:
+    from opencda.core.common.cav_world import CavWorld
 
 
 class V2XManager(object):
@@ -58,7 +62,7 @@ class V2XManager(object):
         # used for platooning communication
         self.platooning_plugin = PlatooningPlugin(self.communication_range, self.cda_enabled)
 
-        self.cav_world: cav_world
+        self.cav_world: CavWorld = cav_world
 
         # ego position buffer. use deque so we can simulate lagging
         self.ego_pos: Deque[carla.Transform] = deque(maxlen=100)
@@ -143,7 +147,7 @@ class V2XManager(object):
         """
         Search the CAVs nearby.
         """
-        vehicle_manager_dict = self.cav_world.get_vehicle_managers()  # NOTE: cav_world can be None
+        vehicle_manager_dict = self.cav_world.get_vehicle_managers()
 
         for vid, vm in vehicle_manager_dict.items():
             # avoid the Nonetype error at the first simulation step
@@ -163,7 +167,7 @@ class V2XManager(object):
     -----------------------------------------------------------
     """
 
-    def set_platoon(self, in_id: int, platooning_object: Any = None, platooning_id: Optional[bool] = None, leader: bool = False) -> None:
+    def set_platoon(self, in_id: int, platooning_object: Any = None, platooning_id: Optional[str] = None, leader: bool = False) -> None:
         """
         Set platooning status
 

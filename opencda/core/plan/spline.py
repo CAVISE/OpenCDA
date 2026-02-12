@@ -6,10 +6,10 @@ waypoints and calculating geometric properties like position, yaw, and curvature
 """
 
 import math
-from typing import Sequence, Tuple, Optional, cast
+from typing import Optional, Sequence, Tuple, cast
+
 import numpy as np
 import numpy.typing as npt
-import bisect
 
 
 class Spline:
@@ -47,14 +47,14 @@ class Spline:
         self.d: list[float] = []
         self.w: list[float] = []
 
-        self.x = x
-        self.y = y
+        self.x: npt.NDArray[np.float64] = np.asarray(x, dtype=float)
+        self.y: npt.NDArray[np.float64] = np.asarray(y, dtype=float)
 
-        self.nx = len(x)  # dimension of x
-        h = np.diff(x)
+        self.nx = int(self.x.shape[0])  # dimension of x
+        h = np.diff(self.x)
 
         # calc coefficient c
-        self.a = [iy for iy in y]
+        self.a: npt.NDArray[np.float64] = self.y.copy()
 
         # calc coefficient c
         A = self.__calc_A(h)
@@ -158,7 +158,7 @@ class Spline:
         int
             Segment index.
         """
-        return bisect.bisect(self.x, x) - 1
+        return int(np.searchsorted(self.x, x) - 1)
 
     def __calc_A(self, h: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
         """
@@ -174,7 +174,7 @@ class Spline:
         numpy.ndarray
             Matrix A for solving spline coefficients.
         """
-        A = np.zeros((self.nx, self.nx))
+        A = np.zeros((self.nx, self.nx), dtype=float)
         A[0, 0] = 1.0
         for i in range(self.nx - 1):
             if i != (self.nx - 2):
@@ -202,7 +202,7 @@ class Spline:
         numpy.ndarray
             Matrix B for solving spline coefficients.
         """
-        B = np.zeros(self.nx)
+        B = np.zeros(self.nx, dtype=float)
         for i in range(self.nx - 2):
             B[i + 1] = 3.0 * (self.a[i + 2] - self.a[i + 1]) / h[i + 1] - 3.0 * (self.a[i + 1] - self.a[i]) / h[i]
         return B
@@ -252,12 +252,14 @@ class Spline2D:
         list of float
             Cumulative arc length values.
         """
-        dx = np.diff(x)
-        dy = np.diff(y)
-        self.ds = np.hypot(dx, dy)
-        s = [0]
-        s.extend(np.cumsum(self.ds))
-        return s  # NOTE: Incompatible return value type (got "list[int]", expected "list[float]")
+        x_arr = np.asarray(x, dtype=float)
+        y_arr = np.asarray(y, dtype=float)
+        dx = np.diff(x_arr)
+        dy = np.diff(y_arr)
+        self.ds: npt.NDArray[np.float64] = np.hypot(dx, dy)
+        s: list[float] = [0.0]
+        s.extend(np.cumsum(self.ds).tolist())
+        return s
 
     def calc_position(self, s: float) -> Tuple[Optional[float], Optional[float]]:
         """
@@ -338,6 +340,8 @@ def main() -> None:
     rx, ry, ryaw, rk = [], [], [], []
     for i_s in s:
         ix, iy = sp.calc_position(i_s)
+        if ix is None or iy is None:
+            continue
         rx.append(ix)
         ry.append(iy)
         ryaw.append(sp.calc_yaw(i_s))

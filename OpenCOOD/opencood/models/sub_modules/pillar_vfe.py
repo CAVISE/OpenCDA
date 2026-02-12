@@ -197,8 +197,8 @@ class PillarVFE(nn.Module):
         actual_num = torch.unsqueeze(actual_num, axis + 1)
         max_num_shape = [1] * len(actual_num.shape)
         max_num_shape[axis + 1] = -1
-        max_num = torch.arange(max_num, dtype=torch.int, device=actual_num.device).view(max_num_shape)
-        paddings_indicator = actual_num.int() > max_num
+        max_num_tensor = torch.arange(max_num, dtype=torch.int, device=actual_num.device).view(max_num_shape)
+        paddings_indicator = actual_num.int() > max_num_tensor
         return paddings_indicator
 
     def forward(self, batch_dict: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
@@ -229,22 +229,23 @@ class PillarVFE(nn.Module):
         f_center[:, :, 1] = voxel_features[:, :, 1] - (coords[:, 2].to(voxel_features.dtype).unsqueeze(1) * self.voxel_y + self.y_offset)
         f_center[:, :, 2] = voxel_features[:, :, 2] - (coords[:, 1].to(voxel_features.dtype).unsqueeze(1) * self.voxel_z + self.z_offset)
 
+        feature_list: List[torch.Tensor]
         if self.use_absolute_xyz:
-            features = [voxel_features, f_cluster, f_center]
+            feature_list = [voxel_features, f_cluster, f_center]
         else:
-            features = [voxel_features[..., 3:], f_cluster, f_center]
+            feature_list = [voxel_features[..., 3:], f_cluster, f_center]
 
         if self.with_distance:
             points_dist = torch.norm(voxel_features[:, :, :3], 2, 2, keepdim=True)
-            features.append(points_dist)
-        features = torch.cat(features, dim=-1)
+            feature_list.append(points_dist)
+        features = torch.cat(feature_list, dim=-1)
 
-        voxel_count = features.shape[1]  # NOTE "list" has no attribute "shape"
+        voxel_count = features.shape[1]
         mask = self.get_paddings_indicator(voxel_num_points, voxel_count, axis=0)
         mask = torch.unsqueeze(mask, -1).type_as(voxel_features)
         features *= mask
         for pfn in self.pfn_layers:
             features = pfn(features)
-        features = features.squeeze()  # NOTE "list[Any]" has no attribute "squeeze"
+        features = features.squeeze()
         batch_dict["pillar_features"] = features
         return batch_dict

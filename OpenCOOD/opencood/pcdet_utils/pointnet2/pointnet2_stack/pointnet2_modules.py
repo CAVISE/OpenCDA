@@ -12,7 +12,7 @@ import torch.nn.functional as F
 
 from opencood.pcdet_utils.pointnet2.pointnet2_stack import pointnet2_utils
 
-from typing import List, Optional, Tuple
+from typing import Any, List, Optional, Tuple, cast
 
 
 class StackSAModuleMSG(nn.Module):
@@ -195,12 +195,13 @@ class StackPointnetFPModule(nn.Module):
         new_features : torch.Tensor
             Propagated features with shape (N1+N2+..., C_out).
         """
-        dist, idx = pointnet2_utils.three_nn(unknown, unknown_batch_cnt, known, known_batch_cnt)
+        pointnet2_utils_any = cast(Any, pointnet2_utils)
+        dist, idx = pointnet2_utils_any.three_nn(unknown, unknown_batch_cnt, known, known_batch_cnt)
         dist_recip = 1.0 / (dist + 1e-8)
         norm = torch.sum(dist_recip, dim=-1, keepdim=True)
         weight = dist_recip / norm
 
-        interpolated_feats = pointnet2_utils.three_interpolate(known_feats, idx, weight)
+        interpolated_feats = pointnet2_utils_any.three_interpolate(known_feats, idx, weight)
 
         if unknown_feats is not None:
             new_features = torch.cat([interpolated_feats, unknown_feats], dim=1)  # (N1 + N2 ..., C2 + C1)

@@ -89,7 +89,7 @@ def cal_distance_angle(target_location: carla.Location, current_location: carla.
         to target location.
     """
     target_vector = np.array([target_location.x - current_location.x, target_location.y - current_location.y])
-    norm_target = np.linalg.norm(target_vector) + 1e-10
+    norm_target = float(np.linalg.norm(target_vector) + 1e-10)
 
     forward_vector = np.array([math.cos(math.radians(orientation)), math.sin(math.radians(orientation))])
     d_angle = math.degrees(math.acos(np.clip(np.dot(forward_vector, target_vector) / norm_target, -1.0, 1.0)))
@@ -97,7 +97,7 @@ def cal_distance_angle(target_location: carla.Location, current_location: carla.
     return norm_target, d_angle
 
 
-def distance_vehicle(waypoint: carla.Waypoint, vehicle_transform: carla.transform) -> float:
+def distance_vehicle(waypoint: carla.Waypoint, vehicle_transform: carla.Transform) -> float:
     """
     Returns the 2D distance from a waypoint to a vehicle
 
@@ -167,7 +167,7 @@ def compute_distance(location_1: carla.Location, location_2: carla.Location) -> 
     x = location_2.x - location_1.x
     y = location_2.y - location_1.y
     z = location_2.z - location_1.z
-    norm = np.linalg.norm([x, y, z]) + np.finfo(float).eps
+    norm = float(np.linalg.norm([x, y, z]) + np.finfo(float).eps)
     return norm
 
 

@@ -6,6 +6,7 @@ different sensor coordinate systems (camera, LiDAR) in CARLA simulator,
 including bounding box projections and point cloud transformations.
 """
 
+from __future__ import annotations
 import numpy as np
 import numpy.typing as npt
 from matplotlib import cm
@@ -14,7 +15,8 @@ import carla
 
 from opencda.opencda_carla import Transform
 
-VIRIDIS = np.array(cm.get_cmap("viridis").colors)
+_viridis_cmap = cm.get_cmap("viridis")
+VIRIDIS = np.array(_viridis_cmap(np.linspace(0.0, 1.0, 256)))
 VID_RANGE = np.linspace(0.0, 1.0, VIRIDIS.shape[0])
 
 
@@ -24,7 +26,7 @@ def get_camera_intrinsic(sensor: carla.Sensor) -> npt.NDArray[np.float64]:
 
     Parameters
     ----------
-    sensor : carla.sensor
+    sensor : carla.Sensor
         Carla rgb camera object.
 
     Returns
@@ -233,7 +235,7 @@ def vehicle_to_sensor(cords: npt.NDArray[np.float64], vehicle: carla.Vehicle, se
     return sensor_cord
 
 
-def get_bounding_box(vehicle: carla.Vehicle, camera: carla.sensor, sensor_transform: carla.Transform) -> npt.NDArray[np.float64]:
+def get_bounding_box(vehicle: carla.Vehicle, camera: carla.Sensor, sensor_transform: carla.Transform) -> npt.NDArray[np.float64]:
     """
     Get vehicle bounding box and project to sensor image.
 
@@ -242,7 +244,7 @@ def get_bounding_box(vehicle: carla.Vehicle, camera: carla.sensor, sensor_transf
     vehicle : carla.Vehicle
         Ego vehicle.
 
-    camera : carla.sensor
+    camera : carla.Sensor
         Carla rgb camera spawned at the vehicles.
 
     sensor_transform : carla.Transform
@@ -297,7 +299,7 @@ def p3d_to_p2d_bb(p3d_bb: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
     return p2d_bb
 
 
-def get_2d_bb(vehicle: carla.Vehicle, sensor: carla.sensor, senosr_transform: carla.Transform) -> npt.NDArray[np.float64]:
+def get_2d_bb(vehicle: carla.Vehicle, sensor: carla.Sensor, senosr_transform: carla.Transform) -> npt.NDArray[np.float64]:
     """
     Summarize 2D bounding box creation.
 
@@ -306,7 +308,7 @@ def get_2d_bb(vehicle: carla.Vehicle, sensor: carla.sensor, senosr_transform: ca
     vehicle : carla.Vehicle
         Ego vehicle.
 
-    sensor : carla.sensor
+    sensor : carla.Sensor
         Carla sensor.
 
     senosr_transform : carla.Transform
@@ -324,17 +326,17 @@ def get_2d_bb(vehicle: carla.Vehicle, sensor: carla.sensor, senosr_transform: ca
 
 
 def project_lidar_to_camera(
-    lidar: carla.sensor, camera: carla.sensor, point_cloud: npt.NDArray[np.float64], rgb_image: npt.NDArray[np.uint8]
+    lidar: carla.Sensor, camera: carla.Sensor, point_cloud: npt.NDArray[np.float64], rgb_image: npt.NDArray[np.uint8]
 ) -> Tuple[npt.NDArray[np.uint8], npt.NDArray[np.float64]]:
     """
     Project lidar to camera space.
 
     Parameters
     ----------
-    lidar : carla.sensor
+    lidar : carla.Sensor
         Lidar sensor.
 
-    camera : carla.sensor
+    camera : carla.Sensor
         RGB camera.
 
     point_cloud : npt.NDArray

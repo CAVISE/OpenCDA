@@ -81,17 +81,17 @@ class MapManager(object):
 
     """
 
-    def __init__(self, vehicle: carla.vehicle, carla_map: carla.Map, config: Dict[str, Any]):
+    def __init__(self, vehicle: carla.Vehicle, carla_map: carla.Map, config: Dict[str, Any]):
         self.world = vehicle.get_world()
         self.agent_id = vehicle.id
         self.carla_map = carla_map
-        self.center = None
+        self.center: carla.Transform | None = None
 
         self.actvate = config["activate"]
         self.visualize = config["visualize"]
         self.pixels_per_meter = config["pixels_per_meter"]
         self.meter_per_pixel = 1 / self.pixels_per_meter
-        self.raster_size = np.array([config["raster_size"][0], config["raster_size"][1]])
+        self.raster_size: npt.NDArray[np.int64] = np.array([config["raster_size"][0], config["raster_size"][1]], dtype=np.int64)
         self.lane_sample_resolution = config["lane_sample_resolution"]
 
         self.raster_radius = float(np.linalg.norm(self.raster_size * np.array([self.meter_per_pixel, self.meter_per_pixel]))) / 2
@@ -114,9 +114,11 @@ class MapManager(object):
         self.generate_lane_cross_info()
 
         # bev maps
-        self.dynamic_bev = None
-        self.static_bev = None
-        self.vis_bev = None
+        height = int(self.raster_size[1])
+        width = int(self.raster_size[0])
+        self.dynamic_bev: npt.NDArray[np.uint8] = np.zeros((height, width, 3), dtype=np.uint8)
+        self.static_bev: npt.NDArray[np.uint8] = np.zeros((height, width, 3), dtype=np.uint8)
+        self.vis_bev: npt.NDArray[np.uint8] = np.zeros((height, width, 3), dtype=np.uint8)
 
     def update_information(self, ego_pose: carla.Transform) -> None:
         """
@@ -180,10 +182,13 @@ class MapManager(object):
         -------
         The dictionary that only contains the agent in range.
         """
+        if self.center is None:
+            raise ValueError("Map center is not set. Call update_information() before agents_in_range().")
+
         final_agents = {}
 
         # convert center to list format
-        center = [self.center.location.x, self.center.location.y]  # NOTE: self.center can be None here
+        center = [self.center.location.x, self.center.location.y]
 
         for agent_id, agent in agents_dict.items():
             location = agent["location"]
@@ -210,7 +215,10 @@ class MapManager(object):
         -------
         np.ndarray: indices of elements inside radius from center
         """
-        x_center, y_center = self.center.location.x, self.center.location.y  # NOTE: self.center can be None here
+        if self.center is None:
+            raise ValueError("Map center is not set. Call update_information() before indices_in_bounds().")
+
+        x_center, y_center = self.center.location.x, self.center.location.y
 
         x_min_in = x_center > bounds[:, 0, 0] - half_extent
         y_min_in = y_center > bounds[:, 0, 1] - half_extent
@@ -280,18 +288,18 @@ class MapManager(object):
             left_marking = [lateral_shift(w.transform, -w.lane_width * 0.5) for w in waypoints]
             right_marking = [lateral_shift(w.transform, w.lane_width * 0.5) for w in waypoints]
             # convert the list of carla.Location to np.array
-            left_marking = list_loc2array(left_marking)
-            right_marking = list_loc2array(right_marking)
+            left_marking_arr: npt.NDArray[np.float64] = list_loc2array(left_marking)
+            right_marking_arr: npt.NDArray[np.float64] = list_loc2array(right_marking)
             mid_lane = list_wpt2array(waypoints)
 
             # get boundary information
-            bound = self.get_bounds(left_marking, right_marking)
+            bound = self.get_bounds(left_marking_arr, right_marking_arr)
             lanes_bounds = np.append(lanes_bounds, bound, axis=0)
 
             # associate with traffic light
             tl_id = self.associate_lane_tl(mid_lane)
 
-            self.lane_info.update({lane_id: {"xyz_left": left_marking, "xyz_right": right_marking, "xyz_mid": mid_lane, "tl_id": tl_id}})
+            self.lane_info.update({lane_id: {"xyz_left": left_marking_arr, "xyz_right": right_marking_arr, "xyz_mid": mid_lane, "tl_id": tl_id}})
             # boundary information
             self.bound_info["lanes"]["ids"] = lanes_id
             self.bound_info["lanes"]["bounds"] = lanes_bounds
@@ -338,7 +346,7 @@ class MapManager(object):
                 {tl_id: {"actor": tl_actor, "corners": corner_poly, "base_rot": base_rot, "base_transform": base_transform}}
             )
 
-    def generate_lane_area(self, xyz_left: npt.NDArray[np.float64], xyz_right: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
+    def generate_lane_area(self, xyz_left: npt.NDArray[np.float64], xyz_right: npt.NDArray[np.float64]) -> npt.NDArray[np.int32]:
         """
         Generate the lane area poly under rasterization map's center
         coordinate frame.
@@ -355,7 +363,10 @@ class MapManager(object):
         lane_area : np.ndarray
             Combine left and right lane together to form a polygon.
         """
-        lane_area = np.zeros((2, xyz_left.shape[0], 2))
+        if self.center is None:
+            raise ValueError("Map center is not set. Call update_information() before generate_lane_area().")
+
+        lane_area = np.zeros((2, xyz_left.shape[0], 2), dtype=np.float32)
         # convert coordinates to center's coordinate frame
         xyz_left = xyz_left.T
         xyz_left = np.r_[xyz_left, [np.ones(xyz_left.shape[1])]]
@@ -378,11 +389,11 @@ class MapManager(object):
         lane_area[:, :, 1] = lane_area[:, :, 1] * self.pixels_per_meter + self.raster_size[1] // 2
 
         # to make more precise polygon
-        lane_area = cv2_subpixel(lane_area)
+        lane_area_int = cv2_subpixel(lane_area.astype(np.float32))
 
-        return lane_area
+        return lane_area_int
 
-    def generate_agent_area(self, corners: List[list[float]] | npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
+    def generate_agent_area(self, corners: List[list[float]] | npt.NDArray[np.float64]) -> npt.NDArray[np.int32]:
         """
         Convert the agent's bbx corners from world coordinates to
         rasterization coordinates.
@@ -396,25 +407,28 @@ class MapManager(object):
         -------
         agent four corners in image.
         """
+        if self.center is None:
+            raise ValueError("Map center is not set. Call update_information() before generate_agent_area().")
+
         # (4, 3) numpy array
-        corners = np.array(corners)
+        corners_arr = np.asarray(corners, dtype=float)
         # for homogeneous transformation
-        corners = corners.T
-        corners = np.r_[corners, [np.ones(corners.shape[1])]]
+        corners_arr = corners_arr.T
+        corners_arr = np.r_[corners_arr, [np.ones(corners_arr.shape[1])]]
         # convert to ego's coordinate frame
-        corners = world_to_sensor(corners, self.center).T
-        corners = corners[:, :2]
+        corners_arr = world_to_sensor(corners_arr, self.center).T
+        corners_arr = corners_arr[:, :2]
 
         # switch x and y
-        corners = corners[..., ::-1]
+        corners_arr = corners_arr[..., ::-1]
         # y revert
-        corners[:, 1] = -corners[:, 1]
+        corners_arr[:, 1] = -corners_arr[:, 1]
 
-        corners[:, 0] = corners[:, 0] * self.pixels_per_meter + self.raster_size[0] // 2
-        corners[:, 1] = corners[:, 1] * self.pixels_per_meter + self.raster_size[1] // 2
+        corners_arr[:, 0] = corners_arr[:, 0] * self.pixels_per_meter + self.raster_size[0] // 2
+        corners_arr[:, 1] = corners_arr[:, 1] * self.pixels_per_meter + self.raster_size[1] // 2
 
         # to make more precise polygon
-        corner_area = cv2_subpixel(corners[:, :2])
+        corner_area = cv2_subpixel(corners_arr[:, :2].astype(np.float32))
 
         return corner_area
 
@@ -467,7 +481,9 @@ class MapManager(object):
         -------
         Rasterization image.
         """
-        self.dynamic_bev = 255 * np.zeros(shape=(self.raster_size[1], self.raster_size[0], 3), dtype=np.uint8)
+        height = int(self.raster_size[1])
+        width = int(self.raster_size[0])
+        self.dynamic_bev = np.zeros(shape=(height, width, 3), dtype=np.uint8)
         # filter using half a radius from the center
         raster_radius = float(np.linalg.norm(self.raster_size * np.array([self.meter_per_pixel, self.meter_per_pixel]))) / 2
         # retrieve all agents
@@ -475,7 +491,7 @@ class MapManager(object):
         # filter out agents out of range
         final_agents = self.agents_in_range(raster_radius, dynamic_agents)
 
-        corner_list = []
+        corner_list: List[npt.NDArray[np.int32]] = []
         for agent_id, agent in final_agents.items():
             agent_corner = self.generate_agent_area(agent["corners"])
             corner_list.append(agent_corner)
@@ -487,14 +503,16 @@ class MapManager(object):
         """
         Generate the static bev map.
         """
-        self.static_bev = 255 * np.ones(shape=(self.raster_size[1], self.raster_size[0], 3), dtype=np.uint8)
-        self.vis_bev = 255 * np.ones(shape=(self.raster_size[1], self.raster_size[0], 3), dtype=np.uint8)
+        height = int(self.raster_size[1])
+        width = int(self.raster_size[0])
+        self.static_bev = np.full((height, width, 3), 255, dtype=np.uint8)
+        self.vis_bev = np.full((height, width, 3), 255, dtype=np.uint8)
 
         # filter using half a radius from the center
         raster_radius = float(np.linalg.norm(self.raster_size * np.array([self.meter_per_pixel, self.meter_per_pixel]))) / 2
         lane_indices = self.indices_in_bounds(self.bound_info["lanes"]["bounds"], raster_radius)
-        lanes_area_list = []
-        lane_type_list = []
+        lanes_area_list: List[npt.NDArray[np.int32]] = []
+        lane_type_list: List[str] = []
 
         for idx, lane_idx in enumerate(lane_indices):
             lane_idx = self.bound_info["lanes"]["ids"][lane_idx]
@@ -519,7 +537,7 @@ class MapManager(object):
 
         self.vis_bev = draw_road(lanes_area_list, self.vis_bev)
         self.vis_bev = draw_lane(lanes_area_list, lane_type_list, self.vis_bev)
-        self.vis_bev = cv2.cvtColor(self.vis_bev, cv2.COLOR_RGB2BGR)
+        self.vis_bev = cv2.cvtColor(self.vis_bev, cv2.COLOR_RGB2BGR).astype(np.uint8)
 
     def destroy(self) -> None:
         cv2.destroyAllWindows()

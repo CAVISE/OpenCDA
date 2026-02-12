@@ -97,14 +97,14 @@ class CoScenarioManager(ScenarioManager):
         self._tls = {}
         for landmark in self.carla_map.get_all_landmarks_of_type("1000001"):
             if landmark.id != "":
-                traffic_ligth = self.world.get_traffic_light(landmark)  # NOTE A None-check is required
+                traffic_ligth = self.world.get_traffic_light(landmark)
                 if traffic_ligth is not None:
                     self._tls[landmark.id] = traffic_ligth
                 else:
                     logging.warning(f"Landmark {landmark.id} is not linked to any traffic light")
 
         # sumo side initialization
-        base_name: str = os.path.basename(sumo_file_parent_path)  # NOTE None-check is required
+        base_name: str = os.path.basename(sumo_file_parent_path)
 
         sumo_key = "sumo"
 
@@ -131,7 +131,7 @@ class CoScenarioManager(ScenarioManager):
         self.sumo2carla_ids: Dict[str, int] = {}  # key: sumo id, value: carla id
         self.carla2sumo_ids: Dict[str, int] = {}  # key: carla id, value: sumo id
 
-        BridgeHelper.blueprint_library = self.world.get_blueprint_library()  # NOTE A None-check is required
+        BridgeHelper.blueprint_library = self.world.get_blueprint_library()
         BridgeHelper.offset = self.sumo.get_net_offset()
 
     def tick(self) -> None:
@@ -188,7 +188,7 @@ class CoScenarioManager(ScenarioManager):
         # -----------------
         # carla-->sumo sync
         # -----------------
-        self.world.tick()  # NOTE A None-check is required
+        self.world.tick()
 
         # Update data structures for the current frame.
         current_actors = set(
@@ -196,7 +196,7 @@ class CoScenarioManager(ScenarioManager):
                 vehicle.id
                 for vehicle in filter(
                     lambda actor: actor.type_id.startswith("vehicle.") or actor.type_id.startswith("static."),
-                    self.world.get_actors(),  # NOTE A None-check is required
+                    self.world.get_actors(),
                 )
             ]
         )
@@ -208,14 +208,12 @@ class CoScenarioManager(ScenarioManager):
         carla_spawned_actors = self.spawned_actors - set(self.sumo2carla_ids.values())
 
         for carla_actor_id in carla_spawned_actors:
-            carla_actor = self.world.get_actor(carla_actor_id)  # NOTE A None-check is required
+            carla_actor = self.world.get_actor(carla_actor_id)
             type_id = BridgeHelper.get_sumo_vtype(carla_actor)
             color = carla_actor.attributes.get("color", None)
             if type_id is not None:
                 if carla_actor_id in self.node_ids["platoon"]:
-                    sumo_actor_id = self.sumo.spawn_actor(
-                        type_id, self.node_ids["platoon"][carla_actor_id], color
-                    )  # NOTE Incompatible types in assignment (expression has type "str",target has type "int") (for variable "sumo_actor_id")
+                    sumo_actor_id = self.sumo.spawn_actor(type_id, self.node_ids["platoon"][carla_actor_id], color)
                 elif carla_actor_id in self.node_ids["cav"]:
                     sumo_actor_id = self.sumo.spawn_actor(type_id, self.node_ids["cav"][carla_actor_id], color)
                 elif carla_actor_id in self.node_ids["rsu"]:
@@ -237,7 +235,7 @@ class CoScenarioManager(ScenarioManager):
         for carla_actor_id in self.carla2sumo_ids:
             sumo_actor_id = self.carla2sumo_ids[carla_actor_id]
 
-            carla_actor = self.world.get_actor(carla_actor_id)  # NOTE A None-check is required
+            carla_actor = self.world.get_actor(carla_actor_id)
             sumo_actor = self.sumo.get_actor(sumo_actor_id)
             sumo_transform = BridgeHelper.get_sumo_transform(carla_actor.get_transform(), carla_actor.bounding_box.extent)
             self.sumo.synchronize_vehicle(sumo_actor_id, sumo_transform, None)
@@ -253,7 +251,7 @@ class CoScenarioManager(ScenarioManager):
             self.sumo.synchronize_traffic_light(landmark_id, sumo_tl_state)
 
         # update the sumo2carla dict to cav world
-        self.cav_world.update_sumo_vehicles(self.sumo2carla_ids)  # NOTE A None-check is required
+        self.cav_world.update_sumo_vehicles(self.sumo2carla_ids)
 
     @property
     def traffic_light_ids(self) -> Set[str]:
@@ -322,7 +320,7 @@ class CoScenarioManager(ScenarioManager):
         success : bool
             Whether update is successful.
         """
-        vehicle = self.world.get_actor(vehicle_id)  # NOTE A None-check is required
+        vehicle = self.world.get_actor(vehicle_id)
         if vehicle is None:
             return False
 
@@ -343,7 +341,7 @@ class CoScenarioManager(ScenarioManager):
         bool
             True if destruction is successful, False otherwise.
         """
-        actor = self.world.get_actor(actor_id)  # NOTE A None-check is required
+        actor = self.world.get_actor(actor_id)
         if actor is not None:
             return actor.destroy()
         return False
@@ -356,7 +354,7 @@ class CoScenarioManager(ScenarioManager):
         traffic lights, and restores original simulation settings.
         """
         # restore to origin setting
-        self.world.apply_settings(self.origin_settings)  # NOTE A None-check is required
+        self.world.apply_settings(self.origin_settings)
 
         # Destroying synchronized actors.
         logger.info("Destroying carla actor")
@@ -368,7 +366,7 @@ class CoScenarioManager(ScenarioManager):
             self.sumo.destroy_actor(sumo_actor_id)
 
         # unfreeze traffic lights, since sumo may freeze the traffic light
-        for actor in self.world.get_actors():  # NOTE A None-check is required
+        for actor in self.world.get_actors():
             if actor.type_id == "traffic.traffic_light":
                 actor.freeze(False)
 

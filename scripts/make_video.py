@@ -16,9 +16,7 @@ import tempfile
 from typing import Optional, Any
 
 
-def create_video(
-    input_dir: str, output_path: str, framerate: int = 20, rotate: int = 0, pattern: str = "*.png"
-) -> Any:  # NOTE There used "Any" because Optional[int] did not work because there should be another "return" at the end of function
+def create_video(input_dir: str, output_path: str, framerate: int = 20, rotate: int = 0, pattern: str = "*.png") -> Any:
     """
     Create a video from a sequence of images using FFmpeg.
 

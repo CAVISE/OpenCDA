@@ -64,7 +64,7 @@ class PlatooningPlugin(object):
         # whether leader in a platoon
         self.leader = False
         self.platooning_object = None
-        self.platooning_id: Optional[int] = None
+        self.platooning_id: Optional[str] = None
         self.in_id: Optional[int] = None
         self.status: Optional[Union[str, FSM]] = None
 
@@ -93,6 +93,11 @@ class PlatooningPlugin(object):
         self.ego_pos = ego_pos
         self.ego_spd = ego_spd
 
+    def _require_ego_pos(self) -> carla.Transform:
+        if self.ego_pos is None:
+            raise ValueError("Ego position is not set. Call update_info() before match_platoon().")
+        return self.ego_pos
+
     def reset(self) -> None:
         """
         Reset platooning plugin to initial state.
@@ -112,7 +117,7 @@ class PlatooningPlugin(object):
         self,
         in_id: Optional[int],
         platooning_object: Optional[Any] = None,
-        platooning_id: Optional[int] = None,
+        platooning_id: Optional[str] = None,
         leader: bool = False,
     ) -> None:
         """
@@ -224,43 +229,44 @@ class PlatooningPlugin(object):
         # make sure the previous status won't influence current one
         self.reset()
 
-        cur_loc = self.ego_pos.location  # NOTE None-check is required
-        cur_yaw = self.ego_pos.rotation.yaw  # NOTE None-check is required
+        ego_pos = self._require_ego_pos()
+        cur_loc = ego_pos.location
+        cur_yaw = ego_pos.rotation.yaw
 
         pmid, pm = self.search_platoon(cur_loc, cav_nearby)
 
-        if not pmid or pmid in self.platooning_blacklist:
+        if pm is None or not pmid or pmid in self.platooning_blacklist:
             return False, -1, []
 
         # used to search the closest platoon member in the searched platoon
         min_distance = float("inf")
         min_index = -1
-        min_angle = 0
+        min_angle: float = 0.0
 
         # if the platooning is not open to joining
-        if not pm.response_joining_request(self.ego_pos.location):  # NOTE None-check is required
+        if not pm.response_joining_request(ego_pos.location):
             return False, -1, []
 
         platoon_vehicle_list = []
 
-        for i, vehicle_manager in enumerate(pm.vehicle_manager_list):  # NOTE None-check is required
+        for i, vehicle_manager in enumerate(pm.vehicle_manager_list):
             distance, angle = cal_distance_angle(vehicle_manager.vehicle.get_location(), cur_loc, cur_yaw)
             platoon_vehicle_list.append(vehicle_manager)
 
             if distance < min_distance:
                 min_distance = distance
                 min_index = i
-                min_angle = angle  # NOTE Incompatible types
+                min_angle = angle
 
         # if the ego is in front of the platooning
         if min_index == 0 and min_angle > 90:
             self.front_vehicle = None
-            self.rear_vechile = pm.vehicle_manager_list[0]  # NOTE None-check is required
+            self.rear_vechile = pm.vehicle_manager_list[0]
             return True, min_index, platoon_vehicle_list
 
-        self.front_vehicle = pm.vehicle_manager_list[min_index]  # NOTE None-check is required
+        self.front_vehicle = pm.vehicle_manager_list[min_index]
 
-        if min_index < len(pm.vehicle_manager_list) - 1:  # NOTE None-check is required
-            self.rear_vechile = pm.vehicle_manager_list[min_index + 1]  # NOTE None-check is required
+        if min_index < len(pm.vehicle_manager_list) - 1:
+            self.rear_vechile = pm.vehicle_manager_list[min_index + 1]
 
         return True, min_index, platoon_vehicle_list

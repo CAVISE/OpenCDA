@@ -1,5 +1,5 @@
 import re
-import yaml
+import yaml  # type: ignore[import-untyped]
 import os
 import math
 
@@ -27,7 +27,9 @@ def load_yaml(file: str | None, opt: Optional[Any] = None) -> Dict[str, Any]:
     if opt and opt.model_dir:
         file = os.path.join(opt.model_dir, "config.yaml")
 
-    stream = open(file, "r")  # NOTE need a None-check
+    if file is None:
+        raise ValueError("YAML file path is required.")
+    stream = open(file, "r")
     loader = yaml.Loader
     loader.add_implicit_resolver(
         "tag:yaml.org,2002:float",

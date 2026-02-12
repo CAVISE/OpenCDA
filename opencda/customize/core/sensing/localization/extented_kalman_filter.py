@@ -197,10 +197,10 @@ class ExtentedKalmanFilter(object):
         # Jacobian of Observation Model
         jH = np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0]])
         zPred = self.observation_model(xPred)
-        y = z - zPred
+        residual = z - zPred
         S = jH @ PPred @ jH.T + self.R
         K = PPred @ jH.T @ np.linalg.inv(S)
-        self.xEst = xPred + K @ y
+        self.xEst = xPred + K @ residual
         self.PEst = (np.eye(len(self.xEst)) - K @ jH) @ PPred
 
         return self.xEst[0][0], self.xEst[1][0], self.xEst[2][0], self.xEst[3][0]

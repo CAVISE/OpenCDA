@@ -249,7 +249,7 @@ class ScenarioManager:
 
     def spawn_custom_actor(self, spawn_transform: carla.Transform, config: Dict[str, Any], fallback_model: str) -> carla.Actor:
         model = config.get("model", fallback_model)
-        cav_vehicle_bp = self.world.get_blueprint_library().find(model)  # NOTE A None-check is required
+        cav_vehicle_bp = self.world.get_blueprint_library().find(model)
 
         color = config.get("color")
         if color is not None:
@@ -258,7 +258,7 @@ class ScenarioManager:
             except IndexError:
                 logger.warning(f"Vehicle model {cav_vehicle_bp.id} does not support the 'color' attribute. Skipping.")
 
-        return self.world.spawn_actor(cav_vehicle_bp, spawn_transform)  # NOTE A None-check is required+
+        return self.world.spawn_actor(cav_vehicle_bp, spawn_transform)
 
     def create_vehicle_manager(
         self,
@@ -310,7 +310,7 @@ class ScenarioManager:
                     carla.Rotation(pitch=cav_config["spawn_position"][5], yaw=cav_config["spawn_position"][4], roll=cav_config["spawn_position"][3]),
                 )
             else:
-                spawn_transform = map_helper(self.carla_version, *cav_config["spawn_special"])  # NOTE A None-check is required
+                spawn_transform = map_helper(self.carla_version, *cav_config["spawn_special"])
 
             vehicle = self.spawn_custom_actor(spawn_transform, cav_config, fallback_model)
 
@@ -328,11 +328,9 @@ class ScenarioManager:
 
             cav_carla_list[vehicle.id] = vehicle_manager.vid
 
-            self.world.tick()  # NOTE A None-check is required to satisfy type checking.
+            self.world.tick()
 
-            vehicle_manager.v2x_manager.set_platoon(
-                None
-            )  # NOTE rgument 1 to "set_platoon" of "V2XManager" has incompatible type "None"; expected "int"
+            vehicle_manager.v2x_manager.set_platoon(None)
 
             destination = carla.Location(x=cav_config["destination"][0], y=cav_config["destination"][1], z=cav_config["destination"][2])
             vehicle_manager.update_info()
@@ -394,7 +392,7 @@ class ScenarioManager:
                         ),
                     )
                 else:
-                    spawn_transform = map_helper(self.carla_version, *cav_config["spawn_special"])  # NOTE is not callable
+                    spawn_transform = map_helper(self.carla_version, *cav_config["spawn_special"])
 
                 vehicle = self.spawn_custom_actor(spawn_transform, cav_config, fallback_model)
 
@@ -418,7 +416,7 @@ class ScenarioManager:
                 else:
                     platoon_manager.add_member(vehicle_manager, leader=False)
 
-            self.world.tick()  # NOTE A None-check is required to satisfy type checking.
+            self.world.tick()
             destination = carla.Location(x=platoon["destination"][0], y=platoon["destination"][1], z=platoon["destination"][2])
 
             platoon_manager.set_destination(destination)
@@ -451,14 +449,14 @@ class ScenarioManager:
         for rsu_config in self.scenario_params["scenario"]["rsu_list"]:
             rsu_config = OmegaConf.merge(self.scenario_params["rsu_base"], rsu_config)
             default_model = "static.prop.gnome"
-            static_bp = self.world.get_blueprint_library().find(default_model)  # NOTE A None-check is required to satisfy type checking.
+            static_bp = self.world.get_blueprint_library().find(default_model)
 
             spawn_transform = carla.Transform(
                 carla.Location(x=rsu_config["spawn_position"][0], y=rsu_config["spawn_position"][1], z=rsu_config["spawn_position"][2]),
                 carla.Rotation(pitch=rsu_config["spawn_position"][5], yaw=rsu_config["spawn_position"][4], roll=rsu_config["spawn_position"][3]),
             )
 
-            actor = self.world.spawn_actor(static_bp, spawn_transform)  # NOTE A None-check is required
+            actor = self.world.spawn_actor(static_bp, spawn_transform)
 
             rsu_manager = RSUManager(self.world, rsu_config, self.carla_map, self.cav_world, self.scenario_params["current_time"], data_dump)
 
@@ -490,7 +488,7 @@ class ScenarioManager:
             Update traffic list.
         """
 
-        blueprint_library = self.world.get_blueprint_library()  # NOTE: A None-check is required to satisfy type checking.
+        blueprint_library = self.world.get_blueprint_library()
         if not self.use_multi_class_bp:
             ego_vehicle_random_list = car_blueprint_filter(blueprint_library, self.carla_version)
         else:
@@ -525,7 +523,7 @@ class ScenarioManager:
                     color = random.choice(ego_vehicle_bp.get_attribute("color").recommended_values)
                     ego_vehicle_bp.set_attribute("color", color)
 
-            vehicle = self.world.spawn_actor(ego_vehicle_bp, spawn_transform)  # NOTE: A None-check is required to satisfy type checking.
+            vehicle = self.world.spawn_actor(ego_vehicle_bp, spawn_transform)
             vehicle.set_autopilot(True, 8000)
 
             if "vehicle_speed_perc" in vehicle_config:
@@ -556,7 +554,7 @@ class ScenarioManager:
         bg_list : list
             Update traffic list.
         """
-        blueprint_library = self.world.get_blueprint_library()  # NOTE: A None-check is required to satisfy type checking.
+        blueprint_library = self.world.get_blueprint_library()
         if not self.use_multi_class_bp:
             ego_vehicle_random_list = car_blueprint_filter(blueprint_library, self.carla_version)
         else:
@@ -623,7 +621,7 @@ class ScenarioManager:
                     color = random.choice(ego_vehicle_bp.get_attribute("color").recommended_values)
                     ego_vehicle_bp.set_attribute("color", color)
 
-            vehicle = self.world.try_spawn_actor(ego_vehicle_bp, spawn_transform)  # NOTE: A None-check is required to satisfy type checking.
+            vehicle = self.world.try_spawn_actor(ego_vehicle_bp, spawn_transform)
 
             if not vehicle:
                 continue
@@ -689,7 +687,7 @@ class ScenarioManager:
         """
         Tick the server.
         """
-        self.world.tick()  # NOTE A None-check is required
+        self.world.tick()
 
     # TODO: Use this function instead of destroy in scenario.py
     # NOTE: This function crashes Carla
@@ -698,7 +696,7 @@ class ScenarioManager:
         Destroy all actors in the world.
         """
 
-        actor_list = self.world.get_actors()  # NOTE A None-check is required
+        actor_list = self.world.get_actors()
         for actor in actor_list:
             actor.destroy()
 
@@ -707,4 +705,4 @@ class ScenarioManager:
         Simulation close.
         """
         # restore to origin setting
-        self.world.apply_settings(self.origin_settings)  # NOTE A None-check is required
+        self.world.apply_settings(self.origin_settings)

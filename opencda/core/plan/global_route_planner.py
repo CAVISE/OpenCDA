@@ -7,9 +7,10 @@ computes optimal routes with turn-by-turn navigation decisions..
 """
 
 import math
-import numpy as np
+from typing import Any, Dict, List, Optional, Tuple
+
 import networkx as nx
-from typing import Optional, Dict, List, Any, Tuple
+import numpy as np
 
 import carla
 from opencda.core.plan.local_planner_behavior import RoadOption
@@ -48,10 +49,12 @@ class GlobalRoutePlanner(object):
 
     def __init__(self, dao: object):
         self._dao: Any = dao
-        self._topology: Optional[List[Dict[str, Any]]] = None
-        self._graph: Optional[nx.DiGraph] = None
-        self._id_map: Optional[Dict[Tuple[float, float, float], int]] = None
-        self._road_id_to_edge: Optional[Dict[int, Dict[int, Dict[int, Tuple[int, int]]]]] = None
+        self._topology: List[Dict[str, Any]] = []
+        self._graph: nx.DiGraph = nx.DiGraph()
+        self._id_map: Dict[Tuple[float, float, float], int] = {}
+        self._road_id_to_edge: Dict[int, Dict[int, Dict[int, Tuple[int, int]]]] = {}
+        self._intersection_end_node: int = -1
+        self._previous_decision: RoadOption = RoadOption.VOID
 
     def setup(self) -> None:
         """
@@ -102,7 +105,7 @@ class GlobalRoutePlanner(object):
         # Map with structure {road_id: {lane_id: edge, ... }, ... }
         road_id_to_edge: Dict[int, Dict[int, Dict[int, Tuple[int, int]]]] = dict()
 
-        for segment in self._topology:  # NOTE A None-check is required
+        for segment in self._topology:
             entry_xyz, exit_xyz = segment["entryxyz"], segment["exitxyz"]
             path = segment["path"]
             entry_wp, exit_wp = segment["entry"], segment["exit"]
@@ -152,13 +155,13 @@ class GlobalRoutePlanner(object):
         """
         count_loose_ends = 0
         hop_resolution = self._dao.get_resolution()
-        for segment in self._topology:  # NOTE A None-check is required
+        for segment in self._topology:
             end_wp = segment["exit"]
             exit_xyz = segment["exitxyz"]
             road_id, section_id, lane_id = end_wp.road_id, end_wp.section_id, end_wp.lane_id
             if (
-                road_id in self._road_id_to_edge  # NOTE Unsupported right operand
-                and section_id in self._road_id_to_edge[road_id]  # NOTE not indexable
+                road_id in self._road_id_to_edge
+                and section_id in self._road_id_to_edge[road_id]
                 and lane_id in self._road_id_to_edge[road_id][section_id]
             ):
                 pass
@@ -166,18 +169,14 @@ class GlobalRoutePlanner(object):
                 count_loose_ends += 1
                 if road_id not in self._road_id_to_edge:
                     self._road_id_to_edge[road_id] = dict()
-                if (
-                    section_id not in self._road_id_to_edge[road_id]
-                ):  # NOTE Value of type "dict[tuple[float, float, float], int] | None" is not indexable
-                    self._road_id_to_edge[road_id][section_id] = (
-                        dict()
-                    )  # NOTE Value of type "dict[tuple[float, float, float], int] | None" is not indexable
-                n1 = self._id_map[exit_xyz]  # NOTE Value of type "dict[tuple[float, float, float], int] | None" is not indexable
+                if section_id not in self._road_id_to_edge[road_id]:
+                    self._road_id_to_edge[road_id][section_id] = dict()
+                n1 = self._id_map[exit_xyz]
                 n2 = -1 * count_loose_ends
                 self._road_id_to_edge[road_id][section_id][lane_id] = (
                     n1,
                     n2,
-                )  # NOTE Value of type "dict[int, dict[int, dict[int, tuple[int, int]]]] | None" is not indexable
+                )
                 next_wp = end_wp.next(hop_resolution)
                 path = []
                 while (
@@ -221,11 +220,9 @@ class GlobalRoutePlanner(object):
             Pair of node ids representing an edge in the graph, or None if localization fails.
         """
         waypoint = self._dao.get_waypoint(location)
-        edge = None
+        edge: Optional[Tuple[int, int]] = None
         try:
-            edge = self._road_id_to_edge[waypoint.road_id][waypoint.section_id][
-                waypoint.lane_id
-            ]  # NOTE Value of type "dict[int, dict[int, dict[int, tuple[int, int]]]] | None" is not indexable
+            edge = self._road_id_to_edge[waypoint.road_id][waypoint.section_id][waypoint.lane_id]
         except KeyError:
             print(
                 "Failed to localize! : ",
@@ -249,7 +246,7 @@ class GlobalRoutePlanner(object):
         with type CHANGELANERIGHT or CHANGELANELEFT.
         """
 
-        for segment in self._topology:  # NOTE Item "None" of "list[dict[str, Any]] | None" has no attribute"__iter__" (not iterable)
+        for segment in self._topology:
             left_found, right_found = False, False
 
             for waypoint in segment["path"]:
@@ -266,10 +263,8 @@ class GlobalRoutePlanner(object):
                             next_road_option = RoadOption.CHANGELANERIGHT
                             next_segment = self._localize(next_waypoint.transform.location)
                             if next_segment is not None:
-                                self._graph.add_edge(  # NOTE tem "None" of "Any | None" has no attribute "add_edge"
-                                    self._id_map[
-                                        segment["entryxyz"]
-                                    ],  # NOTE Value of type "dict[tuple[float, float, float], int] | None" is not indexable
+                                self._graph.add_edge(
+                                    self._id_map[segment["entryxyz"]],
                                     next_segment[0],
                                     entry_waypoint=waypoint,
                                     exit_waypoint=next_waypoint,
@@ -291,8 +286,8 @@ class GlobalRoutePlanner(object):
                             next_road_option = RoadOption.CHANGELANELEFT
                             next_segment = self._localize(next_waypoint.transform.location)
                             if next_segment is not None:
-                                self._graph.add_edge(  # NOTE Item "None" of "Any | None" has no attribute "add_edge"
-                                    self._id_map[segment["entryxyz"]],  # NOTE not indexable
+                                self._graph.add_edge(
+                                    self._id_map[segment["entryxyz"]],
                                     next_segment[0],
                                     entry_waypoint=waypoint,
                                     exit_waypoint=next_waypoint,
@@ -311,9 +306,9 @@ class GlobalRoutePlanner(object):
         """
         Distance heuristic calculator for path searching in self._graph
         """
-        l1 = np.array(self._graph.nodes[n1]["vertex"])  # NOTE Item "None" of "Any | None" has no attribute "nodes"
+        l1 = np.array(self._graph.nodes[n1]["vertex"])
         l2 = np.array(self._graph.nodes[n2]["vertex"])
-        return np.linalg.norm(l1 - l2)
+        return float(np.linalg.norm(l1 - l2))
 
     def _path_search(self, origin: carla.Location, destination: carla.Location) -> List[int]:
         """
@@ -335,9 +330,11 @@ class GlobalRoutePlanner(object):
         """
 
         start, end = self._localize(origin), self._localize(destination)
+        if start is None or end is None:
+            raise ValueError("Failed to localize origin or destination for route planning.")
 
         route = nx.astar_path(self._graph, source=start[0], target=end[0], heuristic=self._distance_heuristic, weight="length")
-        route.append(end[1])  # NOTE Value of type "tuple[int, int] | None" is not indexabl
+        route.append(end[1])
         return route
 
     def _successive_last_intersection_edge(self, index: int, route: List[int]) -> Tuple[Optional[int], Optional[Dict[str, Any]]]:
@@ -365,7 +362,7 @@ class GlobalRoutePlanner(object):
         last_intersection_edge = None
         last_node = None
         for node1, node2 in [(route[i], route[i + 1]) for i in range(index, len(route) - 1)]:
-            candidate_edge = self._graph.edges[node1, node2]  # NOTE Item "None" of "Any | None" has no attribute "edges"
+            candidate_edge = self._graph.edges[node1, node2]
             if node1 == route[index]:
                 last_intersection_edge = candidate_edge
             if candidate_edge["type"] == RoadOption.LANEFOLLOW and candidate_edge["intersection"]:
@@ -399,15 +396,16 @@ class GlobalRoutePlanner(object):
             Navigation decision (LEFT, RIGHT, STRAIGHT, or edge type).
         """
 
-        decision = None
+        decision: RoadOption = RoadOption.VOID
         previous_node = route[index - 1]
         current_node = route[index]
         next_node = route[index + 1]
-        next_edge = self._graph.edges[current_node, next_node]  # NOTE None-check is required
+        next_edge = self._graph.edges[current_node, next_node]
+        decision = next_edge["type"]
         if index > 0:
             if (
-                self._previous_decision != RoadOption.VOID  # NOTE Cannot determine type of "_previous_decision"
-                and self._intersection_end_node > 0  # NOTE Cannot determine type of "_intersection_end_node"
+                self._previous_decision != RoadOption.VOID
+                and self._intersection_end_node > 0
                 and self._intersection_end_node != previous_node
                 and next_edge["type"] == RoadOption.LANEFOLLOW
                 and next_edge["intersection"]
@@ -424,7 +422,8 @@ class GlobalRoutePlanner(object):
                 )
                 if calculate_turn:
                     last_node, tail_edge = self._successive_last_intersection_edge(index, route)
-                    self._intersection_end_node = last_node
+                    if last_node is not None:
+                        self._intersection_end_node = last_node
                     if tail_edge is not None:
                         next_edge = tail_edge
                     cv, nv = current_edge["exit_vector"], next_edge["exit_vector"]
@@ -453,9 +452,6 @@ class GlobalRoutePlanner(object):
                         decision = RoadOption.RIGHT
                 else:
                     decision = next_edge["type"]
-
-        else:
-            decision = next_edge["type"]
 
         self._previous_decision = decision
         return decision

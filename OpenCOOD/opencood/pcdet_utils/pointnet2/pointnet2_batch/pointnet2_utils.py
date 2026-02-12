@@ -4,13 +4,13 @@ PointNet++ CUDA operations for efficient point cloud processing.
 This module provides GPU-accelerated operations for PointNet++.
 """
 
-from typing import Tuple
+from typing import Tuple, Any, Optional
 
 import torch
 import torch.nn as nn
-from torch.autograd import Function, Variable
+from torch.autograd import Function
 
-from opencood.pcdet_utils.pointnet2.pointnet2_batch import pointnet2_batch_cuda as pointnet2
+from opencood.pcdet_utils.pointnet2.pointnet2_batch import pointnet2_batch_cuda as pointnet2  # type: ignore[attr-defined]
 
 
 class GroupingOperation(Function):
@@ -21,7 +21,7 @@ class GroupingOperation(Function):
     """
 
     @staticmethod
-    def forward(ctx, features: torch.Tensor, idx: torch.Tensor) -> torch.Tensor:
+    def forward(ctx: Any, features: torch.Tensor, idx: torch.Tensor) -> torch.Tensor:
         """
         Group features according to neighborhood indices.
 
@@ -45,7 +45,7 @@ class GroupingOperation(Function):
 
         B, nfeatures, nsample = idx.size()
         _, C, N = features.size()
-        output = torch.cuda.FloatTensor(B, C, nfeatures, nsample)
+        output = torch.empty((B, C, nfeatures, nsample), device=features.device, dtype=features.dtype)
 
         pointnet2.group_points_wrapper(B, C, N, nfeatures, nsample, features, idx, output)
 
@@ -53,7 +53,7 @@ class GroupingOperation(Function):
         return output
 
     @staticmethod
-    def backward(ctx, grad_out: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    def backward(ctx: Any, grad_out: torch.Tensor) -> Tuple[torch.Tensor, None]:
         """
         Compute gradient with respect to input features.
 
@@ -74,7 +74,7 @@ class GroupingOperation(Function):
         idx, N = ctx.for_backwards
 
         B, C, npoint, nsample = grad_out.size()
-        grad_features = Variable(torch.cuda.FloatTensor(B, C, N).zero_())
+        grad_features = torch.zeros((B, C, N), device=grad_out.device, dtype=grad_out.dtype)
 
         grad_out_data = grad_out.data.contiguous()
         pointnet2.group_points_grad_wrapper(B, C, N, npoint, nsample, grad_out_data, idx, grad_features.data)
@@ -92,7 +92,7 @@ class BallQuery(Function):
     """
 
     @staticmethod
-    def forward(ctx, radius: float, nsample: int, xyz: torch.Tensor, new_xyz: torch.Tensor) -> torch.Tensor:
+    def forward(ctx: Any, radius: float, nsample: int, xyz: torch.Tensor, new_xyz: torch.Tensor) -> torch.Tensor:
         """
         Find neighbors within radius for each query point.
 
@@ -120,13 +120,13 @@ class BallQuery(Function):
 
         B, N, _ = xyz.size()
         npoint = new_xyz.size(1)
-        idx = torch.cuda.IntTensor(B, npoint, nsample).zero_()
+        idx = torch.zeros((B, npoint, nsample), device=xyz.device, dtype=torch.int32)
 
         pointnet2.ball_query_wrapper(B, N, npoint, radius, nsample, new_xyz, xyz, idx)
         return idx
 
     @staticmethod
-    def backward(ctx, a=None):
+    def backward(ctx: Any, a: Optional[torch.Tensor] = None) -> Tuple[None, None, None, None]:
         return None, None, None, None
 
 
@@ -164,7 +164,7 @@ class QueryAndGroup(nn.Module):
         super().__init__()
         self.radius, self.nsample, self.use_xyz = radius, nsample, use_xyz
 
-    def forward(self, xyz: torch.Tensor, new_xyz: torch.Tensor, features: torch.Tensor = None) -> Tuple[torch.Tensor]:
+    def forward(self, xyz: torch.Tensor, new_xyz: torch.Tensor, features: Optional[torch.Tensor] = None) -> torch.Tensor:
         """
         Query neighbors and group their features.
 

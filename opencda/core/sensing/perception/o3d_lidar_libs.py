@@ -19,7 +19,8 @@ import torch
 import carla
 
 
-VIRIDIS = np.array(cm.get_cmap("plasma").colors)
+_plasma_cmap = cm.get_cmap("plasma")
+VIRIDIS = np.array(_plasma_cmap(np.linspace(0.0, 1.0, 256)))
 VID_RANGE = np.linspace(0.0, 1.0, VIRIDIS.shape[0])
 LABEL_COLORS = (  # noqa: DC01
     np.array(
@@ -180,12 +181,12 @@ def o3d_camera_lidar_fusion(
     """
     # convert torch tensor to numpy array first
     if yolo_bbx.is_cuda:
-        yolo_bbx = yolo_bbx.cpu().detach().numpy()
+        yolo_bbx_np = yolo_bbx.cpu().detach().numpy()
     else:
-        yolo_bbx = yolo_bbx.detach().numpy()
+        yolo_bbx_np = yolo_bbx.detach().numpy()
 
-    for i in range(yolo_bbx.shape[0]):
-        detection = yolo_bbx[i]
+    for i in range(yolo_bbx_np.shape[0]):
+        detection = yolo_bbx_np[i]
         # 2d bbx coordinates
         x1, y1, x2, y2 = int(detection[0]), int(detection[1]), int(detection[2]), int(detection[3])
         label = int(detection[5])
@@ -205,8 +206,8 @@ def o3d_camera_lidar_fusion(
             continue
 
         # filter out the outlier
-        x_common = mode(np.array(np.abs(select_points[:, 0]), dtype=np.int), axis=0)[0][0]
-        y_common = mode(np.array(np.abs(select_points[:, 1]), dtype=np.int), axis=0)[0][0]
+        x_common = mode(np.array(np.abs(select_points[:, 0]), dtype=int), axis=0)[0][0]
+        y_common = mode(np.array(np.abs(select_points[:, 1]), dtype=int), axis=0)[0][0]
         points_inlier = (
             (np.abs(select_points[:, 0]) > x_common - 3)
             & (np.abs(select_points[:, 0]) < x_common + 3)
