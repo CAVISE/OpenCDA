@@ -35,11 +35,12 @@ jobs:
       - name: Install Dependencies
         run: pip install mypy mypy-protobuf grpcio-tools
       - name: Generate protobufs modules
-        run: python -m grpc_tools.protoc \
-              -I opencda/core/common/communication/messages \
-              --python_out=opencda/core/common/communication/protos/cavise \
-              --mypy_out=opencda/core/common/communication/protos/cavise \
-              opencda/core/common/communication/messages/capi.proto
+        run: |
+          python -m grpc_tools.protoc \
+            -I opencda/core/common/communication/messages \
+            --python_out=opencda/core/common/communication/protos/cavise \
+            --mypy_out=opencda/core/common/communication/protos/cavise \
+            opencda/core/common/communication/messages/capi.proto
       - name:
         run: ls -la opencda/core/common/communication/protos/cavise
       - name: Run mypy
