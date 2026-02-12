@@ -37,8 +37,9 @@ class TestCommunicationToolchain:
         # Check command structure strictly
         assert args[0] == "protoc"
         assert _norm(args[1]) == "--proto_path=opencda/core/common/communication/messages"
-        assert _norm(args[2]) == "--python_out=opencda/core/common/communication/protos/cavise"
-        assert "msg1.proto" in str(args[3])
+        assert _norm(args[2]) == "--mypy_out=opencda/core/common/communication/protos/cavise"
+        assert _norm(args[3]) == "--python_out=opencda/core/common/communication/protos/cavise"
+        assert "msg1.proto" in str(args[4])
 
     def test_handle_messages_custom_config(self, mock_subprocess, mock_importlib):
         """Test handle_messages with custom configuration."""
@@ -53,7 +54,8 @@ class TestCommunicationToolchain:
         args = mock_subprocess.call_args[0][0]
         assert args[0] == "protoc"
         assert args[1] == "--proto_path=src"
-        assert args[2] == "--python_out=bin"
+        assert args[2] == "--mypy_out=bin"
+        assert args[3] == "--python_out=bin"
 
         # Verify all messages are included
         joined_args = _norm(" ".join(str(a) for a in args))
@@ -109,5 +111,5 @@ class TestCommunicationToolchain:
         args = mock_subprocess.call_args[0][0]
         # args should be: ["protoc", "--proto_path=...", "--python_out=..."]
         # with no further arguments for files
-        assert len(args) == 3
+        assert len(args) == 4
         assert args[0] == "protoc"

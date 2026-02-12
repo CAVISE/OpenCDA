@@ -19,6 +19,7 @@ matplotlib==3.10.7
 
 # Tools
 mypy==1.19.1
+mypy-protobuf==5.0.0
 
 # Graphs & Networks
 networkx==3.5
