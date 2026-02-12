@@ -41,8 +41,6 @@ jobs:
             --python_out=opencda/core/common/communication/protos/cavise \
             --mypy_out=opencda/core/common/communication/protos/cavise \
             opencda/core/common/communication/messages/capi.proto
-      - name:
-        run: ls -la opencda/core/common/communication/protos/cavise
       - name: Run mypy
         run: mypy .
         continue-on-error: true
