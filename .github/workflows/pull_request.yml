@@ -33,7 +33,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install Dependencies
-        run: pip install mypy mypy-protobuf grpc_tools.protoc
+        run: pip install mypy mypy-protobuf grpcio-tools
       - name: Generate protobufs modules
         run: python -m grpc_tools.protoc \
               -I opencda/core/common/communication/messages \
