@@ -19,7 +19,7 @@ The workflow of opencda can be summarized as follows.
 step, ` scenario_manager.tick()` will be called to tick the server. Then all the CAVs will update the surrounding information and execute a single step. The single CAVs may join the platoon in the middle of the travel, so we need to check whether any single CAV has joined a platoon and remove it from the `single_cav_list` if so.
 
 
-```bash
+```python
 from opencda.scenario_testing.utils.customized_map_api import customized_map_helper
 def run_scenario(opt, config_yaml):
     scenario_params = load_yaml(config_yaml)
