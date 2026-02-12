@@ -6,7 +6,7 @@ ARG TAG=base-devel
 
 FROM archlinux:${TAG} AS setup
 
-SHELL [ "/bin/bash", "-c"]
+SHELL [ "/bin/bash", "-o", "pipefail", "-c"]
 
 RUN pacman -Syu --noconfirm     \
     --disable-download-timeout  \
@@ -34,7 +34,7 @@ ARG SUMO_TAG=v1_21_0
 
 RUN git clone --recurse --depth 1 --branch ${SUMO_TAG} https://github.com/eclipse-sumo/sumo
 WORKDIR /sumo
-RUN cmake -B build . && cmake --build build --parallel $(nproc --all)
+RUN cmake -B build . && cmake --build build --parallel "$(nproc --all)"
 
 ######################
 # Installation stage #
@@ -48,8 +48,8 @@ ARG USER=devcontainer
 COPY --from=build /sumo /sumo
 RUN cmake --install /sumo/build
 
-RUN groupadd sudo && useradd -m -G sudo ${USER}
-RUN echo "${USER} ALL=(ALL:ALL) NOPASSWD: ALL" | sudo tee /etc/sudoers.d/${USER}
+RUN groupadd sudo && useradd -l -m -G sudo ${USER}
+RUN echo "${USER} ALL=(ALL:ALL) NOPASSWD: ALL" > /etc/sudoers.d/${USER}
 
 WORKDIR /workspaces/opencda
 COPY .python-version .python-version
@@ -61,7 +61,7 @@ ENV HOME=/home/${USER}
 ENV PYENV_ROOT=${HOME}/.pyenv
 ENV PATH=${PYENV_ROOT}/shims:${PYENV_ROOT}/bin:${PATH}
 
-RUN pyenv install $(pyenv local) && pyenv local && pyenv rehash
+RUN pyenv install "$(pyenv local)" && pyenv local && pyenv rehash
 RUN pip3 install --no-cache-dir --break-system-packages \
     -r requirements.txt -r requirements_ci.txt -r requirements_cavise.txt traci
 
