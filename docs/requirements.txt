@@ -1,15 +1,15 @@
 carla
-matplotlib==3.4.2
-mkdocs == 1.1
-networkx==2.5.1
+matplotlib==3.10.8
+mkdocs == 1.6.1
+networkx==3.6.1
 numpy
 open3d
-opencv-python==4.5.2.52
+opencv-python==4.13.0.92
 pandas
 pillow
 pygame
-pyparsing==2.4.7
-scikit-learn==0.24.2
-scipy==1.6.3
+pyparsing==3.3.2
+scikit-learn==1.8.0
+scipy==1.17.0
 seaborn
-six==1.16.0
+six==1.17.0
