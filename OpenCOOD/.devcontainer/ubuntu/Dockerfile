@@ -4,7 +4,6 @@ SHELL [ "/bin/bash", "-c"]
 ARG USER=devcontainer
 ARG UID=1000
 ARG HOME=/home/${USER}
-ARG WORKSPACE=/workspaces/opencda
 
 ENV TORCH_CUDA_ARCH_LIST="8.9"
 ENV TORCH_NVCC_FLAGS="--allow-unsupported-compiler"
