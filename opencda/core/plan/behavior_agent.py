@@ -4,6 +4,7 @@ import logging
 import sys
 
 import numpy as np
+import math
 import carla
 
 from opencda.core.common.misc import get_speed, positive, cal_distance_angle
@@ -165,7 +166,7 @@ class BehaviorAgent(object):
         self.obstacle_vehicles = self.white_list_match(obstacle_vehicles)
 
         # update the debug helper
-        self.debug_helper.update(ego_speed, self.ttc)
+        self.debug_helper.update(ego_speed=ego_speed, ttc=self.ttc)
 
         if self.ignore_traffic_light:
             self.light_state = "Green"
@@ -357,6 +358,42 @@ class BehaviorAgent(object):
             self.light_id_to_ignore = -1
         return 0
 
+    def _calculate_intersection_ttc(self, ego_pos, ego_speed, target_vehicle):
+        """
+        Calculate TTC for a target vehicle that might cross our path.
+        This is a simplified geometric calculation assuming constant velocity.
+        """
+        if ego_speed < 0.1:
+            return 1000.0
+
+        target_loc = target_vehicle.get_location()
+        target_vel = target_vehicle.get_velocity()
+        target_speed = np.sqrt(target_vel.x**2 + target_vel.y**2)
+
+        if target_speed < 0.1:
+            return 1000.0
+
+        p1 = np.array([ego_pos.location.x, ego_pos.location.y])
+        v1 = np.array([math.cos(math.radians(ego_pos.rotation.yaw)), math.sin(math.radians(ego_pos.rotation.yaw))]) * (ego_speed / 3.6)
+
+        p2 = np.array([target_loc.x, target_loc.y])
+        v2 = np.array([target_vel.x, target_vel.y])
+
+        A = np.array([[v1[0], -v2[0]], [v1[1], -v2[1]]])
+        B = p2 - p1
+
+        try:
+            x = np.linalg.solve(A, B)
+            t1, t2 = x[0], x[1]
+
+            if t1 > 0 and t2 > 0:
+                if abs(t1 - t2) < 2.0:
+                    return t1
+        except np.linalg.LinAlgError:
+            return 1000.0
+
+        return 1000.0
+
     def collision_manager(self, rx, ry, ryaw, waypoint, adjacent_check=False):
         """
         This module is in charge of warning in case of a collision.
@@ -385,6 +422,7 @@ class BehaviorAgent(object):
         vehicle_state = False
         min_distance = 100000
         target_vehicle = None
+        min_ttc = 1000.0
 
         for vehicle in self.obstacle_vehicles:
             collision_free = self._collision_check.collision_circle_check(
@@ -400,6 +438,16 @@ class BehaviorAgent(object):
                 if distance < min_distance:
                     min_distance = distance
                     target_vehicle = vehicle
+
+            # Calculate TTC regardless of immediate collision circle check
+            # to capture intersection threats early
+            ttc = self._calculate_intersection_ttc(self._ego_pos, self._ego_speed, vehicle)
+            if ttc < min_ttc:
+                min_ttc = ttc
+
+        # Update global TTC if we found a threatening intersection scenario
+        if min_ttc < 1000:
+            self.ttc = min_ttc
 
         return vehicle_state, target_vehicle, min_distance
 
@@ -538,6 +586,7 @@ class BehaviorAgent(object):
         delta_v = max(1, (self._ego_speed - vehicle_speed) / 3.6)
         ttc = distance / delta_v if delta_v != 0 else distance / np.nextafter(0.0, 1.0)
         self.ttc = ttc
+
         # Under safety time distance, slow down.
         if self.safety_time > ttc > 0.0:
             target_speed = min(positive(vehicle_speed - self.speed_decrease), target_speed)

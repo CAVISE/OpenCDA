@@ -128,7 +128,7 @@ class Scenario:
                 self.coperception_model_manager = CoperceptionModelManager(opt=opt, current_time=current_time, message_handler=self.message_handler)
                 logger.info("created cooperception manager")
 
-        if opt.with_mtp:
+        if opt.with_aim:
             logger.info("Codriving Model is initialized")
 
             net = sumolib.net.readNet(f"opencda/sumo-assets/{self.scenario_name}/{self.scenario_name}.net.xml")
@@ -196,7 +196,7 @@ class Scenario:
                     transform = self.platoon_list[0].vehicle_manager_list[0].vehicle.get_transform()
                     self.spectator.set_transform(carla.Transform(transform.location + carla.Location(z=50), carla.Rotation(pitch=-90)))
 
-            if opt.with_mtp:
+            if opt.with_aim:
                 self.codriving_model_manager.make_trajs(carla_vmanagers=self.single_cav_list)
 
             if self.coperception_model_manager is not None and tick_number > 0:
@@ -248,7 +248,7 @@ class Scenario:
                     transform = self.platoon_list[0].vehicle_manager_list[0].vehicle.get_transform()
                     self.spectator.set_transform(carla.Transform(transform.location + carla.Location(z=50), carla.Rotation(pitch=-90)))
 
-            if opt.with_mtp:
+            if opt.with_aim:
                 self.codriving_model_manager.make_trajs(carla_vmanagers=self.single_cav_list)
 
             """
