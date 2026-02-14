@@ -32,9 +32,9 @@ class PlanDebugHelper(object):
 
     def __init__(self, actor_id):
         self.actor_id = actor_id
-        self.speed_list = [[]]
-        self.acc_list = [[]]
-        self.ttc_list = [[]]
+        self.speed_list = []
+        self.acc_list = []
+        self.ttc_list = []
 
         self.count = 0
 
@@ -50,13 +50,13 @@ class PlanDebugHelper(object):
         # at the very beginning, the vehicle is in a spawn state, so we should
         # filter out the first 100 data points.
         if self.count > 100:
-            self.speed_list[0].append(ego_speed / 3.6)
-            if len(self.speed_list[0]) <= 1:
-                self.acc_list[0].append(0)
+            self.speed_list.append(ego_speed / 3.6)
+            if len(self.speed_list) <= 1:
+                self.acc_list.append(0)
             else:
                 # todo: time-step hardcoded
-                self.acc_list[0].append((self.speed_list[0][-1] - self.speed_list[0][-2]) / 0.05)
-            self.ttc_list[0].append(ttc)
+                self.acc_list.append((self.speed_list[-1] - self.speed_list[-2]) / 0.05)
+            self.ttc_list.append(ttc)
 
     def evaluate(self):
         """
@@ -72,24 +72,24 @@ class PlanDebugHelper(object):
         # draw speed, acc and ttc plotting
         figure = plt.figure()
         plt.subplot(311)
-        open_plt.draw_velocity_profile_single_plot(self.speed_list)
+        open_plt.draw_velocity_profile_single_plot([self.speed_list])
 
         plt.subplot(312)
-        open_plt.draw_acceleration_profile_single_plot(self.acc_list)
+        open_plt.draw_acceleration_profile_single_plot([self.acc_list])
 
         plt.subplot(313)
-        open_plt.draw_ttc_profile_single_plot(self.ttc_list)
+        open_plt.draw_ttc_profile_single_plot([self.ttc_list])
 
         figure.suptitle("planning profile of actor id %d" % self.actor_id)
 
         # calculate the statistics
-        spd_avg = np.mean(np.array(self.speed_list[0]))
-        spd_std = np.std(np.array(self.speed_list[0]))
+        spd_avg = np.mean(np.array(self.speed_list))
+        spd_std = np.std(np.array(self.speed_list))
 
-        acc_avg = np.mean(np.array(self.acc_list[0]))
-        acc_std = np.std(np.array(self.acc_list[0]))
+        acc_avg = np.mean(np.array(self.acc_list))
+        acc_std = np.std(np.array(self.acc_list))
 
-        ttc_array = np.array(self.ttc_list[0])
+        ttc_array = np.array(self.ttc_list)
         ttc_array = ttc_array[ttc_array < 1000]
         ttc_avg = np.mean(ttc_array)
         ttc_std = np.std(ttc_array)
