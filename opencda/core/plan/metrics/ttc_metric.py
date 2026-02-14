@@ -7,7 +7,7 @@ import opencda.core.plan.drive_profile_plotting as open_plt
 from opencda.core.plan.metrics.base_metric import BaseMetric
 
 
-class SafetyMetric(BaseMetric):
+class TtcMetric(BaseMetric):
     """
     Metric for Time To Collision (TTC).
 

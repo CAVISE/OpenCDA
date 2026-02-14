@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 import opencda.core.plan.drive_profile_plotting as open_plt
 from opencda.core.plan.metrics.base_metric import BaseMetric
 from opencda.core.plan.metrics.dynamics_metric import DynamicsMetric
-from opencda.core.plan.metrics.safety_metric import SafetyMetric
+from opencda.core.plan.metrics.ttc_metric import TtcMetric
 
 
 class PlanDebugHelper(object):
@@ -30,10 +30,10 @@ class PlanDebugHelper(object):
 
         # Initialize metrics
         self.dynamics_metric = DynamicsMetric(warmup_steps)
-        self.safety_metric = SafetyMetric(warmup_steps)
+        self.ttc_metric = TtcMetric(warmup_steps)
 
         # List of active metrics
-        self.metrics: List[BaseMetric] = [self.dynamics_metric, self.safety_metric]
+        self.metrics: List[BaseMetric] = [self.dynamics_metric, self.ttc_metric]
 
     def update(self, **kwargs: Any) -> None:
         """
@@ -72,7 +72,7 @@ class PlanDebugHelper(object):
         open_plt.draw_acceleration_profile_single_plot([self.dynamics_metric.acc_list])
 
         plt.subplot(313)
-        self.safety_metric.visualize(plt.gca())
+        self.ttc_metric.visualize(plt.gca())
 
         figure.suptitle("planning profile of actor id %d" % self.actor_id)
 
