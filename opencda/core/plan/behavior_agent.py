@@ -165,7 +165,7 @@ class BehaviorAgent(object):
         self.obstacle_vehicles = self.white_list_match(obstacle_vehicles)
 
         # update the debug helper
-        self.debug_helper.update(ego_speed, self.ttc)
+        self.debug_helper.update(ego_speed=ego_speed, ttc=self.ttc)
 
         if self.ignore_traffic_light:
             self.light_state = "Green"
