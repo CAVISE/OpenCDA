@@ -1,3 +1,5 @@
+from typing import Any, Dict, List, Optional
+
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -6,7 +8,14 @@ from mvp.data.util import pcd_sensor_to_map, bbox_sensor_to_map
 from .general import draw_bbox_2d
 
 
-def draw_attack(attack, normal_case, attack_case, mode="multi_frame", show=False, save=None):
+def draw_attack(
+    attack: Dict[str, Any],
+    normal_case: Dict[int, Dict[Any, Any]],
+    attack_case: Dict[int, Dict[Any, Any]],
+    mode: str = "multi_frame",
+    show: bool = False,
+    save: Optional[str] = None,
+) -> None:
     if mode == "multi_frame":
         frame_ids = attack["attack_meta"]["attack_frame_ids"]
         frame_num = len(frame_ids)
@@ -43,7 +52,7 @@ def draw_attack(attack, normal_case, attack_case, mode="multi_frame", show=False
                 ax.scatter(*attacker_vehicle_data["lidar_pose"][:2].tolist(), s=100, c="red")
 
                 # draw gt/result bboxes
-                total_bboxes = []
+                total_bboxes: List[tuple] = []
                 if "gt_bboxes" in victim_vehicle_data:
                     total_bboxes.append(
                         (
@@ -70,5 +79,5 @@ def draw_attack(attack, normal_case, attack_case, mode="multi_frame", show=False
     plt.close()
 
 
-def draw_attack_trace(trace, show=False, save=None):
+def draw_attack_trace(trace: Any, show: bool = False, save: Optional[str] = None) -> None:
     pass

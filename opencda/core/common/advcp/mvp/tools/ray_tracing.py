@@ -1,4 +1,6 @@
 import os
+from typing import Any, Dict, List
+
 import open3d as o3d
 import numpy as np
 
@@ -6,7 +8,7 @@ from mvp.data.util import rotation_matrix, bbox_shift, bbox_rotate
 from mvp.config import model_3d_path, model_3d_examples
 
 
-def get_model_mesh(model_3d_name, bbox):
+def get_model_mesh(model_3d_name: str, bbox: np.ndarray) -> o3d.geometry.TriangleMesh:
     mesh = o3d.io.read_triangle_mesh(os.path.join(model_3d_path, "{}.ply".format(model_3d_name)))
     model_bbox = np.array(model_3d_examples[model_3d_name])
     translate = bbox[:3]
@@ -21,7 +23,7 @@ def get_model_mesh(model_3d_name, bbox):
     return mesh
 
 
-def get_wall_mesh(bbox):
+def get_wall_mesh(bbox: np.ndarray) -> o3d.geometry.TriangleMesh:
     wall = o3d.geometry.TriangleMesh.create_box(width=bbox[3], height=bbox[4], depth=bbox[5])
     wall.translate(np.array([-bbox[3] / 2, -bbox[4] / 2, 0]).T)
     wall.rotate(rotation_matrix(0, bbox[6], 0), np.zeros(3).T)
@@ -29,7 +31,7 @@ def get_wall_mesh(bbox):
     return wall
 
 
-def get_model_bbox(model_3d_name, bbox):
+def get_model_bbox(model_3d_name: str, bbox: np.ndarray) -> np.ndarray:
     model_bbox = np.array(model_3d_examples[model_3d_name])
     translate = bbox[:3]
     rotate = bbox[6]
@@ -44,9 +46,9 @@ def get_model_bbox(model_3d_name, bbox):
     return bbox
 
 
-def ray_intersection(meshes, rays):
+def ray_intersection(meshes: List[o3d.geometry.TriangleMesh], rays: np.ndarray) -> np.ndarray:
     scene = o3d.t.geometry.RaycastingScene()
-    mesh_id_map = {}
+    mesh_id_map: Dict[int, Any] = {}
     for mesh in meshes:
         mesh_cuda = o3d.t.geometry.TriangleMesh.from_legacy(mesh)
         mesh_id = scene.add_triangles(mesh_cuda)
@@ -57,7 +59,7 @@ def ray_intersection(meshes, rays):
 
     ans_raw = scene.cast_rays(rays)
 
-    ans = {}
+    ans: Dict[str, Any] = {}
     for key in ans_raw:
         ans[key] = ans_raw[key].numpy()
 

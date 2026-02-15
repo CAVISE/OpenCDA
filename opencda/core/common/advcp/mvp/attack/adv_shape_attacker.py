@@ -1,3 +1,5 @@
+from typing import Any, List, Optional, Tuple
+
 import numpy as np
 import open3d as o3d
 import copy
@@ -10,7 +12,12 @@ from mvp.tools.ray_tracing import get_wall_mesh
 
 
 class AdvShapeAttacker(Attacker):
-    def __init__(self, dataset=None, perception=None, attacker=None):
+    def __init__(
+        self,
+        dataset: Optional[Any] = None,
+        perception: Optional[Any] = None,
+        attacker: Optional[Any] = None,
+    ) -> None:
         super().__init__()
         self.name = "adv_shape"
         self.dataset = dataset
@@ -18,19 +25,22 @@ class AdvShapeAttacker(Attacker):
         self.attacker = attacker
         self.mesh, self.mesh_divide = self.init_mesh()
 
-    def run(self):
+    def run(self) -> None:
         import pygad
 
         num_genes = np.asarray(self.mesh.vertices).reshape(-1).shape[0]
+        assert self.attacker is not None
+        assert self.attacker.attack_list is not None
         attacks = self.attacker.attack_list[::12]
 
-        def correct(x):
+        def correct(x: np.ndarray) -> np.ndarray:
             return x.clip(-0.2, 0.2).reshape((-1, 3))
 
-        def fitness_func(solution, solution_idx):
+        def fitness_func(solution: np.ndarray, solution_idx: int) -> float:
             x = correct(solution)
             mesh = self.perturb_mesh(self.mesh, x)
-            fitness_list = []
+            fitness_list: List[float] = []
+            assert self.dataset is not None
             for attack in attacks:
                 attack_opts = {
                     "victim_vehicle_id": attack["attack_meta"]["victim_vehicle_id"],
@@ -46,7 +56,7 @@ class AdvShapeAttacker(Attacker):
             logging.warn("Average fitness: {:.3f}".format(average_fitness))
             return average_fitness
 
-        def checkpoint_func(solver):
+        def checkpoint_func(solver: Any) -> None:
             logging.warn("Generation done; saving checkpoint.")
             solution, _, _ = solver.best_solution()
             solution = correct(solution)
@@ -76,12 +86,12 @@ class AdvShapeAttacker(Attacker):
         solver.run()
 
     @staticmethod
-    def init_mesh():
+    def init_mesh() -> Tuple[o3d.geometry.TriangleMesh, List[np.ndarray]]:
         bbox = np.array([0, 0, 0, 4.9, 2.5, 2.0, 0])
         mesh = get_wall_mesh(bbox)
         mesh = mesh.subdivide_midpoint(2)
 
-        vertex_indices_list = []
+        vertex_indices_list: List[np.ndarray] = []
         vertices = np.asarray(mesh.vertices)
         vertex_indices_list.append(np.argwhere(vertices[:, 0] > bbox[3] / 2 - 0.01).reshape(-1))
         vertex_indices_list.append(np.argwhere(vertices[:, 0] < -bbox[3] / 2 + 0.01).reshape(-1))
@@ -97,24 +107,32 @@ class AdvShapeAttacker(Attacker):
         return mesh, vertex_indices_list
 
     @staticmethod
-    def perturb_mesh(mesh, perturbation):
+    def perturb_mesh(mesh: o3d.geometry.TriangleMesh, perturbation: np.ndarray) -> o3d.geometry.TriangleMesh:
         new_mesh = copy.deepcopy(mesh)
         vertices = np.asarray(mesh.vertices)
         vertices += perturbation
         new_mesh.vertices = o3d.utility.Vector3dVector(vertices)
         return new_mesh
 
-    def attack(self, mesh, mesh_divide, multi_frame_case, attack_opts):
+    def attack(
+        self,
+        mesh: o3d.geometry.TriangleMesh,
+        mesh_divide: List[np.ndarray],
+        multi_frame_case: Any,
+        attack_opts: Any,
+    ) -> float:
         case = copy.deepcopy(multi_frame_case)
         attacker_id = attack_opts["attacker_vehicle_id"]
         ego_id = attack_opts["victim_vehicle_id"]
 
+        assert self.attacker is not None
         self.attacker.meshes = [mesh.select_by_index(vertex_indices) for vertex_indices in mesh_divide]
         case, _ = self.attacker.run(case, attack_opts)
 
         object_index = case[9][attacker_id]["object_ids"].index(attack_opts["object_id"])
         bbox_to_remove = case[9][attacker_id]["gt_bboxes"][object_index]
         bbox_to_remove_ego = bbox_map_to_sensor(bbox_sensor_to_map(bbox_to_remove, case[9][attacker_id]["lidar_pose"]), case[9][ego_id]["lidar_pose"])
+        assert self.perception is not None
         fitness = self.perception.black_box_attack_fitness(case[9], ego_id, bbox_to_remove_ego, mode="remove")
 
         return fitness

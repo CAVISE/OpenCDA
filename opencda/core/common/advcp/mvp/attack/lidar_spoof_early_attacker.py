@@ -1,3 +1,5 @@
+from typing import Any, Dict, List, Optional, Tuple
+
 import copy
 import os
 import open3d as o3d
@@ -11,7 +13,7 @@ from mvp.tools.ray_tracing import get_model_mesh, ray_intersection
 
 
 class LidarSpoofEarlyAttacker(Attacker):
-    def __init__(self, dataset=None, dense=3, sync=1):
+    def __init__(self, dataset: Optional[Any] = None, dense: int = 3, sync: int = 1) -> None:
         super().__init__()
         self.name = "lidar_spoof"
         self.dataset = dataset
@@ -33,7 +35,7 @@ class LidarSpoofEarlyAttacker(Attacker):
         self.mesh = o3d.io.read_triangle_mesh(os.path.join(model_3d_path, "{}.ply".format(self.default_car_model)))
         # Divides the 3D model into 4 pieces.
         mesh_divide = pickle.load(open(os.path.join(model_3d_path, "spoof/mesh_divide.pkl"), "rb"))
-        meshes = []
+        meshes: List[o3d.geometry.TriangleMesh] = []
         for vertex_indices in mesh_divide:
             meshes.append(self.mesh.select_by_index(vertex_indices))
         self.meshes = meshes
@@ -41,7 +43,7 @@ class LidarSpoofEarlyAttacker(Attacker):
         # In the mode of injecting dense points, fix the distance between the target and the sensor.
         self.dense_distance = 10  # (m)
 
-    def run(self, multi_frame_case, attack_opts):
+    def run(self, multi_frame_case: Dict[int, Any], attack_opts: Dict[str, Any]) -> Tuple[Dict[int, Any], List[Dict[str, Optional[np.ndarray]]]]:
         """attack_opts: {
             "frame_ids": [-1],
             "attacker_vehicle_id": int,
@@ -73,25 +75,27 @@ class LidarSpoofEarlyAttacker(Attacker):
                 x = copy.deepcopy(multi_frame_case[frame_id][attack_opts["attacker_vehicle_id"]])
                 shift_vector = attack_opts["positions"][frame_id][:3] - attack_opts["positions"][frame_id - 1][:3]
 
-                append_data = []
+                append_data_list: List[np.ndarray] = []
                 if last_info["replace_data"] is not None and last_info["replace_data"].shape[0] > 0:
-                    append_data.append(last_info["replace_data"] + shift_vector)
+                    append_data_list.append(last_info["replace_data"] + shift_vector)
                 if last_info["append_data"] is not None and last_info["append_data"].shape[0] > 0:
-                    append_data.append(last_info["append_data"] + shift_vector)
-                if len(append_data) > 1:
-                    append_data = np.vstack(append_data)
-                else:
-                    append_data = None
+                    append_data_list.append(last_info["append_data"] + shift_vector)
+                append_data: Optional[np.ndarray] = None
+                if len(append_data_list) > 1:
+                    append_data = np.vstack(append_data_list)
+                elif len(append_data_list) == 1:
+                    append_data = append_data_list[0]
 
-                ignore_indices = []
-                if info["replace_indices"] is not None and last_info["replace_indices"].shape[0] > 0:
-                    ignore_indices.append(info["replace_indices"])
-                if info["ignore_indices"] is not None and last_info["ignore_indices"].shape[0] > 0:
-                    ignore_indices.append(info["ignore_indices"])
-                if len(append_data) > 1:
-                    ignore_indices = np.hstack(ignore_indices).reshape(-1)
-                else:
-                    ignore_indices = None
+                ignore_indices_list: List[np.ndarray] = []
+                if info["replace_indices"] is not None and last_info["replace_indices"] is not None and last_info["replace_indices"].shape[0] > 0:
+                    ignore_indices_list.append(info["replace_indices"])
+                if info["ignore_indices"] is not None and last_info["ignore_indices"] is not None and last_info["ignore_indices"].shape[0] > 0:
+                    ignore_indices_list.append(info["ignore_indices"])
+                ignore_indices: Optional[np.ndarray] = None
+                if len(ignore_indices_list) > 1:
+                    ignore_indices = np.hstack(ignore_indices_list).reshape(-1)
+                elif len(ignore_indices_list) == 1:
+                    ignore_indices = ignore_indices_list[0]
 
                 info = {
                     "replace_indices": None,
@@ -108,8 +112,8 @@ class LidarSpoofEarlyAttacker(Attacker):
             last_info = info
         return new_case, attack_info
 
-    def post_process_meshes(self, meshes, bbox):
-        new_meshes = []
+    def post_process_meshes(self, meshes: List[o3d.geometry.TriangleMesh], bbox: np.ndarray) -> List[o3d.geometry.TriangleMesh]:
+        new_meshes: List[o3d.geometry.TriangleMesh] = []
         for mesh in meshes:
             x = copy.deepcopy(mesh)
             scale = np.min(bbox[3:6] / model_3d_examples[self.default_car_model][3:6])
@@ -119,7 +123,7 @@ class LidarSpoofEarlyAttacker(Attacker):
             new_meshes.append(x)
         return new_meshes
 
-    def run_core(self, single_vehicle_case, attack_opts):
+    def run_core(self, single_vehicle_case: Dict[str, Any], attack_opts: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, Optional[np.ndarray]]]:
         new_case = copy.deepcopy(single_vehicle_case)
         attacker_pcd = new_case["lidar"][:, :3]
 
@@ -183,7 +187,9 @@ class LidarSpoofEarlyAttacker(Attacker):
         new_case["lidar"] = np.hstack([attacker_pcd, np.ones((attacker_pcd.shape[0], 1))])
         return new_case, info
 
-    def run_core_sample(self, single_vehicle_case, attack_opts):
+    def run_core_sample(
+        self, single_vehicle_case: Dict[str, Any], attack_opts: Dict[str, Any]
+    ) -> Tuple[Dict[str, Any], Dict[str, Optional[np.ndarray]]]:
         """attack_opts: {
             "frame_ids": [-1],
             "attacker_vehicle_id": int,
@@ -204,8 +210,8 @@ class LidarSpoofEarlyAttacker(Attacker):
         meshes = self.post_process_meshes(self.meshes, bbox_to_spoof)
 
         # Gets casted points on edges.
-        replace_mask_list = []
-        replace_data_list = []
+        replace_mask_list: List[np.ndarray] = []
+        replace_data_list: List[np.ndarray] = []
         for i in range(len(meshes)):
             intersect_points = ray_intersection([meshes[i]], rays)
             in_range_mask = intersect_points[:, 0] ** 2 < 10000
@@ -226,21 +232,21 @@ class LidarSpoofEarlyAttacker(Attacker):
                 mesh_weight[i] += ((h_angle.max() - h_angle.min()) / 0.005) * ((v_angle.max() - v_angle.min()) / 0.01)
 
         # Point sampling
-        replace_data = []
+        replace_data_list_sampled: List[np.ndarray] = []
         # append_data = []
         point_sampling_weight = np.vstack(replace_mask_list).T * mesh_weight
         replace_indices = np.argwhere(np.logical_or.reduce(replace_mask_list)).reshape(-1).astype(np.int32)
         for i in replace_indices:
-            replace_data.append(
+            replace_data_list_sampled.append(
                 replace_data_list[np.random.choice(mesh_weight.shape[0], p=point_sampling_weight[i] / np.sum(point_sampling_weight[i]))][i]
             )
 
-        replace_data = np.array(replace_data)
+        replace_data_arr = np.array(replace_data_list_sampled)
 
-        ignore_indices = None
-        append_data = None
+        ignore_indices: Optional[np.ndarray] = None
+        append_data: Optional[np.ndarray] = None
 
-        info = {"replace_indices": replace_indices, "replace_data": replace_data, "ignore_indices": ignore_indices, "append_data": append_data}
+        info = {"replace_indices": replace_indices, "replace_data": replace_data_arr, "ignore_indices": ignore_indices, "append_data": append_data}
 
         new_case["lidar"] = self.apply_ray_tracing(new_case["lidar"], **info)
 

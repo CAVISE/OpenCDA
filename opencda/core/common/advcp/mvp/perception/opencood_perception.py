@@ -3,6 +3,7 @@ import sys
 import random
 import logging
 from collections import OrderedDict
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from .perception import Perception
 from .iou_util import oriented_box_intersection_2d
@@ -10,6 +11,8 @@ from .iou_util import oriented_box_intersection_2d
 import numpy as np
 import torch
 import torch.nn.functional as F
+from numpy.typing import NDArray
+from torch import Tensor
 
 from mvp.config import third_party_root, model_root, data_root
 from mvp.data.util import pose_to_transformation
@@ -26,7 +29,7 @@ from opencood.utils.common_utils import torch_tensor_to_numpy  # noqa: E402
 
 
 class OpencoodPerception(Perception):
-    def __init__(self, fusion_method="early", model_name="pointpillar"):
+    def __init__(self, fusion_method: str = "early", model_name: str = "pointpillar") -> None:
         super().__init__()
         assert model_name in ["pixor", "voxelnet", "second", "pointpillar", "v2vnet", "fpvrcnn"]
         assert fusion_method in ["early", "intermediate", "late"]
@@ -67,7 +70,11 @@ class OpencoodPerception(Perception):
         self.model = ret[1]
         self.model.eval()
 
-    def run(self, multi_vehicle_case, ego_id):
+    def run(self, case: Any, **kwargs: Any) -> Any:
+        ego_id = kwargs.get("ego_id")
+        if ego_id is None:
+            raise ValueError("ego_id is required")
+        multi_vehicle_case = case
         batch = self.preprocessors[self.fusion_method](multi_vehicle_case, ego_id)
         batch_data = self.dataset.collate_batch_test([batch])
         with torch.no_grad():
@@ -79,8 +86,10 @@ class OpencoodPerception(Perception):
         pred_scores = pred_score.cpu().numpy()
         return pred_bboxes, pred_scores
 
-    def run_multi_vehicle(self, multi_vehicle_case, ego_id):
-        pred_bboxes, pred_scores = self.run(multi_vehicle_case, ego_id)
+    def run_multi_vehicle(self, case: Any, **kwargs: Any) -> Any:
+        ego_id = kwargs.get("ego_id")
+        multi_vehicle_case = case
+        pred_bboxes, pred_scores = self.run(multi_vehicle_case, ego_id=ego_id)
         if pred_bboxes.shape[0] == 0:
             multi_vehicle_case[ego_id]["pred_bboxes"] = np.array([])
             multi_vehicle_case[ego_id]["pred_scores"] = np.array([])
@@ -89,14 +98,22 @@ class OpencoodPerception(Perception):
             multi_vehicle_case[ego_id]["pred_scores"] = pred_scores
         return multi_vehicle_case
 
-    def attack_late(self, multi_vehicle_case, ego_id, attacker_id, bbox=None, mode="spoof"):
+    def attack_late(
+        self,
+        multi_vehicle_case: Dict[Any, Any],
+        ego_id: int,
+        attacker_id: int,
+        bbox: Optional[NDArray[Any]] = None,
+        mode: str = "spoof",
+    ) -> Dict[str, Any]:
         batch = self.preprocessors[self.fusion_method](multi_vehicle_case, ego_id)
         batch_data = self.dataset.collate_batch_test([batch])
+        bbox_tensor: Optional[Tensor] = None
         if bbox is not None:
-            bbox = np.copy(bbox)
-            bbox[3:6] = bbox[[5, 4, 3]]
-            bbox[2] += 0.5 * bbox[3]
-            bbox = torch.from_numpy(bbox).type(torch.float32).to(self.device)
+            bbox_np = np.copy(bbox)
+            bbox_np[3:6] = bbox_np[[5, 4, 3]]
+            bbox_np[2] += 0.5 * bbox_np[3]
+            bbox_tensor = torch.from_numpy(bbox_np).type(torch.float32).to(self.device)
 
         with torch.no_grad():
             data_dict = train_utils.to_device(batch_data, self.device)
@@ -125,12 +142,12 @@ class OpencoodPerception(Perception):
 
                 # convert output to bounding box
                 if len(boxes3d) != 0:
-                    if cav_id == attacker_id:
+                    if cav_id == attacker_id and bbox_tensor is not None:
                         if mode == "spoof":
-                            boxes3d = torch.vstack([boxes3d, torch.reshape(bbox, (1, 7))])
+                            boxes3d = torch.vstack([boxes3d, torch.reshape(bbox_tensor, (1, 7))])
                             scores = torch.hstack([scores, torch.tensor([1.0]).type(scores.dtype).to(self.device)])
                         elif mode == "remove":
-                            keep_index = torch.sum((boxes3d[:, :2] - bbox[:2]) ** 2, dim=1) > 4
+                            keep_index = torch.sum((boxes3d[:, :2] - bbox_tensor[:2]) ** 2, dim=1) > 4
                             boxes3d = boxes3d[keep_index]
                             scores = scores[keep_index]
 
@@ -149,9 +166,9 @@ class OpencoodPerception(Perception):
             if len(pred_box2d_list) == 0 or len(pred_box3d_list) == 0:
                 raise Exception("no detection result")
             # shape: (N, 5)
-            pred_box2d_list = torch.vstack(pred_box2d_list)
+            pred_box2d_tensor = torch.vstack(pred_box2d_list)
             # scores
-            scores = pred_box2d_list[:, -1]
+            scores = pred_box2d_tensor[:, -1]
             # predicted 3d bbx
             pred_box3d_tensor = torch.vstack(pred_box3d_list)
             # remove large bbx
@@ -180,8 +197,16 @@ class OpencoodPerception(Perception):
         return {"pred_bboxes": pred_box, "pred_scores": scores.cpu().numpy()}
 
     def attack_intermediate_forward(
-        self, batch_data, attacker_index, perturbation=None, feature=None, max_perturb=10, center=[0, 0, 0], feature_size=15, perturb_func=None
-    ):
+        self,
+        batch_data: Dict[str, Any],
+        attacker_index: int,
+        perturbation: Optional[Tensor] = None,
+        feature: Optional[Tensor] = None,
+        max_perturb: int = 10,
+        center: Union[List[int], NDArray[np.int32]] = [0, 0, 0],
+        feature_size: int = 15,
+        perturb_func: Any = None,
+    ) -> Tuple[Dict[str, Dict[str, Tensor]], Optional[Tensor], Tensor]:
         if perturbation is not None:
             clipped_perturbation = torch.clip(perturbation, min=-max_perturb, max=max_perturb)
         else:
@@ -246,9 +271,11 @@ class OpencoodPerception(Perception):
             # Appends the perturbation.
             x = torch.clone(spatial_features).detach()
             # Interpolation of center indices
-            aligned_center = center.astype(np.int32)
+            aligned_center = np.array(center, dtype=np.int32)
             C, H, W = spatial_features[attacker_index].size()
             perturbation_features = torch.zeros_like(spatial_features[attacker_index]).to(self.device)
+            # At this point clipped_perturbation is guaranteed to be not None since perturbation is not None
+            assert clipped_perturbation is not None
             perturbation_features[
                 :,
                 aligned_center[1] - feature_size : aligned_center[1] + feature_size,
@@ -259,7 +286,7 @@ class OpencoodPerception(Perception):
                 .repeat(1, 1, 1)
                 .to(self.device)
             )
-            grid = torch.nn.functional.affine_grid(theta, (1, C, H, W))
+            grid = torch.nn.functional.affine_grid(theta, [1, C, H, W])
             perturbation_features = torch.nn.functional.grid_sample(perturbation_features.unsqueeze(0), grid)[0]
             spatial_features[attacker_index] = x[attacker_index] + perturbation_features
 
@@ -298,21 +325,21 @@ class OpencoodPerception(Perception):
 
     def attack_intermediate(
         self,
-        multi_vehicle_case,
-        ego_id,
-        attacker_id,
-        max_perturb=10,
-        lr=0.2,
-        max_iteration=25,
-        bbox=None,
-        mode="spoof",
-        real_case=None,
-        original_case=None,
-        real_original_case=None,
-        real_bbox=None,
-        init_perturbation=None,
-        feature_size=10,
-    ):
+        multi_vehicle_case: Dict[Any, Any],
+        ego_id: int,
+        attacker_id: int,
+        max_perturb: int = 10,
+        lr: float = 0.2,
+        max_iteration: int = 25,
+        bbox: Optional[NDArray[Any]] = None,
+        mode: str = "spoof",
+        real_case: Optional[Dict[Any, Any]] = None,
+        original_case: Optional[Dict[Any, Any]] = None,
+        real_original_case: Optional[Dict[Any, Any]] = None,
+        real_bbox: Optional[NDArray[Any]] = None,
+        init_perturbation: Optional[NDArray[Any]] = None,
+        feature_size: int = 10,
+    ) -> Dict[str, Any]:
         torch.manual_seed(1)
         np.random.seed(1)
         random.seed(1)
@@ -383,8 +410,8 @@ class OpencoodPerception(Perception):
         perturbation.requires_grad = True
         optimizer = torch.optim.Adam([perturbation], lr=lr)
 
-        best_loss = 0xFFFFFFFF
-        best_perturbation = None
+        best_loss: float = float(0xFFFFFFFF)
+        best_perturbation: Optional[NDArray[Any]] = None
         best_pred_bboxes = None
         best_pred_scores = None
         no_progress_iters = 0
@@ -452,7 +479,8 @@ class OpencoodPerception(Perception):
 
             if loss.item() < best_loss or max_iteration <= 2:
                 best_loss = loss.item()
-                best_perturbation = clipped_perturbation.cpu().detach().numpy()
+                if clipped_perturbation is not None:
+                    best_perturbation = clipped_perturbation.cpu().detach().numpy()
                 best_pred_bboxes = pred_bboxes
                 best_pred_scores = pred_scores
                 best_proposals = result_proposals[:, [0, 1, 2, 5, 4, 3, 6]].cpu().detach().numpy()
@@ -477,8 +505,8 @@ class OpencoodPerception(Perception):
             "prob": best_prob,
         }
 
-    def retrieve_base_data(self, multi_vehicle_case, ego_id):
-        data = OrderedDict()
+    def retrieve_base_data(self, multi_vehicle_case: Dict[Any, Any], ego_id: int) -> OrderedDict[Any, Any]:
+        data: OrderedDict[Any, Any] = OrderedDict()
         ego_pose = multi_vehicle_case[ego_id]["lidar_pose"]
         for vehicle_id, vehicle_data in multi_vehicle_case.items():
             data[vehicle_id] = OrderedDict()
@@ -503,10 +531,10 @@ class OpencoodPerception(Perception):
                 data[vehicle_id]["lidar_np"] = vehicle_data["lidar"][:, :4].astype(np.float32)
         return data
 
-    def early_preprocess(self, multi_vehicle_case, ego_id):
+    def early_preprocess(self, multi_vehicle_case: Dict[Any, Any], ego_id: int) -> OrderedDict[Any, Any]:
         base_data_dict = self.retrieve_base_data(multi_vehicle_case, ego_id)
 
-        processed_data_dict = OrderedDict()
+        processed_data_dict: OrderedDict[Any, Any] = OrderedDict()
         processed_data_dict["ego"] = {}
 
         ego_lidar_pose = base_data_dict[ego_id]["params"]["lidar_pose"]
@@ -532,20 +560,20 @@ class OpencoodPerception(Perception):
 
         # exclude all repetitive objects
         unique_indices = [object_id_stack.index(x) for x in set(object_id_stack)]
-        object_stack = np.vstack(object_stack)
-        object_stack = object_stack[unique_indices]
+        object_stack_array = np.vstack(object_stack)
+        object_stack_array = object_stack_array[unique_indices]
 
         # make sure bounding boxes across all frames have the same number
         object_bbx_center = np.zeros((self.dataset.params["postprocess"]["max_num"], 7))
         mask = np.zeros(self.dataset.params["postprocess"]["max_num"])
-        object_bbx_center[: object_stack.shape[0], :] = object_stack
-        mask[: object_stack.shape[0]] = 1
+        object_bbx_center[: object_stack_array.shape[0], :] = object_stack_array
+        mask[: object_stack_array.shape[0]] = 1
 
         # convert list to numpy array, (N, 4)
-        projected_lidar_stack = np.vstack(projected_lidar_stack)
+        projected_lidar_array = np.vstack(projected_lidar_stack)
 
         # we do lidar filtering in the stacked lidar
-        projected_lidar_stack = mask_points_by_range(projected_lidar_stack, self.dataset.params["preprocess"]["cav_lidar_range"])
+        projected_lidar_array = mask_points_by_range(projected_lidar_array, self.dataset.params["preprocess"]["cav_lidar_range"])
         # augmentation may remove some of the bbx out of range
         object_bbx_center_valid = object_bbx_center[mask == 1]
         object_bbx_center_valid = box_utils.mask_boxes_outside_range_numpy(
@@ -560,7 +588,7 @@ class OpencoodPerception(Perception):
         object_bbx_center[object_bbx_center_valid.shape[0] :] = 0
 
         # pre-process the lidar to voxel/bev/downsampled lidar
-        lidar_dict = self.dataset.pre_processor.preprocess(projected_lidar_stack)
+        lidar_dict = self.dataset.pre_processor.preprocess(projected_lidar_array)
 
         # generate the anchor boxes
         anchor_box = self.dataset.post_processor.generate_anchor_box()
@@ -581,10 +609,10 @@ class OpencoodPerception(Perception):
 
         return processed_data_dict
 
-    def intermediate_preprocess(self, multi_vehicle_case, ego_id):
+    def intermediate_preprocess(self, multi_vehicle_case: Dict[Any, Any], ego_id: int) -> OrderedDict[Any, Any]:
         base_data_dict = self.retrieve_base_data(multi_vehicle_case, ego_id)
 
-        processed_data_dict = OrderedDict()
+        processed_data_dict: OrderedDict[Any, Any] = OrderedDict()
         processed_data_dict["ego"] = {}
 
         ego_id = -1
@@ -621,14 +649,14 @@ class OpencoodPerception(Perception):
 
         # exclude all repetitive objects
         unique_indices = [object_id_stack.index(x) for x in set(object_id_stack)]
-        object_stack = np.vstack(object_stack)
-        object_stack = object_stack[unique_indices]
+        object_stack_array = np.vstack(object_stack)
+        object_stack_array = object_stack_array[unique_indices]
 
         # make sure bounding boxes across all frames have the same number
         object_bbx_center = np.zeros((self.dataset.params["postprocess"]["max_num"], 7))
         mask = np.zeros(self.dataset.params["postprocess"]["max_num"])
-        object_bbx_center[: object_stack.shape[0], :] = object_stack
-        mask[: object_stack.shape[0]] = 1
+        object_bbx_center[: object_stack_array.shape[0], :] = object_stack_array
+        mask[: object_stack_array.shape[0]] = 1
 
         # merge preprocessed features from different cavs into the same dict
         cav_num = len(processed_features)
@@ -659,13 +687,13 @@ class OpencoodPerception(Perception):
 
         return processed_data_dict
 
-    def late_preprocess(self, multi_vehicle_case, ego_id):
+    def late_preprocess(self, multi_vehicle_case: Dict[Any, Any], ego_id: int) -> Any:
         base_data_dict = self.retrieve_base_data(multi_vehicle_case, ego_id)
         reformat_data_dict = self.dataset.get_item_test(base_data_dict)
 
         return reformat_data_dict
 
-    def points_to_voxel_torch(self, pcd):
+    def points_to_voxel_torch(self, pcd: Tensor) -> Dict[str, Tensor]:
         # https://github.com/DerrickXuNu/OpenCOOD/blob/main/opencood/data_utils/pre_processor/voxel_preprocessor.py
         # full_mean = False
         # block_filtering = False
@@ -695,13 +723,13 @@ class OpencoodPerception(Perception):
 
         return data_dict
 
-    def point_to_voxel_index(self, point):
+    def point_to_voxel_index(self, point: NDArray[Any]) -> NDArray[np.int32]:
         lidar_range = self.dataset.pre_processor.params["cav_lidar_range"]
         voxel_size = self.dataset.pre_processor.params["args"]["voxel_size"]
         voxel_index = (np.floor(point[:3] - lidar_range[:3]) / voxel_size).astype(np.int32)
         return voxel_index
 
-    def iou_torch(self, bboxes_a, bboxes_b):
+    def iou_torch(self, bboxes_a: Tensor, bboxes_b: Tensor) -> Tensor:
         corners2d_a = torch.unsqueeze(box_utils.boxes_to_corners2d(bboxes_a, order="lwh")[:, :, :2], 0)
         corners2d_b = torch.unsqueeze(box_utils.boxes_to_corners2d(bboxes_b, order="lwh")[:, :, :2], 0)
         area_a = bboxes_a[:, 3] * bboxes_a[:, 4]
@@ -717,7 +745,7 @@ class OpencoodPerception(Perception):
         iou = area_inter * height_inter / (area_a * bboxes_a[:, 5] + area_b * bboxes_b[:, 5] - area_inter * height_inter)
         return iou
 
-    def pose_to_transformation_torch(self, pose, dim=2):
+    def pose_to_transformation_torch(self, pose: Tensor, dim: int = 2) -> Tensor:
         x, y, z, roll, yaw, pitch = pose[0], pose[1], pose[2], torch.deg2rad(pose[3]), torch.deg2rad(pose[4]), torch.deg2rad(pose[5])
         if dim == 2:
             T = torch.zeros((3, 3)).to(torch.float32).to(self.device)
@@ -749,14 +777,14 @@ class OpencoodPerception(Perception):
             ).to(self.device)
         return T
 
-    def attacker_to_origin_transformation(self, T, attacker_pose, origin_pose, dim=2):
+    def attacker_to_origin_transformation(self, T: Tensor, attacker_pose: Tensor, origin_pose: Tensor, dim: int = 2) -> Tensor:
         attacker_T = self.pose_to_transformation_torch(attacker_pose, dim=dim)
         origin_T = self.pose_to_transformation_torch(origin_pose, dim=dim)
         return torch.matmul(torch.matmul(torch.matmul(torch.matmul(torch.inverse(origin_T), attacker_T), T), torch.inverse(attacker_T)), origin_T)
 
-    def detach_all(self, x):
+    def detach_all(self, x: Any) -> Any:
         if isinstance(x, dict):
-            y = {}
+            y: Any = {}
             for key, value in x.items():
                 y[key] = self.detach_all(value)
         elif isinstance(x, list):

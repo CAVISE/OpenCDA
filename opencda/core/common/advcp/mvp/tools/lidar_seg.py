@@ -1,9 +1,16 @@
+from typing import Any, Dict, List, Optional
+
 import numpy as np
 
 from mvp.data.util import numpy_to_open3d
 
 
-def lidar_segmentation_dbscan(full_pcd, ground_indices, cluster_thres=0.5, min_point_num=8):
+def lidar_segmentation_dbscan(
+    full_pcd: np.ndarray,
+    ground_indices: np.ndarray,
+    cluster_thres: float = 0.5,
+    min_point_num: int = 8,
+) -> Dict[str, List[Dict[str, np.ndarray]]]:
     non_ground_mask = np.ones(full_pcd.shape[0]).astype(bool)
     non_ground_mask[ground_indices] = False
     non_ground_indices = np.argwhere(non_ground_mask > 0).reshape(-1)
@@ -12,7 +19,7 @@ def lidar_segmentation_dbscan(full_pcd, ground_indices, cluster_thres=0.5, min_p
     open3d_pcd = numpy_to_open3d(pcd)
     labels = np.array(open3d_pcd.cluster_dbscan(eps=cluster_thres, min_points=min_point_num, print_progress=False))
 
-    info = []
+    info: List[Dict[str, np.ndarray]] = []
     for label in np.unique(labels):
         indices = np.argwhere(labels == label).reshape(-1)
         info.append({"indices": non_ground_indices[indices]})
@@ -20,7 +27,11 @@ def lidar_segmentation_dbscan(full_pcd, ground_indices, cluster_thres=0.5, min_p
     return {"info": info}
 
 
-def lidar_segmentation_slr(full_pcd, ground_indices, cluster_thres=0.5):
+def lidar_segmentation_slr(
+    full_pcd: np.ndarray,
+    ground_indices: np.ndarray,
+    cluster_thres: float = 0.5,
+) -> Dict[str, Any]:
     non_ground_mask = np.ones(full_pcd.shape[0]).astype(bool)
     non_ground_mask[ground_indices] = False
     non_ground_indices = np.argwhere(non_ground_mask > 0).reshape(-1)
@@ -36,7 +47,7 @@ def lidar_segmentation_slr(full_pcd, ground_indices, cluster_thres=0.5):
 
     instance_label = np.zeros(pcd.shape[0]).astype(np.int32)
     instance_count = 0
-    ring_start = None
+    ring_start: Optional[int] = None
     for i in range(pcd.shape[0]):
         if i == 0:
             # The first point.
@@ -79,7 +90,7 @@ def lidar_segmentation_slr(full_pcd, ground_indices, cluster_thres=0.5):
 
     # TODO: class of instances.
     point_class = np.zeros(pcd.shape[0])
-    info = []
+    info: List[Dict[str, np.ndarray]] = []
 
     for label in range(1, instance_count + 1):
         indices = np.argwhere(instance_label == label).reshape(-1)
@@ -92,7 +103,7 @@ def lidar_segmentation_slr(full_pcd, ground_indices, cluster_thres=0.5):
     return {"class": point_class, "info": info}
 
 
-def lidar_segmentation(pcd, method="cluster", **kwargs):
+def lidar_segmentation(pcd: np.ndarray, method: str = "cluster", **kwargs: Any) -> Dict[str, Any]:
     if method == "squeezeseq":
         if "interface" not in kwargs or kwargs["interface"] is None:
             from .squeezeseg.interface import SqueezeSegInterface
@@ -109,9 +120,13 @@ def lidar_segmentation(pcd, method="cluster", **kwargs):
         raise NotImplementedError("Unknown method")
 
 
-def preprocess_lidar_seg(multi_frame_data, frame_ids=None, vehicle_ids=None):
+def preprocess_lidar_seg(
+    multi_frame_data: List[Dict[Any, Any]],
+    frame_ids: Optional[List[int]] = None,
+    vehicle_ids: Optional[List[Any]] = None,
+) -> List[Dict[Any, Any]]:
     if frame_ids is None:
-        frame_ids = range(len(multi_frame_data))
+        frame_ids = list(range(len(multi_frame_data)))
     if vehicle_ids is None:
         vehicle_ids = list(multi_frame_data[0].keys())
     for frame_id in frame_ids:

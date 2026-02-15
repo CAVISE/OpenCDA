@@ -1,3 +1,5 @@
+from typing import Any, Tuple
+
 import torch
 from torch.autograd import Function
 import sort_vertices
@@ -5,14 +7,14 @@ import sort_vertices
 
 class SortVertices(Function):
     @staticmethod
-    def forward(ctx, vertices, mask, num_valid):
+    def forward(ctx: Any, vertices: torch.Tensor, mask: torch.Tensor, num_valid: torch.Tensor) -> torch.Tensor:
         idx = sort_vertices.sort_vertices_forward(vertices, mask, num_valid)
         ctx.mark_non_differentiable(idx)
         return idx
 
     @staticmethod
-    def backward(ctx, gradout):
-        return ()
+    def backward(ctx: Any, gradout: torch.Tensor) -> Tuple[None, None, None]:
+        return (None, None, None)
 
 
 sort_v = SortVertices.apply

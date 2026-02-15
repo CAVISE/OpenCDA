@@ -1,3 +1,5 @@
+from typing import Any, Dict, List, Optional, Tuple
+
 import numpy as np
 import shapely
 import copy
@@ -11,14 +13,21 @@ from mvp.defense.detection_util import filter_segmentation, get_detection_from_s
 
 
 class SyncObjectState:
-    def __init__(self, object_id, location=None, velocity=None, acceleration=None, timestamp=0):
+    def __init__(
+        self,
+        object_id: int,
+        location: Optional[np.ndarray] = None,
+        velocity: Optional[np.ndarray] = None,
+        acceleration: Optional[np.ndarray] = None,
+        timestamp: float = 0,
+    ) -> None:
         self.object_id = object_id
         self.location = np.zeros(2) if location is None else location
         self.velocity = np.zeros(2) if velocity is None else velocity
         self.acceleration = np.zeros(2) if acceleration is None else acceleration
         self.timestamp = timestamp
 
-    def update(self, location, timestamp):
+    def update(self, location: np.ndarray, timestamp: float) -> None:
         assert timestamp > self.timestamp
         velocity = (location - self.location) / (timestamp - self.timestamp)
         self.acceleration = (velocity - self.velocity) / (timestamp - self.timestamp)
@@ -26,7 +35,7 @@ class SyncObjectState:
         self.location = location
         self.timestamp = timestamp
 
-    def predict(self, timestamp):
+    def predict(self, timestamp: float) -> np.ndarray:
         velocity = self.velocity + self.acceleration * (timestamp - self.timestamp)
         delta_location = np.zeros(2)
         for i in range(2):
@@ -38,33 +47,47 @@ class SyncObjectState:
 
 
 class SyncHandler:
-    def __init__(self):
+    def __init__(self) -> None:
         self.tracker = Tracker(10, 1, 10)
-        self.states = {}
+        self.states: Dict[int, SyncObjectState] = {}
 
-    def update_object(self, object_id, location, timestamp):
+    def update_object(self, object_id: int, location: np.ndarray, timestamp: float) -> None:
         if object_id not in self.states:
-            self.states[object_id] = SyncObjectState(object_id, location, timestamp)
+            self.states[object_id] = SyncObjectState(object_id, location, timestamp=timestamp)
         else:
             self.states[object_id].update(location, timestamp)
 
-    def predict_object(self, object_id, timestamp):
+    def predict_object(self, object_id: int, timestamp: float) -> np.ndarray:
         assert object_id in self.states
         return self.states[object_id].predict(timestamp)
 
-    def update_pcd_gt(self, lidar_pose, gt_bboxes, object_ids, timestamp):
+    def update_pcd_gt(
+        self,
+        lidar_pose: np.ndarray,
+        gt_bboxes: np.ndarray,
+        object_ids: List[int],
+        timestamp: float,
+    ) -> None:
         gt_bboxes2 = bbox_sensor_to_map(gt_bboxes, lidar_pose)
         for object_index, object_id in enumerate(object_ids):
             self.update_object(object_id, gt_bboxes2[object_index][:2], timestamp)
 
-    def update_pcd(self, detections, timestamp):
+    def update_pcd(self, detections: np.ndarray, timestamp: float) -> None:
         _, assignment, _, _ = self.tracker.update(detections)
         for i, track in enumerate(self.tracker.tracks):
             if assignment[i] < 0:
                 continue
             self.update_object(track.trackId, detections[assignment[i]], timestamp)
 
-    def predict_pcd_gt(self, pcd, lidar_pose, new_lidar_pose, gt_bboxes, object_ids, timestamp):
+    def predict_pcd_gt(
+        self,
+        pcd: np.ndarray,
+        lidar_pose: np.ndarray,
+        new_lidar_pose: np.ndarray,
+        gt_bboxes: np.ndarray,
+        object_ids: List[int],
+        timestamp: float,
+    ) -> np.ndarray:
         pcd2 = pcd_sensor_to_map(pcd, lidar_pose)
         non_object_mask = np.ones(pcd.shape[0]).astype(bool)
         for object_index, object_id in enumerate(object_ids):
@@ -77,7 +100,15 @@ class SyncHandler:
             non_object_mask[point_indices] = 0
         return pcd_map_to_sensor(pcd2, new_lidar_pose)
 
-    def predict_pcd(self, pcd, lidar_pose, new_lidar_pose, object_segments, detections, timestamp):
+    def predict_pcd(
+        self,
+        pcd: np.ndarray,
+        lidar_pose: np.ndarray,
+        new_lidar_pose: np.ndarray,
+        object_segments: List[np.ndarray],
+        detections: np.ndarray,
+        timestamp: float,
+    ) -> np.ndarray:
         pcd2 = pcd_sensor_to_map(pcd, lidar_pose)
         for _, object_state in self.states.items():
             match = np.argwhere(np.sum(detections - object_state.location, axis=1) == 0).reshape(-1)
@@ -88,9 +119,15 @@ class SyncHandler:
             pcd2[object_segments[index], :2] += delta_location
         return pcd_map_to_sensor(pcd2, new_lidar_pose)
 
-    def predict_area(self, free_areas, occupied_areas, detections, timestamp):
+    def predict_area(
+        self,
+        free_areas: List[Any],
+        occupied_areas: List[Any],
+        detections: np.ndarray,
+        timestamp: float,
+    ) -> Tuple[List[Any], List[Any]]:
         assert detections.shape[0] == len(occupied_areas)
-        new_occupied_areas = []
+        new_occupied_areas: List[Any] = []
         for _, object_state in self.states.items():
             match = np.argwhere(np.sum(detections - object_state.location, axis=1) == 0).reshape(-1)
             if len(match) != 1:
@@ -101,7 +138,7 @@ class SyncHandler:
             new_area = shapely.affinity.translate(area, xoff=delta_location[0], yoff=delta_location[1])
             new_occupied_areas.append(new_area)
 
-            new_free_areas = []
+            new_free_areas: List[Any] = []
             for free_area in free_areas:
                 new_free_areas.append(free_area.difference(new_area))
             free_areas = new_free_areas
@@ -109,7 +146,7 @@ class SyncHandler:
         return free_areas, occupied_areas
 
 
-def preprocess_sync_gt(case, vehicle_id, lidar_seg_api):
+def preprocess_sync_gt(case: Dict[int, Dict[int, Any]], vehicle_id: int, lidar_seg_api: Any) -> Dict[int, Dict[int, Any]]:
     sync = SyncHandler()
     for frame_id in range(9):
         vehicle_data = case[frame_id][vehicle_id]
@@ -121,6 +158,7 @@ def preprocess_sync_gt(case, vehicle_id, lidar_seg_api):
 
     pcd_sensor = case[8][vehicle_id]["lidar"]
     lidar_pose = case[8][vehicle_id]["lidar_pose"]
+    vehicle_data = case[8][vehicle_id]
     gt_bboxes = vehicle_data["gt_bboxes"]
     object_ids = vehicle_data["object_ids"]
 
@@ -141,8 +179,14 @@ def preprocess_sync_gt(case, vehicle_id, lidar_seg_api):
     return new_case
 
 
-def preprocess_sync(case, vehicle_id, lidar_seg_api):
+def preprocess_sync(case: Dict[int, Dict[int, Any]], vehicle_id: int, lidar_seg_api: Any) -> Dict[int, Dict[int, Any]]:
     sync = SyncHandler()
+    pcd: Optional[np.ndarray] = None
+    lidar_pose: Optional[np.ndarray] = None
+    lidar_seg: Optional[Dict[str, Any]] = None
+    object_segments: Optional[List[np.ndarray]] = None
+    detections: Optional[np.ndarray] = None
+
     for frame_id in range(9):
         vehicle_data = case[frame_id][vehicle_id]
         lidar_pose = vehicle_data["lidar_pose"]
@@ -153,6 +197,13 @@ def preprocess_sync(case, vehicle_id, lidar_seg_api):
         detections = get_detection_from_segmentation(pcd, object_segments)
 
         sync.update_pcd(detections, frame_id * 0.1)
+
+    # At this point, these variables are guaranteed to be assigned
+    assert lidar_seg is not None
+    assert pcd is not None
+    assert lidar_pose is not None
+    assert object_segments is not None
+    assert detections is not None
 
     object_mask = lidar_seg["class"] == 1
     occupied_areas = get_occupied_space(pcd, object_segments)

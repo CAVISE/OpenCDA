@@ -1,9 +1,11 @@
+from typing import Any, Dict
+
 import numpy as np
 
 from mvp.tools.iou import iou3d
 
 
-def iou3d_batch(gt_bboxes, pred_bboxes):
+def iou3d_batch(gt_bboxes: np.ndarray, pred_bboxes: np.ndarray) -> np.ndarray:
     iou = np.zeros((gt_bboxes.shape[0], pred_bboxes.shape[0]))
     for gt_idx, gt_bbox in enumerate(gt_bboxes):
         for pred_idx, pred_bbox in enumerate(pred_bboxes):
@@ -11,9 +13,9 @@ def iou3d_batch(gt_bboxes, pred_bboxes):
     return iou
 
 
-def evaluate_single_vehicle(gt_bboxes, pred_bboxes, iou_thres=0.7):
+def evaluate_single_vehicle(gt_bboxes: np.ndarray, pred_bboxes: np.ndarray, iou_thres: float = 0.7) -> Dict[str, Any]:
     iou = iou3d_batch(gt_bboxes, pred_bboxes)
-    report = {"iou": iou, "gt": {"bboxes": gt_bboxes}, "pred": {"bboxes": pred_bboxes}}
+    report: Dict[str, Any] = {"iou": iou, "gt": {"bboxes": gt_bboxes}, "pred": {"bboxes": pred_bboxes}}
 
     iou_mask = (iou >= iou_thres).astype(np.uint8)
     P, PP = gt_bboxes.shape[0], pred_bboxes.shape[0]

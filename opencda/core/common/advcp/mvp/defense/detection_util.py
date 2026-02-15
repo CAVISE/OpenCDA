@@ -1,3 +1,5 @@
+from typing import Any, Dict, List, Optional
+
 import cv2
 import numpy as np
 import scipy
@@ -6,7 +8,14 @@ from mvp.data.util import pcd_sensor_to_map
 from mvp.tools.polygon_space import points_to_polygon
 
 
-def filter_segmentation(pcd, lidar_seg, lidar_pose, in_lane_mask=None, point_height=None, max_range=50):
+def filter_segmentation(
+    pcd: np.ndarray,
+    lidar_seg: Dict[str, Any],
+    lidar_pose: np.ndarray,
+    in_lane_mask: Optional[np.ndarray] = None,
+    point_height: Optional[np.ndarray] = None,
+    max_range: float = 50,
+) -> List[Any]:
     object_segments = []
     for info in lidar_seg["info"]:
         object_points = pcd[info["indices"]]
@@ -30,13 +39,13 @@ def filter_segmentation(pcd, lidar_seg, lidar_pose, in_lane_mask=None, point_hei
     return object_segments
 
 
-def get_detection_from_segmentation(pcd, object_segments):
-    detections = []
+def get_detection_from_segmentation(pcd: np.ndarray, object_segments: List[Any]) -> np.ndarray:
+    detections: List[List[float]] = []
     for object_segment in object_segments:
         object_points = pcd[object_segment]
         cnt = object_points[:, :2].reshape((-1, 1, 2)).astype(np.float32)
         box = cv2.minAreaRect(cnt)
         detections.append(list(box[0]))
-    detections = np.array(detections)
+    detections_arr = np.array(detections)
 
-    return detections
+    return detections_arr

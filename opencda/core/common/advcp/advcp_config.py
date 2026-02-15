@@ -1,7 +1,8 @@
 import os
-import yaml
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 import logging
+
+import yaml  # type: ignore
 
 logger = logging.getLogger("cavise.advcp_manager")
 
@@ -11,10 +12,10 @@ class AdvCPConfigValidator:
     Validates and processes AdvCP configuration parameters.
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: Dict[str, Any]) -> None:
         self.config = config
-        self.errors = []
-        self.warnings = []
+        self.errors: List[str] = []
+        self.warnings: List[str] = []
 
     def validate(self) -> bool:
         """Validate all configuration parameters."""
@@ -121,7 +122,7 @@ class AdvCPConfigLoader:
     Loads and processes AdvCP configuration from multiple sources.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.default_config = self._get_default_config()
 
     @staticmethod

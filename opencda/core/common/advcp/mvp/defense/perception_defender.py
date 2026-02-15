@@ -1,4 +1,6 @@
 import os
+from typing import Any, Dict, List, Optional, Tuple
+
 import numpy as np
 from shapely.ops import unary_union
 from shapely.geometry import MultiPolygon
@@ -14,17 +16,24 @@ class PerceptionDefender(Defender):
     thres = 1.7
     sigma = 0
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.name = "perception"
-        self.lane_areas_map = None
+        self.lane_areas_map: Optional[Dict[str, Any]] = None
         self._load_map()
 
-    def score(self, metrics):
+    def score(self, metrics: Any) -> int:
         return 0
 
-    def run_core(self, pred_bboxes, gt_bboxes, occupied_areas, free_areas, ego_area):
-        metrics = {"spoof": [], "remove": []}
+    def run_core(
+        self,
+        pred_bboxes: np.ndarray,
+        gt_bboxes: np.ndarray,
+        occupied_areas: List[Any],
+        free_areas: Any,
+        ego_area: Any,
+    ) -> Dict[str, Any]:
+        metrics: Dict[str, Any] = {"spoof": [], "remove": []}
         pred_bbox_areas = []
         gt_bbox_areas = []
         if isinstance(occupied_areas, MultiPolygon):
@@ -64,11 +73,13 @@ class PerceptionDefender(Defender):
 
         return metrics
 
-    def run(self, multi_frame_case, defend_opts):
-        metrics = [{} for _ in range(10)]
+    def run(
+        self, multi_frame_case: Dict[int, Dict[int, Any]], defend_opts: Dict[str, Any]
+    ) -> Tuple[Dict[int, Dict[int, Any]], int, List[Dict[str, Any]]]:
+        metrics: List[Dict[str, Any]] = [{} for _ in range(10)]
         try:
             map_name = multi_frame_case[0][list(multi_frame_case[0].keys())[0]]["map"]
-            lane_areas = self.lane_areas_map[map_name]
+            lane_areas = self.lane_areas_map[map_name] if self.lane_areas_map else None
         except (KeyError, IndexError):
             lane_areas = None
         vehicle_ids = list(multi_frame_case[0].keys()) if "vehicle_ids" not in defend_opts else defend_opts["vehicle_ids"]
@@ -77,8 +88,8 @@ class PerceptionDefender(Defender):
             frame_data = multi_frame_case[frame_id]
 
             # Merge occupancy maps.
-            occupied_areas = []
-            free_areas = []
+            occupied_areas: List[Any] = []
+            free_areas: List[Any] = []
 
             for vehicle_id, vehicle_data in frame_data.items():
                 if vehicle_id not in vehicle_ids:
@@ -86,17 +97,17 @@ class PerceptionDefender(Defender):
                 occupied_areas += vehicle_data["occupied_areas"]
                 occupied_areas.append(vehicle_data["ego_area"])
                 free_areas.append(unary_union(vehicle_data["free_areas"]).difference(vehicle_data["ego_area"]))
-            free_areas = unary_union(free_areas)
+            free_areas_merged = unary_union(free_areas)
 
             # Do consistency check.
-            gt_bboxes = []
-            all_object_ids = []
+            gt_bboxes_list: List[np.ndarray] = []
+            all_object_ids: List[List[int]] = []
             for vehicle_id, vehicle_data in frame_data.items():
-                gt_bboxes.append(bbox_sensor_to_map(vehicle_data["gt_bboxes"], vehicle_data["lidar_pose"]))
+                gt_bboxes_list.append(bbox_sensor_to_map(vehicle_data["gt_bboxes"], vehicle_data["lidar_pose"]))
                 all_object_ids.append(vehicle_data["object_ids"])
-            gt_bboxes = np.vstack(gt_bboxes)
-            all_object_ids = np.hstack(all_object_ids).reshape(-1)
-            _, unique_indices = np.unique(all_object_ids, return_index=True)
+            gt_bboxes = np.vstack(gt_bboxes_list)
+            all_object_ids_flat = np.hstack(all_object_ids).reshape(-1)
+            _, unique_indices = np.unique(all_object_ids_flat, return_index=True)
             gt_bboxes = gt_bboxes[unique_indices]
 
             for vehicle_id, vehicle_data in frame_data.items():
@@ -108,7 +119,7 @@ class PerceptionDefender(Defender):
                 for area in occupied_areas:
                     if lane_areas is None or self.check_in_lane_areas(area, lane_areas):
                         filtered_occupied_areas.append(area)
-                filtered_occupied_areas = unary_union(filtered_occupied_areas)
+                filtered_occupied_areas_merged = unary_union(filtered_occupied_areas)
                 pred_bboxes = vehicle_data["pred_bboxes"]
                 pred_bboxes = bbox_sensor_to_map(pred_bboxes, vehicle_data["lidar_pose"])
                 filtered_pred_bbox_indices = []
@@ -117,7 +128,7 @@ class PerceptionDefender(Defender):
                     if lane_areas is None or self.check_in_lane_areas(pred_area, lane_areas):
                         filtered_pred_bbox_indices.append(i)
                 pred_bboxes = pred_bboxes[filtered_pred_bbox_indices]
-                vehicle_metrics = self.run_core(pred_bboxes, gt_bboxes, filtered_occupied_areas, free_areas, vehicle_data["ego_area"])
+                vehicle_metrics = self.run_core(pred_bboxes, gt_bboxes, filtered_occupied_areas_merged, free_areas_merged, vehicle_data["ego_area"])
                 vehicle_metrics["lidar_pose"] = vehicle_data["lidar_pose"]
                 metrics[frame_id][vehicle_id] = vehicle_metrics
 
@@ -125,20 +136,20 @@ class PerceptionDefender(Defender):
         return multi_frame_case, score, metrics
 
     @staticmethod
-    def check_in_lane_areas(area, lane_areas):
+    def check_in_lane_areas(area: Any, lane_areas: List[Any]) -> bool:
         intersection = 0
         for lane_area in lane_areas:
             intersection += area.intersection(lane_area).area
         return intersection > 0.95 * area.area
 
     @staticmethod
-    def check_in_perception_range(area, lidar_pose, lidar_range):
+    def check_in_perception_range(area: Any, lidar_pose: np.ndarray, lidar_range: List[float]) -> bool:
         perception_range = np.array([*lidar_pose[:3], lidar_range[3] - lidar_range[0], lidar_range[4] - lidar_range[1], 1, np.radians(lidar_pose[4])])
         perception_range = bbox_to_polygon(perception_range)
 
         return area.intersection(perception_range).area > 0.95 * area.area
 
-    def _load_map(self, map_names=None):
+    def _load_map(self, map_names: Optional[List[str]] = None) -> None:
         self.lane_areas_map = {}
         if map_names is None:
             map_names = ["Town01", "Town02", "Town03", "Town04", "Town05", "Town06", "Town07", "Town10HD"]

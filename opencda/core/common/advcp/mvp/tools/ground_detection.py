@@ -1,3 +1,5 @@
+from typing import Any, Callable, Dict, List, Optional, Tuple
+
 import open3d as o3d
 import numpy as np
 import scipy
@@ -6,7 +8,7 @@ from mvp.data.util import numpy_to_open3d
 from mvp.tools.polygon_space import points_in_polygon
 
 
-def fit_plane(points):
+def fit_plane(points: np.ndarray) -> np.ndarray:
     A = np.copy(points)
     if A[:, 2].max() - A[:, 2].min() < 0.1:
         return np.array([0, 0, 1, -A[:, 2].mean()])
@@ -16,14 +18,19 @@ def fit_plane(points):
         return np.array([x[0] / x[2], x[1] / x[2], 1, -1 / x[2]])
 
 
-def get_inliers(pcd_data, plane_model, point_err_thres=0.2):
+def get_inliers(pcd_data: np.ndarray, plane_model: np.ndarray, point_err_thres: float = 0.2) -> np.ndarray:
     [a, b, c, d] = plane_model
     x = np.sum(pcd_data[:, :3] * np.array([a, b, c]), axis=1) + d
     inliers = np.argwhere(np.absolute(x) < point_err_thres).reshape(-1)
     return inliers
 
 
-def get_ground_plane_map(pcd_data, lane_info, lane_areas, lane_planes):
+def get_ground_plane_map(
+    pcd_data: np.ndarray,
+    lane_info: List[Dict[str, Any]],
+    lane_areas: List[np.ndarray],
+    lane_planes: List[Any],
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     ground_mask = np.zeros(pcd_data.shape[0])
     in_lane_mask = np.zeros(pcd_data.shape[0])
     point_height = np.ones(pcd_data.shape[0]) * 100
@@ -40,13 +47,15 @@ def get_ground_plane_map(pcd_data, lane_info, lane_areas, lane_planes):
             D = scipy.spatial.distance.cdist(points[:, :2], ref_points[:, :2])
             ref_indices_list.append(np.argmin(D, axis=1))
         for pi in range(points.shape[0]):
-            plane_points = [
-                ref_points_list[0][ref_indices_list[0][pi]],
-                ref_points_list[0][
-                    ref_indices_list[0][pi] + 1 if ref_indices_list[0][pi] < ref_points_list[0].shape[0] - 1 else ref_indices_list[0][pi] - 1
-                ],
-                ref_points_list[1][ref_indices_list[1][pi]],
-            ]
+            plane_points = np.array(
+                [
+                    ref_points_list[0][ref_indices_list[0][pi]],
+                    ref_points_list[0][
+                        ref_indices_list[0][pi] + 1 if ref_indices_list[0][pi] < ref_points_list[0].shape[0] - 1 else ref_indices_list[0][pi] - 1
+                    ],
+                    ref_points_list[1][ref_indices_list[1][pi]],
+                ]
+            )
             plane = fit_plane(plane_points)
             point_height[point_indices[pi]] = points[pi, 2] + (plane[0] * points[pi, 0] + plane[1] * points[pi, 1] + plane[3]) / plane[2]
         inliers = np.argwhere(np.absolute(point_height[point_indices]) < 0.2).reshape(-1)
@@ -55,7 +64,7 @@ def get_ground_plane_map(pcd_data, lane_info, lane_areas, lane_planes):
     return inliers, in_lane_mask.astype(bool), point_height
 
 
-def get_ground_plane_ransac(pcd_data, mask=None, err_thres=0.2):
+def get_ground_plane_ransac(pcd_data: np.ndarray, mask: Optional[np.ndarray] = None, err_thres: float = 0.2) -> Tuple[np.ndarray, np.ndarray]:
     if mask is not None:
         clipped_pcd = pcd_data[mask]
     else:
@@ -68,15 +77,15 @@ def get_ground_plane_ransac(pcd_data, mask=None, err_thres=0.2):
     return plane_model, inliers
 
 
-def get_ground_plane_naive(pcd_data, ground_z=0, point_err_thres=0.1):
-    plane_model = [0, 0, 1, -ground_z]
+def get_ground_plane_naive(pcd_data: np.ndarray, ground_z: float = 0, point_err_thres: float = 0.1) -> Tuple[np.ndarray, np.ndarray]:
+    plane_model = np.array([0, 0, 1, -ground_z])
     inliers = get_inliers(pcd_data, plane_model, point_err_thres=point_err_thres)
     return plane_model, inliers
 
 
-def get_ground_plane(pcd_data, **kwargs):
+def get_ground_plane(pcd_data: np.ndarray, **kwargs: Any) -> Any:
     default_method = "ransac"
-    func_map = {"naive": get_ground_plane_naive, "ransac": get_ground_plane_ransac, "map": get_ground_plane_map}
+    func_map: Dict[str, Callable[..., Any]] = {"naive": get_ground_plane_naive, "ransac": get_ground_plane_ransac, "map": get_ground_plane_map}
 
     if "method" in kwargs:
         method = kwargs["method"]
@@ -89,7 +98,7 @@ def get_ground_plane(pcd_data, **kwargs):
     return func_map[method](pcd_data, **kwargs)
 
 
-def get_ground_mesh(plane_model, center=(0, 0), margin=100):
+def get_ground_mesh(plane_model: np.ndarray, center: Tuple[float, float] = (0, 0), margin: int = 100) -> o3d.geometry.TriangleMesh:
     # ax + by + cz + d = 0
     [a, b, c, d] = plane_model
     corners = [
@@ -111,7 +120,7 @@ def get_ground_mesh(plane_model, center=(0, 0), margin=100):
     return mesh
 
 
-def get_point_height(points, plane_model):
+def get_point_height(points: np.ndarray, plane_model: np.ndarray) -> np.ndarray:
     x, y, z = points[:, 0], points[:, 1], points[:, 2]
     a, b, c, d = plane_model[0], plane_model[1], plane_model[2], plane_model[3]
     return z + (a * x + b * y + d) / c

@@ -1,8 +1,16 @@
-import numpy as np
+from typing import Any, List, Optional
+
 import matplotlib.pyplot as plt
+import numpy as np
 
 
-def draw_distribution(data_items, labels, show=True, save=None, **kwargs):
+def draw_distribution(
+    data_items: List[np.ndarray],
+    labels: List[str],
+    show: bool = True,
+    save: Optional[str] = None,
+    **kwargs: Any,
+) -> None:
     for data_item, label in zip(data_items, labels):
         plt.hist(data_item, label=label, alpha=0.5, **kwargs)
     plt.legend()
@@ -13,11 +21,16 @@ def draw_distribution(data_items, labels, show=True, save=None, **kwargs):
     plt.clf()
 
 
-def draw_detection_roc(normal_values, attack_values, show=True, save=None):
+def draw_detection_roc(
+    normal_values: np.ndarray,
+    attack_values: np.ndarray,
+    show: bool = True,
+    save: Optional[str] = None,
+) -> None:
     all_values = np.stack([normal_values, attack_values])
-    tpr_data = []
-    fpr_data = []
-    roc_auc = 0
+    tpr_data: List[float] = []
+    fpr_data: List[float] = []
+    roc_auc = 0.0
     for thres in np.arange(all_values.min() - 0.1, all_values.max() + 1, 0.02).tolist():
         TP = np.sum(attack_values > thres)
         FP = np.sum(normal_values > thres)

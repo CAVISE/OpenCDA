@@ -2,12 +2,12 @@ import os
 import re
 import shutil
 import logging
-from typing import Dict, Optional
+from typing import Any, Dict, List, Optional
 from tqdm import tqdm
 
-import torch  # type: ignore
+import torch
 import open3d as o3d
-from torch.utils.data import DataLoader  # type: ignore
+from torch.utils.data import DataLoader
 
 import opencood.hypes_yaml.yaml_utils as yaml_utils
 from opencood.tools import train_utils, inference_utils
@@ -19,12 +19,17 @@ logger = logging.getLogger("cavise.coperception_model_manager")
 
 
 class CoperceptionModelManager:
-    def __init__(self, opt, current_time, message_handler=None):
+    def __init__(
+        self,
+        opt: Any,
+        current_time: str,
+        message_handler: Optional[Any] = None,
+    ) -> None:
         self.opt = opt
         self.hypes = yaml_utils.load_yaml(None, self.opt)
         self.model = train_utils.create_model(self.hypes)
         self.current_time = current_time
-        self.vis = None
+        self.vis: Optional[o3d.visualization.Visualizer] = None
 
         if torch.cuda.is_available():
             self.model.cuda()
@@ -33,13 +38,13 @@ class CoperceptionModelManager:
         self.saved_path = self.opt.model_dir
         _, self.model = train_utils.load_saved_model(self.saved_path, self.model)
 
-        self.opencood_dataset = None
-        self.data_loader = None
+        self.opencood_dataset: Optional[Any] = None
+        self.data_loader: Optional[DataLoader[Any]] = None
         self.message_handler = message_handler
 
         # Store current batch data to avoid circular dependency with AdvCP
-        self._current_batch_data = None
-        self._current_batch_index = None
+        self._current_batch_data: Optional[Dict[str, Any]] = None
+        self._current_batch_index: Optional[int] = None
 
         logger.info("Initial Dataset Building")
         self.opencood_dataset = build_dataset(self.hypes, visualize=True, train=False, message_handler=self.message_handler)
@@ -54,14 +59,14 @@ class CoperceptionModelManager:
             drop_last=False,
         )
 
-        self.final_result_stat = {
+        self.final_result_stat: Dict[float, Dict[str, Any]] = {
             0.3: {"tp": [], "fp": [], "gt": 0, "score": []},
             0.5: {"tp": [], "fp": [], "gt": 0, "score": []},
             0.7: {"tp": [], "fp": [], "gt": 0, "score": []},
         }
 
         # Initialize AdvCP Manager if enabled
-        self.advcp_manager = None
+        self.advcp_manager: Optional[Any] = None
         if self.opt.get("with_advcp", False):
             from opencda.core.common.advcp.advcp_manager import AdvCPManager
             from opencda.core.common.advcp.advcp_config import load_advcp_config
@@ -70,14 +75,15 @@ class CoperceptionModelManager:
             self.advcp_manager = AdvCPManager(advcp_config, current_time, self, message_handler)
             logger.info("AdvCP Manager initialized and integrated with CoperceptionManager")
 
-    def update_dataset(self):
+    def update_dataset(self) -> None:
         logger.debug("Refreshing dataset indices")
+        assert self.opencood_dataset is not None
         self.opencood_dataset.update_database()
 
         if len(self.opencood_dataset) == 0:
             logger.warning("No samples found in dataset after update.")
 
-    def _get_raw_data(self, tick_number: int) -> Optional[Dict]:
+    def _get_raw_data(self, tick_number: int) -> Optional[Dict[str, Any]]:
         """
         Get raw perception data for a specific tick without running prediction.
         This method is used by AdvCPManager to avoid circular dependency.
@@ -91,6 +97,7 @@ class CoperceptionModelManager:
         # Directly access the dataset to get raw data (before preprocessing)
         # This is critical for AdvCP attacks which need raw numpy LiDAR data
         try:
+            assert self.opencood_dataset is not None
             if tick_number < len(self.opencood_dataset):
                 # Get raw data directly from dataset __getitem__
                 # This returns data BEFORE train_utils.to_device() preprocessing
@@ -101,7 +108,7 @@ class CoperceptionModelManager:
 
         return None
 
-    def make_prediction(self, tick_number):
+    def make_prediction(self, tick_number: int) -> None:
         assert self.opt.fusion_method in ["late", "early", "intermediate"]
         assert not (self.opt.show_vis and self.opt.show_sequence), "you can only visualize the results in single image mode or video mode"
         self.model.eval()
@@ -130,6 +137,7 @@ class CoperceptionModelManager:
                 vis_aabbs_gt.append(o3d.geometry.LineSet())
                 vis_aabbs_pred.append(o3d.geometry.LineSet())
 
+        assert self.data_loader is not None
         for i, batch_data in tqdm(enumerate(self.data_loader), total=len(self.data_loader)):
             with torch.no_grad():
                 # Store current batch data for AdvCPManager to avoid circular dependency
@@ -187,6 +195,7 @@ class CoperceptionModelManager:
                             "lidar_spoof_intermediate",
                         ]:
                             # Convert modified_data to batch format and run inference
+                            assert self.opencood_dataset is not None
                             modified_batch_data = self.opencood_dataset.collate_batch_test([modified_data])
                             modified_batch_data = train_utils.to_device(modified_batch_data, self.device)
 
@@ -290,6 +299,7 @@ class CoperceptionModelManager:
 
                 if self.opt.show_vis:
                     vis_save_path = ""
+                    assert self.opencood_dataset is not None
                     self.opencood_dataset.visualize_result(
                         pred_box_tensor,
                         gt_box_tensor,
@@ -300,6 +310,7 @@ class CoperceptionModelManager:
                     )
 
                 if self.opt.show_sequence and pred_box_tensor is not None and self.hypes["postprocess"]["core_method"] != "BevPostprocessor":
+                    assert self.vis is not None
                     self.vis.clear_geometries()
                     pcd, pred_o3d_box, gt_o3d_box = vis_utils.visualize_inference_sample_dataloader(
                         pred_box_tensor, gt_box_tensor, batch_data["ego"]["origin_lidar"], vis_pcd, mode="constant"
@@ -316,10 +327,10 @@ class CoperceptionModelManager:
                     self.vis.update_renderer()
 
         for iou in [0.3, 0.5, 0.7]:
-            self.final_result_stat[iou]["gt"] += result_stat[iou]["gt"]
-            self.final_result_stat[iou]["tp"] += result_stat[iou]["tp"]
-            self.final_result_stat[iou]["fp"] += result_stat[iou]["fp"]
-            self.final_result_stat[iou]["score"] += result_stat[iou]["score"]
+            self.final_result_stat[iou]["gt"] = self.final_result_stat[iou]["gt"] + result_stat[iou]["gt"]
+            self.final_result_stat[iou]["tp"] = self.final_result_stat[iou]["tp"] + result_stat[iou]["tp"]
+            self.final_result_stat[iou]["fp"] = self.final_result_stat[iou]["fp"] + result_stat[iou]["fp"]
+            self.final_result_stat[iou]["score"] = self.final_result_stat[iou]["score"] + result_stat[iou]["score"]
 
         # Update AdvCP statistics if enabled
         if self.advcp_manager and self.advcp_manager.with_advcp:
@@ -331,18 +342,18 @@ class CoperceptionModelManager:
             if defense_stats:
                 logger.info(f"AdvCP Defense Statistics: {defense_stats}")
 
-    def final_eval(self):
+    def final_eval(self) -> None:
         eval_dir = f"simulation_output/coperception/results/{self.opt.test_scenario}_{self.current_time}"
         os.makedirs(eval_dir, exist_ok=True)
         eval_utils.eval_final_results(self.final_result_stat, eval_dir, self.opt.global_sort_detections)
 
 
 class DirectoryProcessor:
-    def __init__(self, source_directory="data_dumping", now_directory="data_dumping/sample/now"):
+    def __init__(self, source_directory: str = "data_dumping", now_directory: str = "data_dumping/sample/now") -> None:
         self.source_directory = source_directory
         self.now_directory = now_directory
 
-    def detect_cameras(self, data_directory):
+    def detect_cameras(self, data_directory: str) -> List[str]:
         inner_subdirectories = sorted([d for d in os.listdir(data_directory) if os.path.isdir(os.path.join(data_directory, d))])
         if not inner_subdirectories:
             return []
@@ -354,9 +365,9 @@ class DirectoryProcessor:
 
         return [f"_camera{cam_id}.png" for cam_id in camera_ids]
 
-    def process_directory(self, tick_number):
+    def process_directory(self, tick_number: int) -> None:
         number = f"{tick_number:06d}"
-        postfixes = [".pcd", ".yaml"]
+        postfixes: List[str] = [".pcd", ".yaml"]
 
         subdirectories = sorted([d for d in os.listdir(self.source_directory) if os.path.isdir(os.path.join(self.source_directory, d))])
 
@@ -381,7 +392,7 @@ class DirectoryProcessor:
                 if os.path.exists(source_file_path):
                     shutil.copy(source_file_path, destination_file_path)
 
-    def clear_directory_now(self):
+    def clear_directory_now(self) -> None:
         for item in os.listdir(self.now_directory):
             item_path = os.path.join(self.now_directory, item)
             if os.path.isfile(item_path) or os.path.islink(item_path):

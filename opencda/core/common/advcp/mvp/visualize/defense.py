@@ -1,3 +1,5 @@
+from typing import Any, Dict, List, Optional, Tuple
+
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -6,7 +8,7 @@ from mvp.data.util import pcd_sensor_to_map, bbox_sensor_to_map
 from mvp.config import color_map
 
 
-def draw_ground_segmentation(pcd_data, inliers, show=False, save=None):
+def draw_ground_segmentation(pcd_data: np.ndarray, inliers: np.ndarray, show: bool = False, save: Optional[str] = None) -> None:
     fig, ax = plt.subplots(figsize=(30, 30))
     pointcloud = pcd_data[:, :3]
     xlim, ylim = get_xylims(pointcloud)
@@ -23,11 +25,18 @@ def draw_ground_segmentation(pcd_data, inliers, show=False, save=None):
     plt.clf()
 
 
-def draw_sensor_calib(pcd_on_camera, camera_image, camera_seg=None, lidar_seg=None, show=False, save=None):
+def draw_sensor_calib(
+    pcd_on_camera: Optional[np.ndarray],
+    camera_image: np.ndarray,
+    camera_seg: Optional[Dict[str, Any]] = None,
+    lidar_seg: Optional[Dict[str, Any]] = None,
+    show: bool = False,
+    save: Optional[str] = None,
+) -> None:
     image_shape = camera_image.shape
     fig, ax = plt.subplots()
 
-    image_extent = [0, image_shape[1], image_shape[0], 0]
+    image_extent: Tuple[float, float, float, float] = (0, image_shape[1], image_shape[0], 0)
     if camera_seg is not None:
         camera_image = camera_seg["img"]
     ax.imshow(camera_image, origin="upper", extent=image_extent)
@@ -46,8 +55,8 @@ def draw_sensor_calib(pcd_on_camera, camera_image, camera_seg=None, lidar_seg=No
                 ax.scatter(points[:, 0], points[:, 1], s=0.02, color=(np.array(color_map[class_id]) / 255).tolist())
         else:
             ax.scatter(pcd_on_camera[:, 0], pcd_on_camera[:, 1], s=0.02, c="blue")
-    ax.set_xlim(image_extent[:2])
-    ax.set_ylim(image_extent[-2:])
+    ax.set_xlim((image_extent[0], image_extent[1]))
+    ax.set_ylim((image_extent[2], image_extent[3]))
 
     if show:
         plt.show()
@@ -56,9 +65,9 @@ def draw_sensor_calib(pcd_on_camera, camera_image, camera_seg=None, lidar_seg=No
     plt.clf()
 
 
-def draw_polygon_areas(case, show=False, save=None, tag=""):
+def draw_polygon_areas(case: Dict[Any, Any], show: bool = False, save: Optional[str] = None, tag: str = "") -> None:
     fig, ax = plt.subplots(figsize=(30, 30))
-    color_map = ["r", "g", "b", "k", "y"]
+    color_map_local = ["r", "g", "b", "k", "y"]
 
     for i, vehicle_id in enumerate(case):
         vehicle_data = case[vehicle_id]
@@ -67,28 +76,32 @@ def draw_polygon_areas(case, show=False, save=None, tag=""):
             lidar = vehicle_data["lidar"]
             lidar_pose = vehicle_data["lidar_pose"]
             pcd = pcd_sensor_to_map(lidar, lidar_pose)
-            plt.scatter(pcd[:, 0], pcd[:, 1], s=0.1, c=color_map[i])
+            plt.scatter(pcd[:, 0], pcd[:, 1], s=0.1, c=color_map_local[i])
 
         if "gt_bboxes" in vehicle_data:
-            bboxes_to_draw = [(bbox_sensor_to_map(vehicle_data["gt_bboxes"], vehicle_data["lidar_pose"]), None, "g")]
+            bboxes_to_draw: List[Tuple[np.ndarray, Optional[List[Any]], str]] = [
+                (bbox_sensor_to_map(vehicle_data["gt_bboxes"], vehicle_data["lidar_pose"]), None, "g")
+            ]
             draw_bbox_2d(ax, bboxes_to_draw)
 
         if "pred_bboxes" in vehicle_data:
-            bboxes_to_draw = [(bbox_sensor_to_map(vehicle_data["pred_bboxes"], vehicle_data["lidar_pose"]), None, color_map[i])]
-            draw_bbox_2d(ax, bboxes_to_draw)
+            bboxes_to_draw_pred: List[Tuple[np.ndarray, Optional[List[Any]], str]] = [
+                (bbox_sensor_to_map(vehicle_data["pred_bboxes"], vehicle_data["lidar_pose"]), None, color_map_local[i])
+            ]
+            draw_bbox_2d(ax, bboxes_to_draw_pred)
 
         if "free_areas" + tag in vehicle_data:
             for area in vehicle_data["free_areas" + tag]:
                 x, y = area.exterior.coords.xy
-                plt.fill(x, y, color_map[i], alpha=0.2)
+                plt.fill(x, y, color_map_local[i], alpha=0.2)
         if "occupied_areas" + tag in vehicle_data:
             for area in vehicle_data["occupied_areas" + tag]:
                 x, y = area.exterior.coords.xy
-                plt.plot(x, y, color_map[i], alpha=0.8)
+                plt.plot(x, y, color_map_local[i], alpha=0.8)
         if "ego_area" in vehicle_data:
             area = vehicle_data["ego_area"]
             x, y = area.exterior.coords.xy
-            plt.plot(x, y, color_map[i])
+            plt.plot(x, y, color_map_local[i])
             plt.text(x[0], y[0], str(vehicle_id))
 
     ax.set_aspect("equal", adjustable="box")
@@ -100,7 +113,13 @@ def draw_polygon_areas(case, show=False, save=None, tag=""):
     plt.close()
 
 
-def draw_object_tracking(point_clouds, detections, predictions, show=False, save=None):
+def draw_object_tracking(
+    point_clouds: List[np.ndarray],
+    detections: List[np.ndarray],
+    predictions: List[np.ndarray],
+    show: bool = False,
+    save: Optional[str] = None,
+) -> None:
     frame_num = len(detections)
     fig, axes = plt.subplots(frame_num, 1, figsize=(10, 10 * frame_num))
 
@@ -122,7 +141,7 @@ def draw_object_tracking(point_clouds, detections, predictions, show=False, save
     plt.clf()
 
 
-def visualize_defense(case, metrics, show=False, save=None):
+def visualize_defense(case: List[Dict[Any, Any]], metrics: List[Dict[Any, Any]], show: bool = False, save: Optional[str] = None) -> None:
     fig, ax = plt.subplots(figsize=(30, 30))
     vehicle_color_map = ["r", "g", "b", "k", "y"]
 
@@ -146,7 +165,7 @@ def visualize_defense(case, metrics, show=False, save=None):
                 ax, bbox_sensor_to_map(frame_data[vehicle_id]["pred_bboxes"], frame_data[vehicle_id]["lidar_pose"]), None, color="r", linewidth=2
             )
 
-    error_areas = []
+    error_areas: List[Any] = []
     for vehicle_id in metrics[0]:
         for t in ["spoof", "remove"]:
             error_areas += [x[0] for x in metrics[0][vehicle_id][t]]
@@ -156,13 +175,13 @@ def visualize_defense(case, metrics, show=False, save=None):
     show_or_save(show=show, save=save)
 
 
-def draw_roc(value, label, show=False, save=None):
-    tpr_data = []
-    fpr_data = []
-    roc_auc = 0
-    best_thres = 0
-    best_TPR = 0
-    best_FPR = 0
+def draw_roc(value: np.ndarray, label: np.ndarray, show: bool = False, save: Optional[str] = None) -> Tuple[float, float, float, float]:
+    tpr_data: List[float] = []
+    fpr_data: List[float] = []
+    roc_auc = 0.0
+    best_thres = 0.0
+    best_TPR = 0.0
+    best_FPR = 0.0
     for thres in np.arange(value.min() - 0.02, value.max() + 0.02, 0.02).tolist():
         TP = np.sum((value > thres) * (label > 0))
         FP = np.sum((value > thres) * (label <= 0))

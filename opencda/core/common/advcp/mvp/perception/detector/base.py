@@ -1,6 +1,9 @@
+from typing import Any
+
+
 class Detector:
-    def __init__(self):
+    def __init__(self) -> None:
         pass
 
-    def run(self, pointcloud):
+    def run(self, pointcloud: Any) -> Any:
         raise NotImplementedError

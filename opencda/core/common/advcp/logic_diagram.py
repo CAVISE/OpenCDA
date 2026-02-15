@@ -14,7 +14,7 @@ node_attr = {"fontsize": "16", "width": "1.2", "height": "1.2"}
 
 class Icon:
     @staticmethod
-    def path(filename):
+    def path(filename: str) -> str:
         return f"./icons/{filename}"
 
     DATASET = "dataset.png"

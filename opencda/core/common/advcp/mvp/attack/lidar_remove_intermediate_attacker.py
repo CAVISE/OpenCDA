@@ -1,3 +1,5 @@
+from typing import Any, Dict, List, Optional, Tuple, Union
+
 import copy
 
 from .attacker import Attacker
@@ -5,7 +7,15 @@ from mvp.data.util import bbox_map_to_sensor, bbox_sensor_to_map
 
 
 class LidarRemoveIntermediateAttacker(Attacker):
-    def __init__(self, perception, dataset=None, step=100, sync=1, init=True, online=True):
+    def __init__(
+        self,
+        perception: Any,
+        dataset: Optional[Any] = None,
+        step: int = 100,
+        sync: int = 1,
+        init: bool = True,
+        online: bool = True,
+    ) -> None:
         super().__init__()
         self.dataset = dataset
         self.name = "lidar_remove"
@@ -29,14 +39,14 @@ class LidarRemoveIntermediateAttacker(Attacker):
             self.name += "_{}".format(perception.model_name)
 
         if step <= 2:
-            self.learn_rate = 2
+            self.learn_rate: Union[int, float] = 2
         else:
             self.learn_rate = 0.05
         self.perception = perception
 
-    def run(self, multi_frame_case, attack_opts):
+    def run(self, multi_frame_case: Dict[int, Any], attack_opts: Dict[str, Any]) -> Tuple[Dict[int, Any], List[Dict[int, Any]]]:
         case = copy.deepcopy(multi_frame_case)
-        info = [{} for i in range(10)]
+        info: List[Dict[int, Any]] = [{} for i in range(10)]
         init_perturbation = None
 
         for frame_index, frame_id in enumerate(attack_opts["frame_ids"]):

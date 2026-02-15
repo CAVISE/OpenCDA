@@ -1,5 +1,6 @@
 import os
 import sys
+from typing import Any, Dict, List, Tuple
 
 from mvp.config import class_id_inv_map, third_party_root, model_root
 from mvp.tools.cluster import get_clusters
@@ -11,14 +12,14 @@ sys.path.append(os.path.join(squeezeseg_root, "src"))
 import numpy as np  # noqa: E402
 import torch  # noqa: E402
 import torch.backends.cudnn as cudnn  # noqa: E402
-import yaml  # noqa: E402
+import yaml  # type: ignore  # noqa: E402
 from tasks.semantic.modules.segmentator import Segmentator  # noqa: E402
 from tasks.semantic.postproc.KNN import KNN  # noqa: E402
 from common.laserscan import LaserScan  # noqa: E402
 
 
 class SqueezeSegInterface:
-    def __init__(self):
+    def __init__(self) -> None:
         self.modeldir = os.path.join(model_root, "SqueezeSegV3")
         arch_cfg_path = os.path.join(self.modeldir, "arch_cfg.yaml")
         data_cfg_path = os.path.join(self.modeldir, "data_cfg.yaml")
@@ -36,7 +37,7 @@ class SqueezeSegInterface:
             self.model = Segmentator(self.ARCH, self.n_classes, self.modeldir)
 
         # use knn post processing?
-        self.post = None
+        self.post: Any = None
         if self.ARCH["post"]["KNN"]["use"]:
             self.post = KNN(self.ARCH["post"]["KNN"]["params"], self.n_classes)
 
@@ -46,11 +47,11 @@ class SqueezeSegInterface:
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         if torch.cuda.is_available() and torch.cuda.device_count() > 0:
             cudnn.benchmark = True
-            cudnn.fastest = True
+            cudnn.fastest = True  # type: ignore[attr-defined]
             self.gpu = True
             self.model.cuda()
 
-    def preprocess(self, lidar):
+    def preprocess(self, lidar: np.ndarray) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, int]:
         scan = LaserScan(
             project=True,
             H=self.sensor["img_prop"]["height"],
@@ -83,7 +84,7 @@ class SqueezeSegInterface:
 
         return proj, proj_mask, proj_x, proj_y, proj_range, unproj_range, unproj_n_points
 
-    def run(self, lidar):
+    def run(self, lidar: np.ndarray) -> Dict[str, Any]:
         # switch to evaluate mode
         self.model.eval()
 
@@ -140,7 +141,7 @@ class SqueezeSegInterface:
         object_indices = np.argwhere(new_pred_np == class_id_inv_map["car"]).reshape(-1)
         object_points = lidar[object_indices]
         cluster_indices_list = get_clusters(object_points)
-        info = []
+        info: List[Dict[str, Any]] = []
         for cluster_indices in cluster_indices_list:
             info.append({"indices": object_indices[cluster_indices], "category_id": class_id_inv_map["car"]})
 

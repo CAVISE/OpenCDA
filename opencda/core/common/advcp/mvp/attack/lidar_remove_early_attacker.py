@@ -1,3 +1,5 @@
+from typing import Any, Dict, List, Optional, Tuple
+
 import copy
 import os
 import open3d as o3d
@@ -12,7 +14,13 @@ from mvp.tools.ground_detection import get_ground_plane, get_ground_mesh
 
 
 class LidarRemoveEarlyAttacker(Attacker):
-    def __init__(self, dataset=None, advshape=1, dense=3, sync=1):
+    def __init__(
+        self,
+        dataset: Optional[Any] = None,
+        advshape: int = 1,
+        dense: int = 3,
+        sync: int = 1,
+    ) -> None:
         super().__init__()
         self.name = "lidar_remove"
         self.dataset = dataset
@@ -39,20 +47,20 @@ class LidarRemoveEarlyAttacker(Attacker):
         perturb = np.load(os.path.join(model_3d_path, "remove/mesh_perturb.npy"))
         adv_attacker = AdvShapeAttacker()
         self.mesh = adv_attacker.perturb_mesh(adv_attacker.mesh, perturb)
-        self.meshes = [self.mesh.select_by_index(vertex_indices) for vertex_indices in adv_attacker.mesh_divide]
+        self.meshes: List[o3d.geometry.TriangleMesh] = [self.mesh.select_by_index(vertex_indices) for vertex_indices in adv_attacker.mesh_divide]
 
         # In the mode of injecting dense points, fix the distance between the target and the sensor.
         self.dense_distance = 10  # (m)
 
-    def run(self, multi_frame_case, attack_opts):
+    def run(self, multi_frame_case: Dict[int, Any], attack_opts: Dict[str, Any]) -> Tuple[Dict[int, Any], List[Dict[str, Optional[np.ndarray]]]]:
         new_case = copy.deepcopy(multi_frame_case)
-        attack_info = []
+        attack_info: List[Dict[str, Optional[np.ndarray]]] = []
         frame_ids = attack_opts["frame_ids"]
         if self.sync != 0:
             frame_ids = [frame_ids[0] - 1] + frame_ids
 
-        last_info = None
-        last_bbox_to_remove = None
+        last_info: Optional[Dict[str, Optional[np.ndarray]]] = None
+        last_bbox_to_remove: Optional[np.ndarray] = None
         for frame_id in frame_ids:
             single_vehicle_case = multi_frame_case[frame_id][attack_opts["attacker_vehicle_id"]]
             object_index = single_vehicle_case["object_ids"].index(attack_opts["object_id"])
@@ -69,29 +77,31 @@ class LidarRemoveEarlyAttacker(Attacker):
                 },
             )
 
-            if self.sync != 0 and last_info is not None:
+            if self.sync != 0 and last_info is not None and last_bbox_to_remove is not None:
                 x = copy.deepcopy(multi_frame_case[frame_id][attack_opts["attacker_vehicle_id"]])
                 shift_vector = bbox_to_remove[:3] - last_bbox_to_remove[:3]
 
-                append_data = []
+                append_data_list: List[np.ndarray] = []
                 if last_info["replace_data"] is not None and last_info["replace_data"].shape[0] > 0:
-                    append_data.append(last_info["replace_data"] + shift_vector)
+                    append_data_list.append(last_info["replace_data"] + shift_vector)
                 if last_info["append_data"] is not None and last_info["append_data"].shape[0] > 0:
-                    append_data.append(last_info["append_data"] + shift_vector)
-                if len(append_data) > 1:
-                    append_data = np.vstack(append_data)
-                else:
-                    append_data = None
+                    append_data_list.append(last_info["append_data"] + shift_vector)
+                append_data: Optional[np.ndarray] = None
+                if len(append_data_list) > 1:
+                    append_data = np.vstack(append_data_list)
+                elif len(append_data_list) == 1:
+                    append_data = append_data_list[0]
 
-                ignore_indices = []
-                if info["replace_indices"] is not None and last_info["replace_indices"].shape[0] > 0:
-                    ignore_indices.append(info["replace_indices"])
-                if info["ignore_indices"] is not None and last_info["ignore_indices"].shape[0] > 0:
-                    ignore_indices.append(info["ignore_indices"])
-                if len(append_data) > 1:
-                    ignore_indices = np.hstack(ignore_indices).reshape(-1)
-                else:
-                    ignore_indices = None
+                ignore_indices_list: List[np.ndarray] = []
+                if info["replace_indices"] is not None and last_info["replace_indices"] is not None and last_info["replace_indices"].shape[0] > 0:
+                    ignore_indices_list.append(info["replace_indices"])
+                if info["ignore_indices"] is not None and last_info["ignore_indices"] is not None and last_info["ignore_indices"].shape[0] > 0:
+                    ignore_indices_list.append(info["ignore_indices"])
+                ignore_indices: Optional[np.ndarray] = None
+                if len(ignore_indices_list) > 1:
+                    ignore_indices = np.hstack(ignore_indices_list).reshape(-1)
+                elif len(ignore_indices_list) == 1:
+                    ignore_indices = ignore_indices_list[0]
 
                 info = {
                     "replace_indices": None,
@@ -109,8 +119,8 @@ class LidarRemoveEarlyAttacker(Attacker):
             last_bbox_to_remove = bbox_to_remove
         return new_case, attack_info
 
-    def get_meshes(self, bbox):
-        wall_bboxes = []
+    def get_meshes(self, bbox: np.ndarray) -> List[o3d.geometry.TriangleMesh]:
+        wall_bboxes: List[np.ndarray] = []
         extend_distance = 0.3
 
         wall_bbox1 = copy.deepcopy(bbox)
@@ -137,13 +147,13 @@ class LidarRemoveEarlyAttacker(Attacker):
         wall_bbox4[3] = 0.01
         wall_bboxes.append(wall_bbox4)
 
-        wall_meshs = []
+        wall_meshs: List[o3d.geometry.TriangleMesh] = []
         for wall_bbox in wall_bboxes:
             wall_meshs.append(get_wall_mesh(wall_bbox))
         return wall_meshs
 
-    def post_process_meshes(self, meshes, bbox):
-        new_meshes = []
+    def post_process_meshes(self, meshes: List[o3d.geometry.TriangleMesh], bbox: np.ndarray) -> List[o3d.geometry.TriangleMesh]:
+        new_meshes: List[o3d.geometry.TriangleMesh] = []
         for mesh in meshes:
             x = copy.deepcopy(mesh)
             scale = np.max((bbox[3:6] + 0.6) / np.array([4.9, 2.5, 2.0]))
@@ -153,7 +163,7 @@ class LidarRemoveEarlyAttacker(Attacker):
             new_meshes.append(x)
         return new_meshes
 
-    def run_core(self, single_vehicle_case, attack_opts):
+    def run_core(self, single_vehicle_case: Dict[str, Any], attack_opts: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, Optional[np.ndarray]]]:
         """attack_opts: {
             "frame_ids": [-1],
             "attacker_vehicle_id": int,
@@ -267,7 +277,9 @@ class LidarRemoveEarlyAttacker(Attacker):
 
         return new_case, info
 
-    def run_core_sample(self, single_vehicle_case, attack_opts):
+    def run_core_sample(
+        self, single_vehicle_case: Dict[str, Any], attack_opts: Dict[str, Any]
+    ) -> Tuple[Dict[str, Any], Dict[str, Optional[np.ndarray]]]:
         """attack_opts: {
             "frame_ids": [-1],
             "attacker_vehicle_id": int,
@@ -298,8 +310,8 @@ class LidarRemoveEarlyAttacker(Attacker):
             meshes = self.post_process_meshes(self.meshes, bbox_to_remove)
 
         # Gets casted points on edges.
-        replace_mask_list = []
-        replace_data_list = []
+        replace_mask_list: List[np.ndarray] = []
+        replace_data_list: List[np.ndarray] = []
         for i in range(len(meshes)):
             intersect_points = ray_intersection([meshes[i]], rays)
             in_range_mask = intersect_points[:, 0] ** 2 < 10000
@@ -320,20 +332,20 @@ class LidarRemoveEarlyAttacker(Attacker):
                 mesh_weight[i] += ((h_angle.max() - h_angle.min()) / 0.005) * ((v_angle.max() - v_angle.min()) / 0.01)
 
         # Point sampling
-        replace_data = []
+        replace_data_list_sampled: List[np.ndarray] = []
         # append_data = []
         point_sampling_weight = np.vstack(replace_mask_list).T * mesh_weight
         replace_indices = np.argwhere(np.logical_or.reduce(replace_mask_list)).reshape(-1).astype(np.int32)
         for i in replace_indices:
-            replace_data.append(
+            replace_data_list_sampled.append(
                 replace_data_list[np.random.choice(mesh_weight.shape[0], p=point_sampling_weight[i] / np.sum(point_sampling_weight[i]))][i]
             )
-        replace_data = np.array(replace_data)
+        replace_data_arr = np.array(replace_data_list_sampled)
 
-        ignore_indices = None
-        append_data = None
+        ignore_indices: Optional[np.ndarray] = None
+        append_data: Optional[np.ndarray] = None
 
-        info = {"replace_indices": replace_indices, "replace_data": replace_data, "ignore_indices": ignore_indices, "append_data": append_data}
+        info = {"replace_indices": replace_indices, "replace_data": replace_data_arr, "ignore_indices": ignore_indices, "append_data": append_data}
 
         new_case["lidar"] = self.apply_ray_tracing(new_case["lidar"], **info)
 

@@ -1,12 +1,17 @@
 # 3D IoU caculate code for 3D object detection
 # Kent 2018/12
 
+from typing import List, Optional, Tuple
+
 import numpy as np
 from scipy.spatial import ConvexHull
 from numpy import *  # noqa: F403
 
 
-def polygon_clip(subjectPolygon, clipPolygon):
+def polygon_clip(
+    subjectPolygon: List[Tuple[float, float]],
+    clipPolygon: List[Tuple[float, float]],
+) -> Optional[List[Tuple[float, float]]]:
     """Clip a polygon with another polygon.
     Ref: https://rosettacode.org/wiki/Sutherland-Hodgman_polygon_clipping#Python
     Args:
@@ -18,10 +23,10 @@ def polygon_clip(subjectPolygon, clipPolygon):
       a list of (x,y) vertex point for the intersection polygon.
     """
 
-    def inside(p):
+    def inside(p: Tuple[float, float]) -> bool:
         return (cp2[0] - cp1[0]) * (p[1] - cp1[1]) > (cp2[1] - cp1[1]) * (p[0] - cp1[0])
 
-    def computeIntersection():
+    def computeIntersection() -> List[float]:
         dc = [cp1[0] - cp2[0], cp1[1] - cp2[1]]
         dp = [s[0] - e[0], s[1] - e[1]]
         n1 = cp1[0] * cp2[1] - cp1[1] * cp2[0]
@@ -42,10 +47,10 @@ def polygon_clip(subjectPolygon, clipPolygon):
             e = subjectVertex
             if inside(e):
                 if not inside(s):
-                    outputList.append(computeIntersection())
+                    outputList.append(computeIntersection())  # type: ignore
                 outputList.append(e)
             elif inside(s):
-                outputList.append(computeIntersection())
+                outputList.append(computeIntersection())  # type: ignore
             s = e
         cp1 = cp2
         if len(outputList) == 0:
@@ -53,12 +58,12 @@ def polygon_clip(subjectPolygon, clipPolygon):
     return outputList
 
 
-def poly_area(x, y):
+def poly_area(x: np.ndarray, y: np.ndarray) -> float:
     """Ref: http://stackoverflow.com/questions/24467972/calculate-area-of-polygon-given-x-y-coordinates"""
     return 0.5 * np.abs(np.dot(x, np.roll(y, 1)) - np.dot(y, np.roll(x, 1)))
 
 
-def convex_hull_intersection(p1, p2):
+def convex_hull_intersection(p1: List[Tuple[float, float]], p2: List[Tuple[float, float]]) -> Tuple[Optional[List[Tuple[float, float]]], float]:
     """Compute area of two convex hull's intersection area.
     p1,p2 are a list of (x,y) tuples of hull vertices.
     return a list of (x,y) for the intersection and its volume
@@ -71,7 +76,7 @@ def convex_hull_intersection(p1, p2):
         return None, 0.0
 
 
-def box3d_vol(corners):
+def box3d_vol(corners: np.ndarray) -> float:
     """corners: (8,3) no assumption on axis direction"""
     a = np.sqrt(np.sum((corners[0, :] - corners[1, :]) ** 2))
     b = np.sqrt(np.sum((corners[1, :] - corners[2, :]) ** 2))
@@ -79,13 +84,13 @@ def box3d_vol(corners):
     return a * b * c
 
 
-def is_clockwise(p):
+def is_clockwise(p: np.ndarray) -> bool:
     x = p[:, 0]
     y = p[:, 1]
     return np.dot(x, np.roll(y, 1)) - np.dot(y, np.roll(x, 1)) > 0
 
 
-def box3d_iou(corners1, corners2):
+def box3d_iou(corners1: np.ndarray, corners2: np.ndarray) -> Tuple[float, float]:
     """Compute 3D bounding box IoU.
     Input:
         corners1: numpy array (8,3), assume up direction is negative Y
@@ -120,7 +125,11 @@ def box3d_iou(corners1, corners2):
 # ----------------------------------
 
 
-def get_3d_box(box_size, heading_angle, center):
+def get_3d_box(
+    box_size: Tuple[float, float, float],
+    heading_angle: float,
+    center: Tuple[float, float, float],
+) -> np.ndarray:
     """Calculate 3D bounding box corners from its parameterization.
     Input:
         box_size: tuple of (length,wide,height)
@@ -130,7 +139,7 @@ def get_3d_box(box_size, heading_angle, center):
         corners_3d: numpy array of shape (8,3) for 3D box cornders
     """
 
-    def roty(t):
+    def roty(t: float) -> np.ndarray:
         c = np.cos(t)
         s = np.sin(t)
         return np.array([[c, 0, s], [0, 1, 0], [-s, 0, c]])
@@ -148,14 +157,14 @@ def get_3d_box(box_size, heading_angle, center):
     return corners_3d
 
 
-def iou3d(bbox1, bbox2):
+def iou3d(bbox1: np.ndarray, bbox2: np.ndarray) -> float:
     bbox1 = get_3d_box(box_size=(bbox1[3], bbox1[4], bbox1[5]), heading_angle=bbox1[6], center=(bbox1[0], bbox1[1], bbox1[2] + 0.5 * bbox1[5]))
     bbox2 = get_3d_box(box_size=(bbox2[3], bbox2[4], bbox2[5]), heading_angle=bbox2[6], center=(bbox2[0], bbox2[1], bbox2[2] + 0.5 * bbox2[5]))
     iou, _ = box3d_iou(bbox1, bbox2)
     return iou
 
 
-def iou2d(bbox1, bbox2):
+def iou2d(bbox1: np.ndarray, bbox2: np.ndarray) -> float:
     bb1 = {"x1": bbox1[0], "x2": bbox1[0] + bbox1[2], "y1": bbox1[1], "y2": bbox1[1] + bbox1[3]}
     bb2 = {"x1": bbox2[0], "x2": bbox2[0] + bbox2[2], "y1": bbox2[1], "y2": bbox2[1] + bbox2[3]}
     """

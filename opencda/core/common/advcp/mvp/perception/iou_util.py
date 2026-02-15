@@ -5,13 +5,15 @@ author: lanxiao li
 2020.8
 """
 
+from typing import Tuple
+
 import torch
 from .cuda_op.cuda_ext import sort_v
 
 EPSILON = 1e-8
 
 
-def box_intersection_th(corners1: torch.Tensor, corners2: torch.Tensor):
+def box_intersection_th(corners1: torch.Tensor, corners2: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
     """find intersection points of rectangles
     Convention: if two edges are collinear, there is no intersection point
 
@@ -55,7 +57,7 @@ def box_intersection_th(corners1: torch.Tensor, corners2: torch.Tensor):
     return intersections, mask
 
 
-def box1_in_box2(corners1: torch.Tensor, corners2: torch.Tensor):
+def box1_in_box2(corners1: torch.Tensor, corners2: torch.Tensor) -> torch.Tensor:
     """check if corners of box1 lie in box2
     Convention: if a corner is exactly on the edge of the other box, it's also a valid point
 
@@ -83,7 +85,7 @@ def box1_in_box2(corners1: torch.Tensor, corners2: torch.Tensor):
     return cond1 * cond2
 
 
-def box_in_box_th(corners1: torch.Tensor, corners2: torch.Tensor):
+def box_in_box_th(corners1: torch.Tensor, corners2: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
     """check if corners of two boxes lie in each other
 
     Args:
@@ -100,8 +102,13 @@ def box_in_box_th(corners1: torch.Tensor, corners2: torch.Tensor):
 
 
 def build_vertices(
-    corners1: torch.Tensor, corners2: torch.Tensor, c1_in_2: torch.Tensor, c2_in_1: torch.Tensor, inters: torch.Tensor, mask_inter: torch.Tensor
-):
+    corners1: torch.Tensor,
+    corners2: torch.Tensor,
+    c1_in_2: torch.Tensor,
+    c2_in_1: torch.Tensor,
+    inters: torch.Tensor,
+    mask_inter: torch.Tensor,
+) -> Tuple[torch.Tensor, torch.Tensor]:
     """find vertices of intersection area
 
     Args:
@@ -125,7 +132,7 @@ def build_vertices(
     return vertices, mask
 
 
-def sort_indices(vertices: torch.Tensor, mask: torch.Tensor):
+def sort_indices(vertices: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
     """[summary]
 
     Args:
@@ -148,7 +155,7 @@ def sort_indices(vertices: torch.Tensor, mask: torch.Tensor):
     return sort_v(vertices_normalized, mask, num_valid).long()
 
 
-def calculate_area(idx_sorted: torch.Tensor, vertices: torch.Tensor):
+def calculate_area(idx_sorted: torch.Tensor, vertices: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
     """calculate area of intersection
 
     Args:
@@ -167,7 +174,7 @@ def calculate_area(idx_sorted: torch.Tensor, vertices: torch.Tensor):
     return area, selected
 
 
-def oriented_box_intersection_2d(corners1: torch.Tensor, corners2: torch.Tensor):
+def oriented_box_intersection_2d(corners1: torch.Tensor, corners2: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
     """calculate intersection area of 2d rectangles
 
     Args:

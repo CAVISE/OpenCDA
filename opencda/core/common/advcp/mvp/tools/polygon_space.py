@@ -1,3 +1,5 @@
+from typing import Any, List, Optional, Tuple
+
 import numpy as np
 from shapely.geometry import MultiPoint, Polygon
 from shapely.ops import unary_union
@@ -6,7 +8,7 @@ from matplotlib.path import Path
 from mvp.data.util import point_rotate, point_shift, pcd_sensor_to_map
 
 
-def points_in_polygon(points, polygon):
+def points_in_polygon(points: np.ndarray, polygon: Polygon) -> np.ndarray:
     points = points[:, :2]
     x, y = polygon.exterior.coords.xy
     vertices = np.vstack([np.array(x), np.array(y)]).T
@@ -15,12 +17,12 @@ def points_in_polygon(points, polygon):
     return mask
 
 
-def points_to_polygon(points):
+def points_to_polygon(points: np.ndarray) -> Any:
     area = MultiPoint(points).convex_hull
     return area
 
 
-def bbox_to_polygon(bbox):
+def bbox_to_polygon(bbox: np.ndarray) -> Polygon:
     points = np.array(
         [[bbox[3] / 2, bbox[4] / 2, 0], [-bbox[3] / 2, bbox[4] / 2, 0], [-bbox[3] / 2, -bbox[4] / 2, 0], [bbox[3] / 2, -bbox[4] / 2, 0]]
     )
@@ -30,23 +32,37 @@ def bbox_to_polygon(bbox):
     return Polygon(points)
 
 
-def get_occupied_space(pcd_data, object_segments, point_height=None, height_thres=0):
-    occupied_areas = []
-    occupied_areas_height = []
+def get_occupied_space(
+    pcd_data: np.ndarray,
+    object_segments: List[Any],
+    point_height: Optional[np.ndarray] = None,
+    height_thres: float = 0,
+) -> Tuple[List[Any], List[float]]:
+    occupied_areas: List[Any] = []
+    occupied_areas_height: List[float] = []
     for object_segment in object_segments:
         object_points = pcd_data[object_segment]
-        object_point_height = point_height[object_segment]
+        object_point_height = point_height[object_segment] if point_height is not None else np.array([0.0])
         # object_points = object_points[object_point_height > height_thres]
         # if object_points.shape[0] <= 2:
         #     continue
         occupied_area = points_to_polygon(object_points[:, :2])
         occupied_areas.append(occupied_area)
-        occupied_areas_height.append(object_point_height.max())
+        occupied_areas_height.append(float(object_point_height.max()))
 
     return occupied_areas, occupied_areas_height
 
 
-def get_free_space_fast(pcd_data, center, object_mask, in_lane_mask, point_height, height_thres=0, max_range=50, angle_split=360):
+def get_free_space_fast(
+    pcd_data: np.ndarray,
+    center: np.ndarray,
+    object_mask: np.ndarray,
+    in_lane_mask: np.ndarray,
+    point_height: np.ndarray,
+    height_thres: float = 0,
+    max_range: float = 50,
+    angle_split: int = 360,
+) -> List[Polygon]:
     distance = np.sqrt(np.sum((pcd_data[:, :2] - center[:2]) ** 2, axis=1))
     range_mask = distance < max_range
     pcd = pcd_data[range_mask]
@@ -67,10 +83,10 @@ def get_free_space_fast(pcd_data, center, object_mask, in_lane_mask, point_heigh
     angles = np.floor(np.arctan2(centered_pcd[:, 1], centered_pcd[:, 0]) / np.pi / 2 * angle_split).astype(np.int32)
     angles += (angles < 0) * angle_split
 
-    def angle_to_point(a, d):
+    def angle_to_point(a: int, d: float) -> Tuple[float, float]:
         return (d * np.cos(a * 2 * np.pi / angle_split) + center[0], d * np.sin(a * 2 * np.pi / angle_split) + center[1])
 
-    inner_area = []
+    inner_area: List[Tuple[float, float]] = []
     for angle in range(angle_split):
         angle_point_mask = angles == angle
         if np.sum(angle_point_mask) == 0:
@@ -90,8 +106,17 @@ def get_free_space_fast(pcd_data, center, object_mask, in_lane_mask, point_heigh
 
 
 def get_free_space(
-    lidar, lidar_pose, object_mask, in_lane_mask, point_height, height_thres=0, height_tolerance=0.1, angle_split=360, max_range=50, ray_count=64
-):
+    lidar: np.ndarray,
+    lidar_pose: np.ndarray,
+    object_mask: np.ndarray,
+    in_lane_mask: np.ndarray,
+    point_height: np.ndarray,
+    height_thres: float = 0,
+    height_tolerance: float = 0.1,
+    angle_split: int = 360,
+    max_range: float = 50,
+    ray_count: int = 64,
+) -> List[Polygon]:
     distance = np.sqrt(np.sum(lidar[:, :2] ** 2, axis=1))
     range_mask = distance < max_range
     pcd = lidar[range_mask]
@@ -130,15 +155,15 @@ def get_free_space(
                 if np.sum(np.logical_and(is_object, point_mask)) == 0:
                     free_space_map[angle, ring] = 1
 
-    polygons = []
+    polygons: List[Polygon] = []
 
-    def angle_to_point(a, d):
+    def angle_to_point(a: int, d: float) -> List[float]:
         return [d * np.cos(a * 2 * np.pi / angle_split), d * np.sin(a * 2 * np.pi / angle_split)]
 
-    def sensor_points_to_map_polygon(L):
+    def sensor_points_to_map_polygon(L: List[List[float]]) -> Polygon:
         return Polygon(pcd_sensor_to_map(np.hstack([np.array(L), -1.7 * np.ones((len(L), 1))]), lidar_pose)[:, :2])
 
-    inner_area = []
+    inner_area: List[List[float]] = []
     for angle in range(angle_split):
         if (free_space_map[angle, :] == 0).sum() == 0:
             farest_distance = distance_map[angle, :, 1].max()

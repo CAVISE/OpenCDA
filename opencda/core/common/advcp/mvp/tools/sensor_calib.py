@@ -1,7 +1,9 @@
+from typing import Any, Dict, List, Optional, Tuple
+
 import numpy as np
 
 
-def lidar_to_camera(lidar, extrinsic, intrinsic):
+def lidar_to_camera(lidar: np.ndarray, extrinsic: np.ndarray, intrinsic: np.ndarray) -> np.ndarray:
     lidar_in_camera_3d = lidar.copy()
     lidar_in_camera_3d[:, 3] = 1
     lidar_in_camera_3d = np.dot(lidar_in_camera_3d, extrinsic[:3, :].T)
@@ -13,7 +15,7 @@ def lidar_to_camera(lidar, extrinsic, intrinsic):
     return lidar_in_camera_2d
 
 
-def get_lidar_2d_bbox(pcd_on_camera, indices, image_shape):
+def get_lidar_2d_bbox(pcd_on_camera: np.ndarray, indices: np.ndarray, image_shape: Tuple[int, int]) -> Optional[List[float]]:
     points = pcd_on_camera[indices]
     depth = np.mean(points[:, 2])
     if depth < 0:
@@ -27,7 +29,7 @@ def get_lidar_2d_bbox(pcd_on_camera, indices, image_shape):
     return [x, y, width, height]
 
 
-def get_image_depth(pcd_on_camera, image_shape):
+def get_image_depth(pcd_on_camera: np.ndarray, image_shape: Tuple[int, int]) -> np.ndarray:
     pcd_2d = np.floor(pcd_on_camera[:, :2]).astype(np.int32)
     mask = (pcd_2d[:, 0] >= 0) * (pcd_2d[:, 1] >= 0) * (pcd_2d[:, 0] < image_shape[0]) * (pcd_2d[:, 1] < image_shape[1])
     indices = np.argwhere((mask > 0)).astype(np.int32).reshape(-1)
@@ -42,8 +44,8 @@ def get_image_depth(pcd_on_camera, image_shape):
     return image_depth
 
 
-def parse_lidar_bboxes(pcd_on_camera, lidar_seg, image_shape):
-    depth_bboxes = {}
+def parse_lidar_bboxes(pcd_on_camera: np.ndarray, lidar_seg: Dict[str, Any], image_shape: Tuple[int, int]) -> List[List[float]]:
+    depth_bboxes: Dict[int, List[float]] = {}
     for info in lidar_seg["info"]:
         if info["category_id"] != 1:
             continue
@@ -60,7 +62,7 @@ def parse_lidar_bboxes(pcd_on_camera, lidar_seg, image_shape):
 
         depth_bboxes[int(depth * 1000)] = bbox
 
-    bboxes = []
+    bboxes: List[List[float]] = []
     depth_list = list(depth_bboxes.keys())
     depth_list.sort()
     for depth in depth_list:
@@ -76,8 +78,8 @@ def parse_lidar_bboxes(pcd_on_camera, lidar_seg, image_shape):
     return bboxes
 
 
-def parse_camera_bboxes(camera_seg):
-    bboxes = []
+def parse_camera_bboxes(camera_seg: Dict[str, Any]) -> List[List[float]]:
+    bboxes: List[List[float]] = []
     for info in camera_seg["info"]:
         if info["category_id"] != 1:
             continue

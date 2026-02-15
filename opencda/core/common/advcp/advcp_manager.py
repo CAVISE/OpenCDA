@@ -1,7 +1,7 @@
 import os
 import logging
-import yaml
-from typing import Dict, List, Optional, Tuple
+import yaml  # type: ignore[import-untyped]
+from typing import Any, Callable, Dict, List, Optional, Tuple
 from opencda.core.common.coperception_model_manager import CoperceptionModelManager
 
 
@@ -25,7 +25,13 @@ class AdvCPManager:
     on collaborative perception data in real-time.
     """
 
-    def __init__(self, opt: Dict, current_time: str, coperception_manager: "CoperceptionModelManager", message_handler: Optional[callable] = None):
+    def __init__(
+        self,
+        opt: Dict[str, Any],
+        current_time: str,
+        coperception_manager: "CoperceptionModelManager",
+        message_handler: Optional[Callable[..., Any]] = None,
+    ) -> None:
         """
         Initialize AdvCP Manager.
 
@@ -254,7 +260,7 @@ class AdvCPManager:
                 logger.warning("OpencoodPerception not initialized, cannot preprocess attacked data")
                 return None, None, None
 
-    def _apply_attack(self, data: Dict, predictions: Optional[Dict] = None, tick_number: int = None) -> Dict:
+    def _apply_attack(self, data: Dict, predictions: Optional[Dict] = None, tick_number: Optional[int] = None) -> Dict:
         """
         Apply attack to the perception data.
 
@@ -376,10 +382,12 @@ class AdvCPManager:
         """Select which vehicles will be attackers based on ratio."""
         if self.attack_target == "all_non_attackers":
             # All vehicles except one are attackers
+            assert self.coperception_manager.opencood_dataset is not None
             all_vehicles = list(self.coperception_manager.opencood_dataset.vehicle_ids)
             return all_vehicles[:-1] if len(all_vehicles) > 1 else all_vehicles
 
         # Randomly select attackers based on ratio
+        assert self.coperception_manager.opencood_dataset is not None
         all_vehicles = list(self.coperception_manager.opencood_dataset.vehicle_ids)
         num_attackers = max(1, int(len(all_vehicles) * self.attackers_ratio))
 

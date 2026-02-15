@@ -1,9 +1,11 @@
+from typing import Any, Dict
+
 from mvp.data.util import get_point_indices_in_bbox
 from mvp.tools.iou import iou3d
 
 
-def get_accuracy(dataset, detector, iou_threshold=0.5):
-    report = {"TP": 0, "FP": 0, "P": 0, "PP": 0}
+def get_accuracy(dataset: Any, detector: Any, iou_threshold: float = 0.5) -> Dict[str, int]:
+    report: Dict[str, int] = {"TP": 0, "FP": 0, "P": 0, "PP": 0}
 
     for case_id, case in dataset.case_generator(index=True, tag="multi_frame"):
         result_case = detector.run_multi_frame(case)

@@ -1,36 +1,42 @@
 import pickle
 import os
 import copy
+from typing import Any, Dict, Generator, List, Optional, Tuple, Union
+
 import numpy as np
 
 from mvp.data.util import sort_lidar_points
 
 
 class Attacker:
-    def __init__(self):
-        self.attack_list = None
+    def __init__(self) -> None:
+        self.attack_list: Optional[List[Dict[str, Any]]] = None
         self.name = "base"
-        self.dataset = None
+        self.dataset: Any = None
         self.attack_list = []
 
-    def set_dataset(self, dataset):
+    def set_dataset(self, dataset: Any) -> None:
         self.dataset = dataset
 
-    def build_benchmark_meta(self, write=False):
+    def build_benchmark_meta(self, write: bool = False) -> None:
         raise NotImplementedError
 
-    def save_benchmark_meta(self):
+    def save_benchmark_meta(self) -> None:
+        assert self.dataset is not None
         with open(os.path.join(self.dataset.root_path, "attack", "{}.pkl".format(self.name)), "wb") as f:
             pickle.dump(self.attack_list, f)
 
-    def load_benchmark_meta(self):
+    def load_benchmark_meta(self) -> None:
+        assert self.dataset is not None
         try:
             with open(os.path.join(self.dataset.root_path, "attack", "{}.pkl".format(self.name)), "rb") as f:
                 self.attack_list = pickle.load(f)
         except Exception as e:
             print("no benchmark found", e)
 
-    def build_benchmark(self, write=False, resume=True):
+    def build_benchmark(self, write: bool = False, resume: bool = True) -> None:
+        assert self.dataset is not None
+        assert self.attack_list is not None
         for attack_id, attack in enumerate(self.attack_list):
             print(attack_id)
             pcd_dir = os.path.join(self.dataset.root_path, "attack", self.name, "{:06d}".format(attack_id))
@@ -42,12 +48,19 @@ class Attacker:
             new_case = copy.deepcopy(case)
             attack_opts = copy.deepcopy(attack["attack_opts"])
             attack_opts.update({"bboxes": attack["attack_meta"]["bboxes"]})
-            new_case, info = self.run(new_case, attack_opts)
+            new_case, info = self.run(new_case, attack_opts)  # type: ignore
             if write:
                 os.makedirs(pcd_dir, exist_ok=True)
                 pickle.dump(info, open(os.path.join(pcd_dir, "attack_info.pkl"), "wb"))
 
-    def load_benchmark(self, index=True, frame_ids=[9], use_lidar=True, use_camera=False):
+    def load_benchmark(
+        self,
+        index: bool = True,
+        frame_ids: List[int] = [9],
+        use_lidar: bool = True,
+        use_camera: bool = False,
+    ) -> Generator[Union[Tuple[int, Dict[str, Any], Any], Tuple[Dict[str, Any], Any]], None, None]:
+        assert self.attack_list is not None
         for idx in range(len(self.attack_list)):
             attack, case = self.load_benchmark_by_id(idx, frame_ids=frame_ids, use_camera=use_camera)
             if index:
@@ -55,7 +68,15 @@ class Attacker:
             else:
                 yield attack, case
 
-    def load_benchmark_by_id(self, idx, frame_ids=[9], use_lidar=True, use_camera=False):
+    def load_benchmark_by_id(
+        self,
+        idx: int,
+        frame_ids: List[int] = [9],
+        use_lidar: bool = True,
+        use_camera: bool = False,
+    ) -> Tuple[Dict[str, Any], Any]:
+        assert self.attack_list is not None
+        assert self.dataset is not None
         attack = self.attack_list[idx]
         if frame_ids is None:
             frame_ids = [i for i in range(len(attack["attack_meta"]["frame_ids"]))]
@@ -72,7 +93,13 @@ class Attacker:
         return attack, case
 
     @staticmethod
-    def apply_ray_tracing(lidar, replace_indices=None, replace_data=None, ignore_indices=None, append_data=None):
+    def apply_ray_tracing(
+        lidar: np.ndarray,
+        replace_indices: Optional[np.ndarray] = None,
+        replace_data: Optional[np.ndarray] = None,
+        ignore_indices: Optional[np.ndarray] = None,
+        append_data: Optional[np.ndarray] = None,
+    ) -> np.ndarray:
         if replace_indices is not None and replace_indices.shape[0] > 0:
             lidar[replace_indices, :3] = replace_data
         if ignore_indices is not None and ignore_indices.shape[0] > 0:
