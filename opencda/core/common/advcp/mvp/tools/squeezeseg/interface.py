@@ -12,7 +12,7 @@ sys.path.append(os.path.join(squeezeseg_root, "src"))
 import numpy as np  # noqa: E402
 import torch  # noqa: E402
 import torch.backends.cudnn as cudnn  # noqa: E402
-import yaml  # type: ignore  # noqa: E402
+import yaml  # noqa: E402
 from tasks.semantic.modules.segmentator import Segmentator  # noqa: E402
 from tasks.semantic.postproc.KNN import KNN  # noqa: E402
 from common.laserscan import LaserScan  # noqa: E402

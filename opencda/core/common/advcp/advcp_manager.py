@@ -1,6 +1,6 @@
 import os
 import logging
-import yaml  # type: ignore[import-untyped]
+import yaml
 from typing import Any, Callable, Dict, List, Optional, Tuple
 from opencda.core.common.coperception_model_manager import CoperceptionModelManager
 from opencda.core.common.advcp.advcp_visualization_manager import AdvCPVisualizationManager

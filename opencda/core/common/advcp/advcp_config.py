@@ -2,7 +2,7 @@ import os
 from typing import Dict, Any, Optional, List
 import logging
 
-import yaml  # type: ignore
+import yaml
 
 logger = logging.getLogger("cavise.advcp_manager")
 
