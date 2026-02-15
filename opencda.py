@@ -155,6 +155,32 @@ def arg_parse() -> argparse.Namespace:
     parser.add_argument("--apply-cad-defense", action="store_true", help="Enable CAD defense mechanism")
     parser.add_argument("--defense-threshold", type=float, default=0.7, help="Trust threshold for CAD defense (0.0-1.0)")
 
+    # AdvCP Visualization arguments
+    parser.add_argument("--advcp-vis", action="store_true", help="Enable AdvCP visualization output")
+    parser.add_argument(
+        "--advcp-vis-mode",
+        type=str,
+        default="matplotlib",
+        choices=["matplotlib", "open3d", "both"],
+        help="Visualization backend: matplotlib (2D), open3d (3D), or both",
+    )
+    parser.add_argument("--advcp-vis-save", action="store_true", help="Save visualization outputs to disk")
+    parser.add_argument("--advcp-vis-show", action="store_true", help="Show interactive visualization (blocks execution)")
+    parser.add_argument(
+        "--advcp-vis-output-dir",
+        type=str,
+        default="simulation_output/advcp_vis",
+        help="Directory to save visualization outputs",
+    )
+    parser.add_argument(
+        "--advcp-vis-types",
+        type=str,
+        nargs="+",
+        default=["attack", "defense"],
+        choices=["attack", "defense", "evaluation", "ground_seg", "tracking", "roc"],
+        help="Types of visualization to generate",
+    )
+
     def verbosity_wrapper(arg: str) -> VerbosityLevel:
         return VerbosityLevel(int(arg))
 

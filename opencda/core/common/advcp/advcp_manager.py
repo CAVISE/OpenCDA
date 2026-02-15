@@ -3,7 +3,7 @@ import logging
 import yaml  # type: ignore[import-untyped]
 from typing import Any, Callable, Dict, List, Optional, Tuple
 from opencda.core.common.coperception_model_manager import CoperceptionModelManager
-
+from opencda.core.common.advcp.advcp_visualization_manager import AdvCPVisualizationManager
 
 from mvp.attack.lidar_remove_early_attacker import LidarRemoveEarlyAttacker
 from mvp.attack.lidar_remove_intermediate_attacker import LidarRemoveIntermediateAttacker
@@ -53,9 +53,11 @@ class AdvCPManager:
         self.attacker = None
         self.defender = None
         self.perception = None
+        self.visualization_manager: Optional[AdvCPVisualizationManager] = None
         self._initialize_perception()
         self._initialize_attacker()
         self._initialize_defender()
+        self._initialize_visualization()
 
         # Attack/Defense flags
         self.with_advcp = opt.get("with_advcp", False)
@@ -131,6 +133,15 @@ class AdvCPManager:
 
         self.defender = PerceptionDefender()
         logger.info("Initialized CAD defense mechanism")
+
+    def _initialize_visualization(self) -> None:
+        """Initialize the visualization manager if visualization is enabled."""
+        if not self.opt.get("advcp_vis", False):
+            return
+
+        output_dir = self.opt.get("advcp_vis_output_dir", "simulation_output/advcp_vis")
+        self.visualization_manager = AdvCPVisualizationManager(opt=self.opt, output_dir=output_dir)
+        logger.info(f"Initialized AdvCP visualization with output_dir={output_dir}")
 
     def _initialize_perception(self) -> None:
         """Initialize OpencoodPerception for preprocessing raw data to OpenCOOD format."""
@@ -213,8 +224,31 @@ class AdvCPManager:
                 # For late attacks, we need to convert predictions back to format expected by defender
                 # The defender expects multi_frame_case with raw data + predictions
                 defended_data, defense_score, defense_metrics = self._apply_defense(raw_data, modified_predictions, tick_number)
+
+                # Visualization
+                if self.visualization_manager:
+                    self.visualization_manager.process_tick(
+                        tick_number=tick_number,
+                        raw_data=raw_data,
+                        attacked_data=None,
+                        defended_data=defended_data,
+                        attack_info={"attack_type": self.attack_type, "attack_meta": {"attacker_vehicle_id": None, "victim_vehicle_id": None}},
+                        defense_metrics=defense_metrics,
+                        predictions=modified_predictions,
+                    )
                 return defended_data, defense_score, defense_metrics
 
+            # Visualization
+            if self.visualization_manager:
+                self.visualization_manager.process_tick(
+                    tick_number=tick_number,
+                    raw_data=raw_data,
+                    attacked_data=None,
+                    defended_data=None,
+                    attack_info={"attack_type": self.attack_type, "attack_meta": {"attacker_vehicle_id": None, "victim_vehicle_id": None}},
+                    defense_metrics=None,
+                    predictions=modified_predictions,
+                )
             return modified_predictions, defense_score, defense_metrics
         else:
             # Early/intermediate attacks need RAW data (not preprocessed batch_data)
@@ -252,6 +286,20 @@ class AdvCPManager:
                         if self.apply_cad_defense and self.defender:
                             preprocessed_data, defense_score, defense_metrics = self._apply_defense(preprocessed_data, tick_number)
 
+                        # Visualization
+                        if self.visualization_manager:
+                            self.visualization_manager.process_tick(
+                                tick_number=tick_number,
+                                raw_data=raw_data,
+                                attacked_data=attacked_data,
+                                defended_data=preprocessed_data,
+                                attack_info={
+                                    "attack_type": self.attack_type,
+                                    "attack_meta": {"attacker_vehicle_id": None, "victim_vehicle_id": None},
+                                },
+                                defense_metrics=defense_metrics,
+                                predictions=None,
+                            )
                         return preprocessed_data, defense_score, defense_metrics
                 except Exception as e:
                     logger.error(f"Failed to preprocess attacked data: {e}")
@@ -490,3 +538,20 @@ class AdvCPManager:
             "threshold": self.defense_threshold,
             "applied": False,  # Would need to track this
         }
+
+    def get_visualization_statistics(self) -> Dict:
+        """Get statistics about visualization."""
+        if not self.visualization_manager:
+            return {"enabled": False}
+        return self.visualization_manager.get_statistics()
+
+    def generate_visualization_report(self) -> Dict[str, str]:
+        """
+        Generate final visualization report after simulation ends.
+
+        Returns:
+            Dictionary mapping visualization type to output file path
+        """
+        if not self.visualization_manager:
+            return {}
+        return self.visualization_manager.generate_final_report()

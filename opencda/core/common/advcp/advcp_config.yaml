@@ -34,6 +34,21 @@ logging:
   visualize_attacks: false             # Visualize attack effects
   visualize_defense: false             # Visualize defense results
 
+# Visualization settings (activated via --advcp-vis CLI flag)
+visualization:
+  enabled: false                       # Enable visualization (overridden by --advcp-vis CLI flag)
+  mode: "matplotlib"                   # Visualization backend: matplotlib (2D), open3d (3D), both
+  save: true                           # Save visualization outputs to disk
+  show: false                          # Show interactive visualization (blocks execution)
+  output_dir: "simulation_output/advcp_vis"  # Directory to save visualization outputs
+  types:                               # Types of visualization to generate
+    - attack                           # Attack visualization (normal vs attack case comparison)
+    - defense                          # Defense visualization (occupied/free areas, error regions)
+    - evaluation                       # Evaluation visualization (distribution plots)
+    - ground_seg                       # Ground segmentation visualization
+    - tracking                         # Object tracking visualization
+    - roc                              # ROC curve visualization
+
 # Performance optimization
 optimization:
   enable_parallel_processing: true     # Use parallel processing for attacks
