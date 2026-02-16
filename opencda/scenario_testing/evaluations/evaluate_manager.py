@@ -6,7 +6,7 @@ import os
 import logging
 from opencda.scenario_testing.evaluations.utils import lprint
 
-logger = logging.getLogger("cavise.evaluate_manager")
+logger = logging.getLogger("cavise.opencda.opencda.scenario_testing.evaluations.evaluate_manager")
 
 
 class EvaluationManager(object):

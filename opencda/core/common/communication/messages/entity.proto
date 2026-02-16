@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package capi;
+
+message Entity {
+    // Unique string ID: e.g., 'cav-1', 'rsu-3', 'platoon-5'
+    string id = 1;
+    optional float velocity = 2;
+
+    bytes auxillary = 3;
+}

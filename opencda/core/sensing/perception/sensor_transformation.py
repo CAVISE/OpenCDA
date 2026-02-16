@@ -3,11 +3,11 @@ This script contains the transformations between world and different sensors.
 """
 
 import numpy as np
-from matplotlib import cm
+import matplotlib as mpl
 
 from opencda.opencda_carla import Transform
 
-VIRIDIS = np.array(cm.get_cmap("viridis").colors)
+VIRIDIS = np.array(mpl.colormaps["viridis"].colors)
 VID_RANGE = np.linspace(0.0, 1.0, VIRIDIS.shape[0])
 
 
