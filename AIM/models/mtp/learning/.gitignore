@@ -1,0 +1,15 @@
+.vscode
+data/csv
+data/sumo_gened_maps
+data/vizualization
+
+
+experements
+experements_backup
+data_visualizations_backup
+
+experements_configs/*
+!experements_configs/model_config.yaml
+!experements_configs/train_config.yaml
+
+tests.py
