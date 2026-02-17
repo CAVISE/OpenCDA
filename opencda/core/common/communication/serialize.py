@@ -64,6 +64,52 @@ class MessageHandler:
             "LABEL_REQUIRED": FieldDescriptor.LABEL_REQUIRED,
         }
 
+    @staticmethod
+    def _field_is_repeated(field) -> bool:
+        """
+        Prefer protobuf's modern API if available to avoid deprecated label()/label access.
+        """
+        attr = getattr(field, "is_repeated", None)
+        if attr is not None:
+            return bool(attr() if callable(attr) else attr)
+        # Fallback for older protobuf versions.
+        return field.label == FieldDescriptor.LABEL_REPEATED
+
+    @staticmethod
+    def _field_is_required(field) -> bool:
+        """
+        Prefer protobuf's modern API if available to avoid deprecated label()/label access.
+        """
+        attr = getattr(field, "is_required", None)
+        if attr is not None:
+            return bool(attr() if callable(attr) else attr)
+        # Fallback for older protobuf versions.
+        return field.label == FieldDescriptor.LABEL_REQUIRED
+
+    @classmethod
+    def _field_label_name(cls, field) -> str:
+        """
+        Human-readable label name without relying on deprecated descriptor label APIs.
+        """
+        if cls._field_is_repeated(field):
+            return "LABEL_REPEATED"
+        if cls._field_is_required(field):
+            return "LABEL_REQUIRED"
+        return "LABEL_OPTIONAL"
+
+    @classmethod
+    def _field_matches_expected_label(cls, field, expected_label: int) -> bool:
+        """
+        Compare expected label (protobuf numeric constant) to the field's label
+        using modern APIs where available.
+        """
+        if expected_label == FieldDescriptor.LABEL_REPEATED:
+            return cls._field_is_repeated(field)
+        if expected_label == FieldDescriptor.LABEL_REQUIRED:
+            return cls._field_is_required(field)
+        # Optional: neither repeated nor required.
+        return (not cls._field_is_repeated(field)) and (not cls._field_is_required(field))
+
     def __serialize_ndarray(self, packed_array: dict) -> proto_capi.NDArray:
         return proto_capi.NDArray(data=packed_array["data"], shape=list(packed_array["shape"]), dtype=packed_array["dtype"])
 
@@ -113,9 +159,11 @@ class MessageHandler:
                                 f"[{entity_id}:{module_name}] Type mismatch for field '{key}': expected {field.type}, got {expected_type}"
                             )
 
-                        if field.label != expected_label:
+                        if not self._field_matches_expected_label(field, expected_label):
                             raise ValueError(
                                 f"[{entity_id}:{module_name}] Label mismatch for field '{key}': expected {field.label}, got {expected_label}"
+                                f"[{entity_id}:{module_name}] Label mismatch for field '{key}': "
+                                f"expected {value['label']}, got {self._field_label_name(field)}"
                             )
 
                         data = value["data"]
@@ -193,7 +241,7 @@ class MessageHandler:
                             field_name = field.name
 
                             has_field = True
-                            if field_name != "id" and field.label != FieldDescriptor.LABEL_REPEATED:
+                            if field_name != "id" and not self._field_is_repeated(field):
                                 has_field = entity_info.HasField(field_name)
 
                             if not has_field:
@@ -204,7 +252,7 @@ class MessageHandler:
 
                             if field.type == FieldDescriptor.TYPE_MESSAGE and field.message_type.name == "NDArray":
                                 msg[field_name] = self.__deserialize_ndarray(value)
-                            elif field.label == FieldDescriptor.LABEL_REPEATED:
+                            elif self._field_is_repeated(field):
                                 msg[field_name] = list(value)
                             else:
                                 msg[field_name] = value

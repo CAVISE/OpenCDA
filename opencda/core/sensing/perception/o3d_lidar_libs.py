@@ -15,7 +15,29 @@ import opencda.core.sensing.perception.sensor_transformation as st
 from opencda.core.sensing.perception.obstacle_vehicle import is_vehicle_cococlass, ObstacleVehicle
 from opencda.core.sensing.perception.static_obstacle import StaticObstacle
 
-VIRIDIS = np.array(cm.get_cmap("plasma").colors)
+def _cmap_colors(name: str) -> np.ndarray:
+    """
+    Return an (N, 3) float array of RGB colors for a matplotlib colormap.
+    Avoids deprecated cm.get_cmap() usage on newer matplotlib versions.
+    """
+    try:
+        from matplotlib import colormaps
+
+        cmap = colormaps.get_cmap(name)
+    except Exception:  # pragma: no cover
+        cmap = cm.get_cmap(name)
+
+    if hasattr(cmap, "colors"):
+        colors = np.asarray(cmap.colors, dtype=float)
+        if colors.ndim == 2 and colors.shape[1] >= 3:
+            return colors[:, :3]
+
+    n = int(getattr(cmap, "N", 256))
+    samples = np.asarray(cmap(np.linspace(0.0, 1.0, n)), dtype=float)
+    return samples[:, :3]
+
+
+VIRIDIS = _cmap_colors("viridis")
 VID_RANGE = np.linspace(0.0, 1.0, VIRIDIS.shape[0])
 LABEL_COLORS = (  # noqa: DC01
     np.array(
@@ -211,8 +233,8 @@ def o3d_camera_lidar_fusion(objects, yolo_bbx, lidar_3d, projected_lidar, lidar_
             continue
 
         # filter out the outlier
-        x_common = mode(np.array(np.abs(select_points[:, 0]), dtype=np.int), axis=0)[0][0]
-        y_common = mode(np.array(np.abs(select_points[:, 1]), dtype=np.int), axis=0)[0][0]
+        x_common = mode(np.array(np.abs(select_points[:, 0]), dtype=int), axis=0)[0][0]
+        y_common = mode(np.array(np.abs(select_points[:, 1]), dtype=int), axis=0)[0][0]
         points_inlier = (
             (np.abs(select_points[:, 0]) > x_common - 3)
             & (np.abs(select_points[:, 0]) < x_common + 3)

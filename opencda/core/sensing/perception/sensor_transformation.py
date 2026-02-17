@@ -7,7 +7,51 @@ from matplotlib import cm
 
 from opencda.opencda_carla import Transform
 
-VIRIDIS = np.array(cm.get_cmap("viridis").colors)
+def _cmap_colors(name: str) -> np.ndarray:
+    """
+    Return an (N, 3) float array of RGB colors for a matplotlib colormap.
+    Avoids deprecated cm.get_cmap() on newer matplotlib versions.
+    """
+    try:
+        from matplotlib import colormaps
+
+        cmap = colormaps.get_cmap(name)
+    except Exception:  # pragma: no cover
+        cmap = cm.get_cmap(name)
+
+    if hasattr(cmap, "colors"):
+        colors = np.asarray(cmap.colors, dtype=float)
+        if colors.ndim == 2 and colors.shape[1] >= 3:
+            return colors[:, :3]
+
+    n = int(getattr(cmap, "N", 256))
+    samples = np.asarray(cmap(np.linspace(0.0, 1.0, n)), dtype=float)
+    return samples[:, :3]
+
+
+def _cmap_colors(name: str) -> np.ndarray:
+    """
+    Return an (N, 3) float array of RGB colors for a matplotlib colormap.
+    Avoids deprecated cm.get_cmap() on newer matplotlib versions.
+    """
+    try:
+        from matplotlib import colormaps
+
+        cmap = colormaps.get_cmap(name)
+    except Exception:  # pragma: no cover
+        cmap = cm.get_cmap(name)
+
+    if hasattr(cmap, "colors"):
+        colors = np.asarray(cmap.colors, dtype=float)
+        if colors.ndim == 2 and colors.shape[1] >= 3:
+            return colors[:, :3]
+
+    n = int(getattr(cmap, "N", 256))
+    samples = np.asarray(cmap(np.linspace(0.0, 1.0, n)), dtype=float)
+    return samples[:, :3]
+
+
+VIRIDIS = _cmap_colors("viridis")
 VID_RANGE = np.linspace(0.0, 1.0, VIRIDIS.shape[0])
 
 
