@@ -56,6 +56,17 @@ class Location(_FloatAttrMixin):
             return NotImplemented
         return Location(self.x + other.x, self.y + other.y, self.z + other.z)
 
+    def distance(self, other) -> float:
+        if not isinstance(other, Location):
+            raise TypeError(f"distance() expects Location, got {type(other).__name__}")
+        dx = float(self.x) - float(other.x)
+        dy = float(self.y) - float(other.y)
+        dz = float(self.z) - float(other.z)
+        return math.sqrt(dx * dx + dy * dy + dz * dz)
+
+    def to_dict(self) -> dict:
+        return {"x": float(self.x), "y": float(self.y), "z": float(self.z)}
+
     def __repr__(self):
         return f"Location(x={self.x}, y={self.y}, z={self.z})"
 
@@ -69,6 +80,9 @@ class Rotation(_FloatAttrMixin):
         self.pitch = pitch
         self.yaw = yaw
         self.roll = roll
+
+    def to_dict(self) -> dict:
+        return {"pitch": float(self.pitch), "yaw": float(self.yaw), "roll": float(self.roll)}
 
     def __repr__(self):
         return f"Rotation(pitch={self.pitch}, yaw={self.yaw}, roll={self.roll})"
@@ -90,6 +104,14 @@ class Transform:
                 raise TypeError(f"Unexpected keyword arguments for Transform(location, rotation): {list(kwargs.keys())}")
             self.location = args[0]
             self.rotation = args[1]
+            return
+
+        # CARLA-compatible convenience: Transform(location) -> rotation defaults to (0,0,0)
+        if len(args) == 1 and isinstance(args[0], Location):
+            if kwargs:
+                raise TypeError(f"Unexpected keyword arguments for Transform(location): {list(kwargs.keys())}")
+            self.location = args[0]
+            self.rotation = Rotation()
             return
 
         # Old style: Transform(x, y, z, pitch=0, yaw=0, roll=0)
@@ -115,6 +137,9 @@ class Transform:
 
         raise TypeError("Unsupported Transform signature. Use Transform(location, rotation) or Transform(x, y, z, pitch=0, yaw=0, roll=0).")
 
+    def to_dict(self) -> dict:
+        return {"location": self.location.to_dict(), "rotation": self.rotation.to_dict()}
+
     def __repr__(self):
         return f"Transform(location={self.location!r}, rotation={self.rotation!r})"
 
@@ -133,6 +158,9 @@ class Vector3D(_FloatAttrMixin):
         self.x = x
         self.y = y
         self.z = z
+
+    def to_dict(self) -> dict:
+        return {"x": float(self.x), "y": float(self.y), "z": float(self.z)}
 
     def __repr__(self):
         return f"Vector3D(x={self.x}, y={self.y}, z={self.z})"

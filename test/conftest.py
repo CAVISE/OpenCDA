@@ -1,7 +1,6 @@
 """Pytest fixtures for unit tests.
 
 Uses existing test/mocked_carla.py and adds:
-- sys.modules["carla"] registration
 - VehicleManager/RSUManager static state reset
 - OpenCDA internal module stubs required to import tested modules
 """
@@ -10,12 +9,14 @@ from __future__ import annotations
 
 import sys
 import types
+import warnings
 from types import ModuleType, SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
 
 from test import mocked_carla
+# from test import mocked_open3d
 
 
 def _install_stub(name: str, module: ModuleType) -> None:
@@ -26,6 +27,27 @@ def _install_stub_if_missing(name: str, module: ModuleType) -> None:
     """Install stub module only if it's not already present (avoids duplication across conftest files)."""
     if name not in sys.modules:
         sys.modules[name] = module
+
+
+def pytest_configure(config):  # noqa: ARG001
+    """
+    Keep test output signal-focused by suppressing known environment/third-party warnings.
+    """
+    warnings.filterwarnings(
+        "ignore",
+        message=r"Unable to import Axes3D\..*",
+        category=UserWarning,
+    )
+    warnings.filterwarnings(
+        "ignore",
+        message=r"label\(\) is deprecated\..*",
+        category=DeprecationWarning,
+    )
+    warnings.filterwarnings(
+        "ignore",
+        message=r"invalid value encountered in log",
+        category=RuntimeWarning,
+    )
 
 
 # Heavy external deps stubs for tests under test/ (torch/open3d/opencood may be absent in CI)
@@ -59,6 +81,34 @@ carla_stub.Transform = mocked_carla.Transform
 carla_stub.Vector3D = mocked_carla.Vector3D
 carla_stub.Vehicle = mocked_carla.Vehicle
 carla_stub.BoundingBox = mocked_carla.BoundingBox
+
+# Some OpenCDA modules use runtime-evaluated type annotations like `carla.Actor`
+# and `carla.Color`. These attributes must exist on the stub to avoid import-time
+# failures.
+carla_stub.Actor = object
+
+
+class Color:
+    def __init__(self, r=0, g=0, b=0, a=255):
+        self.r = r
+        self.g = g
+        self.b = b
+        self.a = a
+
+
+carla_stub.Color = Color
+
+
+# Placeholder to satisfy type annotations and basic attribute access.
+class TrafficLightState:
+    Red = 0
+    Yellow = 1
+    Green = 2
+    Off = 3
+    Unknown = 4
+
+
+carla_stub.TrafficLightState = TrafficLightState
 
 # Minimal placeholders for typing / attribute access
 carla_stub.World = object
@@ -260,3 +310,18 @@ def minimal_rsu_config():
         "sensing": {"localization": {}, "perception": {}},
         "spawn_position": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
     }
+
+
+@pytest.fixture(autouse=True)
+def disable_cv2_gui(monkeypatch):
+    """
+    Ensure unit tests never open GUI windows in headless environments.
+    """
+    try:
+        import cv2  # noqa: PLC0415
+    except ImportError:
+        return
+
+    monkeypatch.setattr(cv2, "imshow", lambda *args, **kwargs: None, raising=True)
+    monkeypatch.setattr(cv2, "waitKey", lambda *args, **kwargs: 1, raising=True)
+    monkeypatch.setattr(cv2, "destroyAllWindows", lambda *args, **kwargs: None, raising=True)
