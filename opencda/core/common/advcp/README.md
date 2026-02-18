@@ -1,16 +1,17 @@
 # AdvCP Module - Advanced Collaborative Perception
 ## Quick Start Guide: Running Simulations with AdvCP
 
-This guide explains how to run OpenCDA simulations with the AdvCP (Advanced Collaborative Perception) module enabled, both in native Python environment and in Docker container.
+This guide explains how to run OpenCDA simulations with the AdvCP (Advanced Collaborative Perception) module enabled using the CAVISE infrastructure (run.sh and docker-compose).
 
 ---
 
 ### Prerequisites
 
-1. **OpenCDA Installation**: Ensure OpenCDA is properly installed with all dependencies (see main README.md)
-2. **CARLA Simulator**: CARLA 0.9.16 must be running and accessible
-3. **AdvCP Dependencies**: All AdvCP module dependencies are included in the standard installation
-4. **Scenario Configuration**: A valid scenario YAML file in `opencda/scenario_testing/config_yaml/`
+1. **CAVISE Setup**: Follow the CAVISE wiki installation guide to set up the environment
+2. **OpenCDA Installation**: Ensure OpenCDA is properly installed with all dependencies via `./setup.py`
+3. **CARLA Simulator**: CARLA must be running and accessible (handled by CAVISE)
+4. **AdvCP Dependencies**: All AdvCP module dependencies are included in the standard installation
+5. **Scenario Configuration**: A valid scenario YAML file in `opencda/scenario_testing/config_yaml/`
 
 ---
 
@@ -148,46 +149,63 @@ python opencda.py \
   --attack-target random
 ```
 
-#### 2. Docker Container
+---
 
-**Build Docker Image:**
+### Running with CAVISE Infrastructure
 
-```bash
-cd OpenCDA
-docker build -t opencda_container .
-```
+#### Using run.sh (Recommended)
 
-**Run with AdvCP in Docker:**
+Build and start all services:
 
 ```bash
-docker run -it --rm \
-  -e DISPLAY=$DISPLAY \
-  --network host \
-  -v /tmp/.X11-unix:/tmp/.X11-unix \
-  -v $HOME/.Xauthority:/root/.Xauthority \
-  -v $(pwd)/simulation_output:/home/opencda/cavise/opencda/simulation_output \
-  -v $(pwd)/opencda/scenario_testing/config_yaml:/home/opencda/cavise/opencda/opencda/scenario_testing/config_yaml \
-  --name opencda_advcp \
-  opencda_container \
-  /bin/bash -c "
-    cd /home/opencda/cavise/opencda && \
-    python opencda.py \
-      -t single_town06_carla \
-      --with-coperception \
-      --fusion-method early \
-      --with-advcp \
-      --attack-type lidar_spoof_early \
-      --attackers-ratio 0.2 \
-      --apply-cad-defense \
-      --advcp-vis \
-      --advcp-vis-save
-  "
+./run.sh build
+./run.sh up
 ```
 
-**Docker Notes:**
-- Ensure CARLA simulator is running and accessible from the container (use `--network host`)
-- Mount volumes for persistent output and custom configurations
-- For visualization, X11 forwarding must be configured on the host
+Run AdvCP scenario inside the OpenCDA container:
+
+```bash
+docker exec -it opencda bash
+cd /workspaces/opencda
+python opencda.py \
+  -t single_town06_carla \
+  --with-coperception \
+  --fusion-method early \
+  --with-advcp \
+  --attack-type lidar_remove_early \
+  --attackers-ratio 0.3
+```
+
+#### Using Docker Compose Directly
+
+Build and start services:
+
+```bash
+docker compose -f dc-configs/docker-compose.yml --env-file paths.conf build
+docker compose -f dc-configs/docker-compose.yml --env-file paths.conf up -d
+```
+
+Execute AdvCP scenario:
+
+```bash
+docker exec -it opencda bash
+cd /workspaces/opencda
+python opencda.py \
+  -t 3cars_coperception \
+  --with-coperception \
+  --fusion-method intermediate \
+  --with-advcp \
+  --attack-type lidar_spoof_intermediate \
+  --attackers-ratio 0.25 \
+  --apply-cad-defense \
+  --defense-threshold 0.8
+```
+
+**CAVISE Notes:**
+- Ensure `paths.conf` is properly configured with your CARLA path
+- The OpenCDA container is automatically mounted with your workspace
+- Use `./run.sh` commands for easier service management
+- CARLA and SUMO are managed automatically by the CAVISE infrastructure
 
 ---
 
@@ -236,8 +254,8 @@ Enable with `--apply-cad-defense` and tune sensitivity with `--defense-threshold
 - Defense metrics: detection rate, false positive rate, IoU changes
 
 **Visualization Files** (when `--advcp-vis-save` is enabled):
-- `simulation_output/advcp_vis/vis_bev/` - 2D top-down plots (matplotlib)
-- `simulation_output/advcp_vis/vis_3d/` - 3D interactive visualizations (open3d)
+- `/workspaces/opencda/simulation_output/advcp_vis/vis_bev/` - 2D top-down plots (matplotlib)
+- `/workspaces/opencda/simulation_output/advcp_vis/vis_3d/` - 3D interactive visualizations (open3d)
 - Files named by tick number: `tick_XXXX_attack.png`, `tick_XXXX_defense.png`
 
 **Evaluation Metrics:**
@@ -280,8 +298,11 @@ Enable with `--apply-cad-defense` and tune sensitivity with `--defense-threshold
 **Issue**: Visualization not showing
 - **Solution**: For 3D visualization, ensure Open3D is installed; for 2D, ensure matplotlib is available
 
-**Issue**: Docker container cannot connect to CARLA
-- **Solution**: Use `--network host` and ensure CARLA server is running on the host
+**Issue**: Cannot connect to CARLA from within container
+- **Solution**: Ensure CARLA is running and accessible at `host.docker.internal` (Windows) or the appropriate host IP
+
+**Issue**: Permission errors when writing visualization files
+- **Solution**: Ensure the `simulation_output` directory exists and is writable in the OpenCDA workspace
 
 ---
 
@@ -630,7 +651,7 @@ opencda/core/common/advcp/
 
 ### Output
 
-Visualizations saved to `simulation_output/coperception/vis_3d/` and `vis_bev/` with tick-numbered filenames.
+Visualizations saved to `/workspaces/opencda/simulation_output/advcp_vis/vis_3d/` and `/workspaces/opencda/simulation_output/advcp_vis/vis_bev/` with tick-numbered filenames.
 
 ## Summary
 
