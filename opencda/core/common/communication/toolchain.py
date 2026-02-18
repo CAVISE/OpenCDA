@@ -38,6 +38,7 @@ class CommunicationToolchain:
         command = [
             "protoc",
             f"--proto_path={config.source_dir}",
+            f"--mypy_out={config.binary_dir}",
             f"--python_out={config.binary_dir}",
             *map(lambda message: config.source_dir.joinpath(f"{message}.proto"), messages),
         ]
