@@ -28,7 +28,7 @@ class BasePostprocessor(object):
 
     def __init__(self, anchor_params, train=True):
         self.params = anchor_params
-        self.bbx_dict = {}
+        self.bbx_dict = {}  # noqa: DC05
         self.train = train
 
     def generate_anchor_box(self):

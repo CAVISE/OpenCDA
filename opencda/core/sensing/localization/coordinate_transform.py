@@ -1,10 +1,7 @@
-# -*- coding: utf-8 -*-
 """
 Functions to transfer coordinates under different coordinate system
 """
 
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: TDG-Attribution-NonCommercial-NoDistrib
 import numpy as np
 
 

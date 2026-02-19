@@ -16,12 +16,12 @@ class ModelRegistry:
         cls._registry[name] = model_cls
 
     @classmethod
-    def get_model(cls, name, *args, **kwargs):
+    def get_model(cls, name, **kwargs):
         if name in cls._registry:
             model_cls = cls._registry[name]
         else:
             raise KeyError(f"Unknown model '{name}'. Available: {list(cls._registry)}")
-        return model_cls(*args, **kwargs)
+        return model_cls(**kwargs)
 
     @classmethod
     def list_models(cls):

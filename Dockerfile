@@ -21,8 +21,7 @@ RUN apt-get update && \
         libxrender1=1:0.9.10-1.1build1 \
         libvulkan1=1.3.275.0-1build1 \
         libgl1=1.7.0-1build1 \
-        mesa-vulkan-drivers=25.0.7-0ubuntu0.24.04.2 \
-
+        mesa-vulkan-drivers=25.2.8-0ubuntu0.24.04.1 \
         curl=8.5.0-2ubuntu10.6 \
         unzip=6.0-28ubuntu4.1 \
 
@@ -33,8 +32,7 @@ RUN apt-get update && \
         python3-dev=3.12.3-0ubuntu2.1 \
 
         vulkan-tools=1.3.275.0+dfsg1-1 \
- 
-        libglib2.0-0=2.80.0-6ubuntu3.4 \
+        libglib2.0-0=2.80.0-6ubuntu3.7  \
     && \
 
     curl -LO https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/${PROTOC_ZIP} && \

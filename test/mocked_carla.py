@@ -1,10 +1,6 @@
-# -*- coding: utf-8 -*-
 """
 Mock Carla for unit tests.
 """
-
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: MIT
 
 import numpy as np
 

@@ -32,16 +32,6 @@ class CommunicationToolchain:
         importlib.invalidate_caches()
         CommunicationToolchain.generate_message(config, messages)
 
-    # wrap import call as boolean result, useful for running checks
-    @staticmethod
-    def try_import(config: MessageConfig, message: str) -> bool:
-        try:
-            importlib.import_module(str(config.binary_dir.joinpath(f"{message}_pb2")).replace("/", "."))
-            return message in sys.modules
-        except ModuleNotFoundError:
-            logger.warning(f"could not found message {message}")
-        return False
-
     # invoke subroutine to create python message impl from proto file
     @staticmethod
     def generate_message(config: MessageConfig, messages: typing.List[str]) -> None:
@@ -67,7 +57,7 @@ class CommunicationToolchain:
             )
             sys.exit(process.returncode)
         else:
-            logger.info("generated protos for: " + " ".join(messages))
+            logger.info(f"generated protos for: {' '.join(messages)}")
 
 
 if __name__ == "__main__":
