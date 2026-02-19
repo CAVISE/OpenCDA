@@ -81,7 +81,10 @@ class TestCoperceptionModelManager:
         opencood.utils.eval_utils.caluclate_tp_fp.side_effect = None
 
         # Setup default return values
-        hypes = {"postprocess": {"core_method": "VoxelPostprocessor", "gt_range": [0, -40, -3, 70, 40, 1]}}
+        hypes = {
+            "postprocess": {"core_method": "VoxelPostprocessor", "gt_range": [0, -40, -3, 70, 40, 1]}, 
+            "fusion": {"core_method": "IntermediateFusionDataset"},
+        }
         opencood.hypes_yaml.yaml_utils.load_yaml.return_value = hypes
 
         model = MagicMock()
@@ -222,6 +225,7 @@ class TestCoperceptionModelManager:
         manager = CoperceptionModelManager(opt, "2023_01_01")
         # Ensure VoxelPostprocessor to test both 3d and bev
         manager.hypes["postprocess"]["core_method"] = "VoxelPostprocessor"
+        manager.hypes["fusion"]["core_method"] = "IntermediateFusionDataset"
 
         manager.data_loader = [{"ego": {"origin_lidar": ["lidar"]}}]
         manager.opencood_dataset = MagicMock()

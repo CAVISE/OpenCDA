@@ -122,7 +122,7 @@ class CoperceptionModelManager:
                         vis_dir = f"simulation_output/coperception/vis_{mode}/{self.opt.test_scenario}_{self.current_time}"
                         os.makedirs(vis_dir, exist_ok=True)
                         vis_save_path = os.path.join(vis_dir, f"{mode}_{tick_number:05d}.png")
-                        if self.hypes["fusion"]["core_method"]  == "IntermediateFusionDatasetV2":
+                        if self.hypes["fusion"]["core_method"] == "IntermediateFusionDatasetV2":
                             origin_lidar = batch_data["ego"]["origin_lidar"][:, 1:]
                         else:
                             origin_lidar = batch_data["ego"]["origin_lidar"][0]
