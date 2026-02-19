@@ -107,14 +107,13 @@ class BasePostprocessor(object):
         object_ids : list
             Length is number of bbx in current sample.
         """
-        from opencood.data_utils.datasets import GT_RANGE
 
         tmp_object_dict = {}
         for cav_content in cav_contents:
             tmp_object_dict.update(cav_content["params"]["vehicles"])
 
         output_dict = {}
-        filter_range = self.params["anchor_args"]["cav_lidar_range"] if self.train else GT_RANGE
+        filter_range = self.params["anchor_args"]["cav_lidar_range"]
 
         box_utils.project_world_objects(tmp_object_dict, output_dict, reference_lidar_pose, filter_range, self.params["order"])
 
