@@ -82,7 +82,7 @@ class TestCoperceptionModelManager:
 
         # Setup default return values
         hypes = {
-            "postprocess": {"core_method": "VoxelPostprocessor", "gt_range": [0, -40, -3, 70, 40, 1]}, 
+            "postprocess": {"core_method": "VoxelPostprocessor", "gt_range": [0, -40, -3, 70, 40, 1]},
             "fusion": {"core_method": "IntermediateFusionDataset"},
         }
         opencood.hypes_yaml.yaml_utils.load_yaml.return_value = hypes
