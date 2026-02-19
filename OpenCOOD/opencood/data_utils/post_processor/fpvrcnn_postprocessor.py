@@ -161,6 +161,8 @@ class FpvrcnnPostprocessor(VoxelPostprocessor):
         from opencood.pcdet_utils.iou3d_nms.iou3d_nms_utils import nms_gpu
 
         output_dict = data_dict["ego"]["fpvrcnn_out"]
+        if output_dict is None:
+            return None, None
         label_dict = data_dict["ego"]["rcnn_label_dict"]
         rcnn_cls = output_dict["rcnn_cls"].sigmoid().view(-1)
         rcnn_iou = output_dict["rcnn_iou"].view(-1)

@@ -59,7 +59,7 @@ model:
   args:
     D: 52
     H: 832
-    N: 4
+    N: 2
     T: 5
     W: 2816
     activate_stage2: true
@@ -232,9 +232,9 @@ preprocess:
   cav_lidar_range: *id002
   core_method: SpVoxelPreprocessor
   keep_original_lidar: true
-root_dir: opv2v_data_dumping/train
+root_dir: V2X/train
 train_params:
-  batch_size: 2
+  batch_size: 1
   epoches: 40
   eval_freq: 1
   max_cav: 10
