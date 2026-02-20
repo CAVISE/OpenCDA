@@ -318,9 +318,9 @@ class LateFusionDataset(basedataset.BaseDataset):
 
         # during training, we return a random cav's data
         if not self.visualize:
-            selected_cav_id, selected_cav_base = random.choice(list(base_data_dict.items()))
+            _, selected_cav_base = random.choice(list(base_data_dict.items()))
         else:
-            selected_cav_id, selected_cav_base = list(base_data_dict.items())[0]
+            _, selected_cav_base = list(base_data_dict.items())[0]
 
         selected_cav_processed = self.get_item_single_car(selected_cav_base)
         processed_data_dict.update({"ego": selected_cav_processed})

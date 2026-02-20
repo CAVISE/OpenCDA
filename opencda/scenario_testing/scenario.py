@@ -20,7 +20,7 @@ from opencda.core.common.rsu_manager import RSUManager
 from opencda.core.common.communication.serialize import MessageHandler
 from opencda.core.application.platooning.platooning_manager import PlatooningManager
 from opencda.core.common.aim_model_manager import AIMModelManager
-
+from AIM import get_model
 
 from opencda.scenario_testing.evaluations.evaluate_manager import EvaluationManager
 from opencda.scenario_testing.utils.yaml_utils import add_current_time, save_yaml
@@ -103,7 +103,7 @@ class Scenario:
 
         data_dump = opt.record or (opt.with_coperception and opt.model_dir is not None)
 
-        logger.info("data dump is " + ("ON" if data_dump else "OFF"))
+        logger.info(f"data dump is {'ON' if data_dump else 'OFF'}")
 
         if data_dump:
             logger.info("beginning to record the simulation in simulation_output/data_dumping")
@@ -128,21 +128,17 @@ class Scenario:
                 self.coperception_model_manager = CoperceptionModelManager(opt=opt, current_time=current_time, message_handler=self.message_handler)
                 logger.info("created cooperception manager")
 
-        # [CoDrivingInt]
         if opt.with_mtp:
             logger.info("Codriving Model is initialized")
 
             net = sumolib.net.readNet(f"opencda/sumo-assets/{self.scenario_name}/{self.scenario_name}.net.xml")
             nodes = net.getNodes()
 
-            # TODO: Replace with params from scenario file
-            self.codriving_model_manager = AIMModelManager(
-                pretrained="opencda/codriving_models/gnn_mtl_gnn/model_rot_gnn_mtl_np_sumo_0911_e3_1930.pth",
-                model_name="GNN_mtl_gnn",
-                nodes=nodes,
-                excluded_nodes=None,  # scenario_params['excluded_nodes'] if scenario_params['excluded_nodes'] else None
-            )
-        # [CoDrivingInt]
+            aim_config = scenario_params.get("aim", {})
+            aim_model_name = aim_config.pop("model", "MTP")
+            model = get_model(aim_model_name, **aim_config)
+
+            self.codriving_model_manager = AIMModelManager(model=model, nodes=nodes, excluded_nodes=None)
 
         self.platoon_list, self.node_ids["platoon"] = self.scenario_manager.create_platoon_manager(
             map_helper=map_api.spawn_helper_2lanefree, data_dump=data_dump
@@ -212,7 +208,7 @@ class Scenario:
                 except Exception as e:
                     logger.warning(f"An error occurred during proceesing {tick_number} tick: {e}")
 
-                self.coperception_model_manager.make_dataset()
+                self.coperception_model_manager.update_dataset()
                 self.coperception_model_manager.make_prediction(tick_number)
 
             if self.platoon_list is not None:
@@ -269,7 +265,7 @@ class Scenario:
                 except Exception as e:
                     logger.warning(f"An error occurred during proceesing {tick_number} tick: {e}")
 
-                self.coperception_model_manager.make_dataset()
+                self.coperception_model_manager.update_dataset()
                 self.coperception_model_manager.opencood_dataset.extract_data(
                     idx=0  # TODO: Figure out how to select the ego vehicle in cooperative perception models
                 )

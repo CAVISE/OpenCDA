@@ -1,10 +1,6 @@
-# -*- coding: utf-8 -*-
 """
 Evaluation manager.
 """
-
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: TDG-Attribution-NonCommercial-NoDistrib
 
 import os
 import logging
@@ -41,7 +37,7 @@ class EvaluationManager(object):
 
         current_path = os.path.dirname(os.path.realpath(__file__))
 
-        self.eval_save_path = os.path.join(current_path, "../../../simulation_output/evaluation_outputs", script_name + "_" + current_time)
+        self.eval_save_path = os.path.join(current_path, "../../../simulation_output/evaluation_outputs", f"{script_name}_{current_time}")
         if not os.path.exists(self.eval_save_path):
             os.makedirs(self.eval_save_path)
 

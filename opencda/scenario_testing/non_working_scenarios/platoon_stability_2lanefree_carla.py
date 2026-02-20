@@ -1,10 +1,7 @@
-# -*- coding: utf-8 -*-
 """
 Scenario testing: merging vehicle joining a platoon in the customized 2-lane
 freeway simplified map sorely with carla
 """
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: TDG-Attribution-NonCommercial-NoDistrib
 
 import sys
 import os
@@ -33,7 +30,7 @@ def run_scenario(opt, scenario_params):
         platoon_list = scenario_manager.create_platoon_manager()
 
         # create traffic flow if any
-        traffic_manager, bg_veh_list = scenario_manager.create_traffic_carla()
+        _, bg_veh_list = scenario_manager.create_traffic_carla()
 
         if len(platoon_list) > 1:
             sys.exit("In this scenario testing, only single platoon is allowed.")

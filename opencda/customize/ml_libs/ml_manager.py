@@ -1,13 +1,8 @@
-# -*- coding: utf-8 -*-
-
 """
 Since multiple CAV normally use the same ML/DL model,
 here we have this class to enable different CAVs share the same model to
  avoid duplicate memory consumption.
 """
-
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: TDG-Attribution-NonCommercial-NoDistrib
 
 import cv2
 import torch
@@ -74,5 +69,5 @@ def is_vehicle_cococlass(label):
         -is_vehicle: bool
             whether this label belongs to the vehicle class
     """
-    vehicle_class_array = np.array([1, 2, 3, 5, 7], dtype=np.int)
+    vehicle_class_array = np.array([1, 2, 3, 5, 7], dtype=int)
     return True if 0 in (label - vehicle_class_array) else False

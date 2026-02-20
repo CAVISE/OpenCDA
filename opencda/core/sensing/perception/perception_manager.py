@@ -1,10 +1,6 @@
-# -*- coding: utf-8 -*-
 """
 Perception module base.
 """
-
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: TDG-Attribution-NonCommercial-NoDistrib
 
 import weakref
 import sys
@@ -67,7 +63,7 @@ class CameraSensor:
             self.sensor = world.spawn_actor(blueprint, spawn_point)
 
         self.image = None
-        self.timstamp = None
+        self.timstamp = None  # noqa: DC05
         self.frame = 0
         weak_self = weakref.ref(self)
         self.sensor.listen(lambda event: CameraSensor._on_rgb_image_event(weak_self, event))
@@ -393,7 +389,7 @@ class PerceptionManager:
         # the dictionary contains all objects
         self.objects = {}
         # traffic light detection related
-        self.traffic_thresh = config_yaml["traffic_light_thresh"] if "traffic_light_thresh" in config_yaml else 50
+        self.traffic_thresh = config_yaml["traffic_light_thresh"] if "traffic_light_thresh" in config_yaml else 50  # noqa: DC05
 
     def dist(self, a):
         """

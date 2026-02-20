@@ -19,7 +19,7 @@ class HGTCavAttention(nn.Module):
         self.q_linears = nn.ModuleList()
         self.v_linears = nn.ModuleList()
         self.a_linears = nn.ModuleList()
-        self.norms = nn.ModuleList()
+        self.norms = nn.ModuleList()  # noqa: DC05
         for t in range(num_types):
             self.k_linears.append(nn.Linear(dim, inner_dim))
             self.q_linears.append(nn.Linear(dim, inner_dim))
@@ -107,7 +107,7 @@ class HGTCavAttention(nn.Module):
         # mask: (B, 1, H, W, L, 1)
         mask = mask.unsqueeze(1)
         # (B,L)
-        velocities, dts, types = [itm.squeeze(-1) for itm in prior_encoding[:, :, 0, 0, :].split([1, 1, 1], dim=-1)]
+        _, dts, types = [itm.squeeze(-1) for itm in prior_encoding[:, :, 0, 0, :].split([1, 1, 1], dim=-1)]
         types = types.to(torch.int)
         dts = dts.to(torch.int)
         qkv = self.to_qkv(x, types)
