@@ -13,6 +13,22 @@ This guide explains how to run OpenCDA simulations with the AdvCP (Advanced Coll
 4. **AdvCP Dependencies**: All AdvCP module dependencies are included in the standard installation
 5. **Scenario Configuration**: A valid scenario YAML file in `opencda/scenario_testing/config_yaml/`
 
+#### Automatic CUDA Extension Build
+
+The AdvCP module includes a CUDA extension (`cuda_op`) that is automatically built when you run OpenCDA with the `--with-advcp` flag. This happens on the first run and creates a build marker to avoid recompilation on subsequent runs.
+
+**Note**: The build requires:
+- CUDA toolkit installed and accessible in your environment
+- A compatible NVIDIA GPU with CUDA support
+- Proper CUDA architecture support (the extension is built for your current GPU)
+
+If the automatic build fails, you can manually build the extension:
+
+```bash
+cd opencda/core/common/advcp/mvp/perception/cuda_op
+pip install -e .
+```
+
 ---
 
 ### Command-Line Interface Parameters

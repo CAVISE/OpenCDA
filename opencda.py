@@ -227,6 +227,42 @@ def check_buld_for_utils(module_path: str, cwd: pathlib.PurePath, verbose: bool,
         return False
 
 
+def check_build_advcp_module(module_path: str, cwd: pathlib.PurePath, verbose: bool, logger: logging.Logger) -> bool:
+    """
+    Build an AdvCP CUDA/C++ extension module.
+
+    Args:
+        module_path: Path to the module directory containing setup.py (relative to cwd)
+        cwd: Current working directory (PurePath)
+        verbose: Whether to output full build logs
+        logger: Logger instance
+
+    Returns:
+        bool: True if build succeeded or already built, False otherwise
+    """
+    marker_file = cwd.joinpath(f"{module_path}/{BUILD_COMPLETED_FLAG}")
+    module_name = module_path.rstrip("/").split("/")[-1]
+
+    if os.path.isfile(marker_file):
+        logger.info(f"{module_name} is already built")
+        return True
+
+    try:
+        logger.info(f"Building {module_name} ...")
+        result = subprocess.run(["python", f"{module_path}setup.py", "build_ext", "--inplace"], check=True, cwd=cwd, capture_output=True, text=True)
+        os.close(os.open(str(marker_file), os.O_CREAT))
+        logger.info(f"Complete building {module_name}")
+        if verbose:
+            logger.info(result.stdout)
+        return True
+
+    except subprocess.CalledProcessError as e:
+        logger.info(f"Compilation error {module_name}:")
+        if verbose:
+            logger.info(e.stderr)
+        return False
+
+
 def main() -> None:
     opt = arg_parse()
 
@@ -269,6 +305,11 @@ def main() -> None:
             logger.error("Failed to build opencood.utils")
         if not check_buld_for_utils(opencood_pcdet_utils, cwd, verbosity == VerbosityLevel.FULL, logger):
             logger.error("Failed to build opencood.pcdet_utils")
+
+    if opt.with_advcp:
+        advcp_cuda_op = "opencda/core/common/advcp/mvp/perception/cuda_op"
+        if not check_build_advcp_module(advcp_cuda_op, cwd, verbosity == VerbosityLevel.FULL, logger):
+            logger.error("Failed to build AdvCP cuda_op")
 
     # this function might setup crucial components in Scenario, so
     # we should import as late as possible
