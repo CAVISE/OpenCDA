@@ -1,0 +1,40 @@
+# MPC Parameters (MPC_XY_Frame.py)
+mpc:
+    # System configuration
+    system:
+        nx: 4 # State vector z = [x, y, v, yaw]
+        nu: 2 # Input vector u = [acceleration, steer]
+        t: 3 # Planning horizon
+        t_aug: 30 # Augmentation horizon
+
+    # MPC configuration
+    base:
+        qf: [5.0, 5.0, 0.0, 20.0] # target state
+        r: [0.01, 5.8] # control
+        rd: [0.01, 10.1] # control change
+
+        dist_stop: 1.5 # Distance to target before stopping (m)
+        speed_stop: 0.14 # Stopping speed (km/h)
+        time_max: 500.0 # Maximum simulation time
+        iter_max: 5 # Maximum iteration
+
+        target_speed: 2.8 # Speed
+        N_IND: 10 # Search index
+        dt: 0.1 # Time step
+        d_dist: 1.0 # Distance step
+        du_res: 0.25 # Threshold for stopping iteration
+
+    # Vehicle configuration
+    vehicle:
+        rf: 3.3 # distance from rear to vehicle front end of vehicle (m)
+        rb: 0.8 # distance from rear to vehicle back end of vehicle (m)
+        w: 2.4 # Vehicle width (m)
+        wd: 0.7 # Distance between left and right wheels (m)
+        wb: 2.5 # Wheelbase (m)
+        tr: 0.44 # Tire radius (m)
+        tw: 0.7 # Tire width (m)
+        steer_max: 60.0 # Maximum steering angle (rad)
+        steer_change_max: 30.0 # Maximum steering angle rate (°/s)
+        speed_max: 15.3 # Maximum speed (m/s)
+        speed_min: -5.5 # Minimum speed (km/h)
+        acceleration_max: 1.0 # Maximum acceleration (m/s²)

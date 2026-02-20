@@ -1,0 +1,2 @@
+GNN_mtl_mlp:
+    hidden_channels: 128

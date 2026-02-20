@@ -1,4 +1,6 @@
 description: |-
+  Copyright 2021 <UCLA Mobility Lab>
+  Author: Runsheng Xu <rxx3386@ucla.edu>
   Content: This is the scenario testing configuration file for single vehicle full-stack system in town06 with co-simulation
 
 world:
@@ -88,12 +90,6 @@ sumo:
   gui: true
   client_order: 2
   step_length: ${world.fixed_delta_seconds}
-
-aim:
-  model: "MTP"
-  underling_model: "GNN_mtl_gnn"
-  hidden_channels: 128
-  weight: "model_rot_gnn_mtl_np_sumo_0911_e3_1930.pth"
 
 # define scenario. In this scenario, only a single CAV will be spawned
 scenario:

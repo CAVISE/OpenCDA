@@ -188,13 +188,13 @@ class Scenario:
             logger.debug(f"running: simulation tick: {tick_number}")
             self.scenario_manager.tick()
 
-            if not opt.free_spectator and any(array is not None for array in [self.single_cav_list, self.platoon_list]):
-                if len(self.single_cav_list) > 0:
-                    transform = self.single_cav_list[0].vehicle.get_transform()
-                    self.spectator.set_transform(carla.Transform(transform.location + carla.Location(z=50), carla.Rotation(pitch=-90)))
-                else:
-                    transform = self.platoon_list[0].vehicle_manager_list[0].vehicle.get_transform()
-                    self.spectator.set_transform(carla.Transform(transform.location + carla.Location(z=50), carla.Rotation(pitch=-90)))
+            # if not opt.free_spectator and any(array is not None for array in [self.single_cav_list, self.platoon_list]):
+            #     if len(self.single_cav_list) > 0:
+            #         transform = self.single_cav_list[0].vehicle.get_transform()
+            #         self.spectator.set_transform(carla.Transform(transform.location + carla.Location(z=50), carla.Rotation(pitch=-90)))
+            #     else:
+            #         transform = self.platoon_list[0].vehicle_manager_list[0].vehicle.get_transform()
+            #         self.spectator.set_transform(carla.Transform(transform.location + carla.Location(z=50), carla.Rotation(pitch=-90)))
 
             if opt.with_mtp:
                 self.codriving_model_manager.make_trajs(carla_vmanagers=self.single_cav_list)
@@ -285,24 +285,24 @@ class Scenario:
 
             self.message_handler.clear_messages()
 
-            if self.platoon_list is not None:
-                logger.debug("updating platoons")
-                for platoon in self.platoon_list:
-                    platoon.update_information()
-                    platoon.run_step()
+            # if self.platoon_list is not None:
+            #     logger.debug("updating platoons")
+            #     for platoon in self.platoon_list:
+            #         platoon.update_information()
+            #         platoon.run_step()
 
-            if self.single_cav_list is not None:
-                logger.debug("updating single cavs")
-                for single_cav in self.single_cav_list:
-                    single_cav.update_info()
-                    control = single_cav.run_step()
-                    single_cav.vehicle.apply_control(control)
+            # if self.single_cav_list is not None:
+            #     logger.debug("updating single cavs")
+            #     for single_cav in self.single_cav_list:
+            #         single_cav.update_info()
+            #         control = single_cav.run_step()
+            #         single_cav.vehicle.apply_control(control)
 
-            if self.rsu_list is not None:
-                logger.debug("updating RSUs")
-                for rsu in self.rsu_list:
-                    rsu.update_info()
-                    rsu.run_step()
+            # if self.rsu_list is not None:
+            #     logger.debug("updating RSUs")
+            #     for rsu in self.rsu_list:
+            #         rsu.update_info()
+            #         rsu.run_step()
 
     def finalize(self, opt: argparse.Namespace):
         if opt.record:
