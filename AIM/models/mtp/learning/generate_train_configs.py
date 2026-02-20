@@ -23,6 +23,7 @@ def write_config_file(config_file_path: str, dict_config):
 
     except Exception as error:
         print(error)
+        return None
 
 
 def write_configs(

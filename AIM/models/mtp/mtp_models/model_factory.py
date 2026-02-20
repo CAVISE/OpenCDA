@@ -78,12 +78,4 @@ class ModelFactory:
             return cls.model_list_config[model_key]
         except Exception as error:
             print(error)
-
-
-if __name__ == "__main__":
-    factory = ModelFactory()
-    models = factory.get_model_list()
-
-    model_config_path = os.path.join(CURRENT_DIR, "all_models/GNN_mtl_gnn/GNN_mtl_gnn.yaml")
-    model = factory.create_model(model_config_path)
-    print(model)
+            return None

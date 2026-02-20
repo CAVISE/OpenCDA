@@ -9,7 +9,7 @@ from .data_config import (
     OBS_LEN,
     NUM_PREDICT,
     ALLIGN_INITIAL_DIRECTION_TO_X,
-    NUM_AUGMENTATION,
+    # NUM_AUGMENTATION,
     COLLECT_DATA_RADIUS,
     VEHICLE_MAX_SPEED,
     NORMALIZE_DATA,
@@ -481,7 +481,7 @@ def preprocess_file(
     num_cars = len(all_features)
     edges = [[x, y] for x in range(num_cars) for y in range(num_cars)]
     edge_index = torch.tensor(edges, dtype=torch.long).T  # [2, edge]
-    noise_range = 3.0
+    # noise_range = 3.0
 
     # for each timestep, create an interaction graph
     for row in range(0, num_rows - NUM_PREDICT):
@@ -552,42 +552,40 @@ def preprocess_file(
         ) as handle:
             pickle.dump(data, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-        # just for checks without augmentation to dont make any misstake, because augmentation gives strange data distribution
-        return
-        for a in range(NUM_AUGMENTATION):
-            shifted_curr, mpc_output = MPC_Block(
-                curr_states, future_states, acc_delta_old, noise_range=noise_range
-            )  # [vehicle, 4], [vehicle, NUM_PREDICT, 6]: [x, y, v, yaw, acc, delta]
-            x_argumented = x.copy()
-            x_argumented[:, :2] = shifted_curr[:, :2]
-            y = (mpc_output[:, :, :2] - np.expand_dims(shifted_curr[:, :2], axis=1)).transpose(0, 2, 1)  # [vehicle, 2, NUM_PREDICT]
-            y = rotations @ y
-            y = y.transpose(0, 2, 1)  # [vehicle, NUM_PREDICT, 2]
+        # for a in range(NUM_AUGMENTATION):
+        #     shifted_curr, mpc_output = MPC_Block(
+        #         curr_states, future_states, acc_delta_old, noise_range=noise_range
+        #     )  # [vehicle, 4], [vehicle, NUM_PREDICT, 6]: [x, y, v, yaw, acc, delta]
+        #     x_argumented = x.copy()
+        #     x_argumented[:, :2] = shifted_curr[:, :2]
+        #     y = (mpc_output[:, :, :2] - np.expand_dims(shifted_curr[:, :2], axis=1)).transpose(0, 2, 1)  # [vehicle, 2, NUM_PREDICT]
+        #     y = rotations @ y
+        #     y = y.transpose(0, 2, 1)  # [vehicle, NUM_PREDICT, 2]
 
-            if ALLIGN_INITIAL_DIRECTION_TO_X:
-                mpc_output[:, :, 3:4] = mpc_output[:, :, 3:4] - all_features[:, row : row + 1, 3:4]
-            else:
-                mpc_output[:, :, 3:4] = mpc_output[:, :, 3:4] - all_features[:, row : row + 1, 3:4] + np.pi / 2
+        #     if ALLIGN_INITIAL_DIRECTION_TO_X:
+        #         mpc_output[:, :, 3:4] = mpc_output[:, :, 3:4] - all_features[:, row : row + 1, 3:4]
+        #     else:
+        #         mpc_output[:, :, 3:4] = mpc_output[:, :, 3:4] - all_features[:, row : row + 1, 3:4] + np.pi / 2
 
-            # [vehicle, NUM_PREDICT, 6]
-            y = np.concatenate((y, mpc_output[:, :, 2:]), axis=-1)
-            y = y.reshape(num_cars, -1)
+        #     # [vehicle, NUM_PREDICT, 6]
+        #     y = np.concatenate((y, mpc_output[:, :, 2:]), axis=-1)
+        #     y = y.reshape(num_cars, -1)
 
-            # if NORMALIZE_DATA:
-            #     normalize_target_data(y)
-            #     normalize_input_data(x)
+        #     # if NORMALIZE_DATA:
+        #     #     normalize_target_data(y)
+        #     #     normalize_input_data(x)
 
-            data = (
-                torch.tensor(x_argumented, dtype=torch.float),
-                torch.tensor(y, dtype=torch.float),
-                edge_index,
-                torch.tensor([row]),
-            )
-            with open(
-                f"{preprocess_folder_path}/{os.path.splitext(csv_file)[0]}-{str(row).zfill(3)}-{a + 1}.pkl",
-                "wb",
-            ) as handle:
-                pickle.dump(data, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        #     data = (
+        #         torch.tensor(x_argumented, dtype=torch.float),
+        #         torch.tensor(y, dtype=torch.float),
+        #         edge_index,
+        #         torch.tensor([row]),
+        #     )
+        #     with open(
+        #         f"{preprocess_folder_path}/{os.path.splitext(csv_file)[0]}-{str(row).zfill(3)}-{a + 1}.pkl",
+        #         "wb",
+        #     ) as handle:
+        #         pickle.dump(data, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 
 def z_score_normalize_file(

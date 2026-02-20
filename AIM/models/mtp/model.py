@@ -42,7 +42,7 @@ class MTP(AIMModel):
         self.map = None
         self.map_info_level = MAP_level_info.lane
 
-    def predict(self, map_net_xml_path: str, features: np.ndarray, target_agent_ids):
+    def predict(self, map_net_xml_path: str, features: np.ndarray, target_agent_ids=None):
         """
         Docstring for predict
 
