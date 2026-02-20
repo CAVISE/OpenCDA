@@ -14,4 +14,5 @@ experements_configs/*
 
 bash_prepare_data.sh
 bash_train.sh
+
 tests.py
