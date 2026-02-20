@@ -598,9 +598,14 @@ def z_score_normalize_file(
     """
     In-place. Z-score
     """
-    data = pickle.load(open(preprocess_file_path, "rb"))
-    y_x_mean, y_x_std = pickle.load(open(y_x_dist_params_file, "rb"))
-    y_y_mean, y_y_std = pickle.load(open(y_y_dist_params_file, "rb"))
+    with open(preprocess_file_path, "rb") as f:
+        data = pickle.load(f)
+    
+    with open(y_x_dist_params_file, "rb") as f:
+        y_x_mean, y_x_std = pickle.load(f)
+    
+    with open(y_y_dist_params_file, "rb") as f:
+        y_y_mean, y_y_std = pickle.load(f)
 
     z_scrore_normalize(data[1][:, 0::6], y_x_mean, y_x_std)
     z_scrore_normalize(data[1][:, 1::6], y_y_mean, y_y_std)

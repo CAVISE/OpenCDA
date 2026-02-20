@@ -22,14 +22,24 @@ def get_distribution_params(distr_params_dir, preprocess_folder_path):
         preprocess_subfolder_path = os.path.join(preprocess_folder_path, preprocess_subfolder)
         files = [i for i in os.listdir(preprocess_subfolder_path) if os.path.splitext(i)[1] == ".pkl"]
         for file in files:
-            data = pkl.load(open(os.path.join(preprocess_subfolder_path, file), "rb"))
+            file_path = os.path.join(preprocess_subfolder_path, file)
+
+            with open(file_path, "rb") as f:
+                data = pkl.load(f)
+
             y_x.append(data[1][:, 0::6].flatten())
             y_y.append(data[1][:, 1::6].flatten())
 
     y_x = np.concatenate(y_x)
     y_y = np.concatenate(y_y)
-    pkl.dump((y_x.mean(), y_x.std()), open(os.path.join(distr_params_dir, Y_X_DISTR_FILE), "wb"))
-    pkl.dump((y_y.mean(), y_y.std()), open(os.path.join(distr_params_dir, Y_Y_DISTR_FILE), "wb"))
+    y_x_params_path = os.path.join(distr_params_dir, Y_X_DISTR_FILE)
+    y_y_params_path = os.path.join(distr_params_dir, Y_Y_DISTR_FILE)
+    
+    with open(y_x_params_path, "wb") as f_x:
+        pkl.dump((y_x.mean(), y_x.std()), f_x)
+    
+    with open(y_y_params_path, "wb") as f_y:
+        pkl.dump((y_y.mean(), y_y.std()), f_y)
 
 
 if __name__ == "__main__":
