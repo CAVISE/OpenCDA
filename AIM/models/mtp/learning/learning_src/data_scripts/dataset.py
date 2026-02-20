@@ -56,7 +56,7 @@ class GnnCarDataset(InMemoryDataset):
                 file_path = os.path.join(preprocess_subfolder_path, file)
                 with open(file_path, "rb") as f:
                     data = pickle.load(f)
-                
+
                 # x: [v, 11], [x, y, v, yaw, intention(3-bit), start_position(4-bit)],
                 # y: [v, pred_len*6], [x, y, v, yaw, acc, steering],
                 # edge_indices: [2, edge],
@@ -198,7 +198,7 @@ class TransformerCarDataset(Dataset):
                 file_path = os.path.join(preprocess_subfolder_path, file)
                 with open(file_path, "rb") as f:
                     data = pickle.load(f)
-                
+
                 n_v = data[0].shape[0]
                 max_vechile_count = n_v if max_vechile_count < n_v else max_vechile_count
 
@@ -221,7 +221,7 @@ class TransformerCarDataset(Dataset):
                 file_path = os.path.join(preprocess_subfolder_path, file)
                 with open(file_path, "rb") as f:
                     data = pickle.load(f)
-                    
+
                 # x: [vehicle, steps, 12]: [x, y, speed, yaw, dstart_yaw, dlast_yaw, start_cos, start_sin, last_cos, last_sin, acc, delta]
                 # y: [v, pred_len*6], [x, y, v, yaw, acc, steering],
                 # edge_indices: [2, edge],

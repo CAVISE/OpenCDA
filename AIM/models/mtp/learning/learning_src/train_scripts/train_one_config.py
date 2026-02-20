@@ -394,7 +394,7 @@ def train_one_config(
 
     with open(os.path.join(DATA_PATH, "csv", Y_X_DISTR_FILE), "rb") as f:
         y_x_mean, y_x_std = pkl.load(f)
-    
+
     with open(os.path.join(DATA_PATH, "csv", Y_Y_DISTR_FILE), "rb") as f:
         y_y_mean, y_y_std = pkl.load(f)
 

@@ -34,10 +34,10 @@ def get_distribution_params(distr_params_dir, preprocess_folder_path):
     y_y = np.concatenate(y_y)
     y_x_params_path = os.path.join(distr_params_dir, Y_X_DISTR_FILE)
     y_y_params_path = os.path.join(distr_params_dir, Y_Y_DISTR_FILE)
-    
+
     with open(y_x_params_path, "wb") as f_x:
         pkl.dump((y_x.mean(), y_x.std()), f_x)
-    
+
     with open(y_y_params_path, "wb") as f_y:
         pkl.dump((y_y.mean(), y_y.std()), f_y)
 

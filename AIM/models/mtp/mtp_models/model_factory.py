@@ -1,7 +1,6 @@
 import torch
 import yaml
 import importlib
-import os
 from huggingface_hub import PyTorchModelHubMixin
 
 from .model_factory_config import (
@@ -9,7 +8,6 @@ from .model_factory_config import (
     FACTORY_YAML_MODELS_FIELD,
     FACTORY_YAML_CLASS_FIELD,
     FACTORY_YAML_MODULE_FIELD,
-    CURRENT_DIR,
 )
 
 
