@@ -377,8 +377,8 @@ def extract_needed_features(coords: np.ndarray, start_yaw: np.ndarray, last_yaw:
     :param coords: (v, 4) [x, y, speed, yaw]
     """
     coords_copy = coords.copy()
-    start_yaw_copy = start_yaw.copy()
-    last_yaw_copy = last_yaw.copy()
+    start_yaw_copy = np.deg2rad(start_yaw.copy())
+    last_yaw_copy = np.deg2rad(last_yaw.copy())
 
     coords_copy[:, 3] = np.deg2rad(coords_copy[:, 3])
     coords_copy = transform_sumo2carla(coords_copy)
@@ -450,10 +450,10 @@ def preprocess_file(
             coords = remain_df[["X", "Y", "speed", "yaw"]].values
 
             start_car_info = start_cars_info_df[start_cars_info_df["TRACK_ID"] == track_id].iloc[0]
-            start_yaw = np.ones((coords.shape[0], 1)) * np.deg2rad(start_car_info["yaw"])
+            start_yaw = np.ones((coords.shape[0], 1)) * start_car_info["yaw"]
 
             last_cars_info = last_cars_info_df[last_cars_info_df["TRACK_ID"] == track_id].iloc[0]
-            last_yaw = np.ones((coords.shape[0], 1)) * np.deg2rad(last_cars_info["yaw"])
+            last_yaw = np.ones((coords.shape[0], 1)) * last_cars_info["yaw"]
 
             features = extract_needed_features(coords, start_yaw, last_yaw)
 
