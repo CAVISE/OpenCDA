@@ -77,7 +77,9 @@ class CoperceptionModelManager:
 
     def update_dataset(self) -> None:
         logger.debug("Refreshing dataset indices")
-        assert self.opencood_dataset is not None
+        if self.opencood_dataset is None:
+            logger.error("opencood_dataset is not initialized")
+            raise RuntimeError("opencood_dataset is not initialized")
         self.opencood_dataset.update_database()
 
         if len(self.opencood_dataset) == 0:
@@ -97,7 +99,9 @@ class CoperceptionModelManager:
         # Directly access the dataset to get raw data (before preprocessing)
         # This is critical for AdvCP attacks which need raw numpy LiDAR data
         try:
-            assert self.opencood_dataset is not None
+            if self.opencood_dataset is None:
+                logger.error("opencood_dataset is not initialized")
+                raise RuntimeError("opencood_dataset is not initialized")
             if tick_number < len(self.opencood_dataset):
                 # Get raw data directly from dataset __getitem__
                 # This returns data BEFORE train_utils.to_device() preprocessing
@@ -109,8 +113,12 @@ class CoperceptionModelManager:
         return None
 
     def make_prediction(self, tick_number: int) -> None:
-        assert self.opt.fusion_method in ["late", "early", "intermediate"]
-        assert not (self.opt.show_vis and self.opt.show_sequence), "you can only visualize the results in single image mode or video mode"
+        if self.opt.fusion_method not in ["late", "early", "intermediate"]:
+            logger.error(f"Invalid fusion method: {self.opt.fusion_method}. Must be one of 'late', 'early', 'intermediate'")
+            raise ValueError(f"Invalid fusion method: {self.opt.fusion_method}. Must be one of 'late', 'early', 'intermediate'")
+        if self.opt.show_vis and self.opt.show_sequence:
+            logger.error("You can only visualize the results in single image mode or video mode")
+            raise ValueError("You can only visualize the results in single image mode or video mode")
         self.model.eval()
 
         # Create the dictionary for evaluation.
@@ -137,7 +145,9 @@ class CoperceptionModelManager:
                 vis_aabbs_gt.append(o3d.geometry.LineSet())
                 vis_aabbs_pred.append(o3d.geometry.LineSet())
 
-        assert self.data_loader is not None
+        if self.data_loader is None:
+            logger.error("data_loader is not initialized")
+            raise RuntimeError("data_loader is not initialized")
         for i, batch_data in tqdm(enumerate(self.data_loader), total=len(self.data_loader)):
             with torch.no_grad():
                 # Store current batch data for AdvCPManager to avoid circular dependency
@@ -195,7 +205,9 @@ class CoperceptionModelManager:
                             "lidar_spoof_intermediate",
                         ]:
                             # Convert modified_data to batch format and run inference
-                            assert self.opencood_dataset is not None
+                            if self.opencood_dataset is None:
+                                logger.error("opencood_dataset is not initialized")
+                                raise RuntimeError("opencood_dataset is not initialized")
                             modified_batch_data = self.opencood_dataset.collate_batch_test([modified_data])
                             modified_batch_data = train_utils.to_device(modified_batch_data, self.device)
 
@@ -299,7 +311,9 @@ class CoperceptionModelManager:
 
                 if self.opt.show_vis:
                     vis_save_path = ""
-                    assert self.opencood_dataset is not None
+                    if self.opencood_dataset is None:
+                        logger.error("opencood_dataset is not initialized")
+                        raise RuntimeError("opencood_dataset is not initialized")
                     self.opencood_dataset.visualize_result(
                         pred_box_tensor,
                         gt_box_tensor,
@@ -310,7 +324,9 @@ class CoperceptionModelManager:
                     )
 
                 if self.opt.show_sequence and pred_box_tensor is not None and self.hypes["postprocess"]["core_method"] != "BevPostprocessor":
-                    assert self.vis is not None
+                    if self.vis is None:
+                        logger.error("Visualizer not initialized")
+                        raise RuntimeError("Visualizer not initialized")
                     self.vis.clear_geometries()
                     pcd, pred_o3d_box, gt_o3d_box = vis_utils.visualize_inference_sample_dataloader(
                         pred_box_tensor, gt_box_tensor, batch_data["ego"]["origin_lidar"], vis_pcd, mode="constant"

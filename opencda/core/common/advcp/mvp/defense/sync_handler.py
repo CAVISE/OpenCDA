@@ -1,5 +1,6 @@
 from typing import Any, Dict, List, Optional, Tuple
 
+import logging
 import numpy as np
 import shapely
 import copy
@@ -10,6 +11,8 @@ from mvp.tools.polygon_space import get_occupied_space, get_free_space
 from mvp.tools.ground_detection import get_ground_plane
 from mvp.tools.lidar_seg import lidar_segmentation
 from mvp.defense.detection_util import filter_segmentation, get_detection_from_segmentation
+
+logger = logging.getLogger(__name__)
 
 
 class SyncObjectState:
@@ -28,7 +31,9 @@ class SyncObjectState:
         self.timestamp = timestamp
 
     def update(self, location: np.ndarray, timestamp: float) -> None:
-        assert timestamp > self.timestamp
+        if timestamp <= self.timestamp:
+            logger.error(f"Invalid timestamp: {timestamp} must be greater than previous timestamp {self.timestamp}")
+            raise ValueError(f"Invalid timestamp: {timestamp} must be greater than previous timestamp {self.timestamp}")
         velocity = (location - self.location) / (timestamp - self.timestamp)
         self.acceleration = (velocity - self.velocity) / (timestamp - self.timestamp)
         self.velocity = velocity
@@ -58,7 +63,9 @@ class SyncHandler:
             self.states[object_id].update(location, timestamp)
 
     def predict_object(self, object_id: int, timestamp: float) -> np.ndarray:
-        assert object_id in self.states
+        if object_id not in self.states:
+            logger.error(f"Object ID {object_id} not found in states")
+            raise KeyError(f"Object ID {object_id} not found in states")
         return self.states[object_id].predict(timestamp)
 
     def update_pcd_gt(
@@ -126,7 +133,9 @@ class SyncHandler:
         detections: np.ndarray,
         timestamp: float,
     ) -> Tuple[List[Any], List[Any]]:
-        assert detections.shape[0] == len(occupied_areas)
+        if detections.shape[0] != len(occupied_areas):
+            logger.error(f"Mismatch: detections count {detections.shape[0]} does not match occupied_areas count {len(occupied_areas)}")
+            raise ValueError(f"Mismatch: detections count {detections.shape[0]} does not match occupied_areas count {len(occupied_areas)}")
         new_occupied_areas: List[Any] = []
         for _, object_state in self.states.items():
             match = np.argwhere(np.sum(detections - object_state.location, axis=1) == 0).reshape(-1)
@@ -199,11 +208,21 @@ def preprocess_sync(case: Dict[int, Dict[int, Any]], vehicle_id: int, lidar_seg_
         sync.update_pcd(detections, frame_id * 0.1)
 
     # At this point, these variables are guaranteed to be assigned
-    assert lidar_seg is not None
-    assert pcd is not None
-    assert lidar_pose is not None
-    assert object_segments is not None
-    assert detections is not None
+    if lidar_seg is None:
+        logger.error("lidar_seg is None after preprocessing")
+        raise RuntimeError("lidar_seg is None after preprocessing")
+    if pcd is None:
+        logger.error("pcd is None after preprocessing")
+        raise RuntimeError("pcd is None after preprocessing")
+    if lidar_pose is None:
+        logger.error("lidar_pose is None after preprocessing")
+        raise RuntimeError("lidar_pose is None after preprocessing")
+    if object_segments is None:
+        logger.error("object_segments is None after preprocessing")
+        raise RuntimeError("object_segments is None after preprocessing")
+    if detections is None:
+        logger.error("detections is None after preprocessing")
+        raise RuntimeError("detections is None after preprocessing")
 
     object_mask = lidar_seg["class"] == 1
     occupied_areas = get_occupied_space(pcd, object_segments)

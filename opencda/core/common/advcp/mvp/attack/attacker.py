@@ -1,3 +1,4 @@
+import logging
 import pickle
 import os
 import copy
@@ -6,6 +7,8 @@ from typing import Any, Dict, Generator, List, Optional, Tuple, Union
 import numpy as np
 
 from mvp.data.util import sort_lidar_points
+
+logger = logging.getLogger(__name__)
 
 
 class Attacker:
@@ -22,12 +25,16 @@ class Attacker:
         raise NotImplementedError
 
     def save_benchmark_meta(self) -> None:
-        assert self.dataset is not None
+        if self.dataset is None:
+            logger.error("dataset is not initialized")
+            raise RuntimeError("dataset is not initialized")
         with open(os.path.join(self.dataset.root_path, "attack", "{}.pkl".format(self.name)), "wb") as f:
             pickle.dump(self.attack_list, f)
 
     def load_benchmark_meta(self) -> None:
-        assert self.dataset is not None
+        if self.dataset is None:
+            logger.error("dataset is not initialized")
+            raise RuntimeError("dataset is not initialized")
         try:
             with open(os.path.join(self.dataset.root_path, "attack", "{}.pkl".format(self.name)), "rb") as f:
                 self.attack_list = pickle.load(f)
@@ -35,8 +42,12 @@ class Attacker:
             print("no benchmark found", e)
 
     def build_benchmark(self, write: bool = False, resume: bool = True) -> None:
-        assert self.dataset is not None
-        assert self.attack_list is not None
+        if self.dataset is None:
+            logger.error("dataset is not initialized")
+            raise RuntimeError("dataset is not initialized")
+        if self.attack_list is None:
+            logger.error("attack_list is not initialized")
+            raise RuntimeError("attack_list is not initialized")
         for attack_id, attack in enumerate(self.attack_list):
             print(attack_id)
             pcd_dir = os.path.join(self.dataset.root_path, "attack", self.name, "{:06d}".format(attack_id))
@@ -60,7 +71,9 @@ class Attacker:
         use_lidar: bool = True,
         use_camera: bool = False,
     ) -> Generator[Union[Tuple[int, Dict[str, Any], Any], Tuple[Dict[str, Any], Any]], None, None]:
-        assert self.attack_list is not None
+        if self.attack_list is None:
+            logger.error("attack_list is not initialized")
+            raise RuntimeError("attack_list is not initialized")
         for idx in range(len(self.attack_list)):
             attack, case = self.load_benchmark_by_id(idx, frame_ids=frame_ids, use_camera=use_camera)
             if index:
@@ -75,8 +88,12 @@ class Attacker:
         use_lidar: bool = True,
         use_camera: bool = False,
     ) -> Tuple[Dict[str, Any], Any]:
-        assert self.attack_list is not None
-        assert self.dataset is not None
+        if self.attack_list is None:
+            logger.error("attack_list is not initialized")
+            raise RuntimeError("attack_list is not initialized")
+        if self.dataset is None:
+            logger.error("dataset is not initialized")
+            raise RuntimeError("dataset is not initialized")
         attack = self.attack_list[idx]
         if frame_ids is None:
             frame_ids = [i for i in range(len(attack["attack_meta"]["frame_ids"]))]

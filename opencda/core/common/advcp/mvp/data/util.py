@@ -1,10 +1,13 @@
 from typing import Any, Dict, List, Optional, Tuple
 
+import logging
 import open3d as o3d
 import numpy as np
 import math
 import copy
 from shapely.geometry import Polygon
+
+logger = logging.getLogger(__name__)
 
 
 def numpy_to_open3d(data: np.ndarray) -> o3d.geometry.PointCloud:
@@ -333,7 +336,9 @@ def bbox_to_corners(bbox: np.ndarray) -> np.ndarray:
 
 
 def corners_to_bbox_batch(corners: np.ndarray) -> np.ndarray:
-    assert corners.ndim == 3
+    if corners.ndim != 3:
+        logger.error(f"Invalid corners dimension: {corners.ndim}, expected 3")
+        raise ValueError(f"Invalid corners dimension: {corners.ndim}, expected 3")
     batch_size = corners.shape[0]
 
     xyz = np.mean(corners[:, [0, 3, 5, 6], :], axis=1)

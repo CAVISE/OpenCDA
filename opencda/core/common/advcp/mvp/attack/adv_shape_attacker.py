@@ -1,14 +1,16 @@
 from typing import Any, List, Optional, Tuple
 
+import logging
 import numpy as np
 import open3d as o3d
 import copy
-import logging
 import pickle
 
 from .attacker import Attacker
 from mvp.data.util import bbox_sensor_to_map, bbox_map_to_sensor
 from mvp.tools.ray_tracing import get_wall_mesh
+
+logger = logging.getLogger(__name__)
 
 
 class AdvShapeAttacker(Attacker):
@@ -29,8 +31,12 @@ class AdvShapeAttacker(Attacker):
         import pygad
 
         num_genes = np.asarray(self.mesh.vertices).reshape(-1).shape[0]
-        assert self.attacker is not None
-        assert self.attacker.attack_list is not None
+        if self.attacker is None:
+            logger.error("attacker is not initialized")
+            raise RuntimeError("attacker is not initialized")
+        if self.attacker.attack_list is None:
+            logger.error("attacker.attack_list is not initialized")
+            raise RuntimeError("attacker.attack_list is not initialized")
         attacks = self.attacker.attack_list[::12]
 
         def correct(x: np.ndarray) -> np.ndarray:
@@ -40,7 +46,9 @@ class AdvShapeAttacker(Attacker):
             x = correct(solution)
             mesh = self.perturb_mesh(self.mesh, x)
             fitness_list: List[float] = []
-            assert self.dataset is not None
+            if self.dataset is None:
+                logger.error("dataset is not initialized")
+                raise RuntimeError("dataset is not initialized")
             for attack in attacks:
                 attack_opts = {
                     "victim_vehicle_id": attack["attack_meta"]["victim_vehicle_id"],
@@ -125,14 +133,18 @@ class AdvShapeAttacker(Attacker):
         attacker_id = attack_opts["attacker_vehicle_id"]
         ego_id = attack_opts["victim_vehicle_id"]
 
-        assert self.attacker is not None
+        if self.attacker is None:
+            logger.error("attacker is not initialized")
+            raise RuntimeError("attacker is not initialized")
         self.attacker.meshes = [mesh.select_by_index(vertex_indices) for vertex_indices in mesh_divide]
         case, _ = self.attacker.run(case, attack_opts)
 
         object_index = case[9][attacker_id]["object_ids"].index(attack_opts["object_id"])
         bbox_to_remove = case[9][attacker_id]["gt_bboxes"][object_index]
         bbox_to_remove_ego = bbox_map_to_sensor(bbox_sensor_to_map(bbox_to_remove, case[9][attacker_id]["lidar_pose"]), case[9][ego_id]["lidar_pose"])
-        assert self.perception is not None
+        if self.perception is None:
+            logger.error("perception is not initialized")
+            raise RuntimeError("perception is not initialized")
         fitness = self.perception.black_box_attack_fitness(case[9], ego_id, bbox_to_remove_ego, mode="remove")
 
         return fitness

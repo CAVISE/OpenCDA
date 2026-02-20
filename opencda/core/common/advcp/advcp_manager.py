@@ -428,15 +428,17 @@ class AdvCPManager:
 
     def _select_attacker_vehicles(self) -> List[str]:
         """Select which vehicles will be attackers based on ratio."""
+        if self.coperception_manager.opencood_dataset is None:
+            logger.error("opencood_dataset is not initialized")
+            raise RuntimeError("opencood_dataset is not initialized")
+
+        all_vehicles = list(self.coperception_manager.opencood_dataset.vehicle_ids)
+
         if self.attack_target == "all_non_attackers":
             # All vehicles except one are attackers
-            assert self.coperception_manager.opencood_dataset is not None
-            all_vehicles = list(self.coperception_manager.opencood_dataset.vehicle_ids)
             return all_vehicles[:-1] if len(all_vehicles) > 1 else all_vehicles
 
         # Randomly select attackers based on ratio
-        assert self.coperception_manager.opencood_dataset is not None
-        all_vehicles = list(self.coperception_manager.opencood_dataset.vehicle_ids)
         num_attackers = max(1, int(len(all_vehicles) * self.attackers_ratio))
 
         import random

@@ -17,6 +17,8 @@ from torch import Tensor
 from mvp.config import third_party_root, model_root, data_root
 from mvp.data.util import pose_to_transformation
 
+logger = logging.getLogger(__name__)
+
 opencood_root = os.path.join(third_party_root, "OpenCOOD")
 sys.path.append(opencood_root)
 
@@ -31,8 +33,14 @@ from opencood.utils.common_utils import torch_tensor_to_numpy  # noqa: E402
 class OpencoodPerception(Perception):
     def __init__(self, fusion_method: str = "early", model_name: str = "pointpillar") -> None:
         super().__init__()
-        assert model_name in ["pixor", "voxelnet", "second", "pointpillar", "v2vnet", "fpvrcnn"]
-        assert fusion_method in ["early", "intermediate", "late"]
+        valid_models = ["pixor", "voxelnet", "second", "pointpillar", "v2vnet", "fpvrcnn"]
+        if model_name not in valid_models:
+            logger.error(f"Invalid model_name: {model_name}. Must be one of {valid_models}")
+            raise ValueError(f"Invalid model_name: {model_name}. Must be one of {valid_models}")
+        valid_fusion_methods = ["early", "intermediate", "late"]
+        if fusion_method not in valid_fusion_methods:
+            logger.error(f"Invalid fusion_method: {fusion_method}. Must be one of {valid_fusion_methods}")
+            raise ValueError(f"Invalid fusion_method: {fusion_method}. Must be one of {valid_fusion_methods}")
         self.name = "{}_{}".format(model_name, fusion_method)
         self.devices = "cuda:0"
         self.model_name = model_name
@@ -189,7 +197,9 @@ class OpencoodPerception(Perception):
             mask = box_utils.get_mask_for_boxes_within_range_torch(pred_box3d_tensor)
             pred_box3d_tensor = pred_box3d_tensor[mask, :, :]
             scores = scores[mask]
-            assert scores.shape[0] == pred_box3d_tensor.shape[0]
+            if scores.shape[0] != pred_box3d_tensor.shape[0]:
+                logger.error(f"Score shape mismatch: scores {scores.shape} vs pred_box3d_tensor {pred_box3d_tensor.shape}")
+                raise RuntimeError(f"Score shape mismatch: scores {scores.shape} vs pred_box3d_tensor {pred_box3d_tensor.shape}")
 
         pred_box = pred_box3d_tensor.cpu().numpy()
         pred_box = box_utils.corner_to_center(pred_box, order="lwh")
@@ -275,7 +285,9 @@ class OpencoodPerception(Perception):
             C, H, W = spatial_features[attacker_index].size()
             perturbation_features = torch.zeros_like(spatial_features[attacker_index]).to(self.device)
             # At this point clipped_perturbation is guaranteed to be not None since perturbation is not None
-            assert clipped_perturbation is not None
+            if clipped_perturbation is None:
+                logger.error("clipped_perturbation is None when it should not be")
+                raise RuntimeError("clipped_perturbation is None when it should not be")
             perturbation_features[
                 :,
                 aligned_center[1] - feature_size : aligned_center[1] + feature_size,
@@ -346,7 +358,9 @@ class OpencoodPerception(Perception):
 
         base_data_dict = self.retrieve_base_data(multi_vehicle_case, ego_id)
         attacker_index = list(base_data_dict.keys()).index(attacker_id)
-        assert attacker_index >= 0
+        if attacker_index < 0:
+            logger.error(f"Attacker ID {attacker_id} not found in base_data_dict keys: {list(base_data_dict.keys())}")
+            raise ValueError(f"Attacker ID {attacker_id} not found in base_data_dict keys: {list(base_data_dict.keys())}")
 
         optimize_batch = self.preprocessors[self.fusion_method](multi_vehicle_case, ego_id)
         optimize_batch_data = train_utils.to_device(self.dataset.collate_batch_test([optimize_batch]), self.device)
@@ -625,8 +639,12 @@ class OpencoodPerception(Perception):
                 ego_lidar_pose = cav_content["params"]["lidar_pose"]
                 break
 
-        assert ego_id != -1
-        assert len(ego_lidar_pose) > 0
+        if ego_id == -1:
+            logger.error("Ego vehicle ID not found in base_data_dict")
+            raise RuntimeError("Ego vehicle ID not found in base_data_dict")
+        if len(ego_lidar_pose) == 0:
+            logger.error("Ego lidar pose is empty")
+            raise RuntimeError("Ego lidar pose is empty")
 
         pairwise_t_matrix = self.dataset.get_pairwise_transformation(base_data_dict, self.dataset.max_cav)
 
