@@ -6,7 +6,7 @@ from opencda.core.sensing.perception.static_obstacle import TrafficLight
 from opencda.core.sensing.localization.localization_manager import CustomizedLocalizationManager
 
 
-class CustomziedPeceptionManager(PerceptionManager):
+class CustomziedPeceptionManager(PerceptionManager):  # noqa: DC03
     def __init__(self, vehicle, config_yaml, cav_world, data_dump=False):
         super(CustomizedLocalizationManager, self).__init__(vehicle, config_yaml, cav_world, data_dump)
 

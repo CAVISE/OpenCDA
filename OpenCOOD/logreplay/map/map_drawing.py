@@ -6,7 +6,6 @@ import cv2
 # sub-pixel drawing precision constants
 CV2_SUB_VALUES = {"shift": 9, "lineType": cv2.LINE_AA}
 CV2_SHIFT_VALUE = 2 ** CV2_SUB_VALUES["shift"]
-INTERPOLATION_POINTS = 20
 
 AGENT_COLOR = (255, 255, 255)
 ROAD_COLOR = (255, 255, 255)
@@ -99,7 +98,7 @@ def road_exclude(static_road):
     The road without unrelated road.
     """
     binary_bev = cv2.cvtColor(static_road, cv2.COLOR_BGR2GRAY)
-    _, label, stats, _ = cv2.connectedComponentsWithStats(binary_bev)
+    _, label, _, _ = cv2.connectedComponentsWithStats(binary_bev)
 
     ego_label = label[static_road.shape[0] // 2, static_road.shape[1] // 2]
     static_road[label != ego_label] = 0

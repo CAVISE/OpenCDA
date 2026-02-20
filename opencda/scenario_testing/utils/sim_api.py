@@ -1,11 +1,8 @@
-# -*- coding: utf-8 -*-
 """
 Utilize scenario manager to manage CARLA simulation construction. This script
 is used for carla simulation only, and if you want to manage the Co-simulation,
 please use cosim_api.py.
 """
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: TDG-Attribution-NonCommercial-NoDistrib
 
 import math
 import random
@@ -183,7 +180,7 @@ class ScenarioManager:
         new_settings = self.world.get_settings()
 
         if simulation_config["sync_mode"]:
-            new_settings.synchronous_mode = True
+            new_settings.synchronous_mode = True  # noqa: DC05
             new_settings.fixed_delta_seconds = simulation_config["fixed_delta_seconds"]
         else:
             sys.exit("ERROR: Current version only supports sync simulation mode")
@@ -667,7 +664,9 @@ class ScenarioManager:
         """
         self.world.tick()
 
-    def destroyActors(self):
+    # TODO: Use this function instead of destroy in scenario.py
+    # NOTE: This function crashes Carla
+    def destroyActors(self):  # noqa: DC04
         """
         Destroy all actors in the world.
         """
