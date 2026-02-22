@@ -14,8 +14,29 @@ from AIM.models.mtp.learning.learning_src.data_scripts.preprocess_utils import (
 
 
 def my_get_yaw(
-    start_cos, start_sin, last_cos, last_sin, pos: torch.Tensor, yaw_keys: torch.Tensor, yaw_vals: torch.Tensor, map_boundaries: torch.Tensor
-):
+    start_cos: torch.Tensor,
+    start_sin: torch.Tensor,
+    last_cos: torch.Tensor,
+    last_sin: torch.Tensor,
+    pos: torch.Tensor,
+    yaw_keys: torch.Tensor,
+    yaw_vals: torch.Tensor,
+    map_boundaries: torch.Tensor,
+) -> torch.Tensor:
+    """
+    get yaw angle based on position and route information
+
+    :param start_cos: cosine of start yaw angle
+    :param start_sin: sine of start yaw angle
+    :param last_cos: cosine of last yaw angle
+    :param last_sin: sine of last yaw angle
+    :param pos: position tensor in carla coordinates
+    :param yaw_keys: yaw dictionary keys
+    :param yaw_vals: yaw dictionary values (route information)
+    :param map_boundaries: map boundary values
+
+    :return: yaw angles in normalized carla coordinate system
+    """
     idxs = 10 * torch.atan2(start_sin, start_cos) + torch.atan2(last_sin, last_cos)
     yaw_keys_exp = yaw_keys.view(*([1] * idxs.dim()), *yaw_keys.shape)
 
@@ -46,7 +67,15 @@ def my_get_yaw(
     return yaws_rad_carla.float()
 
 
-def my_get_speed(dx: torch.Tensor, dy: torch.Tensor):
+def my_get_speed(dx: torch.Tensor, dy: torch.Tensor) -> torch.Tensor:
+    """
+    calculate speed from coordinate deltas
+
+    :param dx: x coordinate delta
+    :param dy: y coordinate delta
+
+    :return: speed values
+    """
     speed = (dx**2 + dy**2) ** 0.5 * SAMPLE_RATE
     # vehicle_max_speed = VEHICLE_MAX_SPEED if not NORMALIZE_DATA else normalize_speed(VEHICLE_MAX_SPEED, VEHICLE_MAX_SPEED)
     # mask = (speed > vehicle_max_speed)

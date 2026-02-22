@@ -13,7 +13,13 @@ from .learning_src.data_scripts.preprocess_map import preprocess_map
 from .learning_src.data_scripts.generate_csv_utils import get_map_bounding
 
 
-def get_distribution_params(distr_params_dir, preprocess_folder_path):
+def get_distribution_params(distr_params_dir: str, preprocess_folder_path: str) -> None:
+    """
+    calculate and save distribution parameters for z-score normalization
+
+    :param distr_params_dir: directory to save distribution parameters
+    :param preprocess_folder_path: path to preprocessed data folder
+    """
     y_x, y_y = [], []
     for i, preprocess_subfolder in enumerate(os.listdir(preprocess_folder_path)):
         if preprocess_subfolder.endswith(".pkl"):

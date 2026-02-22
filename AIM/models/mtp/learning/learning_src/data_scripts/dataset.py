@@ -7,12 +7,24 @@ from torch.utils.data import Dataset
 from torch_geometric.data import Data, InMemoryDataset
 from enum import Enum
 from tqdm import tqdm
+from typing import Optional, Tuple
 
 from .data_config import MAP_LANE_NAME, MAP_PARTS_NAME, MAP_IMG_NAME, COOL_DATA_RADIUS1, COOL_DATA_RADIUS2
 
 
 class GnnCarDataset(InMemoryDataset):
-    def __init__(self, preprocess_folder, mlp=False, mpc_aug=True):
+    """
+    dataset for gnn model
+    """
+
+    def __init__(self, preprocess_folder: str, mlp: bool = False, mpc_aug: bool = True) -> None:
+        """
+        initialize gnn car dataset
+
+        :param preprocess_folder: path to directory with preprocessed data
+        :param mlp: flag if using mlp model (only self-loops in graph)
+        :param mpc_aug: flag if using mpc augmented data
+        """
         self.preprocess_folder = preprocess_folder
         self.mlp = mlp
         self.mpc_aug = mpc_aug
@@ -20,7 +32,12 @@ class GnnCarDataset(InMemoryDataset):
         self.data, self.slices = torch.load(self.processed_paths[0], weights_only=False)
 
     @property
-    def processed_file_names(self):
+    def processed_file_names(self) -> list[str]:
+        """
+        get processed file names based on model type and augmentation
+
+        :return: list of processed file names
+        """
         pt_name = "data"
         pt_name += "_mlp" if self.mlp else "_gnn"
 
@@ -29,10 +46,9 @@ class GnnCarDataset(InMemoryDataset):
 
         return [f"{pt_name}.pt"]
 
-    def process(self):
+    def process(self) -> None:
         """
-        Converts raw data into GNN-readable format by constructing
-        graphs out of connectivity matrices.
+        convert raw data into gnn-readable format by constructing graphs from connectivity matrices
         """
         preprocess_subfolders = os.listdir(self.preprocess_folder)
         graphs = list()
@@ -95,13 +111,34 @@ class GnnCarDataset(InMemoryDataset):
 
 
 class MAP_level_info(Enum):
+    """
+    Map encoding type:
+
+    MAP_level_info.map: map level encoding \n
+    MAP_level_info.lane: lane level encoding \n
+    MAP_level_info.parts: parts level encoding
+    """
+
     map = 0
     lane = 1
     parts = 2
 
 
 class TransformerDataCell:
-    def __init__(self, x: torch.Tensor, y: torch.Tensor, weights: torch.Tensor, attn_mask: torch.Tensor, map_idx: str):
+    """
+    data holder class for transformer training process
+    """
+
+    def __init__(self, x: torch.Tensor, y: torch.Tensor, weights: torch.Tensor, attn_mask: torch.Tensor, map_idx: str) -> None:
+        """
+        initialize transformer data cell
+
+        :param x: car input vectors
+        :param y: output vectors
+        :param weights: weights for each sample in dataset
+        :param attn_mask: attention mask for vehicles in sample
+        :param map_idx: map index corresponding to this sample
+        """
         self.x = x
         self.y = y
         self.weights = weights
@@ -110,7 +147,21 @@ class TransformerDataCell:
 
 
 class TransformerCarDataset(Dataset):
-    def __init__(self, preprocess_folder, reprocess=False, mpc_aug=True, map_info_level: MAP_level_info = MAP_level_info.lane):
+    """
+    Dataset for transformer
+    """
+
+    def __init__(
+        self, preprocess_folder: str, reprocess: bool = False, mpc_aug: bool = True, map_info_level: MAP_level_info = MAP_level_info.lane
+    ) -> None:
+        """
+        initialize transformer car dataset
+
+        :param preprocess_folder: path to directory with preprocessed data samples
+        :param reprocess: prepare data for dataset even if dataset file exists
+        :param mpc_aug: flag if augmented data in preprocessed samples
+        :param map_info_level: map info level type
+        """
         self.preprocess_folder = preprocess_folder
         self.processed_dir = os.path.join(self.preprocess_folder, "transformer_processed")
         self.processed_path = os.path.join(self.processed_dir, "processed.pt")
@@ -123,7 +174,14 @@ class TransformerCarDataset(Dataset):
         self.process()
         self.complite_data = torch.load(self.processed_path, weights_only=False)
 
-    def get_map_info_path(self, preprocess_subfolder_path):
+    def get_map_info_path(self, preprocess_subfolder_path: str) -> Optional[str]:
+        """
+        get map info file path based on map info level
+
+        :param preprocess_subfolder_path: preprocess subfolder path connected with specific map
+
+        :return: path to map info file
+        """
         if self.map_info_level == MAP_level_info.map:
             return os.path.join(preprocess_subfolder_path, f"{MAP_IMG_NAME}.npy")
 
@@ -134,7 +192,10 @@ class TransformerCarDataset(Dataset):
             return os.path.join(preprocess_subfolder_path, f"{MAP_PARTS_NAME}.npy")
         return None
 
-    def load_maps(self):
+    def load_maps(self) -> None:
+        """
+        load map information including map images, attention masks for map channels, and map boundaries
+        """
         self.map_infos = {}
         self.map_boundaries = {}
         self.map_channels_masks = {}
@@ -171,7 +232,10 @@ class TransformerCarDataset(Dataset):
             self.map_channels_masks[preprocess_subfolder] = map_channel_mask
             self.map_boundaries[preprocess_subfolder] = torch.tensor(map_info[0][2])
 
-    def process(self):
+    def process(self) -> None:
+        """
+        process car vectors and save to dataset processed file
+        """
         os.makedirs(self.processed_dir, exist_ok=True)
         if os.path.exists(self.processed_path) and not self.reprocess:
             return
@@ -251,8 +315,20 @@ class TransformerCarDataset(Dataset):
         torch.save(whole_data, self.processed_path)
 
     def __len__(self):
+        """
+        get dataset length
+
+        :return: number of samples in dataset
+        """
         return len(self.complite_data)
 
-    def __getitem__(self, index):
+    def __getitem__(self, index: int) -> Tuple[TransformerDataCell, torch.Tensor, torch.Tensor, torch.Tensor]:
+        """
+        get item from dataset by index
+
+        :param index: sample index
+
+        :return: tuple of (data_cell, map_info, map_channels_mask, map_boundaries)
+        """
         data_cell = self.complite_data[index]
         return data_cell, self.map_infos[data_cell.map_idx], self.map_channels_masks[data_cell.map_idx], self.map_boundaries[data_cell.map_idx]

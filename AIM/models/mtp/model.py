@@ -24,7 +24,7 @@ from .learning.learning_src.data_scripts.preprocess_utils import (
     rotation_matrix_back_with_allign_to_Y,
     denormalize_yaw,
     denormalize_coords,
-    z_scrore_denormalize,
+    z_score_denormalize,
     transform_coords,
 )
 from .learning.learning_src.data_scripts.preprocess_map import preprocess_map
@@ -32,7 +32,18 @@ from .learning.learning_src.data_scripts.dataset import MAP_level_info
 
 
 class MTP(AIMModel):
+    """
+    multi-trajectory prediction model
+    """
+
     def __init__(self, yaml_model_config_path: str, weights: str, map_net_xml_path: str):
+        """
+        initialize mtp model
+
+        :param yaml_model_config_path: path to yaml file with model configuration
+        :param weights: name of weights file
+        :param map_net_xml_path: path to sumo network xml map file
+        """
         super().__init__()
 
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -60,6 +71,11 @@ class MTP(AIMModel):
             self.load_z_score_params()
 
     def process_map(self, map_net_xml_path: str):
+        """
+        process and load map data
+
+        :param map_net_xml_path: path to sumo network xml map file
+        """
         part_level_data, lane_level_data, map_level_data = preprocess_map(net_file_path=map_net_xml_path)
         if self.map_info_level == MAP_level_info.parts:
             self.map = part_level_data[0][0]
@@ -73,6 +89,9 @@ class MTP(AIMModel):
         self.map = torch.tensor(self.map, device=self.device).unsqueeze(0)
 
     def load_z_score_params(self):
+        """
+        load z-score normalization parameters from files
+        """
         with open(os.path.join(DATA_PATH, "csv", Y_X_DISTR_FILE), "rb") as f:
             self.y_x_mean, self.y_x_std = pkl.load(f)
 
@@ -81,11 +100,12 @@ class MTP(AIMModel):
 
     def predict(self, features: np.ndarray, target_agent_ids=None):
         """
-        Docstring for predict
+        predict vehicle trajectories
 
-        :param map_net_xml_path: path to current net xml map
-        :param features: ndarray of shape (v, 6) [x, y, speed, yaw, start_yaw, last_yaw], everything in sumo coordinate system
-        :param target_agent_ids:
+        :param features: ndarray of shape (v, 6) containing [x, y, speed, yaw, start_yaw, last_yaw] for each vehicle, everything in sumo coordinate system
+        :param target_agent_ids: list of target agent ids (optional, currently not used)
+
+        :return: predicted trajectories as ndarray of shape (v, pred_len, 2) containing [x, y] coordinates in sumo coordinate system
         """
 
         num_agents = features.shape[0]
@@ -115,8 +135,8 @@ class MTP(AIMModel):
             dout_coords = dout_coords.reshape(dout_coords.shape[0], dout_coords.shape[1], PRED_LEN, PREDICT_VECTOR_SIZE)
 
             if NORMALIZE_DATA and ZSCORE_NORMALIZE:
-                z_scrore_denormalize(dout_coords[:, :, :, 0], self.y_x_mean, self.y_x_std)
-                z_scrore_denormalize(dout_coords[:, :, :, 1], self.y_y_mean, self.y_y_std)
+                z_score_denormalize(dout_coords[:, :, :, 0], self.y_x_mean, self.y_x_std)
+                z_score_denormalize(dout_coords[:, :, :, 1], self.y_y_mean, self.y_y_std)
 
             dout_coords = dout_coords.permute(0, 1, 3, 2)  # [b, v, 2, PRED_LEN]
             dout_coords = (rotations_back_current @ dout_coords).permute(0, 1, 3, 2)  # [b, v, PRED_LEN, 2]
@@ -128,8 +148,8 @@ class MTP(AIMModel):
             dout_coords = dout_coords.reshape(dout_coords.shape[0], dout_coords.shape[1], PRED_LEN, PREDICT_VECTOR_SIZE)
 
             if NORMALIZE_DATA and ZSCORE_NORMALIZE:
-                z_scrore_denormalize(dout_coords[:, :, 0], self.y_x_mean, self.y_x_std)
-                z_scrore_denormalize(dout_coords[:, :, 1], self.y_y_mean, self.y_y_std)
+                z_score_denormalize(dout_coords[:, :, 0], self.y_x_mean, self.y_x_std)
+                z_score_denormalize(dout_coords[:, :, 1], self.y_y_mean, self.y_y_std)
 
             dout_coords = dout_coords.permute(0, 2, 1)  # [v, 2, PRED_LEN]
             dout_coords = torch.bmm(rotations_back_current, dout_coords).permute(0, 2, 1)  # [v, PRED_LEN, 2]

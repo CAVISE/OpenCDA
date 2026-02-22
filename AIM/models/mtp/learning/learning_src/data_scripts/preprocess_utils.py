@@ -3,7 +3,9 @@ import numpy as np
 import pandas as pd
 import torch
 import os
+from typing import Tuple
 
+from typing import Union
 
 from .data_config import (
     OBS_LEN,
@@ -17,10 +19,13 @@ from .data_config import (
 from .MPC_XY_Frame.MPC_XY_Frame import linear_mpc_control_data_aug
 
 
-def rotation_matrix_with_allign_to_Y(yaw):
+def rotation_matrix_with_allign_to_Y(yaw: torch.Tensor) -> torch.Tensor:
     """
-    Make the current direction aligns to +Y axis (In CARLA coordinate system).
-    https://en.wikipedia.org/wiki/Rotation_matrix#Non-standard_orientation_of_the_coordinate_system
+    create rotation matrix to align current direction to +y axis (in carla coordinate system)
+
+    :param yaw: yaw angles
+
+    :return: rotation matrix
     """
     angle = torch.pi / 2 - yaw
     cos = torch.cos(angle)
@@ -29,10 +34,13 @@ def rotation_matrix_with_allign_to_Y(yaw):
     return rotation
 
 
-def rotation_matrix_back_with_allign_to_Y(yaw):
+def rotation_matrix_back_with_allign_to_Y(yaw: torch.Tensor) -> torch.Tensor:
     """
-    Rotate back (In CARLA coordinate system).
-    https://en.wikipedia.org/wiki/Rotation_matrix#Non-standard_orientation_of_the_coordinate_system
+    create rotation matrix to rotate back from +y axis alignment (in carla coordinate system)
+
+    :param yaw: yaw angles
+
+    :return: rotation matrix
     """
     angle = -torch.pi / 2 + yaw
     cos = torch.cos(angle)
@@ -41,10 +49,13 @@ def rotation_matrix_back_with_allign_to_Y(yaw):
     return rotation
 
 
-def rotation_matrix_with_allign_to_X(yaw):
+def rotation_matrix_with_allign_to_X(yaw: torch.Tensor) -> torch.Tensor:
     """
-    Make the current direction aligns to +X axis (In CARLA coordinate system).
-    https://en.wikipedia.org/wiki/Rotation_matrix#Non-standard_orientation_of_the_coordinate_system
+    create rotation matrix to align current direction to +x axis (in carla coordinate system)
+
+    :param yaw: yaw angles
+
+    :return: rotation matrix
     """
     angle = -yaw
     cos = torch.cos(angle)
@@ -53,10 +64,13 @@ def rotation_matrix_with_allign_to_X(yaw):
     return rotation
 
 
-def rotation_matrix_back_with_allign_to_X(yaw):
+def rotation_matrix_back_with_allign_to_X(yaw: torch.Tensor) -> torch.Tensor:
     """
-    Rotate back (In CARLA coordinate system).
-    https://en.wikipedia.org/wiki/Rotation_matrix#Non-standard_orientation_of_the_coordinate_system
+    create rotation matrix to rotate back from +x axis alignment (in carla coordinate system)
+
+    :param yaw: yaw angles
+
+    :return: rotation matrix
     """
     angle = yaw
     cos = torch.cos(angle)
@@ -65,8 +79,14 @@ def rotation_matrix_back_with_allign_to_X(yaw):
     return rotation
 
 
-def adjust_future_yaw_delta(delta):
-    """In-place"""
+def adjust_future_yaw_delta(delta: Union[torch.Tensor, np.ndarray]) -> Union[torch.Tensor, np.ndarray]:
+    """
+    adjust future yaw delta to keep it in range [-pi, pi] (in-place)
+
+    :param delta: yaw delta values
+
+    :return: adjusted delta
+    """
     mask1 = (delta) < -np.pi
     mask2 = (delta) > np.pi
 
@@ -75,12 +95,14 @@ def adjust_future_yaw_delta(delta):
     return delta
 
 
-def adjust_future_deltas(curr_states, future_states):
+def adjust_future_deltas(curr_states: np.ndarray, future_states: np.ndarray) -> np.ndarray:
     """
-    The range of delta angle is [-180, 180], in order to avoid the jump, adjust the future delta angles.
+    in-place. adjust future delta angles to keep them in range [-pi, pi] to avoid jumps
 
-    :param curr_states: [vehicle, 4]
-    :param future_states: [vehicle, pred_len, 4]
+    :param curr_states: current vehicle states [vehicle, 4]
+    :param future_states: future vehicle states [vehicle, pred_len, 4]
+
+    :return: adjusted future states
     """
 
     assert curr_states.shape[0] == future_states.shape[0]
@@ -97,19 +119,26 @@ def adjust_future_deltas(curr_states, future_states):
     return future_states
 
 
-def transform_coords(coords):
+def transform_coords(coords: Union[torch.Tensor, np.ndarray]) -> Union[torch.Tensor, np.ndarray]:
     """
-    In-place. Transform coords in both directions: sumo <-> carla ([x_sumo, y_sumo] = [x_carla, -y_carla]).
+    in-place. transform coordinates between sumo and carla coordinate systems (in-place)
+    transformation: [x_sumo, y_sumo] = [x_carla, -y_carla]
 
-    expected coords on last dim
+    :param coords: coordinates with last dimension containing [x, y]
+
+    :return: transformed coordinates
     """
     coords[..., 1] = -coords[..., 1]
     return coords
 
 
-def transform_sumo2carla_yaw(yaw):
+def transform_sumo2carla_yaw(yaw: Union[torch.Tensor, np.ndarray]) -> Union[torch.Tensor, np.ndarray]:
     """
-    In-place. In RAD transform yaw from sumo to carla
+    in-place. transform yaw angle from sumo to carla coordinate system (in-place, in radians)
+
+    :param yaw: yaw angles in sumo coordinate system
+
+    :return: yaw angles in carla coordinate system
     """
     yaw -= float(np.deg2rad(90))
     mask = yaw > float(np.deg2rad(180))
@@ -117,9 +146,13 @@ def transform_sumo2carla_yaw(yaw):
     return yaw
 
 
-def transform_carla2sumo_yaw(yaw):
+def transform_carla2sumo_yaw(yaw: Union[torch.Tensor, np.ndarray]) -> Union[torch.Tensor, np.ndarray]:
     """
-    In-place. In RAD transform yaw from carla to sumo
+    in-place. transform yaw angle from carla to sumo coordinate system (in-place, in radians)
+
+    :param yaw: yaw angles in carla coordinate system
+
+    :return: yaw angles in sumo coordinate system
     """
     yaw += float(np.deg2rad(90))
     mask = yaw < 0
@@ -127,27 +160,30 @@ def transform_carla2sumo_yaw(yaw):
     return yaw
 
 
-def transform_sumo2carla(states):
+def transform_sumo2carla(states: Union[torch.Tensor, np.ndarray]) -> Union[torch.Tensor, np.ndarray]:
     """
-    In-place. In RAD transform from sumo to carla: [x_carla, y_carla, velosity, yaw_carla] = [x_sumo, -y_sumo, velosity, yaw_sumo-90]. \
-        yaw_carla in [-90, 270] so if > 180 yaw_carla = yaw_carla - 360. After that yaw_carla in [-180, 180]
-    Note:
-        - the coordinate system in Carla is more convenient since the angle increases in the direction of rotation from +x to +y, while in sumo this is from +y to +x.
-        - the coordinate system in Carla is a left-handed Cartesian coordinate system.
+    in-place. transform vehicle states from sumo to carla coordinate system (in-place, in radians)
+    transformation: [x_carla, y_carla, velocity, yaw_carla] = [x_sumo, -y_sumo, velocity, yaw_sumo-90]
+    yaw_carla is adjusted to range [-180, 180] degrees
 
-    expected arraylike of size [..., 4]
+    :param states: vehicle states array of shape [..., 4] containing [x, y, velocity, yaw]
+
+    :return: transformed states
     """
     transform_coords(states[..., :2])
     transform_sumo2carla_yaw(states[..., 3])
     return states
 
 
-def transform_carla2sumo(states):
+def transform_carla2sumo(states: Union[torch.Tensor, np.ndarray]) -> Union[torch.Tensor, np.ndarray]:
     """
-    In-place. In RAD transform from carla to sumo: [x_sumo, y_sumo, velosity, yaw_sumo] = [x_carla, -y_carla, velosity, yaw_carla+90]. \
-        yaw_sumo in [-90, 270] so if < 0 yaw_sumo = yaw_sumo + 360. After that yaw_sumo in [0, 360]
+    in-place. transform vehicle states from carla to sumo coordinate system (in-place, in radians)
+    transformation: [x_sumo, y_sumo, velocity, yaw_sumo] = [x_carla, -y_carla, velocity, yaw_carla+90]
+    yaw_sumo is adjusted to range [0, 360] degrees
 
-    expected arraylike of size [..., 4]
+    :param states: vehicle states array of shape [..., 4] containing [x, y, velocity, yaw]
+
+    :return: transformed states
     """
     transform_coords(states[..., :2])
     transform_carla2sumo_yaw(states[..., 3])
@@ -159,15 +195,18 @@ def MPC_Block(
     target_states: np.ndarray,
     acc_delta_old: np.ndarray,
     noise_range: float = 0.0,
-):
+) -> Tuple[np.ndarray, np.ndarray]:
     """
-    :param curr_states: [vehicle, 4], [[x, y, speed, yaw], ...]
-    :param target_states: [vehicle, pred_len, 4]
-    :param acc_delta_old: [vehicle, pred_len, 2]
-    :param noise_range: noise on the lateral direction
+    mpc block for computing control inputs for multiple vehicles
 
-    :return shifted_curr: [vehicle, 4]
-    :return mpc_output: [vehicle, pred_len, 6], [x, y, speed, yaw, acc, delta]
+    :param curr_states: current vehicle states [vehicle, 4] containing [x, y, speed, yaw]
+    :param target_states: target vehicle states [vehicle, pred_len, 4]
+    :param acc_delta_old: previous acceleration and steering values [vehicle, pred_len, 2]
+    :param noise_range: noise range on lateral direction
+
+    :return: tuple of (shifted_curr, mpc_output) where:
+        - shifted_curr: shifted current states [vehicle, 4]
+        - mpc_output: mpc output [vehicle, pred_len, 6] containing [x, y, speed, yaw, acc, delta]
     """
 
     # acc_delta_new = np.zeros_like(acc_delta_old)
@@ -185,15 +224,18 @@ def MPC_module(
     target_states_v: np.ndarray,
     acc_delta_old_v: np.ndarray,
     noise_range: float = 0.0,
-):
+) -> Tuple[np.ndarray, np.ndarray]:
     """
-    :param curr_state_v: [4], [x_0, y_0, speed_0, yaw_0]
-    :param target_states_v: [pred_len, 4], [[x_1, y_1, speed_1, yaw_1], ...]
-    :param acc_delta_old_v: [pred_len, 2], [[acc_1, delta_1], ...]
-    :param noise_range: noise on the lateral direction
+    mpc module for computing control inputs for single vehicle
 
-    :return shifted_curr: [4]
-    :return mpc_output: [pred_len, 6]
+    :param curr_state_v: current vehicle state [4] containing [x_0, y_0, speed_0, yaw_0]
+    :param target_states_v: target vehicle states [pred_len, 4] containing [[x_1, y_1, speed_1, yaw_1], ...]
+    :param acc_delta_old_v: previous acceleration and steering values [pred_len, 2] containing [[acc_1, delta_1], ...]
+    :param noise_range: noise range on lateral direction
+
+    :return: tuple of (shifted_curr, mpc_output) where:
+        - shifted_curr: shifted current state [4]
+        - mpc_output: mpc output [pred_len, 6] containing [x, y, speed, yaw, acc, delta]
     """
 
     acc_delta_old_v[np.isnan(acc_delta_old_v)] = 0.0  # [pred_len, 2]
@@ -231,100 +273,130 @@ def MPC_module(
     return curr_state_v.reshape(-1), mpc_output
 
 
-def min_max_normalize(x, circle_boundary: float, new_circle_boundary: float):
+def min_max_normalize(x: Union[torch.Tensor, np.ndarray], circle_boundary, new_circle_boundary) -> Union[torch.Tensor, np.ndarray]:
     """
-    In-place. Normalizing x data from [-circle_boundary, circle_boundary] to [-new_circle_boundary, new_circle_boundary]
+    in-place. normalize data from [-circle_boundary, circle_boundary] to [-new_circle_boundary, new_circle_boundary] (in-place)
 
-    :param x: data
-    :param circle_boundary: circle_boundary of given data, circle_boundary is symmetric
-    :param new_circle_boundary: new_circle_boundary of given data, new_circle_boundary is symmetric
+    :param x: data to normalize
+    :param circle_boundary: original boundary (symmetric)
+    :param new_circle_boundary: target boundary (symmetric)
+
+    :return: normalized data
     """
     diff_ratio = new_circle_boundary / circle_boundary
     x *= diff_ratio
     return x
 
 
-def z_scrore_normalize(x, x_mean, x_std):
+def z_score_normalize(x: Union[torch.Tensor, np.ndarray], x_mean: float, x_std: float) -> Union[torch.Tensor, np.ndarray]:
     """
-    In-place. Z-sroce normalization to data distribution with 0 mean and 1 std
+    in-place. z-score normalization to data distribution with 0 mean and 1 std (in-place)
+
+    :param x: data to normalize
+    :param x_mean: mean value
+    :param x_std: standard deviation
+
+    :return: normalized data
     """
     x -= x_mean
     x /= x_std
     return x
 
 
-def z_scrore_denormalize(x, x_mean, x_std):
+def z_score_denormalize(x: Union[torch.Tensor, np.ndarray], x_mean: float, x_std: float) -> Union[torch.Tensor, np.ndarray]:
     """
-    In-place. Z-sroce denormalization to data distribution with 0 mean and 1 std
+    in-place. z-score denormalization from data distribution with 0 mean and 1 std (in-place)
+
+    :param x: data to denormalize
+    :param x_mean: mean value
+    :param x_std: standard deviation
+
+    :return: denormalized data
     """
     x *= x_std
     x += x_mean
     return x
 
 
-def normalize_yaw(yaw):
+def normalize_yaw(yaw: Union[torch.Tensor, np.ndarray]) -> Union[torch.Tensor, np.ndarray]:
     """
-    In-place. Normalizing yaw from [-pi, pi] to [-1, 1]
+    in-place. normalize yaw from [-pi, pi] to [-1, 1] (in-place)
 
-    :param yaw
+    :param yaw: yaw angles
+
+    :return: normalized yaw
     """
     return min_max_normalize(yaw, float(np.pi), 1)
 
 
-def denormalize_yaw(yaw):
+def denormalize_yaw(yaw: Union[torch.Tensor, np.ndarray]) -> Union[torch.Tensor, np.ndarray]:
     """
-    In-place. DEnormalizing yaw from [-1, 1] to [-pi, pi]
+    in-place. denormalize yaw from [-1, 1] to [-pi, pi] (in-place)
 
-    :param yaw
+    :param yaw: normalized yaw angles
+
+    :return: denormalized yaw
     """
     return min_max_normalize(yaw, 1, float(np.pi))
 
 
-def normalize_coords(coords, circle_boundary):
+def normalize_coords(coords: Union[torch.Tensor, np.ndarray], circle_boundary) -> Union[torch.Tensor, np.ndarray]:
     """
-    In-place. Normalizing coords from [-circle_boundary, circle_boundary] to [-1, 1]
+    in-place. normalize coordinates from [-circle_boundary, circle_boundary] to [-1, 1] (in-place)
 
-    :param coords
+    :param coords: coordinates to normalize
     :param circle_boundary: boundary of circle on which cars are controlled on intersection
+
+    :return: normalized coordinates
     """
     return min_max_normalize(coords, circle_boundary, 1)
 
 
-def denormalize_coords(coords, circle_boundary):
+def denormalize_coords(coords: Union[torch.Tensor, np.ndarray], circle_boundary) -> Union[torch.Tensor, np.ndarray]:
     """
-    In-place. DEnormalizing coords from to [-1, 1] to [-circle_boundary, circle_boundary]
+    in-place. denormalize coordinates from [-1, 1] to [-circle_boundary, circle_boundary] (in-place)
 
-    :param coords
+    :param coords: normalized coordinates
     :param circle_boundary: boundary of circle on which cars are controlled on intersection
+
+    :return: denormalized coordinates
     """
     return min_max_normalize(coords, 1, circle_boundary)
 
 
-def normalize_speed(speed, vechicle_max_speed):
+def normalize_speed(speed: Union[torch.Tensor, np.ndarray], vechicle_max_speed) -> Union[torch.Tensor, np.ndarray]:
     """
-    In-place. Normalizing speed from [0, vechicle_max_speed] to [0, 1]
+    in-place. normalize speed from [0, vehicle_max_speed] to [0, 1] (in-place)
 
-    :param speed
-    :param vechicle_max_speed: max speed of vechicle on intersection (in current intersection coordinate system)
+    :param speed: speed values
+    :param vechicle_max_speed: max speed of vehicle on intersection (in current intersection coordinate system)
+
+    :return: normalized speed
     """
     return min_max_normalize(speed, vechicle_max_speed, 1)
 
 
-def denormalize_speed(speed, vechicle_max_speed):
+def denormalize_speed(speed: Union[torch.Tensor, np.ndarray], vechicle_max_speed: float) -> Union[torch.Tensor, np.ndarray]:
     """
-    In-place. DEnormalizing speed from [0, 1] to [0, vechicle_max_speed]
+    in-place. denormalize speed from [0, 1] to [0, vehicle_max_speed] (in-place)
 
-    :param speed
-    :param vechicle_max_speed: max speed of vechicle on intersection (in current intersection coordinate system)
+    :param speed: normalized speed values
+    :param vechicle_max_speed: max speed of vehicle on intersection (in current intersection coordinate system)
+
+    :return: denormalized speed
     """
     return min_max_normalize(speed, 1, vechicle_max_speed)
 
 
-def normalize_input_data(x, circle_boundary, vechicle_max_speed):
+def normalize_input_data(x: Union[torch.Tensor, np.ndarray], circle_boundary, vechicle_max_speed) -> Union[torch.Tensor, np.ndarray]:
     """
-    In-place. Normalizing x - input data to [-1, 1] in coords, yaw; [0, 1] in speed
+    in-place. normalize input data to [-1, 1] in coords and yaw, [0, 1] in speed (in-place)
 
-    :param x with shape [vehicle, 7] - for each vehicle [x_0, y_0, speed_0, yaw_0, intent, intent, intent]
+    :param x: input data with shape [vehicle, 7] for each vehicle [x_0, y_0, speed_0, yaw_0, intent, intent, intent]
+    :param circle_boundary: boundary of circle on which cars are controlled
+    :param vechicle_max_speed: max speed of vehicle
+
+    :return: normalized input data
     """
     normalize_coords(x[:, :2], circle_boundary)
     normalize_speed(x[:, 2], vechicle_max_speed)
@@ -332,11 +404,15 @@ def normalize_input_data(x, circle_boundary, vechicle_max_speed):
     return x
 
 
-def de_normalize_input_data(x, circle_boundary, vechicle_max_speed):
+def de_normalize_input_data(x: Union[torch.Tensor, np.ndarray], circle_boundary, vechicle_max_speed) -> Union[torch.Tensor, np.ndarray]:
     """
-    In-place. De normalizing x - input data from [-1, 1] in coords, yaw; [0, 1] in speed
+    in-place. denormalize input data from [-1, 1] in coords and yaw, [0, 1] in speed (in-place)
 
-    :param x with shape [vehicle, 7] - for each vehicle [x_0, y_0, speed_0, yaw_0, intent, intent, intent]
+    :param x: normalized input data with shape [vehicle, 7] for each vehicle [x_0, y_0, speed_0, yaw_0, intent, intent, intent]
+    :param circle_boundary: boundary of circle on which cars are controlled
+    :param vechicle_max_speed: max speed of vehicle
+
+    :return: denormalized input data
     """
     denormalize_coords(x[:, :2], circle_boundary)
     denormalize_speed(x[:, 2], vechicle_max_speed)
@@ -344,13 +420,15 @@ def de_normalize_input_data(x, circle_boundary, vechicle_max_speed):
     return x
 
 
-def min_max_normalize_target_data(y, circle_boundary, vechicle_max_speed):
+def min_max_normalize_target_data(y: Union[torch.Tensor, np.ndarray], circle_boundary, vechicle_max_speed) -> Union[torch.Tensor, np.ndarray]:
     """
-    In-place. Normalizing y - input data to [-1, 1] in coords, yaw; [0, 1] in speed
+    in-place. normalize target data to [-1, 1] in coords and yaw, [0, 1] in speed (in-place)
 
-    :param y with shape [vehicle, NUM_PREDICT, 6] - for each vehicle [[x_1, y_1, v_1, yaw_1, acc_1, delta_1], ...]
+    :param y: target data with shape [vehicle, NUM_PREDICT, 6] for each vehicle [[x_1, y_1, v_1, yaw_1, acc_1, delta_1], ...]
     :param circle_boundary: boundary of circle on which cars are controlled on intersection
-    :param vechicle_max_speed: max speed of vechicle on intersection (in current intersection coordinate system)
+    :param vechicle_max_speed: max speed of vehicle on intersection (in current intersection coordinate system)
+
+    :return: normalized target data
     """
     normalize_coords(y[:, :, :2], circle_boundary)
     normalize_speed(y[:, :, 2], vechicle_max_speed)
@@ -358,11 +436,15 @@ def min_max_normalize_target_data(y, circle_boundary, vechicle_max_speed):
     return y
 
 
-def de_normalize_target_data(y, circle_boundary, vechicle_max_speed):
+def de_normalize_target_data(y: Union[torch.Tensor, np.ndarray], circle_boundary, vechicle_max_speed) -> Union[torch.Tensor, np.ndarray]:
     """
-    De normalizing y - input data from [-1, 1] in coords, yaw; [0, 1] in speed
+    in-place. denormalize target data from [-1, 1] in coords and yaw, [0, 1] in speed
 
-    :param y with shape [vehicle, NUM_PREDICT, 6] - for each vehicle [[x_1, y_1, v_1, yaw_1, acc_1, delta_1], ...]
+    :param y: normalized target data with shape [vehicle, NUM_PREDICT, 6] for each vehicle [[x_1, y_1, v_1, yaw_1, acc_1, delta_1], ...]
+    :param circle_boundary: boundary of circle on which cars are controlled on intersection
+    :param vechicle_max_speed: max speed of vehicle on intersection (in current intersection coordinate system)
+
+    :return: denormalized target data
     """
     denormalize_coords(y[:, :, :2], circle_boundary)
     denormalize_speed(y[:, :, 2], vechicle_max_speed)
@@ -370,11 +452,15 @@ def de_normalize_target_data(y, circle_boundary, vechicle_max_speed):
     return y
 
 
-def extract_needed_features(coords: np.ndarray, start_yaw: np.ndarray, last_yaw: np.ndarray):
+def extract_needed_features(coords: np.ndarray, start_yaw: np.ndarray, last_yaw: np.ndarray) -> np.ndarray:
     """
-    Everything in sumo coordinate system
+    extract needed features from vehicle coordinates (everything in sumo coordinate system)
 
-    :param coords: (v, 4) [x, y, speed, yaw]
+    :param coords: vehicle coordinates with shape (v, 4) containing [x, y, speed, yaw]
+    :param start_yaw: initial yaw angle
+    :param last_yaw: final yaw angle
+
+    :return: extracted features array
     """
     coords_copy = coords.copy()
     start_yaw_copy = np.ones((coords.shape[0], 1)) * np.deg2rad(start_yaw)
@@ -409,12 +495,12 @@ def extract_needed_features(coords: np.ndarray, start_yaw: np.ndarray, last_yaw:
     )
 
 
-def normalize_input_features(x: np.ndarray, map_bounding: np.ndarray):
+def normalize_input_features(x: np.ndarray, map_bounding: np.ndarray) -> None:
     """
-    Inplace
+    normalize input features (in-place)
 
-    :param x: Description
-    :param map_bounding: Description
+    :param x: input features array
+    :param map_bounding: map boundary size
     """
     normalize_input_data(x, COLLECT_DATA_RADIUS * map_bounding, VEHICLE_MAX_SPEED * map_bounding)
     normalize_yaw(x[:, 4])
@@ -428,16 +514,16 @@ def preprocess_file(
     map_bounding: float,
     start_positions_file: str,
     last_positions_file: str,
-):
+) -> None:
     """
-    Preprocesses csv file and save several pkl files
+    preprocess csv file and save several pkl files
 
-    :param csv_folder_path: csv folder with csv data files path
-    :type csv_folder_path: str
+    :param csv_folder_path: path to csv folder with csv data files
     :param csv_file: name of csv file in folder
-    :type csv_file: str
-    :param preprocess_folder_path: folder for storing preprocessed data in pkls path
-    :type preprocess_folder_path: str
+    :param preprocess_folder_path: path to folder for storing preprocessed data in pkl files
+    :param map_bounding: map boundary size
+    :param start_positions_file: filename for initial vehicle positions
+    :param last_positions_file: filename for final vehicle positions
     """
     df = pd.read_csv(os.path.join(csv_folder_path, csv_file))
     all_features = list()
@@ -518,7 +604,7 @@ def preprocess_file(
         # speed = all_features[:, row + 1 : row + 1 + NUM_PREDICT, 2:3]  # [vehicle, NUM_PREDICT, 1]
         speed = all_features[:, row + 1 : row + 1 + NUM_PREDICT, 2:3] - all_features[:, row : row + 1, 2:3]  # [vehicle, NUM_PREDICT, 1]
 
-        # this is not an angle in local coordinate system this is a yaw with which data point was rotated. BUT for +X allignment theese yaws are the same
+        # this is not an angle in local coordinate system this is a yaw with which data point was rotated. but for +x alignment these yaws are the same
         if ALLIGN_INITIAL_DIRECTION_TO_X:
             yaw = (
                 all_features[:, row + 1 : row + 1 + NUM_PREDICT, 3:4] - all_features[:, row : row + 1, 3:4]
@@ -592,9 +678,13 @@ def z_score_normalize_file(
     preprocess_file_path: str,
     y_x_dist_params_file: str,
     y_y_dist_params_file: str,
-):
+) -> None:
     """
-    In-place. Z-score
+    in-place. apply z-score normalization to preprocessed file (in-place)
+
+    :param preprocess_file_path: path to preprocessed pkl file
+    :param y_x_dist_params_file: path to file with x coordinate distribution parameters (mean, std)
+    :param y_y_dist_params_file: path to file with y coordinate distribution parameters (mean, std)
     """
     with open(preprocess_file_path, "rb") as f:
         data = pickle.load(f)
@@ -605,8 +695,8 @@ def z_score_normalize_file(
     with open(y_y_dist_params_file, "rb") as f:
         y_y_mean, y_y_std = pickle.load(f)
 
-    z_scrore_normalize(data[1][:, 0::6], y_x_mean, y_x_std)
-    z_scrore_normalize(data[1][:, 1::6], y_y_mean, y_y_std)
+    z_score_normalize(data[1][:, 0::6], y_x_mean, y_x_std)
+    z_score_normalize(data[1][:, 1::6], y_y_mean, y_y_std)
 
     with open(
         preprocess_file_path,

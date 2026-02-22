@@ -1,3 +1,9 @@
+"""
+configuration file for model factory
+
+this module defines constants used by model factory for loading and creating models
+"""
+
 from pathlib import Path
 import os
 

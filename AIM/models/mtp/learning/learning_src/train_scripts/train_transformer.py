@@ -1,5 +1,7 @@
 import torch
 import random
+from typing import Tuple
+from torch.utils.data import DataLoader
 
 from AIM.models.mtp.learning.learning_src.data_scripts.data_config import (
     ALLIGN_INITIAL_DIRECTION_TO_X,
@@ -18,32 +20,54 @@ from AIM.models.mtp.learning.learning_src.data_scripts.preprocess_utils import (
     normalize_yaw,
     adjust_future_yaw_delta,
     denormalize_yaw,
-    z_scrore_denormalize,
-    z_scrore_normalize,
+    z_score_denormalize,
+    z_score_normalize,
 )
 from .train_utils import my_get_speed, my_get_yaw
 
 
 def transformer_train_one_epoch(
-    model,
-    device,
-    data_loader,
-    optimizer,
-    step_weights_factor,
-    dist_threshold,
-    collision_penalty,
-    collision_penalty_factor,
-    epoch,
-    epochs,
-    yaw_keys,
-    yaw_values,
-    y_x_mean,
-    y_x_std,
-    y_y_mean,
-    y_y_std,
-    start_prediction_time=0.2,
-):
-    """Performs an epoch of GNN model training with rollout"""
+    model: torch.nn.Module,
+    device: torch.device,
+    data_loader: DataLoader,
+    optimizer: torch.optim.Optimizer,
+    step_weights_factor: float,
+    dist_threshold: float,
+    collision_penalty: bool,
+    collision_penalty_factor: float,
+    epoch: int,
+    epochs: int,
+    yaw_keys: torch.Tensor,
+    yaw_values: torch.Tensor,
+    y_x_mean: float,
+    y_x_std: float,
+    y_y_mean: float,
+    y_y_std: float,
+    start_prediction_time: float = 0.2,
+) -> float:
+    """
+    perform one epoch of transformer model training with rollout
+
+    :param model: transformer model to train
+    :param device: device for training
+    :param data_loader: data loader with training batches
+    :param optimizer: optimizer for model parameters
+    :param step_weights_factor: multiplication factor for step weights
+    :param dist_threshold: distance threshold for collision detection
+    :param collision_penalty: flag to enable collision penalty
+    :param collision_penalty_factor: factor for collision penalty
+    :param epoch: current epoch number
+    :param epochs: total number of epochs
+    :param yaw_keys: yaw dictionary keys
+    :param yaw_values: yaw dictionary values
+    :param y_x_mean: mean for x coordinate normalization
+    :param y_x_std: std for x coordinate normalization
+    :param y_y_mean: mean for y coordinate normalization
+    :param y_y_std: std for y coordinate normalization
+    :param start_prediction_time: ratio to start prediction on predictions
+
+    :return: average loss for epoch
+    """
     step_weights = torch.ones(PRED_LEN, device=device)
     step_weights[:5] *= step_weights_factor
     step_weights[0] *= step_weights_factor
@@ -55,14 +79,13 @@ def transformer_train_one_epoch(
     for batch in data_loader:
         # x_batch: [vehicle, 15]: [x_0, y_0, speed_0, yaw_0, cos yaw_0, sin yaw_0, cos yaw_start, sin yaw_start,  intent, intent, intent, start_pos, start_pos, start_pos, start_pos]
         x_batch, y_batch, weights_batch, attn_mask_batch, map_infos_batch, map_attn_mask_batch, map_boundaries = batch
-        if not x_batch.is_cuda:
-            x_batch = x_batch.to(device, non_blocking=True)
-            y_batch = y_batch.to(device, non_blocking=True)
-            weights_batch = weights_batch.to(device, non_blocking=True)
-            attn_mask_batch = attn_mask_batch.to(device, non_blocking=True)
-            map_infos_batch = map_infos_batch.to(device, non_blocking=True)
-            map_attn_mask_batch = map_attn_mask_batch.to(device, non_blocking=True)
-            map_boundaries = map_boundaries.to(device, non_blocking=True)
+        x_batch = x_batch.to(device, non_blocking=True)
+        y_batch = y_batch.to(device, non_blocking=True)
+        weights_batch = weights_batch.to(device, non_blocking=True)
+        attn_mask_batch = attn_mask_batch.to(device, non_blocking=True)
+        map_infos_batch = map_infos_batch.to(device, non_blocking=True)
+        map_attn_mask_batch = map_attn_mask_batch.to(device, non_blocking=True)
+        map_boundaries = map_boundaries.to(device, non_blocking=True)
         map_boundaries = map_boundaries.unsqueeze(-1)
 
         out_coords = None
@@ -140,8 +163,8 @@ def transformer_train_one_epoch(
 
             if idx > 0:
                 if NORMALIZE_DATA and ZSCORE_NORMALIZE:
-                    z_scrore_denormalize(dgt_coords[..., 0], y_x_mean, y_x_std)
-                    z_scrore_denormalize(dgt_coords[..., 1], y_y_mean, y_y_std)
+                    z_score_denormalize(dgt_coords[..., 0], y_x_mean, y_x_std)
+                    z_score_denormalize(dgt_coords[..., 1], y_y_mean, y_y_std)
 
                 if ALLIGN_INITIAL_DIRECTION_TO_X:
                     rotations_back_base = rotation_matrix_back_with_allign_to_X(yaw_base).to(device)
@@ -157,8 +180,8 @@ def transformer_train_one_epoch(
 
                 # Renormalize back to z-score space for loss computation
                 if NORMALIZE_DATA and ZSCORE_NORMALIZE:
-                    z_scrore_normalize(dgt_coords[..., 0], y_x_mean, y_x_std)
-                    z_scrore_normalize(dgt_coords[..., 1], y_y_mean, y_y_std)
+                    z_score_normalize(dgt_coords[..., 0], y_x_mean, y_x_std)
+                    z_score_normalize(dgt_coords[..., 1], y_y_mean, y_y_std)
             dgt_coords = dgt_coords[:, :, idx : PRED_LEN + idx, :]  # [b, v, PRED_LEN, 2]
 
             # Both dgt_coords and dout_coords are in z-score normalized space for loss computation
@@ -167,8 +190,8 @@ def transformer_train_one_epoch(
 
             # Denormalize dout_coords from z-score for use in next iteration (now in min-max normalized space)
             if NORMALIZE_DATA and ZSCORE_NORMALIZE:
-                z_scrore_denormalize(dout_coords[..., 0], y_x_mean, y_x_std)
-                z_scrore_denormalize(dout_coords[..., 1], y_y_mean, y_y_std)
+                z_score_denormalize(dout_coords[..., 0], y_x_mean, y_x_std)
+                z_score_denormalize(dout_coords[..., 1], y_y_mean, y_y_std)
 
             # get back from deltas to plain coordinates in predictions
             dout_coords = dout_coords.permute(0, 1, 3, 2)  # [b, v, 2, PRED_LEN]
@@ -203,24 +226,45 @@ def transformer_train_one_epoch(
 
 
 def transformer_evaluate(
-    model,
-    device,
-    data_loader,
-    step_weights_factor,
-    dist_threshold,
-    mr_threshold,
-    collision_penalty_factor,
-    epoch,
-    epochs,
-    yaw_keys,
-    yaw_values,
-    y_x_mean,
-    y_x_std,
-    y_y_mean,
-    y_y_std,
-    start_prediction_time=0.2,
-):
-    """Performs an epoch of model training."""
+    model: torch.nn.Module,
+    device: torch.device,
+    data_loader: DataLoader,
+    step_weights_factor: float,
+    dist_threshold: float,
+    mr_threshold: float,
+    collision_penalty_factor: float,
+    epoch: int,
+    epochs: int,
+    yaw_keys: torch.Tensor,
+    yaw_values: torch.Tensor,
+    y_x_mean: float,
+    y_x_std: float,
+    y_y_mean: float,
+    y_y_std: float,
+    start_prediction_time: float = 0.2,
+) -> Tuple[float, float, float, float, float, float]:
+    """
+    evaluate transformer model on validation data
+
+    :param model: transformer model to evaluate
+    :param device: device for evaluation
+    :param data_loader: data loader with validation batches
+    :param step_weights_factor: multiplication factor for step weights
+    :param dist_threshold: distance threshold for collision detection
+    :param mr_threshold: miss rate threshold
+    :param collision_penalty_factor: factor for collision penalty
+    :param epoch: current epoch number
+    :param epochs: total number of epochs
+    :param yaw_keys: yaw dictionary keys
+    :param yaw_values: yaw dictionary values
+    :param y_x_mean: mean for x coordinate normalization
+    :param y_x_std: std for x coordinate normalization
+    :param y_y_mean: mean for y coordinate normalization
+    :param y_y_std: std for y coordinate normalization
+    :param start_prediction_time: ratio to start prediction on predictions
+
+    :return: tuple of (ade, fde, mr, collision_rate, val_loss, collision_penalty)
+    """
     step_weights = torch.ones(PRED_LEN, device=device)
     step_weights[:5] *= step_weights_factor
     step_weights[0] *= step_weights_factor
@@ -235,14 +279,13 @@ def transformer_evaluate(
         for batch in data_loader:
             # x_batch: [vehicle, 15]: [x_0, y_0, speed_0, yaw_0, cos yaw_0, sin yaw_0, cos yaw_start, sin yaw_start,  intent, intent, intent, start_pos, start_pos, start_pos, start_pos]
             x_batch, y_batch, weights_batch, attn_mask_batch, map_infos_batch, map_attn_mask_batch, map_boundaries = batch
-            if not x_batch.is_cuda:
-                x_batch = x_batch.to(device, non_blocking=True)
-                y_batch = y_batch.to(device, non_blocking=True)
-                weights_batch = weights_batch.to(device, non_blocking=True)
-                attn_mask_batch = attn_mask_batch.to(device, non_blocking=True)
-                map_infos_batch = map_infos_batch.to(device, non_blocking=True)
-                map_attn_mask_batch = map_attn_mask_batch.to(device, non_blocking=True)
-                map_boundaries = map_boundaries.to(device, non_blocking=True)
+            x_batch = x_batch.to(device, non_blocking=True)
+            y_batch = y_batch.to(device, non_blocking=True)
+            weights_batch = weights_batch.to(device, non_blocking=True)
+            attn_mask_batch = attn_mask_batch.to(device, non_blocking=True)
+            map_infos_batch = map_infos_batch.to(device, non_blocking=True)
+            map_attn_mask_batch = map_attn_mask_batch.to(device, non_blocking=True)
+            map_boundaries = map_boundaries.to(device, non_blocking=True)
             map_boundaries = map_boundaries.unsqueeze(-1)
 
             out_coords = None
@@ -316,8 +359,8 @@ def transformer_evaluate(
 
                 if idx > 0:
                     if NORMALIZE_DATA and ZSCORE_NORMALIZE:
-                        z_scrore_denormalize(dgt_coords[..., 0], y_x_mean, y_x_std)
-                        z_scrore_denormalize(dgt_coords[..., 1], y_y_mean, y_y_std)
+                        z_score_denormalize(dgt_coords[..., 0], y_x_mean, y_x_std)
+                        z_score_denormalize(dgt_coords[..., 1], y_y_mean, y_y_std)
 
                     if ALLIGN_INITIAL_DIRECTION_TO_X:
                         rotations_back_base = rotation_matrix_back_with_allign_to_X(yaw_base).to(device)
@@ -333,8 +376,8 @@ def transformer_evaluate(
 
                     # Renormalize back to z-score space for loss computation
                     if NORMALIZE_DATA and ZSCORE_NORMALIZE:
-                        z_scrore_normalize(dgt_coords[..., 0], y_x_mean, y_x_std)
-                        z_scrore_normalize(dgt_coords[..., 1], y_y_mean, y_y_std)
+                        z_score_normalize(dgt_coords[..., 0], y_x_mean, y_x_std)
+                        z_score_normalize(dgt_coords[..., 1], y_y_mean, y_y_std)
                 dgt_coords = dgt_coords[:, :, idx : PRED_LEN + idx, :]  # [b, v, PRED_LEN, 2]
 
                 # Both dgt_coords and dout_coords are in z-score normalized space for loss computation
@@ -345,10 +388,10 @@ def transformer_evaluate(
 
                 # Denormalize dout_coords from z-score for use in next iteration (now in min-max normalized space)
                 if NORMALIZE_DATA and ZSCORE_NORMALIZE:
-                    z_scrore_denormalize(dgt_coords[..., 0], y_x_mean, y_x_std)
-                    z_scrore_denormalize(dgt_coords[..., 1], y_y_mean, y_y_std)
-                    z_scrore_denormalize(dout_coords[..., 0], y_x_mean, y_x_std)
-                    z_scrore_denormalize(dout_coords[..., 1], y_y_mean, y_y_std)
+                    z_score_denormalize(dgt_coords[..., 0], y_x_mean, y_x_std)
+                    z_score_denormalize(dgt_coords[..., 1], y_y_mean, y_y_std)
+                    z_score_denormalize(dout_coords[..., 0], y_x_mean, y_x_std)
+                    z_score_denormalize(dout_coords[..., 1], y_y_mean, y_y_std)
 
                 error = ((dgt_coords - dout_coords) * attn_mask_batch[:, 0].unsqueeze(-1).unsqueeze(-1)).square().sum(-1) ** 0.5
                 fde.append(error[attn_mask_batch[:, 0]][:, -1])

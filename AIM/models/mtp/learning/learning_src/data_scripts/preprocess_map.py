@@ -2,6 +2,8 @@ from PIL import Image, ImageDraw
 import numpy as np
 import os
 import xml.etree.ElementTree as ET
+from typing import Optional, Tuple
+from xml.etree.ElementTree import Element
 
 from .data_config import (
     IMG_SHAPE,
@@ -21,21 +23,47 @@ MAP_LANES_DTYPE = [("img", "O"), ("shape_points", "O"), ("map_boundings", "f4", 
 MAP_MAP_DTYPE = [("img", "O"), ("map_boundings", "f4", (1,))]
 
 
-def get_by_id(root, target_id: str):
+def get_by_id(root: Element, target_id: str) -> Optional[Element]:
+    """
+    find element by id in xml tree
+
+    :param root: root element of xml tree
+    :param target_id: target element id
+
+    :return: element with matching id or None if not found
+    """
     for elem in root.iter():
         if elem.get("id") == target_id:
             return elem
     return None
 
 
-def point2pixel(point, min, max):
+def point2pixel(point: tuple[float, float], min: float, max: float) -> tuple[float, float]:
+    """
+    convert point coordinates to pixel coordinates
+
+    :param point: point coordinates (x, y)
+    :param min: minimum coordinate value
+    :param max: maximum coordinate value
+
+    :return: pixel coordinates (px, py)
+    """
     scale = IMG_SHAPE / (max - min)
     px = point[0] * scale
     py = point[1] * scale
     return (px + IMG_SHAPE / 2, py + IMG_SHAPE / 2)
 
 
-def preprocess_map(net_file_path: str, output_dir: str = None, save_png=False):
+def preprocess_map(net_file_path: str, output_dir: Optional[str] = None, save_png: bool = False) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """
+    preprocess sumo network map and generate map representations at different levels in image based encoding
+
+    :param net_file_path: path to sumo network xml file
+    :param output_dir: directory to save preprocessed map data (optional)
+    :param save_png: flag to save png images of map parts and lanes
+
+    :return: tuple of (part_level_data, lane_level_data, map_level_data)
+    """
     if output_dir is not None:
         os.makedirs(output_dir, exist_ok=True)
 

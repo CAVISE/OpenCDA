@@ -1,5 +1,7 @@
+import torch
 import torch.nn as nn
 from huggingface_hub import PyTorchModelHubMixin
+from typing import Tuple
 
 from AIM.models.mtp.mtp_models.all_models.encoders_car.transformer_based.encoder_car_v1 import CarsEncoder, SimpleDecoder
 from AIM.models.mtp.mtp_models.all_models.encoders_map.lane_lv_map_encoder.lane_lv_map_encoder import LaneMapEncoder
@@ -7,22 +9,43 @@ from AIM.models.mtp.mtp_models.all_models.transformer_utils.transformer_utils im
 
 
 class TransfAny_v1(nn.Module, PyTorchModelHubMixin):
+    """
+    transformer model with map encoder and cross-attention between cars and map features
+    """
+
     def __init__(
         self,
-        map_encoder_base_channels=16,
-        map_encoder_stages=(3, 4, 4, 3, 3),
-        map_encoder_out_vec_size=128,
-        cars_encoder_hidden_channels=128,
-        cars_encoder_n_heads=4,
-        dropout=0.2,
-        cars_encoder_n_attn=4,
-        bias=True,
-        cars_encoder_n_linear_encoder=2,
-        decoder_n_linear_decoder=2,
-        cross_attn_n_heads=4,
-        cross_attn_n_linear=2,
-        cross_attn_n_attn=2,
-    ):
+        map_encoder_base_channels: int = 16,
+        map_encoder_stages: Tuple[int, ...] = (3, 4, 4, 3, 3),
+        map_encoder_out_vec_size: int = 128,
+        cars_encoder_hidden_channels: int = 128,
+        cars_encoder_n_heads: int = 4,
+        dropout: float = 0.2,
+        cars_encoder_n_attn: int = 4,
+        bias: bool = True,
+        cars_encoder_n_linear_encoder: int = 2,
+        decoder_n_linear_decoder: int = 2,
+        cross_attn_n_heads: int = 4,
+        cross_attn_n_linear: int = 2,
+        cross_attn_n_attn: int = 2,
+    ) -> None:
+        """
+        initialize transformer model with map encoder
+
+        :param map_encoder_base_channels: base number of channels for map encoder
+        :param map_encoder_stages: tuple of stage depths for map encoder
+        :param map_encoder_out_vec_size: output vector size for map encoder
+        :param cars_encoder_hidden_channels: hidden channels for cars encoder
+        :param cars_encoder_n_heads: number of attention heads for cars encoder
+        :param dropout: dropout probability
+        :param cars_encoder_n_attn: number of self-attention blocks in cars encoder
+        :param bias: whether to use bias in linear layers
+        :param cars_encoder_n_linear_encoder: number of linear layers in cars encoder
+        :param decoder_n_linear_decoder: number of linear layers in decoder
+        :param cross_attn_n_heads: number of attention heads for cross-attention
+        :param cross_attn_n_linear: number of linear layers in cross-attention
+        :param cross_attn_n_attn: number of cross-attention blocks
+        """
         super().__init__()
         self.map_encoder = LaneMapEncoder(map_encoder_base_channels, map_encoder_stages, map_encoder_out_vec_size)
         self.cars_encoder = CarsEncoder(
@@ -38,7 +61,17 @@ class TransfAny_v1(nn.Module, PyTorchModelHubMixin):
         )
         self.simple_decoder = SimpleDecoder(cars_encoder_hidden_channels, bias, decoder_n_linear_decoder)
 
-    def forward(self, x, map, cars_attn_mask, map_attn_mask):
+    def forward(self, x: torch.Tensor, map: torch.Tensor, cars_attn_mask: torch.Tensor, map_attn_mask: torch.Tensor) -> torch.Tensor:
+        """
+        forward pass through transformer model
+
+        :param x: input tensor with car features
+        :param map: input tensor with map features
+        :param cars_attn_mask: attention mask for cars encoder
+        :param map_attn_mask: attention mask for map encoder
+
+        :return: predicted trajectories
+        """
         x = self.cars_encoder(x, cars_attn_mask)
         map = self.map_encoder(map)
 

@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import sumolib
 import xml.etree.ElementTree as ET
+from xml.etree.ElementTree import Element
 from tqdm import trange
 
 from .data_config import (
@@ -18,6 +19,15 @@ from .data_config import (
 
 
 def get_shortest_path(net_path: str, from_edge: str, to_edge: str) -> str:
+    """
+    get shortest path from one edge to another
+
+    :param net_path: path to net.xml file
+    :param from_edge: start edge id
+    :param to_edge: end edge id
+
+    :return path: path in edge sequence between from_edge and to_edge
+    """
     net = sumolib.net.readNet(net_path)
     from_edge = net.getEdge(from_edge)
     to_edge = net.getEdge(to_edge)
@@ -30,7 +40,14 @@ def get_shortest_path(net_path: str, from_edge: str, to_edge: str) -> str:
     return " ".join([i.getID() for i in edges_short])
 
 
-def get_map_bounding(src_net_file_path: str):
+def get_map_bounding(src_net_file_path: str) -> float:
+    """
+    get map bounding from net_file
+
+    :param src_net_file_path: path to net.xml file
+
+    :return map boundings: one number (expected that map is represented as squere)
+    """
     if os.path.exists(src_net_file_path) and src_net_file_path.endswith(".net.xml"):
         tree = ET.parse(src_net_file_path)
         root = tree.getroot()
@@ -44,19 +61,16 @@ def get_map_bounding(src_net_file_path: str):
         raise Exception("")
 
 
-def get_entry_exit_edges(net_path: str):
+def get_entry_exit_edges(net_path: str) -> dict[str, list[str]]:
     """
     Gets all entry edges and for each finds all possible exit edges that a vehicle can reach.
 
     Entry edges are "boundary" edges that have only one connection (no incoming edges or with minimal count).
     Exit edges are "boundary" edges that have only one connection (no outgoing edges or with minimal count).
 
-    Args:
-        - net_path: path to .net.xml file
+    :param net_path: path to .net.xml file
 
-    Returns:
-        - dictionary where keys are entry edge IDs and values are lists of exit edge IDs
-          that can be reached from the corresponding entry edge
+    :return dictionary: dictionary where keys are entry edge IDs and values are lists of exit edge IDs that can be reached from the corresponding entry edge
     """
     net = sumolib.net.readNet(net_path)
     entry_edges = []
@@ -94,21 +108,18 @@ def get_entry_exit_edges(net_path: str):
     return result
 
 
-def get_connection_via(root, from_edge: str, to_edge: str, from_lane: int = 0):
-    """Find the internal edge (via) that connects two edges."""
+def get_connection_via(root: Element, from_edge: str, to_edge: str) -> str:
+    """
+    Find the internal edge (via) that connects two edges.
+
+    :param root: root elemet of net.xml file
+    :param from_edge: start edge
+    :param to_edge: end egde
+    """
     for connection in root.findall("connection"):
         conn_from = connection.get("from")
         conn_to = connection.get("to")
 
-        if conn_from == from_edge and conn_to == to_edge and not conn_from.startswith(":") and connection.get("fromLane") == str(from_lane):
-            via = connection.get("via")
-            if via:
-                via_edge = via.rsplit("_", 1)[0]
-                return via_edge
-
-    for connection in root.findall("connection"):
-        conn_from = connection.get("from")
-        conn_to = connection.get("to")
         if conn_from == from_edge and conn_to == to_edge and not conn_from.startswith(":"):
             via = connection.get("via")
             if via:
@@ -118,6 +129,13 @@ def get_connection_via(root, from_edge: str, to_edge: str, from_lane: int = 0):
 
 
 def save_csv(df: pd.DataFrame, name: str, dir: str = "./csv") -> NoReturn:
+    """
+    save dataframe to csv
+
+    :param df: dataframe
+    :param name: name of csv file to save to
+    :param dir: path to dir to place csv file to
+    """
     if not os.path.exists(dir):
         os.makedirs(dir)
 
@@ -134,8 +152,22 @@ def generate_fcd(
     step_length: float = 0.1,
     traffic_scale: float = 0.5,
     precision: int = 6,
-    is_ballistic_mode=False,
+    is_ballistic_mode: bool = False,
 ) -> NoReturn:
+    """
+    generating fcd from sumoconfig file
+
+    :param sumocfg_path: path to sumo config file
+    :param fcd_path: path to output fcd file
+    :param begin_time: begin time of simulation
+    :param offset_time: time offset before starting data collection
+    :param total_time: total time of simulation
+    :param step_length: simulation step length in seconds
+    :param traffic_scale: traffic scale factor
+    :param precision: decimal precision for output coordinates
+    :param is_ballistic_mode: flag if ballistic mode
+    """
+
     cmd = f"sumo -c {sumocfg_path} --fcd-output {fcd_path} --begin {begin_time} --end {begin_time + offset_time + total_time} \
             --step-length {step_length} --scale {traffic_scale} --precision {precision}"
 
@@ -147,11 +179,12 @@ def generate_fcd(
 
 def get_random_route(from_path: str, possible_paths: dict[str, list[str]]) -> str:
     """
-    Args:
-        - from_path: e.g. from_edge id
+    get random route from possible paths
 
-    Return:
-        - route name: e.g. '<from_edge>_<to_edge>'
+    :param from_path: start edge id (e.g. from_edge id)
+    :param possible_paths: dictionary mapping entry edges to list of exit edges
+
+    :return: route name in format '<from_edge>_<to_edge>'
     """
     return f"{from_path}_{random.choice(list(possible_paths[from_path]))}"
 
@@ -163,15 +196,28 @@ def generate_routefile(
     num_seconds: int = 2000,
     create_new_vehicle_prob: float = 0.08,
     random_seed: int = 3,
-    max_vehicle_accel=0.025,
-    vehicle_decel=0.045,
-    vehicle_sigma=0.5,
-    vehicle_length=0.05,
-    vehicle_max_speed=0.4,
-    vehicle_minGap=0.025,
+    max_vehicle_accel: float = 0.025,
+    vehicle_decel: float = 0.045,
+    vehicle_sigma: float = 0.5,
+    vehicle_length: float = 0.05,
+    vehicle_max_speed: float = 0.4,
+    vehicle_minGap: float = 0.025,
 ) -> NoReturn:
     """
-    Generate *.rou.xml file. (for the separated road net)
+    generate route file (*.rou.xml) for separated road network
+
+    :param sumo_files_path: path to directory containing sumo files
+    :param rou_xml_filename: name of output route xml file (without extension)
+    :param net_xml_filename: name of network xml file
+    :param num_seconds: duration of simulation in seconds
+    :param create_new_vehicle_prob: probability of creating new vehicle at each second
+    :param random_seed: random seed for reproducibility
+    :param max_vehicle_accel: maximum vehicle acceleration
+    :param vehicle_decel: vehicle deceleration rate
+    :param vehicle_sigma: driver imperfection parameter
+    :param vehicle_length: vehicle length
+    :param vehicle_max_speed: maximum vehicle speed
+    :param vehicle_minGap: minimum gap between vehicles
     """
     random.seed(random_seed)  # make tests reproducible
     num_vehicles = 0
@@ -208,6 +254,15 @@ def generate_routefile(
 
 
 def generate_sumocfg(sumo_files_path: str, rou_xml_filename: str, net_filename: str) -> str:
+    """
+    generate sumo config file from template
+
+    :param sumo_files_path: path to directory containing sumo files
+    :param rou_xml_filename: name of route xml file
+    :param net_filename: name of network xml file
+
+    :return: path to generated sumo config file
+    """
     sumocfg_path = os.path.join(sumo_files_path, "sumocfg")
     os.makedirs(sumocfg_path, exist_ok=True)
     sumocfg_filename = os.path.join(sumocfg_path, f"{rou_xml_filename}.sumocfg")
@@ -225,7 +280,17 @@ def generate_sumocfg(sumo_files_path: str, rou_xml_filename: str, net_filename: 
 
 def generate_csv_from_fcd(
     fcd_file: str, csv_dir: str, time_per_scene: int, map_boundings: float, start_positions_file: str, last_positions_file: str
-):
+) -> NoReturn:
+    """
+    generate csv files from sumo fcd (floating car data) file
+
+    :param fcd_file: path to input fcd xml file
+    :param csv_dir: directory to save output csv files
+    :param time_per_scene: duration of each scene in seconds
+    :param map_boundings: map boundary size
+    :param start_positions_file: filename for saving initial vehicle positions
+    :param last_positions_file: filename for saving final vehicle positions
+    """
     if os.path.exists(csv_dir):  # delete directory with old data if exists
         shutil.rmtree(csv_dir)
 

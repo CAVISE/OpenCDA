@@ -5,7 +5,13 @@ import argparse
 from .data_path_config import MAIN_PATH, EXPIREMENTS_PATH, LOGS_DIR_NAME
 
 
-def get_top_configs_by_metrics(top_n=5, expirements_path=EXPIREMENTS_PATH):
+def get_top_configs_by_metrics(top_n: int = 5, expirements_path: str = EXPIREMENTS_PATH) -> None:
+    """
+    get top n configurations by metrics and save to csv
+
+    :param top_n: number of top configurations to select per metric
+    :param expirements_path: path to experiments directory
+    """
     rows = []
     for folder_name in os.listdir(expirements_path):
         folder_path = os.path.join(expirements_path, folder_name, LOGS_DIR_NAME)
@@ -36,7 +42,10 @@ def get_top_configs_by_metrics(top_n=5, expirements_path=EXPIREMENTS_PATH):
     top_n_df.to_csv(os.path.join(expirements_path, "top_n_metrics.csv"))
 
 
-def main():
+def main() -> None:
+    """
+    main function to get top configurations by metrics
+    """
     parser = argparse.ArgumentParser(description="")
 
     parser.add_argument("--experements_dir_path", type=str, help="", default="experements")

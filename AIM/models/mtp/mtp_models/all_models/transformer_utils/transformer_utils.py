@@ -121,7 +121,19 @@ class MultiHeadAttention(nn.Module):
 
 
 class SelfAttnBlock(nn.Module):
-    def __init__(self, hidden_channels, n_heads, dropout, bias, n_linear):
+    """
+    transformer block with self-attention and feed-forward network
+    """
+    def __init__(self, hidden_channels: int, n_heads: int, dropout: float, bias: bool, n_linear: int) -> None:
+        """
+        initialize self-attention block
+
+        :param hidden_channels: number of hidden channels
+        :param n_heads: number of attention heads
+        :param dropout: dropout probability
+        :param bias: whether to use bias in linear layers
+        :param n_linear: number of linear layers (not used, kept for compatibility)
+        """
         super().__init__()
         self.attn = MultiHeadAttention(hidden_channels, hidden_channels, hidden_channels, hidden_channels * n_heads, n_heads, dropout=dropout)
         self.norm1 = nn.LayerNorm(hidden_channels)
@@ -132,7 +144,15 @@ class SelfAttnBlock(nn.Module):
         self.dropout = nn.Dropout(p=dropout)
         self.act = nn.GELU()
 
-    def forward(self, x, attn_mask):
+    def forward(self, x: torch.Tensor, attn_mask: torch.Tensor) -> torch.Tensor:
+        """
+        forward pass through self-attention block
+
+        :param x: input tensor
+        :param attn_mask: attention mask
+
+        :return: output tensor
+        """
         residual = x
         x = self.norm1(x)
         x = residual + self.dropout(self.attn(x, x, x, attn_mask=attn_mask))
@@ -152,7 +172,20 @@ class SelfAttnBlock(nn.Module):
 
 
 class CrossAttnBlock(nn.Module):
-    def __init__(self, x_hidden_channels, y_hidden_channels, n_heads, dropout, bias, n_linear):
+    """
+    transformer block with cross-attention and feed-forward network
+    """
+    def __init__(self, x_hidden_channels: int, y_hidden_channels: int, n_heads: int, dropout: float, bias: bool, n_linear: int) -> None:
+        """
+        initialize cross-attention block
+
+        :param x_hidden_channels: number of hidden channels for query
+        :param y_hidden_channels: number of hidden channels for key and value
+        :param n_heads: number of attention heads
+        :param dropout: dropout probability
+        :param bias: whether to use bias in linear layers
+        :param n_linear: number of linear layers (not used, kept for compatibility)
+        """
         super().__init__()
         self.attn = MultiHeadAttention(x_hidden_channels, y_hidden_channels, y_hidden_channels, x_hidden_channels * n_heads, n_heads, dropout=dropout)
         self.norm1 = nn.LayerNorm(x_hidden_channels)
@@ -163,7 +196,16 @@ class CrossAttnBlock(nn.Module):
         self.dropout = nn.Dropout(p=dropout)
         self.act = nn.GELU()
 
-    def forward(self, x, y, attn_mask):
+    def forward(self, x: torch.Tensor, y: torch.Tensor, attn_mask: torch.Tensor) -> torch.Tensor:
+        """
+        forward pass through cross-attention block
+
+        :param x: query tensor
+        :param y: key and value tensor
+        :param attn_mask: attention mask
+
+        :return: output tensor
+        """
         residual = x
         x = self.norm1(x)
         x = residual + self.dropout(self.attn(x, y, y, attn_mask=attn_mask))

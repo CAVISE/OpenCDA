@@ -1,5 +1,7 @@
 import torch
 import random
+from typing import Tuple
+from torch_geometric.loader import DataLoader as GeometricDataLoader
 
 from AIM.models.mtp.learning.learning_src.data_scripts.data_config import (
     ALLIGN_INITIAL_DIRECTION_TO_X,
@@ -18,33 +20,56 @@ from AIM.models.mtp.learning.learning_src.data_scripts.preprocess_utils import (
     denormalize_yaw,
     normalize_yaw,
     adjust_future_yaw_delta,
-    z_scrore_denormalize,
-    z_scrore_normalize,
+    z_score_denormalize,
+    z_score_normalize,
 )
 from .train_utils import my_get_speed, my_get_yaw
 
 
 def gnn_train_one_epoch(
-    model,
-    device,
-    data_loader,
-    optimizer,
-    step_weights_factor,
-    dist_threshold,
-    collision_penalty,
-    collision_penalty_factor,
-    epoch,
-    epochs,
-    yaw_keys,
-    yaw_values,
-    y_x_mean,
-    y_x_std,
-    y_y_mean,
-    y_y_std,
-    start_prediction_time=0.2,
-    map_boundary=100,
-):
-    """Performs an epoch of GNN model training with rollout"""
+    model: torch.nn.Module,
+    device: torch.device,
+    data_loader: GeometricDataLoader,
+    optimizer: torch.optim.Optimizer,
+    step_weights_factor: float,
+    dist_threshold: float,
+    collision_penalty: bool,
+    collision_penalty_factor: float,
+    epoch: int,
+    epochs: int,
+    yaw_keys: torch.Tensor,
+    yaw_values: torch.Tensor,
+    y_x_mean: float,
+    y_x_std: float,
+    y_y_mean: float,
+    y_y_std: float,
+    start_prediction_time: float = 0.2,
+    map_boundary: float = 100,
+) -> float:
+    """
+    perform one epoch of gnn model training with rollout
+
+    :param model: gnn model to train
+    :param device: device for training
+    :param data_loader: data loader with training batches
+    :param optimizer: optimizer for model parameters
+    :param step_weights_factor: multiplication factor for step weights
+    :param dist_threshold: distance threshold for collision detection
+    :param collision_penalty: flag to enable collision penalty
+    :param collision_penalty_factor: factor for collision penalty
+    :param epoch: current epoch number
+    :param epochs: total number of epochs
+    :param yaw_keys: yaw dictionary keys
+    :param yaw_values: yaw dictionary values
+    :param y_x_mean: mean for x coordinate normalization
+    :param y_x_std: std for x coordinate normalization
+    :param y_y_mean: mean for y coordinate normalization
+    :param y_y_std: std for y coordinate normalization
+    :param start_prediction_time: ratio to start prediction on predictions
+    :param map_boundary: map boundary value
+
+    :return: average loss for epoch
+    """
     step_weights = torch.ones(PRED_LEN, device=device)
     step_weights[:5] *= step_weights_factor
     step_weights[0] *= step_weights_factor
@@ -127,8 +152,8 @@ def gnn_train_one_epoch(
 
             if idx > 0:
                 if NORMALIZE_DATA and ZSCORE_NORMALIZE:
-                    z_scrore_denormalize(dgt_coords[..., 0], y_x_mean, y_x_std)
-                    z_scrore_denormalize(dgt_coords[..., 1], y_y_mean, y_y_std)
+                    z_score_denormalize(dgt_coords[..., 0], y_x_mean, y_x_std)
+                    z_score_denormalize(dgt_coords[..., 1], y_y_mean, y_y_std)
 
                 if ALLIGN_INITIAL_DIRECTION_TO_X:
                     rotations_back_base = rotation_matrix_back_with_allign_to_X(yaw_base).to(device)
@@ -143,8 +168,8 @@ def gnn_train_one_epoch(
                 dgt_coords = torch.bmm(rotation_current, dgt_coords).permute(0, 2, 1)
 
                 if NORMALIZE_DATA and ZSCORE_NORMALIZE:
-                    z_scrore_normalize(dgt_coords[..., 0], y_x_mean, y_x_std)
-                    z_scrore_normalize(dgt_coords[..., 1], y_y_mean, y_y_std)
+                    z_score_normalize(dgt_coords[..., 0], y_x_mean, y_x_std)
+                    z_score_normalize(dgt_coords[..., 1], y_y_mean, y_y_std)
 
             dgt_coords = dgt_coords[:, idx : PRED_LEN + idx, :]  # [v, PRED_LEN, 2]
 
@@ -152,8 +177,8 @@ def gnn_train_one_epoch(
             loss = (batch.weights * error).nanmean()
 
             if NORMALIZE_DATA and ZSCORE_NORMALIZE:
-                z_scrore_denormalize(dout_coords[..., 0], y_x_mean, y_x_std)
-                z_scrore_denormalize(dout_coords[..., 1], y_y_mean, y_y_std)
+                z_score_denormalize(dout_coords[..., 0], y_x_mean, y_x_std)
+                z_score_denormalize(dout_coords[..., 1], y_y_mean, y_y_std)
 
             # get back from deltas to plain coordinates in predictions
             dout_coords = dout_coords.permute(0, 2, 1)  # [v, 2, PRED_LEN]
@@ -186,25 +211,47 @@ def gnn_train_one_epoch(
 
 
 def gnn_evaluate(
-    model,
-    device,
-    data_loader,
-    step_weights_factor,
-    dist_threshold,
-    mr_threshold,
-    collision_penalty_factor,
-    epoch,
-    epochs,
-    yaw_keys,
-    yaw_values,
-    y_x_mean,
-    y_x_std,
-    y_y_mean,
-    y_y_std,
-    start_prediction_time=0.2,
-    map_boundary=100,
-):
-    """Performs an epoch of model training."""
+    model: torch.nn.Module,
+    device: torch.device,
+    data_loader: GeometricDataLoader,
+    step_weights_factor: float,
+    dist_threshold: float,
+    mr_threshold: float,
+    collision_penalty_factor: float,
+    epoch: int,
+    epochs: int,
+    yaw_keys: torch.Tensor,
+    yaw_values: torch.Tensor,
+    y_x_mean: float,
+    y_x_std: float,
+    y_y_mean: float,
+    y_y_std: float,
+    start_prediction_time: float = 0.2,
+    map_boundary: float = 100,
+) -> Tuple[float, float, float, float, float, float]:
+    """
+    evaluate gnn model on validation data
+
+    :param model: gnn model to evaluate
+    :param device: device for evaluation
+    :param data_loader: data loader with validation batches
+    :param step_weights_factor: multiplication factor for step weights
+    :param dist_threshold: distance threshold for collision detection
+    :param mr_threshold: miss rate threshold
+    :param collision_penalty_factor: factor for collision penalty
+    :param epoch: current epoch number
+    :param epochs: total number of epochs
+    :param yaw_keys: yaw dictionary keys
+    :param yaw_values: yaw dictionary values
+    :param y_x_mean: mean for x coordinate normalization
+    :param y_x_std: std for x coordinate normalization
+    :param y_y_mean: mean for y coordinate normalization
+    :param y_y_std: std for y coordinate normalization
+    :param start_prediction_time: ratio to start prediction on predictions
+    :param map_boundary: map boundary value
+
+    :return: tuple of (ade, fde, mr, collision_rate, val_loss, collision_penalty)
+    """
     step_weights = torch.ones(PRED_LEN, device=device)
     step_weights[:5] *= step_weights_factor
     step_weights[0] *= step_weights_factor
@@ -288,8 +335,8 @@ def gnn_evaluate(
                     # dgt_coords is in z-score normalized space, but batch.x and x are in min-max normalized space
                     # We need to denormalize dgt_coords from z-score first, do transformation, then renormalize
                     if NORMALIZE_DATA and ZSCORE_NORMALIZE:
-                        z_scrore_denormalize(dgt_coords[..., 0], y_x_mean, y_x_std)
-                        z_scrore_denormalize(dgt_coords[..., 1], y_y_mean, y_y_std)
+                        z_score_denormalize(dgt_coords[..., 0], y_x_mean, y_x_std)
+                        z_score_denormalize(dgt_coords[..., 1], y_y_mean, y_y_std)
 
                     if ALLIGN_INITIAL_DIRECTION_TO_X:
                         rotations_back_base = rotation_matrix_back_with_allign_to_X(yaw_base).to(device)
@@ -305,8 +352,8 @@ def gnn_evaluate(
 
                     # Renormalize back to z-score space for loss computation
                     if NORMALIZE_DATA and ZSCORE_NORMALIZE:
-                        z_scrore_normalize(dgt_coords[..., 0], y_x_mean, y_x_std)
-                        z_scrore_normalize(dgt_coords[..., 1], y_y_mean, y_y_std)
+                        z_score_normalize(dgt_coords[..., 0], y_x_mean, y_x_std)
+                        z_score_normalize(dgt_coords[..., 1], y_y_mean, y_y_std)
                 dgt_coords = dgt_coords[:, idx : PRED_LEN + idx, :]  # [v, PRED_LEN, 2]
 
                 _error = (dgt_coords - dout_coords).square().sum(-1)
@@ -319,10 +366,10 @@ def gnn_evaluate(
 
                 # Denormalize dgt_coords and dout_coords from z-score for use in next iteration (now in min-max normalized space)
                 if NORMALIZE_DATA and ZSCORE_NORMALIZE:
-                    z_scrore_denormalize(dgt_coords[..., 0], y_x_mean, y_x_std)
-                    z_scrore_denormalize(dgt_coords[..., 1], y_y_mean, y_y_std)
-                    z_scrore_denormalize(dout_coords[..., 0], y_x_mean, y_x_std)
-                    z_scrore_denormalize(dout_coords[..., 1], y_y_mean, y_y_std)
+                    z_score_denormalize(dgt_coords[..., 0], y_x_mean, y_x_std)
+                    z_score_denormalize(dgt_coords[..., 1], y_y_mean, y_y_std)
+                    z_score_denormalize(dout_coords[..., 0], y_x_mean, y_x_std)
+                    z_score_denormalize(dout_coords[..., 1], y_y_mean, y_y_std)
 
                 error = ((dgt_coords - dout_coords).square().sum(-1)) ** 0.5
                 fde.append(error[:, -1])

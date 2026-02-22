@@ -12,6 +12,8 @@ import pandas as pd
 import pickle as pkl
 import math
 from torch.nn.utils.rnn import pad_sequence
+from typing import Optional, Tuple, Any, Dict
+from multiprocessing.connection import Connection
 
 from AIM.models.mtp.learning.data_path_config import DATA_PATH, Y_X_DISTR_FILE, Y_Y_DISTR_FILE, YAW_DICT_PATH
 from AIM.models.mtp.learning.learning_src.data_scripts.data_config import (
@@ -25,12 +27,25 @@ from .train_transformer import transformer_train_one_epoch, transformer_evaluate
 
 
 class Dict2Class(object):
-    def __init__(self, dict):
+    """
+    utility class to convert dictionary to object with attributes
+    """
+
+    def __init__(self, dict: Dict[str, Any]) -> None:
+        """
+        initialize dict2class from dictionary
+
+        :param dict: dictionary to convert to object
+        """
         for key in dict:
             setattr(self, key, dict[key])
 
 
 class PathConfig:
+    """
+    configuration class for managing experiment paths
+    """
+
     def __init__(
         self,
         base_exp_path: str,
@@ -42,6 +57,18 @@ class PathConfig:
         train_data_dir: str,
         val_data_dir: str,
     ):
+        """
+        initialize path configuration
+
+        :param base_exp_path: base path for experiments
+        :param base_data_path: base path for data
+        :param exp_id: experiment identifier
+        :param train_config_path: path to training config file
+        :param model_config_path: path to model config file
+        :param logs_dir_path: path to logs directory
+        :param train_data_dir: training data directory name
+        :param val_data_dir: validation data directory name
+        """
         self.experiments_path = base_exp_path
         self.base_data_path = base_data_path
         self.exp_path = os.path.join(base_exp_path, exp_id)
@@ -58,13 +85,23 @@ class PathConfig:
         self.train_data_dir = os.path.join(self.base_data_path, train_data_dir)
         self.val_data_dir = os.path.join(self.base_data_path, val_data_dir)
 
-    def create_directories(self):
+    def create_directories(self) -> None:
+        """
+        create all necessary directories for experiment
+        """
         os.makedirs(self.experiments_path, exist_ok=True)
         os.makedirs(self.model_checkpoints_dir, exist_ok=True)
         os.makedirs(self.logs_dir, exist_ok=True)
 
 
-def read_config_file(config_file_path: str):
+def read_config_file(config_file_path: str) -> Dict2Class:
+    """
+    read yaml config file and convert to object
+
+    :param config_file_path: path to yaml config file
+
+    :return: config object with attributes from yaml file
+    """
     try:
         with open(config_file_path) as config_file:
             dict_config = yaml.safe_load(config_file)
@@ -75,7 +112,13 @@ def read_config_file(config_file_path: str):
         print(error)
 
 
-def copy_file(src_file_path_str: str, dest_file_path_str: str):
+def copy_file(src_file_path_str: str, dest_file_path_str: str) -> None:
+    """
+    copy file from source to destination if files are different
+
+    :param src_file_path_str: source file path
+    :param dest_file_path_str: destination file path
+    """
     src = Path(src_file_path_str)
     dst = Path(dest_file_path_str)
 
@@ -90,7 +133,16 @@ def copy_file(src_file_path_str: str, dest_file_path_str: str):
     shutil.copy2(src, dst)
 
 
-def get_optimizer(optimizer_name: str):
+def get_optimizer(optimizer_name: str) -> type:
+    """
+    get optimizer class by name
+
+    :param optimizer_name: name of optimizer (case insensitive)
+
+    :return: optimizer class
+
+    :raises ValueError: if optimizer not found
+    """
     optimizer_name = optimizer_name.lower()
     for name in dir(optim):
         opt = getattr(optim, name)
@@ -102,7 +154,6 @@ def get_optimizer(optimizer_name: str):
 
 
 # def my_collate_fn(batch):
-#     t0 = time.perf_counter()
 #     x = torch.stack([b[0].x for b in batch])  # (batch_size, max_v, 11)
 #     y = torch.stack([b[0].y for b in batch])  # (batch_size, max_v, pred_len*6)
 
@@ -113,12 +164,10 @@ def get_optimizer(optimizer_name: str):
 #     weights = torch.stack([b[0].weights for b in batch])  # (batch_size, max_v)
 #     attn_mask = torch.stack([b[0].attn_mask for b in batch])  # (batch_size, max_v, max_v)
 
-#     t1 = time.perf_counter()
-#     print('12>>>>>>>', t1 - t0)
 #     return x, y, weights, attn_mask, map_infos, map_attn_masks, map_boundaries
 
 
-def my_collate_fn(batch):
+def my_collate_fn(batch: list) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     batch_size = len(batch)
 
     data_cells = [b[0] for b in batch]
@@ -161,7 +210,26 @@ def my_collate_fn(batch):
     return x, y, weights, attn_mask, map_infos, map_attn_masks, map_boundaries
 
 
-def init_dataloaders(train_data_dir: str, val_data_dir: str, batch_size, is_transformer=False, num_workers=0, pin_memory=False):
+def init_dataloaders(
+    train_data_dir: str,
+    val_data_dir: str,
+    batch_size: int,
+    is_transformer: bool = False,
+    num_workers: int = 0,
+    pin_memory: bool = False,
+) -> Tuple[Optional[DataLoader], Optional[DataLoader]]:
+    """
+    initialize train and validation dataloaders
+
+    :param train_data_dir: path to training data directory
+    :param val_data_dir: path to validation data directory
+    :param batch_size: batch size for dataloaders
+    :param is_transformer: flag if using transformer model
+    :param num_workers: number of worker processes for data loading
+    :param pin_memory: flag to pin memory for faster gpu transfer
+
+    :return: tuple of (train_loader, val_loader) or (None, None) on error
+    """
     try:
         if is_transformer:
             train_dataset = TransformerCarDataset(preprocess_folder=train_data_dir, reprocess=False, mpc_aug=(NUM_AUGMENTATION > 0))
@@ -173,7 +241,6 @@ def init_dataloaders(train_data_dir: str, val_data_dir: str, batch_size, is_tran
                 collate_fn=my_collate_fn,
                 num_workers=num_workers,
                 pin_memory=pin_memory,
-                # persistent_workers=num_workers > 0,
             )
 
             val_dataset = TransformerCarDataset(preprocess_folder=val_data_dir, reprocess=False, mpc_aug=(NUM_AUGMENTATION > 0))
@@ -185,7 +252,6 @@ def init_dataloaders(train_data_dir: str, val_data_dir: str, batch_size, is_tran
                 collate_fn=my_collate_fn,
                 num_workers=num_workers,
                 pin_memory=pin_memory,
-                # persistent_workers=num_workers > 0,
             )
 
         else:
@@ -197,7 +263,6 @@ def init_dataloaders(train_data_dir: str, val_data_dir: str, batch_size, is_tran
                 drop_last=False,
                 num_workers=num_workers,
                 pin_memory=pin_memory,
-                # persistent_workers=num_workers > 0,
             )
 
             val_dataset = GnnCarDataset(preprocess_folder=val_data_dir, mlp=False, mpc_aug=(NUM_AUGMENTATION > 0))
@@ -208,7 +273,6 @@ def init_dataloaders(train_data_dir: str, val_data_dir: str, batch_size, is_tran
                 drop_last=False,
                 num_workers=num_workers,
                 pin_memory=pin_memory,
-                # persistent_workers=num_workers > 0,
             )
 
         return train_loader, val_loader
@@ -218,7 +282,24 @@ def init_dataloaders(train_data_dir: str, val_data_dir: str, batch_size, is_tran
         return None, None
 
 
-def init_model(model_config_path: str, optimizer_str: str, device: str, lr, weight_decay=None):
+def init_model(
+    model_config_path: str,
+    optimizer_str: str,
+    device: str,
+    lr: float,
+    weight_decay: Optional[float] = None,
+) -> Tuple[torch.nn.Module, torch.optim.Optimizer]:
+    """
+    initialize model and optimizer
+
+    :param model_config_path: path to model config file
+    :param optimizer_str: optimizer name string
+    :param device: device string (cuda or cpu)
+    :param lr: learning rate
+    :param weight_decay: weight decay parameter (optional)
+
+    :return: tuple of (model, optimizer)
+    """
     model = ModelFactory.create_model(model_config_path)
     model = model.to(device)
     print(model)
@@ -228,7 +309,12 @@ def init_model(model_config_path: str, optimizer_str: str, device: str, lr, weig
     return model, optimizer
 
 
-def load_yaw_dict():
+def load_yaw_dict() -> Dict[Any, Any]:
+    """
+    load yaw dictionary from file and rename keys
+
+    :return: yaw dictionary with renamed keys
+    """
     with open(YAW_DICT_PATH, "rb") as f:
         yaw_dict = pkl.load(f)
         rename = {
@@ -251,42 +337,48 @@ def load_yaw_dict():
 
 
 def train_one_epoch(
-    model,
-    device,
-    data_loader,
-    optimizer,
-    step_weights_factor,
-    dist_threshold,
-    collision_penalty,
-    collision_penalty_factor,
-    epoch,
-    epochs,
-    yaw_keys,
-    yaw_values,
-    y_x_mean,
-    y_x_std,
-    y_y_mean,
-    y_y_std,
-    start_prediction_time=0.2,
-    is_transformer=False,
-):
-    """Performs an epoch of model training
+    model: torch.nn.Module,
+    device: torch.device,
+    data_loader: DataLoader,
+    optimizer: torch.optim.Optimizer,
+    step_weights_factor: float,
+    dist_threshold: float,
+    collision_penalty: bool,
+    collision_penalty_factor: float,
+    epoch: int,
+    epochs: int,
+    yaw_keys: torch.Tensor,
+    yaw_values: torch.Tensor,
+    y_x_mean: float,
+    y_x_std: float,
+    y_y_mean: float,
+    y_y_std: float,
+    start_prediction_time: float = 0.2,
+    is_transformer: bool = False,
+) -> float:
+    """
+    perform one epoch of model training
 
-    :param model (nn.Module): Model to be trained.
-    :param device (torch.Device): Device used for training.
-    :param data_loader (torch.utils.data.DataLoader): Data loader containing all batches.
-    :param optimizer (torch.optim.Optimizer): Optimizer used to update model.
+    :param model: model to be trained
+    :param device: device used for training
+    :param data_loader: data loader containing all batches
+    :param optimizer: optimizer used to update model
     :param step_weights_factor: multiplication factor for each step of trajectory prediction
-    :param dist_threshold: distence of collition
-    :param collision_penalty: flag to use collition in loss
-    :param collision_penalty_factor: multiplcation factor of collition to apply to loss
-    :param epoch: current epoch
+    :param dist_threshold: distance threshold for collision detection
+    :param collision_penalty: flag to use collision penalty in loss
+    :param collision_penalty_factor: multiplication factor of collision to apply to loss
+    :param epoch: current epoch number
     :param epochs: total number of epochs
-    :param yaw_keys: yaw dictionary keys of yaw dict calculated before
-    :param yaw_values: yaw dictionary values of yaw dict calculated before
-    :param start_prediction_time: number of epoch / epochs to start making predictions on prediction (set maximum of 0.5 for correct calculus)
+    :param yaw_keys: yaw dictionary keys
+    :param yaw_values: yaw dictionary values
+    :param y_x_mean: mean value for x coordinate normalization
+    :param y_x_std: standard deviation for x coordinate normalization
+    :param y_y_mean: mean value for y coordinate normalization
+    :param y_y_std: standard deviation for y coordinate normalization
+    :param start_prediction_time: ratio of epoch/epochs to start making predictions on predictions (set maximum of 0.5 for correct calculation)
+    :param is_transformer: flag if using transformer model
 
-    :return float: Avg loss for epoch.
+    :return: average loss for epoch
     """
 
     if is_transformer:
@@ -332,40 +424,46 @@ def train_one_epoch(
 
 
 def evaluate(
-    model,
-    device,
-    data_loader,
-    step_weights_factor,
-    dist_threshold,
-    mr_threshold,
-    collision_penalty_factor,
-    epoch,
-    epochs,
-    yaw_keys,
-    yaw_values,
-    y_x_mean,
-    y_x_std,
-    y_y_mean,
-    y_y_std,
-    start_prediction_time=0.2,
-    is_transformer=False,
-):
-    """Performs an epoch of model training.
+    model: torch.nn.Module,
+    device: torch.device,
+    data_loader: DataLoader,
+    step_weights_factor: float,
+    dist_threshold: float,
+    mr_threshold: float,
+    collision_penalty_factor: float,
+    epoch: int,
+    epochs: int,
+    yaw_keys: torch.Tensor,
+    yaw_values: torch.Tensor,
+    y_x_mean: float,
+    y_x_std: float,
+    y_y_mean: float,
+    y_y_std: float,
+    start_prediction_time: float = 0.2,
+    is_transformer: bool = False,
+) -> Tuple[float, float, float, float, float, float]:
+    """
+    evaluate model on validation data
 
-    :param model (nn.Module): Model to be trained.
-    :param device (torch.Device): Device used for training.
-    :param data_loader (torch.utils.data.DataLoader): Data loader containing all batches.
+    :param model: model to evaluate
+    :param device: device used for evaluation
+    :param data_loader: data loader containing validation batches
     :param step_weights_factor: multiplication factor for each step of trajectory prediction
-    :param dist_threshold: distance of collition
-    :param mr_threshold: bad difference in last step prediction
-    :param collision_penalty_factor: multiplcation factor of collition to apply to loss
-    :param epoch: current epoch
+    :param dist_threshold: distance threshold for collision detection
+    :param mr_threshold: miss rate threshold (bad difference in last step prediction)
+    :param collision_penalty_factor: multiplication factor of collision to apply to loss
+    :param epoch: current epoch number
     :param epochs: total number of epochs
-    :param yaw_keys: yaw dictionary keys of yaw dict calculated before
-    :param yaw_values: yaw dictionary values of yaw dict calculated before
-    :param start_prediction_time: number of epoch / epochs to start making predictions on prediction (set maximum of 0.5 for correct calculus)
+    :param yaw_keys: yaw dictionary keys
+    :param yaw_values: yaw dictionary values
+    :param y_x_mean: mean value for x coordinate normalization
+    :param y_x_std: standard deviation for x coordinate normalization
+    :param y_y_mean: mean value for y coordinate normalization
+    :param y_y_std: standard deviation for y coordinate normalization
+    :param start_prediction_time: ratio of epoch/epochs to start making predictions on predictions (set maximum of 0.5 for correct calculation)
+    :param is_transformer: flag if using transformer model
 
-    :return list of evaluation metrics (including ADE, FDE, etc.).
+    :return: tuple of (ade, fde, mr, collision_rate, val_loss, collision_penalties)
     """
     if is_transformer:
         return transformer_evaluate(
@@ -411,15 +509,27 @@ METRICS = ["ade", "fde", "mr", "collision_rate", "val_loss", "collision_penaltie
 
 
 def train_one_config(
-    process_conection,
+    process_conection: Connection,
     train_config_path: str,
     model_config_path: str,
     expirements_path: str,
     data_path: str,
     logs_dir_name: str,
     device_str: str,
-    save_last_checkpoints=True,
-):
+    save_last_checkpoints: bool = True,
+) -> None:
+    """
+    train model with given configuration
+
+    :param process_conection: multiprocessing connection for signaling parent process
+    :param train_config_path: path to training config file
+    :param model_config_path: path to model config file
+    :param expirements_path: path to experiments directory
+    :param data_path: path to data directory
+    :param logs_dir_name: name of logs directory
+    :param device_str: device string (cuda or cpu)
+    :param save_last_checkpoints: flag to save last checkpoint
+    """
     torch.set_num_threads(1)
     torch.set_num_interop_threads(1)
 
@@ -483,13 +593,11 @@ def train_one_config(
         train_config.weight_decay,
     )
 
-    # with open(os.path.join(DATA_PATH, "csv", Y_X_DISTR_FILE), "rb") as f:
-    #     y_x_mean, y_x_std = pkl.load(f)
-    y_x_mean, y_x_std = pkl.load(open(os.path.join(DATA_PATH, "csv", Y_X_DISTR_FILE), "rb"))
+    with open(os.path.join(DATA_PATH, "csv", Y_X_DISTR_FILE), "rb") as f:
+        y_x_mean, y_x_std = pkl.load(f)
 
-    # with open(os.path.join(DATA_PATH, "csv", Y_Y_DISTR_FILE), "rb") as f:
-    #     y_y_mean, y_y_std = pkl.load(f)
-    y_y_mean, y_y_std = pkl.load(open(os.path.join(DATA_PATH, "csv", Y_Y_DISTR_FILE), "rb"))
+    with open(os.path.join(DATA_PATH, "csv", Y_Y_DISTR_FILE), "rb") as f:
+        y_y_mean, y_y_std = pkl.load(f)
 
     min_ade = 1e6
     min_fde = 1e6

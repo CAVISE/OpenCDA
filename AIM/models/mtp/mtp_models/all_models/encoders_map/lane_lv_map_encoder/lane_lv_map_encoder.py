@@ -1,24 +1,56 @@
+import torch
 from torch import nn
 
 
 class ConvBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size=3, stride=1, padding=1):
+    """
+    convolutional block with batch normalization and activation
+    """
+
+    def __init__(self, in_channels: int, out_channels: int, kernel_size: int = 3, stride: int = 1, padding: int = 1) -> None:
+        """
+        initialize convolutional block
+
+        :param in_channels: number of input channels
+        :param out_channels: number of output channels
+        :param kernel_size: kernel size for convolution
+        :param stride: stride for convolution
+        :param padding: padding for convolution
+        """
         super().__init__()
         self.conv = nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding, bias=False)
         self.bn = nn.BatchNorm2d(out_channels)
         self.act = nn.GELU()
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        forward pass through convolutional block
+
+        :param x: input tensor
+
+        :return: output tensor
+        """
         return self.act(self.bn(self.conv(x)))
 
 
 class LaneMapEncoder(nn.Module):
+    """
+    encoder for lane-level map features using convolutional blocks
+    """
+
     def __init__(
         self,
-        base_channels=16,
-        stages=(3, 4, 4, 3, 3),
-        out_channels=128,
-    ):
+        base_channels: int = 16,
+        stages: tuple[int, ...] = (3, 4, 4, 3, 3),
+        out_channels: int = 128,
+    ) -> None:
+        """
+        initialize lane map encoder
+
+        :param base_channels: base number of channels
+        :param stages: tuple of stage depths
+        :param out_channels: output vector size
+        """
         super().__init__()
         self.stem = ConvBlock(1, base_channels, kernel_size=4, stride=4, padding=0)  # image_size /4; channels
         self.stages = nn.ModuleList()
@@ -39,9 +71,13 @@ class LaneMapEncoder(nn.Module):
         self.pool = nn.AdaptiveAvgPool2d(1)
         self.head = nn.Linear(channels, out_channels)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
-        x: (b, n, k, k)
+        forward pass through lane map encoder
+
+        :param x: input tensor of shape (b, n, k, k) where b is batch size, n is number of lanes, k is map size
+
+        :return: encoded map features of shape (b, n, out_channels)
         """
         b, n, k1, k2 = x.shape
         assert k1 == k2

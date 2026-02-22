@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import argparse
+from typing import Iterator, Tuple
 
 from .data_path_config import DATA_PATH, DATA_VIZUALIZATION_PATH
 
@@ -13,7 +14,16 @@ from .data_path_config import DATA_PATH, DATA_VIZUALIZATION_PATH
 # 1: y: [vehicle, PRED_LEN * 6]: [[x_1, y_1, v_1, yaw_1, acc_1, delta_1, x_2, y_2...], ...]
 # 2: edge_indexs
 # 3: timestamp
-def get_data_frame_pkl(pkl_dir="csv/train_pre"):
+def get_data_frame_pkl(
+    pkl_dir: str = "csv/train_pre",
+):
+    """
+    generator function to yield data from pickle files
+
+    :param pkl_dir: directory containing pickle files
+
+    :yield: tuple of flattened arrays (x_x, x_y, x_speed, x_yaw, x_dstart_yaw, x_dlast_yaw, x_start_cos, x_start_sin, x_last_cos, x_last_sin, y_x, y_y, y_speed, y_yaw)
+    """
     pkl_dir_path = os.path.join(DATA_PATH, pkl_dir)
     sub_dirs = os.listdir(pkl_dir_path)
 
@@ -53,7 +63,12 @@ def get_data_frame_pkl(pkl_dir="csv/train_pre"):
             )
 
 
-def get_data_pkl():
+def get_data_pkl() -> dict:
+    """
+    collect all data from pickle files into dictionary
+
+    :return: dictionary with keys for each data type and concatenated numpy arrays as values
+    """
     data_dict = {
         "x_x": [],
         "x_y": [],
@@ -103,7 +118,14 @@ def get_data_pkl():
 #     "speed": speed,
 #     "CITY_NAME": "SUMO",
 # }
-def get_data_frame_csv(csv_dir="csv/train"):
+def get_data_frame_csv(csv_dir: str = "csv/train") -> Iterator[Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]]:
+    """
+    generator function to yield data from csv files
+
+    :param csv_dir: directory containing csv files
+
+    :yield: tuple of flattened arrays (x_x, x_y, x_speed, x_yaw)
+    """
     csv_dir_path = os.path.join(DATA_PATH, csv_dir)
     sub_dirs = os.listdir(csv_dir_path)
 
@@ -125,7 +147,12 @@ def get_data_frame_csv(csv_dir="csv/train"):
             yield df["X"].to_numpy().flatten(), df["Y"].to_numpy().flatten(), df["speed"].to_numpy().flatten(), df["yaw"].to_numpy().flatten()
 
 
-def get_data_csv():
+def get_data_csv() -> dict:
+    """
+    collect all data from csv files into dictionary
+
+    :return: dictionary with keys for each data type and concatenated numpy arrays as values
+    """
     data_dict = {
         "x_xs": [],
         "x_ys": [],
@@ -144,7 +171,12 @@ def get_data_csv():
     return data_dict
 
 
-def vizualize_data(pkl=False):
+def vizualize_data(pkl: bool = False) -> None:
+    """
+    visualize data distributions by creating histograms
+
+    :param pkl: flag to visualize preprocessed pickle data (True) or raw csv data (False)
+    """
     os.makedirs(DATA_VIZUALIZATION_PATH, exist_ok=True)
     if pkl:
         data_dict = get_data_pkl()
@@ -168,7 +200,10 @@ def vizualize_data(pkl=False):
             plt.cla()
 
 
-def main():
+def main() -> None:
+    """
+    main function to run data visualization
+    """
     parser = argparse.ArgumentParser(description="")
 
     parser.add_argument("--after_preprocessing", action="store_true", help="visualize data after preprocessing")

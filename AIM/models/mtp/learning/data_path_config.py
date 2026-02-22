@@ -1,3 +1,9 @@
+"""
+configuration file for data paths and file names
+
+this module defines all path constants used throughout the learning pipeline
+"""
+
 import os
 from pathlib import Path
 
