@@ -122,37 +122,30 @@ def get_optimizer(optimizer_name: str):
 
 
 def my_collate_fn(batch):
-    # t0 = time.perf_counter()
     batch_size = len(batch)
 
-    # распаковываем один раз (убираем b[0] миллион раз)
     data_cells = [b[0] for b in batch]
 
-    # --- X ---
     x0 = data_cells[0].x
     x = torch.empty((batch_size, *x0.shape), dtype=x0.dtype)
     for i, d in enumerate(data_cells):
         x[i] = d.x
 
-    # --- Y ---
     y0 = data_cells[0].y
     y = torch.empty((batch_size, *y0.shape), dtype=y0.dtype)
     for i, d in enumerate(data_cells):
         y[i] = d.y
 
-    # --- weights ---
     w0 = data_cells[0].weights
     weights = torch.empty((batch_size, *w0.shape), dtype=w0.dtype)
     for i, d in enumerate(data_cells):
         weights[i] = d.weights
 
-    # --- attn_mask ---
     a0 = data_cells[0].attn_mask
     attn_mask = torch.empty((batch_size, *a0.shape), dtype=a0.dtype)
     for i, d in enumerate(data_cells):
         attn_mask[i] = d.attn_mask
 
-    # --- map stuff ---
     map_infos0 = batch[0][1]
     map_infos = torch.empty((batch_size, *map_infos0.shape), dtype=map_infos0.dtype)
     for i, b in enumerate(batch):
@@ -168,8 +161,6 @@ def my_collate_fn(batch):
     for i, b in enumerate(batch):
         map_boundaries[i] = b[3]
 
-    # t1 = time.perf_counter()
-    # print('11>>>>>>>>>>>', t1 - t0)
     return x, y, weights, attn_mask, map_infos, map_attn_masks, map_boundaries
 
 
