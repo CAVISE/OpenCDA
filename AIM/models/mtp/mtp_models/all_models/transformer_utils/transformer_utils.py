@@ -124,6 +124,7 @@ class SelfAttnBlock(nn.Module):
     """
     transformer block with self-attention and feed-forward network
     """
+
     def __init__(self, hidden_channels: int, n_heads: int, dropout: float, bias: bool, n_linear: int) -> None:
         """
         initialize self-attention block
@@ -175,6 +176,7 @@ class CrossAttnBlock(nn.Module):
     """
     transformer block with cross-attention and feed-forward network
     """
+
     def __init__(self, x_hidden_channels: int, y_hidden_channels: int, n_heads: int, dropout: float, bias: bool, n_linear: int) -> None:
         """
         initialize cross-attention block
