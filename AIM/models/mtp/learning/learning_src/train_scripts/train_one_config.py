@@ -24,9 +24,6 @@ from .train_gnn import gnn_train_one_epoch, gnn_evaluate
 from .train_transformer import transformer_train_one_epoch, transformer_evaluate
 
 
-import time
-
-
 class Dict2Class(object):
     def __init__(self, dict):
         for key in dict:
@@ -522,7 +519,6 @@ def train_one_config(
     process_conection.close()
 
     for epoch in tqdm(range(0, epochs)):
-        t0 = time.perf_counter()
         epoch_loss = train_one_epoch(
             model,
             device,
@@ -543,17 +539,10 @@ def train_one_config(
             start_prediction_time,
             is_transformer=is_transformer,
         )
-        t1 = time.perf_counter()
-        print(f">>>>>>>>0 {t1 - t0:.4f} sec")
 
         loss_logger.add_metric_points([epoch], [epoch * len(train_loader)], [epoch_loss])
 
-        t2 = time.perf_counter()
-        print(f">>>>>>>>1 {t2 - t1:.4f} sec")
-
         if epoch % metrics_log_epoch_frequency == 0:
-            t3 = time.perf_counter()
-
             ade, fde, mr, collision_rate, val_loss, collision_penalties = evaluate(
                 model,
                 device,
@@ -581,12 +570,8 @@ def train_one_config(
                 "val_loss": val_loss,
                 "collision_penalties": collision_penalties,
             }
-            t4 = time.perf_counter()
-            print(f">>>>>>>>2 {t4 - t3:.4f} sec")
 
             record.append(epoch_metrics)
-            t5 = time.perf_counter()
-            print(f">>>>>>>>3 {t5 - t4:.4f} sec")
 
             if fde < min_fde:
                 min_ade, min_fde = ade, fde
@@ -601,7 +586,6 @@ def train_one_config(
                     patience *= 2
 
         if save_last_checkpoints and (epoch == epochs - 1):
-            t6 = time.perf_counter()
             torch.save(
                 model.state_dict(),
                 os.path.join(
@@ -609,14 +593,8 @@ def train_one_config(
                     f"model_{'wp' if collision_penalty else 'np'}_{exp_id}_{str(epoch).zfill(4)}.pth",
                 ),
             )
-            t7 = time.perf_counter()
-            print(f">>>>>>>>4 {t7 - t6:.4f} sec")
 
-    t8 = time.perf_counter()
     loss_logger.plot_metric()
-
-    t9 = time.perf_counter()
-    print(f">>>>>>>>5 {t9 - t8:.4f} sec")
 
     record_df = pd.DataFrame(record)
     for metric in METRICS:
@@ -630,10 +608,7 @@ def train_one_config(
             record_df[metric],
         )
         metric_loggers[metric].plot_metric()
-    t10 = time.perf_counter()
-    print(f">>>>>>>>6 {t10 - t9:.4f} sec")
 
-    t11 = time.perf_counter()
     if push_to_hf:
         best_model_path = os.path.join(
             path_config.model_checkpoints_dir,
@@ -645,6 +620,3 @@ def train_one_config(
 
     if "cuda" in device_str:
         torch.cuda.empty_cache()
-
-    t12 = time.perf_counter()
-    print(f">>>>>>>>7 {t12 - t11:.4f} sec")
