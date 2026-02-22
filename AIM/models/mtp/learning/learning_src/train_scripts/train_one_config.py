@@ -24,6 +24,9 @@ from .train_gnn import gnn_train_one_epoch, gnn_evaluate
 from .train_transformer import transformer_train_one_epoch, transformer_evaluate
 
 
+import time
+
+
 class Dict2Class(object):
     def __init__(self, dict):
         for key in dict:
@@ -101,34 +104,124 @@ def get_optimizer(optimizer_name: str):
     raise ValueError(f"Optimizer '{optimizer_name}' not found")
 
 
+# def my_collate_fn(batch):
+#     t0 = time.perf_counter()
+#     x = torch.stack([b[0].x for b in batch])  # (batch_size, max_v, 11)
+#     y = torch.stack([b[0].y for b in batch])  # (batch_size, max_v, pred_len*6)
+
+#     map_infos = torch.stack([b[1] for b in batch])  # (batch_size, max_c, k, k)
+#     map_attn_masks = torch.stack([b[2] for b in batch])  # (batch_size, max_c, max_c)
+#     map_boundaries = torch.stack([b[3] for b in batch])  # (batch_size, 1)
+
+#     weights = torch.stack([b[0].weights for b in batch])  # (batch_size, max_v)
+#     attn_mask = torch.stack([b[0].attn_mask for b in batch])  # (batch_size, max_v, max_v)
+
+#     t1 = time.perf_counter()
+#     print('12>>>>>>>', t1 - t0)
+#     return x, y, weights, attn_mask, map_infos, map_attn_masks, map_boundaries
+
+
 def my_collate_fn(batch):
-    x = torch.stack([b[0].x for b in batch])  # (batch_size, max_v, 11)
-    y = torch.stack([b[0].y for b in batch])  # (batch_size, max_v, pred_len*6)
+    # t0 = time.perf_counter()
+    batch_size = len(batch)
 
-    map_infos = torch.stack([b[1] for b in batch])  # (batch_size, max_c, k, k)
-    map_attn_masks = torch.stack([b[2] for b in batch])  # (batch_size, max_c, max_c)
-    map_boundaries = torch.stack([b[3] for b in batch])  # (batch_size, 1)
+    # распаковываем один раз (убираем b[0] миллион раз)
+    data_cells = [b[0] for b in batch]
 
-    weights = torch.stack([b[0].weights for b in batch])  # (batch_size, max_v)
-    attn_mask = torch.stack([b[0].attn_mask for b in batch])  # (batch_size, max_v, max_v)
+    # --- X ---
+    x0 = data_cells[0].x
+    x = torch.empty((batch_size, *x0.shape), dtype=x0.dtype)
+    for i, d in enumerate(data_cells):
+        x[i] = d.x
+
+    # --- Y ---
+    y0 = data_cells[0].y
+    y = torch.empty((batch_size, *y0.shape), dtype=y0.dtype)
+    for i, d in enumerate(data_cells):
+        y[i] = d.y
+
+    # --- weights ---
+    w0 = data_cells[0].weights
+    weights = torch.empty((batch_size, *w0.shape), dtype=w0.dtype)
+    for i, d in enumerate(data_cells):
+        weights[i] = d.weights
+
+    # --- attn_mask ---
+    a0 = data_cells[0].attn_mask
+    attn_mask = torch.empty((batch_size, *a0.shape), dtype=a0.dtype)
+    for i, d in enumerate(data_cells):
+        attn_mask[i] = d.attn_mask
+
+    # --- map stuff ---
+    map_infos0 = batch[0][1]
+    map_infos = torch.empty((batch_size, *map_infos0.shape), dtype=map_infos0.dtype)
+    for i, b in enumerate(batch):
+        map_infos[i] = b[1]
+
+    map_attn0 = batch[0][2]
+    map_attn_masks = torch.empty((batch_size, *map_attn0.shape), dtype=map_attn0.dtype)
+    for i, b in enumerate(batch):
+        map_attn_masks[i] = b[2]
+
+    map_bound0 = batch[0][3]
+    map_boundaries = torch.empty((batch_size, *map_bound0.shape), dtype=map_bound0.dtype)
+    for i, b in enumerate(batch):
+        map_boundaries[i] = b[3]
+
+    # t1 = time.perf_counter()
+    # print('11>>>>>>>>>>>', t1 - t0)
     return x, y, weights, attn_mask, map_infos, map_attn_masks, map_boundaries
 
 
-def init_dataloaders(train_data_dir: str, val_data_dir: str, batch_size, is_transformer=False):
+def init_dataloaders(train_data_dir: str, val_data_dir: str, batch_size, is_transformer=False, num_workers=0, pin_memory=False):
     try:
         if is_transformer:
             train_dataset = TransformerCarDataset(preprocess_folder=train_data_dir, reprocess=False, mpc_aug=(NUM_AUGMENTATION > 0))
-            train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, drop_last=False, collate_fn=my_collate_fn)
+            train_loader = DataLoader(
+                train_dataset,
+                batch_size=batch_size,
+                shuffle=True,
+                drop_last=False,
+                collate_fn=my_collate_fn,
+                num_workers=num_workers,
+                pin_memory=pin_memory,
+                # persistent_workers=num_workers > 0,
+            )
 
             val_dataset = TransformerCarDataset(preprocess_folder=val_data_dir, reprocess=False, mpc_aug=(NUM_AUGMENTATION > 0))
-            val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, drop_last=False, collate_fn=my_collate_fn)
+            val_loader = DataLoader(
+                val_dataset,
+                batch_size=batch_size,
+                shuffle=False,
+                drop_last=False,
+                collate_fn=my_collate_fn,
+                num_workers=num_workers,
+                pin_memory=pin_memory,
+                # persistent_workers=num_workers > 0,
+            )
 
         else:
             train_dataset = GnnCarDataset(preprocess_folder=train_data_dir, mlp=False, mpc_aug=(NUM_AUGMENTATION > 0))
-            train_loader = GeometricDataLoader(train_dataset, batch_size=batch_size, shuffle=True, drop_last=False)
+            train_loader = GeometricDataLoader(
+                train_dataset,
+                batch_size=batch_size,
+                shuffle=True,
+                drop_last=False,
+                num_workers=num_workers,
+                pin_memory=pin_memory,
+                # persistent_workers=num_workers > 0,
+            )
 
             val_dataset = GnnCarDataset(preprocess_folder=val_data_dir, mlp=False, mpc_aug=(NUM_AUGMENTATION > 0))
-            val_loader = GeometricDataLoader(val_dataset, batch_size=batch_size, shuffle=False, drop_last=False)
+            val_loader = GeometricDataLoader(
+                val_dataset,
+                batch_size=batch_size,
+                shuffle=False,
+                drop_last=False,
+                num_workers=num_workers,
+                pin_memory=pin_memory,
+                # persistent_workers=num_workers > 0,
+            )
 
         return train_loader, val_loader
 
@@ -381,8 +474,18 @@ def train_one_config(
     push_to_hf = train_config.push_to_hf
     hf_project_path = train_config.hf_project_path
 
+    # num_workers = getattr(train_config, "num_workers", 4)
+    # pin_memory = getattr(train_config, "pin_memory", True) and "cuda" in device_str
+    num_workers = train_config.num_workers
+    pin_memory = train_config.pin_memory
+
     train_loader, val_loader = init_dataloaders(
-        path_config.train_data_dir, path_config.val_data_dir, train_config.batch_size, is_transformer=is_transformer
+        path_config.train_data_dir,
+        path_config.val_data_dir,
+        train_config.batch_size,
+        is_transformer=is_transformer,
+        num_workers=num_workers,
+        pin_memory=pin_memory,
     )
     model, optimizer = init_model(
         path_config.copy_model_config_path,
@@ -392,11 +495,13 @@ def train_one_config(
         train_config.weight_decay,
     )
 
-    with open(os.path.join(DATA_PATH, "csv", Y_X_DISTR_FILE), "rb") as f:
-        y_x_mean, y_x_std = pkl.load(f)
+    # with open(os.path.join(DATA_PATH, "csv", Y_X_DISTR_FILE), "rb") as f:
+    #     y_x_mean, y_x_std = pkl.load(f)
+    y_x_mean, y_x_std = pkl.load(open(os.path.join(DATA_PATH, "csv", Y_X_DISTR_FILE), "rb"))
 
-    with open(os.path.join(DATA_PATH, "csv", Y_Y_DISTR_FILE), "rb") as f:
-        y_y_mean, y_y_std = pkl.load(f)
+    # with open(os.path.join(DATA_PATH, "csv", Y_Y_DISTR_FILE), "rb") as f:
+    #     y_y_mean, y_y_std = pkl.load(f)
+    y_y_mean, y_y_std = pkl.load(open(os.path.join(DATA_PATH, "csv", Y_Y_DISTR_FILE), "rb"))
 
     min_ade = 1e6
     min_fde = 1e6
@@ -426,6 +531,7 @@ def train_one_config(
     process_conection.close()
 
     for epoch in tqdm(range(0, epochs)):
+        t0 = time.perf_counter()
         epoch_loss = train_one_epoch(
             model,
             device,
@@ -446,9 +552,17 @@ def train_one_config(
             start_prediction_time,
             is_transformer=is_transformer,
         )
+        t1 = time.perf_counter()
+        print(f">>>>>>>>0 {t1 - t0:.4f} sec")
+
         loss_logger.add_metric_points([epoch], [epoch * len(train_loader)], [epoch_loss])
 
+        t2 = time.perf_counter()
+        print(f">>>>>>>>1 {t2 - t1:.4f} sec")
+
         if epoch % metrics_log_epoch_frequency == 0:
+            t3 = time.perf_counter()
+
             ade, fde, mr, collision_rate, val_loss, collision_penalties = evaluate(
                 model,
                 device,
@@ -476,7 +590,12 @@ def train_one_config(
                 "val_loss": val_loss,
                 "collision_penalties": collision_penalties,
             }
+            t4 = time.perf_counter()
+            print(f">>>>>>>>2 {t4 - t3:.4f} sec")
+
             record.append(epoch_metrics)
+            t5 = time.perf_counter()
+            print(f">>>>>>>>3 {t5 - t4:.4f} sec")
 
             if fde < min_fde:
                 min_ade, min_fde = ade, fde
@@ -491,6 +610,7 @@ def train_one_config(
                     patience *= 2
 
         if save_last_checkpoints and (epoch == epochs - 1):
+            t6 = time.perf_counter()
             torch.save(
                 model.state_dict(),
                 os.path.join(
@@ -498,8 +618,14 @@ def train_one_config(
                     f"model_{'wp' if collision_penalty else 'np'}_{exp_id}_{str(epoch).zfill(4)}.pth",
                 ),
             )
+            t7 = time.perf_counter()
+            print(f">>>>>>>>4 {t7 - t6:.4f} sec")
 
+    t8 = time.perf_counter()
     loss_logger.plot_metric()
+
+    t9 = time.perf_counter()
+    print(f">>>>>>>>5 {t9 - t8:.4f} sec")
 
     record_df = pd.DataFrame(record)
     for metric in METRICS:
@@ -513,7 +639,10 @@ def train_one_config(
             record_df[metric],
         )
         metric_loggers[metric].plot_metric()
+    t10 = time.perf_counter()
+    print(f">>>>>>>>6 {t10 - t9:.4f} sec")
 
+    t11 = time.perf_counter()
     if push_to_hf:
         best_model_path = os.path.join(
             path_config.model_checkpoints_dir,
@@ -525,3 +654,6 @@ def train_one_config(
 
     if "cuda" in device_str:
         torch.cuda.empty_cache()
+
+    t12 = time.perf_counter()
+    print(f">>>>>>>>7 {t12 - t11:.4f} sec")

@@ -55,15 +55,14 @@ def transformer_train_one_epoch(
     for batch in data_loader:
         # x_batch: [vehicle, 15]: [x_0, y_0, speed_0, yaw_0, cos yaw_0, sin yaw_0, cos yaw_start, sin yaw_start,  intent, intent, intent, start_pos, start_pos, start_pos, start_pos]
         x_batch, y_batch, weights_batch, attn_mask_batch, map_infos_batch, map_attn_mask_batch, map_boundaries = batch
-        x_batch, y_batch, weights_batch, attn_mask_batch, map_infos_batch, map_attn_mask_batch, map_boundaries = (
-            x_batch.to(device),
-            y_batch.to(device),
-            weights_batch.to(device),
-            attn_mask_batch.to(device),
-            map_infos_batch.to(device),
-            map_attn_mask_batch.to(device),
-            map_boundaries.to(device),
-        )
+        if not x_batch.is_cuda:
+            x_batch = x_batch.to(device, non_blocking=True)
+            y_batch = y_batch.to(device, non_blocking=True)
+            weights_batch = weights_batch.to(device, non_blocking=True)
+            attn_mask_batch = attn_mask_batch.to(device, non_blocking=True)
+            map_infos_batch = map_infos_batch.to(device, non_blocking=True)
+            map_attn_mask_batch = map_attn_mask_batch.to(device, non_blocking=True)
+            map_boundaries = map_boundaries.to(device, non_blocking=True)
         map_boundaries = map_boundaries.unsqueeze(-1)
 
         out_coords = None
@@ -236,15 +235,14 @@ def transformer_evaluate(
         for batch in data_loader:
             # x_batch: [vehicle, 15]: [x_0, y_0, speed_0, yaw_0, cos yaw_0, sin yaw_0, cos yaw_start, sin yaw_start,  intent, intent, intent, start_pos, start_pos, start_pos, start_pos]
             x_batch, y_batch, weights_batch, attn_mask_batch, map_infos_batch, map_attn_mask_batch, map_boundaries = batch
-            x_batch, y_batch, weights_batch, attn_mask_batch, map_infos_batch, map_attn_mask_batch, map_boundaries = (
-                x_batch.to(device),
-                y_batch.to(device),
-                weights_batch.to(device),
-                attn_mask_batch.to(device),
-                map_infos_batch.to(device),
-                map_attn_mask_batch.to(device),
-                map_boundaries.to(device),
-            )
+            if not x_batch.is_cuda:
+                x_batch = x_batch.to(device, non_blocking=True)
+                y_batch = y_batch.to(device, non_blocking=True)
+                weights_batch = weights_batch.to(device, non_blocking=True)
+                attn_mask_batch = attn_mask_batch.to(device, non_blocking=True)
+                map_infos_batch = map_infos_batch.to(device, non_blocking=True)
+                map_attn_mask_batch = map_attn_mask_batch.to(device, non_blocking=True)
+                map_boundaries = map_boundaries.to(device, non_blocking=True)
             map_boundaries = map_boundaries.unsqueeze(-1)
 
             out_coords = None

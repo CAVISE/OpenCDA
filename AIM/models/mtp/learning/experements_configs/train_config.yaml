@@ -16,3 +16,5 @@ val_data_dir: csv/val_pre
 weight_decay: 0.0001
 start_prediction_time: 0.2
 is_transformer: true
+num_workers: 0
+pin_memory: false
