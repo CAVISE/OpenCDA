@@ -34,7 +34,7 @@ class DummyDataset:
     def visualize_result(self, *args, **kwargs):
         pass
 
-    def update_database(self):
+    def update_database(self, memory_data=None):
         pass
 
 

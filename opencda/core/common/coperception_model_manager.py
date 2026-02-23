@@ -226,15 +226,8 @@ class DirectoryProcessor:
                 shutil.rmtree(item_path)
 
     def retrieve_data_structure(self, tick_number):
-        """
-        Scans the source directory for the current tick and builds the
-        dictionary structure required by BaseDataset without copying files.
-        Includes validation and dynamic sensor detection.
-        """
         number = f"{tick_number:06d}"
 
-        # 1. Logic to find the latest valid data folder
-        # We look for the penultimate folder to ensure writing is complete
         subdirectories = sorted([d for d in os.listdir(self.source_directory) if os.path.isdir(os.path.join(self.source_directory, d))])
 
         if len(subdirectories) < 2:
@@ -242,28 +235,21 @@ class DirectoryProcessor:
 
         data_directory = os.path.join(self.source_directory, subdirectories[-2])
 
-        # 2. Dynamic Camera Detection
-        # detect_cameras returns suffixes like ["_camera0.png", "_camera1.png", ...]
-        # based on actual files found in the directory.
         try:
             camera_postfixes = self.detect_cameras(data_directory)
         except Exception:
-            # Fallback if detection fails (e.g. empty directory), assume no cameras
             camera_postfixes = []
 
-        # 3. Find Agent folders (CAVs / RSUs)
         inner_subdirectories = sorted([d for d in os.listdir(data_directory) if os.path.isdir(os.path.join(data_directory, d))])
 
         if not inner_subdirectories:
             return None
 
-        # Reorder to put RSUs at the end (standard OpenCOOD requirement)
         if "rsu" in inner_subdirectories[0]:
             inner_subdirectories = inner_subdirectories[1:] + [inner_subdirectories[0]]
 
-        # 4. Build the dictionary structure
         scenario_data = OrderedDict()
-        scenario_data[0] = OrderedDict()  # Simulating scenario_id = 0
+        scenario_data[0] = OrderedDict()
 
         agents_found_count = 0
 
@@ -271,16 +257,12 @@ class DirectoryProcessor:
             cav_id = folder
             agent_path = os.path.join(data_directory, cav_id)
 
-            # Construct absolute paths to core files
             yaml_path = os.path.join(agent_path, f"{number}.yaml")
             lidar_path = os.path.join(agent_path, f"{number}.pcd")
 
-            # VALIDATION: Check if core files actually exist.
-            # If simulation dropped a frame for this car, skip it to prevent crash later.
             if not os.path.exists(yaml_path) or not os.path.exists(lidar_path):
                 continue
 
-            # Initialize structure for this agent
             scenario_data[0][cav_id] = OrderedDict()
             timestamp = number
             scenario_data[0][cav_id][timestamp] = OrderedDict()
@@ -288,27 +270,21 @@ class DirectoryProcessor:
             scenario_data[0][cav_id][timestamp]["yaml"] = yaml_path
             scenario_data[0][cav_id][timestamp]["lidar"] = lidar_path
 
-            # Dynamic Camera Loading
             camera_files = []
             for postfix in camera_postfixes:
-                # Postfix includes the underscore, e.g., "_camera0.png"
                 cam_path = os.path.join(agent_path, f"{number}{postfix}")
 
-                # Verify camera file exists (e.g. if one camera failed to write)
                 if os.path.exists(cam_path):
                     camera_files.append(cam_path)
                 else:
-                    # Optional: Add a placeholder or warning if strict consistency is needed
                     pass
 
             scenario_data[0][cav_id][timestamp]["camera0"] = camera_files
 
-            # Determine Ego (first valid agent in list is ego)
             scenario_data[0][cav_id]["ego"] = agents_found_count == 0
 
             agents_found_count += 1
 
-        # If no valid agents were processed (e.g. all folders empty), return None
         if agents_found_count == 0:
             return None
 
