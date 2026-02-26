@@ -145,3 +145,31 @@ class QueryAndGroup(nn.Module):
             new_features = grouped_xyz
 
         return new_features, idx
+
+class FurthestPointSampling(Function):
+    @staticmethod
+    def forward(ctx, xyz: torch.Tensor, npoint: int):
+        """
+        Args:
+            ctx:
+            xyz: (B, N, 3) where N > npoint
+            npoint: int, number of features in the sampled set
+
+        Returns:
+            output: (B, npoint) tensor containing the set
+        """
+        assert xyz.is_contiguous()
+
+        B, N, _ = xyz.size()
+        output = torch.cuda.IntTensor(B, npoint)
+        temp = torch.cuda.FloatTensor(B, N).fill_(1e10)
+
+        pointnet2.furthest_point_sampling_wrapper(B, N, npoint, xyz, temp, output)
+        return output
+
+    @staticmethod
+    def backward(xyz, a=None):
+        return None, None
+
+
+furthest_point_sample = FurthestPointSampling.apply
