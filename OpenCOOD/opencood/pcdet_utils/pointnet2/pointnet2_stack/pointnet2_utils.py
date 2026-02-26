@@ -146,6 +146,7 @@ class QueryAndGroup(nn.Module):
 
         return new_features, idx
 
+
 class FurthestPointSampling(Function):
     @staticmethod
     def forward(ctx, xyz: torch.Tensor, npoint: int):
