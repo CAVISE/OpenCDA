@@ -521,7 +521,7 @@ class PerceptionManager:
         """
         world = self.carla_world
 
-        vehicle_list = world.get_actors().filter("*vehicle*")
+        vehicle_list = world.get_actors().filter("*")
         # TODO: hard coded
         thresh = 50 if not self.data_dump else 120
 
