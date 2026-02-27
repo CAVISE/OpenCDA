@@ -342,7 +342,8 @@ def mask_boxes_outside_range_numpy(boxes, limit_range, order, min_num_corners=8,
     if boxes.shape[1] == 7:
         new_boxes = boxes_to_corners_3d(new_boxes, order)
 
-    mask = ((new_boxes >= limit_range[0:3]) & (new_boxes <= limit_range[3:6])).all(axis=2)
+    #check if any corners of bbox is inside our GT_RANGE
+    mask = ((new_boxes >= limit_range[0:3]) & (new_boxes <= limit_range[3:6])).any(axis=2)
     mask = mask.sum(axis=1) >= min_num_corners  # (N)
 
     if return_mask:
