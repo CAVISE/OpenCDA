@@ -324,7 +324,7 @@ class PerceptionManager:
         self.vehicle = vehicle
         self.carla_world = carla_world if carla_world is not None else self.vehicle.get_world()
         self._map = self.carla_world.get_map()
-        self.semantic_tag_list = [13, 14, 15, 18]
+        self.semantic_tag_list = [12, 13, 14, 15, 16, 18]
 
         self.id = infra_id
         if vehicle is None:
