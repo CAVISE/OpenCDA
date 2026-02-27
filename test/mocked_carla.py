@@ -159,6 +159,9 @@ class Vector3D(_FloatAttrMixin):
         self.y = y
         self.z = z
 
+    def __eq__(self, other):
+        return super().__eq__(other)
+
     def to_dict(self) -> dict:
         return {"x": float(self.x), "y": float(self.y), "z": float(self.z)}
 
