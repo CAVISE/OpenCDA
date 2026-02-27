@@ -67,11 +67,11 @@ class CoperceptionModelManager:
 
         # Initialize AdvCP Manager if enabled
         self.advcp_manager: Optional[Any] = None
-        if self.opt.get("with_advcp", False):
+        if getattr(self.opt, "with_advcp", False):
             from opencda.core.common.advcp.advcp_manager import AdvCPManager
             from opencda.core.common.advcp.advcp_config import load_advcp_config
 
-            advcp_config = load_advcp_config(self.opt)
+            advcp_config = load_advcp_config(vars(self.opt))
             self.advcp_manager = AdvCPManager(advcp_config, current_time, self, message_handler)
             logger.info("AdvCP Manager initialized and integrated with CoperceptionManager")
 
