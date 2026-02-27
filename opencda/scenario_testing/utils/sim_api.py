@@ -249,7 +249,7 @@ class ScenarioManager:
 
         return self.world.spawn_actor(cav_vehicle_bp, spawn_transform)
 
-    # TODO: сделать им manager для неподвижных объектов и декораций
+    # TODO: make a custom_actor_manager for inanimated objects
     def create_custom_actor_manager(self, application, map_helper=None, data_dump=False, fallback_model: str = "vehicle.lincoln.mkz_2017"):
         if self.scenario_params.get("scenario") is None or self.scenario_params["scenario"].get("custom_actor_list", None) is None:
             logger.info("No custom actor was created")
