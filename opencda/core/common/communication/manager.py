@@ -36,12 +36,3 @@ class CommunicationManager:
             return received_data
         except zmq.ZMQError as error:
             logger.error(f"error upon receiving message: {error}")
-
-    # TODO: maybe add with (python context manager) support?
-    def close_socket(self) -> None:
-        if self.socket:
-            self.socket.close()
-
-    def close_context(self) -> None:
-        if self.context:
-            self.context.term()

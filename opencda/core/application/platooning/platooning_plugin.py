@@ -1,9 +1,4 @@
-# -*- coding: utf-8 -*-
-
 """Platooning plugin for communication and track FSM"""
-
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: TDG-Attribution-NonCommercial-NoDistrib
 
 import warnings
 

@@ -3,57 +3,33 @@
 @brief This module provides functionality for serializing and deserializing carla.Transform objects.
 """
 
-import carla
 from contextlib import contextmanager
+import logging
 
-from . import toolchain
+logger = logging.getLogger("cavise.opencda.opencda.core.common.communication.serialize")
 
-toolchain.CommunicationToolchain.handle_messages(["capi"])
+# Avoid running protoc during import.
+# Try to import generated protobufs first; generate only if missing.
+try:
+    from .protos.cavise import capi_pb2 as proto_capi  # noqa: E402
+
+    logger.debug("Imported generated protobufs module: %s", proto_capi.__name__)
+
+except ImportError:
+    logger.debug("Generated protobufs not found; attempting to generate via toolchain.", exc_info=True)
+    from . import toolchain
+
+    try:
+        toolchain.CommunicationToolchain.handle_messages(["capi"])
+    except FileNotFoundError:
+        # protoc is not available in some environments (e.g. Windows dev machines / minimal CI)
+        logger.warning("protoc not found; assuming generated protobufs already exist.")
+    from .protos.cavise import capi_pb2 as proto_capi  # noqa: E402
 
 from .protos.cavise import capi_pb2 as proto_capi  # noqa: E402
+
+logger.debug("Imported generated protobufs module after generation: %s", proto_capi.__name__)
 from google.protobuf.descriptor import FieldDescriptor  # noqa: E402
-
-
-class SerializableTransform:
-    """
-    @class SerializableTransform
-    @brief A class for serializing and deserializing carla.Transform objects.
-    """
-
-    def __init__(self, transform):
-        """
-        @brief Constructor for creating a SerializableTransform object from a carla.Transform.
-        @param transform The carla.Transform object to serialize.
-        """
-
-        self.ego_pos = {
-            "x": transform.location.x,
-            "y": transform.location.y,
-            "z": transform.location.z,
-            "pitch": transform.rotation.pitch,
-            "yaw": transform.rotation.yaw,
-            "roll": transform.rotation.roll,
-        }
-
-    def to_dict(self):
-        """
-        @brief Serialize the transform object to a dictionary.
-        @return A dictionary containing the serialized transform data.
-        """
-        return self.ego_pos
-
-    @classmethod
-    def from_dict(cls, data):
-        """
-        @brief Deserialize the transform object from a dictionary.
-        @param data A dictionary containing the serialized transform data.
-        @return A SerializableTransform object.
-        """
-        transform = carla.Transform(
-            location=carla.Location(x=data["x"], y=data["y"], z=data["z"]),
-            rotation=carla.Rotation(pitch=data["pitch"], yaw=data["yaw"], roll=data["roll"]),
-        )
-        return cls(transform)
 
 
 # TODO: fix docs and annotations

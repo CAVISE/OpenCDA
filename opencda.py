@@ -1,12 +1,6 @@
-# -*- coding: utf-8 -*-
 """
 Script to run different scenarios.
 """
-
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: TDG-Attribution-NonCommercial-NoDistrib
-
-# Modified by CAVISE team.
 
 import os
 import sys
@@ -61,7 +55,7 @@ def create_logger(level: int, fmt: str = "- [%(asctime)s][%(name)s] %(message)s"
         handler.setFormatter(logging.Formatter(fmt=fmt, datefmt=datefmt))
         handler.setLevel(level)
         logger.addHandler(handler)
-    logger.propagate = False
+    logger.propagate = False  # noqa: DC05
     return logger
 
 

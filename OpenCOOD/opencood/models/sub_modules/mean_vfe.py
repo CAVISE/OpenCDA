@@ -8,9 +8,6 @@ class MeanVFE(nn.Module):
         self.model_cfg = model_cfg
         self.num_point_features = num_point_features
 
-    def get_output_feature_dim(self):
-        return self.num_point_features
-
     def forward(self, batch_dict, **kwargs):
         """
         Args:

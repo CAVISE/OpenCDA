@@ -73,9 +73,6 @@ class Canvas_3D(object):
 
         self.clear_canvas()
 
-    def get_canvas(self):
-        return self.canvas
-
     def clear_canvas(self):
         self.canvas = np.zeros((self.H, self.W, 3), dtype=np.uint8)
         self.canvas[..., :] = self.canvas_bg_color
@@ -173,47 +170,6 @@ class Canvas_3D(object):
         else:
             for color, (x, y) in zip(colors.tolist(), canvas_xy.tolist()):
                 self.canvas = cv2.circle(self.canvas, (y, x), radius, color, -1, lineType=cv2.LINE_AA)
-
-    def draw_lines(self, canvas_xy, start_xyz, end_xyz, colors=(255, 255, 255), thickness=1):
-        """
-        Draws lines between provided 3D points.
-
-        Args:
-            # added from original repo
-            canvas_xy (ndarray): (N, 2) array of *valid* canvas coordinates.
-                    "x" is dim0, "y" is dim1 of canvas.
-
-            start_xyz (ndarray): Shape (N, 3) of 3D points to start from.
-            end_xyz (ndarray): Shape (N, 3) of 3D points to end at. Same length
-                as start_xyz.
-            colors:
-                None: colors all points white.
-                Tuple: RGB (0 ~ 255), indicating a single color for all points.
-                ndarray: (N, 3) array of RGB values for each point.
-            thickness (Int):
-                Thickness of drawn cv2 line.
-        """
-        if colors is None:
-            colors = np.full((len(canvas_xy), 3), fill_value=255, dtype=np.uint8)
-        elif isinstance(colors, tuple):
-            assert len(colors) == 3
-            colors_tmp = np.zeros((len(canvas_xy), 3), dtype=np.uint8)
-            colors_tmp[..., : len(colors)] = np.array(colors)
-            colors = colors_tmp
-        elif isinstance(colors, np.ndarray):
-            assert len(colors) == len(canvas_xy)
-            colors = colors.astype(np.uint8)
-        else:
-            raise Exception("colors type {} was not an expected type".format(type(colors)))
-
-        start_pts_xy, start_pts_valid_mask, start_pts_d = self.get_canvas_coords(start_xyz, True)
-        end_pts_xy, end_pts_valid_mask, end_pts_d = self.get_canvas_coords(end_xyz, True)
-
-        for idx, (color, start_pt_xy, end_pt_xy) in enumerate(zip(colors.tolist(), start_pts_xy.tolist(), end_pts_xy.tolist())):
-            if start_pts_valid_mask[idx] and end_pts_valid_mask[idx]:
-                self.canvas = cv2.line(
-                    self.canvas, tuple(start_pt_xy[::-1]), tuple(end_pt_xy[::-1]), color=color, thickness=thickness, lineType=cv2.LINE_AA
-                )
 
     def draw_boxes(
         self, boxes, colors=None, texts=None, depth_min=0.1, draw_incomplete_boxes=False, box_line_thickness=2, box_text_size=0.5, text_corner=1

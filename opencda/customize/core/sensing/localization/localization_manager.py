@@ -1,9 +1,6 @@
-# -*- coding: utf-8 -*-
 """
 Customized Localization Module.
 """
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: TDG-Attribution-NonCommercial-NoDistrib
 
 from opencda.core.sensing.localization.localization_manager import LocalizationManager
 from opencda.customize.core.sensing.localization.extented_kalman_filter import ExtentedKalmanFilter

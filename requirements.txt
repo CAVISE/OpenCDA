@@ -3,6 +3,7 @@ carla==0.9.16
 
 # Packaging, Build & Runtime Utilities
 coloredlogs==15.0.1
+cumm==0.8.2
 
 # Optimization & Convex Programming
 cvxpy==1.7.3
@@ -15,6 +16,10 @@ lxml==6.0.2
 
 # Visualization & Logging
 matplotlib==3.10.7
+
+# Tools
+mypy==1.19.1
+mypy-protobuf==5.0.0
 
 # Graphs & Networks
 networkx==3.5
@@ -33,7 +38,7 @@ pandas==2.3.3
 Pillow==11.3.0
 
 # Protobuf & Code Generation
-protobuf==6.33.0
+protobuf==6.33.5
 protoc-wheel==21.1
 
 # Multimedia & GUI
@@ -52,14 +57,12 @@ scipy==1.16.3
 seaborn==0.13.2
 shapely==2.1.2
 six==1.17.0
-cumm==0.8.2
-sumolib==1.24.0
+sumolib==1.26.0
 tensorboardX==2.6.4
 timm==1.0.22
-torch_geometric==2.7.0
 torch --index-url https://download.pytorch.org/whl/cu128
+torch_geometric==2.7.0
 torchvision --index-url https://download.pytorch.org/whl/cu128
 tqdm==4.67.1
-traci==1.24.0
+traci==1.26.0
 typing-extensions==4.15.0
-cumm==0.8.2

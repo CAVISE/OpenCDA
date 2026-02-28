@@ -1,15 +1,9 @@
-# -*- coding: utf-8 -*-
-
 """Communication manager for cooperation"""
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: TDG-Attribution-NonCommercial-NoDistrib
 
 from collections import deque
 import weakref
-
 import carla
 import numpy as np
-
 from opencda.core.application.platooning.platooning_plugin import PlatooningPlugin
 from opencda.core.common.misc import compute_distance
 
@@ -57,7 +51,7 @@ class V2XManager(object):
         self.cav_nearby = {}
 
         # used for cooperative perception.
-        self._recieved_buffer = {}
+        # self._recieved_buffer = {}
 
         # used for platooning communication
         self.platooning_plugin = PlatooningPlugin(self.communication_range, self.cda_enabled)

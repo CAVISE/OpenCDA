@@ -1,9 +1,3 @@
-# Copyright (c) # Copyright (c) 2018-2020 CVC.
-#
-# This work is licensed under the terms of the MIT license.
-# For a copy, see <https://opensource.org/licenses/MIT>.
-
-
 """
 This module provides GlobalRoutePlanner implementation.
 """
@@ -393,28 +387,6 @@ class GlobalRoutePlanner(object):
 
         self._previous_decision = decision
         return decision
-
-    def abstract_route_plan(self, origin, destination):
-        """
-        The function that generates the route plan based on
-        origin and destination.
-
-        Args:
-            -origin (carla.Location): object of the route's start position.
-            -destination (carla.Location):  object of the route's end position.
-        Returns:
-            - plan (list): List of turn by turn navigation decisions
-              as agents.navigation.local_planner.RoadOption.
-        """
-
-        route = self._path_search(origin, destination)
-        plan = []
-
-        for i in range(len(route) - 1):
-            road_option = self._turn_decision(i, route)
-            plan.append(road_option)
-
-        return plan
 
     def _find_closest_in_list(self, current_waypoint, waypoint_list):
         min_distance = float("inf")

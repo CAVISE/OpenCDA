@@ -1,8 +1,5 @@
 """
 Cubic spline planner
-
-Author: Atsushi Sakai(@Atsushi_twi)
-
 """
 
 import math
@@ -12,8 +9,7 @@ import bisect
 
 class Spline:
     """
-    Cubic Spline class for calculte curvature
-     (Author: Atsushi Sakai(@Atsushi_twi)).
+    Cubic Spline class for calculte curvature.
 
     Parameters
     -x : float
@@ -149,8 +145,7 @@ class Spline:
 
 class Spline2D:
     """
-    2D Cubic Spline class for calculte curvature
-     (Author: Atsushi Sakai(@Atsushi_twi)).
+    2D Cubic Spline class for calculte curvature.
 
     Parameters
     -x : float
@@ -215,36 +210,6 @@ class Spline2D:
         dy = self.sy.calcd(s)
         yaw = math.atan2(dy, dx)
         return yaw
-
-
-def calc_spline_course(x, y, ds=0.1):
-    """
-    Caculate 2D splice course.
-
-    Args:
-        -x (float): The x coordinate of the input point.
-        -y (float): The y coordinate of the input point.
-        -ds (flost): The s step value. Default value equals to 0.1.
-
-    Returns:
-        -rx (list): List of spline course points' x coordinates.
-        -ry (list): List of spline course points' y coordinates.
-        -ryaw (list): List of spline course points' yaw angles.
-        -rk (list): List of spline course points' curvatures.
-        -s (list): List of spline course points' s values.
-    """
-    sp = Spline2D(x, y)
-    s = list(np.arange(0, sp.s[-1], ds))
-
-    rx, ry, ryaw, rk = [], [], [], []
-    for i_s in s:
-        ix, iy = sp.calc_position(i_s)
-        rx.append(ix)
-        ry.append(iy)
-        ryaw.append(sp.calc_yaw(i_s))
-        rk.append(sp.calc_curvature(i_s))
-
-    return rx, ry, ryaw, rk, s
 
 
 def main():

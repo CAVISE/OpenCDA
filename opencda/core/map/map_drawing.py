@@ -1,9 +1,4 @@
-# -*- coding: utf-8 -*-
-
 """Rasterization drawing functions"""
-
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: TDG-Attribution-NonCommercial-NoDistrib
 
 import numpy as np
 import cv2
@@ -11,7 +6,6 @@ import cv2
 # sub-pixel drawing precision constants
 CV2_SUB_VALUES = {"shift": 9, "lineType": cv2.LINE_AA}
 CV2_SHIFT_VALUE = 2 ** CV2_SUB_VALUES["shift"]
-INTERPOLATION_POINTS = 20
 
 AGENT_COLOR = (255, 255, 255)
 ROAD_COLOR = (17, 17, 31)

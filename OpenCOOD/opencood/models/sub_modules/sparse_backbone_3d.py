@@ -79,7 +79,7 @@ class VoxelBackBone8x(nn.Module):
             nn.ReLU(),
         )
 
-        self.backbone_channels = {"x_conv1": 16, "x_conv2": 32, "x_conv3": 64, "x_conv4": 64}
+        self.backbone_channels = {"x_conv1": 16, "x_conv2": 32, "x_conv3": 64, "x_conv4": 64}  # noqa: DC05
 
     def forward(self, batch_dict):
         """

@@ -4,14 +4,8 @@ import carla
 import numpy as np
 import uuid
 import math
-from enum import IntEnum
 
 LABEL_TO_CARLA = {"building": carla.CityObjectLabel.Buildings, "terrain": carla.CityObjectLabel.Terrain, "sidewalk": carla.CityObjectLabel.Sidewalks}
-
-
-class InterpolationMethod(IntEnum):
-    INTER_METER = 0  # fixed interpolation at a given step in meters
-    INTER_ENSURE_LEN = 1  # ensure we always get the same number of elements
 
 
 def lateral_shift(transform, shift):

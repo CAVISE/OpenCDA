@@ -1,19 +1,7 @@
-# -*- coding: utf-8 -*-
-
 """HDMap utilities"""
-
-
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: TDG-Attribution-NonCommercial-NoDistrib
 
 import carla
 import numpy as np
-from enum import IntEnum
-
-
-class InterpolationMethod(IntEnum):
-    INTER_METER = 0  # fixed interpolation at a given step in meters
-    INTER_ENSURE_LEN = 1  # ensure we always get the same number of elements
 
 
 def lateral_shift(transform, shift):

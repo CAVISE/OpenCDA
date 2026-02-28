@@ -104,44 +104,6 @@ def bbx2oabb(bbx_corner, order="hwl", color=(0, 0, 1)):
     return oabbs
 
 
-def bbx2aabb(bbx_center, order):
-    """
-    Convert the torch tensor bounding box to o3d aabb for visualization.
-
-    Parameters
-    ----------
-    bbx_center : torch.Tensor
-        shape: (n, 7).
-
-    order: str
-        hwl or lwh.
-
-    Returns
-    -------
-    aabbs : list
-        The list containing all o3d.aabb
-    """
-    if not isinstance(bbx_center, np.ndarray):
-        bbx_center = common_utils.torch_tensor_to_numpy(bbx_center)
-    bbx_corner = box_utils.boxes_to_corners_3d(bbx_center, order)
-
-    aabbs = []
-
-    for i in range(bbx_corner.shape[0]):
-        bbx = bbx_corner[i]
-        # o3d use right-hand coordinate
-        bbx[:, :1] = -bbx[:, :1]
-
-        tmp_pcd = o3d.geometry.PointCloud()
-        tmp_pcd.points = o3d.utility.Vector3dVector(bbx)
-
-        aabb = tmp_pcd.get_axis_aligned_bounding_box()
-        aabb.color = (0, 0, 1)
-        aabbs.append(aabb)
-
-    return aabbs
-
-
 def linset_assign_list(vis, lineset_list1, lineset_list2, update_mode="update"):
     """
     Associate two lists of lineset.
@@ -265,8 +227,8 @@ def visualize_single_sample_output_gt(pred_tensor, gt_tensor, pcd, show_vis=True
         vis.create_window()
 
         opt = vis.get_render_option()
-        opt.background_color = np.asarray([0, 0, 0])
-        opt.point_size = 1.0
+        opt.background_color = np.asarray([0, 0, 0])  # noqa: DC05
+        opt.point_size = 1.0  # noqa: DC05
 
         vis.add_geometry(pcd)
         for ele in pred:
@@ -332,7 +294,7 @@ def visualize_single_sample_output_bev(pred_box, gt_box, pcd, dataset, show_vis=
         gt_box = common_utils.torch_tensor_to_numpy(gt_box)
 
     ratio = dataset.params["preprocess"]["args"]["res"]
-    L1, W1, H1, L2, W2, H2 = dataset.params["preprocess"]["cav_lidar_range"]
+    L1, W1, H1, L2, W2, _ = dataset.params["preprocess"]["cav_lidar_range"]
     bev_origin = np.array([L1, W1]).reshape(1, -1)
     # (img_row, img_col)
     bev_map = dataset.project_points_to_bev_map(pcd, ratio)
@@ -491,9 +453,9 @@ def visualize_sequence_dataloader(dataloader, order, color_mode="constant"):
     vis = o3d.visualization.Visualizer()
     vis.create_window()
 
-    vis.get_render_option().background_color = [0.05, 0.05, 0.05]
-    vis.get_render_option().point_size = 1.0
-    vis.get_render_option().show_coordinate_frame = True
+    vis.get_render_option().background_color = [0.05, 0.05, 0.05]  # noqa: DC05
+    vis.get_render_option().point_size = 1.0  # noqa: DC05
+    vis.get_render_option().show_coordinate_frame = True  # noqa: DC05
 
     # used to visualize lidar points
     vis_pcd = o3d.geometry.PointCloud()
@@ -549,89 +511,3 @@ def save_o3d_visualization(element, save_path):
 
     vis.capture_screen_image(save_path)
     vis.destroy_window()
-
-
-def visualize_bev(batch_data):
-    bev_input = batch_data["processed_lidar"]["bev_input"]
-    label_map = batch_data["label_dict"]["label_map"]
-    if not isinstance(bev_input, np.ndarray):
-        bev_input = common_utils.torch_tensor_to_numpy(bev_input)
-
-    if not isinstance(label_map, np.ndarray):
-        label_map = label_map[0].numpy() if not label_map[0].is_cuda else label_map[0].cpu().detach().numpy()
-
-    if len(bev_input.shape) > 3:
-        bev_input = bev_input[0, ...]
-
-    plt.matshow(np.sum(bev_input, axis=0))
-    plt.axis("off")
-    plt.matshow(label_map[0, :, :])
-    plt.axis("off")
-    plt.show()
-
-
-def draw_box_plt(boxes_dec, ax, color=None, linewidth_scale=1.0):
-    """
-    draw boxes in a given plt ax
-    :param boxes_dec: (N, 5) or (N, 7) in metric
-    :param ax:
-    :return: ax with drawn boxes
-    """
-    if not len(boxes_dec) > 0:
-        return ax
-    boxes_np = boxes_dec
-    if not isinstance(boxes_np, np.ndarray):
-        boxes_np = boxes_np.cpu().detach().numpy()
-    if boxes_np.shape[-1] > 5:
-        boxes_np = boxes_np[:, [0, 1, 3, 4, 6]]
-    x = boxes_np[:, 0]
-    y = boxes_np[:, 1]
-    dx = boxes_np[:, 2]
-    dy = boxes_np[:, 3]
-
-    x1 = x - dx / 2
-    y1 = y - dy / 2
-    x2 = x + dx / 2
-    y2 = y + dy / 2
-    theta = boxes_np[:, 4:5]
-    # bl, fl, fr, br
-    corners = np.array([[x1, y1], [x1, y2], [x2, y2], [x2, y1]]).transpose(2, 0, 1)
-    new_x = (corners[:, :, 0] - x[:, None]) * np.cos(theta) + (corners[:, :, 1] - y[:, None]) * (-np.sin(theta)) + x[:, None]
-    new_y = (corners[:, :, 0] - x[:, None]) * np.sin(theta) + (corners[:, :, 1] - y[:, None]) * (np.cos(theta)) + y[:, None]
-    corners = np.stack([new_x, new_y], axis=2)
-    for corner in corners:
-        ax.plot(corner[[0, 1, 2, 3, 0], 0], corner[[0, 1, 2, 3, 0], 1], color=color, linewidth=0.5 * linewidth_scale)
-        # draw front line (
-        ax.plot(corner[[2, 3], 0], corner[[2, 3], 1], color=color, linewidth=2 * linewidth_scale)
-    return ax
-
-
-def draw_points_boxes_plt(
-    pc_range,
-    points=None,
-    boxes_pred=None,
-    boxes_gt=None,
-    save_path=None,
-    points_c="y.",
-    bbox_gt_c="green",
-    bbox_pred_c="red",
-    return_ax=False,
-    ax=None,
-):
-    if ax is None:
-        ax = plt.figure(figsize=(15, 6)).add_subplot(1, 1, 1)
-        ax.set_aspect("equal", "box")
-        ax.set(xlim=(pc_range[0], pc_range[3]), ylim=(pc_range[1], pc_range[4]))
-    if points is not None:
-        ax.plot(points[:, 0], points[:, 1], points_c, markersize=0.1)
-    if (boxes_gt is not None) and len(boxes_gt) > 0:
-        ax = draw_box_plt(boxes_gt, ax, color=bbox_gt_c)
-    if (boxes_pred is not None) and len(boxes_pred) > 0:
-        ax = draw_box_plt(boxes_pred, ax, color=bbox_pred_c)
-    plt.xlabel("x")
-    plt.ylabel("y")
-
-    plt.savefig(save_path)
-    if return_ax:
-        return ax
-    plt.close()

@@ -1,11 +1,7 @@
-# -*- coding: utf-8 -*-
 """
 Used to reduce the dependency on CARLA api by mocking
 them in the same structure.
 """
-# Author: Credits to Pylot team <https://github.com/erdos-project/pylot>
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: TDG-Attribution-NonCommercial-NoDistrib
 
 
 class Vector3D(object):
@@ -22,22 +18,6 @@ class Vector3D(object):
 
     def __init__(self, x: float = 0, y: float = 0, z: float = 0):
         self.x, self.y, self.z = float(x), float(y), float(z)
-
-    @classmethod
-    def from_simulator_vector(cls, vector):
-        """Creates a pylot Vector3D from a simulator 3D vector.
-
-        Args:
-            vector: An instance of a simulator 3D vector.
-
-        Returns:
-            :py:class:`.Vector3D`: A pylot 3D vector.
-        """
-        from carla import Vector3D
-
-        if not isinstance(vector, Vector3D):
-            raise ValueError("The vector must be a Vector3D")
-        return cls(vector.x, vector.y, vector.z)
 
 
 class Location(Vector3D):
@@ -56,22 +36,6 @@ class Location(Vector3D):
 
     def __init__(self, x: float = 0, y: float = 0, z: float = 0):
         super(Location, self).__init__(x, y, z)
-
-    @classmethod
-    def from_simulator_location(cls, location):
-        """Creates a pylot Location from a simulator location.
-
-        Args:
-            location: An instance of a simulator location.
-
-        Returns:
-            :py:class:`.Location`: A pylot location.
-        """
-        from carla import Location, Vector3D
-
-        if not (isinstance(location, Location) or isinstance(location, Vector3D)):
-            raise ValueError("The location must be a Location or Vector3D")
-        return cls(location.x, location.y, location.z)
 
 
 class Rotation(object):
@@ -97,22 +61,6 @@ class Rotation(object):
         self.pitch = pitch
         self.yaw = yaw
         self.roll = roll
-
-    @classmethod
-    def from_simulator_rotation(cls, rotation):
-        """Creates a pylot Rotation from a simulator rotation.
-
-        Args:
-            -rotation: An instance of a simulator rotation.
-
-        Returns:
-            :py:class:`.Rotation`: A pylot rotation.
-        """
-        from carla import Rotation
-
-        if not isinstance(rotation, Rotation):
-            raise ValueError("rotation should be of type Rotation")
-        return cls(rotation.pitch, rotation.yaw, rotation.roll)
 
 
 class Transform(object):
@@ -140,19 +88,3 @@ class Transform(object):
     def __init__(self, location: Location = None, rotation: Rotation = None):
         self.location = location
         self.rotation = Rotation(0, 0, 0) if not rotation else rotation
-
-    @classmethod
-    def from_simulator_transform(cls, transform):
-        """Creates a pylot transform from a simulator transform.
-
-        Args:
-            -transform: A simulator transform.
-
-        Returns:
-            :py:class:`.Transform`: An instance of a pylot transform.
-        """
-        from carla import Transform
-
-        if not isinstance(transform, Transform):
-            raise ValueError("transform should be of type Transform")
-        return cls(Location.from_simulator_location(transform.location), Rotation.from_simulator_rotation(transform.rotation))
