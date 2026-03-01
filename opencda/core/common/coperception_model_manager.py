@@ -119,13 +119,18 @@ class CoperceptionModelManager:
                     for mode in ["3d", "bev"]:
                         if self.hypes["postprocess"]["core_method"] == "BevPostprocessor" and mode == "3d":
                             continue
+                        pcd_points = None
+                        if "origin_lidar" in batch_data["ego"]:
+                            pcd_points = batch_data["ego"]["origin_lidar"][0]
+                        elif "lidar_np" in batch_data["ego"]:
+                            pcd_points = batch_data["ego"]["lidar_np"][0]
                         vis_dir = f"simulation_output/coperception/vis_{mode}/{self.opt.test_scenario}_{self.current_time}"
                         os.makedirs(vis_dir, exist_ok=True)
                         vis_save_path = os.path.join(vis_dir, f"{mode}_{tick_number:05d}.png")
                         simple_vis.visualize(
                             pred_box_tensor,
                             gt_box_tensor,
-                            batch_data["ego"]["origin_lidar"][0],
+                            pcd_points,
                             self.hypes["postprocess"]["gt_range"],
                             vis_save_path,
                             method=mode,
