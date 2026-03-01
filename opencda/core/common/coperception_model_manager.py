@@ -121,7 +121,11 @@ class CoperceptionModelManager:
                             continue
                         pcd_points = None
                         if "origin_lidar" in batch_data["ego"]:
-                            pcd_points = batch_data["ego"]["origin_lidar"][0]
+                            pcd_points = batch_data["ego"]["origin_lidar"]
+                            if self.hypes["fusion"]["core_method"] == "IntermediateFusionDatasetV2":
+                                pcd_points = pcd_points[:, 1:]
+                            else:
+                                pcd_points = pcd_points[0]
                         elif "lidar_np" in batch_data["ego"]:
                             pcd_points = batch_data["ego"]["lidar_np"][0]
                         vis_dir = f"simulation_output/coperception/vis_{mode}/{self.opt.test_scenario}_{self.current_time}"
