@@ -125,7 +125,7 @@ class CoperceptionModelManager:
                             pcd_points = ego_data["origin_lidar"]
                             if self.hypes.get("fusion", {}).get("core_method") == "IntermediateFusionDatasetV2":
                                 pcd_points = pcd_points[:, 1:]
-                            if isinstance(pcd_points, list) or (hasattr(pcd_points, 'ndim') and pcd_points.ndim > 2):
+                            if isinstance(pcd_points, list) or (hasattr(pcd_points, "ndim") and pcd_points.ndim > 2):
                                 pcd_points = pcd_points[0]
                         elif "lidar_np" in ego_data:
                             pcd_points = ego_data["lidar_np"]
