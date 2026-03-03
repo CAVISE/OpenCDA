@@ -120,10 +120,17 @@ class CoperceptionModelManager:
                         if self.hypes["postprocess"]["core_method"] == "BevPostprocessor" and mode == "3d":
                             continue
                         pcd_points = None
-                        if "origin_lidar" in batch_data["ego"]:
-                            pcd_points = batch_data["ego"]["origin_lidar"][0]
-                        elif "lidar_np" in batch_data["ego"]:
-                            pcd_points = batch_data["ego"]["lidar_np"][0]
+                        ego_data = batch_data["ego"]
+                        if "origin_lidar" in ego_data:
+                            pcd_points = ego_data["origin_lidar"]
+                            if self.hypes.get("fusion", {}).get("core_method") == "IntermediateFusionDatasetV2":
+                                pcd_points = pcd_points[:, 1:]
+                            if isinstance(pcd_points, list) or (hasattr(pcd_points, 'ndim') and pcd_points.ndim > 2):
+                                pcd_points = pcd_points[0]
+                        elif "lidar_np" in ego_data:
+                            pcd_points = ego_data["lidar_np"]
+                            if isinstance(pcd_points, list):
+                                pcd_points = pcd_points[0]
                         vis_dir = f"simulation_output/coperception/vis_{mode}/{self.opt.test_scenario}_{self.current_time}"
                         os.makedirs(vis_dir, exist_ok=True)
                         vis_save_path = os.path.join(vis_dir, f"{mode}_{tick_number:05d}.png")
