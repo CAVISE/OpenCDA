@@ -4,6 +4,7 @@ description: |-
 world:
   town: Town06
 
+
 blueprint:
   use_multi_class_bp: true
   bp_meta_path: "opencda/assets/blueprint_meta/bbx_stats_0915.json" # Define the path for loading the blueprint metadata for defining the class of each blueprint

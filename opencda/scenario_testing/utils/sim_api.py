@@ -145,7 +145,7 @@ class ScenarioManager:
 
     """
 
-    def __init__(self, scenario_params, apply_ml, carla_version, xodr_path=None, town=None, cav_world=None, carla_host="carla", carla_timeout=30.0):
+    def __init__(self, scenario_params, apply_ml, carla_version, xodr_path=None, town=None, cav_world=None, carla_host="carla", carla_timeout=600.0):
         self.scenario_params = scenario_params
         self.carla_version = carla_version
         self.world = None

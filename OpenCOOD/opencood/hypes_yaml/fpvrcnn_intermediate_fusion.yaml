@@ -9,6 +9,7 @@ train_params:
   epoches: 20
   eval_freq: 1
   save_freq: 1
+  max_cav: &max_cav 10
 
 fusion:
   core_method: 'IntermediateFusionDatasetV2' # LateFusionDataset, EarlyFusionDataset, IntermediateFusionDataset IntermediateFusionDatasetV2 supported
@@ -19,12 +20,12 @@ preprocess:
   # options: BasePreprocessor, VoxelPreprocessor, BevPreprocessor
   core_method: 'SpVoxelPreprocessor'
   args:
-    voxel_size: &voxel_size [0.1, 0.1, 0.1]
+    voxel_size: &voxel_size [0.1, 0.1, 0.4]
     max_points_per_voxel: &T 5
     max_voxel_train: 36000
     max_voxel_test: 70000
   # lidar range for each individual cav.
-  cav_lidar_range: &cav_lidar [-140.8, -41.6, -3, 140.8, 41.6, 1]
+  cav_lidar_range: &cav_lidar [-140.8, -41.6, -10.6, 140.8, 41.6, 10.6]
   keep_original_lidar: true
 
 data_augment:
@@ -60,7 +61,7 @@ postprocess: &postprocess_params
 model:
   core_method: fpvrcnn # corresponding to FPVRCNN
   args:
-    activate_stage2: False
+    activate_stage2: False # True after training for first 20 epochs
     N: *batch_size
     T: *T
     lidar_range: *cav_lidar
@@ -69,7 +70,7 @@ model:
     mean_vfe:
       num_point_features: 4
     spconv:
-      num_features_in: 64
+      num_features_in: 4
       num_features_out: 64
     map2bev:
       feature_num: 128
