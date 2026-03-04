@@ -520,9 +520,9 @@ class PerceptionManager:
 
         # TODO: add argument whether to include each group and integrate with semantic_tag_list
         vehicle_list = []
-        vehicle_list += [i for i in world.get_actors().filter("*vehicle*")] 
-        vehicle_list += [i for i in world.get_actors().filter("*walker*")] 
-        
+        vehicle_list += [i for i in world.get_actors().filter("*vehicle*")]
+        vehicle_list += [i for i in world.get_actors().filter("*walker*")]
+
         # TODO: hard coded
         thresh = 50 if not self.data_dump else 120
 
