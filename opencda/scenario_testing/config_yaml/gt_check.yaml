@@ -241,7 +241,6 @@ scenario:
       spawn_position: [175, 5, 1, 0, 0, 0]
       id: 130
       model: "vehicle.tesla.cybertruck"
-      color: [35, 10, 231]
 
     - name: car32
       spawn_position: [184, 5, 1, 0, 0, 0]
