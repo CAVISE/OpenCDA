@@ -325,316 +325,263 @@ scenario:
       spawn_position: [117, 12, 1, 0, 0, 0]
       id: 142
       model: "walker.pedestrian.0038"
-      color: [180, 10, 231]
 
     - name: pedestrian2
       spawn_position: [119, 12, 1, 0, 0, 0]
       id: 143
       model: "walker.pedestrian.0042"
-      color: [190, 10, 231]
 
     - name: pedestrian3
       spawn_position: [121, 12, 1, 0, 0, 0]
       id: 144
       model: "walker.pedestrian.0025"
-      color: [200, 10, 231]
 
     - name: pedestrian4
       spawn_position: [123, 12, 1, 0, 0, 0]
       id: 145
       model: "walker.pedestrian.0031"
-      color: [210, 10, 231]
 
     - name: pedestrian5
       spawn_position: [125, 12, 1, 0, 0, 0]
       id: 146
       model: "walker.pedestrian.0027"
-      color: [220, 10, 231]
 
     - name: pedestrian6
       spawn_position: [127, 12, 1, 0, 0, 0]
       id: 147
       model: "walker.pedestrian.0045"
-      color: [230, 10, 231]
 
     - name: pedestrian7
       spawn_position: [129, 12, 1, 0, 0, 0]
       id: 148
       model: "walker.pedestrian.0004"
-      color: [240, 10, 231]
 
     - name: pedestrian8
       spawn_position: [131, 12, 1, 0, 0, 0]
       id: 149
       model: "walker.pedestrian.0018"
-      color: [0, 10, 231]
 
     - name: pedestrian9
       spawn_position: [133, 12, 1, 0, 0, 0]
       id: 150
       model: "walker.pedestrian.0030"
-      color: [10, 10, 231]
 
     - name: pedestrian10
       spawn_position: [135, 12, 1, 0, 0, 0]
       id: 151
       model: "walker.pedestrian.0014"
-      color: [20, 10, 231]
 
     - name: pedestrian11
       spawn_position: [137, 12, 1, 0, 0, 0]
       id: 152
       model: "walker.pedestrian.0035"
-      color: [30, 10, 231]
 
     - name: pedestrian12
       spawn_position: [139, 12, 1, 0, 0, 0]
       id: 153
       model: "walker.pedestrian.0010"
-      color: [40, 10, 231]
 
     - name: pedestrian13
       spawn_position: [141, 12, 1, 0, 0, 0]
       id: 154
       model: "walker.pedestrian.0024"
-      color: [50, 10, 231]
 
     - name: pedestrian14
       spawn_position: [143, 12, 1, 0, 0, 0]
       id: 155
       model: "walker.pedestrian.0051"
-      color: [60, 10, 231]
 
     - name: pedestrian15
       spawn_position: [145, 12, 1, 0, 0, 0]
       id: 156
       model: "walker.pedestrian.0022"
-      color: [70, 10, 231]
 
     - name: pedestrian16
       spawn_position: [147, 12, 1, 0, 0, 0]
       id: 157
       model: "walker.pedestrian.0047"
-      color: [80, 10, 231]
 
     - name: pedestrian17
       spawn_position: [149, 12, 1, 0, 0, 0]
       id: 158
       model: "walker.pedestrian.0007"
-      color: [90, 10, 231]
 
     - name: pedestrian18
       spawn_position: [151, 12, 1, 0, 0, 0]
       id: 159
       model: "walker.pedestrian.0033"
-      color: [100, 10, 231]
 
     - name: pedestrian19
       spawn_position: [153, 12, 1, 0, 0, 0]
       id: 160
       model: "walker.pedestrian.0050"
-      color: [110, 10, 231]
 
     - name: pedestrian20
       spawn_position: [155, 12, 1, 0, 0, 0]
       id: 161
       model: "walker.pedestrian.0005"
-      color: [120, 10, 231]
 
     - name: pedestrian21
       spawn_position: [157, 12, 1, 0, 0, 0]
       id: 162
       model: "walker.pedestrian.0041"
-      color: [130, 10, 231]
 
     - name: pedestrian22
       spawn_position: [159, 12, 1, 0, 0, 0]
       id: 163
       model: "walker.pedestrian.0013"
-      color: [140, 10, 231]
 
     - name: pedestrian23
       spawn_position: [161, 12, 1, 0, 0, 0]
       id: 164
       model: "walker.pedestrian.0044"
-      color: [150, 10, 231]
 
     - name: pedestrian24
       spawn_position: [163, 12, 1, 0, 0, 0]
       id: 165
       model: "walker.pedestrian.0008"
-      color: [160, 10, 231]
 
     - name: pedestrian25
       spawn_position: [165, 12, 1, 0, 0, 0]
       id: 166
       model: "controller.ai.walker"
-      color: [170, 10, 231]
 
     - name: pedestrian26
       spawn_position: [167, 12, 1, 0, 0, 0]
       id: 167
       model: "walker.pedestrian.0032"
-      color: [180, 10, 231]
 
     - name: pedestrian27
       spawn_position: [169, 12, 1, 0, 0, 0]
       id: 168
       model: "walker.pedestrian.0021"
-      color: [190, 10, 231]
 
     - name: pedestrian28
       spawn_position: [171, 12, 1, 0, 0, 0]
       id: 169
       model: "walker.pedestrian.0023"
-      color: [200, 10, 231]
 
     - name: pedestrian29
       spawn_position: [173, 12, 1, 0, 0, 0]
       id: 170
       model: "walker.pedestrian.0002"
-      color: [210, 10, 231]
 
     - name: pedestrian30
       spawn_position: [175, 12, 1, 0, 0, 0]
       id: 171
       model: "walker.pedestrian.0006"
-      color: [220, 10, 231]
 
     - name: pedestrian31
       spawn_position: [177, 12, 1, 0, 0, 0]
       id: 172
       model: "walker.pedestrian.0046"
-      color: [230, 10, 231]
 
     - name: pedestrian32
       spawn_position: [179, 12, 1, 0, 0, 0]
       id: 173
       model: "walker.pedestrian.0028"
-      color: [240, 10, 231]
 
     - name: pedestrian33
       spawn_position: [181, 12, 1, 0, 0, 0]
       id: 174
       model: "walker.pedestrian.0001"
-      color: [0, 10, 231]
 
     - name: pedestrian34
       spawn_position: [183, 12, 1, 0, 0, 0]
       id: 175
       model: "walker.pedestrian.0043"
-      color: [10, 10, 231]
 
     - name: pedestrian35
       spawn_position: [185, 12, 1, 0, 0, 0]
       id: 176
       model: "walker.pedestrian.0040"
-      color: [20, 10, 231]
 
     - name: pedestrian36
       spawn_position: [187, 12, 1, 0, 0, 0]
       id: 177
       model: "walker.pedestrian.0039"
-      color: [30, 10, 231]
 
     - name: pedestrian37
       spawn_position: [189, 12, 1, 0, 0, 0]
       id: 178
       model: "walker.pedestrian.0037"
-      color: [40, 10, 231]
 
     - name: pedestrian38
       spawn_position: [191, 12, 1, 0, 0, 0]
       id: 179
       model: "walker.pedestrian.0036"
-      color: [50, 10, 231]
 
     - name: pedestrian39
       spawn_position: [193, 12, 1, 0, 0, 0]
       id: 180
       model: "walker.pedestrian.0034"
-      color: [60, 10, 231]
 
     - name: pedestrian40
       spawn_position: [195, 12, 1, 0, 0, 0]
       id: 181
       model: "walker.pedestrian.0029"
-      color: [70, 10, 231]
 
     - name: pedestrian41
       spawn_position: [197, 12, 1, 0, 0, 0]
       id: 182
       model: "walker.pedestrian.0026"
-      color: [80, 10, 231]
 
     - name: pedestrian42
       spawn_position: [199, 12, 1, 0, 0, 0]
       id: 183
       model: "walker.pedestrian.0052"
-      color: [90, 10, 231]
 
     - name: pedestrian43
       spawn_position: [201, 12, 1, 0, 0, 0]
       id: 184
       model: "walker.pedestrian.0049"
-      color: [100, 10, 231]
 
     - name: pedestrian44
       spawn_position: [203, 12, 1, 0, 0, 0]
       id: 185
       model: "walker.pedestrian.0017"
-      color: [110, 10, 231]
 
     - name: pedestrian45
       spawn_position: [205, 12, 1, 0, 0, 0]
       id: 186
       model: "walker.pedestrian.0048"
-      color: [120, 10, 231]
 
     - name: pedestrian46
       spawn_position: [207, 12, 1, 0, 0, 0]
       id: 187
       model: "walker.pedestrian.0016"
-      color: [130, 10, 231]
 
     - name: pedestrian47
       spawn_position: [209, 12, 1, 0, 0, 0]
       id: 188
       model: "walker.pedestrian.0015"
-      color: [140, 10, 231]
 
     - name: pedestrian48
       spawn_position: [211, 12, 1, 0, 0, 0]
       id: 189
       model: "walker.pedestrian.0012"
-      color: [150, 10, 231]
 
     - name: pedestrian49
       spawn_position: [213, 12, 1, 0, 0, 0]
       id: 190
       model: "walker.pedestrian.0011"
-      color: [160, 10, 231]
 
     - name: pedestrian50
       spawn_position: [215, 12, 1, 0, 0, 0]
       id: 191
       model: "walker.pedestrian.0003"
-      color: [170, 10, 231]
 
     - name: pedestrian51
       spawn_position: [217, 12, 1, 0, 0, 0]
       id: 192
       model: "walker.pedestrian.0009"
-      color: [180, 10, 231]
 
     - name: pedestrian52
       spawn_position: [219, 12, 1, 0, 0, 0]
       id: 193
       model: "walker.pedestrian.0019"
-      color: [190, 10, 231]
 
     - name: pedestrian53
       spawn_position: [221, 12, 1, 0, 0, 0]
       id: 194
       model: "walker.pedestrian.0020"
-      color: [200, 10, 231]
