@@ -552,6 +552,9 @@ def preprocess_file(
             # ---------------
 
             all_features.append(features)
+            # may happen what some cars have more than OBS_LEN + NUM_PREDICT timesteps
+            if features.shape[0] != all_features[0].shape[0]:
+                return
 
     if len(all_features) == 0:
         return

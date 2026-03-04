@@ -372,6 +372,9 @@ def generate_csv_from_fcd(
             mask = norm < collect_data_radius
             csv_df = csv_df.loc[mask]
 
+            if csv_df["speed"].sum() < 1e-1:
+                continue
+
             for track_id, vehicle_df in csv_df.groupby("TRACK_ID"):
                 last_row = vehicle_df.sort_values("TIMESTAMP").iloc[-1]
                 last_timestamp = float(last_row["TIMESTAMP"])

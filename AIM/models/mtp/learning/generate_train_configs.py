@@ -84,17 +84,15 @@ def generate_configs() -> None:
     os.makedirs(EXPIREMENTS_TRAIN_CONFIG_PATH, exist_ok=True)
     os.makedirs(EXPIREMENTS_MODELS_CONFIG_PATH, exist_ok=True)
 
-    train_config_params = {}
-    # train_config_params = {
-    #     "lr": [5e-5, 1e-4],
-    #     "weight_decay": [1e-4, 5e-4],
-    # }
+    train_config_params = {
+        "lr": [5e-5, 1e-4],
+        "weight_decay": [1e-4, 5e-4],
+    }
 
-    model_config_params = {}
-    # model_config_params = {
-    #     "cars_encoder_hidden_channels": [160, 256],
-    #     "cross_attn_n_attn": [5, 7],
-    # }
+    model_config_params = {
+        "cars_encoder_hidden_channels": [160, 256],
+        "cross_attn_n_attn": [5, 7],
+    }
 
     write_configs(BASE_TRAIN_CONFIG_PATH, train_config_params, os.path.join(EXPIREMENTS_TRAIN_CONFIG_PATH, "train_config"))
     write_configs(BASE_MODEL_CONFIG_PATH, model_config_params, os.path.join(EXPIREMENTS_MODELS_CONFIG_PATH, "model_config"), model_config=True)

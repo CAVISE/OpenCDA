@@ -97,7 +97,7 @@ def transformer_train_one_epoch(
 
         while idx < (NUM_PREDICT_ON_PREDICT + 1):
             if (
-                random.random() < epoch / epochs and epoch / epochs > start_prediction_time + (idx / NUM_PREDICT_ON_PREDICT) * 0.4
+                random.random() < epoch / epochs and epoch / epochs > start_prediction_time + (idx / NUM_PREDICT_ON_PREDICT) * 0.3
             ):  # max of (idx / NUM_PREDICT_ON_PREDICT / 2) = 0.5
                 on_predictions = True
             else:
@@ -295,7 +295,7 @@ def transformer_evaluate(
 
             while idx < (NUM_PREDICT_ON_PREDICT + 1):
                 if (
-                    random.random() < epoch / epochs and epoch / epochs > start_prediction_time + (idx / NUM_PREDICT_ON_PREDICT) * 0.4
+                    random.random() < epoch / epochs and epoch / epochs > start_prediction_time + (idx / NUM_PREDICT_ON_PREDICT) * 0.3
                 ):  # max of (idx / NUM_PREDICT_ON_PREDICT / 2) = 0.5
                     on_predictions = True
                 else:
