@@ -41,7 +41,6 @@ class BevPostprocessor(BasePostprocessor):
             Dictionary that contains all target related info.
         """
 
-        print(f"self.geometry_param['label_shape']: {self.geometry_param['label_shape']}")
 
         assert self.params["order"] == "lwh", "Currently BEV only support lwh bbx order."
         # (max_num, 7)
