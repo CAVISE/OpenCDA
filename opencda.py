@@ -124,6 +124,63 @@ def arg_parse() -> argparse.Namespace:
         "but would increase the tolerance for FP (False Positives).",
     )
 
+    # AdvCP arguments
+    parser.add_argument(
+        "--with-advcp", action="store_true", help="Whether to enable AdvCollaborativePerception module with attack/defense capabilities"
+    )
+    parser.add_argument("--advcp-config", type=str, default="opencda/core/common/advcp/advcp_config.yaml", help="Path to AdvCP configuration file")
+    parser.add_argument("--attackers-ratio", type=float, default=0.2, help="Ratio of CAVs to be attackers (0.0-1.0)")
+    parser.add_argument(
+        "--attack-type",
+        type=str,
+        default="lidar_remove_early",
+        choices=[
+            "lidar_remove_early",
+            "lidar_remove_intermediate",
+            "lidar_remove_late",
+            "lidar_spoof_early",
+            "lidar_spoof_intermediate",
+            "lidar_spoof_late",
+            "adv_shape",
+        ],
+        help="Type of attack to execute",
+    )
+    parser.add_argument(
+        "--attack-target",
+        type=str,
+        default="random",
+        choices=["random", "specific_vehicle", "all_non_attackers"],
+        help="Target selection strategy for attacks",
+    )
+    parser.add_argument("--apply-cad-defense", action="store_true", help="Enable CAD defense mechanism")
+    parser.add_argument("--defense-threshold", type=float, default=0.7, help="Trust threshold for CAD defense (0.0-1.0)")
+
+    # AdvCP Visualization arguments
+    parser.add_argument("--advcp-vis", action="store_true", help="Enable AdvCP visualization output")
+    parser.add_argument(
+        "--advcp-vis-mode",
+        type=str,
+        default="matplotlib",
+        choices=["matplotlib", "open3d", "both"],
+        help="Visualization backend: matplotlib (2D), open3d (3D), or both",
+    )
+    parser.add_argument("--advcp-vis-save", action="store_true", help="Save visualization outputs to disk")
+    parser.add_argument("--advcp-vis-show", action="store_true", help="Show interactive visualization (blocks execution)")
+    parser.add_argument(
+        "--advcp-vis-output-dir",
+        type=str,
+        default="simulation_output/advcp_vis",
+        help="Directory to save visualization outputs",
+    )
+    parser.add_argument(
+        "--advcp-vis-types",
+        type=str,
+        nargs="+",
+        default=["attack", "defense"],
+        choices=["attack", "defense", "evaluation", "ground_seg", "tracking", "roc"],
+        help="Types of visualization to generate",
+    )
+
     def verbosity_wrapper(arg: str) -> VerbosityLevel:
         return VerbosityLevel(int(arg))
 
@@ -157,6 +214,42 @@ def check_buld_for_utils(module_path: str, cwd: pathlib.PurePath, verbose: bool,
         result = subprocess.run(
             ["python", f"{module_path}setup.py", "build_ext", "--inplace"], check=True, cwd=cwd.joinpath("OpenCOOD"), capture_output=True, text=True
         )
+        os.close(os.open(str(marker_file), os.O_CREAT))
+        logger.info(f"Complete building {module_name}")
+        if verbose:
+            logger.info(result.stdout)
+        return True
+
+    except subprocess.CalledProcessError as e:
+        logger.info(f"Compilation error {module_name}:")
+        if verbose:
+            logger.info(e.stderr)
+        return False
+
+
+def check_build_advcp_module(module_path: str, cwd: pathlib.PurePath, verbose: bool, logger: logging.Logger) -> bool:
+    """
+    Build an AdvCP CUDA/C++ extension module.
+
+    Args:
+        module_path: Path to the module directory containing setup.py (relative to cwd)
+        cwd: Current working directory (PurePath)
+        verbose: Whether to output full build logs
+        logger: Logger instance
+
+    Returns:
+        bool: True if build succeeded or already built, False otherwise
+    """
+    marker_file = cwd.joinpath(f"{module_path}/{BUILD_COMPLETED_FLAG}")
+    module_name = module_path.rstrip("/").split("/")[-1]
+
+    if os.path.isfile(marker_file):
+        logger.info(f"{module_name} is already built")
+        return True
+
+    try:
+        logger.info(f"Building {module_name} ...")
+        result = subprocess.run(["python", f"{module_path}setup.py", "build_ext", "--inplace"], check=True, cwd=cwd, capture_output=True, text=True)
         os.close(os.open(str(marker_file), os.O_CREAT))
         logger.info(f"Complete building {module_name}")
         if verbose:
@@ -212,6 +305,11 @@ def main() -> None:
             logger.error("Failed to build opencood.utils")
         if not check_buld_for_utils(opencood_pcdet_utils, cwd, verbosity == VerbosityLevel.FULL, logger):
             logger.error("Failed to build opencood.pcdet_utils")
+
+    if opt.with_advcp:
+        advcp_cuda_op = "opencda/core/common/advcp/mvp/perception/cuda_op"
+        if not check_build_advcp_module(advcp_cuda_op, cwd, verbosity == VerbosityLevel.FULL, logger):
+            logger.error("Failed to build AdvCP cuda_op")
 
     # this function might setup crucial components in Scenario, so
     # we should import as late as possible

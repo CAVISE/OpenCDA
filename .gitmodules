@@ -1,0 +1,3 @@
+[submodule "opencda/core/common/advcp/third_party/SqueezeSegV3"]
+	path = opencda/core/common/advcp/third_party/SqueezeSegV3
+	url = https://github.com/zqzqz/SqueezeSegV3.git
