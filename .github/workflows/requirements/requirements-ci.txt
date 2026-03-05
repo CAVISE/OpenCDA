@@ -12,7 +12,7 @@ numpy==1.26.4
 
 # image I/O used by MLManager tests
 opencv-python-headless==4.11.0.86
-protobuf==6.33.0
+protobuf==6.33.5
 protoc-wheel==21.1
 pytest==9.0.2
 PyYAML==6.0.3
