@@ -8,7 +8,11 @@ import time
 import open3d as o3d
 import numpy as np
 
-from matplotlib import cm
+try:
+    from matplotlib import colormaps as cm
+except ImportError:  # pragma: no cover
+    from matplotlib import cm
+
 from scipy.stats import mode
 
 import opencda.core.sensing.perception.sensor_transformation as st
@@ -20,12 +24,7 @@ def _cmap_colors(name: str) -> np.ndarray:
     Return an (N, 3) float array of RGB colors for a matplotlib colormap.
     Avoids deprecated cm.get_cmap() usage on newer matplotlib versions.
     """
-    try:
-        from matplotlib import colormaps
-
-        cmap = colormaps.get_cmap(name)
-    except Exception:  # pragma: no cover
-        cmap = cm.get_cmap(name)
+    cmap = cm.get_cmap(name)
 
     if hasattr(cmap, "colors"):
         colors = np.asarray(cmap.colors, dtype=float)
