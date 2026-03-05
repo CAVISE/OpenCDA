@@ -1,13 +1,38 @@
 import os
 import numpy as np
 
-mvp_root = os.path.join(os.path.abspath(os.path.dirname(__file__)), "../")
+mvp_root = os.path.normpath(os.path.join(os.path.abspath(os.path.dirname(__file__)), "../"))
 data_root = os.path.join(mvp_root, "data")
 model_root = os.path.join(mvp_root, "models")
 third_party_root = os.path.join(mvp_root, "third_party")
 tmp_root = os.path.join(mvp_root, "tmp")
 model_3d_path = os.path.join(data_root, "model_3d")
 patch_path = os.path.join(data_root, "patch")
+
+# External OpenCOOD installation paths
+# These allow AdvCP to use system-wide OpenCOOD and coperception_models
+# instead of the bundled third_party/OpenCOOD
+
+# Path to OpenCOOD root directory (contains opencood/ package)
+# Default: look for OpenCOOD at project root (5 levels up from mvp/, then OpenCOOD)
+# Can be overridden by environment variable OPENCOOD_ROOT
+_project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(mvp_root)))))
+_opencood_default = os.path.join(_project_root, "OpenCOOD")
+opencood_root = os.environ.get("OPENCOOD_ROOT", _opencood_default)
+
+# Path to OpenCOOD model weights and configs
+# Default: opencda/coperception_models (4 levels up from mvp/, then opencda/coperception_models)
+# Can be overridden by environment variable OPENCOOD_MODELS_ROOT
+_opencood_models_default = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(mvp_root)))), "opencda", "coperception_models"
+)
+opencood_models_root = os.environ.get("OPENCOOD_MODELS_ROOT", _opencood_models_default)
+
+# Path to OPV2V dataset
+# Default: use data_root/OPV2V (relative to mvp/data/)
+# Can be overridden by environment variable OPV2V_DATA_ROOT
+_opv2v_data_default = os.path.join(data_root, "OPV2V")
+opv2v_data_root = os.environ.get("OPV2V_DATA_ROOT", _opv2v_data_default)
 
 model_3d_examples = {
     "car_000000": np.array([0, 0, 0, 5.00, 2.00, 1.75, 0]),

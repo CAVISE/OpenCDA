@@ -3,6 +3,26 @@
 
 This guide explains how to run OpenCDA simulations with the AdvCP (Advanced Collaborative Perception) module enabled using the CAVISE infrastructure (run.sh and docker-compose).
 
+### Environment Variables for External Dependencies
+
+AdvCP can use external installations of OpenCOOD and model weights instead of bundled third-party dependencies. This is useful when OpenCOOD is installed system-wide or in a custom location.
+
+| Environment Variable | Default | Description |
+|---------------------|---------|-------------|
+| `OPENCOOD_ROOT` | `<project_root>/OpenCOOD` | Path to OpenCOOD root directory (containing `opencood/` package) |
+| `OPENCOOD_MODELS_ROOT` | `<project_root>/opencda/coperception_models` | Path to OpenCOOD model weights and configs |
+| `OPV2V_DATA_ROOT` | `<mvp_root>/data/OPV2V` | Path to OPV2V dataset (train/validate directories) |
+
+**Example:**
+```bash
+export OPENCOOD_ROOT=/path/to/OpenCOOD
+export OPENCOOD_MODELS_ROOT=/path/to/coperception_models
+export OPV2V_DATA_ROOT=/path/to/OPV2V
+python opencda.py -t single_town06_carla --with-coperception --with-advcp ...
+```
+
+**Note:** SqueezeSegV3 remains bundled in `opencda/core/common/advcp/third_party/SqueezeSegV3/` and does not require external configuration.
+
 ---
 
 ### Prerequisites

@@ -14,23 +14,166 @@ import torch.nn.functional as F
 from numpy.typing import NDArray
 from torch import Tensor
 
-from mvp.config import third_party_root, model_root, data_root
+from mvp.config import opencood_root, opencood_models_root, opv2v_data_root
 from mvp.data.util import pose_to_transformation
 
 logger = logging.getLogger(__name__)
 
-opencood_root = os.path.join(third_party_root, "OpenCOOD")
-sys.path.append(opencood_root)
+# Try to import OpenCOOD from the configured root
+# Support both external installation and bundled third_party
+_opencood_import_attempted = False
+_opencood_import_success = False
 
-import opencood.hypes_yaml.yaml_utils as yaml_utils  # noqa: E402
-from opencood.tools import train_utils, inference_utils  # noqa: E402
-from opencood.data_utils.datasets import build_dataset  # noqa: E402
-from opencood.utils import box_utils  # noqa: E402
-from opencood.utils.pcd_utils import mask_points_by_range  # noqa: E402
-from opencood.utils.common_utils import torch_tensor_to_numpy  # noqa: E402
+
+def _import_opencood():
+    global \
+        _opencood_import_attempted, \
+        _opencood_import_success, \
+        yaml_utils, \
+        train_utils, \
+        inference_utils, \
+        build_dataset, \
+        box_utils, \
+        mask_points_by_range, \
+        torch_tensor_to_numpy
+    if _opencood_import_attempted:
+        return _opencood_import_success
+
+    _opencood_import_attempted = True
+
+    # First try: use configured opencood_root
+    if os.path.exists(opencood_root):
+        logger.info(f"Attempting to import OpenCOOD from: {opencood_root}")
+        if opencood_root not in sys.path:
+            sys.path.insert(0, opencood_root)
+        try:
+            import opencood.hypes_yaml.yaml_utils as yaml_utils  # noqa: F401
+            from opencood.tools import train_utils, inference_utils  # noqa: F401
+            from opencood.data_utils.datasets import build_dataset  # noqa: F401
+            from opencood.utils import box_utils  # noqa: F401
+            from opencood.utils.pcd_utils import mask_points_by_range  # noqa: F401
+            from opencood.utils.common_utils import torch_tensor_to_numpy  # noqa: F401
+
+            _opencood_import_success = True
+            logger.info(f"Successfully imported OpenCOOD from: {opencood_root}")
+            return True
+        except ImportError as e:
+            logger.warning(f"Failed to import OpenCOOD from {opencood_root}: {e}")
+
+    # Second try: fallback to third_party_root/OpenCOOD (for backward compatibility)
+    fallback_path = os.path.join(os.path.dirname(opencood_root), "third_party", "OpenCOOD")
+    if os.path.exists(fallback_path) and fallback_path != opencood_root:
+        logger.info(f"Attempting fallback import from: {fallback_path}")
+        if fallback_path not in sys.path:
+            sys.path.insert(0, fallback_path)
+        try:
+            import opencood.hypes_yaml.yaml_utils as yaml_utils  # noqa: F401
+            from opencood.tools import train_utils, inference_utils  # noqa: F401
+            from opencood.data_utils.datasets import build_dataset  # noqa: F401
+            from opencood.utils import box_utils  # noqa: F401
+            from opencood.utils.pcd_utils import mask_points_by_range  # noqa: F401
+            from opencood.utils.common_utils import torch_tensor_to_numpy  # noqa: F401
+
+            _opencood_import_success = True
+            logger.info(f"Successfully imported OpenCOOD from fallback: {fallback_path}")
+            return True
+        except ImportError as e:
+            logger.error(f"Fallback import also failed: {e}")
+
+    logger.error("Could not import OpenCOOD from any location")
+    return False
+
+
+# Import OpenCOOD modules
+if not _import_opencood():
+    raise ImportError("OpenCOOD module could not be loaded. Please ensure OpenCOOD is installed or set OPENCOOD_ROOT environment variable.")
 
 
 class OpencoodPerception(Perception):
+    @staticmethod
+    def _find_model_directory(models_root: str, model_name: str, fusion_method: str) -> str:
+        """
+        Find the model directory that matches the requested model and fusion method.
+
+        The coperception_models directory uses naming patterns:
+        - Simple: {model}-{fusion}-{dataset}-{epoch}
+        - Variant: {model}-{variant}-{fusion}-{dataset}-{epoch}
+        - Special: For v2vnet, it's {base_model}-v2vnet-{fusion}-{dataset}-{epoch}
+
+        Args:
+            models_root: Root directory containing all model directories
+            model_name: Name of the model (e.g., 'pointpillar', 'v2vnet')
+            fusion_method: Fusion method ('early', 'intermediate', 'late')
+
+        Returns:
+            Path to the model directory
+
+        Raises:
+            FileNotFoundError: If no matching model directory is found
+        """
+        import glob
+
+        # Pattern definitions
+        # Exact: {model}-{fusion}-{dataset}-{epoch}
+        pattern_exact = os.path.join(models_root, f"{model_name}-{fusion_method}-*-*")
+        # Variant: {model}-{variant}-{fusion}-{dataset}-{epoch}
+        pattern_variant = os.path.join(models_root, f"{model_name}-*-{fusion_method}-*-*")
+        # For v2vnet which is a variant architecture: {base_model}-v2vnet-{fusion}-{dataset}-{epoch}
+        # This is actually covered by pattern_variant if model_name='v2vnet', but we need to also check
+        # for directories that have v2vnet as a component (like pointpillar-v2vnet-...)
+        # So we need an additional search: *-v2vnet-{fusion}-*-*
+        pattern_special_v2vnet = os.path.join(models_root, f"*-v2vnet-{fusion_method}-*-*")
+
+        # Collect matches
+        exact_matches = [d for d in glob.glob(pattern_exact) if os.path.isdir(d)]
+
+        variant_matches = [d for d in glob.glob(pattern_variant) if os.path.isdir(d)]
+        variant_matches = [d for d in variant_matches if d not in exact_matches]
+
+        # For v2vnet specifically, also search for the special pattern
+        special_v2vnet_matches = []
+        if model_name == "v2vnet":
+            special_v2vnet_matches = [d for d in glob.glob(pattern_special_v2vnet) if os.path.isdir(d)]
+            # Remove any that are already in exact or variant matches
+            special_v2vnet_matches = [d for d in special_v2vnet_matches if d not in exact_matches and d not in variant_matches]
+
+        # Combine variant and special v2vnet matches for v2vnet model
+        if model_name == "v2vnet":
+            variant_matches.extend(special_v2vnet_matches)
+
+        # Prefer exact matches, then variants (including special v2vnet)
+        if exact_matches:
+            candidates = exact_matches
+            match_type = "exact"
+        elif variant_matches:
+            candidates = variant_matches
+            match_type = "variant"
+        else:
+            raise FileNotFoundError(
+                f"No model directory found for {model_name} with {fusion_method} fusion in {models_root}. "
+                f"Searched patterns: {pattern_exact}, {pattern_variant}"
+            )
+
+        # If multiple candidates, prefer the one with highest epoch (last number)
+        if len(candidates) > 1:
+            # Extract epoch number (last component after splitting by '-')
+            def get_epoch(path):
+                name = os.path.basename(path)
+                parts = name.split("-")
+                try:
+                    return int(parts[-1])
+                except (ValueError, IndexError):
+                    return 0
+
+            best_match = max(candidates, key=get_epoch)
+            logger.info(
+                f"Multiple {match_type} matches found for {model_name}_{fusion_method}, selected: {os.path.basename(best_match)} (highest epoch)"
+            )
+            return best_match
+
+        logger.info(f"Found {match_type} match model directory: {os.path.basename(candidates[0])}")
+        return candidates[0]
+
     def __init__(self, fusion_method: str = "early", model_name: str = "pointpillar") -> None:
         super().__init__()
         valid_models = ["pixor", "voxelnet", "second", "pointpillar", "v2vnet", "fpvrcnn"]
@@ -45,14 +188,9 @@ class OpencoodPerception(Perception):
         self.devices = "cuda:0"
         self.model_name = model_name
         self.fusion_method = fusion_method
-        if self.model_name == "v2vnet":
-            self.model_dir = os.path.join(model_root, "OpenCOOD/v2vnet")
-            self.fusion_method = "intermediate"
-        else:
-            self.model_dir = os.path.join(
-                model_root,
-                "OpenCOOD/{}_{}_fusion".format(self.model_name, self.fusion_method if self.fusion_method != "intermediate" else "attentive"),
-            )
+
+        # Find the model directory that matches the requested model and fusion method
+        self.model_dir = self._find_model_directory(opencood_models_root, model_name, fusion_method)
         self.config_file = os.path.join(self.model_dir, "config.yaml")
         self.preprocessors = {
             "early": self.early_preprocess,
@@ -66,8 +204,8 @@ class OpencoodPerception(Perception):
         }
 
         hypes = yaml_utils.load_yaml(self.config_file, None)
-        hypes["root_dir"] = os.path.join(data_root, "OPV2V/train")
-        hypes["validate_dir"] = os.path.join(data_root, "OPV2V/validate")
+        hypes["root_dir"] = os.path.join(opv2v_data_root, "train")
+        hypes["validate_dir"] = os.path.join(opv2v_data_root, "validate")
         self.dataset = build_dataset(hypes, visualize=False, train=False)
         self.model = train_utils.create_model(hypes)
         # we assume gpu is available
