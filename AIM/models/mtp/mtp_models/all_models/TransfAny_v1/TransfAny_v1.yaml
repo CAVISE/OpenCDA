@@ -1,0 +1,14 @@
+TransfAny_v1:
+    map_encoder_base_channels: 16
+    map_encoder_stages: [3, 4, 4, 3, 3]
+    map_encoder_out_vec_size: 128
+    cars_encoder_hidden_channels: 128
+    cars_encoder_n_heads: 4
+    dropout: 0.2
+    cars_encoder_n_attn: 4
+    bias: True
+    cars_encoder_n_linear_encoder: 2
+    decoder_n_linear_decoder: 2
+    cross_attn_n_heads: 4
+    cross_attn_n_linear: 2
+    cross_attn_n_attn: 2

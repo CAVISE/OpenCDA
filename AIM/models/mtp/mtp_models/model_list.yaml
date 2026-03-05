@@ -1,0 +1,24 @@
+models:
+    GNN_mtl_gnn:
+        dir: "AIM/models/mtp/mtp_models/all_models/GNN_mtl_gnn"
+        module: "AIM.models.mtp.mtp_models.all_models.GNN_mtl_gnn.GNN_mtl_gnn"
+        class: "GNN_mtl_gnn"
+        base_config: "GNN_mtl_gnn.yaml"
+
+    GNN_mtl_mlp:
+        dir: "AIM/models/mtp/mtp_models/all_models/GNN_mtl_mlp"
+        module: "AIM.models.mtp.mtp_models.all_models.GNN_mtl_mlp.GNN_mtl_mlp"
+        class: "GNN_mtl_mlp"
+        base_config: "GNN_mtl_mlp.yaml"
+
+    Transf1v1:
+        dir: "AIM/models/mtp/mtp_models/all_models/Transf1v1"
+        module: "AIM.models.mtp.mtp_models.all_models.Transf1v1.Transf1v1"
+        class: "Transf1v1"
+        base_config: "Transf1v1.yaml"
+
+    TransfAny_v1:
+        dir: "AIM/models/mtp/mtp_models/all_models/TransfAny_v1"
+        module: "AIM.models.mtp.mtp_models.all_models.TransfAny_v1.TransfAny_v1"
+        class: "TransfAny_v1"
+        base_config: "TransfAny_v1.yaml"
