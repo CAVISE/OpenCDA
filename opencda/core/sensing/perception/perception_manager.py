@@ -320,6 +320,8 @@ class PerceptionManager:
         self.vehicle = vehicle
         self.carla_world = carla_world if carla_world is not None else self.vehicle.get_world()
         self._map = self.carla_world.get_map()
+        # 12 - walker, pedestrian, [13,18] - bikes, motobikes, 14 - vehicles, 15 - vehicles, trucks,  16 - vehicle.mitsubishi.fusorosa,
+        self.semantic_tag_list = [12, 13, 14, 15, 16, 18]
 
         self.id = infra_id
         if vehicle is None:
@@ -516,7 +518,11 @@ class PerceptionManager:
         """
         world = self.carla_world
 
-        vehicle_list = world.get_actors().filter("*vehicle*")
+        # TODO: add argument whether to include each group and integrate with semantic_tag_list
+        vehicle_list = []
+        vehicle_list += [i for i in world.get_actors().filter("*vehicle*")]
+        vehicle_list += [i for i in world.get_actors().filter("*walker*")]
+
         # TODO: hard coded
         thresh = 50 if not self.data_dump else 120
 
@@ -598,9 +604,8 @@ class PerceptionManager:
             semantic_idx = semantic_idx[:min_size]
             semantic_tag = semantic_tag[:min_size]
 
-        # label 10 is the vehicle (is it true???)
-        # I replaced 10 with 14 and get ground truth worked
-        vehicle_idx = semantic_idx[semantic_tag == 14]
+        # self.semantic_tag_list is whitelist for tags
+        vehicle_idx = semantic_idx[np.isin(semantic_tag, self.semantic_tag_list)]
         # each individual instance id
         vehicle_unique_id = list(np.unique(vehicle_idx))
 
