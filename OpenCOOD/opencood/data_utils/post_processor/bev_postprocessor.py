@@ -41,7 +41,6 @@ class BevPostprocessor(BasePostprocessor):
             Dictionary that contains all target related info.
         """
 
-
         assert self.params["order"] == "lwh", "Currently BEV only support lwh bbx order."
         # (max_num, 7)
         gt_box_center = kwargs["gt_box_center"]
