@@ -10,6 +10,7 @@ from __future__ import annotations
 import sys
 import types
 import warnings
+import importlib.util
 from types import ModuleType, SimpleNamespace
 from unittest.mock import Mock
 
@@ -153,11 +154,8 @@ carla_stub.command = command_stub
 _install_stub("carla", carla_stub)
 _install_stub("carla.command", command_stub)
 
-
 # Optional dependency: omegaconf stub (only if not installed)
-try:
-    import omegaconf  # noqa: F401
-except ImportError:  # pragma: no cover
+if importlib.util.find_spec("omegaconf") is None:  # pragma: no cover
     omegaconf_stub = types.ModuleType("omegaconf")
     omegaconf_listconfig_stub = types.ModuleType("omegaconf.listconfig")
 

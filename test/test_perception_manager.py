@@ -49,12 +49,12 @@ def _ensure_open3d_minimal():
     if not hasattr(o3d, "geometry"):
         o3d.geometry = types.SimpleNamespace()
     if not hasattr(o3d.geometry, "PointCloud"):
-        o3d.geometry.PointCloud = lambda: _O3DPointCloud()
+        o3d.geometry.PointCloud = _O3DPointCloud
 
     if not hasattr(o3d, "visualization"):
         o3d.visualization = types.SimpleNamespace()
     if not hasattr(o3d.visualization, "Visualizer"):
-        o3d.visualization.Visualizer = lambda: _O3DVisualizer()
+        o3d.visualization.Visualizer = _O3DVisualizer
 
     return o3d
 

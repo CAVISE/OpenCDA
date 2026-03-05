@@ -51,6 +51,9 @@ class Location(_FloatAttrMixin):
         self.y = y
         self.z = z
 
+    def __eq__(self, other):
+        return super().__eq__(other)
+
     def __add__(self, other):
         if not isinstance(other, Location):
             return NotImplemented
@@ -80,6 +83,9 @@ class Rotation(_FloatAttrMixin):
         self.pitch = pitch
         self.yaw = yaw
         self.roll = roll
+
+    def __eq__(self, other):
+        return super().__eq__(other)
 
     def to_dict(self) -> dict:
         return {"pitch": float(self.pitch), "yaw": float(self.yaw), "roll": float(self.roll)}
