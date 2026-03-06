@@ -36,25 +36,31 @@ class CoperceptionModelManager:
         self.data_loader = None
         self.message_handler = message_handler
 
+        logger.info("Initial Dataset Building")
+        self.opencood_dataset = build_dataset(self.hypes, visualize=True, train=False, message_handler=self.message_handler)
+
+        self.data_loader = DataLoader(
+            self.opencood_dataset,
+            batch_size=1,
+            num_workers=0,
+            collate_fn=self.opencood_dataset.collate_batch_test,
+            shuffle=False,
+            pin_memory=False,
+            drop_last=False,
+        )
+
         self.final_result_stat = {
             0.3: {"tp": [], "fp": [], "gt": 0, "score": []},
             0.5: {"tp": [], "fp": [], "gt": 0, "score": []},
             0.7: {"tp": [], "fp": [], "gt": 0, "score": []},
         }
 
-    def make_dataset(self):
-        logger.info("Dataset Building")
-        self.opencood_dataset = build_dataset(self.hypes, visualize=True, train=False, message_handler=self.message_handler)
-        logger.info(f"{len(self.opencood_dataset)} samples found.")
-        self.data_loader = DataLoader(
-            self.opencood_dataset,
-            batch_size=1,
-            num_workers=16,
-            collate_fn=self.opencood_dataset.collate_batch_test,
-            shuffle=False,
-            pin_memory=False,
-            drop_last=False,
-        )
+    def update_dataset(self):
+        logger.debug("Refreshing dataset indices")
+        self.opencood_dataset.update_database()
+
+        if len(self.opencood_dataset) == 0:
+            logger.warning("No samples found in dataset after update.")
 
     def make_prediction(self, tick_number):
         assert self.opt.fusion_method in ["late", "early", "intermediate"]
@@ -113,13 +119,25 @@ class CoperceptionModelManager:
                     for mode in ["3d", "bev"]:
                         if self.hypes["postprocess"]["core_method"] == "BevPostprocessor" and mode == "3d":
                             continue
+                        pcd_points = None
+                        ego_data = batch_data["ego"]
+                        if "origin_lidar" in ego_data:
+                            pcd_points = ego_data["origin_lidar"]
+                            if self.hypes.get("fusion", {}).get("core_method") == "IntermediateFusionDatasetV2":
+                                pcd_points = pcd_points[:, 1:]
+                            if isinstance(pcd_points, list) or (hasattr(pcd_points, "ndim") and pcd_points.ndim > 2):
+                                pcd_points = pcd_points[0]
+                        elif "lidar_np" in ego_data:
+                            pcd_points = ego_data["lidar_np"]
+                            if isinstance(pcd_points, list):
+                                pcd_points = pcd_points[0]
                         vis_dir = f"simulation_output/coperception/vis_{mode}/{self.opt.test_scenario}_{self.current_time}"
                         os.makedirs(vis_dir, exist_ok=True)
                         vis_save_path = os.path.join(vis_dir, f"{mode}_{tick_number:05d}.png")
                         simple_vis.visualize(
                             pred_box_tensor,
                             gt_box_tensor,
-                            batch_data["ego"]["origin_lidar"][0],
+                            pcd_points,
                             self.hypes["postprocess"]["gt_range"],
                             vis_save_path,
                             method=mode,

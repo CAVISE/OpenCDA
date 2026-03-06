@@ -34,6 +34,9 @@ class DummyDataset:
     def visualize_result(self, *args, **kwargs):
         pass
 
+    def update_database(self):
+        pass
+
 
 class TestCoperceptionModelManager:
     @pytest.fixture
@@ -78,7 +81,10 @@ class TestCoperceptionModelManager:
         opencood.utils.eval_utils.caluclate_tp_fp.side_effect = None
 
         # Setup default return values
-        hypes = {"postprocess": {"core_method": "VoxelPostprocessor", "gt_range": [0, -40, -3, 70, 40, 1]}}
+        hypes = {
+            "postprocess": {"core_method": "VoxelPostprocessor", "gt_range": [0, -40, -3, 70, 40, 1]},
+            "fusion": {"core_method": "IntermediateFusionDataset"},
+        }
         opencood.hypes_yaml.yaml_utils.load_yaml.return_value = hypes
 
         model = MagicMock()
@@ -117,9 +123,9 @@ class TestCoperceptionModelManager:
         assert manager.device == "device(cuda)"
         manager_deps["model"].cuda.assert_called_once()
 
-    def test_make_dataset(self, manager_deps):
+    def test_update_dataset(self, manager_deps):
         """
-        Verify make_dataset calls the correct build_dataset and creates a DataLoader.
+        Verify update_dataset calls the correct build_dataset and creates a DataLoader.
         We patch the symbol inside the module under test to ensure we capture the call.
         """
         dataset_mock = DummyDataset()
@@ -129,7 +135,7 @@ class TestCoperceptionModelManager:
             opt = DummyOpt()
             manager = CoperceptionModelManager(opt, "2023_01_01")
 
-            manager.make_dataset()
+            manager.update_dataset()
 
             mock_build.assert_called_with(manager_deps["hypes"], visualize=True, train=False, message_handler=None)
             assert manager.opencood_dataset == dataset_mock
@@ -219,6 +225,7 @@ class TestCoperceptionModelManager:
         manager = CoperceptionModelManager(opt, "2023_01_01")
         # Ensure VoxelPostprocessor to test both 3d and bev
         manager.hypes["postprocess"]["core_method"] = "VoxelPostprocessor"
+        manager.hypes["fusion"]["core_method"] = "IntermediateFusionDataset"
 
         manager.data_loader = [{"ego": {"origin_lidar": ["lidar"]}}]
         manager.opencood_dataset = MagicMock()

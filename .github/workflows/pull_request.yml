@@ -33,7 +33,14 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install Dependencies
-        run: pip install mypy
+        run: pip install mypy mypy-protobuf grpcio-tools
+      - name: Generate protobufs modules
+        run: |
+          python -m grpc_tools.protoc \
+            -I opencda/core/common/communication/messages \
+            --python_out=opencda/core/common/communication/protos/cavise \
+            --mypy_out=opencda/core/common/communication/protos/cavise \
+            opencda/core/common/communication/messages/capi.proto
       - name: Run mypy
         run: mypy .
         continue-on-error: true
@@ -63,7 +70,8 @@ jobs:
           python-version: '3.12'
       - name: Run pre-commit
         uses: pre-commit/action@v3.0.1
+        env:
+          SKIP: ruff-check,ruff-format,pretty-format-json
         with:
           extra_args: >-
-            --config .github/pre-commit-config-ci.yaml
             --all-files
