@@ -60,6 +60,34 @@ carla_stub.Vector3D = mocked_carla.Vector3D
 carla_stub.Vehicle = mocked_carla.Vehicle
 carla_stub.BoundingBox = mocked_carla.BoundingBox
 
+# Some OpenCDA modules use runtime-evaluated type annotations like `carla.Actor`
+# and `carla.Color`. These attributes must exist on the stub to avoid import-time
+# failures.
+carla_stub.Actor = object
+
+
+class Color:
+    def __init__(self, r=0, g=0, b=0, a=255):
+        self.r = r
+        self.g = g
+        self.b = b
+        self.a = a
+
+
+carla_stub.Color = Color
+
+
+# Placeholder to satisfy type annotations and basic attribute access.
+class TrafficLightState:
+    Red = 0
+    Yellow = 1
+    Green = 2
+    Off = 3
+    Unknown = 4
+
+
+carla_stub.TrafficLightState = TrafficLightState
+
 # Minimal placeholders for typing / attribute access
 carla_stub.World = object
 carla_stub.Map = object
@@ -103,11 +131,8 @@ carla_stub.command = command_stub
 _install_stub("carla", carla_stub)
 _install_stub("carla.command", command_stub)
 
-
 # Optional dependency: omegaconf stub (only if not installed)
-try:
-    import omegaconf  # noqa: F401
-except ImportError:  # pragma: no cover
+if importlib.util.find_spec("omegaconf") is None:  # pragma: no cover
     omegaconf_stub = types.ModuleType("omegaconf")
     omegaconf_listconfig_stub = types.ModuleType("omegaconf.listconfig")
 
@@ -260,3 +285,18 @@ def minimal_rsu_config():
         "sensing": {"localization": {}, "perception": {}},
         "spawn_position": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
     }
+
+
+@pytest.fixture(autouse=True)
+def disable_cv2_gui(monkeypatch):
+    """
+    Ensure unit tests never open GUI windows in headless environments.
+    """
+    try:
+        import cv2  # noqa: PLC0415
+    except ImportError:
+        return
+
+    monkeypatch.setattr(cv2, "imshow", lambda *args, **kwargs: None, raising=True)
+    monkeypatch.setattr(cv2, "waitKey", lambda *args, **kwargs: 1, raising=True)
+    monkeypatch.setattr(cv2, "destroyAllWindows", lambda *args, **kwargs: None, raising=True)
