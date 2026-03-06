@@ -14,11 +14,11 @@ from opencood.data_utils.datasets import build_dataset
 from opencood.visualization import simple_vis, vis_utils
 from opencood.utils import eval_utils
 
-logger = logging.getLogger("cavise.coperception_model_manager")
+logger = logging.getLogger("cavise.opencda.opencda.core.common.coperception_model_manager")
 
 
 class CoperceptionModelManager:
-    def __init__(self, opt, current_time, message_handler=None):
+    def __init__(self, opt, current_time, payload_handler=None):
         self.opt = opt
         self.hypes = yaml_utils.load_yaml(None, self.opt)
         self.model = train_utils.create_model(self.hypes)
@@ -34,10 +34,10 @@ class CoperceptionModelManager:
 
         self.opencood_dataset = None
         self.data_loader = None
-        self.message_handler = message_handler
+        self.payload_handler = payload_handler
 
         logger.info("Initial Dataset Building")
-        self.opencood_dataset = build_dataset(self.hypes, visualize=True, train=False, message_handler=self.message_handler)
+        self.opencood_dataset = build_dataset(self.hypes, visualize=True, train=False, payload_handler=self.payload_handler)
 
         self.data_loader = DataLoader(
             self.opencood_dataset,
