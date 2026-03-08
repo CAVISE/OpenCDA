@@ -115,10 +115,10 @@ class CoperceptionModelManager:
     def make_prediction(self, tick_number: int) -> None:
         if self.opt.fusion_method not in ["late", "early", "intermediate"]:
             logger.error(f"Invalid fusion method: {self.opt.fusion_method}. Must be one of 'late', 'early', 'intermediate'")
-            raise ValueError(f"Invalid fusion method: {self.opt.fusion_method}. Must be one of 'late', 'early', 'intermediate'")
+            raise AssertionError(f"Invalid fusion method: {self.opt.fusion_method}. Must be one of 'late', 'early', 'intermediate'")
         if self.opt.show_vis and self.opt.show_sequence:
             logger.error("You can only visualize the results in single image mode or video mode")
-            raise ValueError("You can only visualize the results in single image mode or video mode")
+            raise AssertionError("You can only visualize the results in single image mode or video mode")
         self.model.eval()
 
         # Create the dictionary for evaluation.
