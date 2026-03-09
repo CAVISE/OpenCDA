@@ -229,7 +229,7 @@ def check_buld_for_utils(module_path: str, cwd: pathlib.PurePath, verbose: bool,
 
 def check_build_advcp_module(module_path: str, cwd: pathlib.PurePath, verbose: bool, logger: logging.Logger) -> bool:
     """
-    Build an AdvCP CUDA/C++ extension module.
+    Build an AdvCP CUDA/C++ extension module and ensure it is importable.
 
     Args:
         module_path: Path to the module directory containing setup.py (relative to cwd)
@@ -242,18 +242,33 @@ def check_build_advcp_module(module_path: str, cwd: pathlib.PurePath, verbose: b
     """
     marker_file = cwd.joinpath(f"{module_path}/{BUILD_COMPLETED_FLAG}")
     module_name = module_path.rstrip("/").split("/")[-1]
+    module_abs_path = cwd.joinpath(module_path)  # absolute path to the module directory
 
     if os.path.isfile(marker_file):
         logger.info(f"{module_name} is already built")
+        # Ensure the module directory is in sys.path for imports
+        if str(module_abs_path) not in sys.path:
+            sys.path.insert(0, str(module_abs_path))
+            logger.debug(f"Added {module_abs_path} to sys.path")
         return True
 
     try:
         logger.info(f"Building {module_name} ...")
-        result = subprocess.run(["python", "setup.py", "build_ext", "--inplace"], check=True, cwd=cwd.joinpath(module_path), capture_output=True, text=True)
+        result = subprocess.run(
+            ["python", "setup.py", "build_ext", "--inplace"],
+            check=True,
+            cwd=cwd.joinpath(module_path),
+            capture_output=True,
+            text=True,
+        )
         os.close(os.open(str(marker_file), os.O_CREAT))
         logger.info(f"Complete building {module_name}")
         if verbose:
             logger.info(result.stdout)
+        # Add the module directory to sys.path so the compiled extension can be imported
+        if str(module_abs_path) not in sys.path:
+            sys.path.insert(0, str(module_abs_path))
+            logger.debug(f"Added {module_abs_path} to sys.path")
         return True
 
     except subprocess.CalledProcessError as e:
