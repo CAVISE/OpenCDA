@@ -47,16 +47,21 @@ class AdvCPManager:
         self.message_handler = message_handler
 
         # Attack/Defense flags - MUST be set before initialization methods
-        self.with_advcp = opt.get("with_advcp", False)
-        self.apply_cad_defense = opt.get("apply_cad_defense", False)
-
-        # Attack parameters
-        self.attackers_ratio = opt.get("attackers_ratio", 0.2)
-        self.attack_type = opt.get("attack_type", "lidar_remove_early")
-        self.attack_target = opt.get("attack_target", "random")
-
-        # Defense parameters
-        self.defense_threshold = opt.get("defense_threshold", 0.7)
+        # Handle both Namespace and dict objects
+        if isinstance(opt, dict):
+            self.with_advcp = opt.get("with_advcp", False)
+            self.apply_cad_defense = opt.get("apply_cad_defense", False)
+            self.attackers_ratio = opt.get("attackers_ratio", 0.2)
+            self.attack_type = opt.get("attack_type", "lidar_remove_early")
+            self.attack_target = opt.get("attack_target", "random")
+            self.defense_threshold = opt.get("defense_threshold", 0.7)
+        else:
+            self.with_advcp = getattr(opt, "with_advcp", False)
+            self.apply_cad_defense = getattr(opt, "apply_cad_defense", False)
+            self.attackers_ratio = getattr(opt, "attackers_ratio", 0.2)
+            self.attack_type = getattr(opt, "attack_type", "lidar_remove_early")
+            self.attack_target = getattr(opt, "attack_target", "random")
+            self.defense_threshold = getattr(opt, "defense_threshold", 0.7)
 
         # Load AdvCP configuration
         self.advcp_config = self._load_advcp_config()
@@ -80,7 +85,11 @@ class AdvCPManager:
 
     def _load_advcp_config(self) -> Dict:
         """Load AdvCP configuration from YAML file."""
-        config_path = self.opt.get("advcp_config", "opencda/core/common/advcp/advcp_config.yaml")
+        # Handle both Namespace and dict objects
+        if isinstance(self.opt, dict):
+            config_path = self.opt.get("advcp_config", "opencda/core/common/advcp/advcp_config.yaml")
+        else:
+            config_path = getattr(self.opt, "advcp_config", "opencda/core/common/advcp/advcp_config.yaml")
 
         if not os.path.exists(config_path):
             logger.warning(f"AdvCP config file not found at {config_path}. Using default settings.")
@@ -136,10 +145,17 @@ class AdvCPManager:
 
     def _initialize_visualization(self) -> None:
         """Initialize the visualization manager if visualization is enabled."""
-        if not self.opt.get("advcp_vis", False):
+        # Handle both Namespace and dict objects
+        if isinstance(self.opt, dict):
+            advcp_vis = self.opt.get("advcp_vis", False)
+            output_dir = self.opt.get("advcp_vis_output_dir", "simulation_output/advcp_vis")
+        else:
+            advcp_vis = getattr(self.opt, "advcp_vis", False)
+            output_dir = getattr(self.opt, "advcp_vis_output_dir", "simulation_output/advcp_vis")
+        
+        if not advcp_vis:
             return
 
-        output_dir = self.opt.get("advcp_vis_output_dir", "simulation_output/advcp_vis")
         self.visualization_manager = AdvCPVisualizationManager(opt=self.opt, output_dir=output_dir)
         logger.info(f"Initialized AdvCP visualization with output_dir={output_dir}")
 
@@ -150,8 +166,11 @@ class AdvCPManager:
 
         try:
             # Get fusion method and model name from coperception manager
-            fusion_method = self.coperception_manager.opt.get("fusion_method", "early")
-            model_name = self.opt.get("model_name", "pointpillar")
+            # Use getattr for Namespace objects, with fallback to dict.get for dict objects
+            opt_obj = self.coperception_manager.opt
+            fusion_method = getattr(opt_obj, "fusion_method", "early") if not isinstance(opt_obj, dict) else opt_obj.get("fusion_method", "early")
+            
+            model_name = getattr(self.opt, "model_name", "pointpillar") if not isinstance(self.opt, dict) else self.opt.get("model_name", "pointpillar")
 
             # Initialize OpencoodPerception
             self.perception = OpencoodPerception(fusion_method=fusion_method, model_name=model_name)

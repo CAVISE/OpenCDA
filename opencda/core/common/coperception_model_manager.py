@@ -229,25 +229,34 @@ class CoperceptionModelManager:
                             pred_score = None
                             gt_box_tensor = None
 
-                            for vehicle_id, vehicle_data in modified_data.items():
-                                if "pred_bboxes" in vehicle_data and "pred_scores" in vehicle_data:
-                                    if pred_box_tensor is None:
-                                        pred_box_tensor = torch.from_numpy(vehicle_data["pred_bboxes"]).to(self.device)
-                                        pred_score = torch.from_numpy(vehicle_data["pred_scores"]).to(self.device)
-                                    else:
-                                        pred_box_tensor = torch.cat(
-                                            [pred_box_tensor, torch.from_numpy(vehicle_data["pred_bboxes"]).to(self.device)], dim=0
-                                        )
-                                        pred_score = torch.cat([pred_score, torch.from_numpy(vehicle_data["pred_scores"]).to(self.device)], dim=0)
-
-                            if pred_box_tensor is None:
-                                # Fallback to original predictions if AdvCP failed
-                                pred_box_tensor = original_pred_box_tensor
-                                pred_score = original_pred_score
-                                gt_box_tensor = original_gt_box_tensor
+                            # Check if modified_data is in predictions format (dict with tensor keys)
+                            # vs vehicle data format (dict with vehicle_id keys containing dicts)
+                            if isinstance(modified_data, dict) and "pred_bboxes" in modified_data and "pred_scores" in modified_data:
+                                # Late attack format: modified_data is already a predictions dict
+                                pred_box_tensor = modified_data["pred_bboxes"]
+                                pred_score = modified_data["pred_scores"]
+                                gt_box_tensor = modified_data.get("gt_bboxes", original_gt_box_tensor)
                             else:
-                                # Use modified predictions from AdvCP
-                                gt_box_tensor = original_gt_box_tensor
+                                # Early/intermediate attack format: iterate over vehicle data
+                                for vehicle_id, vehicle_data in modified_data.items():
+                                    if isinstance(vehicle_data, dict) and "pred_bboxes" in vehicle_data and "pred_scores" in vehicle_data:
+                                        if pred_box_tensor is None:
+                                            pred_box_tensor = torch.from_numpy(vehicle_data["pred_bboxes"]).to(self.device)
+                                            pred_score = torch.from_numpy(vehicle_data["pred_scores"]).to(self.device)
+                                        else:
+                                            pred_box_tensor = torch.cat(
+                                                [pred_box_tensor, torch.from_numpy(vehicle_data["pred_bboxes"]).to(self.device)], dim=0
+                                            )
+                                            pred_score = torch.cat([pred_score, torch.from_numpy(vehicle_data["pred_scores"]).to(self.device)], dim=0)
+
+                                if pred_box_tensor is None:
+                                    # Fallback to original predictions if AdvCP failed
+                                    pred_box_tensor = original_pred_box_tensor
+                                    pred_score = original_pred_score
+                                    gt_box_tensor = original_gt_box_tensor
+                                else:
+                                    # Use modified predictions from AdvCP
+                                    gt_box_tensor = original_gt_box_tensor
                     else:
                         # No AdvCP applied, use original predictions
                         if self.opt.fusion_method == "late":
