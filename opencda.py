@@ -249,7 +249,7 @@ def check_build_advcp_module(module_path: str, cwd: pathlib.PurePath, verbose: b
 
     try:
         logger.info(f"Building {module_name} ...")
-        result = subprocess.run(["python", f"{module_path}setup.py", "build_ext", "--inplace"], check=True, cwd=cwd, capture_output=True, text=True)
+        result = subprocess.run(["python", "setup.py", "build_ext", "--inplace"], check=True, cwd=cwd.joinpath(module_path), capture_output=True, text=True)
         os.close(os.open(str(marker_file), os.O_CREAT))
         logger.info(f"Complete building {module_name}")
         if verbose:
