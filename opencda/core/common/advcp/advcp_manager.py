@@ -303,7 +303,7 @@ class AdvCPManager:
                         defense_score = None
                         defense_metrics = None
                         if self.apply_cad_defense and self.defender:
-                            preprocessed_data, defense_score, defense_metrics = self._apply_defense(preprocessed_data, tick_number)
+                            preprocessed_data, defense_score, defense_metrics = self._apply_defense(preprocessed_data, tick_number=tick_number)
 
                         # Visualization
                         if self.visualization_manager:
@@ -369,7 +369,7 @@ class AdvCPManager:
                 multi_frame_case[tick_number][ego_id]["pred_scores"] = pred_scores
 
             # Determine attacker and victim vehicles
-            attacker_vehicles = self._select_attacker_vehicles()
+            attacker_vehicles = self._select_attacker_vehicles(tick_number)
             if len(attacker_vehicles) == 0:
                 logger.warning("No attacker vehicles available")
                 return predictions
@@ -378,7 +378,8 @@ class AdvCPManager:
             victim_id = ego_id  # Attack the ego vehicle
 
             # Select attack target
-            attack_target = self._select_attack_target(data[attacker_id], attacker_id)
+            # For late attacks, the attacker's data is in the multi_frame_case structure
+            attack_target = self._select_attack_target(multi_frame_case[tick_number][attacker_id], attacker_id)
 
             # Prepare attack options
             attack_opts = {
@@ -419,7 +420,7 @@ class AdvCPManager:
         multi_frame_case = {tick_number: data}
 
         # Determine which vehicles are attackers based on ratio
-        attacker_vehicles = self._select_attacker_vehicles()
+        attacker_vehicles = self._select_attacker_vehicles(tick_number)
 
         # Prepare attack options
         attack_opts = {
@@ -445,13 +446,26 @@ class AdvCPManager:
             logger.error(f"Attack failed: {e}")
             return data
 
-    def _select_attacker_vehicles(self) -> List[str]:
-        """Select which vehicles will be attackers based on ratio."""
-        if self.coperception_manager.opencood_dataset is None:
-            logger.error("opencood_dataset is not initialized")
-            raise RuntimeError("opencood_dataset is not initialized")
+    def _select_attacker_vehicles(self, tick_number: int) -> List[str]:
+        """Select which vehicles will be attackers based on ratio.
 
-        all_vehicles = list(self.coperception_manager.opencood_dataset.vehicle_ids)
+        Args:
+            tick_number: Current simulation tick number to get vehicle IDs for
+
+        Returns:
+            List of vehicle IDs that will be attackers
+        """
+        # Get raw data for the current tick to extract vehicle IDs
+        raw_data = self._get_coperception_data(tick_number)
+        if not raw_data:
+            logger.error(f"No raw data available for tick {tick_number} to select attackers")
+            return []
+
+        all_vehicles = list(raw_data.keys())
+
+        if len(all_vehicles) == 0:
+            logger.warning(f"No vehicles found in raw data for tick {tick_number}")
+            return []
 
         if self.attack_target == "all_non_attackers":
             # All vehicles except one are attackers
@@ -509,12 +523,13 @@ class AdvCPManager:
         # Fallback
         return "ego"
 
-    def _apply_defense(self, data: Dict, tick_number: int) -> Tuple[Dict, Optional[float], Optional[Dict]]:
+    def _apply_defense(self, data: Dict, predictions: Optional[Dict] = None, tick_number: int = 0) -> Tuple[Dict, Optional[float], Optional[Dict]]:
         """
         Apply CAD defense to the perception data.
 
         Args:
             data: Perception data (possibly already attacked)
+            predictions: Optional predictions dict containing gt_bboxes (for late attacks)
             tick_number: Current simulation tick number
 
         Returns:
@@ -524,6 +539,15 @@ class AdvCPManager:
             return data, None, None
 
         try:
+            # For late attacks, we need to merge gt_bboxes from predictions into data
+            # because raw_data doesn't contain gt_bboxes but defender expects it
+            if predictions is not None and "gt_bboxes" in predictions:
+                gt_bboxes = predictions["gt_bboxes"]
+                # Merge gt_bboxes into each vehicle's data in the multi-frame case
+                for vehicle_id in data.keys():
+                    if vehicle_id in data:
+                        data[vehicle_id]["gt_bboxes"] = gt_bboxes
+
             # Prepare multi-frame case for defense (using current tick data)
             multi_frame_case = {tick_number: data}
 
@@ -545,9 +569,16 @@ class AdvCPManager:
         if not self.attacker:
             return {}
 
+        # Determine tick number to use for selecting attackers
+        # Try to get current tick from coperception manager if available
+        tick_number = 0
+        if hasattr(self.coperception_manager, '_current_batch_index') and self.coperception_manager._current_batch_index is not None:
+            tick_number = self.coperception_manager._current_batch_index
+
         # This would need to be implemented based on the attacker's capabilities
         # For now, return basic information
-        return {"attack_type": self.attack_type, "attackers_count": len(self._select_attacker_vehicles()), "enabled": self.with_advcp}
+        attackers = self._select_attacker_vehicles(tick_number)
+        return {"attack_type": self.attack_type, "attackers_count": len(attackers), "enabled": self.with_advcp}
 
     def get_defense_statistics(self) -> Dict:
         """Get statistics about applied defenses."""

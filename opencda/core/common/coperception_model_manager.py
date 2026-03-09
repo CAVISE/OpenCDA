@@ -106,6 +106,13 @@ class CoperceptionModelManager:
                 # Get raw data directly from dataset __getitem__
                 # This returns data BEFORE train_utils.to_device() preprocessing
                 raw_data = self.opencood_dataset[tick_number]
+                # Compatibility patch for AdvCP: map OpenCOOD's 'object_bbx_center' to 'gt_bboxes'
+                if raw_data:
+                    for vehicle_id, vehicle_dict in raw_data.items():
+                        if isinstance(vehicle_dict, dict):
+                            if "object_bbx_center" in vehicle_dict and "gt_bboxes" not in vehicle_dict:
+                                vehicle_dict["gt_bboxes"] = vehicle_dict["object_bbx_center"]
+                            # Note: 'object_ids' is already present in both formats
                 return raw_data
         except Exception as e:
             logger.warning(f"Failed to get raw data for tick {tick_number}: {e}")
