@@ -14,9 +14,8 @@ patch_path = os.path.join(data_root, "patch")
 # instead of the bundled third_party/OpenCOOD
 
 # Path to OpenCOOD root directory (contains opencood/ package)
-# Default: look for OpenCOOD at project root (5 levels up from mvp/, then OpenCOOD)
+# Default: look for OpenCOOD at project root (4 levels up from mvp/, then OpenCOOD)
 # Can be overridden by environment variable OPENCOOD_ROOT
-#_project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(mvp_root)))))
 _project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(mvp_root))))
 _opencood_default = os.path.join(_project_root, "OpenCOOD")
 opencood_root = os.environ.get("OPENCOOD_ROOT", _opencood_default)

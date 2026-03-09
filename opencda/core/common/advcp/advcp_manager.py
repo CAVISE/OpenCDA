@@ -46,6 +46,18 @@ class AdvCPManager:
         self.coperception_manager = coperception_manager
         self.message_handler = message_handler
 
+        # Attack/Defense flags - MUST be set before initialization methods
+        self.with_advcp = opt.get("with_advcp", False)
+        self.apply_cad_defense = opt.get("apply_cad_defense", False)
+
+        # Attack parameters
+        self.attackers_ratio = opt.get("attackers_ratio", 0.2)
+        self.attack_type = opt.get("attack_type", "lidar_remove_early")
+        self.attack_target = opt.get("attack_target", "random")
+
+        # Defense parameters
+        self.defense_threshold = opt.get("defense_threshold", 0.7)
+
         # Load AdvCP configuration
         self.advcp_config = self._load_advcp_config()
 
@@ -58,18 +70,6 @@ class AdvCPManager:
         self._initialize_attacker()
         self._initialize_defender()
         self._initialize_visualization()
-
-        # Attack/Defense flags
-        self.with_advcp = opt.get("with_advcp", False)
-        self.apply_cad_defense = opt.get("apply_cad_defense", False)
-
-        # Attack parameters
-        self.attackers_ratio = opt.get("attackers_ratio", 0.2)
-        self.attack_type = opt.get("attack_type", "lidar_remove_early")
-        self.attack_target = opt.get("attack_target", "random")
-
-        # Defense parameters
-        self.defense_threshold = opt.get("defense_threshold", 0.7)
 
         logger.info("AdvCP Manager initialized with configuration:")
         logger.info(f"  with_advcp: {self.with_advcp}")
