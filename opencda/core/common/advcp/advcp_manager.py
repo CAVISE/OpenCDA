@@ -349,13 +349,37 @@ class AdvCPManager:
                 logger.error("Late attacks require predictions parameter")
                 return predictions if predictions is not None else data
 
-            # Format data as multi-frame case for late attacks
+            # Build multi-frame case for late attacks
             # Late attacks expect: multi_frame_case[frame_id][vehicle_id]
-            multi_frame_case = {tick_number: data}
+            # They operate on a 10-frame sequence (0-9) and attack at frame 9
+            multi_frame_case = {}
+            start_frame = max(0, tick_number - 9)
+            for frame_id in range(start_frame, tick_number + 1):
+                # For the current frame (tick_number), use the provided data
+                if frame_id == tick_number:
+                    multi_frame_case[frame_id] = data
+                else:
+                    # For earlier frames, fetch from the dataset
+                    raw_frame_data = self._get_coperception_data(frame_id)
+                    if raw_frame_data:
+                        multi_frame_case[frame_id] = raw_frame_data
+                    else:
+                        logger.warning(f"Missing frame {frame_id} for late attack, skipping")
 
-            # Add predictions to the multi-frame case for the ego vehicle
+            # Ensure we have at least some frames
+            if not multi_frame_case:
+                logger.error("No frames available for late attack")
+                return predictions
+
+            # Late attacks require exactly 10 frames (0-9) to function correctly
+            # If we don't have enough frames, skip the attack
+            if len(multi_frame_case) < 10:
+                logger.warning(f"Not enough frames for late attack: have {len(multi_frame_case)}, need 10. Skipping attack.")
+                return predictions
+
+            # Add predictions to the multi-frame case for the ego vehicle (only for current tick)
             ego_id = self._get_ego_vehicle_id(data)
-            if ego_id in multi_frame_case[tick_number]:
+            if tick_number in multi_frame_case and ego_id in multi_frame_case[tick_number]:
                 # Convert predictions to numpy arrays if they are tensors
                 pred_bboxes = predictions["pred_bboxes"]
                 pred_scores = predictions["pred_scores"]

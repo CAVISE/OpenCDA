@@ -204,8 +204,12 @@ class OpencoodPerception(Perception):
         }
 
         hypes = yaml_utils.load_yaml(self.config_file, None)
-        hypes["root_dir"] = os.path.join(opv2v_data_root, "train")
-        hypes["validate_dir"] = os.path.join(opv2v_data_root, "validate")
+        # Only set OPV2V paths if not already defined in the config
+        # This allows the model config to specify its own dataset paths
+        if "root_dir" not in hypes or not hypes["root_dir"]:
+            hypes["root_dir"] = os.path.join(opv2v_data_root, "train")
+        if "validate_dir" not in hypes or not hypes["validate_dir"]:
+            hypes["validate_dir"] = os.path.join(opv2v_data_root, "validate")
         self.dataset = build_dataset(hypes, visualize=False, train=False)
         self.model = train_utils.create_model(hypes)
         # we assume gpu is available

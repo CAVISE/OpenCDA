@@ -24,11 +24,30 @@ class Attacker:
     def build_benchmark_meta(self, write: bool = False) -> None:
         raise NotImplementedError
 
+    def _get_dataset_root_path(self) -> str:
+        """Get the root path of the dataset, handling different dataset implementations."""
+        if self.dataset is None:
+            raise RuntimeError("dataset is not initialized")
+
+        # Try direct attribute first
+        if hasattr(self.dataset, 'root_path'):
+            return self.dataset.root_path
+
+        # OpenCOOD dataset stores root in params
+        if hasattr(self.dataset, 'params'):
+            if 'validate_dir' in self.dataset.params:
+                return self.dataset.params['validate_dir']
+            elif 'root_dir' in self.dataset.params:
+                return self.dataset.params['root_dir']
+
+        raise RuntimeError("Dataset does not have 'root_path' attribute or 'params' with 'validate_dir'/'root_dir'")
+
     def save_benchmark_meta(self) -> None:
         if self.dataset is None:
             logger.error("dataset is not initialized")
             raise RuntimeError("dataset is not initialized")
-        with open(os.path.join(self.dataset.root_path, "attack", "{}.pkl".format(self.name)), "wb") as f:
+        root_path = self._get_dataset_root_path()
+        with open(os.path.join(root_path, "attack", "{}.pkl".format(self.name)), "wb") as f:
             pickle.dump(self.attack_list, f)
 
     def load_benchmark_meta(self) -> None:
@@ -36,7 +55,8 @@ class Attacker:
             logger.error("dataset is not initialized")
             raise RuntimeError("dataset is not initialized")
         try:
-            with open(os.path.join(self.dataset.root_path, "attack", "{}.pkl".format(self.name)), "rb") as f:
+            root_path = self._get_dataset_root_path()
+            with open(os.path.join(root_path, "attack", "{}.pkl".format(self.name)), "rb") as f:
                 self.attack_list = pickle.load(f)
         except Exception as e:
             print("no benchmark found", e)
@@ -48,9 +68,10 @@ class Attacker:
         if self.attack_list is None:
             logger.error("attack_list is not initialized")
             raise RuntimeError("attack_list is not initialized")
+        root_path = self._get_dataset_root_path()
         for attack_id, attack in enumerate(self.attack_list):
             print(attack_id)
-            pcd_dir = os.path.join(self.dataset.root_path, "attack", self.name, "{:06d}".format(attack_id))
+            pcd_dir = os.path.join(root_path, "attack", self.name, "{:06d}".format(attack_id))
             if resume:
                 if os.path.exists(os.path.join(pcd_dir, "attack_info.pkl")):
                     continue
@@ -101,7 +122,9 @@ class Attacker:
         case = self.dataset.get_case(case_id, tag="multi_frame", use_camera=use_camera, use_lidar=use_lidar)
 
         if use_lidar:
-            attack_info = pickle.load(open(os.path.join(self.dataset.root_path, "attack", self.name, "{:06d}".format(idx), "attack_info.pkl"), "rb"))
+            root_path = self._get_dataset_root_path()
+            attack_info_path = os.path.join(root_path, "attack", self.name, "{:06d}".format(idx), "attack_info.pkl")
+            attack_info = pickle.load(open(attack_info_path, "rb"))
             for i in frame_ids:
                 try:
                     case[i][attacker]["lidar"] = self.apply_ray_tracing(case[i][attacker]["lidar"], **attack_info[i])
