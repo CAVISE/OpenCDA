@@ -209,16 +209,16 @@ def load_advcp_config(args: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     # Load from different sources in order of priority
     config_sources = []
 
-    # 1. Command-line arguments (highest priority)
-    if args:
-        config_sources.append(loader.load_from_args(args))
-
-    # 2. Configuration file
+    # 1. Configuration file (lowest priority - base defaults)
     default_config_path = "opencda/core/common/advcp/advcp_config.yaml"
     config_path = args["advcp_config"] if args and "advcp_config" in args else default_config_path
     config_sources.append(loader.load_from_file(config_path))
 
-    # 3. Merge all sources
+    # 2. Command-line arguments (highest priority - overrides file)
+    if args:
+        config_sources.append(loader.load_from_args(args))
+
+    # 3. Merge all sources (later sources override earlier ones)
     merged_config = loader.merge_configs(*config_sources)
 
     # 4. Validate and process
