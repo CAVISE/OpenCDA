@@ -62,9 +62,7 @@ class ModelRegistry:
             If the model name is not registered.
         """
         if name not in cls._registry:
-            raise KeyError(
-                f"Unknown model '{name}'. Available: {list(cls._registry)}"
-            )
+            raise KeyError(f"Unknown model '{name}'. Available: {list(cls._registry)}")
 
         model_cls: Type = cls._registry[name]
         return model_cls(**kwargs)
@@ -80,5 +78,3 @@ class ModelRegistry:
             Iterable view of registered model names.
         """
         return cls._registry.keys()
-
-
