@@ -770,7 +770,7 @@ def test_deactivate_mode_calls_filter_vehicle_out_sensor_when_data_dump_true(per
     pm.ego_pos = ego
 
     called = {"n": 0}
-    monkeypatch.setattr(pm, "filter_vehicle_out_sensor", lambda vehicle_list: (called.__setitem__("n", called["n"] + 1) or vehicle_list))
+    monkeypatch.setattr(pm, "filter_vehicle_out_sensor", lambda vehicle_list: called.__setitem__("n", called["n"] + 1) or vehicle_list)
     monkeypatch.setattr(perception_manager_module, "ObstacleVehicle", lambda *_args, **_kwargs: "ov")
 
     out = pm.deactivate_mode({"vehicles": [], "traffic_lights": []})
