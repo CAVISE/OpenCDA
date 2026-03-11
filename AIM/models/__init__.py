@@ -7,7 +7,6 @@ to trigger model registration.
 
 import pkgutil
 import importlib
-from typing import None
 
 
 def _discover_model_packages() -> None:
