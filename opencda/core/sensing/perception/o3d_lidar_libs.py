@@ -19,6 +19,7 @@ import opencda.core.sensing.perception.sensor_transformation as st
 from opencda.core.sensing.perception.obstacle_vehicle import is_vehicle_cococlass, ObstacleVehicle
 from opencda.core.sensing.perception.static_obstacle import StaticObstacle
 
+
 def _cmap_colors(name: str) -> np.ndarray:
     """
     Return an (N, 3) float array of RGB colors for a matplotlib colormap.

@@ -12,6 +12,7 @@ import sys
 import types
 from types import ModuleType, SimpleNamespace
 from unittest.mock import Mock
+import importlib.util
 
 import pytest
 
