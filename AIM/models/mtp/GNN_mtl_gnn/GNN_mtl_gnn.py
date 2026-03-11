@@ -31,11 +31,7 @@ class GNN_mtl_gnn(torch.nn.Module):
         self.linear4: nn.Linear = nn.Linear(hidden_channels, hidden_channels)
         self.linear5: nn.Linear = nn.Linear(hidden_channels, 30 * 2)
 
-    def forward(
-        self,
-        x: torch.Tensor,
-        edge_index: torch.Tensor
-    ) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, edge_index: torch.Tensor) -> torch.Tensor:
         """
         Forward pass.
 
