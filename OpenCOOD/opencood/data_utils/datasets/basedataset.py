@@ -104,7 +104,7 @@ class BaseDataset(Dataset):
 
         self.update_database()
 
-    def update_database(self):
+    def update_database(self, memory_data=None):
         """
         Update the scenario database by re-scanning the root directory.
 
@@ -121,6 +121,11 @@ class BaseDataset(Dataset):
         -------
         None
         """
+        if memory_data is not None:
+            self.scenario_database = memory_data
+            self.len_record = [1]
+            return
+
         if self.train:
             root_dir = self.params["root_dir"]
         else:
@@ -143,7 +148,9 @@ class BaseDataset(Dataset):
 
             # at least 1 cav should show up
             cav_list = sorted([x for x in os.listdir(scenario_folder) if os.path.isdir(os.path.join(scenario_folder, x))])
-            assert len(cav_list) > 0
+            if len(cav_list) == 0:
+                logger.warning(f"No CAVs found in {scenario_folder}. Skipping.")
+                continue
 
             # roadside unit data's id is always negative, so here we want to
             # make sure they will be in the end of the list as they shouldn't

@@ -3,6 +3,7 @@ import re
 import shutil
 import logging
 from tqdm import tqdm
+from collections import OrderedDict
 
 import torch  # type: ignore
 import open3d as o3d
@@ -55,9 +56,9 @@ class CoperceptionModelManager:
             0.7: {"tp": [], "fp": [], "gt": 0, "score": []},
         }
 
-    def update_dataset(self):
+    def update_dataset(self, data=None):
         logger.debug("Refreshing dataset indices")
-        self.opencood_dataset.update_database()
+        self.opencood_dataset.update_database(memory_data=data)
 
         if len(self.opencood_dataset) == 0:
             logger.warning("No samples found in dataset after update.")
@@ -235,3 +236,68 @@ class DirectoryProcessor:
                 os.remove(item_path)  # Удаляем файлы и символические ссылки
             elif os.path.isdir(item_path):
                 shutil.rmtree(item_path)
+
+    def retrieve_data_structure(self, tick_number):
+        number = f"{tick_number:06d}"
+
+        subdirectories = sorted([d for d in os.listdir(self.source_directory) if os.path.isdir(os.path.join(self.source_directory, d))])
+
+        if len(subdirectories) < 2:
+            return None
+
+        data_directory = os.path.join(self.source_directory, subdirectories[-2])
+
+        try:
+            camera_postfixes = self.detect_cameras(data_directory)
+        except Exception:
+            camera_postfixes = []
+
+        inner_subdirectories = sorted([d for d in os.listdir(data_directory) if os.path.isdir(os.path.join(data_directory, d))])
+
+        if not inner_subdirectories:
+            return None
+
+        if "rsu" in inner_subdirectories[0]:
+            inner_subdirectories = inner_subdirectories[1:] + [inner_subdirectories[0]]
+
+        scenario_data = OrderedDict()
+        scenario_data[0] = OrderedDict()
+
+        agents_found_count = 0
+
+        for j, folder in enumerate(inner_subdirectories):
+            cav_id = folder
+            agent_path = os.path.join(data_directory, cav_id)
+
+            yaml_path = os.path.join(agent_path, f"{number}.yaml")
+            lidar_path = os.path.join(agent_path, f"{number}.pcd")
+
+            if not os.path.exists(yaml_path) or not os.path.exists(lidar_path):
+                continue
+
+            scenario_data[0][cav_id] = OrderedDict()
+            timestamp = number
+            scenario_data[0][cav_id][timestamp] = OrderedDict()
+
+            scenario_data[0][cav_id][timestamp]["yaml"] = yaml_path
+            scenario_data[0][cav_id][timestamp]["lidar"] = lidar_path
+
+            camera_files = []
+            for postfix in camera_postfixes:
+                cam_path = os.path.join(agent_path, f"{number}{postfix}")
+
+                if os.path.exists(cam_path):
+                    camera_files.append(cam_path)
+                else:
+                    pass
+
+            scenario_data[0][cav_id][timestamp]["camera0"] = camera_files
+
+            scenario_data[0][cav_id]["ego"] = agents_found_count == 0
+
+            agents_found_count += 1
+
+        if agents_found_count == 0:
+            return None
+
+        return scenario_data
