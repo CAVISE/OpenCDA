@@ -6,7 +6,7 @@ coloredlogs==15.0.1
 cumm==0.8.2
 
 # Optimization & Convex Programming
-cvxpy==1.8.1
+cvxpy==1.7.5
 cython==3.2.4
 distro==1.9.0
 easydict==1.13
@@ -16,10 +16,10 @@ lxml==6.0.2
 
 # Visualization & Logging
 matplotlib==3.10.8
+mkdocs==1.6.1
 
 # Tools
 mypy==1.19.1
-mypy-protobuf==5.0.0
 
 # Graphs & Networks
 networkx==3.6.1
@@ -33,12 +33,12 @@ omegaconf==2.3.0
 open3d==0.19.0
 
 # Computer Vision & 3D Data
-opencv-python==4.13.0.92
-pandas==3.0.1
-Pillow==12.1.1
+opencv-python==4.11.0.86
+pandas==2.3.3
+pillow==12.1.1
 
 # Protobuf & Code Generation
-protobuf==7.34.0
+protobuf==6.33.5
 protoc-wheel==21.1
 
 # Multimedia & GUI
@@ -57,12 +57,12 @@ scipy==1.17.1
 seaborn==0.13.2
 shapely==2.1.2
 six==1.17.0
-sumolib==1.26.0
+sumolib==1.24.0
 tensorboardX==2.6.4
 timm==1.0.25
 torch --index-url https://download.pytorch.org/whl/cu128
 torch_geometric==2.7.0
 torchvision --index-url https://download.pytorch.org/whl/cu128
 tqdm==4.67.3
-traci==1.26.0
+traci==1.24.0
 typing-extensions==4.15.0
