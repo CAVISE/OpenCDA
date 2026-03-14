@@ -1,0 +1,8 @@
+Transf1v1:
+    hidden_channels: 256
+    n_heads: 4
+    dropout: 0.1
+    n_attn: 2
+    bias: true
+    n_linear_encoder: 2
+    n_linear_decoder: 2

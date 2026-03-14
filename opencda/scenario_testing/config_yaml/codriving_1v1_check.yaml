@@ -1,5 +1,5 @@
 description: |-
-  Content: This is the scenario testing configuration file for single vehicle full-stack system in town06 with co-simulation
+  Content: Codriving config for model evaluation on map topology with which model was trained
 
 world:
   town: Town06
@@ -38,7 +38,7 @@ vehicle_base:
     collision_time_ahead: 2.0 # used for collision checking
     overtake_counter_recover: 35 # the vehicle can not do another overtake during next certain steps
     sample_resolution: 4.5 # the unit distance between two adjacent waypoints in meter
-    local_planner:  # trajectory planning related
+    local_planner: # trajectory planning related
       buffer_size: 12 # waypoint buffer size
       trajectory_update_freq: 15 # used to control trajectory points updating frequency
       waypoint_update_freq: 9 # used to control waypoint updating frequency
@@ -46,8 +46,6 @@ vehicle_base:
       trajectory_dt: 0.20 # for every dt seconds, we sample a trajectory point from the trajectory path as next goal state
       debug: true # whether to draw future/history waypoints
       debug_trajectory: true # whether to draw the trajectory points and path
-
-
 
 rsu_base:
   sensing:
@@ -89,12 +87,6 @@ sumo:
   client_order: 2
   step_length: ${world.fixed_delta_seconds}
 
-aim:
-  model: "MTP"
-  underling_model: "GNN_mtl_gnn"
-  hidden_channels: 128
-  weight: "model_rot_gnn_mtl_np_sumo_0911_e3_1930.pth"
-
 # define scenario. In this scenario, only a single CAV will be spawned
 scenario:
   # rsu_list:
@@ -113,3 +105,29 @@ scenario:
         local_planner:
           debug_trajectory: false
           debug: false
+
+aim:
+  model_wrapper: MTP
+  model: TransfAny_v1
+  model_params:
+    bias: true
+    cars_encoder_hidden_channels: 160
+    cars_encoder_n_attn: 4
+    cars_encoder_n_heads: 4
+    cars_encoder_n_linear_encoder: 2
+    cross_attn_n_attn: 2
+    cross_attn_n_heads: 4
+    cross_attn_n_linear: 2
+    decoder_n_linear_decoder: 2
+    dropout: 0.2
+    map_encoder_base_channels: 16
+    map_encoder_out_vec_size: 128
+    map_encoder_stages:
+      - 3
+      - 4
+      - 4
+      - 3
+      - 3
+
+  weights: model_wp_train_config3_model_config1_0799.pth
+  map_net_xml_path: AIM/models/mtp/learning/data/sumo_maps/simple_separate_10m.net.xml

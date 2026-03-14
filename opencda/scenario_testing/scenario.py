@@ -20,7 +20,7 @@ from opencda.core.common.rsu_manager import RSUManager
 from opencda.core.common.communication.serialize import MessageHandler
 from opencda.core.application.platooning.platooning_manager import PlatooningManager
 from opencda.core.common.aim_model_manager import AIMModelManager
-from AIM import get_model
+from AIM import get_model_wrapper
 
 from opencda.scenario_testing.evaluations.evaluate_manager import EvaluationManager
 from opencda.scenario_testing.utils.yaml_utils import add_current_time, save_yaml
@@ -135,8 +135,8 @@ class Scenario:
             nodes = net.getNodes()
 
             aim_config = scenario_params.get("aim", {})
-            aim_model_name = aim_config.pop("model", "MTP")
-            model = get_model(aim_model_name, **aim_config)
+            aim_model_name = aim_config.pop("model_wrapper", "MTP")
+            model = get_model_wrapper(aim_model_name, **aim_config)
 
             self.codriving_model_manager = AIMModelManager(model=model, nodes=nodes, excluded_nodes=None)
 
