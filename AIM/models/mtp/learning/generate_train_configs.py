@@ -64,8 +64,7 @@ def write_configs(
             if not model_config:
                 cur_config[key] = param
             else:
-                model_key = list(cur_config.keys())
-                cur_config[model_key[0]][key] = param
+                cur_config['model_params'][key] = param
 
             write_config_file(f"{cofig_path}{ind}.yaml", cur_config)
             ind += 1

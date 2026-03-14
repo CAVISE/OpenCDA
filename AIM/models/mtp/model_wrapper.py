@@ -3,9 +3,7 @@ import numpy as np
 import os
 import pickle as pkl
 
-from AIM import AIMModel
-from .mtp_models.model_factory import ModelFactory
-from .mtp_models.model_factory_config import FACTORY_YAML_DIR_FIELD, FACTORY_YAML_CLASS_FIELD
+from AIM import AIMModelWrapper
 
 from .learning.data_path_config import DATA_PATH, Y_X_DISTR_FILE, Y_Y_DISTR_FILE
 from .learning.learning_src.data_scripts.data_config import (
@@ -29,35 +27,25 @@ from .learning.learning_src.data_scripts.preprocess_utils import (
 )
 from .learning.learning_src.data_scripts.preprocess_map import preprocess_map
 from .learning.learning_src.data_scripts.dataset import MAP_level_info
+from AIM.aim_model import MTPModel
 
 
-class MTP(AIMModel):
+class MTP(AIMModelWrapper):
     """
     multi-trajectory prediction model
     """
 
-    def __init__(self, yaml_model_config_path: str, weights: str, map_net_xml_path: str):
+    def __init__(self, model: MTPModel, map_net_xml_path: str):
         """
-        initialize mtp model
-
-        :param yaml_model_config_path: path to yaml file with model configuration
-        :param weights: name of weights file
+        :param model: configured model object
         :param map_net_xml_path: path to sumo network xml map file
         """
+
         super().__init__()
-
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        self.is_transformer = "Transf" in model.__class__.__name__
 
-        self.model = ModelFactory.create_model(yaml_model_config_path)
-        model_info = ModelFactory.get_model_info(yaml_model_config_path)
-        model_dir = model_info[FACTORY_YAML_DIR_FIELD]
-        model_class_name = model_info[FACTORY_YAML_CLASS_FIELD]
-        self.is_transformer = "Transf" in model_class_name
-
-        weights_path = os.path.join(model_dir, "weights", weights)
-
-        checkpoint = torch.load(weights_path, map_location=torch.device("cpu"))
-        self.model.load_state_dict(checkpoint)
+        self.model = model
         self.model = self.model.to(self.device)
         self.model.eval()
 

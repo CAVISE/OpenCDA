@@ -1,4 +1,6 @@
-TransfAny_v1:
+model_wrapper: MTP
+model: TransfAny_v1
+model_params:
     map_encoder_base_channels: 16
     map_encoder_stages: [3, 4, 4, 3, 3]
     map_encoder_out_vec_size: 128

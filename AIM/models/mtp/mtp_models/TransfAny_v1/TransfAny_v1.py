@@ -1,14 +1,14 @@
 import torch
 import torch.nn as nn
-from huggingface_hub import PyTorchModelHubMixin
 from typing import Tuple
 
-from AIM.models.mtp.mtp_models.all_models.encoders_car.transformer_based.encoder_car_v1 import CarsEncoder, SimpleDecoder
-from AIM.models.mtp.mtp_models.all_models.encoders_map.lane_lv_map_encoder.lane_lv_map_encoder import LaneMapEncoder
-from AIM.models.mtp.mtp_models.all_models.transformer_utils.transformer_utils import CrossAttnBlock
+from AIM.models.mtp.mtp_models.encoders_car.transformer_based.encoder_car_v1 import CarsEncoder, SimpleDecoder
+from AIM.models.mtp.mtp_models.encoders_map.lane_lv_map_encoder.lane_lv_map_encoder import LaneMapEncoder
+from AIM.models.mtp.mtp_models.transformer_utils.transformer_utils import CrossAttnBlock
+from AIM.aim_model import MTPModel
 
 
-class TransfAny_v1(nn.Module, PyTorchModelHubMixin):
+class TransfAny_v1(MTPModel):
     """
     transformer model with map encoder and cross-attention between cars and map features
     """

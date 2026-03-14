@@ -2,7 +2,7 @@ import torch
 from torch import nn
 
 from AIM.models.mtp.learning.learning_src.data_scripts.data_config import INPUT_VECTOR_SIZE, PRED_LEN, PREDICT_VECTOR_SIZE
-from AIM.models.mtp.mtp_models.all_models.transformer_utils.transformer_utils import SelfAttnBlock
+from AIM.models.mtp.mtp_models.transformer_utils.transformer_utils import SelfAttnBlock
 
 
 class CarsEncoder(torch.nn.Module):

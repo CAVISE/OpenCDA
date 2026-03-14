@@ -19,11 +19,11 @@ from AIM.models.mtp.learning.data_path_config import DATA_PATH, Y_X_DISTR_FILE, 
 from AIM.models.mtp.learning.learning_src.data_scripts.data_config import (
     NUM_AUGMENTATION,
 )
-from AIM.models.mtp.mtp_models.model_factory import ModelFactory
 from AIM.models.mtp.learning.learning_src.data_scripts.dataset import GnnCarDataset, TransformerCarDataset
 from AIM.models.mtp.learning.learning_src.data_scripts.metrics_logger import MetricLogger
 from .train_gnn import gnn_train_one_epoch, gnn_evaluate
 from .train_transformer import transformer_train_one_epoch, transformer_evaluate
+from AIM.registry import ModelRegistry
 
 
 class Dict2Class(object):
@@ -300,7 +300,17 @@ def init_model(
 
     :return: tuple of (model, optimizer)
     """
-    model = ModelFactory.create_model(model_config_path)
+    if not os.path.exists(model_config_path):
+        raise Exception(f"NO config file with path: {model_config_path}F")
+
+    with open(model_config_path, "r") as file:
+        model_config = yaml.safe_load(file)
+
+    model_name = model_config["model"]
+    model_params = model_config["model_params"]
+    model_cls = ModelRegistry.get_model_by_name(model_name)
+
+    model = model_cls(**model_params)
     model = model.to(device)
     print(model)
 
