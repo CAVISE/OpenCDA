@@ -41,18 +41,13 @@ jobs:
             pip install -r .github/workflows/requirements/requirements-ci.txt -c .github/workflows/requirements/constraints-py312.txt
           fi
 
-      - name: Generate protobufs (capi)
+      - name: Build extensions
         shell: bash
         run: |
-          # Ensure output dir exists for protoc python_out
-          mkdir -p opencda/core/common/communication/protos/cavise
-
-          # Sanity: protoc must exist
-          command -v protoc
-          protoc --version
-
-          # Generate capi_pb2.py (required by MessageHandler/serialize imports)
-          python -c "from opencda.core.common.communication.toolchain import CommunicationToolchain; CommunicationToolchain.handle_messages(['capi'])"
+          pip install cmake ninja cython protobuf
+          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DOPENCDA_BUILD_CUDA=OFF -DOPENCDA_BUILD_CYTHON=ON -DOPENCDA_BUILD_PROTOBUF=ON
+          cmake --build build
+          cmake --install build --prefix .
       # do not stop after first failure
       - name: Run tests
         run: |
