@@ -3,7 +3,8 @@ FROM docker.io/nvidia/cuda:12.8.1-cudnn-devel-ubuntu24.04@sha256:24c8e3581ea6330
 ARG USER=opencda
 ARG UID=1000 # default uid
 ARG HOME=/home/${USER}
-ENV TORCH_CUDA_ARCH_LIST="8.6"
+ARG CUDA_ARCH=86
+ENV CMAKE_CUDA_ARCHITECTURES=${CUDA_ARCH}
 ENV PATH="${HOME}/.local/bin:${PATH}"
 
 RUN userdel -r ubuntu && useradd -l -m -u ${UID} -s /bin/bash ${USER} -d ${HOME}
@@ -30,6 +31,9 @@ RUN apt-get update && \
         python3-dev=3.12.3-0ubuntu2.1 \
         vulkan-tools=1.3.275.0+dfsg1-1 \
         libglib2.0-0=2.80.0-6ubuntu1 \
+        cmake \
+        ninja-build \
+        g++ \
     && \
     curl -LO https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/${PROTOC_ZIP} && \
     unzip -o ${PROTOC_ZIP} -d /usr/local && \
@@ -38,11 +42,12 @@ RUN apt-get update && \
     apt-get autoremove -y && \
     rm -rf /var/lib/apt/lists/*
 
+COPY --chown=${USER}:${USER} . .
+RUN python3 -m pip install --no-cache-dir --break-system-packages -e ".[cuda]"
 USER ${USER}
 WORKDIR ${HOME}/cavise/opencda
 
 # Python Version: 3.12.3
 COPY opencda/requirements.txt requirements.txt
-RUN python3 -m pip install --no-cache-dir --break-system-packages --upgrade pip==26.0.1 setuptools==82.0.0 wheel==0.46.3 && \
-    python3 -m pip install --no-cache-dir --break-system-packages -r requirements.txt && \
-    python3 -m pip install --no-cache-dir --break-system-packages spconv-cu126==2.3.8
+RUN RUN python3 -m pip install --no-cache-dir --break-system-packages --upgrade pip==26.0.1 setuptools==82.0.0 wheel==0.46.3 cmake ninja cython && \
+    python3 -m pip install --no-cache-dir --break-system-packages -r requirements.txt
