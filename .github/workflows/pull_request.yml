@@ -36,11 +36,9 @@ jobs:
         run: pip install mypy mypy-protobuf grpcio-tools
       - name: Generate protobufs modules
         run: |
-          python -m grpc_tools.protoc \
-            -I opencda/core/common/communication/messages \
-            --python_out=opencda/core/common/communication/protos/cavise \
-            --mypy_out=opencda/core/common/communication/protos/cavise \
-            opencda/core/common/communication/messages/capi.proto
+          pip install cmake ninja protobuf
+          cmake -B build -G Ninja -DOPENCDA_BUILD_CUDA=OFF -DOPENCDA_BUILD_CYTHON=OFF -DOPENCDA_BUILD_PROTOBUF=ON
+          cmake --build build
       - name: Run mypy
         run: mypy .
         continue-on-error: true
