@@ -31,9 +31,9 @@ RUN apt-get update && \
         python3-dev=3.12.3-0ubuntu2.1 \
         vulkan-tools=1.3.275.0+dfsg1-1 \
         libglib2.0-0=2.80.0-6ubuntu1 \
-        cmake \
-        ninja-build \
-        g++ \
+        cmake=3.28.3-1 \
+        ninja-build=1.12.1-1 \
+        g++=4:13.2.0-7ubuntu1 \
     && \
     curl -LO https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/${PROTOC_ZIP} && \
     unzip -o ${PROTOC_ZIP} -d /usr/local && \
@@ -42,6 +42,7 @@ RUN apt-get update && \
     apt-get autoremove -y && \
     rm -rf /var/lib/apt/lists/*
 
+WORKDIR ${HOME}/cavise/opencda
 COPY --chown=${USER}:${USER} . .
 RUN python3 -m pip install --no-cache-dir --break-system-packages -e ".[cuda]"
 USER ${USER}
