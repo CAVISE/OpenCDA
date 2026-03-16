@@ -22,6 +22,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler libprotobuf-dev
       - run: pip install cmake ninja protobuf
       - run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DOPENCDA_BUILD_CUDA=OFF -DOPENCDA_BUILD_CYTHON=OFF -DOPENCDA_BUILD_PROTOBUF=ON
       - run: cmake --build build
