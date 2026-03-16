@@ -11,7 +11,7 @@ import pathlib
 import logging
 import argparse
 import omegaconf
-import subprocess
+import importlib.util
 
 from opencda.version import __version__
 
@@ -29,7 +29,6 @@ except ModuleNotFoundError:
     coloredlogs = None
     print("could not find coloredlogs module! Your life will look pale.")
     print("if you are interested in improving it: https://pypi.org/project/coloredlogs")
-
 
 
 class VerbosityLevel(enum.IntEnum):
@@ -179,16 +178,19 @@ def main() -> None:
     opt.apply_ml = False
 
     if opt.with_coperception:
-        try:
-            import opencood.pcdet_utils.iou3d_nms_cuda
-            import opencood.pcdet_utils.pointnet2_stack_cuda
-            logger.info("CUDA extensions loaded successfully")
-        except ImportError as e:
-            logger.error(
-                f"CUDA extensions not found: {e}. "
-                "Please rebuild the package with CUDA support: pip install -e .[cuda]"
-            )
+        missing = []
+        for module_name in [
+            "opencood.pcdet_utils.iou3d_nms_cuda",
+            "opencood.pcdet_utils.pointnet2_stack_cuda",
+        ]:
+            if importlib.util.find_spec(module_name) is None:
+                missing.append(module_name)
+
+        if missing:
+            logger.error(f"CUDA extensions not found: {missing}. Please rebuild the package with CUDA support: pip install -e .[cuda]")
             sys.exit(errno.ENOENT)
+
+        logger.info("CUDA extensions loaded successfully")
 
     # this function might setup crucial components in Scenario, so
     # we should import as late as possible
