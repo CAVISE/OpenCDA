@@ -13,9 +13,11 @@ foreach(PROTO_FILE ${PROTO_FILES})
     list(APPEND PROTO_PY_OUTPUTS ${PROTO_BINARY_DIR}/${PROTO_NAME}_pb2.py)
 endforeach()
 
+set(PROTOC_EXECUTABLE /usr/bin/protoc)
+
 add_custom_command(
     OUTPUT ${PROTO_PY_OUTPUTS}
-    COMMAND ${Protobuf_PROTOC_EXECUTABLE}
+    COMMAND ${PROTOC_EXECUTABLE}
         --proto_path=${PROTO_SOURCE_DIR}
         --python_out=${PROTO_BINARY_DIR}
         ${PROTO_FILES}
