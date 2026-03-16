@@ -36,7 +36,7 @@ jobs:
         run: pip install mypy mypy-protobuf grpcio-tools
       - name: Generate protobufs modules
         run: |
-          pip install cmake ninja protobuf
+          pip install cmake ninja protobuf numpy
           cmake -B build -G Ninja -DOPENCDA_BUILD_CUDA=OFF -DOPENCDA_BUILD_CYTHON=OFF -DOPENCDA_BUILD_PROTOBUF=ON
           cmake --build build
       - name: Run mypy
