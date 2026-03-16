@@ -22,7 +22,7 @@ endif()
 find_package(Python3 3.10 REQUIRED COMPONENTS Interpreter Development NumPy)
 
 if(OPENCDA_BUILD_PROTOBUF)
-    find_package(Protobuf CONFIG REQUIRED)
+    find_package(Protobuf REQUIRED)
 endif()
 
 if(OPENCDA_BUILD_CUDA)
