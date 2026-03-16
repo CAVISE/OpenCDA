@@ -3,6 +3,7 @@ name: Tests (matrix, CI deps)
 on:
   workflow_dispatch:
   pull_request:
+
 jobs:
   pytest:
     runs-on: ubuntu-latest
@@ -29,7 +30,12 @@ jobs:
             .github/workflows/requirements/constraints-py310.txt
             .github/workflows/requirements/constraints-py312.txt
             pyproject.toml
-      # CI minimal
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler libprotobuf-dev
+
       - name: Install dependencies
         shell: bash
         run: |
@@ -48,15 +54,14 @@ jobs:
           cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DOPENCDA_BUILD_CUDA=OFF -DOPENCDA_BUILD_CYTHON=ON -DOPENCDA_BUILD_PROTOBUF=ON
           cmake --build build
           cmake --install build --prefix .
-      # do not stop after first failure
+
       - name: Run tests
         run: |
           mkdir -p reports
           pytest -ra --maxfail=0 --continue-on-collection-errors \
             --junitxml=reports/pytest-${{ matrix.python-version }}.xml
-      # even if tests failed
+
       - name: Upload JUnit report
-        # actions/upload-artifact typically fails under nektos/act (no ACTIONS_RUNTIME_TOKEN)
         if: always() && !env.ACT
         uses: actions/upload-artifact@v4
         with:
