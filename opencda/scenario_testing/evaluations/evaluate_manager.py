@@ -3,7 +3,13 @@ Evaluation manager.
 """
 
 import os
+import json
 import logging
+
+import matplotlib.pyplot as plt
+
+from opencda.core.plan.report_builder import PlanningJsonReportBuilder, PlanningPlotReportBuilder
+from opencda.core.plan.report_models import PlanningActorReport, PlanningModuleReport
 from opencda.scenario_testing.evaluations.utils import lprint
 
 logger = logging.getLogger("cavise.evaluate_manager")
@@ -66,18 +72,29 @@ class EvaluationManager(object):
 
         """
         lprint(log_file, "***********Kinematics Module***********")
+        json_report_builder = PlanningJsonReportBuilder()
+        plot_report_builder = PlanningPlotReportBuilder()
+        kinematics_reports: list[PlanningActorReport] = []
+
         for vid, vm in self.cav_world.get_vehicle_managers().items():
             actor_id = vm.vehicle.id
             lprint(log_file, "Actor ID: %d" % actor_id)
 
-            loc_debug_helper = vm.agent.debug_helper
-            figure, perform_txt = loc_debug_helper.evaluate()
+            raw_data = vm.agent.metrics_collector.get_raw()
+            kinematics_reports.append(json_report_builder.build(raw_data))
+            figure = plot_report_builder.build(raw_data)
 
             # save plotting
             figure_save_path = os.path.join(self.eval_save_path, "%d_kinematics_plotting.png" % actor_id)
             figure.savefig(figure_save_path, dpi=100)
+            plt.close(figure)
 
-            lprint(log_file, perform_txt)
+        module_report = PlanningModuleReport(module="planning", actors=tuple(kinematics_reports))
+        json_save_path = os.path.join(self.eval_save_path, "log.json")
+        with open(json_save_path, "w", encoding="utf-8") as output_file:
+            json.dump(module_report.to_dict(), output_file, indent=2)
+
+        lprint(log_file, f"Kinematics JSON report saved to: {json_save_path}")
 
     def localization_eval(self, log_file):
         """
