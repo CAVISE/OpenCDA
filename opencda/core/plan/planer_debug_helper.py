@@ -1,21 +1,18 @@
 """
-Analysis + Visualization functions for planning
+Runtime helper for planning metrics collection.
 """
 
-from typing import Any, List, Tuple
-import warnings
+from typing import Any, Mapping
 
-import matplotlib.pyplot as plt
-
-import opencda.core.plan.drive_profile_plotting as open_plt
-from opencda.core.plan.metrics.base_metric import BaseMetric
 from opencda.core.plan.metrics.dynamics_metric import DynamicsMetric
+from opencda.core.plan.metrics.metric_collector import MetricCollector
 from opencda.core.plan.metrics.ttc_metric import TtcMetric
+from opencda.core.plan.report_models import MetricCollection
 
 
 class PlanDebugHelper(object):
     """
-    Manager class that holds multiple metrics.
+    Runtime wrapper around a planning metric collector.
 
     Parameters
     ----------
@@ -25,59 +22,82 @@ class PlanDebugHelper(object):
         The number of steps to ignore at the beginning.
     """
 
-    def __init__(self, actor_id: int, warmup_steps: int = 100):
+    def __init__(
+        self,
+        actor_id: int,
+        warmup_steps: int = 100,
+        enabled_metrics: list[str] | None = None,
+        capabilities: Mapping[str, Any] | None = None,
+    ):
         self.actor_id = actor_id
 
-        # Initialize metrics
-        self.dynamics_metric = DynamicsMetric(warmup_steps)
-        self.ttc_metric = TtcMetric(warmup_steps)
+        metric_params = {
+            "dynamics": {"warmup_steps": warmup_steps},
+            "ttc": {"warmup_steps": warmup_steps},
+        }
+        self.metric_collector = MetricCollector(
+            module="planning",
+            entity_id=actor_id,
+            enabled_metrics=enabled_metrics,
+            capabilities=capabilities,
+            metric_params=metric_params,
+        )
 
-        # List of active metrics
-        self.metrics: List[BaseMetric] = [self.dynamics_metric, self.ttc_metric]
+        self.dynamics_metric = self._require_metric("dynamics")
+        self.ttc_metric = self._require_metric("ttc")
 
-    def update(self, **kwargs: Any) -> None:
+    @property
+    def speed_list(self) -> list[float]:
+        return self.dynamics_metric.speed_list
+
+    @property
+    def acc_list(self) -> list[float]:
+        return self.dynamics_metric.acc_list
+
+    @property
+    def ttc_list(self) -> list[float]:
+        return self.ttc_metric.ttc_list
+
+    def update(self, *args: Any, context: Mapping[str, Any] | None = None, **kwargs: Any) -> None:
         """
         Update all metrics with new data.
 
         Parameters
         ----------
+        *args : Any
+            Positional values for transitional call sites. Only
+            `(ego_speed, ttc)` is accepted.
+        context : Mapping[str, Any] | None
+            Normalized runtime context.
         **kwargs : Any
-            Dictionary containing simulation state (ego_speed, ttc, etc.)
+            Additional context fields.
         """
-        for metric in self.metrics:
-            metric.update(**kwargs)
+        normalized_context = self._normalize_context(args, context, kwargs)
+        self.metric_collector.update(normalized_context)
 
-    def evaluate(self) -> Tuple[plt.Figure, str]:
-        """
-        Evaluate the target vehicle and visulize the plot.
+    def get_raw(self) -> MetricCollection:
+        """Expose normalized raw data collected for planning metrics."""
+        return self.metric_collector.get_raw()
 
-        Returns
-        -------
-        figure : matplotlib.pyplot.figure
-            The target vehicle's planning profile (velocity, acceleration, and ttc).
-        perform_txt : str
-            The target vehicle's planning profile as text.
+    def _normalize_context(
+        self,
+        args: tuple[Any, ...],
+        context: Mapping[str, Any] | None,
+        kwargs: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        if args and len(args) != 2:
+            raise TypeError("PlanDebugHelper.update accepts either a context mapping or positional (ego_speed, ttc).")
 
-        """
-        warnings.filterwarnings("ignore")
-        # draw speed, acc and ttc plotting
-        figure = plt.figure()
+        normalized: dict[str, Any] = {}
+        if context is not None:
+            normalized.update(dict(context))
+        if args:
+            normalized.update({"ego_speed": args[0], "ttc": args[1]})
+        normalized.update(kwargs)
+        return normalized
 
-        # Visualization logic (Specific to current set of metrics)
-        # In a fully generic system, this would be dynamic, but for now we map explicitly
-        plt.subplot(311)
-        open_plt.draw_velocity_profile_single_plot([self.dynamics_metric.speed_list])
-
-        plt.subplot(312)
-        open_plt.draw_acceleration_profile_single_plot([self.dynamics_metric.acc_list])
-
-        plt.subplot(313)
-        self.ttc_metric.visualize(plt.gca())
-
-        figure.suptitle("planning profile of actor id %d" % self.actor_id)
-
-        perform_txt = ""
-        for metric in self.metrics:
-            perform_txt += metric.evaluate()
-
-        return figure, perform_txt
+    def _require_metric(self, metric_name: str) -> Any:
+        metric = self.metric_collector.get_metric(metric_name)
+        if metric is None:
+            raise ValueError(f"Required metric '{metric_name}' is not active for planning collector.")
+        return metric
