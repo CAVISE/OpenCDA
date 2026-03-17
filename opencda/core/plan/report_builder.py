@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 import opencda.core.plan.drive_profile_plotting as open_plt
-from opencda.core.plan.metrics.metric_sample import MetricSample
+from opencda.core.plan.metrics_tools.metric_sample import MetricSample
 from opencda.core.plan.report_models import MetricCollection, PlanningActorReport, SeriesSummary
 
 

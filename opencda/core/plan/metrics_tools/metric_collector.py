@@ -1,9 +1,9 @@
 from typing import Any, Mapping
 
-import opencda.core.plan.metrics.dynamics_metric as _dynamics_metric
-import opencda.core.plan.metrics.ttc_metric as _ttc_metric
-from opencda.core.plan.metrics.base_metric import BaseMetric
-from opencda.core.plan.metrics.registry import MetricRegistry
+import opencda.core.plan.metrics_tools.metrics.dynamics as _dynamics_metric
+import opencda.core.plan.metrics_tools.metrics.ttc as _ttc_metric
+from opencda.core.plan.metrics_tools.base_metric import BaseMetric
+from opencda.core.plan.metrics_tools.registry import MetricRegistry
 from opencda.core.plan.report_models import MetricCollection, MetricIssue, MetricSeries
 
 

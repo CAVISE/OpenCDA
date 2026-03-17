@@ -1,8 +1,8 @@
 import numpy as np
 from typing import Mapping
 
-from opencda.core.plan.metrics.base_metric import BaseMetric
-from opencda.core.plan.metrics.metric_sample import MetricSample
+from opencda.core.plan.metrics_tools.base_metric import BaseMetric
+from opencda.core.plan.metrics_tools.metric_sample import MetricSample
 from opencda.core.plan.report_models import MetricSeries
 
 

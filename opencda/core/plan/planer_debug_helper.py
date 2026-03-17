@@ -4,9 +4,9 @@ Runtime helper for planning metrics collection.
 
 from typing import Any, Mapping
 
-from opencda.core.plan.metrics.dynamics_metric import DynamicsMetric
-from opencda.core.plan.metrics.metric_collector import MetricCollector
-from opencda.core.plan.metrics.ttc_metric import TtcMetric
+from opencda.core.plan.metrics_tools.metric_collector import MetricCollector
+from opencda.core.plan.metrics_tools.metrics.dynamics import DynamicsMetric
+from opencda.core.plan.metrics_tools.metrics.ttc import TtcMetric
 from opencda.core.plan.report_models import MetricCollection
 
 

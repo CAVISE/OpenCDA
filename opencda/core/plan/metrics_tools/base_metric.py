@@ -1,9 +1,9 @@
 from abc import ABC, abstractmethod
 from typing import Any, ClassVar, Mapping
 
-from opencda.core.plan.metrics.metric_sample import MetricSample
+from opencda.core.plan.metrics_tools.metric_sample import MetricSample
+from opencda.core.plan.metrics_tools.registry import MetricRegistry
 from opencda.core.plan.report_models import MetricSeries
-from opencda.core.plan.metrics.registry import MetricRegistry
 
 
 class BaseMetric(ABC):

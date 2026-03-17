@@ -12,7 +12,7 @@ from opencda.core.plan.collision_check import CollisionChecker
 from opencda.core.plan.local_planner_behavior import LocalPlanner
 from opencda.core.plan.global_route_planner import GlobalRoutePlanner
 from opencda.core.plan.global_route_planner_dao import GlobalRoutePlannerDAO
-from opencda.core.plan.metrics.metric_collector import MetricCollector
+from opencda.core.plan.metrics_tools.metric_collector import MetricCollector
 
 logger = logging.getLogger("cavise.behavior_agent")
 

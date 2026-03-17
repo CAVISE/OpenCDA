@@ -4,7 +4,7 @@ Structured data models for planning metric collection and reporting.
 
 from dataclasses import asdict, dataclass
 
-from opencda.core.plan.metrics.metric_sample import MetricSample
+from opencda.core.plan.metrics_tools.metric_sample import MetricSample
 
 
 @dataclass(frozen=True, slots=True)
