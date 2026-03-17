@@ -12,7 +12,7 @@ from opencda.core.plan.collision_check import CollisionChecker
 from opencda.core.plan.local_planner_behavior import LocalPlanner
 from opencda.core.plan.global_route_planner import GlobalRoutePlanner
 from opencda.core.plan.global_route_planner_dao import GlobalRoutePlannerDAO
-from opencda.core.plan.planer_debug_helper import PlanDebugHelper
+from opencda.core.plan.metrics.metric_collector import MetricCollector
 
 logger = logging.getLogger("cavise.behavior_agent")
 
@@ -74,8 +74,8 @@ class BehaviorAgent(object):
     objects : dict
         The dictionary that contains all kinds of objects nearby.
 
-    debug_helper : PlanDebugHelper
-        The helper class that help with the debug functions.
+    metrics_collector : MetricCollector
+        The runtime collector used to track planning metrics.
     """
 
     def __init__(self, vehicle, carla_map, config_yaml):
@@ -132,8 +132,15 @@ class BehaviorAgent(object):
         self.obstacle_vehicles = []
         self.objects = {}
 
-        # debug helper
-        self.debug_helper = PlanDebugHelper(self.vehicle.id)
+        metric_params = {
+            "dynamics": {"warmup_steps": 100},
+            "ttc": {"warmup_steps": 100},
+        }
+        self.metrics_collector = MetricCollector(
+            module="planning",
+            entity_id=self.vehicle.id,
+            metric_params=metric_params,
+        )
         # print message in debug mode
         self.debug = False if "debug" not in config_yaml else config_yaml["debug"]
 
@@ -165,8 +172,7 @@ class BehaviorAgent(object):
         obstacle_vehicles = objects["vehicles"]
         self.obstacle_vehicles = self.white_list_match(obstacle_vehicles)
 
-        # update the debug helper
-        self.debug_helper.update(ego_speed=ego_speed, ttc=self.ttc)
+        self.metrics_collector.update({"ego_speed": ego_speed, "ttc": self.ttc})
 
         if self.ignore_traffic_light:
             self.light_state = "Green"

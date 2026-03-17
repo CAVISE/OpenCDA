@@ -215,6 +215,8 @@ class PlatooningBehaviorAgent(BehaviorAgent):
         obstacle_vehicles = objects["vehicles"]
         self.obstacle_vehicles = self.white_list_match(obstacle_vehicles)
 
+        self.metrics_collector.update({"ego_speed": ego_speed, "ttc": self.ttc})
+
         # update the debug helper
         self.debug_helper.update(ego_speed, self.ttc, time_gap=self.time_gap, dist_gap=self.dist_gap)
 
