@@ -3,6 +3,9 @@ FROM docker.io/nvidia/cuda:12.8.1-cudnn-devel-ubuntu24.04@sha256:24c8e3581ea6330
 ARG USER=opencda
 ARG UID=1000 # default uid
 ARG HOME=/home/${USER}
+# CUDA architecture version for JIT compilation optimization.
+# Common values: 75 (T4), 80 (A100), 86 (RTX 3090/4090), 89 (RTX 4090)
+# Used by CMAKE_CUDA_ARCHITECTURES to generate optimized CUDA kernels
 ARG CUDA_ARCH=86
 ENV CMAKE_CUDA_ARCHITECTURES=${CUDA_ARCH}
 ENV PATH="${HOME}/.local/bin:${PATH}"
@@ -50,5 +53,5 @@ WORKDIR ${HOME}/cavise/opencda
 
 # Python Version: 3.12.3
 COPY opencda/requirements.txt requirements.txt
-RUN RUN python3 -m pip install --no-cache-dir --break-system-packages --upgrade pip==26.0.1 setuptools==82.0.0 wheel==0.46.3 cmake ninja cython && \
+RUN python3 -m pip install --no-cache-dir --break-system-packages --upgrade pip==26.0.1 setuptools==82.0.0 wheel==0.46.3 cmake==3.28.3 ninja==1.12.1 cython==3.0.11 && \
     python3 -m pip install --no-cache-dir --break-system-packages -r requirements.txt

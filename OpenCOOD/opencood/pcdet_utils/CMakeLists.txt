@@ -1,6 +1,7 @@
 set(CMAKE_CUDA_STANDARD 17)
 set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 set(CMAKE_CUDA_EXTENSIONS OFF)
+# Enable relaxed constexpr for CUDA kernel code (required for std::complex and similar types)
 if(NOT CMAKE_CUDA_FLAGS MATCHES "--expt-relaxed-constexpr")
     string(APPEND CMAKE_CUDA_FLAGS " --expt-relaxed-constexpr")
 endif()

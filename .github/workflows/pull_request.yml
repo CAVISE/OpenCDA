@@ -1,4 +1,4 @@
-name: PR Checks
+name: Lint, Format, Type and Unused code Check
 
 on:
   pull_request:
