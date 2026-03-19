@@ -1,8 +1,8 @@
 name: Build Extensions
 
 on:
-  push:
-    branches: [main, develop]
+  pull_request:
+    branches: [main]
     paths:
       - 'CMakeLists.txt'
       - '**/CMakeLists.txt'
@@ -10,8 +10,6 @@ on:
       - 'OpenCOOD/opencood/pcdet_utils/**'
       - 'OpenCOOD/opencood/utils/**'
       - 'opencda/core/common/communication/messages/**'
-  pull_request:
-    branches: [main, develop]
   workflow_dispatch:
 
 jobs:
@@ -55,7 +53,7 @@ jobs:
 
   build-cuda:
     runs-on: [self-hosted, cuda]
-    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v5
@@ -71,4 +69,3 @@ jobs:
             -DOPENCDA_BUILD_PROTOBUF=OFF
           cmake --build build
       - run: find build -name "*_cuda*.so" -type f
-        

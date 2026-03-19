@@ -1,8 +1,9 @@
 name: Tests (matrix, CI deps)
 
 on:
-  workflow_dispatch:
   pull_request:
+    branches: [main]
+  workflow_dispatch:
 
 jobs:
   pytest:
