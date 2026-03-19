@@ -71,3 +71,4 @@ jobs:
             -DOPENCDA_BUILD_PROTOBUF=OFF
           cmake --build build
       - run: find build -name "*_cuda*.so" -type f
+        
