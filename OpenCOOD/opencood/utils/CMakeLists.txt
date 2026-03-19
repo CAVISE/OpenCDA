@@ -26,8 +26,15 @@ set_target_properties(box_overlaps PROPERTIES
     SUFFIX "${Python3_EXTENSION_MODULE_SUFFIX}"
 )
 
-target_include_directories(box_overlaps PRIVATE ${Python3_INCLUDE_DIRS} ${Python3_NumPy_INCLUDE_DIRS})
+target_include_directories(box_overlaps PRIVATE
+    ${Python3_INCLUDE_DIRS}
+    ${Python3_NumPy_INCLUDE_DIRS}
+)
 target_link_libraries(box_overlaps PRIVATE ${Python3_LIBRARIES})
-target_compile_options(box_overlaps PRIVATE $<$<CONFIG:Release>:-O3 -DNDEBUG> $<$<CONFIG:Debug>:-g -O0>)
+
+target_compile_options(box_overlaps PRIVATE
+    $<$<CONFIG:Release>:-O3 -DNDEBUG>
+    $<$<CONFIG:Debug>:-g -O0>
+)
 
 install(TARGETS box_overlaps LIBRARY DESTINATION opencood/utils)

@@ -1,14 +1,20 @@
 set(CMAKE_CUDA_STANDARD 17)
 set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 set(CMAKE_CUDA_EXTENSIONS OFF)
-set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --expt-relaxed-constexpr --use_fast_math")
+if(NOT CMAKE_CUDA_FLAGS MATCHES "--expt-relaxed-constexpr")
+    string(APPEND CMAKE_CUDA_FLAGS " --expt-relaxed-constexpr")
+endif()
+if(NOT CMAKE_CUDA_FLAGS MATCHES "--use_fast_math")
+    string(APPEND CMAKE_CUDA_FLAGS " --use_fast_math")
+endif()
 
-set(CUDA_COMMON_INCLUDES
-    ${Python3_INCLUDE_DIRS}
-    ${Python3_NumPy_INCLUDE_DIRS}
-    ${CUDAToolkit_INCLUDE_DIRS}
-    ${pybind11_INCLUDE_DIRS}
+execute_process(
+    COMMAND ${Python3_EXECUTABLE} -c "import torch; print(torch.utils.cmake_prefix_path)"
+    OUTPUT_VARIABLE TORCH_CMAKE_PATH
+    OUTPUT_STRIP_TRAILING_WHITESPACE
 )
+list(PREPEND CMAKE_PREFIX_PATH "${TORCH_CMAKE_PATH}")
+find_package(Torch REQUIRED)
 
 # iou3d_nms_cuda
 set(IOU3D_NMS_SOURCES
@@ -18,8 +24,18 @@ set(IOU3D_NMS_SOURCES
     iou3d_nms/src/iou3d_nms_kernel.cu
 )
 pybind11_add_module(iou3d_nms_cuda ${IOU3D_NMS_SOURCES})
-target_include_directories(iou3d_nms_cuda PRIVATE ${CUDA_COMMON_INCLUDES} ${CMAKE_CURRENT_SOURCE_DIR}/iou3d_nms/src)
-target_compile_options(iou3d_nms_cuda PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-gencode=arch=compute_86,code=sm_86> $<$<COMPILE_LANGUAGE:CXX>:-O3>)
+target_include_directories(iou3d_nms_cuda PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/iou3d_nms/src
+)
+target_link_libraries(iou3d_nms_cuda PRIVATE ${TORCH_LIBRARIES})
+target_compile_definitions(iou3d_nms_cuda PRIVATE TORCH_EXTENSION_NAME=iou3d_nms_cuda)
+target_compile_options(iou3d_nms_cuda PRIVATE
+    $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<CONFIG:Release>>:-O3>
+    $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<CONFIG:Debug>>:-g -O0>
+)
+set_target_properties(iou3d_nms_cuda PROPERTIES
+    CUDA_ARCHITECTURES "${CMAKE_CUDA_ARCHITECTURES}"
+)
 
 # roiaware_pool3d_cuda
 set(ROIAWARE_POOL3D_SOURCES
@@ -27,7 +43,14 @@ set(ROIAWARE_POOL3D_SOURCES
     roiaware_pool3d/src/roiaware_pool3d_kernel.cu
 )
 pybind11_add_module(roiaware_pool3d_cuda ${ROIAWARE_POOL3D_SOURCES})
-target_include_directories(roiaware_pool3d_cuda PRIVATE ${CUDA_COMMON_INCLUDES} ${CMAKE_CURRENT_SOURCE_DIR}/roiaware_pool3d/src)
+target_include_directories(roiaware_pool3d_cuda PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/roiaware_pool3d/src
+)
+target_link_libraries(roiaware_pool3d_cuda PRIVATE ${TORCH_LIBRARIES})
+target_compile_definitions(roiaware_pool3d_cuda PRIVATE TORCH_EXTENSION_NAME=roiaware_pool3d_cuda)
+set_target_properties(roiaware_pool3d_cuda PROPERTIES
+    CUDA_ARCHITECTURES "${CMAKE_CUDA_ARCHITECTURES}"
+)
 
 # pointnet2_stack_cuda
 set(POINTNET2_STACK_SOURCES
@@ -42,7 +65,14 @@ set(POINTNET2_STACK_SOURCES
     pointnet2/pointnet2_stack/src/interpolate_gpu.cu
 )
 pybind11_add_module(pointnet2_stack_cuda ${POINTNET2_STACK_SOURCES})
-target_include_directories(pointnet2_stack_cuda PRIVATE ${CUDA_COMMON_INCLUDES} ${CMAKE_CURRENT_SOURCE_DIR}/pointnet2/pointnet2_stack/src)
+target_include_directories(pointnet2_stack_cuda PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/pointnet2/pointnet2_stack/src
+)
+target_link_libraries(pointnet2_stack_cuda PRIVATE ${TORCH_LIBRARIES})
+target_compile_definitions(pointnet2_stack_cuda PRIVATE TORCH_EXTENSION_NAME=pointnet2_stack_cuda)
+set_target_properties(pointnet2_stack_cuda PROPERTIES
+    CUDA_ARCHITECTURES "${CMAKE_CUDA_ARCHITECTURES}"
+)
 
 # pointnet2_batch_cuda
 set(POINTNET2_BATCH_SOURCES
@@ -57,7 +87,14 @@ set(POINTNET2_BATCH_SOURCES
     pointnet2/pointnet2_batch/src/sampling_gpu.cu
 )
 pybind11_add_module(pointnet2_batch_cuda ${POINTNET2_BATCH_SOURCES})
-target_include_directories(pointnet2_batch_cuda PRIVATE ${CUDA_COMMON_INCLUDES} ${CMAKE_CURRENT_SOURCE_DIR}/pointnet2/pointnet2_batch/src)
+target_include_directories(pointnet2_batch_cuda PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/pointnet2/pointnet2_batch/src
+)
+target_link_libraries(pointnet2_batch_cuda PRIVATE ${TORCH_LIBRARIES})
+target_compile_definitions(pointnet2_batch_cuda PRIVATE TORCH_EXTENSION_NAME=pointnet2_batch_cuda)
+set_target_properties(pointnet2_batch_cuda PROPERTIES
+    CUDA_ARCHITECTURES "${CMAKE_CUDA_ARCHITECTURES}"
+)
 
 install(TARGETS iou3d_nms_cuda roiaware_pool3d_cuda pointnet2_stack_cuda pointnet2_batch_cuda
     LIBRARY DESTINATION opencood/pcdet_utils

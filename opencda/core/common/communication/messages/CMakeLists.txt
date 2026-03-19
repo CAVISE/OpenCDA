@@ -1,3 +1,5 @@
+find_package(Protobuf REQUIRED)
+
 set(PROTO_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 set(PROTO_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
 set(PROTO_INSTALL_DIR ${CMAKE_SOURCE_DIR}/opencda/core/common/communication/protos/cavise)
@@ -13,16 +15,15 @@ foreach(PROTO_FILE ${PROTO_FILES})
     list(APPEND PROTO_PY_OUTPUTS ${PROTO_BINARY_DIR}/${PROTO_NAME}_pb2.py)
 endforeach()
 
-set(PROTOC_EXECUTABLE /usr/bin/protoc)
-
 add_custom_command(
     OUTPUT ${PROTO_PY_OUTPUTS}
-    COMMAND ${PROTOC_EXECUTABLE}
+    COMMAND ${Protobuf_PROTOC_EXECUTABLE}
         --proto_path=${PROTO_SOURCE_DIR}
         --python_out=${PROTO_BINARY_DIR}
         ${PROTO_FILES}
     DEPENDS ${PROTO_SOURCE_DIR}/capi.proto
     WORKING_DIRECTORY ${PROTO_SOURCE_DIR}
+    COMMENT "Generating Python protobuf files"
     VERBATIM
 )
 
