@@ -54,8 +54,7 @@ jobs:
           cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
             -DOPENCDA_BUILD_CUDA=OFF \
             -DOPENCDA_BUILD_CYTHON=ON \
-            -DOPENCDA_BUILD_PROTOBUF=ON \
-            -Dpybind11_DIR="${PYBIND11_DIR}"
+            -DOPENCDA_BUILD_PROTOBUF=ON
           cmake --build build
           cmake --install build --prefix .
 

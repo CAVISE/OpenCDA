@@ -36,7 +36,16 @@ if(OPENCDA_BUILD_CUDA)
     endif()
 endif()
 
-# pybind11 must be installed via pip before building
+execute_process(
+    COMMAND ${Python3_EXECUTABLE} -c "import pybind11; print(pybind11.get_cmake_dir())"
+    OUTPUT_VARIABLE PYBIND11_CMAKE_DIR
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET
+)
+if(PYBIND11_CMAKE_DIR)
+    list(APPEND CMAKE_PREFIX_PATH "${PYBIND11_CMAKE_DIR}")
+endif()
+
 find_package(pybind11 REQUIRED CONFIG)
 
 if(OPENCDA_BUILD_PROTOBUF)
