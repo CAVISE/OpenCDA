@@ -25,7 +25,7 @@ opencood_root = os.environ.get("OPENCOOD_ROOT", _opencood_default)
 # Default: opencda/coperception_models (4 levels up from mvp/, then opencda/coperception_models)
 # Can be overridden by environment variable OPENCOOD_MODELS_ROOT
 _opencood_models_default = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(mvp_root)))), "opencda", "coperception_models"
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(mvp_root))))), "opencda", "coperception_models"
 )
 opencood_models_root = os.environ.get("OPENCOOD_MODELS_ROOT", _opencood_models_default)
 
