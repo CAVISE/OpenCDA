@@ -6,7 +6,6 @@ project(OpenCDA
 )
 
 set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -32,26 +31,19 @@ if(OPENCDA_BUILD_CUDA)
         enable_language(CUDA)
         find_package(CUDAToolkit REQUIRED)
     else()
-        set(OPENCDA_BUILD_CUDA OFF)
+        message(FATAL_ERROR "CUDA compiler not found but OPENCDA_BUILD_CUDA is ON. "
+            "Either install CUDA toolkit or set OPENCDA_BUILD_CUDA=OFF")
     endif()
 endif()
 
-find_package(pybind11 CONFIG)
-if(NOT pybind11_FOUND)
-    include(FetchContent)
-    FetchContent_Declare(
-        pybind11
-        GIT_REPOSITORY https://github.com/pybind/pybind11.git
-        GIT_TAG v2.13.6
-    )
-    FetchContent_MakeAvailable(pybind11)
-endif()
+# pybind11 must be installed via pip before building
+find_package(pybind11 REQUIRED CONFIG)
 
 if(OPENCDA_BUILD_PROTOBUF)
     add_subdirectory(opencda/core/common/communication/messages)
 endif()
 
-if(OPENCDA_BUILD_CUDA AND CMAKE_CUDA_COMPILER)
+if(OPENCDA_BUILD_CUDA)
     add_subdirectory(OpenCOOD/opencood/pcdet_utils)
 endif()
 

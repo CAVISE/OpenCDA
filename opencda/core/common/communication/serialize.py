@@ -3,32 +3,13 @@
 @brief This module provides functionality for serializing and deserializing carla.Transform objects.
 """
 
-from contextlib import contextmanager
 import logging
 
 logger = logging.getLogger("cavise.opencda.opencda.core.common.communication.serialize")
 
-# Avoid running protoc during import.
-# Try to import generated protobufs first; generate only if missing.
-try:
-    from .protos.cavise import capi_pb2 as proto_capi  # noqa: E402
-
-    logger.debug("Imported generated protobufs module: %s", proto_capi.__name__)
-
-except ImportError:
-    logger.debug("Generated protobufs not found; attempting to generate via toolchain.", exc_info=True)
-    from . import toolchain
-
-    try:
-        toolchain.CommunicationToolchain.handle_messages(["capi"])
-    except FileNotFoundError:
-        # protoc is not available in some environments (e.g. Windows dev machines / minimal CI)
-        logger.warning("protoc not found; assuming generated protobufs already exist.")
-    from .protos.cavise import capi_pb2 as proto_capi  # noqa: E402
-
 from .protos.cavise import capi_pb2 as proto_capi  # noqa: E402
 
-logger.debug("Imported generated protobufs module after generation: %s", proto_capi.__name__)
+logger.debug("Imported generated protobufs module: %s", proto_capi.__name__)
 from google.protobuf.descriptor import FieldDescriptor  # noqa: E402
 
 
@@ -70,14 +51,12 @@ class MessageHandler:
     def __deserialize_ndarray(self, ndarray_msg) -> dict:
         return {"data": ndarray_msg.data, "shape": list(ndarray_msg.shape), "dtype": ndarray_msg.dtype}
 
-    @contextmanager
     def handle_opencda_message(self, id, module):
         if id not in self.current_message_opencda:
             self.current_message_opencda[id] = {module: {}}
 
         yield self.current_message_opencda[id][module]
 
-    @contextmanager
     def handle_artery_message(self, ego_id, id, module):
         if ego_id not in self.current_message_artery:
             self.current_message_artery[ego_id] = {}
