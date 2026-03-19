@@ -3,14 +3,13 @@ Co-simulation scenario manager. The code is modified from CARLA official
 cosimulation code.
 """
 
-import os
 import logging
+import os
 
 import carla
 
-from opencda.co_simulation.sumo_integration.constants import SPAWN_OFFSET_Z
 from opencda.co_simulation.sumo_integration.bridge_helper import BridgeHelper
-from opencda.co_simulation.sumo_integration.constants import INVALID_ACTOR_ID
+from opencda.co_simulation.sumo_integration.constants import INVALID_ACTOR_ID, SPAWN_OFFSET_Z
 from opencda.co_simulation.sumo_integration.sumo_simulation import SumoSimulation
 from opencda.scenario_testing.utils.sim_api import ScenarioManager
 
@@ -118,7 +117,7 @@ class CoScenarioManager(ScenarioManager):
         # -----------------
         # sumo-->carla sync
         # -----------------
-        self.sumo.tick()
+        # self.sumo.tick()
 
         # Spawning new sumo actors in carla (i.e, not controlled by carla).
         sumo_spawned_actors = self.sumo.spawned_actors - set(self.carla2sumo_ids.values())

@@ -4,7 +4,6 @@ ARG USER=opencda
 ARG UID=1000 # default uid
 ARG HOME=/home/${USER}
 ENV TORCH_CUDA_ARCH_LIST="8.6"
-ENV PATH="${HOME}/.local/bin:${PATH}"
 
 RUN userdel -r ubuntu && useradd -l -m -u ${UID} -s /bin/bash ${USER} -d ${HOME}
 ENV XDG_RUNTIME_DIR=/tmp/runtime-${USER}
@@ -39,6 +38,7 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 USER ${USER}
+ENV PATH="${HOME}/.local/bin:${PATH}"
 WORKDIR ${HOME}/cavise/opencda
 
 # Python Version: 3.12.3

@@ -1,25 +1,23 @@
+import argparse
+import logging
 import os
 import sys
-import carla
-import sumolib
-import logging
-import argparse
-import omegaconf
-
-from pathlib import Path
-from typing import List, Union, Any
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, List, Union
+
+import carla
+import omegaconf
+import sumolib
 
 import opencda.scenario_testing.utils.cosim_api as sim_api
 import opencda.scenario_testing.utils.customized_map_api as map_api
-
-from opencda.core.common.cav_world import CavWorld
-from opencda.core.common.vehicle_manager import VehicleManager
-from opencda.core.common.rsu_manager import RSUManager
+from AIM import get_model
 from opencda.core.application.platooning.platooning_manager import PlatooningManager
 from opencda.core.common.aim_model_manager import AIMModelManager
-from AIM import get_model
-
+from opencda.core.common.cav_world import CavWorld
+from opencda.core.common.rsu_manager import RSUManager
+from opencda.core.common.vehicle_manager import VehicleManager
 from opencda.scenario_testing.evaluations.evaluate_manager import EvaluationManager
 from opencda.scenario_testing.utils.yaml_utils import add_current_time, save_yaml
 
@@ -282,10 +280,13 @@ class Scenario:
                 )
 
             opencda_message = self.payload_handler.make_opencda_message()
-            logger.info(f"{round(len(opencda_message) / (1 << 20), 3)} MB of payload about to be sent")
+            logger.info(f"{round(opencda_message.ByteSize() / (1 << 20), 3)} MB of payload about to be sent")
             self.communication_manager.send_message(opencda_message)
+
+            self.scenario_manager.sumo.tick()
+
             artery_message = self.communication_manager.receive_message()
-            logger.info(f"{round(len(artery_message) / (1 << 20), 3)} MB were received")
+            logger.info(f"{round(artery_message.ByteSize() / (1 << 20), 3)} MB were received")
             self.payload_handler.make_artery_payload(artery_message)
 
             if self.coperception_model_manager is not None and tick_number > 0:
