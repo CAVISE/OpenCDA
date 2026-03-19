@@ -3,6 +3,7 @@
 @brief This module provides functionality for serializing and deserializing carla.Transform objects.
 """
 
+from contextlib import contextmanager
 import logging
 
 logger = logging.getLogger("cavise.opencda.opencda.core.common.communication.serialize")
@@ -51,12 +52,14 @@ class MessageHandler:
     def __deserialize_ndarray(self, ndarray_msg) -> dict:
         return {"data": ndarray_msg.data, "shape": list(ndarray_msg.shape), "dtype": ndarray_msg.dtype}
 
+    @contextmanager
     def handle_opencda_message(self, id, module):
         if id not in self.current_message_opencda:
             self.current_message_opencda[id] = {module: {}}
 
         yield self.current_message_opencda[id][module]
 
+    @contextmanager
     def handle_artery_message(self, ego_id, id, module):
         if ego_id not in self.current_message_artery:
             self.current_message_artery[ego_id] = {}
