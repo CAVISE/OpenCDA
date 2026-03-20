@@ -98,7 +98,9 @@ class Scenario:
             from opencda.core.common.communication.payload_handler import PayloadHandler
 
             self.communication_manager = CommunicationManager(
-                artery_address=f"tcp://{opt.artery_host}", artery_retries=opt.artery_retries, artery_timeout=opt.artery_timeout
+                artery_address=f"tcp://{opt.artery_host}",
+                artery_send_timeout=opt.artery_send_timeout,
+                artery_receive_timeout=opt.artery_receive_timeout,
             )
             self.payload_handler = PayloadHandler()
             logger.info("running: creating message handler")
@@ -195,6 +197,7 @@ class Scenario:
             if opt.ticks and tick_number > opt.ticks:
                 break
             logger.debug(f"running: simulation tick: {tick_number}")
+            self.scenario_manager.sumo_tick()
             self.scenario_manager.tick()
 
             if not opt.free_spectator and any(array is not None for array in [self.single_cav_list, self.platoon_list]):
@@ -283,7 +286,7 @@ class Scenario:
             logger.info(f"{round(opencda_message.ByteSize() / (1 << 20), 3)} MB of payload about to be sent")
             self.communication_manager.send_message(opencda_message)
 
-            self.scenario_manager.sumo.tick()
+            self.scenario_manager.sumo_tick()
 
             artery_message = self.communication_manager.receive_message()
             logger.info(f"{round(artery_message.ByteSize() / (1 << 20), 3)} MB were received")

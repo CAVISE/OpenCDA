@@ -21,7 +21,7 @@ RUN apt-get update && \
         libvulkan1=1.3.275.0-1build1 \
         libgl1=1.7.0-1build1 \
         mesa-vulkan-drivers=25.2.8-0ubuntu0.24.04.1 \
-        curl=8.5.0-2ubuntu10.6 \
+        curl=8.5.0-2ubuntu10.8 \
         unzip=6.0-28ubuntu4.1 \
         libjpeg-dev=8c-2ubuntu11 \
         libtiff6=4.5.1+git230720-4ubuntu2.4 \

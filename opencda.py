@@ -100,14 +100,23 @@ def arg_parse() -> argparse.Namespace:
     parser.add_argument("--free-spectator", action="store_true", help="Enable free movement for the spectator camera.")
     parser.add_argument("-x", "--xodr", action="store_true", help="Run simulation using a custom map from an XODR file.")
     parser.add_argument("-c", "--cosim", action="store_true", help="Enable co-simulation with SUMO.")
-    parser.add_argument("--with-capi", action="store_true", help="wether to run a communication manager instance in this simulation.")
     parser.add_argument("--carla-host", type=str, default="carla", help="IP address or hostname of the CARLA server (default: 'carla')")
     parser.add_argument("--carla-timeout", type=float, default=30.0, help="Timeout of the CARLA server response in seconds (default: 30.0)")
+
+    # CAPI parameters
+    parser.add_argument("--with-capi", action="store_true", help="wether to run a communication manager instance in this simulation.")
     parser.add_argument(
         "--artery-host", type=str, default="artery:7777", help="IP address or hostname and port of the Artery server (default: 'artery:7777')"
     )
-    parser.add_argument("--artery-retries", type=int, default=5, help="Number of retries after which connection will be closed (default: 5)")
-    parser.add_argument("--artery-timeout", type=float, default=300.0, help="Timeout of the Artery server response in seconds (default: 300.0)")
+    parser.add_argument(
+        "--artery-send-timeout", type=float, default=5.0, help="Maximum time to send a message to the Artery server, in seconds (default: 5.0)."
+    )
+    parser.add_argument(
+        "--artery-receive-timeout",
+        type=float,
+        default=300.0,
+        help="Maximum time to wait for a reply from the Artery server, in seconds (default: 300.0).",
+    )
 
     # Coperception models parameters
     parser.add_argument(

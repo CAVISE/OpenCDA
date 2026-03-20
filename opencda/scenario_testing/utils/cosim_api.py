@@ -104,6 +104,9 @@ class CoScenarioManager(ScenarioManager):
         BridgeHelper.blueprint_library = self.world.get_blueprint_library()
         BridgeHelper.offset = self.sumo.get_net_offset()
 
+    def sumo_tick(self):
+        self.sumo.tick()
+
     def tick(self):
         """
         Execute a single step of co-simulation. Logic: sumo will move the
@@ -118,6 +121,7 @@ class CoScenarioManager(ScenarioManager):
         # sumo-->carla sync
         # -----------------
         # self.sumo.tick()
+        # In some cases, you need to use self.sumo.tick() elsewhere
 
         # Spawning new sumo actors in carla (i.e, not controlled by carla).
         sumo_spawned_actors = self.sumo.spawned_actors - set(self.carla2sumo_ids.values())

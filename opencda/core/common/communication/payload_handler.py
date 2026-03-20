@@ -3,6 +3,7 @@ import pickle  # TODO: In the future pickle module will be replaced with our own
 import logging
 import pathlib
 from contextlib import contextmanager
+from typing import Any, Generator
 
 sys.path.append(str(pathlib.Path("opencda/core/common/communication/protos/cavise").resolve()))
 
@@ -15,19 +16,19 @@ logger = logging.getLogger("cavise.opencda.opencda.core.common.communication.ser
 
 # TODO: fix docs and annotations
 class PayloadHandler:
-    def __init__(self):
-        self.current_opencda_payload = {}
-        self.current_artery_payload = {}
+    def __init__(self) -> None:
+        self.current_opencda_payload: dict[str, dict[str, Any]] = {}
+        self.current_artery_payload: dict[str, dict[str, dict[str, Any]]] = {}
 
     @contextmanager
-    def handle_opencda_payload(self, id, module):
+    def handle_opencda_payload(self, id: str, module: str) -> Generator[dict[str, Any], None, None]:
         if id not in self.current_opencda_payload:
             self.current_opencda_payload[id] = {module: {}}
 
         yield self.current_opencda_payload[id][module]
 
     @contextmanager
-    def handle_artery_payload(self, ego_id, id, module):
+    def handle_artery_payload(self, ego_id: str, id: str, module: str) -> Generator[dict[str, Any], None, None]:
         if ego_id not in self.current_artery_payload:
             self.current_artery_payload[ego_id] = {}
         if id not in self.current_artery_payload[ego_id]:
