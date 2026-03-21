@@ -6,7 +6,7 @@ import logging
 from opencood.utils import common_utils
 from opencood.hypes_yaml import yaml_utils
 
-logger = logging.getLogger("cavise.OpenCOOD.opencood.utils.eval_utils")
+logger = logging.getLogger("cavise.opencda.OpenCOOD.opencood.utils.eval_utils")
 
 
 def voc_ap(rec, prec):
