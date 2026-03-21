@@ -18,11 +18,13 @@ from opencood.utils.transformation_utils import x1_to_x2
 from opencood.pcdet_utils.roiaware_pool3d.roiaware_pool3d_utils import points_in_boxes_cpu
 
 
-# TODO: У модели fpvrcnn_intermediate_fusion в этом датасете возникает проблема с весами
-# TODO: Проверить работу моделей с такми датасетом
-# они не правильно расположены
-# size mismatch for spconv_block.conv_out.0.weight: copying a param with shape torch.Size([3, 1, 1, 64, 64]) from checkpoint, the shape in current model is torch.Size([64, 3, 1, 1, 64])
-# Надо будет переобучить модель и обновить код
+# TODO: The fpvrcnn_intermediate_fusion model has an issue with weights on this dataset
+# TODO: Verify the model behavior with this dataset
+# The weights appear to be incorrectly arranged
+# size mismatch for spconv_block.conv_out.0.weight:
+# copying a param with shape torch.Size([3, 1, 1, 64, 64]) from checkpoint,
+# while the current model expects torch.Size([64, 3, 1, 1, 64])
+# The model will need to be retrained and the code updated
 class IntermediateFusionDatasetV2(basedataset.BaseDataset):
     """
     This class is for intermediate fusion where each vehicle transmit the
@@ -46,7 +48,7 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
                 selected_cav_processed = self.get_item_single_car(selected_cav_base, ego_lidar_pose)
 
                 with self.payload_handler.handle_opencda_payload(cav_id, self.module_name) as msg:
-                    msg["object_ids"] = (selected_cav_processed["object_ids"],)  # list
+                    msg["object_ids"] = selected_cav_processed["object_ids"]  # list
                     msg["object_bbx_center"] = selected_cav_processed["object_bbx_center"]
                     msg["voxel_num_points"] = selected_cav_processed["processed_features"]["voxel_num_points"]
                     msg["voxel_features"] = selected_cav_processed["processed_features"]["voxel_features"]

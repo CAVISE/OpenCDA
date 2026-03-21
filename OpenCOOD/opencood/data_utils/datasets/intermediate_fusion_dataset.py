@@ -57,8 +57,8 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
                 selected_cav_processed = self.get_item_single_car(selected_cav_base, ego_lidar_pose)
 
                 with self.payload_handler.handle_opencda_payload(cav_id, self.module_name) as msg:
-                    msg["infra"] = {"name": "infra", "label": "LABEL_OPTIONAL", "type": "int64", "data": 1 if "rsu" in cav_id else 0}
-                    msg["velocity"] = {"name": "velocity", "label": "LABEL_OPTIONAL", "type": "float", "data": selected_cav_processed["velocity"]}
+                    msg["infra"] = 1 if "rsu" in cav_id else 0
+                    msg["velocity"] = selected_cav_processed["velocity"]
                     msg["time_delay"] = selected_cav_base["time_delay"]
                     msg["object_ids"] = selected_cav_processed["object_ids"]
                     msg["object_bbx_center"] = selected_cav_processed["object_bbx_center"]
@@ -150,7 +150,7 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
 
                         voxel_num_points = msg["voxel_num_points"]
                         voxel_features = msg["voxel_features"]
-                        voxel_coords = msg["voxel_coords"]["shape"]
+                        voxel_coords = msg["voxel_coords"]
 
                         processed_features.append(
                             {"voxel_num_points": voxel_num_points, "voxel_features": voxel_features, "voxel_coords": voxel_coords}

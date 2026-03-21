@@ -22,17 +22,13 @@ class PayloadHandler:
 
     @contextmanager
     def handle_opencda_payload(self, id: str, module: str) -> Generator[dict[str, Any], None, None]:
-        if id not in self.current_opencda_payload:
-            self.current_opencda_payload[id] = {module: {}}
+        self.current_opencda_payload.setdefault(id, {}).setdefault(module, {})
 
         yield self.current_opencda_payload[id][module]
 
     @contextmanager
     def handle_artery_payload(self, ego_id: str, id: str, module: str) -> Generator[dict[str, Any], None, None]:
-        if ego_id not in self.current_artery_payload:
-            self.current_artery_payload[ego_id] = {}
-        if id not in self.current_artery_payload[ego_id]:
-            self.current_artery_payload[ego_id][id] = {module: {}}
+        self.current_artery_payload.setdefault(ego_id, {}).setdefault(id, {}).setdefault(module, {})
 
         yield self.current_artery_payload[ego_id][id][module]
 
@@ -49,10 +45,10 @@ class PayloadHandler:
     def make_artery_payload(self, artery_message: proto_artery.ArteryMessage) -> None:
         for transmission in artery_message.transmissions:
             ego_id = transmission.id
+            bucket = self.current_artery_payload.setdefault(ego_id, {})
 
             for entity_info in transmission.entity:
-                entity_id = entity_info.id
-                self.current_artery_payload[ego_id][entity_id] = pickle.loads(entity_info.auxillary)
+                bucket[entity_info.id] = pickle.loads(entity_info.auxillary)
 
     def clear_messages(self) -> None:
         # Clear opencda and artery dict messages to avoid usage of date from previous ticks
