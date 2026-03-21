@@ -137,7 +137,7 @@ class TestCoperceptionModelManager:
 
             manager.update_dataset()
 
-            mock_build.assert_called_with(manager_deps["hypes"], visualize=True, train=False, message_handler=None)
+            mock_build.assert_called_with(manager_deps["hypes"], visualize=True, train=False, payload_handler=None)
             assert manager.opencood_dataset == dataset_mock
             assert manager.data_loader is not None
             assert manager.data_loader.dataset == dataset_mock
