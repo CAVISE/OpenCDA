@@ -8,9 +8,10 @@ import carla
 import numpy as np
 
 from opencda.core.application.platooning.fsm import FSM
-from opencda.core.application.platooning.platoon_debug_helper import PlatoonDebugHelper
 from opencda.core.common.misc import compute_distance, cal_distance_angle
 from opencda.core.plan.behavior_agent import BehaviorAgent
+from opencda.metrics_tools.config import resolve_metric_collector_config
+from opencda.metrics_tools.metric_collector import MetricCollector
 
 logger = logging.getLogger("cavise.platoon_behavior_agent")
 
@@ -48,9 +49,8 @@ class PlatooningBehaviorAgent(BehaviorAgent):
     v2x_manager : opencda object
         The weak reference of the v2x_manager
 
-    debug_helper : opencda Object
-        A debug helper used to record the driving performance
-         during platooning
+    platooning_metrics_collector : MetricCollector
+        Runtime collector used to record platooning-specific metrics.
 
     inter_gap : float
         The desired time gap between each platoon member.
@@ -76,8 +76,25 @@ class PlatooningBehaviorAgent(BehaviorAgent):
         # merging vehicle needs to reach this speed before cooperative merge
         self.warm_up_speed = platoon_yaml["warm_up_speed"]
 
-        # used to calculate performance
-        self.debug_helper = PlatoonDebugHelper(self.vehicle.id)
+        enabled_metrics, metric_params = resolve_metric_collector_config(
+            platoon_yaml,
+            default_enabled_metrics=["time_gap", "distance_gap"],
+            default_metric_params={
+                "time_gap": {"warmup_steps": 100},
+                "distance_gap": {"warmup_steps": 100},
+            },
+        )
+
+        self.platooning_metrics_collector = MetricCollector(
+            module="platooning",
+            entity_id=self.vehicle.id,
+            enabled_metrics=enabled_metrics,
+            capabilities={
+                "time_gap": True,
+                "distance_gap": True,
+            },
+            metric_params=metric_params,
+        )
         self.time_gap = 100.0
         self.dist_gap = 100.0
 
@@ -217,8 +234,12 @@ class PlatooningBehaviorAgent(BehaviorAgent):
 
         self.metrics_collector.update({"ego_speed": ego_speed, "ttc": self.ttc})
 
-        # update the debug helper
-        self.debug_helper.update(ego_speed, self.ttc, time_gap=self.time_gap, dist_gap=self.dist_gap)
+        self.platooning_metrics_collector.update(
+            {
+                "time_gap": self.time_gap,
+                "distance_gap": self.dist_gap,
+            }
+        )
 
         if self.ignore_traffic_light:
             self.light_state = "Green"

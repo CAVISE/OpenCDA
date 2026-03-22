@@ -12,7 +12,8 @@ from opencda.core.plan.collision_check import CollisionChecker
 from opencda.core.plan.local_planner_behavior import LocalPlanner
 from opencda.core.plan.global_route_planner import GlobalRoutePlanner
 from opencda.core.plan.global_route_planner_dao import GlobalRoutePlannerDAO
-from opencda.core.plan.metrics_tools.metric_collector import MetricCollector
+from opencda.metrics_tools.config import resolve_metric_collector_config
+from opencda.metrics_tools.metric_collector import MetricCollector
 
 logger = logging.getLogger("cavise.behavior_agent")
 
@@ -132,13 +133,24 @@ class BehaviorAgent(object):
         self.obstacle_vehicles = []
         self.objects = {}
 
-        metric_params = {
-            "dynamics": {"warmup_steps": 100},
+        default_metric_params = {
+            "speed": {"warmup_steps": 100},
+            "acceleration": {"warmup_steps": 100},
             "ttc": {"warmup_steps": 100},
         }
+        enabled_metrics, metric_params = resolve_metric_collector_config(
+            config_yaml,
+            default_enabled_metrics=["speed", "acceleration", "ttc"],
+            default_metric_params=default_metric_params,
+        )
         self.metrics_collector = MetricCollector(
             module="planning",
             entity_id=self.vehicle.id,
+            enabled_metrics=enabled_metrics,
+            capabilities={
+                "ego_speed": True,
+                "ttc": True,
+            },
             metric_params=metric_params,
         )
         # print message in debug mode

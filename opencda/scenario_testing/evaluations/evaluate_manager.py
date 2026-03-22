@@ -6,11 +6,8 @@ import os
 import json
 import logging
 
-import matplotlib.pyplot as plt
-
-from opencda.core.plan.report_builder import PlanningJsonReportBuilder, PlanningPlotReportBuilder
-from opencda.core.plan.report_models import PlanningActorReport, PlanningModuleReport
-from opencda.scenario_testing.evaluations.utils import lprint
+from opencda.metrics_tools.report_models import EntityReport, GroupReport, ModuleReport
+from opencda.metrics_tools.report_builder import UniversalReportBuilder
 
 logger = logging.getLogger("cavise.evaluate_manager")
 
@@ -49,92 +46,75 @@ class EvaluationManager(object):
 
     def evaluate(self):
         """
-        Evaluate performance of all modules by plotting and writing the
-        statistics into the log file.
+        Evaluate performance of all modules and persist structured outputs.
         """
-        log_file = os.path.join(self.eval_save_path, "log.txt")
-
-        self.localization_eval(log_file)
+        localization_report = self.localization_eval()
         logger.info("Localization Evaluation Done")
 
-        self.kinematics_eval(log_file)
+        planning_report = self.kinematics_eval()
         logger.info("Kinematics Evaluation Done")
 
-        self.platooning_eval(log_file)
+        platooning_reports = self.platooning_eval()
         logger.info("Platooning Evaluation Done")
 
-    def kinematics_eval(self, log_file):
+        json_save_path = os.path.join(self.eval_save_path, "report.json")
+        with open(json_save_path, "w", encoding="utf-8") as output_file:
+            json.dump(
+                {
+                    "planning": planning_report.to_dict(),
+                    "localization": localization_report.to_dict(),
+                    "platooning": [report.to_dict() for report in platooning_reports],
+                },
+                output_file,
+                indent=2,
+            )
+
+        logger.info("Evaluation JSON report saved to: %s", json_save_path)
+
+    def kinematics_eval(self) -> ModuleReport:
         """
         vehicle kinematics related evaluation.
-
-        Args:
-            -log_file (File): The log file to write the data.
-
         """
-        lprint(log_file, "***********Kinematics Module***********")
-        json_report_builder = PlanningJsonReportBuilder()
-        plot_report_builder = PlanningPlotReportBuilder()
-        kinematics_reports: list[PlanningActorReport] = []
+        logger.info("***********Kinematics Module***********")
+        report_builder = UniversalReportBuilder()
+        kinematics_reports: list[EntityReport] = []
 
         for vid, vm in self.cav_world.get_vehicle_managers().items():
             actor_id = vm.vehicle.id
-            lprint(log_file, "Actor ID: %d" % actor_id)
+            logger.info("Actor ID: %d", actor_id)
 
             raw_data = vm.agent.metrics_collector.get_raw()
-            kinematics_reports.append(json_report_builder.build(raw_data))
-            figure = plot_report_builder.build(raw_data)
+            kinematics_reports.append(report_builder.build_entity_report(raw_data))
 
-            # save plotting
-            figure_save_path = os.path.join(self.eval_save_path, "%d_kinematics_plotting.png" % actor_id)
-            figure.savefig(figure_save_path, dpi=100)
-            plt.close(figure)
+        return report_builder.build_module_report("planning", kinematics_reports)
 
-        module_report = PlanningModuleReport(module="planning", actors=tuple(kinematics_reports))
-        json_save_path = os.path.join(self.eval_save_path, "log.json")
-        with open(json_save_path, "w", encoding="utf-8") as output_file:
-            json.dump(module_report.to_dict(), output_file, indent=2)
-
-        lprint(log_file, f"Kinematics JSON report saved to: {json_save_path}")
-
-    def localization_eval(self, log_file):
+    def localization_eval(self) -> ModuleReport:
         """
         Localization module evaluation.
-
-        Args:
-            -log_file (File): The log file to write the data.
         """
-        lprint(log_file, "***********Localization Module***********")
+        logger.info("***********Localization Module***********")
+        report_builder = UniversalReportBuilder()
+        localization_reports: list[EntityReport] = []
         for vid, vm in self.cav_world.get_vehicle_managers().items():
             actor_id = vm.vehicle.id
-            lprint(log_file, "Actor ID: %d" % actor_id)
+            logger.info("Actor ID: %d", actor_id)
 
-            loc_debug_helper = vm.localizer.debug_helper
-            figure, perform_txt = loc_debug_helper.evaluate()
+            raw_data = vm.localizer.metrics_collector.get_raw()
+            localization_reports.append(report_builder.build_entity_report(raw_data))
 
-            # save plotting
-            figure_save_path = os.path.join(self.eval_save_path, "%d_localization_plotting.png" % actor_id)
-            figure.savefig(figure_save_path, dpi=100)
+        return report_builder.build_module_report("localization", localization_reports)
 
-            # save log txt
-            lprint(log_file, perform_txt)
-
-    def platooning_eval(self, log_file):
+    def platooning_eval(self) -> tuple[GroupReport, ...]:
         """
         Platooning evaluation.
-
-        Args:
-            -log_file (File): The log file to write the data.
-
         """
-        lprint(log_file, "***********Platooning Analysis***********")
+        logger.info("***********Platooning Analysis***********")
+        report_builder = UniversalReportBuilder()
+        platooning_reports: list[GroupReport] = []
 
         for pmid, pm in self.cav_world.get_platoon_dict().items():
-            lprint(log_file, "Platoon ID: %s" % pmid)
-            figure, perform_txt = pm.evaluate()
+            logger.info("Platoon ID: %s", pmid)
+            member_metrics = pm.get_metric_collections()
+            platooning_reports.append(report_builder.build_group_report(pmid, member_metrics, module="platooning"))
 
-            # save plotting
-            figure_save_path = os.path.join(self.eval_save_path, "%s_platoon_plotting.png" % pmid)
-            figure.savefig(figure_save_path, dpi=100)
-
-            # save log txt
-            lprint(log_file, perform_txt)
+        return tuple(platooning_reports)
