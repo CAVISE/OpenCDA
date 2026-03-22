@@ -143,7 +143,9 @@ class BaseDataset(Dataset):
 
             # at least 1 cav should show up
             cav_list = sorted([x for x in os.listdir(scenario_folder) if os.path.isdir(os.path.join(scenario_folder, x))])
-            assert len(cav_list) > 0
+            if len(cav_list) == 0:
+                logger.warning(f"No CAVs found in {scenario_folder}. Skipping.")
+                continue
 
             # roadside unit data's id is always negative, so here we want to
             # make sure they will be in the end of the list as they shouldn't

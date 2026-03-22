@@ -685,6 +685,9 @@ class ScenarioManager:
         """
         self.world.tick()
 
+    def sumo_tick(self):
+        return None
+
     # TODO: Use this function instead of destroy in scenario.py
     # NOTE: This function crashes Carla
     def destroyActors(self):  # noqa: DC04
