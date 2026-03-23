@@ -1,3 +1,5 @@
+"""Localization trace metric implementation."""
+
 from typing import Callable, Mapping, Sequence
 
 from opencda.metrics_tools.base_metric import BaseMetric

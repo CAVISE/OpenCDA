@@ -1,3 +1,5 @@
+"""Speed metric implementation."""
+
 from typing import Mapping
 
 from opencda.metrics_tools.base_metric import BaseMetric

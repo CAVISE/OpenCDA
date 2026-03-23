@@ -1,3 +1,5 @@
+"""Public exports for the shared metrics collection and reporting package."""
+
 from opencda.metrics_tools.base_metric import BaseMetric
 from opencda.metrics_tools.collection_models import MetricCollection, MetricIssue, MetricSeries
 from opencda.metrics_tools.config import resolve_metric_collector_config

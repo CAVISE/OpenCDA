@@ -1,3 +1,5 @@
+"""Base abstractions for runtime metric implementations."""
+
 from abc import ABC, abstractmethod
 from typing import Any, ClassVar, Mapping
 
@@ -27,7 +29,7 @@ class BaseMetric(ABC):
     def __init__(self, warmup_steps: int = 100, sample_interval: float = 0.05):
         self.warmup_steps = warmup_steps
         self.sample_interval = sample_interval
-        self.count = 0
+        self.steps_count = 0
 
     def update(self, context: Mapping[str, Any]) -> None:
         """
@@ -38,27 +40,30 @@ class BaseMetric(ABC):
         context : Mapping[str, Any]
             Runtime context containing the data required by the metric.
         """
-        self.count += 1
-        if self.count <= self.warmup_steps:
+        self.steps_count += 1
+        if self.steps_count <= self.warmup_steps:
             return
         self._process_context(context)
 
     def _make_sample(self, value: float) -> MetricSample:
         """Create a scalar sample using the current tick and sample interval."""
         return MetricSample(
-            tick=self.count,
+            tick=self.steps_count,
             value=float(value),
         )
 
     @abstractmethod
     def _process_context(self, context: Mapping[str, Any]) -> None:
         """Process a context after the warmup period."""
+        raise NotImplementedError
 
     @abstractmethod
     def get_raw(self) -> tuple[MetricSeries, ...]:
         """Return collected metric series in normalized raw form."""
+        raise NotImplementedError
 
     @classmethod
     @abstractmethod
     def get_report_spec(cls) -> MetricReportSpec:
         """Return the report representation owned by the metric."""
+        raise NotImplementedError

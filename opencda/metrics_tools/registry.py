@@ -1,3 +1,5 @@
+"""Registry for discoverable metric classes."""
+
 import inspect
 from typing import Any
 
@@ -16,10 +18,9 @@ class MetricRegistry:
     def register(cls, metric_cls: type) -> None:
         """Register a concrete metric class."""
         if inspect.isabstract(metric_cls):
-            return
+            raise ValueError(f"Cannot register abstract metric class '{metric_cls.__name__}'.")
 
-        metric_name = getattr(metric_cls, "metric_name", None)
-        if not metric_name:
+        if (metric_name := getattr(metric_cls, "metric_name")) is None:
             raise ValueError(f"Metric class '{metric_cls.__name__}' must define 'metric_name'.")
 
         if metric_name in cls._registry:

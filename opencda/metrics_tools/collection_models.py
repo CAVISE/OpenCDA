@@ -1,3 +1,5 @@
+"""Raw collection models used between metrics, collectors, and reports."""
+
 from dataclasses import asdict, dataclass
 
 from opencda.metrics_tools.metric_sample import MetricSample
@@ -37,6 +39,6 @@ class MetricCollection:
                 return series.samples
         return ()
 
-    def to_dict(self) -> dict[str, object]:
+    def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serializable representation of the collection."""
         return asdict(self)

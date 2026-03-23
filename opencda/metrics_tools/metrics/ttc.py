@@ -1,3 +1,5 @@
+"""Time-to-collision metric implementation."""
+
 import numpy as np
 from typing import Mapping
 
