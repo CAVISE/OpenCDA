@@ -1,11 +1,14 @@
 """Universal report building primitives for metric-based modules."""
 
+import logging
 from typing import Callable, Sequence
 import numpy as np
 
 from opencda.metrics_tools.collection_models import MetricCollection
 from opencda.metrics_tools.registry import MetricRegistry
 from opencda.metrics_tools.report_models import EntityMetricCollections, EntityReport, EntityReportInfo, GroupReport, MetricReport, MetricReportSpec, MetricSummarySpec, ModuleReport, SeriesSummary
+
+logger = logging.getLogger(__name__)
 
 
 class UniversalReportBuilder:
@@ -59,6 +62,12 @@ class UniversalReportBuilder:
         return value_resolver(spec.series_name)
 
     def build_entity_report(self, raw_data: MetricCollection) -> EntityReport:
+        logger.debug(
+            "Building entity report module=%s entity_id=%s active_metrics=%s",
+            raw_data.module,
+            raw_data.entity_id,
+            raw_data.active_metrics,
+        )
         return EntityReport(
             info=EntityReportInfo(
                 module=raw_data.module,
@@ -71,6 +80,7 @@ class UniversalReportBuilder:
         )
 
     def build_module_report(self, module: str, entities: Sequence[EntityReport]) -> ModuleReport:
+        logger.info("Building module report module=%s entities=%d", module, len(entities))
         return ModuleReport(module=module, entities=tuple(entities))
 
     def build_group_report(
@@ -79,6 +89,12 @@ class UniversalReportBuilder:
         entities: Sequence[EntityMetricCollections],
         module: str,
     ) -> GroupReport:
+        logger.info(
+            "Building group report group_id=%s module=%s entities=%d",
+            group_id,
+            module,
+            len(entities),
+        )
         return GroupReport(
             group_id=group_id,
             entities=tuple(self._build_group_entity_report(entity, module) for entity in entities),

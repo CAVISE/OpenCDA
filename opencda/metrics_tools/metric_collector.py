@@ -1,9 +1,12 @@
+import logging
 from typing import Any, Mapping
 
 import opencda.metrics_tools.metrics  # noqa: F401
 from opencda.metrics_tools.base_metric import BaseMetric
 from opencda.metrics_tools.collection_models import MetricCollection, MetricIssue, MetricSeries
 from opencda.metrics_tools.registry import MetricRegistry
+
+logger = logging.getLogger(__name__)
 
 
 class MetricCollector:
@@ -43,6 +46,14 @@ class MetricCollector:
         self.unsupported_metrics: dict[str, str] = {}
 
         self._initialize_metrics()
+        logger.info(
+            "Initialized metric collector module=%s entity_id=%s active=%s disabled=%s unsupported=%s",
+            self.module,
+            self.entity_id,
+            self.active_metrics,
+            self.disabled_metrics,
+            sorted(self.unsupported_metrics),
+        )
 
     def _resolve_requested_metrics(
         self,
@@ -58,6 +69,12 @@ class MetricCollector:
             metric_name for metric_name in self.metric_params if metric_name not in self._requested_metrics
         ]
         if unexpected_metric_params:
+            logger.error(
+                "Invalid metric params for module=%s entity_id=%s: %s",
+                self.module,
+                self.entity_id,
+                ", ".join(sorted(unexpected_metric_params)),
+            )
             raise ValueError(
                 "metric_params provided for metrics that are not enabled: "
                 + ", ".join(sorted(unexpected_metric_params))
@@ -69,11 +86,24 @@ class MetricCollector:
                 metric_cls = MetricRegistry.get_metric_class(metric_name=metric_name)
             except KeyError:
                 self.unsupported_metrics[metric_name] = f"Metric '{metric_name}' is not registered."
+                logger.warning(
+                    "Skipping unknown metric module=%s entity_id=%s metric=%s",
+                    self.module,
+                    self.entity_id,
+                    metric_name,
+                )
                 continue
 
             metric = metric_cls(**self.metric_params.get(metric_name, {}))
             self.metrics[metric_name] = metric
             self.active_metrics.append(metric_name)
+            logger.debug(
+                "Activated metric module=%s entity_id=%s metric=%s params=%s",
+                self.module,
+                self.entity_id,
+                metric_name,
+                self.metric_params.get(metric_name, {}),
+            )
 
     def update(self, context: Mapping[str, Any]) -> None:
         """Update all active metrics from the provided context."""
@@ -92,6 +122,12 @@ class MetricCollector:
         for metric in self.metrics.values():
             series.extend(metric.get_raw())
 
+        logger.debug(
+            "Exporting raw metrics module=%s entity_id=%s series=%d",
+            self.module,
+            self.entity_id,
+            len(series),
+        )
         return MetricCollection(
             module=self.module,
             entity_id=self.entity_id,

@@ -1,7 +1,10 @@
 """Registry for discoverable metric classes."""
 
 import inspect
+import logging
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 class MetricRegistry:
@@ -27,6 +30,7 @@ class MetricRegistry:
             raise ValueError(f"Duplicate metric registration for metric='{metric_name}'.")
 
         cls._registry[metric_name] = metric_cls
+        logger.debug("Registered metric class '%s' as '%s'.", metric_cls.__name__, metric_name)
 
     @classmethod
     def get_metric_class(cls, metric_name: str) -> type:

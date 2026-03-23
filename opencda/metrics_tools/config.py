@@ -1,6 +1,9 @@
 """Helpers for resolving metric collector configuration from module configs."""
 
+import logging
 from typing import Any, Mapping
+
+logger = logging.getLogger(__name__)
 
 
 def resolve_metric_collector_config(
@@ -31,9 +34,18 @@ def resolve_metric_collector_config(
             metric_name for metric_name in metric_params if metric_name not in enabled_metrics
         ]
         if unexpected_metric_params:
+            logger.error(
+                "Invalid metric config: metric_params declared for disabled metrics: %s",
+                ", ".join(sorted(unexpected_metric_params)),
+            )
             raise ValueError(
                 "metric_params provided for metrics that are not enabled: "
                 + ", ".join(sorted(unexpected_metric_params))
             )
 
+    logger.debug(
+        "Resolved metric config enabled_metrics=%s metric_params=%s",
+        enabled_metrics,
+        sorted(metric_params),
+    )
     return enabled_metrics, metric_params
