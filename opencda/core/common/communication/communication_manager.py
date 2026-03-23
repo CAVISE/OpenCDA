@@ -9,7 +9,7 @@ sys.path.append(str(pathlib.Path("opencda/core/common/communication/protos/cavis
 from .protos.cavise import capi_pb2 as proto_capi  # noqa: E402
 from .protos.cavise import opencda_pb2 as proto_opencda  # noqa: E402
 
-logger = logging.getLogger("cavise.opencda.opencda.core.common.communication.manager")
+logger = logging.getLogger("cavise.opencda.opencda.core.common.communication.communication_manager")
 
 
 class CommunicationManager:
