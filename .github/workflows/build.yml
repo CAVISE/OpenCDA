@@ -51,21 +51,21 @@ jobs:
           cmake --build build
       - run: find build -name "box_overlaps*" -type f
 
-  build-cuda:
-    runs-on: [self-hosted, cuda]
-    if: false #${{ github.event.pull_request.head.repo.full_name == github.repository }}
-    steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - run: pip install cmake ninja cython numpy pybind11
-      - name: Configure and build
-        run: |
-          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_CUDA_ARCHITECTURES="86;89" \
-            -DOPENCDA_BUILD_CUDA=ON \
-            -DOPENCDA_BUILD_CYTHON=OFF \
-            -DOPENCDA_BUILD_PROTOBUF=OFF
-          cmake --build build
-      - run: find build -name "*_cuda*.so" -type f
+#  build-cuda:
+#    runs-on: [self-hosted, cuda]
+#    if: false #${{ github.event.pull_request.head.repo.full_name == github.repository }}
+#    steps:
+#      - uses: actions/checkout@v5
+#      - uses: actions/setup-python@v5
+#        with:
+#          python-version: "3.12"
+#      - run: pip install cmake ninja cython numpy pybind11
+#      - name: Configure and build
+#        run: |
+#          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+#            -DCMAKE_CUDA_ARCHITECTURES="86;89" \
+#            -DOPENCDA_BUILD_CUDA=ON \
+#            -DOPENCDA_BUILD_CYTHON=OFF \
+#            -DOPENCDA_BUILD_PROTOBUF=OFF
+#          cmake --build build
+#      - run: find build -name "*_cuda*.so" -type f
