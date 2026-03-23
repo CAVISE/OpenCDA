@@ -20,6 +20,7 @@ class BaseMetric(ABC):
     """
 
     metric_name: ClassVar[str]
+    required_capabilities: ClassVar[tuple[str, ...]] = ()
 
     def __init_subclass__(cls, **kwargs: Any):
         super().__init_subclass__(**kwargs)
@@ -40,7 +41,8 @@ class BaseMetric(ABC):
         capabilities : Mapping[str, Any] | None
             Optional capability flags for the current runtime.
         """
-        return True
+        resolved_capabilities = capabilities or {}
+        return all(bool(resolved_capabilities.get(capability)) for capability in cls.required_capabilities)
 
     def update(self, context: Mapping[str, Any]) -> None:
         """

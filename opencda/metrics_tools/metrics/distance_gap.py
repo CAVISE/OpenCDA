@@ -1,4 +1,4 @@
-from typing import Any, Mapping
+from typing import Mapping
 
 from opencda.metrics_tools.base_metric import BaseMetric
 from opencda.metrics_tools.collection_models import MetricSeries
@@ -9,10 +9,7 @@ class DistanceGapMetric(BaseMetric):
     """Collect platooning distance-gap samples."""
 
     metric_name = "distance_gap"
-
-    @classmethod
-    def supports(cls, capabilities: Mapping[str, Any] | None = None) -> bool:
-        return bool(capabilities and capabilities.get("distance_gap"))
+    required_capabilities = ("distance_gap",)
 
     def __init__(self, warmup_steps: int = 100):
         super().__init__(warmup_steps=warmup_steps)

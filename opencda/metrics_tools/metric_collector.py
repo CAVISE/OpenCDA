@@ -37,8 +37,9 @@ class MetricCollector:
         self.capabilities = dict(capabilities or {})
         self.metric_params = {name: dict(params) for name, params in (metric_params or {}).items()}
 
-        available_metrics = self._resolve_available_metrics(enabled_metrics)
-        self._requested_metrics = list(enabled_metrics) if enabled_metrics is not None else list(available_metrics)
+        available_metrics = MetricRegistry.list_metrics()
+        self._requested_metrics = self._resolve_requested_metrics(enabled_metrics, available_metrics)
+        self._validate_metric_params()
 
         self.metrics: dict[str, BaseMetric] = {}
         self.active_metrics: list[str] = []
@@ -47,13 +48,24 @@ class MetricCollector:
 
         self._initialize_metrics()
 
-    def _resolve_available_metrics(self, enabled_metrics: list[str] | None) -> list[str]:
+    def _resolve_requested_metrics(
+        self,
+        enabled_metrics: list[str] | None,
+        available_metrics: list[str],
+    ) -> list[str]:
         if enabled_metrics is not None:
-            metric_names = list(enabled_metrics) + list(self.metric_params)
-            return list(dict.fromkeys(metric_names))
-        if self.metric_params:
-            return list(self.metric_params)
-        return MetricRegistry.list_metrics()
+            return list(dict.fromkeys(enabled_metrics))
+        return list(available_metrics)
+
+    def _validate_metric_params(self) -> None:
+        unexpected_metric_params = [
+            metric_name for metric_name in self.metric_params if metric_name not in self._requested_metrics
+        ]
+        if unexpected_metric_params:
+            raise ValueError(
+                "metric_params provided for metrics that are not enabled: "
+                + ", ".join(sorted(unexpected_metric_params))
+            )
 
     def _initialize_metrics(self) -> None:
         for metric_name in self._requested_metrics:

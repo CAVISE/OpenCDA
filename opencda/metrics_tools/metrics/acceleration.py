@@ -1,4 +1,4 @@
-from typing import Any, Mapping
+from typing import Mapping
 
 from opencda.metrics_tools.base_metric import BaseMetric
 from opencda.metrics_tools.collection_models import MetricSeries
@@ -10,10 +10,7 @@ class AccelerationMetric(BaseMetric):
     """Metric for ego acceleration."""
 
     metric_name = "acceleration"
-
-    @classmethod
-    def supports(cls, capabilities: Mapping[str, Any] | None = None) -> bool:
-        return bool(capabilities and capabilities.get("ego_speed"))
+    required_capabilities = ("ego_speed",)
 
     def __init__(self, warmup_steps: int = 100, dt: float = 0.05):
         super().__init__(warmup_steps=warmup_steps, sample_interval=dt)

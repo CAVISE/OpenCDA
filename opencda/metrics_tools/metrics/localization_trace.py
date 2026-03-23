@@ -1,4 +1,4 @@
-from typing import Any, Callable, Mapping, Sequence
+from typing import Callable, Mapping, Sequence
 
 from opencda.metrics_tools.base_metric import BaseMetric
 from opencda.metrics_tools.collection_models import MetricSeries
@@ -10,6 +10,7 @@ class LocalizationTraceMetric(BaseMetric):
     """Collect raw localization traces for report generation."""
 
     metric_name = "trace"
+    required_capabilities = ("gnss", "filter", "ground_truth")
 
     _SERIES_NAMES = (
         "gnss_x",
@@ -26,12 +27,6 @@ class LocalizationTraceMetric(BaseMetric):
         "gt_speed",
     )
     _SPEED_SERIES = {"gnss_speed", "filter_speed", "gt_speed"}
-
-    @classmethod
-    def supports(cls, capabilities: Mapping[str, Any] | None = None) -> bool:
-        if not capabilities:
-            return False
-        return bool(capabilities.get("gnss") and capabilities.get("filter") and capabilities.get("ground_truth"))
 
     def __init__(self, warmup_steps: int = 0):
         super().__init__(warmup_steps=warmup_steps)

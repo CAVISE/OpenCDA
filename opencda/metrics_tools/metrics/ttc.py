@@ -1,5 +1,5 @@
 import numpy as np
-from typing import Any, Mapping
+from typing import Mapping
 
 from opencda.metrics_tools.base_metric import BaseMetric
 from opencda.metrics_tools.collection_models import MetricSeries
@@ -9,6 +9,7 @@ from opencda.metrics_tools.report_models import MetricReportSpec, MetricSummaryS
 
 class TtcMetric(BaseMetric):
     """
+    !Should be rewrited to be more generic for any scalar metric.!
     Metric for Time To Collision (TTC).
 
     Parameters
@@ -18,10 +19,7 @@ class TtcMetric(BaseMetric):
     """
 
     metric_name = "ttc"
-
-    @classmethod
-    def supports(cls, capabilities: Mapping[str, Any] | None = None) -> bool:
-        return bool(capabilities and capabilities.get("ttc"))
+    required_capabilities = ("ttc",)
 
     def __init__(self, warmup_steps: int = 100):
         super().__init__(warmup_steps=warmup_steps)

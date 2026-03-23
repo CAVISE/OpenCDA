@@ -15,7 +15,7 @@ def resolve_metric_collector_config(
 
     enabled_metrics = metrics_config.get("enabled_metrics", default_enabled_metrics)
     if enabled_metrics is not None:
-        enabled_metrics = list(enabled_metrics)
+        enabled_metrics = list(dict.fromkeys(enabled_metrics))
 
     metric_params = {
         metric_name: dict(params)
@@ -25,5 +25,15 @@ def resolve_metric_collector_config(
         merged_params = dict(metric_params.get(metric_name, {}))
         merged_params.update(dict(params))
         metric_params[metric_name] = merged_params
+
+    if enabled_metrics is not None:
+        unexpected_metric_params = [
+            metric_name for metric_name in metric_params if metric_name not in enabled_metrics
+        ]
+        if unexpected_metric_params:
+            raise ValueError(
+                "metric_params provided for metrics that are not enabled: "
+                + ", ".join(sorted(unexpected_metric_params))
+            )
 
     return enabled_metrics, metric_params
