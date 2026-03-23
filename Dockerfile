@@ -3,12 +3,11 @@ FROM docker.io/nvidia/cuda:12.8.1-cudnn-devel-ubuntu24.04@sha256:24c8e3581ea6330
 ARG USER=opencda
 ARG UID=1000 # default uid
 ARG HOME=/home/${USER}
-# CUDA architecture version for JIT compilation optimization.
-# Common values: 75 (T4), 80 (A100), 86 (RTX 3090/4090), 89 (RTX 4090)
-# Used by CMAKE_CUDA_ARCHITECTURES to generate optimized CUDA kernels
+
+# CUDA architecture for CMake builds
 ARG CUDA_ARCH=86
 ENV CMAKE_CUDA_ARCHITECTURES=${CUDA_ARCH}
-ENV PATH="${HOME}/.local/bin:${PATH}"
+ENV TORCH_CUDA_ARCH_LIST="8.6"
 
 RUN userdel -r ubuntu && useradd -l -m -u ${UID} -s /bin/bash ${USER} -d ${HOME}
 ENV XDG_RUNTIME_DIR=/tmp/runtime-${USER}
@@ -26,7 +25,7 @@ RUN apt-get update && \
         libvulkan1=1.3.275.0-1build1 \
         libgl1=1.7.0-1build1 \
         mesa-vulkan-drivers=25.2.8-0ubuntu0.24.04.1 \
-        curl=8.5.0-2ubuntu10.6 \
+        curl=8.5.0-2ubuntu10.8 \
         unzip=6.0-28ubuntu4.1 \
         libjpeg-dev=8c-2ubuntu11 \
         libtiff6=4.5.1+git230720-4ubuntu2.4 \
@@ -45,13 +44,14 @@ RUN apt-get update && \
     apt-get autoremove -y && \
     rm -rf /var/lib/apt/lists/*
 
-WORKDIR ${HOME}/cavise/opencda
-COPY --chown=${USER}:${USER} . .
-RUN python3 -m pip install --no-cache-dir --break-system-packages -e ".[cuda]"
 USER ${USER}
+ENV PATH="${HOME}/.local/bin:${PATH}"
 WORKDIR ${HOME}/cavise/opencda
 
 # Python Version: 3.12.3
 COPY opencda/requirements.txt requirements.txt
 RUN python3 -m pip install --no-cache-dir --break-system-packages --upgrade pip==26.0.1 setuptools==82.0.0 wheel==0.46.3 cmake==3.28.3 ninja==1.12.1 cython==3.0.11 && \
     python3 -m pip install --no-cache-dir --break-system-packages -r requirements.txt
+
+COPY --chown=${USER}:${USER} . .
+RUN python3 -m pip install --no-cache-dir --break-system-packages -e ".[cuda]"
