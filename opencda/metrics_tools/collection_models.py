@@ -1,5 +1,5 @@
 """Raw collection models used between metrics, collectors, and reports."""
-
+from typing import Any
 from dataclasses import asdict, dataclass
 
 from opencda.metrics_tools.metric_sample import MetricSample
