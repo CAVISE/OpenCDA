@@ -1,7 +1,10 @@
 """Builtin metric modules."""
 
 from importlib import import_module
+import logging
 import pkgutil
+
+logger = logging.getLogger(__name__)
 
 
 def _import_builtin_metrics() -> None:
@@ -10,7 +13,8 @@ def _import_builtin_metrics() -> None:
         if module_info.name.startswith("_"):
             continue
         import_module(f"{__name__}.{module_info.name}")
+        
+        logger.debug("Importing builtin metric module '%s'.", module_name)
 
 
 _import_builtin_metrics()
-
