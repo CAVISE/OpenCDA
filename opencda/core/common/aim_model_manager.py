@@ -10,7 +10,7 @@ from opencda.co_simulation.sumo_integration.bridge_helper import BridgeHelper
 from AIM import AIMModel
 
 
-logger = logging.getLogger("cavise.codriving_model_manager")
+logger = logging.getLogger("cavise.opencda.opencda.core.common.aim_model_manager")
 
 
 class AIMModelManager:
