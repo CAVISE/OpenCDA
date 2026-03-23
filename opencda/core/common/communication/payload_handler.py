@@ -11,7 +11,7 @@ from .protos.cavise import opencda_pb2 as proto_opencda  # noqa: E402
 from .protos.cavise import artery_pb2 as proto_artery  # noqa: E402
 
 
-logger = logging.getLogger("cavise.opencda.opencda.core.common.communication.serialize")
+logger = logging.getLogger("cavise.opencda.opencda.core.common.communication.payload_handler")
 
 
 # TODO: fix docs and annotations
