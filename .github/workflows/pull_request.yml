@@ -9,6 +9,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+      - name: Run ruff check
+        uses: astral-sh/ruff-action@v3
+        with:
+          args: "check"
+
+  format-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Run ruff format check with diff
+        uses: astral-sh/ruff-action@v3
+        with:
+          args: "format --check --diff"
+
+  type-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -16,7 +34,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y protobuf-compiler libprotobuf-dev pkg-config
-      - run: pip install mypy mypy-protobuf grpcio-tools cmake ninja protobuf numpy pybind11
+      - name: Install Dependencies
+        run: pip install mypy mypy-protobuf grpcio-tools cmake ninja protobuf numpy pybind11
       - name: Generate protobufs modules
         run: |
           cmake -B build -G Ninja -DOPENCDA_BUILD_CUDA=OFF -DOPENCDA_BUILD_CYTHON=OFF -DOPENCDA_BUILD_PROTOBUF=ON
@@ -25,15 +44,29 @@ jobs:
         run: mypy .
         continue-on-error: true
 
-  ruff:
+  unused-code-check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install ruff
-      - name: Run Ruff lint
-        run: ruff check .
-      - name: Run Ruff format check
-        run: ruff format --check .
+      - name: Install Dependencies
+        run: pip install deadcode
+      - name: Run deadcode
+        run: deadcode .
+
+  pre-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Run pre-commit
+        uses: pre-commit/action@v3.0.1
+        env:
+          SKIP: ruff-check,ruff-format,pretty-format-json
+        with:
+          extra_args: >-
+            --all-files
