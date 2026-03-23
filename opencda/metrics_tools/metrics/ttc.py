@@ -19,7 +19,6 @@ class TtcMetric(BaseMetric):
     """
 
     metric_name = "ttc"
-    required_capabilities = ("ttc",)
 
     def __init__(self, warmup_steps: int = 100):
         super().__init__(warmup_steps=warmup_steps)

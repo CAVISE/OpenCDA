@@ -10,7 +10,6 @@ class LocalizationTraceMetric(BaseMetric):
     """Collect raw localization traces for report generation."""
 
     metric_name = "trace"
-    required_capabilities = ("gnss", "filter", "ground_truth")
 
     _SERIES_NAMES = (
         "gnss_x",

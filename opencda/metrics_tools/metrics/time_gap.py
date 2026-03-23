@@ -9,7 +9,6 @@ class TimeGapMetric(BaseMetric):
     """Collect platooning time-gap samples."""
 
     metric_name = "time_gap"
-    required_capabilities = ("time_gap",)
 
     def __init__(self, warmup_steps: int = 100):
         super().__init__(warmup_steps=warmup_steps)

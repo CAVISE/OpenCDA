@@ -10,7 +10,6 @@ class SpeedMetric(BaseMetric):
     """Metric for ego speed."""
 
     metric_name = "speed"
-    required_capabilities = ("ego_speed",)
 
     def __init__(self, warmup_steps: int = 100, dt: float = 0.05):
         super().__init__(warmup_steps=warmup_steps, sample_interval=dt)

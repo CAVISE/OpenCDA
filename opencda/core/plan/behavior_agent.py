@@ -147,10 +147,6 @@ class BehaviorAgent(object):
             module="planning",
             entity_id=self.vehicle.id,
             enabled_metrics=enabled_metrics,
-            capabilities={
-                "ego_speed": True,
-                "ttc": True,
-            },
             metric_params=metric_params,
         )
         # print message in debug mode

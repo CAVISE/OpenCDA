@@ -9,7 +9,6 @@ class DistanceGapMetric(BaseMetric):
     """Collect platooning distance-gap samples."""
 
     metric_name = "distance_gap"
-    required_capabilities = ("distance_gap",)
 
     def __init__(self, warmup_steps: int = 100):
         super().__init__(warmup_steps=warmup_steps)

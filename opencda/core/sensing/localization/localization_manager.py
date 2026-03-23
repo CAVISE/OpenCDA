@@ -186,11 +186,6 @@ class LocalizationManager(object):
             module="localization",
             entity_id=self.vehicle.id,
             enabled_metrics=enabled_metrics,
-            capabilities={
-                "gnss": self.activate,
-                "filter": self.activate,
-                "ground_truth": True,
-            },
             metric_params=metric_params,
         )
 

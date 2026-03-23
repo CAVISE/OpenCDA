@@ -18,8 +18,6 @@ class MetricCollector:
         Identifier of the runtime entity being measured.
     enabled_metrics : list[str] | None
         Explicit list of metric names to enable.
-    capabilities : Mapping[str, Any] | None
-        Capability flags describing the current runtime.
     metric_params : Mapping[str, Mapping[str, Any]] | None
         Per-metric constructor parameters.
     """
@@ -29,12 +27,10 @@ class MetricCollector:
         module: str,
         entity_id: int | str,
         enabled_metrics: list[str] | None = None,
-        capabilities: Mapping[str, Any] | None = None,
         metric_params: Mapping[str, Mapping[str, Any]] | None = None,
     ):
         self.module = module
         self.entity_id = entity_id
-        self.capabilities = dict(capabilities or {})
         self.metric_params = {name: dict(params) for name, params in (metric_params or {}).items()}
 
         available_metrics = MetricRegistry.list_metrics()
@@ -73,10 +69,6 @@ class MetricCollector:
                 metric_cls = MetricRegistry.get_metric_class(metric_name=metric_name)
             except KeyError:
                 self.unsupported_metrics[metric_name] = f"Metric '{metric_name}' is not registered."
-                continue
-
-            if not metric_cls.supports(self.capabilities):
-                self.unsupported_metrics[metric_name] = "Metric is not supported by current capabilities."
                 continue
 
             metric = metric_cls(**self.metric_params.get(metric_name, {}))

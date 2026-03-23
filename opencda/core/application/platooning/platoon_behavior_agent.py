@@ -89,10 +89,6 @@ class PlatooningBehaviorAgent(BehaviorAgent):
             module="platooning",
             entity_id=self.vehicle.id,
             enabled_metrics=enabled_metrics,
-            capabilities={
-                "time_gap": True,
-                "distance_gap": True,
-            },
             metric_params=metric_params,
         )
         self.time_gap = 100.0
