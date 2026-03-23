@@ -5,7 +5,7 @@ import numpy as np
 
 from opencda.metrics_tools.collection_models import MetricCollection
 from opencda.metrics_tools.registry import MetricRegistry
-from opencda.metrics_tools.report_models import EntityMetricCollections, EntityReport, EntityReportInfo, GroupReport, MetricReport, MetricReportSpec, ModuleReport, SeriesSummary
+from opencda.metrics_tools.report_models import EntityMetricCollections, EntityReport, EntityReportInfo, GroupReport, MetricReport, MetricReportSpec, MetricSummarySpec, ModuleReport, SeriesSummary
 
 
 class UniversalReportBuilder:
@@ -49,7 +49,7 @@ class UniversalReportBuilder:
 
     @staticmethod
     def _resolve_summary_values(
-        spec,
+        spec: MetricSummarySpec,
         value_resolver: Callable[[str], Sequence[float]],
     ) -> Sequence[float]:
         if spec.resolver is not None:
