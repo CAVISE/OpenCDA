@@ -60,6 +60,9 @@ class Canvas_BEV_heading_right(object):
         """
         xy = np.copy(xy)  # prevent in-place modifications
 
+        if xy.ndim == 1:
+            xy = xy.reshape(1, -1)
+
         x = xy[:, 0]
         y = xy[:, 1]
 

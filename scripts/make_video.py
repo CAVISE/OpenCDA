@@ -63,7 +63,9 @@ def create_video(input_dir, output_path, framerate=20, rotate=0, pattern="*.png"
         print(f"Video successfully created: {output_path}")
 
     except subprocess.CalledProcessError as e:
-        print(f"FFmpeg error: {e.output}")
+        print("FFmpeg failed")
+        print("Return code:", e.returncode)
+        print("stderr:", e.stderr.decode(errors="replace") if e.stderr else None)
     except Exception as e:
         print(f"Error: {e}")
 
