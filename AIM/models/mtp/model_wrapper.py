@@ -5,15 +5,8 @@ import pickle as pkl
 
 from AIM import AIMModelWrapper
 
-from .learning.data_path_config import DATA_PATH, Y_X_DISTR_FILE, Y_Y_DISTR_FILE
-from .learning.learning_src.data_scripts.data_config import (
-    ALLIGN_INITIAL_DIRECTION_TO_X,
-    NORMALIZE_DATA,
-    ZSCORE_NORMALIZE,
-    PRED_LEN,
-    PREDICT_VECTOR_SIZE,
-    COLLECT_DATA_RADIUS,
-)
+from .learning.data_path_config import path_config
+from .learning.learning_src.data_scripts.data_config import config
 from .learning.learning_src.data_scripts.generate_csv_utils import get_map_bounding
 from .learning.learning_src.data_scripts.preprocess_utils import (
     extract_needed_features,
@@ -55,7 +48,7 @@ class MTP(AIMModelWrapper):
         self.map_net_xml_path = map_net_xml_path
         self.process_map(self.map_net_xml_path)
 
-        if ZSCORE_NORMALIZE:
+        if config.data_processing.zscore_normalize:
             self.load_z_score_params()
 
     def process_map(self, map_net_xml_path: str):
@@ -80,10 +73,10 @@ class MTP(AIMModelWrapper):
         """
         load z-score normalization parameters from files
         """
-        with open(os.path.join(DATA_PATH, "csv", Y_X_DISTR_FILE), "rb") as f:
+        with open(os.path.join(path_config.paths.data_path, "csv", path_config.file_names.y_x_distr_file), "rb") as f:
             self.y_x_mean, self.y_x_std = pkl.load(f)
 
-        with open(os.path.join(DATA_PATH, "csv", Y_Y_DISTR_FILE), "rb") as f:
+        with open(os.path.join(path_config.paths.data_path, "csv", path_config.file_names.y_y_distr_file), "rb") as f:
             self.y_y_mean, self.y_y_std = pkl.load(f)
 
     def predict(self, features: np.ndarray, target_agent_ids=None):
@@ -104,10 +97,10 @@ class MTP(AIMModelWrapper):
         x_tensor = torch.tensor(extracted_features).unsqueeze(0).float().to(self.device)
 
         yaw_cur = x_tensor[..., 3].clone()
-        if NORMALIZE_DATA:
+        if config.data_processing.normalize_data:
             denormalize_yaw(yaw_cur)
 
-        if ALLIGN_INITIAL_DIRECTION_TO_X:
+        if config.data_processing.align_initial_direction_to_x:
             rotations_back_current = rotation_matrix_back_with_allign_to_X(yaw_cur).to(self.device)
         else:
             rotations_back_current = rotation_matrix_back_with_allign_to_Y(yaw_cur).to(self.device)
@@ -120,31 +113,31 @@ class MTP(AIMModelWrapper):
             attn_mask = torch.ones((1, num_vechs, num_vechs), dtype=torch.bool).to(self.device)
 
             dout_coords = self.model(x_tensor[:, :, [0, 1, 2, 3, 4, 5]], self.map, attn_mask, map_attn_mask)
-            dout_coords = dout_coords.reshape(dout_coords.shape[0], dout_coords.shape[1], PRED_LEN, PREDICT_VECTOR_SIZE)
+            dout_coords = dout_coords.reshape(dout_coords.shape[0], dout_coords.shape[1], config.model.pred_len, config.model.predict_vector_size)
 
-            if NORMALIZE_DATA and ZSCORE_NORMALIZE:
+            if config.data_processing.normalize_data and config.data_processing.zscore_normalize:
                 z_score_denormalize(dout_coords[:, :, :, 0], self.y_x_mean, self.y_x_std)
                 z_score_denormalize(dout_coords[:, :, :, 1], self.y_y_mean, self.y_y_std)
 
-            dout_coords = dout_coords.permute(0, 1, 3, 2)  # [b, v, 2, PRED_LEN]
-            dout_coords = (rotations_back_current @ dout_coords).permute(0, 1, 3, 2)  # [b, v, PRED_LEN, 2]
+            dout_coords = dout_coords.permute(0, 1, 3, 2)  # [b, v, 2, config.model.pred_len]
+            dout_coords = (rotations_back_current @ dout_coords).permute(0, 1, 3, 2)  # [b, v, config.model.pred_len, 2]
             predictions = dout_coords + x_tensor[:, :, [0, 1]].unsqueeze(2)
 
         else:
             edge_index = torch.tensor([[i, j] for i in range(num_agents) for j in range(num_agents)]).T.to(self.device)
             dout_coords = self.model(x_tensor, edge_index)
-            dout_coords = dout_coords.reshape(dout_coords.shape[0], dout_coords.shape[1], PRED_LEN, PREDICT_VECTOR_SIZE)
+            dout_coords = dout_coords.reshape(dout_coords.shape[0], dout_coords.shape[1], config.model.pred_len, config.model.predict_vector_size)
 
-            if NORMALIZE_DATA and ZSCORE_NORMALIZE:
+            if config.data_processing.normalize_data and config.data_processing.zscore_normalize:
                 z_score_denormalize(dout_coords[:, :, 0], self.y_x_mean, self.y_x_std)
                 z_score_denormalize(dout_coords[:, :, 1], self.y_y_mean, self.y_y_std)
 
-            dout_coords = dout_coords.permute(0, 2, 1)  # [v, 2, PRED_LEN]
-            dout_coords = torch.bmm(rotations_back_current, dout_coords).permute(0, 2, 1)  # [v, PRED_LEN, 2]
+            dout_coords = dout_coords.permute(0, 2, 1)  # [v, 2, config.model.pred_len]
+            dout_coords = torch.bmm(rotations_back_current, dout_coords).permute(0, 2, 1)  # [v, config.model.pred_len, 2]
             predictions = dout_coords + x_tensor[:, [0, 1]].unsqueeze(1)
 
-        if NORMALIZE_DATA:
-            denormalize_coords(predictions, COLLECT_DATA_RADIUS * map_bounding)
+        if config.data_processing.normalize_data:
+            denormalize_coords(predictions, config.vehicle.collect_data_radius * map_bounding)
 
         predictions = transform_coords(predictions)
         return predictions

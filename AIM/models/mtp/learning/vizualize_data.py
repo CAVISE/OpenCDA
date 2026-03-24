@@ -6,7 +6,7 @@ import pandas as pd
 import argparse
 from typing import Iterator, Tuple
 
-from .data_path_config import DATA_PATH, DATA_VIZUALIZATION_PATH
+from .data_path_config import path_config
 
 
 # data in pickle:
@@ -24,7 +24,7 @@ def get_data_frame_pkl(
 
     :yield: tuple of flattened arrays (x_x, x_y, x_speed, x_yaw, x_dstart_yaw, x_dlast_yaw, x_start_cos, x_start_sin, x_last_cos, x_last_sin, y_x, y_y, y_speed, y_yaw)
     """
-    pkl_dir_path = os.path.join(DATA_PATH, pkl_dir)
+    pkl_dir_path = os.path.join(path_config.paths.data_path, pkl_dir)
     sub_dirs = os.listdir(pkl_dir_path)
 
     for sub_dir in sub_dirs:
@@ -126,7 +126,7 @@ def get_data_frame_csv(csv_dir: str = "csv/train") -> Iterator[Tuple[np.ndarray,
 
     :yield: tuple of flattened arrays (x_x, x_y, x_speed, x_yaw)
     """
-    csv_dir_path = os.path.join(DATA_PATH, csv_dir)
+    csv_dir_path = os.path.join(path_config.paths.data_path, csv_dir)
     sub_dirs = os.listdir(csv_dir_path)
 
     for sub_dir in sub_dirs:
@@ -177,7 +177,7 @@ def vizualize_data(pkl: bool = False) -> None:
 
     :param pkl: flag to visualize preprocessed pickle data (True) or raw csv data (False)
     """
-    os.makedirs(DATA_VIZUALIZATION_PATH, exist_ok=True)
+    os.makedirs(path_config.paths.data_vizualization_path, exist_ok=True)
     if pkl:
         data_dict = get_data_pkl()
 
@@ -188,7 +188,7 @@ def vizualize_data(pkl: bool = False) -> None:
         plt.hist(values, bins=50, density=False)
         plt.xlabel(key)
         plt.ylabel("Frequency")
-        plt.savefig(os.path.join(DATA_VIZUALIZATION_PATH, f"{key}.png"))
+        plt.savefig(os.path.join(path_config.paths.data_vizualization_path, f"{key}.png"))
         plt.cla()
 
         if key == "x_intens":
@@ -196,7 +196,7 @@ def vizualize_data(pkl: bool = False) -> None:
             plt.hist(x_intens_max, bins=50, density=False)
             plt.xlabel("ints")
             plt.ylabel("Frequency")
-            plt.savefig(os.path.join(DATA_VIZUALIZATION_PATH, "intentions.png"))
+            plt.savefig(os.path.join(path_config.paths.data_vizualization_path, "intentions.png"))
             plt.cla()
 
 

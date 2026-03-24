@@ -1,20 +1,22 @@
 import os
 import pandas as pd
-import argparse
 
-from .data_path_config import MAIN_PATH, EXPIREMENTS_PATH, LOGS_DIR_NAME
+from .data_path_config import path_config
 
 
-def get_top_configs_by_metrics(top_n: int = 5, expirements_path: str = EXPIREMENTS_PATH) -> None:
+def get_top_configs_by_metrics(top_n: int = 5, expirements_path: str | None = None) -> None:
     """
     get top n configurations by metrics and save to csv
 
     :param top_n: number of top configurations to select per metric
     :param expirements_path: path to experiments directory
     """
+    if expirements_path is None:
+        expirements_path = path_config.paths.expirements_path
+
     rows = []
     for folder_name in os.listdir(expirements_path):
-        folder_path = os.path.join(expirements_path, folder_name, LOGS_DIR_NAME)
+        folder_path = os.path.join(expirements_path, folder_name, path_config.dir_names.logs_dir_name)
 
         if not os.path.isdir(folder_path):
             continue
@@ -46,14 +48,7 @@ def main() -> None:
     """
     main function to get top configurations by metrics
     """
-    parser = argparse.ArgumentParser(description="")
-
-    parser.add_argument("--experements_dir_path", type=str, help="", default="experements")
-
-    args = parser.parse_args()
-
-    expirements_path = os.path.join(MAIN_PATH, args.experements_dir_path)
-    get_top_configs_by_metrics(expirements_path=expirements_path)
+    get_top_configs_by_metrics()
 
 
 if __name__ == "__main__":

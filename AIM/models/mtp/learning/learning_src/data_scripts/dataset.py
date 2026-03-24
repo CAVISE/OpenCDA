@@ -9,7 +9,7 @@ from enum import Enum
 from tqdm import tqdm
 from typing import Optional, Tuple
 
-from .data_config import MAP_LANE_NAME, MAP_PARTS_NAME, MAP_IMG_NAME, COOL_DATA_RADIUS1, COOL_DATA_RADIUS2
+from .data_config import config
 
 
 class GnnCarDataset(InMemoryDataset):
@@ -183,13 +183,13 @@ class TransformerCarDataset(Dataset):
         :return: path to map info file
         """
         if self.map_info_level == MAP_level_info.map:
-            return os.path.join(preprocess_subfolder_path, f"{MAP_IMG_NAME}.npy")
+            return os.path.join(preprocess_subfolder_path, f"{config.image_map.map_img_name}.npy")
 
         if self.map_info_level == MAP_level_info.lane:
-            return os.path.join(preprocess_subfolder_path, f"{MAP_LANE_NAME}.npy")
+            return os.path.join(preprocess_subfolder_path, f"{config.image_map.map_lane_name}.npy")
 
         elif self.map_info_level == MAP_level_info.parts:
-            return os.path.join(preprocess_subfolder_path, f"{MAP_PARTS_NAME}.npy")
+            return os.path.join(preprocess_subfolder_path, f"{config.image_map.map_parts_name}.npy")
         return None
 
     def load_maps(self) -> None:
@@ -296,8 +296,12 @@ class TransformerCarDataset(Dataset):
                 # left- and right-turn cases with higher weights
                 turn_index = (data[0][:, 5] != 0).bool()
                 # vehicles in the central area with higher weights
-                center_index1 = (data[0][:, 0].abs() < COOL_DATA_RADIUS1 * map_boundary) * (data[0][:, 1].abs() < COOL_DATA_RADIUS1 * map_boundary)
-                center_index2 = (data[0][:, 0].abs() < COOL_DATA_RADIUS2 * map_boundary) * (data[0][:, 1].abs() < COOL_DATA_RADIUS2 * map_boundary)
+                center_index1 = (data[0][:, 0].abs() < config.vehicle.cool_data_radius1 * map_boundary) * (
+                    data[0][:, 1].abs() < config.vehicle.cool_data_radius1 * map_boundary
+                )
+                center_index2 = (data[0][:, 0].abs() < config.vehicle.cool_data_radius2 * map_boundary) * (
+                    data[0][:, 1].abs() < config.vehicle.cool_data_radius2 * map_boundary
+                )
                 weights[turn_index] *= 6
                 weights[center_index1] *= 4
                 weights[center_index2] *= 4

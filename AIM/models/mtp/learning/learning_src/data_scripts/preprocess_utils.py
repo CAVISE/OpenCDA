@@ -7,15 +7,7 @@ from typing import Tuple
 
 from typing import Union
 
-from .data_config import (
-    OBS_LEN,
-    NUM_PREDICT,
-    ALLIGN_INITIAL_DIRECTION_TO_X,
-    # NUM_AUGMENTATION,
-    COLLECT_DATA_RADIUS,
-    VEHICLE_MAX_SPEED,
-    NORMALIZE_DATA,
-)
+from .data_config import config
 from .MPC_XY_Frame.MPC_XY_Frame import linear_mpc_control_data_aug
 
 
@@ -424,7 +416,7 @@ def min_max_normalize_target_data(y: Union[torch.Tensor, np.ndarray], circle_bou
     """
     in-place. normalize target data to [-1, 1] in coords and yaw, [0, 1] in speed (in-place)
 
-    :param y: target data with shape [vehicle, NUM_PREDICT, 6] for each vehicle [[x_1, y_1, v_1, yaw_1, acc_1, delta_1], ...]
+    :param y: target data with shape [vehicle, config.model.num_predict, 6] for each vehicle [[x_1, y_1, v_1, yaw_1, acc_1, delta_1], ...]
     :param circle_boundary: boundary of circle on which cars are controlled on intersection
     :param vechicle_max_speed: max speed of vehicle on intersection (in current intersection coordinate system)
 
@@ -440,7 +432,7 @@ def de_normalize_target_data(y: Union[torch.Tensor, np.ndarray], circle_boundary
     """
     in-place. denormalize target data from [-1, 1] in coords and yaw, [0, 1] in speed
 
-    :param y: normalized target data with shape [vehicle, NUM_PREDICT, 6] for each vehicle [[x_1, y_1, v_1, yaw_1, acc_1, delta_1], ...]
+    :param y: normalized target data with shape [vehicle, config.model.num_predict, 6] for each vehicle [[x_1, y_1, v_1, yaw_1, acc_1, delta_1], ...]
     :param circle_boundary: boundary of circle on which cars are controlled on intersection
     :param vechicle_max_speed: max speed of vehicle on intersection (in current intersection coordinate system)
 
@@ -502,7 +494,7 @@ def normalize_input_features(x: np.ndarray, map_bounding: np.ndarray) -> None:
     :param x: input features array
     :param map_bounding: map boundary size
     """
-    normalize_input_data(x, COLLECT_DATA_RADIUS * map_bounding, VEHICLE_MAX_SPEED * map_bounding)
+    normalize_input_data(x, config.vehicle.collect_data_radius * map_bounding, config.vehicle.max_speed * map_bounding)
     normalize_yaw(x[:, 4])
     normalize_yaw(x[:, 5])
 
@@ -532,7 +524,7 @@ def preprocess_file(
     last_cars_info_df = pd.read_csv(os.path.join(csv_folder_path, last_positions_file))
 
     for track_id, remain_df in df.groupby("TRACK_ID"):
-        if len(remain_df) >= (OBS_LEN + NUM_PREDICT):
+        if len(remain_df) >= (config.model.obs_len + config.model.num_predict):
             coords = remain_df[["X", "Y", "speed", "yaw"]].values
 
             start_car_info = start_cars_info_df[start_cars_info_df["TRACK_ID"] == track_id].iloc[0]
@@ -552,7 +544,7 @@ def preprocess_file(
             # ---------------
 
             all_features.append(features)
-            # may happen what some cars have more than OBS_LEN + NUM_PREDICT timesteps
+            # may happen what some cars have more than config.model.obs_len + config.model.num_predict timesteps
             if features.shape[0] != all_features[0].shape[0]:
                 return
 
@@ -573,58 +565,58 @@ def preprocess_file(
     # noise_range = 3.0
 
     # for each timestep, create an interaction graph
-    for row in range(0, num_rows - NUM_PREDICT):
+    for row in range(0, num_rows - config.model.num_predict):
         x = all_features[:, row, :10]  # [vehicle, 10]
 
         # translate and then rotate Gt
-        y = (all_features[:, row + 1 : row + 1 + NUM_PREDICT, :2] - all_features[:, row : row + 1, :2]).transpose(
+        y = (all_features[:, row + 1 : row + 1 + config.model.num_predict, :2] - all_features[:, row : row + 1, :2]).transpose(
             0, 2, 1
-        )  # [vehicle, NUM_PREDICT, 2] -> [vehicle, 2, NUM_PREDICT]
+        )  # [vehicle, config.model.num_predict, 2] -> [vehicle, 2, config.model.num_predict]
 
-        if ALLIGN_INITIAL_DIRECTION_TO_X:
+        if config.data_processing.align_initial_direction_to_x:
             rotations = rotation_matrix_with_allign_to_X(torch.tensor(x[:, 3])).numpy()  # [vehicle, 2, 2]
         else:
             rotations = rotation_matrix_with_allign_to_Y(torch.tensor(x[:, 3])).numpy()  # [vehicle, 2, 2]
 
-        # [vehicle, 2, NUM_PREDICT], transform y into local coordinate system
+        # [vehicle, 2, config.model.num_predict], transform y into local coordinate system
         y = rotations @ y
-        y = y.transpose(0, 2, 1)  # [vehicle, NUM_PREDICT, 2]
+        y = y.transpose(0, 2, 1)  # [vehicle, config.model.num_predict, 2]
 
         # use MPC to compute acc and delta
         curr_states = all_features[:, row, :4]  # [vehicle, 4]
-        # [vehicle, NUM_PREDICT, 4], [x, y, speed, yaw]
-        future_states = all_features[:, row + 1 : row + 1 + NUM_PREDICT, :4]
+        # [vehicle, config.model.num_predict, 4], [x, y, speed, yaw]
+        future_states = all_features[:, row + 1 : row + 1 + config.model.num_predict, :4]
         future_states = adjust_future_deltas(curr_states, future_states)
 
-        # [vehicle, NUM_PREDICT, 2], [acc, delta]
-        acc_delta_old = all_features[:, row + 1 : row + 1 + NUM_PREDICT, -2:]
+        # [vehicle, config.model.num_predict, 2], [acc, delta]
+        acc_delta_old = all_features[:, row + 1 : row + 1 + config.model.num_predict, -2:]
         shifted_curr, mpc_output = MPC_Block(
             curr_states, future_states, acc_delta_old, noise_range=0
-        )  # [vehicle, 4], [vehicle, NUM_PREDICT, 6]: [x, y, v, yaw, acc, delta]
+        )  # [vehicle, 4], [vehicle, config.model.num_predict, 6]: [x, y, v, yaw, acc, delta]
         # store the control vector to accelerate future MPC opt
-        all_features[:, row + 1 : row + 1 + NUM_PREDICT, -2:] = mpc_output[:, :, -2:]
+        all_features[:, row + 1 : row + 1 + config.model.num_predict, -2:] = mpc_output[:, :, -2:]
 
-        # speed = all_features[:, row + 1 : row + 1 + NUM_PREDICT, 2:3]  # [vehicle, NUM_PREDICT, 1]
-        speed = all_features[:, row + 1 : row + 1 + NUM_PREDICT, 2:3] - all_features[:, row : row + 1, 2:3]  # [vehicle, NUM_PREDICT, 1]
+        # speed = all_features[:, row + 1 : row + 1 + config.model.num_predict, 2:3]  # [vehicle, config.model.num_predict, 1]
+        speed = all_features[:, row + 1 : row + 1 + config.model.num_predict, 2:3] - all_features[:, row : row + 1, 2:3]  # [vehicle, config.model.num_predict, 1]
 
         # this is not an angle in local coordinate system this is a yaw with which data point was rotated. but for +x alignment these yaws are the same
-        if ALLIGN_INITIAL_DIRECTION_TO_X:
+        if config.data_processing.align_initial_direction_to_x:
             yaw = (
-                all_features[:, row + 1 : row + 1 + NUM_PREDICT, 3:4] - all_features[:, row : row + 1, 3:4]
-            )  # [vehicle, NUM_PREDICT, 1], align the initial direction to +X
+                all_features[:, row + 1 : row + 1 + config.model.num_predict, 3:4] - all_features[:, row : row + 1, 3:4]
+            )  # [vehicle, config.model.num_predict, 1], align the initial direction to +X
         else:
             yaw = (
-                all_features[:, row + 1 : row + 1 + NUM_PREDICT, 3:4] - all_features[:, row : row + 1, 3:4] + np.pi / 2
-            )  # [vehicle, NUM_PREDICT, 1], align the initial direction to +Y
+                all_features[:, row + 1 : row + 1 + config.model.num_predict, 3:4] - all_features[:, row : row + 1, 3:4] + np.pi / 2
+            )  # [vehicle, config.model.num_predict, 1], align the initial direction to +Y
 
-        # [vehicle, NUM_PREDICT, 6]
+        # [vehicle, config.model.num_predict, 6]
         y = np.concatenate((y, speed, yaw, mpc_output[:, :, -2:]), axis=2)
 
-        if NORMALIZE_DATA:
+        if config.data_processing.normalize_data:
             normalize_input_features(x, map_bounding)
-            min_max_normalize_target_data(y, COLLECT_DATA_RADIUS * map_bounding, VEHICLE_MAX_SPEED * map_bounding)
+            min_max_normalize_target_data(y, config.vehicle.collect_data_radius * map_bounding, config.vehicle.max_speed * map_bounding)
 
-        # [vehicle, NUM_PREDICT*6]
+        # [vehicle, config.model.num_predict*6]
         y = y.reshape(num_cars, -1)
 
         data = (
@@ -634,33 +626,33 @@ def preprocess_file(
             torch.tensor([row]),
         )
         # x: [vehicle, steps, 12]: [x, y, speed, yaw, dstart_yaw, dlast_yaw, start_cos, start_sin, last_cos, last_sin, acc, delta]
-        # y: [vehicle, NUM_PREDICT * 6]: [[x_1, y_1, v_1, yaw_1, acc_1, delta_1, x_2, y_2...], ...]
+        # y: [vehicle, config.model.num_predict * 6]: [[x_1, y_1, v_1, yaw_1, acc_1, delta_1, x_2, y_2...], ...]
         with open(
             f"{preprocess_folder_path}/{os.path.splitext(csv_file)[0]}-{str(row).zfill(3)}-0.pkl",
             "wb",
         ) as handle:
             pickle.dump(data, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-        # for a in range(NUM_AUGMENTATION):
+        # for a in range(config.data_processing.num_augmentation):
         #     shifted_curr, mpc_output = MPC_Block(
         #         curr_states, future_states, acc_delta_old, noise_range=noise_range
-        #     )  # [vehicle, 4], [vehicle, NUM_PREDICT, 6]: [x, y, v, yaw, acc, delta]
+        #     )  # [vehicle, 4], [vehicle, config.model.num_predict, 6]: [x, y, v, yaw, acc, delta]
         #     x_argumented = x.copy()
         #     x_argumented[:, :2] = shifted_curr[:, :2]
-        #     y = (mpc_output[:, :, :2] - np.expand_dims(shifted_curr[:, :2], axis=1)).transpose(0, 2, 1)  # [vehicle, 2, NUM_PREDICT]
+        #     y = (mpc_output[:, :, :2] - np.expand_dims(shifted_curr[:, :2], axis=1)).transpose(0, 2, 1)  # [vehicle, 2, config.model.num_predict]
         #     y = rotations @ y
-        #     y = y.transpose(0, 2, 1)  # [vehicle, NUM_PREDICT, 2]
+        #     y = y.transpose(0, 2, 1)  # [vehicle, config.model.num_predict, 2]
 
-        #     if ALLIGN_INITIAL_DIRECTION_TO_X:
+        #     if config.data_processing.align_initial_direction_to_x:
         #         mpc_output[:, :, 3:4] = mpc_output[:, :, 3:4] - all_features[:, row : row + 1, 3:4]
         #     else:
         #         mpc_output[:, :, 3:4] = mpc_output[:, :, 3:4] - all_features[:, row : row + 1, 3:4] + np.pi / 2
 
-        #     # [vehicle, NUM_PREDICT, 6]
+        #     # [vehicle, config.model.num_predict, 6]
         #     y = np.concatenate((y, mpc_output[:, :, 2:]), axis=-1)
         #     y = y.reshape(num_cars, -1)
 
-        #     # if NORMALIZE_DATA:
+        #     # if config.data_processing.normalize_data:
         #     #     normalize_target_data(y)
         #     #     normalize_input_data(x)
 

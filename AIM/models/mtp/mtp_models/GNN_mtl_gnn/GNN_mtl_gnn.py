@@ -2,7 +2,7 @@ import torch
 from torch import nn
 from torch_geometric.nn import GraphConv as GNNConv
 
-from AIM.models.mtp.learning.learning_src.data_scripts.data_config import INPUT_VECTOR_SIZE, PRED_LEN, PREDICT_VECTOR_SIZE
+from AIM.models.mtp.learning.learning_src.data_scripts.data_config import config
 from AIM.aim_model import MTPModel
 
 
@@ -19,13 +19,13 @@ class GNN_mtl_gnn(MTPModel):
         """
         super().__init__()
         torch.manual_seed(21)
-        self.linear1 = nn.Linear(INPUT_VECTOR_SIZE, 64)
+        self.linear1 = nn.Linear(config.model.input_vector_size, 64)
         self.linear2 = nn.Linear(64, hidden_channels)
         self.linear3 = nn.Linear(hidden_channels, hidden_channels)
         self.linear4 = nn.Linear(hidden_channels, hidden_channels)
         self.conv1 = GNNConv(hidden_channels, hidden_channels)
         self.conv2 = GNNConv(hidden_channels, hidden_channels)
-        self.linear5 = nn.Linear(hidden_channels, PRED_LEN * PREDICT_VECTOR_SIZE)
+        self.linear5 = nn.Linear(hidden_channels, config.model.pred_len * config.model.predict_vector_size)
 
     def forward(self, x: torch.Tensor, edge_index: torch.Tensor) -> torch.Tensor:
         """

@@ -1,10 +1,6 @@
 import torch
 
-from AIM.models.mtp.learning.learning_src.data_scripts.data_config import (
-    NORMALIZE_DATA,
-    SAMPLE_RATE,
-    COLLECT_DATA_RADIUS,
-)
+from AIM.models.mtp.learning.learning_src.data_scripts.data_config import config
 from AIM.models.mtp.learning.learning_src.data_scripts.preprocess_utils import (
     transform_sumo2carla_yaw,
     transform_coords,
@@ -45,8 +41,8 @@ def my_get_yaw(
     route = yaw_vals[positions]
 
     pos_copy = pos.clone()  # carla coords
-    if NORMALIZE_DATA:
-        denormalize_coords(pos_copy, COLLECT_DATA_RADIUS * map_boundaries)
+    if config.data_processing.normalize_data:
+        denormalize_coords(pos_copy, config.vehicle.collect_data_radius * map_boundaries)
 
     transform_coords(pos_copy)  # sumo coords
     deltas = pos_copy.unsqueeze(-2) - route.float()[..., :-1]
@@ -62,7 +58,7 @@ def my_get_yaw(
     yaws_rad = torch.deg2rad(yaws_deg)
     yaws_rad_carla = transform_sumo2carla_yaw(yaws_rad)
 
-    if NORMALIZE_DATA:
+    if config.data_processing.normalize_data:
         yaws_rad_carla = normalize_yaw(yaws_rad_carla)
     return yaws_rad_carla.float()
 
@@ -76,7 +72,7 @@ def my_get_speed(dx: torch.Tensor, dy: torch.Tensor) -> torch.Tensor:
 
     :return: speed values
     """
-    speed = (dx**2 + dy**2) ** 0.5 * SAMPLE_RATE
+    speed = (dx**2 + dy**2) ** 0.5 * config.temporal.sample_rate
     # vehicle_max_speed = VEHICLE_MAX_SPEED if not NORMALIZE_DATA else normalize_speed(VEHICLE_MAX_SPEED, VEHICLE_MAX_SPEED)
     # mask = (speed > vehicle_max_speed)
     # speed[mask] = vehicle_max_speed
