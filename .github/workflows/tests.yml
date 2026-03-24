@@ -48,13 +48,13 @@ jobs:
       - name: Build extensions
         shell: bash
         run: |
-          pip install cmake ninja cython protobuf pybind11
-          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
-            -DOPENCDA_BUILD_CUDA=OFF \
-            -DOPENCDA_BUILD_CYTHON=ON \
-            -DOPENCDA_BUILD_PROTOBUF=ON
-          cmake --build build
-          cmake --install build --prefix .
+            pip install cmake ninja cython protobuf pybind11 grpcio-tools
+            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+              -DOPENCDA_BUILD_CUDA=OFF \
+              -DOPENCDA_BUILD_CYTHON=ON \
+              -DOPENCDA_BUILD_PROTOBUF=ON
+            cmake --build build
+            cmake --install build --prefix .
 
       - name: Run tests
         run: |
