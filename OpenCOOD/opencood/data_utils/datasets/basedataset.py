@@ -17,7 +17,7 @@ from opencood.hypes_yaml.yaml_utils import load_yaml
 from opencood.utils.pcd_utils import downsample_lidar_minimum
 from opencood.utils.transformation_utils import x1_to_x2
 
-logger = logging.getLogger("cavise.OpenCOOD.opencood.data_utils.datasets.basedataset")
+logger = logging.getLogger("cavise.opencda.OpenCOOD.opencood.data_utils.datasets.basedataset")
 
 
 class BaseDataset(Dataset):
@@ -143,7 +143,9 @@ class BaseDataset(Dataset):
 
             # at least 1 cav should show up
             cav_list = sorted([x for x in os.listdir(scenario_folder) if os.path.isdir(os.path.join(scenario_folder, x))])
-            assert len(cav_list) > 0
+            if len(cav_list) == 0:
+                logger.warning(f"No CAVs found in {scenario_folder}. Skipping.")
+                continue
 
             # roadside unit data's id is always negative, so here we want to
             # make sure they will be in the end of the list as they shouldn't
