@@ -48,7 +48,7 @@ jobs:
       - name: Build extensions
         shell: bash
         run: |
-            pip install cmake ninja cython protobuf pybind11 grpcio-tools mypy-protobuf
+            pip install cmake ninja cython protobuf pybind11 mypy-protobuf
             cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
               -DOPENCDA_BUILD_CUDA=OFF \
               -DOPENCDA_BUILD_CYTHON=ON \
