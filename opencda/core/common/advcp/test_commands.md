@@ -12,7 +12,8 @@ python opencda.py \
   --fusion-method early \
   --with-advcp \
   --attack-type lidar_remove_early \
-  --attackers-ratio 0.3
+  --attackers-ratio 0.3 \
+  --model-dir opencda/coperception_models/pixor-early-opv2v-15
 ```
 
 ### 2. Simple Intermediate Attack (No Defense)
@@ -23,7 +24,8 @@ python opencda.py \
   --fusion-method intermediate \
   --with-advcp \
   --attack-type lidar_spoof_intermediate \
-  --attackers-ratio 0.25
+  --attackers-ratio 0.25 \
+  --model-dir opencda/coperception_models/pointpillar-cobevt-intermediate-opv2v-90
 ```
 
 ### 3. Simple Late Attack (No Defense)
@@ -34,7 +36,8 @@ python opencda.py \
   --fusion-method late \
   --with-advcp \
   --attack-type lidar_remove_late \
-  --attackers-ratio 0.2
+  --attackers-ratio 0.2 \
+  --model-dir opencda/coperception_models/pointpillar-late-opv2v-30
 ```
 
 ## Attack Types Testing
@@ -48,7 +51,8 @@ python opencda.py \
   --with-advcp \
   --attack-type lidar_remove_early \
   --attackers-ratio 0.3 \
-  --attack-target random
+  --attack-target random \
+  --model-dir opencda/coperception_models/pixor-early-opv2v-15
 ```
 
 ### 5. Early Spoof Attack
@@ -60,7 +64,8 @@ python opencda.py \
   --with-advcp \
   --attack-type lidar_spoof_early \
   --attackers-ratio 0.3 \
-  --attack-target specific_vehicle
+  --attack-target specific_vehicle \
+  --model-dir opencda/coperception_models/pixor-early-opv2v-15
 ```
 
 ### 6. Intermediate Remove Attack
@@ -71,7 +76,8 @@ python opencda.py \
   --fusion-method intermediate \
   --with-advcp \
   --attack-type lidar_remove_intermediate \
-  --attackers-ratio 0.25
+  --attackers-ratio 0.25 \
+  --model-dir opencda/coperception_models/pointpillar-cobevt-intermediate-opv2v-90
 ```
 
 ### 7. Intermediate Spoof Attack
@@ -83,7 +89,8 @@ python opencda.py \
   --with-advcp \
   --attack-type lidar_spoof_intermediate \
   --attackers-ratio 0.25 \
-  --attack-target all_non_attackers
+  --attack-target all_non_attackers \
+  --model-dir opencda/coperception_models/pointpillar-cobevt-intermediate-opv2v-90
 ```
 
 ### 8. Late Remove Attack
@@ -94,7 +101,8 @@ python opencda.py \
   --fusion-method late \
   --with-advcp \
   --attack-type lidar_remove_late \
-  --attackers-ratio 0.2
+  --attackers-ratio 0.2 \
+  --model-dir opencda/coperception_models/pointpillar-late-opv2v-30
 ```
 
 ### 9. Late Spoof Attack
@@ -105,7 +113,8 @@ python opencda.py \
   --fusion-method late \
   --with-advcp \
   --attack-type lidar_spoof_late \
-  --attackers-ratio 0.2
+  --attackers-ratio 0.2 \
+  --model-dir opencda/coperception_models/pointpillar-late-opv2v-30
 ```
 
 ### 10. Advanced Shape Attack
@@ -116,7 +125,8 @@ python opencda.py \
   --fusion-method intermediate \
   --with-advcp \
   --attack-type adv_shape \
-  --attackers-ratio 0.25
+  --attackers-ratio 0.25 \
+  --model-dir opencda/coperception_models/pointpillar-cobevt-intermediate-opv2v-90
 ```
 
 ## Defense Testing
@@ -131,7 +141,8 @@ python opencda.py \
   --attack-type lidar_remove_early \
   --attackers-ratio 0.3 \
   --apply-cad-defense \
-  --defense-threshold 0.7
+  --defense-threshold 0.7 \
+  --model-dir opencda/coperception_models/pixor-early-opv2v-15
 ```
 
 ### 12. Attack with CAD Defense (Intermediate)
@@ -144,7 +155,8 @@ python opencda.py \
   --attack-type lidar_spoof_intermediate \
   --attackers-ratio 0.25 \
   --apply-cad-defense \
-  --defense-threshold 0.8
+  --defense-threshold 0.8 \
+  --model-dir opencda/coperception_models/pointpillar-cobevt-intermediate-opv2v-90
 ```
 
 ### 13. Attack with CAD Defense (Late)
@@ -157,7 +169,8 @@ python opencda.py \
   --attack-type lidar_remove_late \
   --attackers-ratio 0.2 \
   --apply-cad-defense \
-  --defense-threshold 0.6
+  --defense-threshold 0.6 \
+  --model-dir opencda/coperception_models/pointpillar-late-opv2v-30
 ```
 
 ### 14. Defense Only (No Attack)
@@ -168,7 +181,8 @@ python opencda.py \
   --fusion-method early \
   --with-advcp \
   --apply-cad-defense \
-  --defense-threshold 0.7
+  --defense-threshold 0.7 \
+  --model-dir opencda/coperception_models/pixor-early-opv2v-15
 ```
 
 ## Attackers Ratio Variations
@@ -181,7 +195,8 @@ python opencda.py \
   --fusion-method intermediate \
   --with-advcp \
   --attack-type lidar_spoof_intermediate \
-  --attackers-ratio 0.1
+  --attackers-ratio 0.1 \
+  --model-dir opencda/coperception_models/pointpillar-cobevt-intermediate-opv2v-90
 ```
 
 ### 16. Medium Attackers Ratio (30%)
@@ -192,7 +207,8 @@ python opencda.py \
   --fusion-method intermediate \
   --with-advcp \
   --attack-type lidar_spoof_intermediate \
-  --attackers-ratio 0.3
+  --attackers-ratio 0.3 \
+  --model-dir opencda/coperception_models/pointpillar-cobevt-intermediate-opv2v-90
 ```
 
 ### 17. High Attackers Ratio (50%)
@@ -203,7 +219,8 @@ python opencda.py \
   --fusion-method intermediate \
   --with-advcp \
   --attack-type lidar_spoof_intermediate \
-  --attackers-ratio 0.5
+  --attackers-ratio 0.5 \
+  --model-dir opencda/coperception_models/pointpillar-cobevt-intermediate-opv2v-90
 ```
 
 ### 18. Very High Attackers Ratio (80%)
@@ -214,7 +231,8 @@ python opencda.py \
   --fusion-method intermediate \
   --with-advcp \
   --attack-type lidar_spoof_intermediate \
-  --attackers-ratio 0.8
+  --attackers-ratio 0.8 \
+  --model-dir opencda/coperception_models/pointpillar-cobevt-intermediate-opv2v-90
 ```
 
 ## Target Selection Strategies
@@ -228,7 +246,8 @@ python opencda.py \
   --with-advcp \
   --attack-type lidar_spoof_intermediate \
   --attackers-ratio 0.25 \
-  --attack-target random
+  --attack-target random \
+  --model-dir opencda/coperception_models/pointpillar-cobevt-intermediate-opv2v-90
 ```
 
 ### 20. Specific Vehicle Target
@@ -240,7 +259,8 @@ python opencda.py \
   --with-advcp \
   --attack-type lidar_spoof_intermediate \
   --attackers-ratio 0.25 \
-  --attack-target specific_vehicle
+  --attack-target specific_vehicle \
+  --model-dir opencda/coperception_models/pointpillar-cobevt-intermediate-opv2v-90
 ```
 
 ### 21. All Non-Attackers Target
@@ -252,7 +272,8 @@ python opencda.py \
   --with-advcp \
   --attack-type lidar_spoof_intermediate \
   --attackers-ratio 0.25 \
-  --attack-target all_non_attackers
+  --attack-target all_non_attackers \
+  --model-dir opencda/coperception_models/pointpillar-cobevt-intermediate-opv2v-90
 ```
 
 ## Visualization Tests
@@ -269,7 +290,8 @@ python opencda.py \
   --advcp-vis \
   --advcp-vis-mode matplotlib \
   --advcp-vis-save \
-  --advcp-vis-show
+  --advcp-vis-show \
+  --model-dir opencda/coperception_models/pixor-early-opv2v-15
 ```
 
 ### 23. 3D Visualization (Open3D)
@@ -283,7 +305,8 @@ python opencda.py \
   --attackers-ratio 0.25 \
   --advcp-vis \
   --advcp-vis-mode open3d \
-  --advcp-vis-save
+  --advcp-vis-save \
+  --model-dir opencda/coperception_models/pointpillar-cobevt-intermediate-opv2v-90
 ```
 
 ### 24. Both 2D and 3D Visualization
@@ -298,7 +321,8 @@ python opencda.py \
   --advcp-vis \
   --advcp-vis-mode both \
   --advcp-vis-save \
-  --advcp-vis-types attack defense evaluation
+  --advcp-vis-types attack defense evaluation \
+  --model-dir opencda/coperception_models/pointpillar-late-opv2v-30
 ```
 
 ### 25. Visualization with Custom Output Directory
@@ -314,7 +338,8 @@ python opencda.py \
   --advcp-vis-mode matplotlib \
   --advcp-vis-save \
   --advcp-vis-output-dir /tmp/advcp_test_output \
-  --advcp-vis-types attack defense tracking roc
+  --advcp-vis-types attack defense tracking roc \
+  --model-dir opencda/coperception_models/pixor-early-opv2v-15
 ```
 
 ## Comprehensive Visualization Testing
@@ -322,202 +347,202 @@ python opencda.py \
 ### 51. All Attack Types - Matplotlib 2D Visualization
 ```bash
 # Early fusion attacks with 2D visualization
-python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method early --with-advcp --attack-type lidar_remove_early --attackers-ratio 0.3 --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save
-python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method early --with-advcp --attack-type lidar_spoof_early --attackers-ratio 0.3 --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save
+python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method early --with-advcp --attack-type lidar_remove_early --attackers-ratio 0.3 --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save --model-dir opencda/coperception_models/pixor-early-opv2v-15
+python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method early --with-advcp --attack-type lidar_spoof_early --attackers-ratio 0.3 --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save --model-dir opencda/coperception_models/pixor-early-opv2v-15
 
 # Intermediate fusion attacks with 2D visualization
-python opencda.py -t 3cars_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type lidar_remove_intermediate --attackers-ratio 0.25 --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save
-python opencda.py -t 3cars_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type lidar_spoof_intermediate --attackers-ratio 0.25 --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save
-python opencda.py -t 3cars_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type adv_shape --attackers-ratio 0.25 --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save
+python opencda.py -t 3cars_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type lidar_remove_intermediate --attackers-ratio 0.25 --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save --model-dir opencda/coperception_models/pointpillar-cobevt-intermediate-opv2v-90
+python opencda.py -t 3cars_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type lidar_spoof_intermediate --attackers-ratio 0.25 --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save --model-dir opencda/coperception_models/pointpillar-cobevt-intermediate-opv2v-90
+python opencda.py -t 3cars_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type adv_shape --attackers-ratio 0.25 --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save --model-dir opencda/coperception_models/pointpillar-cobevt-intermediate-opv2v-90
 
 # Late fusion attacks with 2D visualization
-python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method late --with-advcp --attack-type lidar_remove_late --attackers-ratio 0.2 --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save
-python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method late --with-advcp --attack-type lidar_spoof_late --attackers-ratio 0.2 --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save
+python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method late --with-advcp --attack-type lidar_remove_late --attackers-ratio 0.2 --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save --model-dir opencda/coperception_models/pointpillar-late-opv2v-30
+python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method late --with-advcp --attack-type lidar_spoof_late --attackers-ratio 0.2 --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save --model-dir opencda/coperception_models/pointpillar-late-opv2v-30
 ```
 
 ### 52. All Attack Types - Open3D 3D Visualization
 ```bash
 # Early fusion attacks with 3D visualization
-python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method early --with-advcp --attack-type lidar_remove_early --attackers-ratio 0.3 --advcp-vis --advcp-vis-mode open3d --advcp-vis-save
-python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method early --with-advcp --attack-type lidar_spoof_early --attackers-ratio 0.3 --advcp-vis --advcp-vis-mode open3d --advcp-vis-save
+python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method early --with-advcp --attack-type lidar_remove_early --attackers-ratio 0.3 --advcp-vis --advcp-vis-mode open3d --advcp-vis-save --model-dir opencda/coperception_models/pixor-early-opv2v-15
+python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method early --with-advcp --attack-type lidar_spoof_early --attackers-ratio 0.3 --advcp-vis --advcp-vis-mode open3d --advcp-vis-save --model-dir opencda/coperception_models/pixor-early-opv2v-15
 
 # Intermediate fusion attacks with 3D visualization
-python opencda.py -t 3cars_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type lidar_remove_intermediate --attackers-ratio 0.25 --advcp-vis --advcp-vis-mode open3d --advcp-vis-save
-python opencda.py -t 3cars_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type lidar_spoof_intermediate --attackers-ratio 0.25 --advcp-vis --advcp-vis-mode open3d --advcp-vis-save
-python opencda.py -t 3cars_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type adv_shape --attackers-ratio 0.25 --advcp-vis --advcp-vis-mode open3d --advcp-vis-save
+python opencda.py -t 3cars_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type lidar_remove_intermediate --attackers-ratio 0.25 --advcp-vis --advcp-vis-mode open3d --advcp-vis-save --model-dir opencda/coperception_models/pointpillar-cobevt-intermediate-opv2v-90
+python opencda.py -t 3cars_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type lidar_spoof_intermediate --attackers-ratio 0.25 --advcp-vis --advcp-vis-mode open3d --advcp-vis-save --model-dir opencda/coperception_models/pointpillar-cobevt-intermediate-opv2v-90
+python opencda.py -t 3cars_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type adv_shape --attackers-ratio 0.25 --advcp-vis --advcp-vis-mode open3d --advcp-vis-save --model-dir opencda/coperception_models/pointpillar-cobevt-intermediate-opv2v-90
 
 # Late fusion attacks with 3D visualization
-python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method late --with-advcp --attack-type lidar_remove_late --attackers-ratio 0.2 --advcp-vis --advcp-vis-mode open3d --advcp-vis-save
-python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method late --with-advcp --attack-type lidar_spoof_late --attackers-ratio 0.2 --advcp-vis --advcp-vis-mode open3d --advcp-vis-save
+python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method late --with-advcp --attack-type lidar_remove_late --attackers-ratio 0.2 --advcp-vis --advcp-vis-mode open3d --advcp-vis-save --model-dir opencda/coperception_models/pointpillar-late-opv2v-30
+python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method late --with-advcp --attack-type lidar_spoof_late --attackers-ratio 0.2 --advcp-vis --advcp-vis-mode open3d --advcp-vis-save --model-dir opencda/coperception_models/pointpillar-late-opv2v-30
 ```
 
 ### 53. Defense Mechanisms with Full Visualization
 ```bash
 # CAD Defense with all visualization types
-python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method early --with-advcp --attack-type lidar_remove_early --attackers-ratio 0.3 --apply-cad-defense --defense-threshold 0.7 --advcp-vis --advcp-vis-mode both --advcp-vis-save --advcp-vis-types attack defense evaluation tracking roc
+python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method early --with-advcp --attack-type lidar_remove_early --attackers-ratio 0.3 --apply-cad-defense --defense-threshold 0.7 --advcp-vis --advcp-vis-mode both --advcp-vis-save --advcp-vis-types attack defense evaluation tracking roc --model-dir opencda/coperception_models/pixor-early-opv2v-15
 
-python opencda.py -t 3cars_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type lidar_spoof_intermediate --attackers-ratio 0.25 --apply-cad-defense --defense-threshold 0.8 --advcp-vis --advcp-vis-mode both --advcp-vis-save --advcp-vis-types attack defense evaluation
+python opencda.py -t 3cars_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type lidar_spoof_intermediate --attackers-ratio 0.25 --apply-cad-defense --defense-threshold 0.8 --advcp-vis --advcp-vis-mode both --advcp-vis-save --advcp-vis-types attack defense evaluation --model-dir opencda/coperception_models/pointpillar-cobevt-intermediate-opv2v-90
 
-python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method late --with-advcp --attack-type lidar_remove_late --attackers-ratio 0.2 --apply-cad-defense --defense-threshold 0.6 --advcp-vis --advcp-vis-mode both --advcp-vis-save --advcp-vis-types defense ground_seg tracking
+python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method late --with-advcp --attack-type lidar_remove_late --attackers-ratio 0.2 --apply-cad-defense --defense-threshold 0.6 --advcp-vis --advcp-vis-mode both --advcp-vis-save --advcp-vis-types defense ground_seg tracking --model-dir opencda/coperception_models/pointpillar-late-opv2v-30
 ```
 
 ### 54. Defense Only with Visualization
 ```bash
 # No attack, only defense monitoring
-python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method early --with-advcp --apply-cad-defense --defense-threshold 0.7 --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save --advcp-vis-types defense evaluation
+python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method early --with-advcp --apply-cad-defense --defense-threshold 0.7 --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save --advcp-vis-types defense evaluation --model-dir opencda/coperception_models/pixor-early-opv2v-15
 
-python opencda.py -t 3cars_coperception --with-coperception --fusion-method intermediate --with-advcp --apply-cad-defense --defense-threshold 0.8 --advcp-vis --advcp-vis-mode open3d --advcp-vis-save --advcp-vis-types defense tracking
+python opencda.py -t 3cars_coperception --with-coperception --fusion-method intermediate --with-advcp --apply-cad-defense --defense-threshold 0.8 --advcp-vis --advcp-vis-mode open3d --advcp-vis-save --advcp-vis-types defense tracking --model-dir opencda/coperception_models/pointpillar-cobevt-intermediate-opv2v-90
 
-python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method late --with-advcp --apply-cad-defense --defense-threshold 0.6 --advcp-vis --advcp-vis-mode both --advcp-vis-save --advcp-vis-types defense evaluation ground_seg
+python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method late --with-advcp --apply-cad-defense --defense-threshold 0.6 --advcp-vis --advcp-vis-mode both --advcp-vis-save --advcp-vis-types defense evaluation ground_seg --model-dir opencda/coperception_models/pointpillar-late-opv2v-30
 ```
 
 ### 55. Visualization Type Variations
 ```bash
 # Attack visualization only
-python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method early --with-advcp --attack-type lidar_spoof_early --attackers-ratio 0.3 --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save --advcp-vis-types attack
+python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method early --with-advcp --attack-type lidar_spoof_early --attackers-ratio 0.3 --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save --advcp-vis-types attack --model-dir opencda/coperception_models/pixor-early-opv2v-15
 
 # Defense visualization only
-python opencda.py -t 3cars_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type lidar_spoof_intermediate --attackers-ratio 0.25 --apply-cad-defense --defense-threshold 0.8 --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save --advcp-vis-types defense
+python opencda.py -t 3cars_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type lidar_spoof_intermediate --attackers-ratio 0.25 --apply-cad-defense --defense-threshold 0.8 --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save --advcp-vis-types defense --model-dir opencda/coperception_models/pointpillar-cobevt-intermediate-opv2v-90
 
 # Evaluation metrics visualization only
-python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method late --with-advcp --attack-type lidar_remove_late --attackers-ratio 0.2 --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save --advcp-vis-types evaluation
+python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method late --with-advcp --attack-type lidar_remove_late --attackers-ratio 0.2 --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save --advcp-vis-types evaluation --model-dir opencda/coperception_models/pointpillar-late-opv2v-30
 
 # Ground segmentation visualization
-python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method early --with-advcp --attack-type lidar_remove_early --attackers-ratio 0.3 --advcp-vis --advcp-vis-mode open3d --advcp-vis-save --advcp-vis-types ground_seg
+python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method early --with-advcp --attack-type lidar_remove_early --attackers-ratio 0.3 --advcp-vis --advcp-vis-mode open3d --advcp-vis-save --advcp-vis-types ground_seg --model-dir opencda/coperception_models/pixor-early-opv2v-15
 
 # Tracking visualization
-python opencda.py -t 3cars_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type adv_shape --attackers-ratio 0.25 --advcp-vis --advcp-vis-mode both --advcp-vis-save --advcp-vis-types tracking
+python opencda.py -t 3cars_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type adv_shape --attackers-ratio 0.25 --advcp-vis --advcp-vis-mode both --advcp-vis-save --advcp-vis-types tracking --model-dir opencda/coperception_models/pointpillar-cobevt-intermediate-opv2v-90
 
 # ROC curve visualization
-python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method late --with-advcp --attack-type lidar_spoof_late --attackers-ratio 0.2 --apply-cad-defense --defense-threshold 0.7 --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save --advcp-vis-types roc
+python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method late --with-advcp --attack-type lidar_spoof_late --attackers-ratio 0.2 --apply-cad-defense --defense-threshold 0.7 --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save --advcp-vis-types roc --model-dir opencda/coperception_models/pointpillar-late-opv2v-30
 ```
 
 ### 56. Interactive Visualization (Show Window)
 ```bash
 # Show matplotlib visualization interactively
-python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method early --with-advcp --attack-type lidar_spoof_early --attackers-ratio 0.3 --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-show
+python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method early --with-advcp --attack-type lidar_spoof_early --attackers-ratio 0.3 --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-show --model-dir opencda/coperception_models/pixor-early-opv2v-15
 
 # Show Open3D visualization interactively
-python opencda.py -t 3cars_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type adv_shape --attackers-ratio 0.25 --advcp-vis --advcp-vis-mode open3d --advcp-vis-show
+python opencda.py -t 3cars_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type adv_shape --attackers-ratio 0.25 --advcp-vis --advcp-vis-mode open3d --advcp-vis-show --model-dir opencda/coperception_models/pointpillar-cobevt-intermediate-opv2v-90
 
 # Show both visualizations interactively
-python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method late --with-advcp --attack-type lidar_remove_late --attackers-ratio 0.2 --advcp-vis --advcp-vis-mode both --advcp-vis-show --advcp-vis-types attack defense
+python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method late --with-advcp --attack-type lidar_remove_late --attackers-ratio 0.2 --advcp-vis --advcp-vis-mode both --advcp-vis-show --advcp-vis-types attack defense --model-dir opencda/coperception_models/pointpillar-late-opv2v-30
 ```
 
 ### 57. Co-Simulation with Visualization
 ```bash
 # Early attack with visualization in co-simulation
-python opencda.py -t single_town06_cosim --cosim --with-coperception --fusion-method early --with-advcp --attack-type lidar_remove_early --attackers-ratio 0.3 --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save
+python opencda.py -t single_town06_cosim --cosim --with-coperception --fusion-method early --with-advcp --attack-type lidar_remove_early --attackers-ratio 0.3 --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save --model-dir opencda/coperception_models/pixor-early-opv2v-15
 
 # Intermediate attack with defense and visualization in co-simulation
-python opencda.py -t single_2lanefree_cosim --cosim --with-coperception --fusion-method intermediate --with-advcp --attack-type lidar_spoof_intermediate --attackers-ratio 0.25 --apply-cad-defense --defense-threshold 0.8 --advcp-vis --advcp-vis-mode both --advcp-vis-save --advcp-vis-types attack defense evaluation
+python opencda.py -t single_2lanefree_cosim --cosim --with-coperception --fusion-method intermediate --with-advcp --attack-type lidar_spoof_intermediate --attackers-ratio 0.25 --apply-cad-defense --defense-threshold 0.8 --advcp-vis --advcp-vis-mode both --advcp-vis-save --advcp-vis-types attack defense evaluation --model-dir opencda/coperception_models/pointpillar-cobevt-intermediate-opv2v-90
 
 # Late attack with visualization in realistic co-simulation
-python opencda.py -t realistic_town06_cosim --cosim --with-coperception --fusion-method late --with-advcp --attack-type lidar_spoof_late --attackers-ratio 0.2 --advcp-vis --advcp-vis-mode open3d --advcp-vis-save
+python opencda.py -t realistic_town06_cosim --cosim --with-coperception --fusion-method late --with-advcp --attack-type lidar_spoof_late --attackers-ratio 0.2 --advcp-vis --advcp-vis-mode open3d --advcp-vis-save --model-dir opencda/coperception_models/pointpillar-late-opv2v-30
 ```
 
 ### 58. Different Attackers Ratios with Visualization
 ```bash
 # Test various attacker ratios with visualization
-python opencda.py -t 4cars_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type lidar_spoof_intermediate --attackers-ratio 0.1 --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save
-python opencda.py -t 4cars_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type lidar_spoof_intermediate --attackers-ratio 0.3 --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save
-python opencda.py -t 4cars_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type lidar_spoof_intermediate --attackers-ratio 0.5 --advcp-vis --advcp-vis-mode open3d --advcp-vis-save
-python opencda.py -t 4cars_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type lidar_spoof_intermediate --attackers-ratio 0.8 --advcp-vis --advcp-vis-mode both --advcp-vis-save --advcp-vis-types attack defense evaluation
+python opencda.py -t 4cars_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type lidar_spoof_intermediate --attackers-ratio 0.1 --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save --model-dir opencda/coperception_models/pointpillar-cobevt-intermediate-opv2v-90
+python opencda.py -t 4cars_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type lidar_spoof_intermediate --attackers-ratio 0.3 --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save --model-dir opencda/coperception_models/pointpillar-cobevt-intermediate-opv2v-90
+python opencda.py -t 4cars_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type lidar_spoof_intermediate --attackers-ratio 0.5 --advcp-vis --advcp-vis-mode open3d --advcp-vis-save --model-dir opencda/coperception_models/pointpillar-cobevt-intermediate-opv2v-90
+python opencda.py -t 4cars_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type lidar_spoof_intermediate --attackers-ratio 0.8 --advcp-vis --advcp-vis-mode both --advcp-vis-save --advcp-vis-types attack defense evaluation --model-dir opencda/coperception_models/pointpillar-cobevt-intermediate-opv2v-90
 ```
 
 ### 59. Target Selection Strategies with Visualization
 ```bash
 # Random target selection with visualization
-python opencda.py -t 3cars_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type lidar_spoof_intermediate --attackers-ratio 0.25 --attack-target random --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save --advcp-vis-types attack tracking
+python opencda.py -t 3cars_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type lidar_spoof_intermediate --attackers-ratio 0.25 --attack-target random --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save --advcp-vis-types attack tracking --model-dir opencda/coperception_models/pointpillar-cobevt-intermediate-opv2v-90
 
 # Specific vehicle target with visualization
-python opencda.py -t 3cars_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type lidar_spoof_intermediate --attackers-ratio 0.25 --attack-target specific_vehicle --advcp-vis --advcp-vis-mode open3d --advcp-vis-save --advcp-vis-types attack tracking
+python opencda.py -t 3cars_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type lidar_spoof_intermediate --attackers-ratio 0.25 --attack-target specific_vehicle --advcp-vis --advcp-vis-mode open3d --advcp-vis-save --advcp-vis-types attack tracking --model-dir opencda/coperception_models/pointpillar-cobevt-intermediate-opv2v-90
 
 # All non-attackers target with visualization
-python opencda.py -t 3cars_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type lidar_spoof_intermediate --attackers-ratio 0.25 --attack-target all_non_attackers --advcp-vis --advcp-vis-mode both --advcp-vis-save --advcp-vis-types attack defense evaluation
+python opencda.py -t 3cars_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type lidar_spoof_intermediate --attackers-ratio 0.25 --attack-target all_non_attackers --advcp-vis --advcp-vis-mode both --advcp-vis-save --advcp-vis-types attack defense evaluation --model-dir opencda/coperception_models/pointpillar-cobevt-intermediate-opv2v-90
 ```
 
 ### 60. Different Scenarios with Full Visualization
 ```bash
 # Single vehicle scenario
-python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method early --with-advcp --attack-type lidar_spoof_early --attackers-ratio 0.3 --advcp-vis --advcp-vis-mode both --advcp-vis-save --advcp-vis-types attack defense evaluation
+python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method early --with-advcp --attack-type lidar_spoof_early --attackers-ratio 0.3 --advcp-vis --advcp-vis-mode both --advcp-vis-save --advcp-vis-types attack defense evaluation --model-dir opencda/coperception_models/pixor-early-opv2v-15
 
 # Two cars scenario
-python opencda.py -t 2cars_no_rsu_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type lidar_remove_intermediate --attackers-ratio 0.5 --advcp-vis --advcp-vis-mode both --advcp-vis-save
+python opencda.py -t 2cars_no_rsu_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type lidar_remove_intermediate --attackers-ratio 0.5 --advcp-vis --advcp-vis-mode both --advcp-vis-save --model-dir opencda/coperception_models/pointpillar-cobevt-intermediate-opv2v-90
 
 # Three cars scenario
-python opencda.py -t 3cars_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type adv_shape --attackers-ratio 0.33 --advcp-vis --advcp-vis-mode both --advcp-vis-save --advcp-vis-types attack defense tracking
+python opencda.py -t 3cars_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type adv_shape --attackers-ratio 0.33 --advcp-vis --advcp-vis-mode both --advcp-vis-save --advcp-vis-types attack defense tracking --model-dir opencda/coperception_models/pointpillar-cobevt-intermediate-opv2v-90
 
 # Four cars scenario
-python opencda.py -t 4cars_coperception --with-coperception --fusion-method late --with-advcp --attack-type lidar_spoof_late --attackers-ratio 0.25 --advcp-vis --advcp-vis-mode both --advcp-vis-save
+python opencda.py -t 4cars_coperception --with-coperception --fusion-method late --with-advcp --attack-type lidar_spoof_late --attackers-ratio 0.25 --advcp-vis --advcp-vis-mode both --advcp-vis-save --model-dir opencda/coperception_models/pointpillar-late-opv2v-30
 
 # Cars with RSU scenario
-python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method late --with-advcp --attack-type lidar_remove_late --attackers-ratio 0.25 --apply-cad-defense --defense-threshold 0.7 --advcp-vis --advcp-vis-mode both --advcp-vis-save --advcp-vis-types attack defense evaluation tracking roc
+python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method late --with-advcp --attack-type lidar_remove_late --attackers-ratio 0.25 --apply-cad-defense --defense-threshold 0.7 --advcp-vis --advcp-vis-mode both --advcp-vis-save --advcp-vis-types attack defense evaluation tracking roc --model-dir opencda/coperception_models/pointpillar-late-opv2v-30
 ```
 
 ### 61. Platooning and Intersection Scenarios with Visualization
 ```bash
 # Platooning scenario with visualization
-python opencda.py -t platoon_joining_2lanefree_carla --with-coperception --fusion-method intermediate --with-advcp --attack-type lidar_spoof_intermediate --attackers-ratio 0.2 --apply-cad-defense --defense-threshold 0.75 --advcp-vis --advcp-vis-mode both --advcp-vis-save --advcp-vis-types attack defense tracking
+python opencda.py -t platoon_joining_2lanefree_carla --with-coperception --fusion-method intermediate --with-advcp --attack-type lidar_spoof_intermediate --attackers-ratio 0.2 --apply-cad-defense --defense-threshold 0.75 --advcp-vis --advcp-vis-mode both --advcp-vis-save --advcp-vis-types attack defense tracking --model-dir opencda/coperception_models/pointpillar-cobevt-intermediate-opv2v-90
 
 # Cooperative intersection scenario
-python opencda.py -t cooperative_intersection --with-coperception --fusion-method late --with-advcp --attack-type lidar_remove_late --attackers-ratio 0.25 --advcp-vis --advcp-vis-mode open3d --advcp-vis-save --advcp-vis-types attack evaluation
+python opencda.py -t cooperative_intersection --with-coperception --fusion-method late --with-advcp --attack-type lidar_remove_late --attackers-ratio 0.25 --advcp-vis --advcp-vis-mode open3d --advcp-vis-save --advcp-vis-types attack evaluation --model-dir opencda/coperception_models/pointpillar-late-opv2v-30
 
 # Single intersection scenario
-python opencda.py -t single_intersection_town06_carla --with-coperception --fusion-method early --with-advcp --attack-type lidar_spoof_early --attackers-ratio 0.3 --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save --advcp-vis-types attack defense
+python opencda.py -t single_intersection_town06_carla --with-coperception --fusion-method early --with-advcp --attack-type lidar_spoof_early --attackers-ratio 0.3 --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save --advcp-vis-types attack defense --model-dir opencda/coperception_models/pixor-early-opv2v-15
 ```
 
 ### 62. Stress Testing with Visualization
 ```bash
 # High attackers ratio stress test with visualization
-python opencda.py -t 4cars_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type lidar_spoof_intermediate --attackers-ratio 0.8 --apply-cad-defense --defense-threshold 0.5 --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save --advcp-vis-types attack defense evaluation
+python opencda.py -t 4cars_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type lidar_spoof_intermediate --attackers-ratio 0.8 --apply-cad-defense --defense-threshold 0.5 --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save --advcp-vis-types attack defense evaluation --model-dir opencda/coperception_models/pointpillar-cobevt-intermediate-opv2v-90
 
 # Long duration attack with visualization and full logging
-python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method early --with-advcp --attack-type lidar_remove_early --attackers-ratio 0.3 --apply-cad-defense --defense-threshold 0.7 --verbose FULL --advcp-vis --advcp-vis-mode both --advcp-vis-save --advcp-vis-types attack defense evaluation tracking
+python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method early --with-advcp --attack-type lidar_remove_early --attackers-ratio 0.3 --apply-cad-defense --defense-threshold 0.7 --verbose FULL --advcp-vis --advcp-vis-mode both --advcp-vis-save --advcp-vis-types attack defense evaluation tracking --model-dir opencda/coperception_models/pixor-early-opv2v-15
 ```
 
 ### 63. Edge Cases with Visualization
 ```bash
 # Single attacker (minimal) with visualization
-python opencda.py -t 4cars_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type lidar_spoof_intermediate --attackers-ratio 0.25 --attack-target specific_vehicle --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save --advcp-vis-types attack tracking
+python opencda.py -t 4cars_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type lidar_spoof_intermediate --attackers-ratio 0.25 --attack-target specific_vehicle --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save --advcp-vis-types attack tracking --model-dir opencda/coperception_models/pointpillar-cobevt-intermediate-opv2v-90
 
 # All vehicles as attackers with visualization
-python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method late --with-advcp --attack-type lidar_spoof_late --attackers-ratio 1.0 --advcp-vis --advcp-vis-mode open3d --advcp-vis-save --advcp-vis-types attack defense
+python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method late --with-advcp --attack-type lidar_spoof_late --attackers-ratio 1.0 --advcp-vis --advcp-vis-mode open3d --advcp-vis-save --advcp-vis-types attack defense --model-dir opencda/coperception_models/pointpillar-late-opv2v-30
 
 # No attackers (defense only) with full visualization
-python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method early --with-advcp --apply-cad-defense --defense-threshold 0.7 --advcp-vis --advcp-vis-mode both --advcp-vis-save --advcp-vis-types defense evaluation ground_seg tracking roc
+python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method early --with-advcp --apply-cad-defense --defense-threshold 0.7 --advcp-vis --advcp-vis-mode both --advcp-vis-save --advcp-vis-types defense evaluation ground_seg tracking roc --model-dir opencda/coperception_models/pixor-early-opv2v-15
 ```
 
 ### 64. Custom Output Directories for Different Test Types
 ```bash
 # Organize outputs by test category
-python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method early --with-advcp --attack-type lidar_spoof_early --attackers-ratio 0.3 --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save --advcp-vis-output-dir simulation_output/advcp_vis/early_attack_2d
+python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method early --with-advcp --attack-type lidar_spoof_early --attackers-ratio 0.3 --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save --advcp-vis-output-dir simulation_output/advcp_vis/early_attack_2d --model-dir opencda/coperception_models/pixor-early-opv2v-15
 
-python opencda.py -t 3cars_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type adv_shape --attackers-ratio 0.25 --apply-cad-defense --defense-threshold 0.8 --advcp-vis --advcp-vis-mode open3d --advcp-vis-save --advcp-vis-output-dir simulation_output/advcp_vis/intermediate_defense_3d
+python opencda.py -t 3cars_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type adv_shape --attackers-ratio 0.25 --apply-cad-defense --defense-threshold 0.8 --advcp-vis --advcp-vis-mode open3d --advcp-vis-save --advcp-vis-output-dir simulation_output/advcp_vis/intermediate_defense_3d --model-dir opencda/coperception_models/pointpillar-cobevt-intermediate-opv2v-90
 
-python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method late --with-advcp --attack-type lidar_remove_late --attackers-ratio 0.2 --advcp-vis --advcp-vis-mode both --advcp-vis-save --advcp-vis-output-dir simulation_output/advcp_vis/late_attack_both
+python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method late --with-advcp --attack-type lidar_remove_late --attackers-ratio 0.2 --advcp-vis --advcp-vis-mode both --advcp-vis-save --advcp-vis-output-dir simulation_output/advcp_vis/late_attack_both --model-dir opencda/coperception_models/pointpillar-late-opv2v-30
 ```
 
 ### 65. Verbosity Levels with Visualization
 ```bash
 # Silent mode with visualization (minimal console output)
-python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method early --with-advcp --attack-type lidar_remove_early --attackers-ratio 0.3 --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save --advcp-vis-types attack --verbose 1
+python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method early --with-advcp --attack-type lidar_remove_early --attackers-ratio 0.3 --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save --advcp-vis-types attack --verbose 1 --model-dir opencda/coperception_models/pixor-early-opv2v-15
 
 # Info mode with visualization
-python opencda.py -t 3cars_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type lidar_spoof_intermediate --attackers-ratio 0.25 --apply-cad-defense --defense-threshold 0.8 --advcp-vis --advcp-vis-mode open3d --advcp-vis-save --verbose 2
+python opencda.py -t 3cars_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type lidar_spoof_intermediate --attackers-ratio 0.25 --apply-cad-defense --defense-threshold 0.8 --advcp-vis --advcp-vis-mode open3d --advcp-vis-save --verbose 2 --model-dir opencda/coperception_models/pointpillar-cobevt-intermediate-opv2v-90
 
 # Full verbose mode with visualization and all types
-python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method late --with-advcp --attack-type lidar_spoof_late --attackers-ratio 0.2 --apply-cad-defense --defense-threshold 0.7 --advcp-vis --advcp-vis-mode both --advcp-vis-save --advcp-vis-types attack defense evaluation tracking roc --verbose 3
+python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method late --with-advcp --attack-type lidar_spoof_late --attackers-ratio 0.2 --apply-cad-defense --defense-threshold 0.7 --advcp-vis --advcp-vis-mode both --advcp-vis-save --advcp-vis-types attack defense evaluation tracking roc --verbose 3 --model-dir opencda/coperception_models/pointpillar-late-opv2v-30
 ```
 
 ### 66. Combined Co-Simulation + Defense + Visualization Matrix
 ```bash
 # Comprehensive co-simulation tests with visualization
-python opencda.py -t single_town06_cosim --cosim --with-coperception --fusion-method early --with-advcp --attack-type lidar_remove_early --attackers-ratio 0.3 --apply-cad-defense --defense-threshold 0.7 --advcp-vis --advcp-vis-mode both --advcp-vis-save --advcp-vis-types attack defense evaluation
+python opencda.py -t single_town06_cosim --cosim --with-coperception --fusion-method early --with-advcp --attack-type lidar_remove_early --attackers-ratio 0.3 --apply-cad-defense --defense-threshold 0.7 --advcp-vis --advcp-vis-mode both --advcp-vis-save --advcp-vis-types attack defense evaluation --model-dir opencda/coperception_models/pixor-early-opv2v-15
 
-python opencda.py -t single_2lanefree_cosim --cosim --with-coperception --fusion-method intermediate --with-advcp --attack-type lidar_spoof_intermediate --attackers-ratio 0.25 --apply-cad-defense --defense-threshold 0.8 --advcp-vis --advcp-vis-mode open3d --advcp-vis-save --advcp-vis-types attack tracking
+python opencda.py -t single_2lanefree_cosim --cosim --with-coperception --fusion-method intermediate --with-advcp --attack-type lidar_spoof_intermediate --attackers-ratio 0.25 --apply-cad-defense --defense-threshold 0.8 --advcp-vis --advcp-vis-mode open3d --advcp-vis-save --advcp-vis-types attack tracking --model-dir opencda/coperception_models/pointpillar-cobevt-intermediate-opv2v-90
 
-python opencda.py -t realistic_town06_cosim --cosim --with-coperception --fusion-method late --with-advcp --attack-type adv_shape --attackers-ratio 0.2 --apply-cad-defense --defense-threshold 0.75 --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save --advcp-vis-types attack defense evaluation ground_seg
+python opencda.py -t realistic_town06_cosim --cosim --with-coperception --fusion-method late --with-advcp --attack-type adv_shape --attackers-ratio 0.2 --apply-cad-defense --defense-threshold 0.75 --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save --advcp-vis-types attack defense evaluation ground_seg --model-dir opencda/coperception_models/pointpillar-late-opv2v-30
 ```
 
 ### 67. Complete Visualization Test Suite Script
@@ -536,25 +561,25 @@ echo "=========================================="
 
 # Test 1: Early fusion attacks with 2D viz
 echo "[1/6] Testing early fusion attacks with matplotlib..."
-python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method early --with-advcp --attack-type lidar_remove_early --attackers-ratio 0.3 --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save --advcp-vis-output-dir "$OUTPUT_DIR/early_remove" --advcp-vis-types attack defense
-python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method early --with-advcp --attack-type lidar_spoof_early --attackers-ratio 0.3 --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save --advcp-vis-output-dir "$OUTPUT_DIR/early_spoof" --advcp-vis-types attack defense
+python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method early --with-advcp --attack-type lidar_remove_early --attackers-ratio 0.3 --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save --advcp-vis-output-dir "$OUTPUT_DIR/early_remove" --advcp-vis-types attack defense --model-dir opencda/coperception_models/pixor-early-opv2v-15
+python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method early --with-advcp --attack-type lidar_spoof_early --attackers-ratio 0.3 --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save --advcp-vis-output-dir "$OUTPUT_DIR/early_spoof" --advcp-vis-types attack defense --model-dir opencda/coperception_models/pixor-early-opv2v-15
 
 # Test 2: Intermediate fusion attacks with 3D viz
 echo "[2/6] Testing intermediate fusion attacks with open3d..."
-python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type lidar_remove_intermediate --attackers-ratio 0.25 --advcp-vis --advcp-vis-mode open3d --advcp-vis-save --advcp-vis-output-dir "$OUTPUT_DIR/intermediate_remove"
-python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type lidar_spoof_intermediate --attackers-ratio 0.25 --advcp-vis --advcp-vis-mode open3d --advcp-vis-save --advcp-vis-output-dir "$OUTPUT_DIR/intermediate_spoof"
-python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type adv_shape --attackers-ratio 0.25 --advcp-vis --advcp-vis-mode open3d --advcp-vis-save --advcp-vis-output-dir "$OUTPUT_DIR/adv_shape"
+python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type lidar_remove_intermediate --attackers-ratio 0.25 --advcp-vis --advcp-vis-mode open3d --advcp-vis-save --advcp-vis-output-dir "$OUTPUT_DIR/intermediate_remove" --model-dir opencda/coperception_models/pointpillar-cobevt-intermediate-opv2v-90
+python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type lidar_spoof_intermediate --attackers-ratio 0.25 --advcp-vis --advcp-vis-mode open3d --advcp-vis-save --advcp-vis-output-dir "$OUTPUT_DIR/intermediate_spoof" --model-dir opencda/coperception_models/pointpillar-cobevt-intermediate-opv2v-90
+python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type adv_shape --attackers-ratio 0.25 --advcp-vis --advcp-vis-mode open3d --advcp-vis-save --advcp-vis-output-dir "$OUTPUT_DIR/adv_shape" --model-dir opencda/coperception_models/pointpillar-cobevt-intermediate-opv2v-90
 
 # Test 3: Late fusion attacks with both viz modes
 echo "[3/6] Testing late fusion attacks with both visualization modes..."
-python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method late --with-advcp --attack-type lidar_remove_late --attackers-ratio 0.2 --advcp-vis --advcp-vis-mode both --advcp-vis-save --advcp-vis-output-dir "$OUTPUT_DIR/late_remove" --advcp-vis-types attack defense evaluation
-python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method late --with-advcp --attack-type lidar_spoof_late --attackers-ratio 0.2 --advcp-vis --advcp-vis-mode both --advcp-vis-save --advcp-vis-output-dir "$OUTPUT_DIR/late_spoof" --advcp-vis-types attack defense evaluation
+python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method late --with-advcp --attack-type lidar_remove_late --attackers-ratio 0.2 --advcp-vis --advcp-vis-mode both --advcp-vis-save --advcp-vis-output-dir "$OUTPUT_DIR/late_remove" --advcp-vis-types attack defense evaluation --model-dir opencda/coperception_models/pointpillar-late-opv2v-30
+python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method late --with-advcp --attack-type lidar_spoof_late --attackers-ratio 0.2 --advcp-vis --advcp-vis-mode both --advcp-vis-save --advcp-vis-output-dir "$OUTPUT_DIR/late_spoof" --advcp-vis-types attack defense evaluation --model-dir opencda/coperception_models/pointpillar-late-opv2v-30
 
 # Test 4: Defense mechanisms with full visualization
 echo "[4/6] Testing defense mechanisms with full visualization..."
-python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method early --with-advcp --attack-type lidar_remove_early --attackers-ratio 0.3 --apply-cad-defense --defense-threshold 0.7 --advcp-vis --advcp-vis-mode both --advcp-vis-save --advcp-vis-output-dir "$OUTPUT_DIR/defense_early" --advcp-vis-types attack defense evaluation tracking roc
-python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type lidar_spoof_intermediate --attackers-ratio 0.25 --apply-cad-defense --defense-threshold 0.8 --advcp-vis --advcp-vis-mode both --advcp-vis-save --advcp-vis-output-dir "$OUTPUT_DIR/defense_intermediate" --advcp-vis-types attack defense evaluation tracking roc
-python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method late --with-advcp --attack-type lidar_remove_late --attackers-ratio 0.2 --apply-cad-defense --defense-threshold 0.6 --advcp-vis --advcp-vis-mode both --advcp-vis-save --advcp-vis-output-dir "$OUTPUT_DIR/defense_late" --advcp-vis-types attack defense evaluation tracking roc
+python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method early --with-advcp --attack-type lidar_remove_early --attackers-ratio 0.3 --apply-cad-defense --defense-threshold 0.7 --advcp-vis --advcp-vis-mode both --advcp-vis-save --advcp-vis-output-dir "$OUTPUT_DIR/defense_early" --advcp-vis-types attack defense evaluation tracking roc --model-dir opencda/coperception_models/pixor-early-opv2v-15
+python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type lidar_spoof_intermediate --attackers-ratio 0.25 --apply-cad-defense --defense-threshold 0.8 --advcp-vis --advcp-vis-mode both --advcp-vis-save --advcp-vis-output-dir "$OUTPUT_DIR/defense_intermediate" --advcp-vis-types attack defense evaluation tracking roc --model-dir opencda/coperception_models/pointpillar-cobevt-intermediate-opv2v-90
+python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method late --with-advcp --attack-type lidar_remove_late --attackers-ratio 0.2 --apply-cad-defense --defense-threshold 0.6 --advcp-vis --advcp-vis-mode both --advcp-vis-save --advcp-vis-output-dir "$OUTPUT_DIR/defense_late" --advcp-vis-types attack defense evaluation tracking roc --model-dir opencda/coperception_models/pointpillar-late-opv2v-30
 
 # Test 5: Co-simulation with visualization
 echo "[5/6] Testing co-simulation scenarios with visualization..."
@@ -564,10 +589,10 @@ python opencda.py -t 2cars_2rsu_coperception --cosim --with-coperception --fusio
 
 # Test 6: Various attacker ratios and targets with visualization
 echo "[6/6] Testing various attacker ratios and target strategies..."
-python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type lidar_spoof_intermediate --attackers-ratio 0.1 --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save --advcp-vis-output-dir "$OUTPUT_DIR/ratio_10"
-python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type lidar_spoof_intermediate --attackers-ratio 0.5 --advcp-vis --advcp-vis-mode open3d --advcp-vis-save --advcp-vis-output-dir "$OUTPUT_DIR/ratio_50"
-python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type lidar_spoof_intermediate --attackers-ratio 0.25 --attack-target specific_vehicle --advcp-vis --advcp-vis-mode both --advcp-vis-save --advcp-vis-output-dir "$OUTPUT_DIR/target_specific"
-python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type lidar_spoof_intermediate --attackers-ratio 0.25 --attack-target all_non_attackers --advcp-vis --advcp-vis-mode both --advcp-vis-save --advcp-vis-output-dir "$OUTPUT_DIR/target_all"
+python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type lidar_spoof_intermediate --attackers-ratio 0.1 --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save --advcp-vis-output-dir "$OUTPUT_DIR/ratio_10" --model-dir opencda/coperception_models/pointpillar-cobevt-intermediate-opv2v-90
+python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type lidar_spoof_intermediate --attackers-ratio 0.5 --advcp-vis --advcp-vis-mode open3d --advcp-vis-save --advcp-vis-output-dir "$OUTPUT_DIR/ratio_50" --model-dir opencda/coperception_models/pointpillar-cobevt-intermediate-opv2v-90
+python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type lidar_spoof_intermediate --attackers-ratio 0.25 --attack-target specific_vehicle --advcp-vis --advcp-vis-mode both --advcp-vis-save --advcp-vis-output-dir "$OUTPUT_DIR/target_specific" --model-dir opencda/coperception_models/pointpillar-cobevt-intermediate-opv2v-90
+python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type lidar_spoof_intermediate --attackers-ratio 0.25 --attack-target all_non_attackers --advcp-vis --advcp-vis-mode both --advcp-vis-save --advcp-vis-output-dir "$OUTPUT_DIR/target_all" --model-dir opencda/coperception_models/pointpillar-cobevt-intermediate-opv2v-90
 
 echo "=========================================="
 echo "Visualization Test Suite Complete!"
@@ -578,13 +603,13 @@ echo "=========================================="
 ### 68. Quick Visualization Comparison Tests
 ```bash
 # Compare attack vs no-attack with visualization
-python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method early --with-advcp --attack-type lidar_spoof_early --attackers-ratio 0.3 --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save --advcp-vis-types attack defense
-python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method early --with-advcp --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save --advcp-vis-types defense
+python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method early --with-advcp --attack-type lidar_spoof_early --attackers-ratio 0.3 --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save --advcp-vis-types attack defense --model-dir opencda/coperception_models/pixor-early-opv2v-15
+python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method early --with-advcp --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save --advcp-vis-types defense --model-dir opencda/coperception_models/pixor-early-opv2v-15
 
 # Compare defense thresholds with visualization
-python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type lidar_spoof_intermediate --attackers-ratio 0.25 --apply-cad-defense --defense-threshold 0.5 --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save --advcp-vis-output-dir simulation_output/advcp_vis/defense_thresh_0.5 --advcp-vis-types defense evaluation
-python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type lidar_spoof_intermediate --attackers-ratio 0.25 --apply-cad-defense --defense-threshold 0.7 --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save --advcp-vis-output-dir simulation_output/advcp_vis/defense_thresh_0.7 --advcp-vis-types defense evaluation
-python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type lidar_spoof_intermediate --attackers-ratio 0.25 --apply-cad-defense --defense-threshold 0.9 --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save --advcp-vis-output-dir simulation_output/advcp_vis/defense_thresh_0.9 --advcp-vis-types defense evaluation
+python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type lidar_spoof_intermediate --attackers-ratio 0.25 --apply-cad-defense --defense-threshold 0.5 --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save --advcp-vis-output-dir simulation_output/advcp_vis/defense_thresh_0.5 --advcp-vis-types defense evaluation --model-dir opencda/coperception_models/pointpillar-cobevt-intermediate-opv2v-90
+python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type lidar_spoof_intermediate --attackers-ratio 0.25 --apply-cad-defense --defense-threshold 0.7 --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save --advcp-vis-output-dir simulation_output/advcp_vis/defense_thresh_0.7 --advcp-vis-types defense evaluation --model-dir opencda/coperception_models/pointpillar-cobevt-intermediate-opv2v-90
+python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type lidar_spoof_intermediate --attackers-ratio 0.25 --apply-cad-defense --defense-threshold 0.9 --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save --advcp-vis-output-dir simulation_output/advcp_vis/defense_thresh_0.9 --advcp-vis-types defense evaluation --model-dir opencda/coperception_models/pointpillar-cobevt-intermediate-opv2v-90
 ```
 
 ### 69. All Visualization Types Individual Testing
@@ -592,32 +617,32 @@ python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method
 # Test each visualization type separately for comprehensive coverage
 
 # Attack visualization
-python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method early --with-advcp --attack-type lidar_spoof_early --attackers-ratio 0.3 --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save --advcp-vis-types attack
+python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method early --with-advcp --attack-type lidar_spoof_early --attackers-ratio 0.3 --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save --advcp-vis-types attack --model-dir opencda/coperception_models/pixor-early-opv2v-15
 
 # Defense visualization
-python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type lidar_spoof_intermediate --attackers-ratio 0.25 --apply-cad-defense --defense-threshold 0.8 --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save --advcp-vis-types defense
+python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type lidar_spoof_intermediate --attackers-ratio 0.25 --apply-cad-defense --defense-threshold 0.8 --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save --advcp-vis-types defense --model-dir opencda/coperception_models/pointpillar-cobevt-intermediate-opv2v-90
 
 # Evaluation visualization
-python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method late --with-advcp --attack-type lidar_remove_late --attackers-ratio 0.2 --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save --advcp-vis-types evaluation
+python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method late --with-advcp --attack-type lidar_remove_late --attackers-ratio 0.2 --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save --advcp-vis-types evaluation --model-dir opencda/coperception_models/pointpillar-late-opv2v-30
 
 # Ground segmentation visualization
-python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method early --with-advcp --attack-type lidar_remove_early --attackers-ratio 0.3 --advcp-vis --advcp-vis-mode open3d --advcp-vis-save --advcp-vis-types ground_seg
+python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method early --with-advcp --attack-type lidar_remove_early --attackers-ratio 0.3 --advcp-vis --advcp-vis-mode open3d --advcp-vis-save --advcp-vis-types ground_seg --model-dir opencda/coperception_models/pixor-early-opv2v-15
 
 # Tracking visualization
 python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type adv_shape --attackers-ratio 0.25 --advcp-vis --advcp-vis-mode both --advcp-vis-save --advcp-vis-types tracking
 
 # ROC visualization
-python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method late --with-advcp --attack-type lidar_spoof_late --attackers-ratio 0.2 --apply-cad-defense --defense-threshold 0.7 --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save --advcp-vis-types roc
+python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method late --with-advcp --attack-type lidar_spoof_late --attackers-ratio 0.2 --apply-cad-defense --defense-threshold 0.7 --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save --advcp-vis-types roc --model-dir opencda/coperception_models/pointpillar-late-opv2v-30
 ```
 
 ### 70. Performance Benchmarking with Visualization
 ```bash
 # Benchmark visualization performance impact
-python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method early --with-advcp --attack-type lidar_spoof_early --attackers-ratio 0.3 --verbose FULL --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save --advcp-vis-types attack
+python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method early --with-advcp --attack-type lidar_spoof_early --attackers-ratio 0.3 --verbose FULL --advcp-vis --advcp-vis-mode matplotlib --advcp-vis-save --advcp-vis-types attack --model-dir opencda/coperception_models/pixor-early-opv2v-15
 
-python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type adv_shape --attackers-ratio 0.25 --verbose FULL --advcp-vis --advcp-vis-mode open3d --advcp-vis-save --advcp-vis-types attack defense
+python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type adv_shape --attackers-ratio 0.25 --verbose FULL --advcp-vis --advcp-vis-mode open3d --advcp-vis-save --advcp-vis-types attack defense --model-dir opencda/coperception_models/pointpillar-cobevt-intermediate-opv2v-90
 
-python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method late --with-advcp --attack-type lidar_remove_late --attackers-ratio 0.2 --verbose FULL --advcp-vis --advcp-vis-mode both --advcp-vis-save --advcp-vis-types attack defense evaluation tracking
+python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method late --with-advcp --attack-type lidar_remove_late --attackers-ratio 0.2 --verbose FULL --advcp-vis --advcp-vis-mode both --advcp-vis-save --advcp-vis-types attack defense evaluation tracking --model-dir opencda/coperception_models/pointpillar-late-opv2v-30
 ```
 
 ## Custom Configuration File
@@ -756,7 +781,8 @@ python opencda.py \
   --fusion-method early \
   --with-advcp \
   --attack-type lidar_remove_early \
-  --attackers-ratio 0.3
+  --attackers-ratio 0.3 \
+  --model-dir opencda/coperception_models/pixor-early-opv2v-15
 ```
 
 ### 37. Co-Simulation with Intermediate Attack and Defense
@@ -770,7 +796,8 @@ python opencda.py \
   --attack-type lidar_spoof_intermediate \
   --attackers-ratio 0.25 \
   --apply-cad-defense \
-  --defense-threshold 0.8
+  --defense-threshold 0.8 \
+  --model-dir opencda/coperception_models/pointpillar-cobevt-intermediate-opv2v-90
 ```
 
 ### 38. Realistic Co-Simulation with Late Attack
@@ -782,7 +809,8 @@ python opencda.py \
   --fusion-method late \
   --with-advcp \
   --attack-type lidar_remove_late \
-  --attackers-ratio 0.2
+  --attackers-ratio 0.2 \
+  --model-dir opencda/coperception_models/pointpillar-late-opv2v-30
 ```
 
 ## Comprehensive Test Matrix
@@ -790,23 +818,23 @@ python opencda.py \
 ### 39. Full Matrix Test - All Attack Types with Early Fusion
 ```bash
 # Early fusion - all attack types
-python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method early --with-advcp --attack-type lidar_remove_early --attackers-ratio 0.3
-python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method early --with-advcp --attack-type lidar_spoof_early --attackers-ratio 0.3
+python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method early --with-advcp --attack-type lidar_remove_early --attackers-ratio 0.3 --model-dir opencda/coperception_models/pixor-early-opv2v-15
+python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method early --with-advcp --attack-type lidar_spoof_early --attackers-ratio 0.3 --model-dir opencda/coperception_models/pixor-early-opv2v-15
 ```
 
 ### 40. Full Matrix Test - All Attack Types with Intermediate Fusion
 ```bash
 # Intermediate fusion - all attack types
-python opencda.py -t 3cars_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type lidar_remove_intermediate --attackers-ratio 0.25
-python opencda.py -t 3cars_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type lidar_spoof_intermediate --attackers-ratio 0.25
-python opencda.py -t 3cars_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type adv_shape --attackers-ratio 0.25
+python opencda.py -t 3cars_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type lidar_remove_intermediate --attackers-ratio 0.25 --model-dir opencda/coperception_models/pointpillar-cobevt-intermediate-opv2v-90
+python opencda.py -t 3cars_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type lidar_spoof_intermediate --attackers-ratio 0.25 --model-dir opencda/coperception_models/pointpillar-cobevt-intermediate-opv2v-90
+python opencda.py -t 3cars_coperception --with-coperception --fusion-method intermediate --with-advcp --attack-type adv_shape --attackers-ratio 0.25 --model-dir opencda/coperception_models/pointpillar-cobevt-intermediate-opv2v-90
 ```
 
 ### 41. Full Matrix Test - All Attack Types with Late Fusion
 ```bash
 # Late fusion - all attack types
-python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method late --with-advcp --attack-type lidar_remove_late --attackers-ratio 0.2
-python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method late --with-advcp --attack-type lidar_spoof_late --attackers-ratio 0.2
+python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method late --with-advcp --attack-type lidar_remove_late --attackers-ratio 0.2 --model-dir opencda/coperception_models/pointpillar-late-opv2v-30
+python opencda.py -t 2cars_2rsu_coperception --with-coperception --fusion-method late --with-advcp --attack-type lidar_spoof_late --attackers-ratio 0.2 --model-dir opencda/coperception_models/pointpillar-late-opv2v-30
 ```
 
 ## Stress Testing
@@ -821,7 +849,8 @@ python opencda.py \
   --attack-type lidar_spoof_intermediate \
   --attackers-ratio 0.8 \
   --apply-cad-defense \
-  --defense-threshold 0.5
+  --defense-threshold 0.5 \
+  --model-dir opencda/coperception_models/pointpillar-cobevt-intermediate-opv2v-90
 ```
 
 ### 43. Long Duration Attack Test
@@ -835,7 +864,8 @@ python opencda.py \
   --attackers-ratio 0.3 \
   --apply-cad-defense \
   --defense-threshold 0.7 \
-  --verbose FULL
+  --verbose FULL \
+  --model-dir opencda/coperception_models/pixor-early-opv2v-15
 ```
 
 ## Edge Cases
@@ -849,7 +879,8 @@ python opencda.py \
   --with-advcp \
   --attack-type lidar_spoof_intermediate \
   --attackers-ratio 0.25 \
-  --attack-target specific_vehicle
+  --attack-target specific_vehicle \
+  --model-dir opencda/coperception_models/pointpillar-cobevt-intermediate-opv2v-90
 ```
 
 ### 45. All Vehicles Attackers (Maximum)
@@ -860,7 +891,8 @@ python opencda.py \
   --fusion-method late \
   --with-advcp \
   --attack-type lidar_spoof_late \
-  --attackers-ratio 1.0
+  --attackers-ratio 1.0 \
+  --model-dir opencda/coperception_models/pointpillar-late-opv2v-30
 ```
 
 ### 46. No Attackers (Defense Only)
@@ -871,7 +903,8 @@ python opencda.py \
   --fusion-method early \
   --with-advcp \
   --apply-cad-defense \
-  --defense-threshold 0.7
+  --defense-threshold 0.7 \
+  --model-dir opencda/coperception_models/pixor-early-opv2v-15
 ```
 
 ## Verbosity and Logging
@@ -885,7 +918,8 @@ python opencda.py \
   --with-advcp \
   --attack-type lidar_remove_early \
   --attackers-ratio 0.3 \
-  --verbose 1
+  --verbose 1 \
+  --model-dir opencda/coperception_models/pixor-early-opv2v-15
 ```
 
 ### 48. Full Verbose Mode with Debug
@@ -900,7 +934,8 @@ python opencda.py \
   --apply-cad-defense \
   --verbose 3 \
   --advcp-vis \
-  --advcp-vis-save
+  --advcp-vis-save \
+  --model-dir opencda/coperception_models/pointpillar-cobevt-intermediate-opv2v-90
 ```
 
 ## Combined Features
@@ -921,7 +956,8 @@ python opencda.py \
   --advcp-vis \
   --advcp-vis-mode both \
   --advcp-vis-save \
-  --advcp-vis-types attack defense evaluation
+  --advcp-vis-types attack defense evaluation \
+  --model-dir opencda/coperception_models/pointpillar-cobevt-intermediate-opv2v-90
 ```
 
 ### 50. All Attack Types Rotation Test Script
@@ -945,7 +981,8 @@ for scenario in "${SCENARIOS[@]}"; do
         --with-advcp \
         --attack-type "$attack_type" \
         --attackers-ratio "$ratio" \
-        --verbose 1
+        --verbose 1 \
+        --model-dir opencda/coperception_models/pointpillar-cobevt-intermediate-opv2v-90
     done
   done
 done
