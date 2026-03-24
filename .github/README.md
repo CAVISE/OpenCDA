@@ -4,6 +4,14 @@
   <img src="https://raw.githubusercontent.com/Haralishev77/Haralishev77/main/CAVISE.png" alt="CAVISE banner" width="100%" />
 </p>
 
+<p align="center">
+  <a href="https://github.com/CAVISE/opencda/commits"><img alt="Last Commit" src="https://img.shields.io/github/last-commit/CAVISE/opencda?style=for-the-badge&color=9BFFCE&logo=git&logoColor=D9E0EE&labelColor=1E202B" /></a>
+  <a href="https://github.com/CAVISE/opencda/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/CAVISE/opencda?style=for-the-badge&logo=github&color=9BFFCE&logoColor=D9E0EE&labelColor=1E202B" /></a>
+  <a href="https://github.com/CAVISE/opencda/releases"><img alt="Latest Release" src="https://img.shields.io/github/v/release/CAVISE/opencda?style=for-the-badge&logo=github&color=9BFFCE&logoColor=D9E0EE&labelColor=1E202B" /></a>
+  <a href="https://github.com/CAVISE/CAVISE"><img alt="CAVISE" src="https://img.shields.io/badge/CAVISE-main%20repository-9BFFCE?style=for-the-badge&logo=github&logoColor=D9E0EE&labelColor=1E202B" /></a>
+  <a href="https://github.com/CAVISE/artery"><img alt="Artery" src="https://img.shields.io/badge/CAVISE-Artery-9BFFCE?style=for-the-badge&logo=github&logoColor=D9E0EE&labelColor=1E202B" /></a>
+</p>
+
 OpenCDA is a research and engineering framework for cooperative driving automation and other various applications built on top of CARLA and SUMO.
 
 This repository is a fork of the original OpenCDA project. The upstream repository is available at [ucla-mobility/OpenCDA](https://github.com/ucla-mobility/OpenCDA).
