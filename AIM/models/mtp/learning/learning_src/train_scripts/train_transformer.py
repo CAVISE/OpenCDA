@@ -155,7 +155,7 @@ def transformer_train_one_epoch(
 
             yaw_cur = yaws.detach().clone()
             yaw_base = x_global_batch[:, :, 3].detach().clone()
-            if NORMALIZE_DATA:
+            if config.data_processing.normalize_data:
                 denormalize_yaw(yaw_cur)
                 denormalize_yaw(yaw_base)
 
@@ -366,7 +366,7 @@ def transformer_evaluate(
 
                 yaw_cur = yaws.clone()
                 yaw_base = x_global_batch[:, :, 3].clone()
-                if NORMALIZE_DATA:
+                if config.data_processing.normalize_data:
                     denormalize_yaw(yaw_cur)
                     denormalize_yaw(yaw_base)
 

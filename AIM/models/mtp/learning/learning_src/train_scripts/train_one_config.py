@@ -235,7 +235,9 @@ def init_dataloaders(
     """
     try:
         if is_transformer:
-            train_dataset = TransformerCarDataset(preprocess_folder=train_data_dir, reprocess=True, mpc_aug=(NUM_AUGMENTATION > 0))
+            train_dataset = TransformerCarDataset(
+                preprocess_folder=train_data_dir, reprocess=True, mpc_aug=(config.data_processing.num_augmentation > 0)
+            )
             train_loader = DataLoader(
                 train_dataset,
                 batch_size=batch_size,
@@ -246,7 +248,7 @@ def init_dataloaders(
                 pin_memory=pin_memory,
             )
 
-            val_dataset = TransformerCarDataset(preprocess_folder=val_data_dir, reprocess=True, mpc_aug=(NUM_AUGMENTATION > 0))
+            val_dataset = TransformerCarDataset(preprocess_folder=val_data_dir, reprocess=True, mpc_aug=(config.data_processing.num_augmentation > 0))
             val_loader = DataLoader(
                 val_dataset,
                 batch_size=batch_size,
