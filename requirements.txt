@@ -16,6 +16,7 @@ matplotlib==3.10.8
 
 # Tools
 mypy==1.19.1
+mypy-protobuf==5.0.0
 
 # Graphs & Networks
 networkx==3.6.1
@@ -34,6 +35,9 @@ pillow==12.1.1
 # Protobuf & Code Generation
 protobuf==6.33.5
 protoc-wheel==21.1
+
+# Tests
+pytest==9.0.2
 
 # Multimedia & GUI
 pyyaml==6.0.3
