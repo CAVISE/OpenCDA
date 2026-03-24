@@ -12,7 +12,7 @@ einops==0.8.2
 lxml==6.0.2
 
 # Visualization & Logging
-matplotlib==3.10.8
+matplotlib==3.10.7
 
 # Tools
 mypy==1.19.1
@@ -36,9 +36,6 @@ pillow==12.1.1
 protobuf==6.33.5
 protoc-wheel==21.1
 
-# Tests
-pytest==9.0.2
-
 # Multimedia & GUI
 pyyaml==6.0.3
 pyzmq==27.1.0
@@ -47,13 +44,14 @@ pyzmq==27.1.0
 rich==14.3.3
 
 # Machine Learning & Deep Learning
-scipy==1.17.1
+scikit-learn==1.7.2
+scipy==1.16.3
 shapely==2.1.2
-sumolib==1.24.0
+sumolib==1.26.0
 tensorboardX==2.6.4
 timm==1.0.25
 torch --index-url https://download.pytorch.org/whl/cu128
 torch_geometric==2.7.0
 torchvision --index-url https://download.pytorch.org/whl/cu128
 tqdm==4.67.3
-traci==1.24.0
+traci==1.26.0
