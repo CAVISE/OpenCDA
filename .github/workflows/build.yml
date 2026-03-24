@@ -1,16 +1,6 @@
 name: Build Extensions
 
-on:
-  pull_request:
-    branches: [main]
-    paths:
-      - 'CMakeLists.txt'
-      - '**/CMakeLists.txt'
-      - 'pyproject.toml'
-      - 'OpenCOOD/opencood/pcdet_utils/**'
-      - 'OpenCOOD/opencood/utils/**'
-      - 'opencda/core/common/communication/messages/**'
-  workflow_dispatch:
+on: [pull_request]
 
 jobs:
   build-protobuf:
