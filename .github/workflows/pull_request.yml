@@ -1,14 +1,13 @@
 name: Lint, Format, Type and Unused code Check
 
-on:
-  pull_request:
-    branches: [main]
+on: [ pull_request ]
 
 jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - name: Checkout repository
+        uses: actions/checkout@v4
       - name: Run ruff check
         uses: astral-sh/ruff-action@v3
         with:
@@ -17,7 +16,8 @@ jobs:
   format-check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - name: Checkout repository
+        uses: actions/checkout@v4
       - name: Run ruff format check with diff
         uses: astral-sh/ruff-action@v3
         with:
@@ -26,8 +26,10 @@ jobs:
   type-check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v5
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.12"
       - name: Install system dependencies
@@ -47,7 +49,8 @@ jobs:
   unused-code-check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - name: Checkout repository
+        uses: actions/checkout@v5
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -59,7 +62,8 @@ jobs:
   pre-commit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - name: Checkout repository
+        uses: actions/checkout@v5
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
