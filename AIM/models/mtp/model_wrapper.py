@@ -18,6 +18,7 @@ from .learning.learning_src.data_scripts.generate_csv_utils import get_map_bound
 from .learning.learning_src.data_scripts.preprocess_utils import (
     extract_needed_features,
     normalize_input_features,
+    rotation_matrix_with_allign_to_X,
     rotation_matrix_back_with_allign_to_X,
     rotation_matrix_back_with_allign_to_Y,
     denormalize_yaw,
@@ -101,9 +102,9 @@ class MTP(AIMModelWrapper):
 
         extracted_features = extract_needed_features(features[:, :4], features[:, 4:5], features[:, 5:6])
         normalize_input_features(extracted_features, map_bounding)
-        x_tensor = torch.tensor(extracted_features).unsqueeze(0).float().to(self.device)
+        x_global = torch.tensor(extracted_features).unsqueeze(0).float().to(self.device)
 
-        yaw_cur = x_tensor[..., 3].clone()
+        yaw_cur = x_global[..., 3].clone()
         if NORMALIZE_DATA:
             denormalize_yaw(yaw_cur)
 
@@ -114,12 +115,23 @@ class MTP(AIMModelWrapper):
 
         if self.is_transformer:
             map_channels = self.map.shape[1]
-            num_vechs = x_tensor.shape[1]
+            num_vechs = x_global.shape[1]
+
+            x_data_yaw = x_global.unsqueeze(1)[:, :, :, 3:4] - x_global.unsqueeze(2)[:, :, :, 3:4]
+            x_data_coords = x_global.unsqueeze(1)[:, :, :, :2] - x_global.unsqueeze(2)[:, :, :, :2]
+            rotation_matrixes = rotation_matrix_with_allign_to_X(x_global[:, :, 3:4])
+            x_data_coords = torch.matmul(rotation_matrixes, x_data_coords.unsqueeze(-1)).squeeze(-1)
+
+            x_data_speed = x_global.unsqueeze(1)[:, :, :, 2:3].repeat(1, x_global.shape[1], 1, 1)
+            x_data_skip = x_global.unsqueeze(1)[:, :, :, 4:].repeat(1, x_global.shape[1], 1, 1)
+            x_tensor = torch.cat([x_data_coords, x_data_speed, x_data_yaw, x_data_skip], dim=-1)
 
             map_attn_mask = torch.ones((1, map_channels, map_channels), dtype=torch.bool).to(self.device)
             attn_mask = torch.ones((1, num_vechs, num_vechs), dtype=torch.bool).to(self.device)
+            attn_mask = attn_mask.unsqueeze(1)
+            attn_mask = attn_mask.expand(attn_mask.shape[0], attn_mask.shape[2], attn_mask.shape[2], attn_mask.shape[3])
 
-            dout_coords = self.model(x_tensor[:, :, [0, 1, 2, 3, 4, 5]], self.map, attn_mask, map_attn_mask)
+            dout_coords = self.model(x_tensor[..., [0, 1, 2, 3, 4, 5]], self.map, attn_mask, map_attn_mask)
             dout_coords = dout_coords.reshape(dout_coords.shape[0], dout_coords.shape[1], PRED_LEN, PREDICT_VECTOR_SIZE)
 
             if NORMALIZE_DATA and ZSCORE_NORMALIZE:
@@ -128,11 +140,11 @@ class MTP(AIMModelWrapper):
 
             dout_coords = dout_coords.permute(0, 1, 3, 2)  # [b, v, 2, PRED_LEN]
             dout_coords = (rotations_back_current @ dout_coords).permute(0, 1, 3, 2)  # [b, v, PRED_LEN, 2]
-            predictions = dout_coords + x_tensor[:, :, [0, 1]].unsqueeze(2)
+            predictions = dout_coords + x_global[:, :, [0, 1]].unsqueeze(2)
 
         else:
             edge_index = torch.tensor([[i, j] for i in range(num_agents) for j in range(num_agents)]).T.to(self.device)
-            dout_coords = self.model(x_tensor, edge_index)
+            dout_coords = self.model(x_global, edge_index)
             dout_coords = dout_coords.reshape(dout_coords.shape[0], dout_coords.shape[1], PRED_LEN, PREDICT_VECTOR_SIZE)
 
             if NORMALIZE_DATA and ZSCORE_NORMALIZE:
@@ -141,7 +153,7 @@ class MTP(AIMModelWrapper):
 
             dout_coords = dout_coords.permute(0, 2, 1)  # [v, 2, PRED_LEN]
             dout_coords = torch.bmm(rotations_back_current, dout_coords).permute(0, 2, 1)  # [v, PRED_LEN, 2]
-            predictions = dout_coords + x_tensor[:, [0, 1]].unsqueeze(1)
+            predictions = dout_coords + x_global[:, [0, 1]].unsqueeze(1)
 
         if NORMALIZE_DATA:
             denormalize_coords(predictions, COLLECT_DATA_RADIUS * map_bounding)

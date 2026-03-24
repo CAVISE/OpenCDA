@@ -1,12 +1,12 @@
 batch_size: 128
 clear_exp_checkpoints: true
 collision_penalty: true
-collision_penalty_factor: 2000
+collision_penalty_factor: 5
 dist_threshold: 0.04
 epoch: 800
 hf_project_path: kijjjj/test-model1
 lr: 1.0e-04
-metrics_log_epoch_frequency: 2
+metrics_log_epoch_frequency: 5
 mr_threshold: 0.02
 optimizer: adamw
 push_to_hf: false

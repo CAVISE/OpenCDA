@@ -108,10 +108,10 @@ scenario:
 
 aim:
   model_wrapper: MTP
-  model: TransfAny_v1
+  model: TransfAny_v2_local_coords
   model_params:
     bias: true
-    cars_encoder_hidden_channels: 160
+    cars_encoder_hidden_channels: 128
     cars_encoder_n_attn: 4
     cars_encoder_n_heads: 4
     cars_encoder_n_linear_encoder: 2
@@ -129,5 +129,5 @@ aim:
       - 3
       - 3
 
-  weights: model_wp_train_config3_model_config1_0799.pth
+  weights: model_wp_train_config0_model_config0_0799.pth
   map_net_xml_path: AIM/models/mtp/learning/data/sumo_maps/simple_separate_10m.net.xml

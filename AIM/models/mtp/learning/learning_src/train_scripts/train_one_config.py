@@ -177,6 +177,11 @@ def my_collate_fn(batch: list) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor
     for i, d in enumerate(data_cells):
         x[i] = d.x
 
+    x_global0 = data_cells[0].x_global
+    x_global = torch.empty((batch_size, *x_global0.shape), dtype=x_global0.dtype)
+    for i, d in enumerate(data_cells):
+        x_global[i] = d.x_global
+
     y0 = data_cells[0].y
     y = torch.empty((batch_size, *y0.shape), dtype=y0.dtype)
     for i, d in enumerate(data_cells):
@@ -207,7 +212,7 @@ def my_collate_fn(batch: list) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor
     for i, b in enumerate(batch):
         map_boundaries[i] = b[3]
 
-    return x, y, weights, attn_mask, map_infos, map_attn_masks, map_boundaries
+    return x, x_global, y, weights, attn_mask, map_infos, map_attn_masks, map_boundaries
 
 
 def init_dataloaders(
@@ -232,7 +237,7 @@ def init_dataloaders(
     """
     try:
         if is_transformer:
-            train_dataset = TransformerCarDataset(preprocess_folder=train_data_dir, reprocess=False, mpc_aug=(NUM_AUGMENTATION > 0))
+            train_dataset = TransformerCarDataset(preprocess_folder=train_data_dir, reprocess=True, mpc_aug=(NUM_AUGMENTATION > 0))
             train_loader = DataLoader(
                 train_dataset,
                 batch_size=batch_size,
@@ -243,7 +248,7 @@ def init_dataloaders(
                 pin_memory=pin_memory,
             )
 
-            val_dataset = TransformerCarDataset(preprocess_folder=val_data_dir, reprocess=False, mpc_aug=(NUM_AUGMENTATION > 0))
+            val_dataset = TransformerCarDataset(preprocess_folder=val_data_dir, reprocess=True, mpc_aug=(NUM_AUGMENTATION > 0))
             val_loader = DataLoader(
                 val_dataset,
                 batch_size=batch_size,
@@ -595,6 +600,9 @@ def train_one_config(
         num_workers=num_workers,
         pin_memory=pin_memory,
     )
+    print(f"train_loader len: {len(train_loader)}")
+    print(f"val_loader len: {len(val_loader)}")
+
     model, optimizer = init_model(
         path_config.copy_model_config_path,
         train_config.optimizer,

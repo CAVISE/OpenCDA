@@ -1,5 +1,5 @@
 model_wrapper: MTP
-model: TransfAny_v1
+model: TransfAny_v2_local_coords
 model_params:
     map_encoder_base_channels: 16
     map_encoder_stages: [3, 4, 4, 3, 3]

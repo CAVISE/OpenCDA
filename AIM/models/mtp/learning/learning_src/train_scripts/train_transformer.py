@@ -78,8 +78,9 @@ def transformer_train_one_epoch(
 
     for batch in data_loader:
         # x_batch: [vehicle, 15]: [x_0, y_0, speed_0, yaw_0, cos yaw_0, sin yaw_0, cos yaw_start, sin yaw_start,  intent, intent, intent, start_pos, start_pos, start_pos, start_pos]
-        x_batch, y_batch, weights_batch, attn_mask_batch, map_infos_batch, map_attn_mask_batch, map_boundaries = batch
+        x_batch, x_global_batch, y_batch, weights_batch, attn_mask_batch, map_infos_batch, map_attn_mask_batch, map_boundaries = batch
         x_batch = x_batch.to(device, non_blocking=True)
+        x_global_batch = x_global_batch.to(device, non_blocking=True)
         y_batch = y_batch.to(device, non_blocking=True)
         weights_batch = weights_batch.to(device, non_blocking=True)
         attn_mask_batch = attn_mask_batch.to(device, non_blocking=True)
@@ -87,6 +88,11 @@ def transformer_train_one_epoch(
         map_attn_mask_batch = map_attn_mask_batch.to(device, non_blocking=True)
         map_boundaries = map_boundaries.to(device, non_blocking=True)
         map_boundaries = map_boundaries.unsqueeze(-1)
+
+        attn_mask_batch = attn_mask_batch.unsqueeze(1)
+        attn_mask_batch = attn_mask_batch.expand(
+            attn_mask_batch.shape[0], attn_mask_batch.shape[2], attn_mask_batch.shape[2], attn_mask_batch.shape[3]
+        )
 
         out_coords = None
         dout_coords = None
@@ -106,14 +112,15 @@ def transformer_train_one_epoch(
             optimizer.zero_grad()
 
             if idx == 0:
-                yaws = x_batch[:, :, 3]
-                x = x_batch[:, :, [0, 1, 2, 3, 4, 5]]
+                x_global = x_global_batch[:, :, [0, 1, 2, 3, 4, 5]]
+                yaws = x_global[:, :, 3]
+                x = x_batch[:, :, :, [0, 1, 2, 3, 4, 5]]
             else:
                 yaws = my_get_yaw(
-                    x_batch[:, :, 6],
-                    x_batch[:, :, 7],
-                    x_batch[:, :, 8],
-                    x_batch[:, :, 9],
+                    x_global_batch[:, :, 6],
+                    x_global_batch[:, :, 7],
+                    x_global_batch[:, :, 8],
+                    x_global_batch[:, :, 9],
                     out_coords[:, :, 0, :].detach(),
                     yaw_keys,
                     yaw_values,
@@ -121,8 +128,8 @@ def transformer_train_one_epoch(
                 )
                 speed = my_get_speed(dout_coords[:, :, 0, 0].detach(), dout_coords[:, :, 0, 1].detach())
 
-                dstart_yaw = yaws - torch.arctan2(x_batch[:, :, 7], x_batch[:, :, 6])
-                dlast_yaw = torch.arctan2(x_batch[:, :, 9], x_batch[:, :, 8]) - yaws
+                dstart_yaw = yaws - torch.arctan2(x_global_batch[:, :, 7], x_global_batch[:, :, 6])
+                dlast_yaw = torch.arctan2(x_global_batch[:, :, 9], x_global_batch[:, :, 8]) - yaws
                 adjust_future_yaw_delta(dstart_yaw)
                 adjust_future_yaw_delta(dlast_yaw)
 
@@ -130,7 +137,7 @@ def transformer_train_one_epoch(
                     normalize_yaw(dstart_yaw)
                     normalize_yaw(dlast_yaw)
 
-                x = torch.cat(
+                x_global = torch.cat(
                     (
                         out_coords[:, :, 0, :].detach(),
                         speed.unsqueeze(-1),
@@ -140,6 +147,14 @@ def transformer_train_one_epoch(
                     ),
                     dim=-1,
                 )
+                x_data_yaw = x_global.unsqueeze(1)[:, :, :, 3:4] - x_global.unsqueeze(2)[:, :, :, 3:4]
+                x_data_coords = x_global.unsqueeze(1)[:, :, :, :2] - x_global.unsqueeze(2)[:, :, :, :2]
+                rotation_matrixes = rotation_matrix_with_allign_to_X(x_global[:, :, 3:4])
+                x_data_coords = torch.matmul(rotation_matrixes, x_data_coords.unsqueeze(-1)).squeeze(-1)
+
+                x_data_speed = x_global.unsqueeze(1)[:, :, :, 2:3].repeat(1, x_global.shape[1], 1, 1)
+                x_data_skip = x_global.unsqueeze(1)[:, :, :, 4:].repeat(1, x_global.shape[1], 1, 1)
+                x = torch.cat([x_data_coords, x_data_speed, x_data_yaw, x_data_skip], dim=-1)
 
             dout_coords = model(x, map_infos_batch, attn_mask_batch, map_attn_mask_batch)
             dout_coords = dout_coords.reshape(
@@ -147,7 +162,7 @@ def transformer_train_one_epoch(
             )  # [b, v, PRED_LEN, PREDICT_VECTOR_SIZE]
 
             yaw_cur = yaws.detach().clone()
-            yaw_base = x_batch[:, :, 3].detach().clone()
+            yaw_base = x_global_batch[:, :, 3].detach().clone()
             if NORMALIZE_DATA:
                 denormalize_yaw(yaw_cur)
                 denormalize_yaw(yaw_base)
@@ -175,7 +190,7 @@ def transformer_train_one_epoch(
 
                 dgt_coords = dgt_coords.permute(0, 1, 3, 2)  # [b, v, 2, NUM_PREDICT]
                 dgt_coords = rotations_back_base @ dgt_coords
-                dgt_coords = dgt_coords + (x_batch[:, :, [0, 1]].unsqueeze(-2) - x[:, :, [0, 1]].unsqueeze(-2)).permute(0, 1, 3, 2)
+                dgt_coords = dgt_coords + (x_global_batch[:, :, [0, 1]].unsqueeze(-2) - x_global[:, :, [0, 1]].unsqueeze(-2)).permute(0, 1, 3, 2)
                 dgt_coords = (rotation_current @ dgt_coords).permute(0, 1, 3, 2)
 
                 # Renormalize back to z-score space for loss computation
@@ -185,8 +200,8 @@ def transformer_train_one_epoch(
             dgt_coords = dgt_coords[:, :, idx : PRED_LEN + idx, :]  # [b, v, PRED_LEN, 2]
 
             # Both dgt_coords and dout_coords are in z-score normalized space for loss computation
-            error = (((dgt_coords - dout_coords) * attn_mask_batch[:, 0].unsqueeze(-1).unsqueeze(-1)).square().sum(-1) * step_weights).sum(-1)
-            loss = (weights_batch * error)[attn_mask_batch[:, 0]].nanmean()
+            error = (((dgt_coords - dout_coords) * attn_mask_batch[:, 0, 0].unsqueeze(-1).unsqueeze(-1)).square().sum(-1) * step_weights).sum(-1)
+            loss = (weights_batch * error)[attn_mask_batch[:, 0, 0]].nanmean()
 
             # Denormalize dout_coords from z-score for use in next iteration (now in min-max normalized space)
             if NORMALIZE_DATA and ZSCORE_NORMALIZE:
@@ -196,7 +211,7 @@ def transformer_train_one_epoch(
             # get back from deltas to plain coordinates in predictions
             dout_coords = dout_coords.permute(0, 1, 3, 2)  # [b, v, 2, PRED_LEN]
             dout_coords = (rotations_back_current @ dout_coords).permute(0, 1, 3, 2)  # [b, v, PRED_LEN, 2]
-            out_coords = dout_coords + x[:, :, [0, 1]].unsqueeze(2)
+            out_coords = dout_coords + x_global[:, :, [0, 1]].unsqueeze(2)
 
             if collision_penalty:
                 distances = torch.linalg.norm(out_coords.unsqueeze(2) - out_coords.unsqueeze(1), dim=-1)  # (b, v, v, n)
@@ -204,11 +219,11 @@ def transformer_train_one_epoch(
                 tri_mask = torch.tril(
                     torch.ones(attn_mask_batch.shape[1], attn_mask_batch.shape[1], dtype=torch.bool, device=attn_mask_batch.device), diagonal=-1
                 ).unsqueeze(0)  # (1, v, v)
-                mask = (attn_mask_batch & tri_mask).unsqueeze(-1)  # (b, v, v, 1)
+                mask = (attn_mask_batch[:, 0] & tri_mask).unsqueeze(-1)  # (b, v, v, 1)
                 collition_mask = (distances < dist_threshold) & mask  # (b, v, v, n)
 
-                if torch.sum(collition_mask):  # there are can be no cars with small distanses so it will be empty
-                    _collision_penalty = (dist_threshold - distances)[collition_mask].square().mean()
+                if collition_mask.any():  # there are can be no cars with small distanses so it will be empty
+                    _collision_penalty = (dist_threshold - distances)[collition_mask].square().sum()
                     loss += _collision_penalty * collision_penalty_factor
 
             loss.backward()
@@ -278,8 +293,9 @@ def transformer_evaluate(
     with torch.no_grad():
         for batch in data_loader:
             # x_batch: [vehicle, 15]: [x_0, y_0, speed_0, yaw_0, cos yaw_0, sin yaw_0, cos yaw_start, sin yaw_start,  intent, intent, intent, start_pos, start_pos, start_pos, start_pos]
-            x_batch, y_batch, weights_batch, attn_mask_batch, map_infos_batch, map_attn_mask_batch, map_boundaries = batch
+            x_batch, x_global_batch, y_batch, weights_batch, attn_mask_batch, map_infos_batch, map_attn_mask_batch, map_boundaries = batch
             x_batch = x_batch.to(device, non_blocking=True)
+            x_global_batch = x_global_batch.to(device, non_blocking=True)
             y_batch = y_batch.to(device, non_blocking=True)
             weights_batch = weights_batch.to(device, non_blocking=True)
             attn_mask_batch = attn_mask_batch.to(device, non_blocking=True)
@@ -287,6 +303,11 @@ def transformer_evaluate(
             map_attn_mask_batch = map_attn_mask_batch.to(device, non_blocking=True)
             map_boundaries = map_boundaries.to(device, non_blocking=True)
             map_boundaries = map_boundaries.unsqueeze(-1)
+
+            attn_mask_batch = attn_mask_batch.unsqueeze(1)
+            attn_mask_batch = attn_mask_batch.expand(
+                attn_mask_batch.shape[0], attn_mask_batch.shape[2], attn_mask_batch.shape[2], attn_mask_batch.shape[3]
+            )
 
             out_coords = None
             dout_coords = None
@@ -302,14 +323,15 @@ def transformer_evaluate(
                     on_predictions = False
 
                 if idx == 0:
-                    yaws = x_batch[:, :, 3]
-                    x = x_batch[:, :, [0, 1, 2, 3, 4, 5]]
+                    x_global = x_global_batch[:, :, [0, 1, 2, 3, 4, 5]]
+                    yaws = x_global[:, :, 3]
+                    x = x_batch[:, :, :, [0, 1, 2, 3, 4, 5]]
                 else:
                     yaws = my_get_yaw(
-                        x_batch[:, :, 6],
-                        x_batch[:, :, 7],
-                        x_batch[:, :, 8],
-                        x_batch[:, :, 9],
+                        x_global_batch[:, :, 6],
+                        x_global_batch[:, :, 7],
+                        x_global_batch[:, :, 8],
+                        x_global_batch[:, :, 9],
                         out_coords[:, :, 0, :].detach(),
                         yaw_keys,
                         yaw_values,
@@ -317,8 +339,8 @@ def transformer_evaluate(
                     )
                     speed = my_get_speed(dout_coords[:, :, 0, 0].detach(), dout_coords[:, :, 0, 1].detach())
 
-                    dstart_yaw = yaws - torch.arctan2(x_batch[:, :, 7], x_batch[:, :, 6])
-                    dlast_yaw = torch.arctan2(x_batch[:, :, 9], x_batch[:, :, 8]) - yaws
+                    dstart_yaw = yaws - torch.arctan2(x_global_batch[:, :, 7], x_global_batch[:, :, 6])
+                    dlast_yaw = torch.arctan2(x_global_batch[:, :, 9], x_global_batch[:, :, 8]) - yaws
                     adjust_future_yaw_delta(dstart_yaw)
                     adjust_future_yaw_delta(dlast_yaw)
 
@@ -326,7 +348,7 @@ def transformer_evaluate(
                         normalize_yaw(dstart_yaw)
                         normalize_yaw(dlast_yaw)
 
-                    x = torch.cat(
+                    x_global = torch.cat(
                         (
                             out_coords[:, :, 0, :].detach(),
                             speed.unsqueeze(-1),
@@ -336,6 +358,14 @@ def transformer_evaluate(
                         ),
                         dim=-1,
                     )
+                    x_data_yaw = x_global.unsqueeze(1)[:, :, :, 3:4] - x_global.unsqueeze(2)[:, :, :, 3:4]
+                    x_data_coords = x_global.unsqueeze(1)[:, :, :, :2] - x_global.unsqueeze(2)[:, :, :, :2]
+                    rotation_matrixes = rotation_matrix_with_allign_to_X(x_global[:, :, 3:4])
+                    x_data_coords = torch.matmul(rotation_matrixes, x_data_coords.unsqueeze(-1)).squeeze(-1)
+
+                    x_data_speed = x_global.unsqueeze(1)[:, :, :, 2:3].repeat(1, x_global.shape[1], 1, 1)
+                    x_data_skip = x_global.unsqueeze(1)[:, :, :, 4:].repeat(1, x_global.shape[1], 1, 1)
+                    x = torch.cat([x_data_coords, x_data_speed, x_data_yaw, x_data_skip], dim=-1)
 
                 dout_coords = model(x, map_infos_batch, attn_mask_batch, map_attn_mask_batch)
                 dout_coords = dout_coords.reshape(
@@ -343,7 +373,7 @@ def transformer_evaluate(
                 )  # [b, v, PRED_LEN, PREDICT_VECTOR_SIZE]
 
                 yaw_cur = yaws.clone()
-                yaw_base = x_batch[:, :, 3].clone()
+                yaw_base = x_global_batch[:, :, 3].clone()
                 if NORMALIZE_DATA:
                     denormalize_yaw(yaw_cur)
                     denormalize_yaw(yaw_base)
@@ -371,7 +401,7 @@ def transformer_evaluate(
 
                     dgt_coords = dgt_coords.permute(0, 1, 3, 2)  # [b, v, 2, NUM_PREDICT]
                     dgt_coords = rotations_back_base @ dgt_coords
-                    dgt_coords = dgt_coords + (x_batch[:, :, [0, 1]].unsqueeze(-2) - x[:, :, [0, 1]].unsqueeze(-2)).permute(0, 1, 3, 2)
+                    dgt_coords = dgt_coords + (x_global_batch[:, :, [0, 1]].unsqueeze(-2) - x_global[:, :, [0, 1]].unsqueeze(-2)).permute(0, 1, 3, 2)
                     dgt_coords = (rotation_current @ dgt_coords).permute(0, 1, 3, 2)
 
                     # Renormalize back to z-score space for loss computation
@@ -381,9 +411,9 @@ def transformer_evaluate(
                 dgt_coords = dgt_coords[:, :, idx : PRED_LEN + idx, :]  # [b, v, PRED_LEN, 2]
 
                 # Both dgt_coords and dout_coords are in z-score normalized space for loss computation
-                _error = ((dgt_coords - dout_coords) * attn_mask_batch[:, 0].unsqueeze(-1).unsqueeze(-1)).square().sum(-1)
+                _error = ((dgt_coords - dout_coords) * attn_mask_batch[:, 0, 0].unsqueeze(-1).unsqueeze(-1)).square().sum(-1)
                 _error = (_error * step_weights).sum(-1)
-                val_loss = (weights_batch * _error)[attn_mask_batch[:, 0]].nanmean()
+                val_loss = (weights_batch * _error)[attn_mask_batch[:, 0, 0]].nanmean()
                 val_losses.append(val_loss)
 
                 # Denormalize dout_coords from z-score for use in next iteration (now in min-max normalized space)
@@ -393,26 +423,26 @@ def transformer_evaluate(
                     z_score_denormalize(dout_coords[..., 0], y_x_mean, y_x_std)
                     z_score_denormalize(dout_coords[..., 1], y_y_mean, y_y_std)
 
-                error = ((dgt_coords - dout_coords) * attn_mask_batch[:, 0].unsqueeze(-1).unsqueeze(-1)).square().sum(-1) ** 0.5
-                fde.append(error[attn_mask_batch[:, 0]][:, -1])
-                ade.append(error[attn_mask_batch[:, 0]].mean(dim=-1))
-                mr.append(((error[:, :, -1] > mr_threshold) & attn_mask_batch[:, 0]).sum())
+                error = ((dgt_coords - dout_coords) * attn_mask_batch[:, 0, 0].unsqueeze(-1).unsqueeze(-1)).square().sum(-1) ** 0.5
+                fde.append(error[attn_mask_batch[:, 0, 0]][:, -1])
+                ade.append(error[attn_mask_batch[:, 0, 0]].mean(dim=-1))
+                mr.append(((error[:, :, -1] > mr_threshold) & attn_mask_batch[:, 0, 0]).sum())
 
                 # get back from deltas to plain coordinates in predictions
                 dout_coords = dout_coords.permute(0, 1, 3, 2)  # [b, v, 2, PRED_LEN]
                 dout_coords = (rotations_back_current @ dout_coords).permute(0, 1, 3, 2)  # [b, v, PRED_LEN, 2]
-                out_coords = dout_coords + x[:, :, [0, 1]].unsqueeze(2)
+                out_coords = dout_coords + x_global[:, :, [0, 1]].unsqueeze(2)
 
                 distances = torch.linalg.norm(out_coords.unsqueeze(2) - out_coords.unsqueeze(1), dim=-1)  # (b, v, v, n)
 
                 tri_mask = torch.tril(
                     torch.ones(attn_mask_batch.shape[1], attn_mask_batch.shape[1], dtype=torch.bool, device=attn_mask_batch.device), diagonal=-1
                 ).unsqueeze(0)  # (1, v, v)
-                mask = (attn_mask_batch & tri_mask).unsqueeze(-1)  # (b, v, v, 1)
+                mask = (attn_mask_batch[:, 0] & tri_mask).unsqueeze(-1)  # (b, v, v, 1)
                 collition_mask = (distances < dist_threshold) & mask  # (b, v, v, n)
 
-                if torch.sum(collition_mask):  # there are can be no cars with small distanses so it will be empty
-                    _collision_penalty = (dist_threshold - distances)[collition_mask].square().mean()
+                if collition_mask.any():  # there are can be no cars with small distanses so it will be empty
+                    _collision_penalty = (dist_threshold - distances)[collition_mask].square().sum()
                     collision_penalties.append(_collision_penalty)
 
                 dist = torch.min(distances[mask[:, :, :, 0]], dim=-1)[0]  # (b * v * (v-1), 1)
