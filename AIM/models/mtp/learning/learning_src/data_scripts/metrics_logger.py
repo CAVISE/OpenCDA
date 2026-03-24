@@ -18,6 +18,7 @@ class MetricLogger:
         :param enable_plot: flag to enable metric plotting
         :param max_points: maximum number of metric points to keep in memory
         """
+
         self.logfile_path = logfile_path
         self.plotfile_path = plotfile_path
         os.makedirs(os.path.dirname(self.logfile_path), exist_ok=True)
