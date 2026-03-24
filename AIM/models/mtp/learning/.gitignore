@@ -16,3 +16,4 @@ bash_prepare_data.sh
 bash_train.sh
 bash_scrit.sh
 tests.py
+test1.py
