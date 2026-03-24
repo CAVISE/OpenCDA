@@ -1,7 +1,8 @@
 name: Tests (matrix, CI deps)
 
-on: [pull_request]
-
+on:
+  workflow_dispatch:
+  pull_request:
 jobs:
   pytest:
     runs-on: ubuntu-latest
