@@ -26,7 +26,7 @@ protobuf_generate(
 protobuf_generate(
     LANGUAGE mypy
     PLUGIN ${PROTOC_GEN_MYPY}
-    GENERATE_EXTENSIONS .pyi
+    GENERATE_EXTENSIONS _pb2.pyi
     OUT_VAR PROTO_PYI_OUTPUTS
     PROTOS ${PROTO_FILES}
     IMPORT_DIRS ${PROTO_SOURCE_DIR}
