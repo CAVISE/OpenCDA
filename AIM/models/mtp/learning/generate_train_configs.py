@@ -4,7 +4,7 @@ import copy
 import shutil
 from typing import Any
 
-from .data_path_config import BASE_TRAIN_CONFIG_PATH, BASE_MODEL_CONFIG_PATH, EXPIREMENTS_TRAIN_CONFIG_PATH, EXPIREMENTS_MODELS_CONFIG_PATH
+from .data_path_config import path_config
 
 
 def read_base_config_file(config_file_path: str) -> dict[str, Any]:
@@ -74,14 +74,14 @@ def generate_configs() -> None:
     """
     generate train and model config files for experiments
     """
-    if os.path.exists(EXPIREMENTS_TRAIN_CONFIG_PATH):
-        shutil.rmtree(EXPIREMENTS_TRAIN_CONFIG_PATH)
+    if os.path.exists(path_config.paths.expirements_train_config_path):
+        shutil.rmtree(path_config.paths.expirements_train_config_path)
 
-    if os.path.exists(EXPIREMENTS_MODELS_CONFIG_PATH):
-        shutil.rmtree(EXPIREMENTS_MODELS_CONFIG_PATH)
+    if os.path.exists(path_config.paths.expirements_models_config_path):
+        shutil.rmtree(path_config.paths.expirements_models_config_path)
 
-    os.makedirs(EXPIREMENTS_TRAIN_CONFIG_PATH, exist_ok=True)
-    os.makedirs(EXPIREMENTS_MODELS_CONFIG_PATH, exist_ok=True)
+    os.makedirs(path_config.paths.expirements_train_config_path, exist_ok=True)
+    os.makedirs(path_config.paths.expirements_models_config_path, exist_ok=True)
 
     train_config_params = {}
     # train_config_params = {
@@ -95,8 +95,17 @@ def generate_configs() -> None:
     #     "cross_attn_n_attn": [5, 7],
     # }
 
-    write_configs(BASE_TRAIN_CONFIG_PATH, train_config_params, os.path.join(EXPIREMENTS_TRAIN_CONFIG_PATH, "train_config"))
-    write_configs(BASE_MODEL_CONFIG_PATH, model_config_params, os.path.join(EXPIREMENTS_MODELS_CONFIG_PATH, "model_config"), model_config=True)
+    write_configs(
+        path_config.paths.base_train_config_path,
+        train_config_params,
+        os.path.join(path_config.paths.expirements_train_config_path, "train_config"),
+    )
+    write_configs(
+        path_config.paths.base_model_config_path,
+        model_config_params,
+        os.path.join(path_config.paths.expirements_models_config_path, "model_config"),
+        model_config=True,
+    )
 
 
 if __name__ == "__main__":

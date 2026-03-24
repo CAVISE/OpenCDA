@@ -1,0 +1,23 @@
+# Configuration file for data paths and file names
+
+# Directories and config files (all paths are relative to the current directory)
+paths:
+  data_path: data
+  sumo_gened_maps_path: data/sumo_gened_maps
+  data_vizualization_path: data/vizualization
+  expirements_path: experements
+  expirements_config_path: experements_configs
+  expirements_train_config_path: experements_configs/train_configs
+  expirements_models_config_path: experements_configs/model_configs
+  base_train_config_path: experements_configs/train_config.yaml
+  base_model_config_path: experements_configs/model_config.yaml
+  yaw_dict_path: ../../../../opencda/assets/yaw_dict_10m.pkl
+
+file_names:
+  y_x_distr_file: y_x_distr_file.pkl
+  y_y_distr_file: y_y_distr_file.pkl
+  start_positions_file: start_positions.csv
+  last_positions_file: last_positions.csv
+
+dir_names:
+  logs_dir_name: logs

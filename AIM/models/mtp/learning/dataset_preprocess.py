@@ -6,8 +6,8 @@ import pickle as pkl
 import numpy as np
 import shutil
 
-from .data_path_config import DATA_PATH, SUMO_GENED_MAPS_PATH, Y_X_DISTR_FILE, Y_Y_DISTR_FILE, START_POSITIONS_FILE, LAST_POSITIONS_FILE
-from .learning_src.data_scripts.data_config import NORMALIZE_DATA, ZSCORE_NORMALIZE
+from .data_path_config import path_config
+from .learning_src.data_scripts.data_config import config
 from .learning_src.data_scripts.preprocess_utils import preprocess_file, z_score_normalize_file
 from .learning_src.data_scripts.preprocess_map import preprocess_map
 from .learning_src.data_scripts.generate_csv_utils import get_map_bounding
@@ -38,8 +38,8 @@ def get_distribution_params(distr_params_dir: str, preprocess_folder_path: str) 
 
     y_x = np.concatenate(y_x)
     y_y = np.concatenate(y_y)
-    y_x_params_path = os.path.join(distr_params_dir, Y_X_DISTR_FILE)
-    y_y_params_path = os.path.join(distr_params_dir, Y_Y_DISTR_FILE)
+    y_x_params_path = os.path.join(distr_params_dir, path_config.file_names.y_x_distr_file)
+    y_y_params_path = os.path.join(distr_params_dir, path_config.file_names.y_y_distr_file)
 
     with open(y_x_params_path, "wb") as f_x:
         pkl.dump((y_x.mean(), y_x.std()), f_x)
@@ -73,13 +73,13 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     csv_folder = args.csv_folder
-    csv_folder_path = os.path.join(DATA_PATH, csv_folder)
+    csv_folder_path = os.path.join(path_config.paths.data_path, csv_folder)
 
     maps_to_process = len(os.listdir(csv_folder_path))
 
     preprocess_folder = args.pkl_folder
     processes = args.processes
-    preprocess_folder_path = os.path.join(DATA_PATH, preprocess_folder)
+    preprocess_folder_path = os.path.join(path_config.paths.data_path, preprocess_folder)
 
     if os.path.exists(preprocess_folder_path):
         shutil.rmtree(preprocess_folder_path)
@@ -94,13 +94,19 @@ if __name__ == "__main__":
             os.makedirs(preprocess_folder_subpath_path, exist_ok=True)
 
             csv_files = [i for i in os.listdir(csv_subfolder_path) if os.path.splitext(i)[1] == ".csv"]
-            net_file_path = os.path.join(SUMO_GENED_MAPS_PATH, csv_subfolder, "map", f"{csv_subfolder}.net.xml")
+            net_file_path = os.path.join(path_config.paths.sumo_gened_maps_path, csv_subfolder, "map", f"{csv_subfolder}.net.xml")
 
             map_boundary = get_map_bounding(net_file_path)
 
             futures = [
                 executor.submit(
-                    preprocess_file, csv_subfolder_path, file, preprocess_folder_subpath_path, map_boundary, START_POSITIONS_FILE, LAST_POSITIONS_FILE
+                    preprocess_file,
+                    csv_subfolder_path,
+                    file,
+                    preprocess_folder_subpath_path,
+                    map_boundary,
+                    path_config.file_names.start_positions_file,
+                    path_config.file_names.last_positions_file,
                 )
                 for file in csv_files
             ]
@@ -114,8 +120,8 @@ if __name__ == "__main__":
             preprocess_map(net_file_path=net_file_path, output_dir=preprocess_folder_subpath_path)
             print(f"Progress: {i + 1}/{maps_to_process}")
 
-        if NORMALIZE_DATA and ZSCORE_NORMALIZE:
-            dist_params_dir = os.path.join(DATA_PATH, preprocess_folder.split(sep="/")[0])
+        if config.data_processing.normalize_data and config.data_processing.zscore_normalize:
+            dist_params_dir = os.path.join(path_config.paths.data_path, preprocess_folder.split(sep="/")[0])
             if "train" in preprocess_folder:
                 get_distribution_params(dist_params_dir, preprocess_folder_path)
 
@@ -130,8 +136,8 @@ if __name__ == "__main__":
                     executor.submit(
                         z_score_normalize_file,
                         os.path.join(preprocess_subfolder_path, file),
-                        os.path.join(dist_params_dir, Y_X_DISTR_FILE),
-                        os.path.join(dist_params_dir, Y_Y_DISTR_FILE),
+                        os.path.join(dist_params_dir, path_config.file_names.y_x_distr_file),
+                        os.path.join(dist_params_dir, path_config.file_names.y_y_distr_file),
                     )
                     for file in files
                 ]

@@ -5,15 +5,8 @@ import pickle as pkl
 
 from AIM import AIMModelWrapper
 
-from .learning.data_path_config import DATA_PATH, Y_X_DISTR_FILE, Y_Y_DISTR_FILE
-from .learning.learning_src.data_scripts.data_config import (
-    ALLIGN_INITIAL_DIRECTION_TO_X,
-    NORMALIZE_DATA,
-    ZSCORE_NORMALIZE,
-    PRED_LEN,
-    PREDICT_VECTOR_SIZE,
-    COLLECT_DATA_RADIUS,
-)
+from .learning.data_path_config import path_config
+from .learning.learning_src.data_scripts.data_config import config
 from .learning.learning_src.data_scripts.generate_csv_utils import get_map_bounding
 from .learning.learning_src.data_scripts.preprocess_utils import (
     extract_needed_features,
@@ -56,7 +49,7 @@ class MTP(AIMModelWrapper):
         self.map_net_xml_path = map_net_xml_path
         self.process_map(self.map_net_xml_path)
 
-        if ZSCORE_NORMALIZE:
+        if config.data_processing.zscore_normalize:
             self.load_z_score_params()
 
     def process_map(self, map_net_xml_path: str):
@@ -81,10 +74,10 @@ class MTP(AIMModelWrapper):
         """
         load z-score normalization parameters from files
         """
-        with open(os.path.join(DATA_PATH, "csv", Y_X_DISTR_FILE), "rb") as f:
+        with open(os.path.join(path_config.paths.data_path, "csv", path_config.file_names.y_x_distr_file), "rb") as f:
             self.y_x_mean, self.y_x_std = pkl.load(f)
 
-        with open(os.path.join(DATA_PATH, "csv", Y_Y_DISTR_FILE), "rb") as f:
+        with open(os.path.join(path_config.paths.data_path, "csv", path_config.file_names.y_y_distr_file), "rb") as f:
             self.y_y_mean, self.y_y_std = pkl.load(f)
 
     def predict(self, features: np.ndarray, target_agent_ids=None):
@@ -108,7 +101,7 @@ class MTP(AIMModelWrapper):
         if NORMALIZE_DATA:
             denormalize_yaw(yaw_cur)
 
-        if ALLIGN_INITIAL_DIRECTION_TO_X:
+        if config.data_processing.align_initial_direction_to_x:
             rotations_back_current = rotation_matrix_back_with_allign_to_X(yaw_cur).to(self.device)
         else:
             rotations_back_current = rotation_matrix_back_with_allign_to_Y(yaw_cur).to(self.device)
@@ -134,7 +127,7 @@ class MTP(AIMModelWrapper):
             dout_coords = self.model(x_tensor[..., [0, 1, 2, 3, 4, 5]], self.map, attn_mask, map_attn_mask)
             dout_coords = dout_coords.reshape(dout_coords.shape[0], dout_coords.shape[1], PRED_LEN, PREDICT_VECTOR_SIZE)
 
-            if NORMALIZE_DATA and ZSCORE_NORMALIZE:
+            if config.data_processing.normalize_data and config.data_processing.zscore_normalize:
                 z_score_denormalize(dout_coords[:, :, :, 0], self.y_x_mean, self.y_x_std)
                 z_score_denormalize(dout_coords[:, :, :, 1], self.y_y_mean, self.y_y_std)
 
@@ -147,7 +140,7 @@ class MTP(AIMModelWrapper):
             dout_coords = self.model(x_global, edge_index)
             dout_coords = dout_coords.reshape(dout_coords.shape[0], dout_coords.shape[1], PRED_LEN, PREDICT_VECTOR_SIZE)
 
-            if NORMALIZE_DATA and ZSCORE_NORMALIZE:
+            if config.data_processing.normalize_data and config.data_processing.zscore_normalize:
                 z_score_denormalize(dout_coords[:, :, 0], self.y_x_mean, self.y_x_std)
                 z_score_denormalize(dout_coords[:, :, 1], self.y_y_mean, self.y_y_std)
 
@@ -155,8 +148,8 @@ class MTP(AIMModelWrapper):
             dout_coords = torch.bmm(rotations_back_current, dout_coords).permute(0, 2, 1)  # [v, PRED_LEN, 2]
             predictions = dout_coords + x_global[:, [0, 1]].unsqueeze(1)
 
-        if NORMALIZE_DATA:
-            denormalize_coords(predictions, COLLECT_DATA_RADIUS * map_bounding)
+        if config.data_processing.normalize_data:
+            denormalize_coords(predictions, config.vehicle.collect_data_radius * map_bounding)
 
         predictions = transform_coords(predictions)
         return predictions

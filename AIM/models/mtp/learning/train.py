@@ -11,7 +11,7 @@ import argparse
 # nvidia-ml-py package
 from pynvml import nvmlInit, nvmlDeviceGetHandleByIndex, nvmlDeviceGetMemoryInfo
 
-from .data_path_config import EXPIREMENTS_PATH, DATA_PATH, EXPIREMENTS_MODELS_CONFIG_PATH, EXPIREMENTS_TRAIN_CONFIG_PATH, LOGS_DIR_NAME
+from .data_path_config import path_config
 from .learning_src.train_scripts.train_one_config import train_one_config
 
 
@@ -84,8 +84,8 @@ def train_many_configs(max_needed_gpu_usage: float, max_mem_usage: float, max_pr
     gpu_devices = [i for i in range(torch.cuda.device_count())]
     gpu_num = len(gpu_devices)
 
-    train_config_paths = get_dir_config_files(EXPIREMENTS_TRAIN_CONFIG_PATH)
-    model_config_paths = get_dir_config_files(EXPIREMENTS_MODELS_CONFIG_PATH)
+    train_config_paths = get_dir_config_files(path_config.paths.expirements_train_config_path)
+    model_config_paths = get_dir_config_files(path_config.paths.expirements_models_config_path)
     config_pairs = list(itertools.product(train_config_paths, model_config_paths))
 
     task_queue = deque(config_pairs)
@@ -108,7 +108,16 @@ def train_many_configs(max_needed_gpu_usage: float, max_mem_usage: float, max_pr
 
             p = mp.Process(
                 target=train_one_config,
-                args=(child_conn, config_pair[0], config_pair[1], EXPIREMENTS_PATH, DATA_PATH, LOGS_DIR_NAME, device_str, True),
+                args=(
+                    child_conn,
+                    config_pair[0],
+                    config_pair[1],
+                    path_config.paths.expirements_path,
+                    path_config.paths.data_path,
+                    path_config.dir_names.logs_dir_name,
+                    device_str,
+                    True,
+                ),
             )
             p.start()
             active_processes.append(p)

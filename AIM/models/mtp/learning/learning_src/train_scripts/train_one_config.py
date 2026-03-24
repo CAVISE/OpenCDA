@@ -15,10 +15,8 @@ from torch.nn.utils.rnn import pad_sequence
 from typing import Optional, Tuple, Any, Dict
 from multiprocessing.connection import Connection
 
-from AIM.models.mtp.learning.data_path_config import DATA_PATH, Y_X_DISTR_FILE, Y_Y_DISTR_FILE, YAW_DICT_PATH
-from AIM.models.mtp.learning.learning_src.data_scripts.data_config import (
-    NUM_AUGMENTATION,
-)
+from AIM.models.mtp.learning.data_path_config import path_config
+from AIM.models.mtp.learning.learning_src.data_scripts.data_config import config
 from AIM.models.mtp.learning.learning_src.data_scripts.dataset import GnnCarDataset, TransformerCarDataset
 from AIM.models.mtp.learning.learning_src.data_scripts.metrics_logger import MetricLogger
 from .train_gnn import gnn_train_one_epoch, gnn_evaluate
@@ -260,7 +258,7 @@ def init_dataloaders(
             )
 
         else:
-            train_dataset = GnnCarDataset(preprocess_folder=train_data_dir, mlp=False, mpc_aug=(NUM_AUGMENTATION > 0))
+            train_dataset = GnnCarDataset(preprocess_folder=train_data_dir, mlp=False, mpc_aug=(config.data_processing.num_augmentation > 0))
             train_loader = GeometricDataLoader(
                 train_dataset,
                 batch_size=batch_size,
@@ -270,7 +268,7 @@ def init_dataloaders(
                 pin_memory=pin_memory,
             )
 
-            val_dataset = GnnCarDataset(preprocess_folder=val_data_dir, mlp=False, mpc_aug=(NUM_AUGMENTATION > 0))
+            val_dataset = GnnCarDataset(preprocess_folder=val_data_dir, mlp=False, mpc_aug=(config.data_processing.num_augmentation > 0))
             val_loader = GeometricDataLoader(
                 val_dataset,
                 batch_size=batch_size,
@@ -330,7 +328,7 @@ def load_yaw_dict() -> Dict[Any, Any]:
 
     :return: yaw dictionary with renamed keys
     """
-    with open(YAW_DICT_PATH, "rb") as f:
+    with open(path_config.paths.yaw_dict_path, "rb") as f:
         yaw_dict = pkl.load(f)
         rename = {
             "left_up": 10 * math.atan2(0, 1) + math.atan2(-1, 0),
@@ -553,7 +551,7 @@ def train_one_config(
     model_config_name = os.path.splitext(os.path.basename(model_config_path))[0]
     exp_id = f"{train_config_name}_{model_config_name}"
 
-    path_config = PathConfig(
+    exp_paths = PathConfig(
         expirements_path,
         data_path,
         exp_id,
@@ -563,9 +561,9 @@ def train_one_config(
         train_config.train_data_dir,
         train_config.val_data_dir,
     )
-    path_config.create_directories()
-    copy_file(train_config_path, path_config.copy_train_config_path)
-    copy_file(model_config_path, path_config.copy_model_config_path)
+    exp_paths.create_directories()
+    copy_file(train_config_path, exp_paths.copy_train_config_path)
+    copy_file(model_config_path, exp_paths.copy_model_config_path)
 
     try:
         device = torch.device(device_str)
@@ -593,8 +591,8 @@ def train_one_config(
     pin_memory = train_config.pin_memory
 
     train_loader, val_loader = init_dataloaders(
-        path_config.train_data_dir,
-        path_config.val_data_dir,
+        exp_paths.train_data_dir,
+        exp_paths.val_data_dir,
         train_config.batch_size,
         is_transformer=is_transformer,
         num_workers=num_workers,
@@ -604,17 +602,17 @@ def train_one_config(
     print(f"val_loader len: {len(val_loader)}")
 
     model, optimizer = init_model(
-        path_config.copy_model_config_path,
+        exp_paths.copy_model_config_path,
         train_config.optimizer,
         device,
         train_config.lr,
         train_config.weight_decay,
     )
 
-    with open(os.path.join(DATA_PATH, "csv", Y_X_DISTR_FILE), "rb") as f:
+    with open(os.path.join(path_config.paths.data_path, "csv", path_config.file_names.y_x_distr_file), "rb") as f:
         y_x_mean, y_x_std = pkl.load(f)
 
-    with open(os.path.join(DATA_PATH, "csv", Y_Y_DISTR_FILE), "rb") as f:
+    with open(os.path.join(path_config.paths.data_path, "csv", path_config.file_names.y_y_distr_file), "rb") as f:
         y_y_mean, y_y_std = pkl.load(f)
 
     min_ade = 1e6
@@ -623,14 +621,14 @@ def train_one_config(
     patience = 100
     record = []
 
-    loss_logger = MetricLogger(path_config.loss_logs_path, path_config.logs_plot_path, enable_plot=True)
+    loss_logger = MetricLogger(exp_paths.loss_logs_path, exp_paths.logs_plot_path, enable_plot=True)
     loss_logger.clear_file()
 
     metric_loggers = {}
     for metric in METRICS:
         metric_loggers[metric] = MetricLogger(
-            os.path.join(path_config.logs_dir, f"{metric}_logs.csv"),
-            os.path.join(path_config.logs_dir, f"{metric}_logs.png"),
+            os.path.join(exp_paths.logs_dir, f"{metric}_logs.csv"),
+            os.path.join(exp_paths.logs_dir, f"{metric}_logs.png"),
             enable_plot=True,
         )
         metric_loggers[metric].clear_file()
@@ -715,7 +713,7 @@ def train_one_config(
             torch.save(
                 model.state_dict(),
                 os.path.join(
-                    path_config.model_checkpoints_dir,
+                    exp_paths.model_checkpoints_dir,
                     f"model_{'wp' if collision_penalty else 'np'}_{exp_id}_{str(epoch).zfill(4)}.pth",
                 ),
             )
@@ -737,7 +735,7 @@ def train_one_config(
 
     if push_to_hf:
         best_model_path = os.path.join(
-            path_config.model_checkpoints_dir,
+            exp_paths.model_checkpoints_dir,
             f"model_{'wp' if collision_penalty else 'np'}_{exp_id}_{str(epochs - 1).zfill(4)}.pth",
         )
         best_state_dict = torch.load(best_model_path)

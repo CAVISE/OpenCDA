@@ -3,7 +3,7 @@ clear_exp_checkpoints: true
 collision_penalty: true
 collision_penalty_factor: 5
 dist_threshold: 0.04
-epoch: 800
+epoch: 50
 hf_project_path: kijjjj/test-model1
 lr: 1.0e-04
 metrics_log_epoch_frequency: 5

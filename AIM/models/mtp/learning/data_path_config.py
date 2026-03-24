@@ -1,30 +1,27 @@
-"""
-configuration file for data paths and file names
-
-this module defines all path constants used throughout the learning pipeline
-"""
-
 import os
+import yaml
 from pathlib import Path
+from types import SimpleNamespace
 
-MAIN_PATH = Path(__file__).resolve().parent
-DATA_PATH = os.path.join(MAIN_PATH, "data")
-SUMO_GENED_MAPS_PATH = os.path.join(DATA_PATH, "sumo_gened_maps")
-DATA_VIZUALIZATION_PATH = os.path.join(DATA_PATH, "vizualization")
-EXPIREMENTS_PATH = os.path.join(MAIN_PATH, "experements")
+_MAIN_PATH = Path(__file__).resolve().parent
 
-EXPIREMENTS_CONFIG_PATH = os.path.join(MAIN_PATH, "experements_configs")
-EXPIREMENTS_TRAIN_CONFIG_PATH = os.path.join(EXPIREMENTS_CONFIG_PATH, "train_configs")
-EXPIREMENTS_MODELS_CONFIG_PATH = os.path.join(EXPIREMENTS_CONFIG_PATH, "model_configs")
 
-BASE_TRAIN_CONFIG_PATH = os.path.join(EXPIREMENTS_CONFIG_PATH, "train_config.yaml")
-BASE_MODEL_CONFIG_PATH = os.path.join(EXPIREMENTS_CONFIG_PATH, "model_config.yaml")
-LOGS_DIR_NAME = "logs"
+def dict_to_namespace_data_path_config(d, base_path=_MAIN_PATH, paths_key=False):
+    ns = SimpleNamespace()
+    for k, v in d.items():
+        if isinstance(v, dict):
+            setattr(ns, k, dict_to_namespace_data_path_config(v, base_path, paths_key=(k == "paths")))
+        else:
+            if paths_key and isinstance(v, str):
+                setattr(ns, k, os.path.join(base_path, v))
+            else:
+                setattr(ns, k, v)
+    return ns
 
-Y_X_DISTR_FILE = "y_x_distr_file.pkl"
-Y_Y_DISTR_FILE = "y_y_distr_file.pkl"
 
-START_POSITIONS_FILE = "start_positions.csv"
-LAST_POSITIONS_FILE = "last_positions.csv"
+_config_path = Path(__file__).with_suffix(".yaml")
 
-YAW_DICT_PATH = os.path.join(MAIN_PATH, "../../../../opencda/assets/yaw_dict_10m.pkl")
+with open(_config_path, "r") as f:
+    cfg_dict = yaml.safe_load(f)
+
+path_config = dict_to_namespace_data_path_config(cfg_dict)

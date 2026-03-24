@@ -10,12 +10,7 @@ import xml.etree.ElementTree as ET
 from xml.etree.ElementTree import Element
 from tqdm import trange
 
-from .data_config import (
-    COLLECT_DATA_RADIUS,
-    OBS_LEN,
-    NUM_PREDICT,
-    SAMPLE_RATE,
-)
+from .data_config import config
 
 
 def get_shortest_path(net_path: str, from_edge: str, to_edge: str) -> str:
@@ -302,7 +297,7 @@ def generate_csv_from_fcd(
 
     start_cars_info = {}
     last_cars_info = {}
-    collect_data_radius = COLLECT_DATA_RADIUS * map_boundings
+    collect_data_radius = config.vehicle.collect_data_radius * map_boundings
 
     for t in trange(len(tracks)):  # each timestamp (0.1s)
         track = tracks[t]
@@ -333,7 +328,7 @@ def generate_csv_from_fcd(
         if len(df) == 0:
             continue
 
-        curr_time = df["TIMESTAMP"].max() - (NUM_PREDICT / SAMPLE_RATE)
+        curr_time = df["TIMESTAMP"].max() - (config.model.num_predict / config.temporal.sample_rate)
         max_time = int(df["TIMESTAMP"].max())
         min_time = max_time - time_per_scene
 
@@ -347,7 +342,7 @@ def generate_csv_from_fcd(
             norm_remain_df = remain_df.loc[mask, ["TIMESTAMP", "X", "Y", "yaw", "speed"]]
             norm_remain_df = norm_remain_df[norm_remain_df["TIMESTAMP"] >= min_time]
 
-            if len(norm_remain_df) < NUM_PREDICT + OBS_LEN:
+            if len(norm_remain_df) < config.model.num_predict + config.model.obs_len:
                 continue
 
             x, y = nearby_data[["X", "Y"]].values.reshape(-1)

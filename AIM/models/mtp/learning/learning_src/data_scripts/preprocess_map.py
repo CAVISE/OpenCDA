@@ -5,16 +5,7 @@ import xml.etree.ElementTree as ET
 from typing import Optional, Tuple
 from xml.etree.ElementTree import Element
 
-from .data_config import (
-    IMG_SHAPE,
-    BG_COLOR,
-    ROAD_COLOR,
-    ROAD_WIDTH_PX,
-    COLLECT_DATA_RADIUS,
-    MAP_IMG_NAME,
-    MAP_LANE_NAME,
-    MAP_PARTS_NAME,
-)
+from .data_config import config
 from .generate_csv_utils import get_map_bounding, get_entry_exit_edges, get_shortest_path, get_connection_via
 
 
@@ -48,10 +39,10 @@ def point2pixel(point: tuple[float, float], min: float, max: float) -> tuple[flo
 
     :return: pixel coordinates (px, py)
     """
-    scale = IMG_SHAPE / (max - min)
+    scale = config.image_map.img_shape / (max - min)
     px = point[0] * scale
     py = point[1] * scale
-    return (px + IMG_SHAPE / 2, py + IMG_SHAPE / 2)
+    return (px + config.image_map.img_shape / 2, py + config.image_map.img_shape / 2)
 
 
 def preprocess_map(net_file_path: str, output_dir: Optional[str] = None, save_png: bool = False) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -71,7 +62,7 @@ def preprocess_map(net_file_path: str, output_dir: Optional[str] = None, save_pn
     tree = ET.parse(net_file_path)
     root = tree.getroot()
 
-    main_img = Image.new("1", (IMG_SHAPE, IMG_SHAPE), BG_COLOR)
+    main_img = Image.new("1", (config.image_map.img_shape, config.image_map.img_shape), config.image_map.bg_color)
     main_draw = ImageDraw.Draw(main_img)
 
     map_parts_data_cannels = []
@@ -89,14 +80,19 @@ def preprocess_map(net_file_path: str, output_dir: Optional[str] = None, save_pn
                     points.append((x, y))
 
                 if len(set(points)) > 1:
-                    img = Image.new("1", (IMG_SHAPE, IMG_SHAPE), BG_COLOR)
+                    img = Image.new("1", (config.image_map.img_shape, config.image_map.img_shape), config.image_map.bg_color)
                     draw = ImageDraw.Draw(img)
 
                     pixel_points = list(
-                        map(lambda point: point2pixel(point, -map_bounding * COLLECT_DATA_RADIUS, map_bounding * COLLECT_DATA_RADIUS), points)
+                        map(
+                            lambda point: point2pixel(
+                                point, -map_bounding * config.vehicle.collect_data_radius, map_bounding * config.vehicle.collect_data_radius
+                            ),
+                            points,
+                        )
                     )
-                    draw.line(pixel_points, fill=ROAD_COLOR, width=ROAD_WIDTH_PX, joint="curve")
-                    main_draw.line(pixel_points, fill=ROAD_COLOR, width=ROAD_WIDTH_PX, joint="curve")
+                    draw.line(pixel_points, fill=config.image_map.road_color, width=config.image_map.road_width_px, joint="curve")
+                    main_draw.line(pixel_points, fill=config.image_map.road_color, width=config.image_map.road_width_px, joint="curve")
 
                     if output_dir is not None and save_png:
                         img.save(os.path.join(output_dir, f"part_{idx}.png"))
@@ -114,16 +110,16 @@ def preprocess_map(net_file_path: str, output_dir: Optional[str] = None, save_pn
 
     if output_dir is not None:
         np.save(
-            os.path.join(output_dir, MAP_PARTS_NAME),
+            os.path.join(output_dir, config.image_map.map_parts_name),
             part_level_data,
         )
 
         if save_png:
-            main_img.save(os.path.join(output_dir, f"{MAP_IMG_NAME}.png"))
+            main_img.save(os.path.join(output_dir, f"{config.image_map.map_img_name}.png"))
 
     map_level_data = np.array([(main_img, map_bounding)], dtype=MAP_MAP_DTYPE)
     if output_dir is not None:
-        np.save(os.path.join(output_dir, MAP_IMG_NAME), map_level_data)
+        np.save(os.path.join(output_dir, config.image_map.map_img_name), map_level_data)
 
     map_lanes_data_cannels = []
     map_lanes_data_shapes = []
@@ -134,7 +130,7 @@ def preprocess_map(net_file_path: str, output_dir: Optional[str] = None, save_pn
             path_str = get_shortest_path(net_file_path, start_edge, end_edge)
             path_edges = path_str.split(sep=" ")
 
-            img = Image.new("1", (IMG_SHAPE, IMG_SHAPE), BG_COLOR)
+            img = Image.new("1", (config.image_map.img_shape, config.image_map.img_shape), config.image_map.bg_color)
             draw = ImageDraw.Draw(img)
             all_points = []
 
@@ -153,12 +149,14 @@ def preprocess_map(net_file_path: str, output_dir: Optional[str] = None, save_pn
                         if len(set(points)) > 1:
                             pixel_points = []
                             for point in points:
-                                pixel_point = point2pixel(point, -map_bounding * COLLECT_DATA_RADIUS, map_bounding * COLLECT_DATA_RADIUS)
+                                pixel_point = point2pixel(
+                                    point, -map_bounding * config.vehicle.collect_data_radius, map_bounding * config.vehicle.collect_data_radius
+                                )
                                 pixel_points.append(pixel_point)
 
                                 if len(all_points) == 0 or ((all_points[-1][0] != point[0]) or (all_points[-1][1] != point[1])):
                                     all_points.append(point)
-                            draw.line(pixel_points, fill=ROAD_COLOR, width=ROAD_WIDTH_PX, joint="curve")
+                            draw.line(pixel_points, fill=config.image_map.road_color, width=config.image_map.road_width_px, joint="curve")
 
                 if i < len(path_edges) - 1:
                     next_edge = path_edges[i + 1]
@@ -178,11 +176,15 @@ def preprocess_map(net_file_path: str, output_dir: Optional[str] = None, save_pn
                                     via_pixel_points = []
 
                                     for point in via_points:
-                                        pixel_point = point2pixel(point, -map_bounding * COLLECT_DATA_RADIUS, map_bounding * COLLECT_DATA_RADIUS)
+                                        pixel_point = point2pixel(
+                                            point,
+                                            -map_bounding * config.vehicle.collect_data_radius,
+                                            map_bounding * config.vehicle.collect_data_radius,
+                                        )
                                         via_pixel_points.append(pixel_point)
                                         if len(all_points) == 0 or ((all_points[-1][0] != point[0]) or (all_points[-1][1] != point[1])):
                                             all_points.append(point)
-                                    draw.line(via_pixel_points, fill=ROAD_COLOR, width=ROAD_WIDTH_PX, joint="curve")
+                                    draw.line(via_pixel_points, fill=config.image_map.road_color, width=config.image_map.road_width_px, joint="curve")
 
             if output_dir is not None and save_png:
                 img.save(os.path.join(output_dir, f"lane_{idx}.png"))
@@ -196,7 +198,7 @@ def preprocess_map(net_file_path: str, output_dir: Optional[str] = None, save_pn
     lane_level_data = np.array([(np.array(map_lanes_data_cannels), map_lanes_data_shapes, map_bounding)], dtype=MAP_LANES_DTYPE)
     if output_dir is not None:
         np.save(
-            os.path.join(output_dir, MAP_LANE_NAME),
+            os.path.join(output_dir, config.image_map.map_lane_name),
             lane_level_data,
         )
     return part_level_data, lane_level_data, map_level_data

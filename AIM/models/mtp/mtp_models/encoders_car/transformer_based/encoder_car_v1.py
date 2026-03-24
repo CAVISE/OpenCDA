@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 
-from AIM.models.mtp.learning.learning_src.data_scripts.data_config import INPUT_VECTOR_SIZE, PRED_LEN, PREDICT_VECTOR_SIZE
+from AIM.models.mtp.learning.learning_src.data_scripts.data_config import config
 from AIM.models.mtp.mtp_models.transformer_utils.transformer_utils import SelfAttnBlock
 
 
@@ -24,7 +24,7 @@ class CarsEncoder(torch.nn.Module):
         super().__init__()
         assert hidden_channels % 2 == 0
 
-        self.linear1 = nn.Linear(INPUT_VECTOR_SIZE, hidden_channels // 2, bias=bias)
+        self.linear1 = nn.Linear(config.model.input_vector_size, hidden_channels // 2, bias=bias)
         self.linear2 = nn.Linear(hidden_channels // 2, hidden_channels, bias=bias)
         self.linear3 = nn.Linear(hidden_channels, hidden_channels, bias=bias)
         self.linear4 = nn.Linear(hidden_channels, hidden_channels, bias=bias)
@@ -74,7 +74,7 @@ class SimpleDecoder(torch.nn.Module):
         """
         super().__init__()
         self.mlp = nn.ModuleList([nn.Linear(input_channels, input_channels, bias=bias) for i in range(n_linear)])
-        self.out = nn.Linear(input_channels, PRED_LEN * PREDICT_VECTOR_SIZE)
+        self.out = nn.Linear(input_channels, config.model.pred_len * config.model.predict_vector_size)
         self.act = nn.GELU()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:

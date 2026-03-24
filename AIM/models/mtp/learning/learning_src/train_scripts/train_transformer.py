@@ -3,15 +3,7 @@ import random
 from typing import Tuple
 from torch.utils.data import DataLoader
 
-from AIM.models.mtp.learning.learning_src.data_scripts.data_config import (
-    ALLIGN_INITIAL_DIRECTION_TO_X,
-    NORMALIZE_DATA,
-    NUM_PREDICT,
-    ZSCORE_NORMALIZE,
-    PRED_LEN,
-    NUM_PREDICT_ON_PREDICT,
-    PREDICT_VECTOR_SIZE,
-)
+from AIM.models.mtp.learning.learning_src.data_scripts.data_config import config
 from AIM.models.mtp.learning.learning_src.data_scripts.preprocess_utils import (
     rotation_matrix_back_with_allign_to_X,
     rotation_matrix_with_allign_to_X,
@@ -68,10 +60,10 @@ def transformer_train_one_epoch(
 
     :return: average loss for epoch
     """
-    step_weights = torch.ones(PRED_LEN, device=device)
+    step_weights = torch.ones(config.model.pred_len, device=device)
     step_weights[:5] *= step_weights_factor
     step_weights[0] *= step_weights_factor
-    step_weights = step_weights.unsqueeze(0).unsqueeze(0)  # (1, 1, PRED_LEN)
+    step_weights = step_weights.unsqueeze(0).unsqueeze(0)  # (1, 1, config.model.pred_len)
 
     model.train()
     total_loss = 0
@@ -101,10 +93,10 @@ def transformer_train_one_epoch(
         idx = 0
         batch_loss = 0
 
-        while idx < (NUM_PREDICT_ON_PREDICT + 1):
+        while idx < (config.model.num_predict_on_predict + 1):
             if (
-                random.random() < epoch / epochs and epoch / epochs > start_prediction_time + (idx / NUM_PREDICT_ON_PREDICT) * 0.3
-            ):  # max of (idx / NUM_PREDICT_ON_PREDICT / 2) = 0.5
+                random.random() < epoch / epochs and epoch / epochs > start_prediction_time + (idx / config.model.num_predict_on_predict) * 0.3
+            ):  # max of (idx / config.model.num_predict_on_predict / 2) = 0.5
                 on_predictions = True
             else:
                 on_predictions = False
@@ -133,7 +125,7 @@ def transformer_train_one_epoch(
                 adjust_future_yaw_delta(dstart_yaw)
                 adjust_future_yaw_delta(dlast_yaw)
 
-                if NORMALIZE_DATA:
+                if config.data_processing.normalize_data:
                     normalize_yaw(dstart_yaw)
                     normalize_yaw(dlast_yaw)
 
@@ -158,8 +150,8 @@ def transformer_train_one_epoch(
 
             dout_coords = model(x, map_infos_batch, attn_mask_batch, map_attn_mask_batch)
             dout_coords = dout_coords.reshape(
-                dout_coords.shape[0], dout_coords.shape[1], PRED_LEN, PREDICT_VECTOR_SIZE
-            )  # [b, v, PRED_LEN, PREDICT_VECTOR_SIZE]
+                dout_coords.shape[0], dout_coords.shape[1], config.model.pred_len, config.model.predict_vector_size
+            )  # [b, v, config.model.pred_len, config.model.predict_vector_size]
 
             yaw_cur = yaws.detach().clone()
             yaw_base = x_global_batch[:, :, 3].detach().clone()
@@ -168,43 +160,43 @@ def transformer_train_one_epoch(
                 denormalize_yaw(yaw_base)
 
             # [x, y, v, yaw, acc, steering]
-            _dgt_coords = y_batch.reshape(y_batch.shape[0], y_batch.shape[1], NUM_PREDICT, 6)[:, :, :, [0, 1]]
+            _dgt_coords = y_batch.reshape(y_batch.shape[0], y_batch.shape[1], config.model.num_predict, 6)[:, :, :, [0, 1]]
             dgt_coords = _dgt_coords.clone()
 
-            if ALLIGN_INITIAL_DIRECTION_TO_X:
+            if config.data_processing.align_initial_direction_to_x:
                 rotations_back_current = rotation_matrix_back_with_allign_to_X(yaw_cur).to(device)
             else:
                 rotations_back_current = rotation_matrix_back_with_allign_to_Y(yaw_cur).to(device)
 
             if idx > 0:
-                if NORMALIZE_DATA and ZSCORE_NORMALIZE:
+                if config.data_processing.normalize_data and config.data_processing.zscore_normalize:
                     z_score_denormalize(dgt_coords[..., 0], y_x_mean, y_x_std)
                     z_score_denormalize(dgt_coords[..., 1], y_y_mean, y_y_std)
 
-                if ALLIGN_INITIAL_DIRECTION_TO_X:
+                if config.data_processing.align_initial_direction_to_x:
                     rotations_back_base = rotation_matrix_back_with_allign_to_X(yaw_base).to(device)
                     rotation_current = rotation_matrix_with_allign_to_X(yaw_cur).to(device)
                 else:
                     rotations_back_base = rotation_matrix_back_with_allign_to_Y(yaw_base).to(device)
                     rotation_current = rotation_matrix_with_allign_to_Y(yaw_cur).to(device)
 
-                dgt_coords = dgt_coords.permute(0, 1, 3, 2)  # [b, v, 2, NUM_PREDICT]
+                dgt_coords = dgt_coords.permute(0, 1, 3, 2)  # [b, v, 2, config.model.num_predict]
                 dgt_coords = rotations_back_base @ dgt_coords
                 dgt_coords = dgt_coords + (x_global_batch[:, :, [0, 1]].unsqueeze(-2) - x_global[:, :, [0, 1]].unsqueeze(-2)).permute(0, 1, 3, 2)
                 dgt_coords = (rotation_current @ dgt_coords).permute(0, 1, 3, 2)
 
                 # Renormalize back to z-score space for loss computation
-                if NORMALIZE_DATA and ZSCORE_NORMALIZE:
+                if config.data_processing.normalize_data and config.data_processing.zscore_normalize:
                     z_score_normalize(dgt_coords[..., 0], y_x_mean, y_x_std)
                     z_score_normalize(dgt_coords[..., 1], y_y_mean, y_y_std)
-            dgt_coords = dgt_coords[:, :, idx : PRED_LEN + idx, :]  # [b, v, PRED_LEN, 2]
+            dgt_coords = dgt_coords[:, :, idx : config.model.pred_len + idx, :]  # [b, v, config.model.pred_len, 2]
 
             # Both dgt_coords and dout_coords are in z-score normalized space for loss computation
             error = (((dgt_coords - dout_coords) * attn_mask_batch[:, 0, 0].unsqueeze(-1).unsqueeze(-1)).square().sum(-1) * step_weights).sum(-1)
             loss = (weights_batch * error)[attn_mask_batch[:, 0, 0]].nanmean()
 
             # Denormalize dout_coords from z-score for use in next iteration (now in min-max normalized space)
-            if NORMALIZE_DATA and ZSCORE_NORMALIZE:
+            if config.data_processing.normalize_data and config.data_processing.zscore_normalize:
                 z_score_denormalize(dout_coords[..., 0], y_x_mean, y_x_std)
                 z_score_denormalize(dout_coords[..., 1], y_y_mean, y_y_std)
 
@@ -280,10 +272,10 @@ def transformer_evaluate(
 
     :return: tuple of (ade, fde, mr, collision_rate, val_loss, collision_penalty)
     """
-    step_weights = torch.ones(PRED_LEN, device=device)
+    step_weights = torch.ones(config.model.pred_len, device=device)
     step_weights[:5] *= step_weights_factor
     step_weights[0] *= step_weights_factor
-    step_weights = step_weights.unsqueeze(0).unsqueeze(0)  # (1, 1, PRED_LEN)
+    step_weights = step_weights.unsqueeze(0).unsqueeze(0)  # (1, 1, config.model.pred_len)
 
     model.eval()
     ade, fde, mr = [], [], []
@@ -314,10 +306,10 @@ def transformer_evaluate(
             on_predictions = False
             idx = 0
 
-            while idx < (NUM_PREDICT_ON_PREDICT + 1):
+            while idx < (config.model.num_predict_on_predict + 1):
                 if (
-                    random.random() < epoch / epochs and epoch / epochs > start_prediction_time + (idx / NUM_PREDICT_ON_PREDICT) * 0.3
-                ):  # max of (idx / NUM_PREDICT_ON_PREDICT / 2) = 0.5
+                    random.random() < epoch / epochs and epoch / epochs > start_prediction_time + (idx / config.model.num_predict_on_predict) * 0.3
+                ):  # max of (idx / config.model.num_predict_on_predict / 2) = 0.5
                     on_predictions = True
                 else:
                     on_predictions = False
@@ -344,7 +336,7 @@ def transformer_evaluate(
                     adjust_future_yaw_delta(dstart_yaw)
                     adjust_future_yaw_delta(dlast_yaw)
 
-                    if NORMALIZE_DATA:
+                    if config.data_processing.normalize_data:
                         normalize_yaw(dstart_yaw)
                         normalize_yaw(dlast_yaw)
 
@@ -369,8 +361,8 @@ def transformer_evaluate(
 
                 dout_coords = model(x, map_infos_batch, attn_mask_batch, map_attn_mask_batch)
                 dout_coords = dout_coords.reshape(
-                    dout_coords.shape[0], dout_coords.shape[1], PRED_LEN, PREDICT_VECTOR_SIZE
-                )  # [b, v, PRED_LEN, PREDICT_VECTOR_SIZE]
+                    dout_coords.shape[0], dout_coords.shape[1], config.model.pred_len, config.model.predict_vector_size
+                )  # [b, v, config.model.pred_len, config.model.predict_vector_size]
 
                 yaw_cur = yaws.clone()
                 yaw_base = x_global_batch[:, :, 3].clone()
@@ -379,36 +371,36 @@ def transformer_evaluate(
                     denormalize_yaw(yaw_base)
 
                 # [x, y, v, yaw, acc, steering]
-                _dgt_coords = y_batch.reshape(y_batch.shape[0], y_batch.shape[1], NUM_PREDICT, 6)[:, :, :, [0, 1]]
+                _dgt_coords = y_batch.reshape(y_batch.shape[0], y_batch.shape[1], config.model.num_predict, 6)[:, :, :, [0, 1]]
                 dgt_coords = _dgt_coords.clone()
 
-                if ALLIGN_INITIAL_DIRECTION_TO_X:
+                if config.data_processing.align_initial_direction_to_x:
                     rotations_back_current = rotation_matrix_back_with_allign_to_X(yaw_cur).to(device)
                 else:
                     rotations_back_current = rotation_matrix_back_with_allign_to_Y(yaw_cur).to(device)
 
                 if idx > 0:
-                    if NORMALIZE_DATA and ZSCORE_NORMALIZE:
+                    if config.data_processing.normalize_data and config.data_processing.zscore_normalize:
                         z_score_denormalize(dgt_coords[..., 0], y_x_mean, y_x_std)
                         z_score_denormalize(dgt_coords[..., 1], y_y_mean, y_y_std)
 
-                    if ALLIGN_INITIAL_DIRECTION_TO_X:
+                    if config.data_processing.align_initial_direction_to_x:
                         rotations_back_base = rotation_matrix_back_with_allign_to_X(yaw_base).to(device)
                         rotation_current = rotation_matrix_with_allign_to_X(yaw_cur).to(device)
                     else:
                         rotations_back_base = rotation_matrix_back_with_allign_to_Y(yaw_base).to(device)
                         rotation_current = rotation_matrix_with_allign_to_Y(yaw_cur).to(device)
 
-                    dgt_coords = dgt_coords.permute(0, 1, 3, 2)  # [b, v, 2, NUM_PREDICT]
+                    dgt_coords = dgt_coords.permute(0, 1, 3, 2)  # [b, v, 2, config.model.num_predict]
                     dgt_coords = rotations_back_base @ dgt_coords
                     dgt_coords = dgt_coords + (x_global_batch[:, :, [0, 1]].unsqueeze(-2) - x_global[:, :, [0, 1]].unsqueeze(-2)).permute(0, 1, 3, 2)
                     dgt_coords = (rotation_current @ dgt_coords).permute(0, 1, 3, 2)
 
                     # Renormalize back to z-score space for loss computation
-                    if NORMALIZE_DATA and ZSCORE_NORMALIZE:
+                    if config.data_processing.normalize_data and config.data_processing.zscore_normalize:
                         z_score_normalize(dgt_coords[..., 0], y_x_mean, y_x_std)
                         z_score_normalize(dgt_coords[..., 1], y_y_mean, y_y_std)
-                dgt_coords = dgt_coords[:, :, idx : PRED_LEN + idx, :]  # [b, v, PRED_LEN, 2]
+                dgt_coords = dgt_coords[:, :, idx : config.model.pred_len + idx, :]  # [b, v, config.model.pred_len, 2]
 
                 # Both dgt_coords and dout_coords are in z-score normalized space for loss computation
                 _error = ((dgt_coords - dout_coords) * attn_mask_batch[:, 0, 0].unsqueeze(-1).unsqueeze(-1)).square().sum(-1)
@@ -417,7 +409,7 @@ def transformer_evaluate(
                 val_losses.append(val_loss)
 
                 # Denormalize dout_coords from z-score for use in next iteration (now in min-max normalized space)
-                if NORMALIZE_DATA and ZSCORE_NORMALIZE:
+                if config.data_processing.normalize_data and config.data_processing.zscore_normalize:
                     z_score_denormalize(dgt_coords[..., 0], y_x_mean, y_x_std)
                     z_score_denormalize(dgt_coords[..., 1], y_y_mean, y_y_std)
                     z_score_denormalize(dout_coords[..., 0], y_x_mean, y_x_std)
