@@ -31,17 +31,27 @@ class MTP(AIMModel):
         """
         super().__init__()
 
-        self._models: Dict[str, Any] = {"GNN_mtl_gnn": GNN_mtl_gnn}
+        self._models: Dict[str, Any] = {
+            "GNN_mtl_gnn": GNN_mtl_gnn,
+        }
 
-        self.device: torch.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        self.device: torch.device = torch.device(
+            "cuda:0" if torch.cuda.is_available() else "cpu"
+        )
 
         hidden_channels: int = kwargs.get("hidden_channels", 128)
         underling_model: str = kwargs.get("underling_model", "GNN_mtl_gnn")
-        weight: str = kwargs.get("weights", "model_rot_gnn_mtl_np_sumo_0911_e3_1930.pth")
+        weight: str = kwargs.get(
+            "weights", "model_rot_gnn_mtl_np_sumo_0911_e3_1930.pth"
+        )
 
-        self.model: torch.nn.Module = self._models[underling_model](hidden_channels=hidden_channels)
+        self.model: torch.nn.Module = self._models[underling_model](
+            hidden_channels=hidden_channels
+        )
 
-        weights_path = files(__package__).joinpath(f"{underling_model}/weights/{weight}")
+        weights_path = files(__package__).joinpath(
+            f"{underling_model}/weights/{weight}"
+        )
 
         checkpoint = torch.load(weights_path, map_location=torch.device("cpu"))
 
@@ -49,7 +59,11 @@ class MTP(AIMModel):
         self.model = self.model.to(self.device)
         self.model.eval()
 
-    def predict(self, features: np.ndarray, target_agent_ids: List[str]) -> torch.Tensor:
+    def predict(
+        self,
+        features: np.ndarray,
+        target_agent_ids: List[str],
+    ) -> torch.Tensor:
         """
         Predict future trajectories.
 
@@ -67,13 +81,19 @@ class MTP(AIMModel):
         """
         num_agents: int = features.shape[0]
 
-        edge_index: torch.Tensor = torch.tensor([[i, j] for i in range(num_agents) for j in range(num_agents)]).T.to(self.device)
+        edge_index: torch.Tensor = torch.tensor(
+            [[i, j] for i in range(num_agents) for j in range(num_agents)]
+        ).T.to(self.device)
 
+        # Transform coordinates and make a model prediction
         self._transform_sumo2carla(features)
 
         x_tensor: torch.Tensor = torch.tensor(features).float().to(self.device)
 
-        predictions: torch.Tensor = self.model(x_tensor[:, [0, 1, 4, 5, 6]], edge_index)
+        predictions: torch.Tensor = self.model(
+            x_tensor[:, [0, 1, 4, 5, 6]],
+            edge_index,
+        )
 
         return predictions
 
@@ -81,6 +101,8 @@ class MTP(AIMModel):
     def _transform_sumo2carla(states: np.ndarray) -> None:
         """
         In-place transform from SUMO to CARLA coordinates.
+
+        [x_carla, y_carla, yaw_carla] = [x_sumo, -y_sumo, yaw_sumo - 90]
 
         Parameters
         ----------
@@ -94,9 +116,7 @@ class MTP(AIMModel):
         """
         if states.ndim == 1:
             states[1] = -states[1]
-            states[3] -= np.deg2rad(90)
         elif states.ndim == 2:
             states[:, 1] = -states[:, 1]
-            states[:, 3] -= np.deg2rad(90)
         else:
-            raise NotImplementedError
+            raise NotImplementedError("Unsupported input shape for states.")
