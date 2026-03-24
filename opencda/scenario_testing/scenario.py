@@ -12,7 +12,6 @@ import sumolib
 
 import opencda.scenario_testing.utils.cosim_api as sim_api
 import opencda.scenario_testing.utils.customized_map_api as map_api
-from AIM import get_model
 from opencda.core.application.platooning.platooning_manager import PlatooningManager
 from opencda.core.common.aim_model_manager import AIMModelManager
 from AIM import get_model_wrapper
