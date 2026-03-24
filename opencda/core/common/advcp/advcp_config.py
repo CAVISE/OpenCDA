@@ -138,6 +138,13 @@ class AdvCPConfigLoader:
             "defense_threshold": 0.7,
             "attack_parameters": {"dense": 3, "sync": 1, "advshape": 1},
             "defense_parameters": {"threshold": 0.7, "method": "perception"},
+            # Visualization settings
+            "advcp_vis": False,
+            "advcp_vis_mode": "matplotlib",
+            "advcp_vis_save": True,
+            "advcp_vis_show": False,
+            "advcp_vis_output_dir": "simulation_output/advcp_vis",
+            "advcp_vis_types": ["attack", "defense"],
         }
 
     def load_from_args(self, args: Dict[str, Any]) -> Dict[str, Any]:
