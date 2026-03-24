@@ -8,7 +8,6 @@ Provides:
 """
 
 import importlib
-from typing import Callable, Iterable
 
 from .aim_model import AIMModel
 from .registry import ModelRegistry
@@ -16,7 +15,7 @@ from .registry import ModelRegistry
 # Initialize model discovery
 importlib.import_module("AIM.models")
 
-get_model: Callable = ModelRegistry.get_model
-list_models: Callable[[], Iterable[str]] = ModelRegistry.list_models
+get_model = ModelRegistry.get_model
+list_models = ModelRegistry.list_models
 
 __all__ = ["AIMModel", "get_model", "list_models"]
