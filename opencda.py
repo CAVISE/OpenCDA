@@ -90,10 +90,9 @@ def arg_parse() -> argparse.Namespace:
         help="Define the name of the scenario you want to test. Notice, this only has effect on configurations that are picked up by scenario",
     )
     parser.add_argument("--record", action="store_true", help="Whether to record and save the simulation process to .log file")
-    # NOTICE: temporary disabled until we update yolo models.
-    # parser.add_argument("--apply-ml", action='store_true',
-    #                     help='whether ml/dl framework such as sklearn/pytorch is needed in the testing. '
-    #                          'Set it to true only when you have installed the pytorch/sklearn package.')
+    parser.add_argument("--apply-ml", action='store_true',
+                        help='whether ml/dl framework such as sklearn/pytorch is needed in the testing. '
+                             'Set it to true only when you have installed the pytorch/sklearn package.')
     parser.add_argument(
         "-v", "--version", type=str, default="0.9.15", help="Specify the CARLA simulator version (this does not have any effect in our fork)"
     )
@@ -311,7 +310,7 @@ def main() -> None:
     scene_dict = omegaconf.OmegaConf.merge(default_dict, scene_dict)
 
     # NOTICE: temporary measure (while option is turned off)
-    opt.apply_ml = False
+    # opt.apply_ml = False
 
     if opt.with_coperception:
         opencood_utils = "opencood/utils/"
