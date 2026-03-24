@@ -37,7 +37,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y protobuf-compiler libprotobuf-dev pkg-config
       - name: Install Dependencies
-        run: pip install mypy mypy-protobuf grpcio-tools cmake ninja protobuf numpy pybind11
+        run: pip install mypy mypy-protobuf cmake ninja protobuf numpy pybind11
       - name: Generate protobufs modules
         run: |
           cmake -B build -G Ninja -DOPENCDA_BUILD_CUDA=OFF -DOPENCDA_BUILD_CYTHON=OFF -DOPENCDA_BUILD_PROTOBUF=ON
