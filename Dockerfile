@@ -3,10 +3,6 @@ FROM docker.io/nvidia/cuda:12.8.1-cudnn-devel-ubuntu24.04@sha256:24c8e3581ea6330
 ARG USER=opencda
 ARG UID=1000 # default uid
 ARG HOME=/home/${USER}
-
-# CUDA architecture for CMake builds
-ARG CUDA_ARCH=86
-ENV CMAKE_CUDA_ARCHITECTURES=${CUDA_ARCH}
 ENV TORCH_CUDA_ARCH_LIST="8.6"
 
 RUN userdel -r ubuntu && useradd -l -m -u ${UID} -s /bin/bash ${USER} -d ${HOME}
