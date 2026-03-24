@@ -1,123 +1,265 @@
-# OpenCDA
-[![Build Status](https://travis-ci.com/ucla-mobility/OpenCDA.svg?branch=develop)](https://travis-ci.com/ucla-mobility/OpenCDA)
-[![Coverage Status](https://coveralls.io/repos/github/ucla-mobility/OpenCDA/badge.svg?branch=feature/readme_revise)](https://coveralls.io/github/ucla-mobility/OpenCDA?branch=feature/readme_revise)
-[![Documentation Status](https://readthedocs.org/projects/opencda-documentation/badge/?version=latest)](https://opencda-documentation.readthedocs.io/en/latest/?badge=latest)
+# <img src="https://raw.githubusercontent.com/Haralishev77/Haralishev77/main/CAVISE-square-logo.png" alt="CAVISE" width="28" style="border-radius: 6px;" /> OpenCDA (CAVISE Fork)
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Haralishev77/Haralishev77/main/CAVISE.png" alt="CAVISE banner" width="100%" />
+</p>
 
-OpenCDA is an open co-simulation-based **research/engineering framework** integrated with prototype cooperative driving automation (CDA; see [SAE J3216](https://www.sae.org/standards/content/j3216_202005/)) pipelines as well as regular automated driving components (e.g., perception, localization, planning, control).  It not only enables CDA evaluation in a CARLA + SUMO co-simulation environment but also provides a rich library of source codes of CDA research pipelines.
+OpenCDA is a research and engineering framework for cooperative driving automation built on top of CARLA and SUMO.
 
-In collaboration with  [U.S.DOT CDA Research](https://its.dot.gov/cda/) and the [FHWA CARMA Program](https://highways.dot.gov/research/operations/CARMA), OpenCDA, as an open-source project, is designed and built to support <strong>early-stage fundamental research </strong>  for CDA research and development. Through collaboration with CARMA Collaborative, this tool provides a unique capability to the CDA research community and will interface with the [CARMA XiL tools](https://github.com/usdot-fhwa-stol/carma-simulation) being developed by U.S.DOT to support more advanced simulation testing of CDA Features.
+This repository is a fork of the original OpenCDA project. The upstream repository is available at [ucla-mobility/OpenCDA](https://github.com/ucla-mobility/OpenCDA).
 
+## 🧭 Overview
 
-The key features of OpenCDA are:
-* <strong> Research Pipeline </strong>: OpenCDA provides rich research pipelines (i.e., open-source codes for basic and advanced CDA modules, such as platooning, cooperative perception).
-* <strong>Integration</strong>: OpenCDA utilizes CARLA and SUMO separately, as well as integrates them together.
-* <strong> Full-stack Simulation</strong>: OpenCDA provides a simple prototype automated driving and cooperative driving platform, <strong>all in Python</strong>, that contains perception, localization, planning, control, and V2X communication modules.
-* <strong>Modularity</strong>: OpenCDA is highly modularized.
-* <strong>Benchmark</strong>: OpenCDA offers benchmark testing scenarios, benchmark baseline maps, state-of-the-art benchmark algorithms, and benchmark evaluation metrics.
-* <strong>Connectivity and Cooperation</strong>: OpenCDA supports various levels and categories of cooperation between CAVs in simulation. This differentiates OpenCDA from other single vehicle simulation tools.
+The upstream project already provides YAML-driven scenario execution, CARLA-only and CARLA + SUMO co-simulation modes, and cooperative driving applications such as platooning. This fork adds the CAVISE-specific integration layer:
 
+- Artery-based V2X communication
+- cooperative perception pipelines backed by bundled OpenCOOD models
+- CAPI v2 as the data exchange interface between OpenCDA and Artery for more realistic signal propagation simulation
+- AIM-based cooperative driving integration through `--with-mtp` and the scenario `aim:` configuration block
 
-Users could refer to [OpenCDA documentation](https://opencda-documentation.readthedocs.io/en/latest/) for more details.
+## ✅ Requirements
 
-## What's New
-### March 2023
-* OpenCDA now supports Docker Installation! Many thanks to @GoodarzMehr!
-* OpenCDA has make the configuration system better! We provide a `default.yaml` as a template for all scenarios. Users now can
-only change the parts that are different from the default parameters, which makes the configuration file much cleaner.
+For full installation and launch instructions, use the CAVISE wiki:
 
-### Jan 2023
-* Our paper [The OpenCDA Open-source Ecosystem for Cooperative Driving Automation Research](https://ieeexplore.ieee.org/document/10045043)
-has been accepted by **IEEE Transactions on Intelligent Vehicles**. We extend the scope of the original OpenCDA simulation framework to a
-ecosystem, which contains a model zoo, a suite of driving simulators at various resolutions, large-scale real-world and simulated datasets, complete devel-opment toolkits for benchmark training/testing, and a scenario database/generator.
-### July 2022
-* Powered by OpenCDA, our paper [V2X-ViT: Vehicle-to-Everything Cooperative
-Perception with Vision Transformer](https://arxiv.org/pdf/2203.10638.pdf) has been accepted by **ECCV2022**! Check the codebase [v2x-vit](https://github.com/DerrickXuNu/v2x-vit) if interested.
-### March 2022
-* HD Map manager is online! It currently supports generating rasterization map that includes road topology, traffic light info, and dynamic objects around each cav in real-time. This can be
-used for RL planning, HD Map learning, scene understanding, etc.
+- [Install & Launch](https://github.com/CAVISE/CAVISE/wiki/Install&Launch)
 
-### Feb 2022
-* Our paper [*OPV2V: An Open Benchmark Dataset and Fusion Pipeline for Perception with Vehicle-to-Vehicle Communication*](https://arxiv.org/abs/2109.07644)
-  has been accepted by ICRA 2022! It utilizes  the offline Cooperative Perception(data dumping) function in OpenCDA. Check the benchmark codebase [OpenCOOD](https://github.com/DerrickXuNu/OpenCOOD) of OPV2V if interested.
-### Oct 2021
- * CARLA 0.9.12 now supported; Different weather conditions are supported.
- * Better traffic management supported: users now can set a customized range to background cars.
+At a high level, the current fork expects:
 
+- CARLA `0.9.16`
+- Python `3.10` or higher
+- PyTorch environment for cooperative perception and AIM/MTP workflows
 
-## Major Components
-![teaser](docs/md_files/images/OpenCDA_new_diagrams.png)
+Optional integrations:
 
-OpenCDA  consists of four major component: <strong>Cooperative Driving System</strong>,  <strong>Co-Simulation Tools</strong>, <strong>Data Manager and Repository</strong>,
-and  <strong>Scenario Manager</strong>.
+- Artery for `--with-capi`
 
-Check the [OpenCDA Introduction](https://opencda-documentation.readthedocs.io/en/latest/md_files/introduction.html) for more details.
+This fork is intended to run inside the CAVISE Docker environment. Use the CAVISE wiki as the source of truth for environment bootstrapping, service orchestration, and launch steps.
 
+Running this fork outside Docker has not been tested.
 
-## Get Started
+## 🚀 Quick Start
 
- ![teaser](docs/md_files/images/platoon_joining_2lanefree_complete.gif)
+The canonical environment setup is documented in the CAVISE wiki:
 
+- [Quick Start / Install & Launch](https://github.com/CAVISE/CAVISE/wiki/Install&Launch)
 
-### Users Guide
-* [Overview](https://opencda-documentation.readthedocs.io/en/latest/md_files/introduction.html)
-* [Installation](https://opencda-documentation.readthedocs.io/en/latest/md_files/installation.html)
-* [Quick Start](https://opencda-documentation.readthedocs.io/en/latest/md_files/getstarted.html)
-* [Logic Flow](https://opencda-documentation.readthedocs.io/en/latest/md_files/logic_flow.html)
-* [Traffic Generation](https://opencda-documentation.readthedocs.io/en/latest/md_files/traffic_generation.html)
+The commands below assume the CAVISE containerized setup from the wiki.
 
+Typical OpenCDA commands in this repository:
 
-Note: We continuously improve the performance of OpenCDA. Currently, it is mainly tested in our customized maps and
- Carla town06 map; therefore, we <strong>DO NOT </strong> guarantee the same level of  robustness in other maps.
+```bash
+# Run a CARLA-only scenario
+python opencda.py -t v2xp_datadump_town06_carla
 
-### Developer Guide
+# Run a CARLA + SUMO co-simulation scenario
+python opencda.py -t v2xp_datadump_town06_carla --cosim
 
-*  [Class Design](https://opencda-documentation.readthedocs.io/en/latest/md_files/developer_tutorial.html)
-*  [Customize Your Algorithms](https://opencda-documentation.readthedocs.io/en/latest/md_files/customization.html)
-*  [API Reference](https://opencda-documentation.readthedocs.io/en/latest/modules.html) <br>
-
-
-### Contribution Rule
-We welcome your contributions.
-- Please report bugs and improvements by submitting issues.
-- Submit your contributions using [pull requests](https://github.com/ucla-mobility/OpenCDA/pulls).
- Please use [this template](.github/PR_TEMPLATE.md) for your pull requests.
-
-
-
-## Citation
- If you are using our OpenCDA framework or codes for your development, please cite the following paper:
- ```bibtex
-@inproceedings{xu2021opencda,
-  title={OpenCDA: an open cooperative driving automation framework integrated with co-simulation},
-  author={Xu, Runsheng and Guo, Yi and Han, Xu and Xia, Xin and Xiang, Hao and Ma, Jiaqi},
-  booktitle={2021 IEEE International Intelligent Transportation Systems Conference (ITSC)},
-  pages={1155--1162},
-  year={2021},
-  organization={IEEE}
-}
+# Run a scenario with cooperative perception
+python opencda.py -t v2xp_datadump_town06_carla --with-coperception \
+--model-dir opencda/coperception_models/pointpillar-where2comm-intermediate-v2xsim-50 --fusion-method intermediate
 ```
-The arxiv link to the paper:  https://arxiv.org/abs/2107.06260
 
-Also, under this LICENSE, OpenCDA is for non-commercial research only. Researchers can modify the source code for their own research only. Contracted work that generates corporate revenues and other general commercial use are prohibited under this LICENSE. See the LICENSE file for details and possible opportunities for commercial use.
+Useful notes:
 
-## Contributors
-OpenCDA is mainly supported by the [UCLA Mobility Lab](https://mobility-lab.seas.ucla.edu/). <br>
+- Scenario configurations live in [`opencda/scenario_testing/config_yaml`](opencda/scenario_testing/config_yaml).
+- [`opencda/scenario_testing/config_yaml/default.yaml`](opencda/scenario_testing/config_yaml/default.yaml) is the shared base configuration loaded for every scenario.
+- `--carla-host` defaults to `carla` in the containerized setup.
+- When running OpenCDA inside the container against CARLA on Windows, use `--carla-host host.docker.internal` as documented in the CAVISE wiki.
 
-### Lab Principal Investigator:
-- Dr. Jiaqi Ma ([linkedin](https://www.linkedin.com/in/jiaqi-ma-17037838/),
-               [UCLA Samueli](https://samueli.ucla.edu/people/jiaqi-ma/))
+## 🛠️ Usage
 
-### Project Lead: <br>
- - Runsheng Xu ([linkedin](https://www.linkedin.com/in/runsheng-xu/), [github](https://github.com/DerrickXuNu))  <br>
+The main entry point is:
 
-### Team Members:
- - Xu Han ([linkedin](https://linkedin.com/in/xu-han-12851a64), [github](https://github.com/xuhan417))
- - Hao Xiang ([linkedin](https://www.linkedin.com/in/hao-xiang-42bb5a1b2/), [github](https://github.com/XHwind))
- - Zhaoliang Zheng([linkedin](https://www.linkedin.com/in/zhaoliang-zheng-905532171/)
- - Zonglin Meng([linkedin](https://www.linkedin.com/in/zonglin-meng-a393b31ab/)
- - Dr. Xin Xia ([linkedin](https://www.linkedin.com/in/yi-guo-4008baaa/))
+```bash
+python3 opencda.py -t <scenario_name> [options]
+```
 
-### External Contributor Acknowledgements
-- We would  like to acknowledge the great contributions from UC Davis Professor [Junshan Zhang's](https://faculty.engineering.ucdavis.edu/jzhang/) group,  particularly to Dr. [Wei Shao](https://scholar.google.com.au/citations?user=zbqNhWwAAAAJ&hl=en), who played a crucial role in this collaboration. Their expertise enabled the seamless integration of openScenario with OpenCDA.
-- We would like to thank @GoodarzMehr for his outstanding contribution in creating the OpenCDA Dockerfile.
+Scenario files are loaded from [`opencda/scenario_testing/config_yaml`](opencda/scenario_testing/config_yaml). OpenCDA loads `default.yaml` together with `opencda/scenario_testing/config_yaml/<scenario>.yaml`.
+
+### ⚙️ Core options
+
+- `-t, --test-scenario`: Define the name of the scenario you want to test. Notice, this only has effect on configurations that are picked up by scenario
+- `--record`: Whether to record and save the simulation process to .log file
+- `-v, --version`: Specify the CARLA simulator version (this does not have any effect in our fork)
+- `--free-spectator`: Enable free movement for the spectator camera.
+- `--ticks`: number of simulation ticks to execute
+- `--verbose`: Specifies overall verbosity of output.
+
+### 🧪 Simulation backend
+
+- `-x, --xodr`: Run simulation using a custom map from an XODR file.
+- `-c, --cosim`: Enable co-simulation with SUMO.
+- `--carla-host`: IP address or hostname of the CARLA server (default: 'carla')
+- `--carla-timeout`: Timeout of the CARLA server response in seconds (default: 30.0)
+
+### 📡 CAPI v2 / Artery integration
+
+CAPI v2 is the data exchange interface between OpenCDA and Artery. In this fork it is used to exchange OpenCDA and Artery data for more realistic signal propagation simulation.
+
+- `--with-capi`: wether to run a communication manager instance in this simulation.
+- `--artery-host`: IP address or hostname and port of the Artery server (default: 'artery:7777')
+- `--artery-send-timeout`: Maximum time to send a message to the Artery server, in seconds (default: 5.0).
+- `--artery-receive-timeout`: Maximum time to wait for a reply from the Artery server, in seconds (default: 300.0).
+
+### 👀 Cooperative perception
+
+- `--with-coperception`: Whether to enable the use of cooperative perception models in this simulation.
+- `--model-dir`: Continued training path
+- `--fusion-method`: late, early or intermediate
+- `--show-vis`: whether to show image visualization result
+- `--show-sequence`: whether to show video visualization result. It can not be set true with show_vis together.
+- `--save-vis`: whether to save visualization result
+- `--save-npy`: whether to save prediction and gt result in npy_test file
+- `--global-sort-detections`: whether to globally sort detections by confidence score.If set to True, it is the mainstream AP computing method,but would increase the tolerance for FP (False Positives).
+
+Example:
+
+```bash
+python3 opencda.py \
+  -t 2cars_2rsu_coperception \
+  --with-coperception \
+  --model-dir opencda/coperception_models/pointpillar-late-opv2v-30 \
+  --fusion-method late \
+  --save-vis
+```
+
+### 🤝 AIM
+
+AIM is the cooperative driving module used by `--with-mtp`. The scenario YAML can define its parameters in the `aim:` block, for example in [`opencda/scenario_testing/config_yaml/codriving_check.yaml`](opencda/scenario_testing/config_yaml/codriving_check.yaml).
+
+- `--with-mtp`: Whether to enable the use of cooperative driving models in this simulation.
+- `--mtp-config`: Define configuration of cooperative driving model.
+
+Example:
+
+```bash
+python3 opencda.py -t codriving_check --cosim --with-mtp
+```
+
+### 📁 Output directories
+
+- `simulation_output/data_dumping/`: recorder logs and scenario dumps
+- `simulation_output/coperception/`: cooperative perception predictions, visualizations, and results
+
+## 🧱 Architecture / How It Works
+
+The current fork is organized around a scenario runner that turns YAML configuration into a live simulation.
+
+### 🔄 Execution flow
+
+1. `opencda.py` parses CLI arguments and loads `default.yaml` together with the selected scenario YAML.
+2. A `CavWorld` instance holds shared runtime state and model managers.
+3. `ScenarioManager` or `CoScenarioManager` constructs the CARLA-only or CARLA + SUMO simulation.
+4. Vehicle, platoon, RSU, and background traffic managers are created from the scenario definition.
+5. Each tick updates sensing, localization, planning, control, communication, and optional ML modules.
+6. At shutdown, evaluation artifacts and optional recorder outputs are written to `simulation_output/`.
+
+### ✨ Key capabilities in this fork
+
+- YAML-first scenario definition with a shared baseline config in [`opencda/scenario_testing/config_yaml/default.yaml`](opencda/scenario_testing/config_yaml/default.yaml)
+- single-vehicle, platooning, intersection, RSU, and cooperative perception scenarios
+- CARLA traffic manager support and SUMO-backed co-simulation
+- full-stack ego logic with sensing, localization, planning, control, safety, and map management
+- cooperative perception model integration through the bundled [`OpenCOOD`](OpenCOOD) subtree
+- Artery communication stack with CAPI v2 protobuf-based message handling
+- AIM/MTP cooperative driving integration for scenario-controlled trajectory generation
+
+### 🗺️ Repository map
+
+- [`opencda/core`](opencda/core): runtime modules for sensing, planning, control, map, safety, applications, and common managers
+- [`opencda/scenario_testing`](opencda/scenario_testing): scenario runner, YAML configs, evaluation, and utility APIs
+- [`opencda/customize`](opencda/customize): extension points for custom algorithms
+- [`opencda/core/common/communication`](opencda/core/common/communication): communication stack, protobuf messages, and tests
+- [`OpenCOOD`](OpenCOOD): cooperative perception code and bundled model support
+- [`docs`](docs): repository-local documentation and API stubs
+
+## 🎥 Cooperative Perception Examples
+
+### 🧪 Scenario `v2xp_datadump_town06_carla`
+
+Run cooperative perception with the bundled Where2Comm intermediate fusion model:
+
+```bash
+python3 opencda.py \
+  -t v2xp_datadump_town06_carla \
+  --with-coperception \
+  --model-dir opencda/coperception_models/pointpillar-where2comm-intermediate-v2xsim-50 \
+  --fusion-method intermediate \
+  --save-vis
+```
+
+<p align="center">
+  <img src="docs/md_files/images/v2xp_datadump_town06_carla_3d.gif" alt="v2xp_datadump_town06_carla 3D view" width="49%" />
+  <img src="docs/md_files/images/v2xp_datadump_town06_carla_bev.gif" alt="v2xp_datadump_town06_carla BEV view" width="49%" />
+</p>
+
+<p align="center"><em>Left: 3D view. Right: BEV.</em></p>
+
+## 🧰 Development
+
+This repository uses `pre-commit` to keep formatting and basic checks consistent before code reaches CI.
+
+Install and enable it once per clone:
+
+```bash
+python3 -m pip install pre-commit
+pre-commit install
+```
+
+Run all hooks manually:
+
+```bash
+pre-commit run --all-files
+```
+
+Useful day-to-day commands:
+
+```bash
+# Run only Ruff linting/fixes
+pre-commit run ruff-check --all-files
+
+# Run only formatting
+pre-commit run ruff-format --all-files
+```
+
+The current hook set includes:
+
+- `ruff-check` with auto-fix enabled
+- `ruff-format`
+- `hadolint` for `Dockerfile`
+- common safety and hygiene checks for YAML, JSON, TOML, merge conflicts, whitespace, symlinks, and requirements files
+
+CI also runs additional checks such as `pytest`, `mypy`, `deadcode`, and repository-wide `pre-commit`, so it is worth running hooks locally before opening a PR.
+
+## 📚 Documentation and Links
+
+- CAVISE wiki: [Install & Launch](https://github.com/CAVISE/CAVISE/wiki/Install&Launch)
+- Local docs entry points:
+  - [Introduction](docs/md_files/introduction.md)
+  - [Quick Start](docs/md_files/getstarted.md)
+  - [Logic Flow](docs/md_files/logic_flow.md)
+  - [Customization Guide](docs/md_files/customization.md)
+  - [Developer Tutorial](docs/md_files/developer_tutorial.md)
+  - [API Docs Index](docs/modules.rst)
+
+TODO: the in-repository documentation is still rough and partially outdated. It will be updated incrementally as the fork evolves.
+
+## 🤗 Contributing
+
+Contributions are welcome and appreciated.
+
+We are happy to review pull requests and contribution ideas for this fork.
+
+If you are planning a larger change, opening an issue first is a good way to align scope and avoid duplicated work.
+
+## 👥 Contributors
+
+A huge thank you to everyone who contributes to this fork.
+
+[![OpenCDA contributors](https://contrib.rocks/image?repo=CAVISE/opencda)](https://github.com/CAVISE/opencda/graphs/contributors)
+
+We look forward to your contributions to help make the CAVISE OpenCDA fork even better.
+
+## 📬 Contact
+
+For bug reports and feature requests related to this fork, please visit [GitHub Issues](https://github.com/CAVISE/opencda/issues). For installation and launch details, please refer to the [CAVISE Install & Launch wiki](https://github.com/CAVISE/CAVISE/wiki/Install%26Launch). We're happy to help with OpenCDA, Artery, CAPI v2, cooperative perception, and AIM workflows in this fork.
