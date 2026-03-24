@@ -17,24 +17,16 @@ set(PROTO_FILES
 
 protobuf_generate(
     LANGUAGE python
-    OUT_VAR PROTO_PY_OUTPUTS
-    PROTOS ${PROTO_FILES}
-    IMPORT_DIRS ${PROTO_SOURCE_DIR}
-    PROTOC_OUT_DIR ${PROTO_INSTALL_DIR}
-)
-
-protobuf_generate(
-    LANGUAGE mypy
+    GENERATE_EXTENSIONS _pb2.py _pb2.pyi
     PLUGIN ${PROTOC_GEN_MYPY}
-    GENERATE_EXTENSIONS _pb2.pyi
-    OUT_VAR PROTO_PYI_OUTPUTS
+    OUT_VAR PROTO_OUTPUTS
     PROTOS ${PROTO_FILES}
     IMPORT_DIRS ${PROTO_SOURCE_DIR}
     PROTOC_OUT_DIR ${PROTO_INSTALL_DIR}
 )
 
-add_custom_target(opencda_protos ALL DEPENDS ${PROTO_PY_OUTPUTS} ${PROTO_PYI_OUTPUTS})
+add_custom_target(opencda_protos ALL DEPENDS ${PROTO_OUTPUTS})
 
-install(FILES ${PROTO_PY_OUTPUTS} ${PROTO_PYI_OUTPUTS}
+install(FILES ${PROTO_OUTPUTS}
     DESTINATION opencda/core/common/communication/protos/cavise
 )
