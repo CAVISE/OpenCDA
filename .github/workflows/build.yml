@@ -14,7 +14,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y protobuf-compiler libprotobuf-dev pkg-config
-      - run: pip install cmake ninja protobuf numpy pybind11
+      - run: pip install cmake ninja protobuf numpy pybind11 grpcio-tools
       - name: Configure and build
         run: |
           cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
@@ -22,7 +22,7 @@ jobs:
             -DOPENCDA_BUILD_CYTHON=OFF \
             -DOPENCDA_BUILD_PROTOBUF=ON
           cmake --build build
-      - run: test -f opencda/core/common/communication/protos/cavise/capi_pb2.py
+      - run: ls opencda/core/common/communication/protos/cavise/*_pb2.py | wc -l | grep -q 5
 
   build-cython:
     runs-on: ubuntu-latest
