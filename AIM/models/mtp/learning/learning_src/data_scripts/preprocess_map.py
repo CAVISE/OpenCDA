@@ -84,7 +84,12 @@ def preprocess_map(net_file_path: str, output_dir: Optional[str] = None, save_pn
                     draw = ImageDraw.Draw(img)
 
                     pixel_points = list(
-                        map(lambda point: point2pixel(point, -map_bounding * config.vehicle.collect_data_radius, map_bounding * config.vehicle.collect_data_radius), points)
+                        map(
+                            lambda point: point2pixel(
+                                point, -map_bounding * config.vehicle.collect_data_radius, map_bounding * config.vehicle.collect_data_radius
+                            ),
+                            points,
+                        )
                     )
                     draw.line(pixel_points, fill=config.image_map.road_color, width=config.image_map.road_width_px, joint="curve")
                     main_draw.line(pixel_points, fill=config.image_map.road_color, width=config.image_map.road_width_px, joint="curve")
@@ -144,7 +149,9 @@ def preprocess_map(net_file_path: str, output_dir: Optional[str] = None, save_pn
                         if len(set(points)) > 1:
                             pixel_points = []
                             for point in points:
-                                pixel_point = point2pixel(point, -map_bounding * config.vehicle.collect_data_radius, map_bounding * config.vehicle.collect_data_radius)
+                                pixel_point = point2pixel(
+                                    point, -map_bounding * config.vehicle.collect_data_radius, map_bounding * config.vehicle.collect_data_radius
+                                )
                                 pixel_points.append(pixel_point)
 
                                 if len(all_points) == 0 or ((all_points[-1][0] != point[0]) or (all_points[-1][1] != point[1])):
@@ -169,7 +176,11 @@ def preprocess_map(net_file_path: str, output_dir: Optional[str] = None, save_pn
                                     via_pixel_points = []
 
                                     for point in via_points:
-                                        pixel_point = point2pixel(point, -map_bounding * config.vehicle.collect_data_radius, map_bounding * config.vehicle.collect_data_radius)
+                                        pixel_point = point2pixel(
+                                            point,
+                                            -map_bounding * config.vehicle.collect_data_radius,
+                                            map_bounding * config.vehicle.collect_data_radius,
+                                        )
                                         via_pixel_points.append(pixel_point)
                                         if len(all_points) == 0 or ((all_points[-1][0] != point[0]) or (all_points[-1][1] != point[1])):
                                             all_points.append(point)

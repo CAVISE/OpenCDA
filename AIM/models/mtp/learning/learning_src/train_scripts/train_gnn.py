@@ -125,7 +125,9 @@ def gnn_train_one_epoch(
                 )
 
             dout_coords = model(x, batch.edge_index)
-            dout_coords = dout_coords.reshape(dout_coords.shape[0], config.model.pred_len, config.model.predict_vector_size)  # [v, config.model.pred_len, config.model.predict_vector_size]
+            dout_coords = dout_coords.reshape(
+                dout_coords.shape[0], config.model.pred_len, config.model.predict_vector_size
+            )  # [v, config.model.pred_len, config.model.predict_vector_size]
 
             yaw_cur = yaws.detach().clone()
             yaw_base = batch.x[:, 3].detach().clone()
@@ -305,7 +307,9 @@ def gnn_evaluate(
                     )
 
                 dout_coords = model(x, batch.edge_index)
-                dout_coords = dout_coords.reshape(dout_coords.shape[0], config.model.pred_len, config.model.predict_vector_size)  # [v, config.model.pred_len, config.model.predict_vector_size]
+                dout_coords = dout_coords.reshape(
+                    dout_coords.shape[0], config.model.pred_len, config.model.predict_vector_size
+                )  # [v, config.model.pred_len, config.model.predict_vector_size]
 
                 yaw_cur = yaws.clone()
                 yaw_base = batch.x[:, 3].clone()

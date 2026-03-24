@@ -100,7 +100,13 @@ if __name__ == "__main__":
 
             futures = [
                 executor.submit(
-                    preprocess_file, csv_subfolder_path, file, preprocess_folder_subpath_path, map_boundary, path_config.file_names.start_positions_file, path_config.file_names.last_positions_file
+                    preprocess_file,
+                    csv_subfolder_path,
+                    file,
+                    preprocess_folder_subpath_path,
+                    map_boundary,
+                    path_config.file_names.start_positions_file,
+                    path_config.file_names.last_positions_file,
                 )
                 for file in csv_files
             ]

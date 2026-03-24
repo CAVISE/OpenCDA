@@ -597,7 +597,9 @@ def preprocess_file(
         all_features[:, row + 1 : row + 1 + config.model.num_predict, -2:] = mpc_output[:, :, -2:]
 
         # speed = all_features[:, row + 1 : row + 1 + config.model.num_predict, 2:3]  # [vehicle, config.model.num_predict, 1]
-        speed = all_features[:, row + 1 : row + 1 + config.model.num_predict, 2:3] - all_features[:, row : row + 1, 2:3]  # [vehicle, config.model.num_predict, 1]
+        speed = (
+            all_features[:, row + 1 : row + 1 + config.model.num_predict, 2:3] - all_features[:, row : row + 1, 2:3]
+        )  # [vehicle, config.model.num_predict, 1]
 
         # this is not an angle in local coordinate system this is a yaw with which data point was rotated. but for +x alignment these yaws are the same
         if config.data_processing.align_initial_direction_to_x:
