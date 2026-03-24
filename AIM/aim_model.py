@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import Any, List
+
 from .registry import ModelRegistry
 
 
@@ -31,7 +32,11 @@ class AIMModel(ABC):
         pass
 
     @abstractmethod
-    def predict(self, features: List[Any], target_agent_ids: List[str]) -> Any:
+    def predict(
+        self,
+        features: List[Any],
+        target_agent_ids: List[str],
+    ) -> Any:
         """
         Perform model inference.
 
