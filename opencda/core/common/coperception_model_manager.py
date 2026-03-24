@@ -14,11 +14,11 @@ from opencood.data_utils.datasets import build_dataset
 from opencood.visualization import simple_vis, vis_utils
 from opencood.utils import eval_utils
 
-logger = logging.getLogger("cavise.coperception_model_manager")
+logger = logging.getLogger("cavise.opencda.opencda.core.common.coperception_model_manager")
 
 
 class CoperceptionModelManager:
-    def __init__(self, opt, current_time, message_handler=None):
+    def __init__(self, opt, current_time, payload_handler=None):
         self.opt = opt
         self.hypes = yaml_utils.load_yaml(None, self.opt)
         self.model = train_utils.create_model(self.hypes)
@@ -34,10 +34,10 @@ class CoperceptionModelManager:
 
         self.opencood_dataset = None
         self.data_loader = None
-        self.message_handler = message_handler
+        self.payload_handler = payload_handler
 
         logger.info("Initial Dataset Building")
-        self.opencood_dataset = build_dataset(self.hypes, visualize=True, train=False, message_handler=self.message_handler)
+        self.opencood_dataset = build_dataset(self.hypes, visualize=True, train=False, payload_handler=self.payload_handler)
 
         self.data_loader = DataLoader(
             self.opencood_dataset,
@@ -119,17 +119,25 @@ class CoperceptionModelManager:
                     for mode in ["3d", "bev"]:
                         if self.hypes["postprocess"]["core_method"] == "BevPostprocessor" and mode == "3d":
                             continue
+                        pcd_points = None
+                        ego_data = batch_data["ego"]
+                        if "origin_lidar" in ego_data:
+                            pcd_points = ego_data["origin_lidar"]
+                            if self.hypes.get("fusion", {}).get("core_method") == "IntermediateFusionDatasetV2":
+                                pcd_points = pcd_points[:, 1:]
+                            if isinstance(pcd_points, list) or (hasattr(pcd_points, "ndim") and pcd_points.ndim > 2):
+                                pcd_points = pcd_points[0]
+                        elif "lidar_np" in ego_data:
+                            pcd_points = ego_data["lidar_np"]
+                            if isinstance(pcd_points, list):
+                                pcd_points = pcd_points[0]
                         vis_dir = f"simulation_output/coperception/vis_{mode}/{self.opt.test_scenario}_{self.current_time}"
                         os.makedirs(vis_dir, exist_ok=True)
                         vis_save_path = os.path.join(vis_dir, f"{mode}_{tick_number:05d}.png")
-                        if self.hypes["fusion"]["core_method"] == "IntermediateFusionDatasetV2":
-                            origin_lidar = batch_data["ego"]["origin_lidar"][:, 1:]
-                        else:
-                            origin_lidar = batch_data["ego"]["origin_lidar"][0]
                         simple_vis.visualize(
                             pred_box_tensor,
                             gt_box_tensor,
-                            origin_lidar,
+                            pcd_points,
                             self.hypes["postprocess"]["gt_range"],
                             vis_save_path,
                             method=mode,
