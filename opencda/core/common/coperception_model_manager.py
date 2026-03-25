@@ -186,9 +186,10 @@ class CoperceptionModelManager:
 
 
 class DirectoryProcessor:
-    def __init__(self, source_directory="data_dumping", now_directory="data_dumping/sample/now"):
+    def __init__(self, source_directory="data_dumping", now_directory="data_dumping/sample/now", max_cav=None):
         self.source_directory = source_directory
         self.now_directory = now_directory
+        self.max_cav = int(max_cav) if max_cav is not None else None
 
     def detect_cameras(self, data_directory):
         inner_subdirectories = sorted([d for d in os.listdir(data_directory) if os.path.isdir(os.path.join(data_directory, d))])
@@ -260,6 +261,19 @@ class DirectoryProcessor:
         if "rsu" in inner_subdirectories[0]:
             inner_subdirectories = inner_subdirectories[1:] + [inner_subdirectories[0]]
 
+        if self.max_cav is not None and self.max_cav > 0 and len(inner_subdirectories) > self.max_cav:
+            logger.warning(f"Too many CAVs and RSUs: {len(inner_subdirectories)}")
+            logger.warning(f"Maximum is {self.max_cav}")
+            inner_subdirectories = inner_subdirectories[: self.max_cav]
+
+        expected_ego_id = inner_subdirectories[0]
+        expected_agent_path = os.path.join(data_directory, expected_ego_id)
+        expected_yaml_path = os.path.join(expected_agent_path, f"{number}.yaml")
+        expected_lidar_path = os.path.join(expected_agent_path, f"{number}.pcd")
+        if not os.path.exists(expected_yaml_path) or not os.path.exists(expected_lidar_path):
+            logger.warning(f"Skipping tick {tick_number}: expected ego agent '{expected_ego_id}' has incomplete data.")
+            return None
+
         scenario_data = OrderedDict()
         scenario_data[0] = OrderedDict()
 
@@ -293,7 +307,7 @@ class DirectoryProcessor:
 
             scenario_data[0][cav_id][timestamp]["camera0"] = camera_files
 
-            scenario_data[0][cav_id]["ego"] = agents_found_count == 0
+            scenario_data[0][cav_id]["ego"] = cav_id == expected_ego_id
 
             agents_found_count += 1
 

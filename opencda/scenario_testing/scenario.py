@@ -178,7 +178,8 @@ class Scenario:
             from opencda.core.common.coperception_model_manager import DirectoryProcessor
 
             now_directory = "simulation_output/data_dumping/sample/now"
-            directory_processor = DirectoryProcessor(source_directory="simulation_output/data_dumping", now_directory=now_directory)
+            max_cav = self.coperception_model_manager.hypes.get("train_params", {}).get("max_cav")
+            directory_processor = DirectoryProcessor(source_directory="simulation_output/data_dumping", now_directory=now_directory, max_cav=max_cav)
             os.makedirs(now_directory, exist_ok=True)
             directory_processor.clear_directory_now()
         else:
@@ -221,7 +222,7 @@ class Scenario:
                     if memory_structure is None:
                         logger.warning(f"Data for tick {tick_number} not ready yet.")
 
-                    logger.info(f"Successfully processed {tick_number} tick (In-Memory)")
+                    logger.info(f"Successfully processed {tick_number} tick")
                 except Exception as e:
                     logger.warning(f"An error occurred during proceesing {tick_number} tick: {e}")
 
@@ -276,6 +277,7 @@ class Scenario:
             """
             if self.coperception_model_manager is not None and tick_number > 0:
                 memory_structure = None
+                can_predict_current_tick = False
                 try:
                     memory_structure = directory_processor.retrieve_data_structure(tick_number)
                 except Exception as e:
@@ -285,6 +287,9 @@ class Scenario:
                     self.coperception_model_manager.update_dataset(memory_structure)
 
                     self.coperception_model_manager.opencood_dataset.extract_data(idx=0)
+                    can_predict_current_tick = True
+            else:
+                can_predict_current_tick = False
 
             opencda_message = self.payload_handler.make_opencda_message()
             logger.info(f"{round(opencda_message.ByteSize() / (1 << 20), 3)} MB of payload about to be sent")
@@ -296,7 +301,7 @@ class Scenario:
             logger.info(f"{round(artery_message.ByteSize() / (1 << 20), 3)} MB were received")
             self.payload_handler.make_artery_payload(artery_message)
 
-            if self.coperception_model_manager is not None and tick_number > 0:
+            if self.coperception_model_manager is not None and tick_number > 0 and can_predict_current_tick:
                 self.coperception_model_manager.make_prediction(tick_number)
 
             self.payload_handler.clear_messages()

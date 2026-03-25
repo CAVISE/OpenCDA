@@ -424,6 +424,29 @@ class TestDirectoryProcessor:
 
         assert dp.retrieve_data_structure(10) is None
 
+    def test_retrieve_data_structure_returns_none_when_expected_ego_is_incomplete(self, processor_setup):
+        source_dir, now_dir = processor_setup
+        dp = DirectoryProcessor(str(source_dir), str(now_dir))
+
+        d1 = source_dir / "d1"
+        d2 = source_dir / "d2"
+        d1.mkdir()
+        d2.mkdir()
+
+        cav_1 = d1 / "cav_1"
+        cav_2 = d1 / "cav_2"
+        cav_1.mkdir()
+        cav_2.mkdir()
+
+        # First expected ego agent is incomplete for this tick.
+        (cav_1 / "000010.yaml").write_text("yaml")
+
+        # Another agent is valid, but should not silently become ego.
+        (cav_2 / "000010.yaml").write_text("yaml")
+        (cav_2 / "000010.pcd").write_text("pcd")
+
+        assert dp.retrieve_data_structure(10) is None
+
     def test_retrieve_data_structure_fallback_when_detect_cameras_fails(self, processor_setup, monkeypatch):
         source_dir, now_dir = processor_setup
         dp = DirectoryProcessor(str(source_dir), str(now_dir))
@@ -445,6 +468,62 @@ class TestDirectoryProcessor:
         assert structure is not None
         assert structure[0]["cav_1"]["000010"]["camera0"] == []
         assert structure[0]["cav_1"]["ego"] is True
+
+    def test_retrieve_data_structure_respects_max_cav(self, processor_setup):
+        source_dir, now_dir = processor_setup
+        dp = DirectoryProcessor(str(source_dir), str(now_dir), max_cav=1)
+
+        d1 = source_dir / "d1"
+        d2 = source_dir / "d2"
+        d1.mkdir()
+        d2.mkdir()
+
+        cav_1 = d1 / "cav_1"
+        cav_2 = d1 / "cav_2"
+        cav_1.mkdir()
+        cav_2.mkdir()
+
+        (cav_1 / "000010.yaml").write_text("yaml")
+        (cav_1 / "000010.pcd").write_text("pcd")
+        (cav_2 / "000010.yaml").write_text("yaml")
+        (cav_2 / "000010.pcd").write_text("pcd")
+
+        structure = dp.retrieve_data_structure(10)
+
+        assert structure is not None
+        assert list(structure[0].keys()) == ["cav_1"]
+        assert structure[0]["cav_1"]["ego"] is True
+
+    def test_retrieve_data_structure_respects_max_cav_after_rsu_reorder(self, processor_setup):
+        source_dir, now_dir = processor_setup
+        dp = DirectoryProcessor(str(source_dir), str(now_dir), max_cav=2)
+
+        d1 = source_dir / "d1"
+        d2 = source_dir / "d2"
+        d1.mkdir()
+        d2.mkdir()
+
+        rsu = d1 / "rsu_0"
+        cav_1 = d1 / "veh_1"
+        cav_2 = d1 / "veh_2"
+        rsu.mkdir()
+        cav_1.mkdir()
+        cav_2.mkdir()
+
+        (rsu / "000010.yaml").write_text("yaml")
+        (rsu / "000010.pcd").write_text("pcd")
+        (cav_1 / "000010.yaml").write_text("yaml")
+        (cav_1 / "000010.pcd").write_text("pcd")
+        (cav_2 / "000010.yaml").write_text("yaml")
+        (cav_2 / "000010.pcd").write_text("pcd")
+
+        structure = dp.retrieve_data_structure(10)
+
+        assert structure is not None
+        assert list(structure[0].keys()) == ["veh_1", "veh_2"]
+        assert "rsu_0" not in structure[0]
+        assert structure[0]["veh_1"]["ego"] is True
+        assert structure[0]["veh_2"]["ego"] is False
 
     def test_clear_directory_now(self, processor_setup):
         _, now_dir = processor_setup
