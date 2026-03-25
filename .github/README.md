@@ -46,9 +46,9 @@ This fork is intended to run inside the CAVISE Docker environment. Running this 
 
 ## Quick Start
 
-The canonical environment setup is documented in the CAVISE wiki:
+The canonical environment setup is also documented in the CAVISE wiki:
 
-- [Quick Start / Install & Launch](https://github.com/CAVISE/CAVISE/wiki/Install&Launch)
+- [Install & Launch](https://github.com/CAVISE/CAVISE/wiki/Install&Launch)
 
 The commands below assume the CAVISE containerized setup from the wiki.
 
@@ -68,8 +68,8 @@ python opencda.py -t v2xp_datadump_town06_carla --with-coperception \
 
 Useful notes:
 
-- Scenario configurations live in [`opencda/scenario_testing/config_yaml`](opencda/scenario_testing/config_yaml).
-- [`opencda/scenario_testing/config_yaml/default.yaml`](opencda/scenario_testing/config_yaml/default.yaml) is the shared base configuration loaded for every scenario.
+- Scenario configurations live in `opencda/scenario_testing/config_yaml`.
+- `opencda/scenario_testing/config_yaml/default.yaml` is the shared base configuration loaded for every scenario.
 - `--carla-host` defaults to `carla` in the containerized setup.
 - When running OpenCDA inside the container against CARLA on Windows, use `--carla-host host.docker.internal` as documented in the CAVISE wiki.
 
@@ -81,7 +81,7 @@ The main entry point is:
 python3 opencda.py -t <scenario_name> [options]
 ```
 
-Scenario files are loaded from [`opencda/scenario_testing/config_yaml`](opencda/scenario_testing/config_yaml). OpenCDA loads `default.yaml` together with `opencda/scenario_testing/config_yaml/<scenario>.yaml`.
+Scenario files are loaded from `opencda/scenario_testing/config_yaml`. OpenCDA loads `default.yaml` together with `opencda/scenario_testing/config_yaml/<scenario>.yaml`.
 
 ### Core options
 
@@ -132,7 +132,7 @@ python3 opencda.py \
 
 ### AIM
 
-AIM is the cooperative driving module used by `--with-mtp`. The scenario YAML can define its parameters in the `aim:` block, for example in [`opencda/scenario_testing/config_yaml/codriving_check.yaml`](opencda/scenario_testing/config_yaml/codriving_check.yaml).
+AIM is the cooperative driving module used by `--with-mtp`. The scenario YAML can define its parameters in the `aim:` block, for example in `opencda/scenario_testing/config_yaml/codriving_check.yaml`.
 
 - `--with-mtp`: Whether to enable the use of cooperative driving models in this simulation.
 - `--mtp-config`: Define configuration of cooperative driving model.
@@ -163,22 +163,22 @@ The current fork is organized around a scenario runner that turns YAML configura
 
 ### Key capabilities in this fork
 
-- YAML-first scenario definition with a shared baseline config in [`opencda/scenario_testing/config_yaml/default.yaml`](opencda/scenario_testing/config_yaml/default.yaml)
+- YAML-first scenario definition with a shared baseline config in `opencda/scenario_testing/config_yaml/default.yaml`
 - single-vehicle, platooning, intersection, RSU, and cooperative perception scenarios
 - CARLA traffic manager support and SUMO-backed co-simulation
 - full-stack ego logic with sensing, localization, planning, control, safety, and map management
-- cooperative perception model integration through the bundled [`OpenCOOD`](OpenCOOD) subtree
+- cooperative perception model integration through the bundled `OpenCOOD` subtree
 - Artery communication stack with CAPI v2 protobuf-based message handling
 - AIM/MTP cooperative driving integration for scenario-controlled trajectory generation
 
 ### Repository map
 
-- [`opencda/core`](opencda/core): runtime modules for sensing, planning, control, map, safety, applications, and common managers
-- [`opencda/scenario_testing`](opencda/scenario_testing): scenario runner, YAML configs, evaluation, and utility APIs
-- [`opencda/customize`](opencda/customize): extension points for custom algorithms
-- [`opencda/core/common/communication`](opencda/core/common/communication): communication stack, protobuf messages, and tests
-- [`OpenCOOD`](OpenCOOD): cooperative perception code and bundled model support
-- [`docs`](docs): repository-local documentation and API stubs
+- `opencda/core`: runtime modules for sensing, planning, control, map, safety, applications, and common managers
+- `opencda/scenario_testing`: scenario runner, YAML configs, evaluation, and utility APIs
+- `opencda/customize`: extension points for custom algorithms
+- `opencda/core/common/communication`: communication stack, protobuf messages, and tests
+- `OpenCOOD`: cooperative perception code and bundled model support
+- `docs`: repository-local documentation and API stubs
 
 ## Cooperative Perception Examples
 
