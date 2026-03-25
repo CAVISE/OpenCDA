@@ -767,7 +767,8 @@ python opencda.py \
   --fusion-method early \
   --with-advcp \
   --attack-type lidar_spoof_early \
-  --attackers-ratio 0.3
+  --attackers-ratio 0.3 \
+  --model-dir opencda/coperception_models/pixor-early-opv2v-15
 ```
 
 ## Co-Simulation with SUMO

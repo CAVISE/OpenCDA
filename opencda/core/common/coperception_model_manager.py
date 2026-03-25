@@ -436,10 +436,55 @@ class DirectoryProcessor:
                 if os.path.exists(source_file_path):
                     shutil.copy(source_file_path, destination_file_path)
 
-    def clear_directory_now(self) -> None:
-        for item in os.listdir(self.now_directory):
-            item_path = os.path.join(self.now_directory, item)
-            if os.path.isfile(item_path) or os.path.islink(item_path):
-                os.remove(item_path)  # Удаляем файлы и символические ссылки
-            elif os.path.isdir(item_path):
-                shutil.rmtree(item_path)
+    def clear_directory_now(self, current_tick: Optional[int] = None, keep_frames: int = 0) -> None:
+        """
+        Clear the now directory, but optionally keep the last N frames for late attack support.
+        
+        Args:
+            current_tick: The current tick number (about to be processed). Used to determine which frames to keep.
+            keep_frames: Number of previous frames to keep (default 0 = clear all). Set to 10 for late attacks.
+        """
+        if current_tick is None or keep_frames <= 0:
+            # If no tick provided or keep_frames is 0, clear everything (backward compatibility)
+            for item in os.listdir(self.now_directory):
+                item_path = os.path.join(self.now_directory, item)
+                if os.path.isfile(item_path) or os.path.islink(item_path):
+                    os.remove(item_path)
+                elif os.path.isdir(item_path):
+                    shutil.rmtree(item_path)
+            return
+        
+        # Calculate which tick numbers to keep
+        # We want to keep frames from (current_tick - keep_frames) to (current_tick - 1)
+        # because the current tick's data will be added after this clear
+        keep_ticks = set(range(max(0, current_tick - keep_frames), current_tick))
+        
+        # Walk through the directory tree and delete files with tick numbers not in keep_ticks
+        for root, dirs, files in os.walk(self.now_directory):
+            for file in files:
+                file_path = os.path.join(root, file)
+                # Skip data_protocol.yaml and other non-tick files
+                parts = file.split('.')
+                if len(parts) < 2:
+                    continue
+                tick_str = parts[0]
+                if not tick_str.isdigit():
+                    continue
+                
+                tick_num = int(tick_str)
+                if tick_num not in keep_ticks:
+                    try:
+                        os.remove(file_path)
+                        logger.debug(f"Removed old tick file: {file_path}")
+                    except Exception as e:
+                        logger.warning(f"Failed to remove {file_path}: {e}")
+        
+        # Optionally, clean up empty directories (but keep the vehicle ID directories)
+        for root, dirs, files in os.walk(self.now_directory, topdown=False):
+            if root != self.now_directory:  # Don't delete the root now_directory
+                try:
+                    if not os.listdir(root):  # Empty directory
+                        os.rmdir(root)
+                        logger.debug(f"Removed empty directory: {root}")
+                except Exception:
+                    pass

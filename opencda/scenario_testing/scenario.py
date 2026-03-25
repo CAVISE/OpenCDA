@@ -172,7 +172,13 @@ class Scenario:
             now_directory = "simulation_output/data_dumping/sample/now"
             directory_processor = DirectoryProcessor(source_directory="simulation_output/data_dumping", now_directory=now_directory)
             os.makedirs(now_directory, exist_ok=True)
-            directory_processor.clear_directory_now()
+            # Determine if we need to keep frames for late attacks
+            keep_frames = 0
+            if (self.coperception_model_manager.advcp_manager is not None and
+                self.coperception_model_manager.advcp_manager.with_advcp and
+                self.coperception_model_manager.advcp_manager.attack_type in ["lidar_remove_late", "lidar_spoof_late"]):
+                keep_frames = 10  # Keep last 10 frames for late attacks
+            directory_processor.clear_directory_now(keep_frames=keep_frames)
         else:
             directory_processor = None
 
@@ -205,7 +211,13 @@ class Scenario:
             if self.coperception_model_manager is not None and tick_number > 0:
                 try:
                     logger.info(f"Processing {tick_number} tick")
-                    directory_processor.clear_directory_now()
+                    # Determine if we need to keep frames for late attacks
+                    keep_frames = 0
+                    if (self.coperception_model_manager.advcp_manager is not None and
+                        self.coperception_model_manager.advcp_manager.with_advcp and
+                        self.coperception_model_manager.advcp_manager.attack_type in ["lidar_remove_late", "lidar_spoof_late"]):
+                        keep_frames = 10
+                    directory_processor.clear_directory_now(current_tick=tick_number, keep_frames=keep_frames)
                     directory_processor.process_directory(tick_number)
                     logger.info(f"Successfully processed {tick_number} tick")
                 except Exception as e:
@@ -262,7 +274,13 @@ class Scenario:
             if self.coperception_model_manager is not None and tick_number > 0:
                 try:
                     logger.info(f"Processing {tick_number} tick")
-                    directory_processor.clear_directory_now()
+                    # Determine if we need to keep frames for late attacks
+                    keep_frames = 0
+                    if (self.coperception_model_manager.advcp_manager is not None and
+                        self.coperception_model_manager.advcp_manager.with_advcp and
+                        self.coperception_model_manager.advcp_manager.attack_type in ["lidar_remove_late", "lidar_spoof_late"]):
+                        keep_frames = 10
+                    directory_processor.clear_directory_now(current_tick=tick_number, keep_frames=keep_frames)
                     directory_processor.process_directory(tick_number)
                     logger.info(f"Successfully processed {tick_number} tick")
                 except Exception as e:
