@@ -93,7 +93,7 @@ class Scenario:
         if opt.with_capi:
             from opencda.core.common.communication import toolchain
 
-            toolchain.CommunicationToolchain.handle_messages(["entity", "opencda", "artery", "capi", "ack"])
+            toolchain.CommunicationToolchain.handle_messages(["entity", "opencda", "artery", "capi"])
             from opencda.core.common.communication.communication_manager import CommunicationManager
             from opencda.core.common.communication.payload_handler import PayloadHandler
 
