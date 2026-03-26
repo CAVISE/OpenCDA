@@ -95,7 +95,7 @@ Scenario files are loaded from `opencda/scenario_testing/config_yaml`. OpenCDA l
 ### Simulation backend
 
 - `-x, --xodr`: Run simulation using a custom map from an XODR file.
-- `-c, --cosim`: Enable co-simulation with SUMO.
+- `-c, --cosim`: Enable co-simulation with SUMO. Requires a running SUMO container configured according to the selected scenario.
 - `--carla-host`: IP address or hostname of the CARLA server (default: 'carla')
 - `--carla-timeout`: Timeout of the CARLA server response in seconds (default: 30.0)
 
@@ -134,7 +134,7 @@ python3 opencda.py \
 
 AIM is the cooperative driving module used by `--with-mtp`. The scenario YAML can define its parameters in the `aim:` block, for example in `opencda/scenario_testing/config_yaml/codriving_check.yaml`.
 
-- `--with-mtp`: Whether to enable the use of cooperative driving models in this simulation.
+- `--with-mtp`: Whether to enable the use of cooperative driving models in this simulation. Note that this mode requires `--cosim` to be enabled.
 - `--mtp-config`: Define configuration of cooperative driving model.
 
 Example:
@@ -202,11 +202,11 @@ python3 opencda.py \
 
 <p align="center"><em>Left: 3D view. Right: BEV.</em></p>
 
-## Development
+## Development Environment Setup
 
 This repository uses `pre-commit` to keep formatting and basic checks consistent before code reaches CI.
 
-Install and enable it once per clone:
+Install and enable it once per clone. After that, it will run checks automatically before each commit.:
 
 ```bash
 python3 -m pip install pre-commit
@@ -256,6 +256,8 @@ TODO: the in-repository documentation is still rough and partially outdated. It 
 Contributions are welcome and appreciated.
 
 We are happy to review pull requests and contribution ideas for this fork.
+
+Before starting development, please make sure your environment is set up according to the [Development Environment Setup](#development-environment-setup) section.
 
 If you are planning a larger change, opening an issue first is a good way to align scope and avoid duplicated work.
 
