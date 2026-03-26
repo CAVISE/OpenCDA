@@ -63,7 +63,7 @@ jobs:
       - name: Upload JUnit report
         # actions/upload-artifact typically fails under nektos/act (no ACTIONS_RUNTIME_TOKEN)
         if: always() && !env.ACT
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: pytest-junit-${{ matrix.python-version }}
           path: reports/pytest-${{ matrix.python-version }}.xml
