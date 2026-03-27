@@ -7,7 +7,7 @@ import logging
 
 from opencda.core.safety.sensors import CollisionSensor, TrafficLightDector, StuckDetector, OffRoadDetector
 
-logger = logging.getLogger("cavise.safety_manager")
+logger = logging.getLogger("cavise.opencda.opencda.core.safety.safety_manager")
 
 
 class SafetyManager:

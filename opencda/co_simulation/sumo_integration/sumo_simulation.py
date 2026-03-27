@@ -13,7 +13,7 @@ from opencda.co_simulation.sumo_integration.constants import INVALID_ACTOR_ID
 
 import lxml.etree as ET  # pylint: disable=import-error
 
-logger = logging.getLogger("cavise.sumo_simulation")
+logger = logging.getLogger("cavise.opencda.opencda.co_simulation.sumo_integration.sumo_simulation")
 
 # ==================================================================================================
 # -- sumo definitions ------------------------------------------------------------------------------
