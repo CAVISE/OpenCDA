@@ -42,6 +42,7 @@ class AIMModelManager:
         self.model = model
         self.payload_handler = payload_handler
         self.module_name = "AIM.AIMModelManager"
+        self.latest_output_payloads = {}
 
         self.yaw_dict = self._load_yaw()
         self.yaw_id = {}
@@ -107,9 +108,16 @@ class AIMModelManager:
         if self.payload_handler is None:
             return
 
-        for vehicle_id, feature_vector in self._encoding_feature_map().items():
+        feature_map = self._encoding_feature_map()
+        current_vehicle_ids = set(self.cav_ids)
+        export_ids = (set(feature_map) | set(self.latest_output_payloads)) & current_vehicle_ids
+
+        for vehicle_id in export_ids:
             with self.payload_handler.handle_opencda_payload(vehicle_id, self.module_name) as msg:
-                msg["aim_features"] = feature_vector
+                if vehicle_id in feature_map:
+                    msg["aim_features"] = feature_map[vehicle_id]
+                if vehicle_id in self.latest_output_payloads:
+                    msg["aim_output"] = self.latest_output_payloads[vehicle_id]
 
     def _make_trajs_without_messages(self):
         features, target_agent_ids = self.encoding_scenario_features()
@@ -122,8 +130,14 @@ class AIMModelManager:
 
     def _make_trajs_with_messages(self):
         for cav in self.carla_vmanagers:
+            remote_output = self._get_remote_output(cav.vid)
+            if remote_output is not None:
+                self._apply_output(cav.vid, remote_output)
+                continue
+
             features, target_agent_ids = self._encoding_features_from_messages(cav.vid)
             if features.shape[0] == 0:
+                self.latest_output_payloads.pop(cav.vid, None)
                 continue
 
             predictions, features_tensor = self._predict(features, target_agent_ids)
@@ -143,19 +157,26 @@ class AIMModelManager:
         return predictions, features_tensor
 
     def _apply_prediction(self, vehicle_id, prediction, feature_tensor):
+        output_payload = self._build_output_payload(vehicle_id, prediction, feature_tensor)
+        if output_payload is None:
+            self.latest_output_payloads.pop(vehicle_id, None)
+            return
+
+        self.latest_output_payloads[vehicle_id] = output_payload
+        self._apply_output(vehicle_id, output_payload)
+
+    def _build_output_payload(self, vehicle_id, prediction, feature_tensor):
         pos_x, pos_y = traci.vehicle.getPosition(vehicle_id)
         curr_pos = np.array([pos_x, pos_y])
 
         nearest_node = self._get_nearest_node(curr_pos)
         if self.excluded_nodes and nearest_node in self.excluded_nodes:
-            return
+            return None
 
         control_center = np.array(nearest_node.getCoord())
         distance_to_center = np.linalg.norm(curr_pos - control_center)
 
         if distance_to_center < self.CONTROL_RADIUS:
-            self.mtp_controlled_vehicles.add(vehicle_id)
-
             pred_delta = prediction.reshape(30, 2).detach().cpu().numpy()
             local_delta = pred_delta[0].reshape(2, 1)
             last_delta = pred_delta[-1].reshape(2, 1)
@@ -173,7 +194,7 @@ class AIMModelManager:
 
             cav = self._get_vmanager_by_vid(vehicle_id)
             if cav is None:
-                return
+                return None
 
             pos = cav.vehicle.get_location()
 
@@ -185,16 +206,77 @@ class AIMModelManager:
                 z=pos.z,
             )
 
-            cav.set_destination(pos, next_loc, clean=True, end_reset=False)
-            cav.update_info_v2x()
-
-            if len(cav.agent.get_local_planner().get_waypoint_buffer()) == 0:
-                logger.warning(f"{vehicle_id}: waypoint buffer is empty after set_destination!")
+            return {
+                "command": "set_destination",
+                "prediction": pred_delta,
+                "next_location": [float(next_loc.x), float(next_loc.y), float(next_loc.z)],
+                "clean": True,
+                "end_reset": False,
+            }
         elif vehicle_id in self.mtp_controlled_vehicles:
             cav = self._get_vmanager_by_vid(vehicle_id)
-            cav.set_destination(cav.vehicle.get_location(), cav.agent.end_waypoint.transform.location, clean=True, end_reset=True)
+            if cav is None:
+                return None
 
-            self.mtp_controlled_vehicles.remove(vehicle_id)
+            end_loc = cav.agent.end_waypoint.transform.location
+            return {
+                "command": "set_destination",
+                "prediction": None,
+                "next_location": [float(end_loc.x), float(end_loc.y), float(end_loc.z)],
+                "clean": True,
+                "end_reset": True,
+            }
+
+        return None
+
+    def _apply_output(self, vehicle_id, output_payload):
+        if output_payload.get("command") != "set_destination":
+            return
+
+        cav = self._get_vmanager_by_vid(vehicle_id)
+        if cav is None:
+            return
+
+        next_location = output_payload.get("next_location")
+        if not next_location:
+            return
+
+        next_loc = carla.Location(
+            x=float(next_location[0]),
+            y=float(next_location[1]),
+            z=float(next_location[2]),
+        )
+
+        end_reset = bool(output_payload.get("end_reset", False))
+        cav.set_destination(
+            cav.vehicle.get_location(),
+            next_loc,
+            clean=bool(output_payload.get("clean", True)),
+            end_reset=end_reset,
+        )
+
+        if end_reset:
+            self.mtp_controlled_vehicles.discard(vehicle_id)
+            return
+
+        self.mtp_controlled_vehicles.add(vehicle_id)
+        cav.update_info_v2x()
+
+        if len(cav.agent.get_local_planner().get_waypoint_buffer()) == 0:
+            logger.warning(f"{vehicle_id}: waypoint buffer is empty after set_destination!")
+
+    def _get_remote_output(self, ego_id: str):
+        if self.payload_handler is None:
+            return None
+
+        entity_payloads = self.payload_handler.current_artery_payload.get(ego_id, {})
+        if ego_id not in entity_payloads:
+            return None
+        if self.module_name not in entity_payloads[ego_id]:
+            return None
+
+        with self.payload_handler.handle_artery_payload(ego_id, ego_id, self.module_name) as msg:
+            return msg.get("aim_output")
 
     def _encoding_feature_map(self) -> dict[str, np.ndarray]:
         feature_map = {}
