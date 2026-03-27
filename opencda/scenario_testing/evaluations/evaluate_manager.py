@@ -75,13 +75,11 @@ class EvaluationManager(object):
         """
         vehicle kinematics related evaluation.
         """
-        logger.info("***********Kinematics Module***********")
         report_builder = UniversalReportBuilder()
         kinematics_reports: list[EntityReport] = []
 
         for vid, vm in self.cav_world.get_vehicle_managers().items():
             actor_id = vm.vehicle.id
-            logger.info("Actor ID: %d", actor_id)
 
             raw_data = vm.agent.metrics_collector.get_raw()
             kinematics_reports.append(report_builder.build_entity_report(raw_data))
@@ -92,12 +90,10 @@ class EvaluationManager(object):
         """
         Localization module evaluation.
         """
-        logger.info("***********Localization Module***********")
         report_builder = UniversalReportBuilder()
         localization_reports: list[EntityReport] = []
         for vid, vm in self.cav_world.get_vehicle_managers().items():
             actor_id = vm.vehicle.id
-            logger.info("Actor ID: %d", actor_id)
 
             raw_data = vm.localizer.metrics_collector.get_raw()
             localization_reports.append(report_builder.build_entity_report(raw_data))
@@ -108,12 +104,10 @@ class EvaluationManager(object):
         """
         Platooning evaluation.
         """
-        logger.info("***********Platooning Analysis***********")
         report_builder = UniversalReportBuilder()
         platooning_reports: list[GroupReport] = []
 
         for pmid, pm in self.cav_world.get_platoon_dict().items():
-            logger.info("Platoon ID: %s", pmid)
             member_metrics = pm.get_metric_collections()
             platooning_reports.append(report_builder.build_group_report(pmid, member_metrics, module="platooning"))
 
