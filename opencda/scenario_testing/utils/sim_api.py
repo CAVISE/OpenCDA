@@ -23,7 +23,7 @@ from opencda.core.common.rsu_manager import RSUManager
 from opencda.core.common.cav_world import CavWorld
 from opencda.scenario_testing.utils.customized_map_api import load_customized_world, bcolors
 
-logger = logging.getLogger("cavise.sim_api")
+logger = logging.getLogger("cavise.opencda.opencda.scenario_testing.utils.sim_api")
 
 
 def car_blueprint_filter(blueprint_library, carla_version="0.9.15"):
@@ -245,6 +245,27 @@ class ScenarioManager:
                 logger.warning(f"Vehicle model {cav_vehicle_bp.id} does not support the 'color' attribute. Skipping.")
 
         return self.world.spawn_actor(cav_vehicle_bp, spawn_transform)
+
+    # TODO: make a custom_actor_manager for inanimated objects
+    def create_custom_actor_manager(self, application, map_helper=None, data_dump=False, fallback_model: str = "vehicle.lincoln.mkz_2017"):
+        if self.scenario_params.get("scenario") is None or self.scenario_params["scenario"].get("custom_actor_list", None) is None:
+            logger.info("No custom actor was created")
+            return [], {}
+        for i, config in enumerate(self.scenario_params["scenario"].get("custom_actor_list", {})):
+            actor_config = OmegaConf.create(config)
+            # if the spawn position is a single scalar, we need to use map
+            # helper to transfer to spawn transform
+            if "spawn_special" not in actor_config:
+                spawn_transform = carla.Transform(
+                    carla.Location(x=actor_config["spawn_position"][0], y=actor_config["spawn_position"][1], z=actor_config["spawn_position"][2]),
+                    carla.Rotation(
+                        pitch=actor_config["spawn_position"][5], yaw=actor_config["spawn_position"][4], roll=actor_config["spawn_position"][3]
+                    ),
+                )
+            else:
+                spawn_transform = map_helper(self.carla_version, *actor_config["spawn_special"])
+
+            self.spawn_custom_actor(spawn_transform, actor_config, fallback_model)
 
     def create_vehicle_manager(self, application, map_helper=None, data_dump=False, fallback_model: str = "vehicle.lincoln.mkz_2017"):
         """
@@ -663,6 +684,9 @@ class ScenarioManager:
         Tick the server.
         """
         self.world.tick()
+
+    def sumo_tick(self):
+        return None
 
     # TODO: Use this function instead of destroy in scenario.py
     # NOTE: This function crashes Carla

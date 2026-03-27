@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, patch
 import pathlib
 
 from opencda.core.common.communication.toolchain import CommunicationToolchain, MessageConfig
+import opencda.core.common.communication.toolchain as toolchain_mod
 
 
 def _norm(s) -> str:
@@ -71,10 +72,15 @@ class TestCommunicationToolchain:
         config = MessageConfig(pathlib.PurePath("s"), pathlib.PurePath("b"))
 
         # Check specific logger
-        with caplog.at_level("INFO", logger="cavise.protobuf_toolchain"):
+        with caplog.at_level("INFO", logger=toolchain_mod.logger.name):
             CommunicationToolchain.generate_message(config, ["msg1"])
 
-        assert "generated protos for: msg1" in caplog.text
+        matching_records = [
+            record
+            for record in caplog.records
+            if record.name == toolchain_mod.logger.name and record.levelname == "INFO" and "generated protos for: msg1" in record.getMessage()
+        ]
+        assert len(matching_records) >= 1
 
     def test_generate_message_failure_exits(self, mock_subprocess, caplog):
         """Test failure generates error log and system exit."""
@@ -87,14 +93,21 @@ class TestCommunicationToolchain:
 
         # Expect sys.exit(1)
         with pytest.raises(SystemExit) as excinfo:
-            with caplog.at_level("ERROR", logger="cavise.protobuf_toolchain"):
+            with caplog.at_level("ERROR", logger=toolchain_mod.logger.name):
                 CommunicationToolchain.generate_message(config, ["msg1"])
 
         assert excinfo.value.code == 1
 
         # Check logs
-        assert "failed to generate protos" in caplog.text
-        assert "STDERR: Protocol error" in caplog.text
+        matching_records = [
+            record
+            for record in caplog.records
+            if record.name == toolchain_mod.logger.name
+            and record.levelname == "ERROR"
+            and "failed to generate protos" in record.getMessage()
+            and "STDERR: Protocol error" in record.getMessage()
+        ]
+        assert len(matching_records) >= 1
 
     def test_handle_messages_empty_list(self, mock_subprocess, mock_importlib):
         """Test behavior with empty message list."""

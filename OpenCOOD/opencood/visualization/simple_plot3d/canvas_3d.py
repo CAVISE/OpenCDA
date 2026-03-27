@@ -96,6 +96,9 @@ class Canvas_3D(object):
                 canvas_xy fits into canvas (are visible from virtual camera).
             depth (ndarray): Optionally returned (N,) array of depth values
         """
+        if xyz.ndim == 1:
+            xyz = xyz.reshape(1, -1)
+
         if self.left_hand:
             xyz[:, 1] = -xyz[:, 1]
 

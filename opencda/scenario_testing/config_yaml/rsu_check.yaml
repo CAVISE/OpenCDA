@@ -48,7 +48,6 @@ rsu_base:
         noise_lat_stddev: 3e-6
         noise_lon_stddev: 3e-6
 
-
 # First define the basic parameters of the vehicles
 vehicle_base:
   sensing:
