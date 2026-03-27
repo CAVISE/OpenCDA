@@ -39,14 +39,14 @@ class MetricCollector:
         }
 
         available_metrics = MetricRegistry.list_metrics()
-        self._requested_metrics = self._resolve_requested_metrics(metric_configs, available_metrics)
+        _requested_metrics = self._resolve_requested_metrics(metric_configs, available_metrics)
 
         self.metrics: dict[str, BaseMetric] = {}
         self.active_metrics: list[str] = []
         self.disabled_metrics: list[str] = [name for name in available_metrics if name not in self._requested_metrics]
         self.unsupported_metrics: dict[str, str] = {}
 
-        self._initialize_metrics(self._requested_metrics)
+        self._initialize_metrics(_requested_metrics)
         logger.info(
             "Initialized metric collector module=%s entity_id=%s active=%s disabled=%s unsupported=%s",
             self.module,
