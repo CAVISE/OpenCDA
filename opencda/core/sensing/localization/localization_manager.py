@@ -176,17 +176,15 @@ class LocalizationManager(object):
         self.kf = KalmanFilter(self.dt)
 
         # Runtime metric collection for offline localization reporting.
-        enabled_metrics, metric_params = resolve_metric_collector_config(
+        metric_configs = resolve_metric_collector_config(
             config_yaml,
-            default_enabled_metrics=["trace"],
-            default_metric_params={"trace": {"warmup_steps": 0}},
+            default_metric_configs={"trace": {"warmup_steps": 0}},
         )
 
         self.metrics_collector = MetricCollector(
             module="localization",
             entity_id=self.vehicle.id,
-            enabled_metrics=enabled_metrics,
-            metric_params=metric_params,
+            metric_configs=metric_configs,
         )
 
         # Live visualization helper.

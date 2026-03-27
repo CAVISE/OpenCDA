@@ -30,7 +30,7 @@ class MetricRegistry:
             raise ValueError(f"Duplicate metric registration for metric='{metric_name}'.")
 
         cls._registry[metric_name] = metric_cls
-        logger.debug("Registered metric class '%s' as '%s'.", metric_cls.__name__, metric_name)
+        logger.info("Registered metric class '%s' as '%s'.", metric_cls.__name__, metric_name)
 
     @classmethod
     def get_metric_class(cls, metric_name: str) -> type:

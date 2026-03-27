@@ -8,44 +8,50 @@ logger = logging.getLogger(__name__)
 
 def resolve_metric_collector_config(
     module_config: Mapping[str, Any] | None,
-    default_enabled_metrics: list[str] | None = None,
-    default_metric_params: Mapping[str, Mapping[str, Any]] | None = None,
-) -> tuple[list[str] | None, dict[str, dict[str, Any]]]:
+    default_metric_configs: Mapping[str, Mapping[str, Any]] | None = None,
+) -> dict[str, dict[str, Any]] | None:
     """
-    Resolve collector configuration from a module config.
+    Resolve metric collector configuration from a module config.
+
+    The resolved value is a single mapping from metric name to metric
+    constructor parameters. The keys of this mapping define the enabled
+    metrics.
     """
     metrics_config = dict((module_config or {}).get("metrics", {}))
-
-    enabled_metrics = metrics_config.get("enabled_metrics", default_enabled_metrics)
-    if enabled_metrics is not None:
-        enabled_metrics = list(dict.fromkeys(enabled_metrics))
-
-    metric_params = {
+    base_metric_configs = {
         metric_name: dict(params)
-        for metric_name, params in (default_metric_params or {}).items()
+        for metric_name, params in (default_metric_configs or {}).items()
     }
-    for metric_name, params in metrics_config.get("metric_params", {}).items():
-        merged_params = dict(metric_params.get(metric_name, {}))
-        merged_params.update(dict(params))
-        metric_params[metric_name] = merged_params
 
-    if enabled_metrics is not None:
-        unexpected_metric_params = [
-            metric_name for metric_name in metric_params if metric_name not in enabled_metrics
-        ]
-        if unexpected_metric_params:
-            logger.error(
-                "Invalid metric config: metric_params declared for disabled metrics: %s",
-                ", ".join(sorted(unexpected_metric_params)),
-            )
-            raise ValueError(
-                "metric_params provided for metrics that are not enabled: "
-                + ", ".join(sorted(unexpected_metric_params))
-            )
+    legacy_keys = [key for key in ("enabled_metrics", "metric_params") if key in metrics_config]
+    if legacy_keys:
+        logger.error(
+            "Legacy metric config keys are not supported anymore: %s",
+            ", ".join(sorted(legacy_keys)),
+        )
+        raise ValueError(
+            "Legacy metric config keys are not supported anymore: "
+            + ", ".join(sorted(legacy_keys))
+        )
 
-    logger.debug(
-        "Resolved metric config enabled_metrics=%s metric_params=%s",
-        enabled_metrics,
-        sorted(metric_params),
+    explicit_metric_configs = {
+        metric_name: dict(params)
+        for metric_name, params in metrics_config.get("metric_configs", {}).items()
+    }
+
+    if explicit_metric_configs:
+        resolved_metric_configs = {}
+        for metric_name, params in explicit_metric_configs.items():
+            merged_params = dict(base_metric_configs.get(metric_name, {}))
+            merged_params.update(params)
+            resolved_metric_configs[metric_name] = merged_params
+    elif base_metric_configs:
+        resolved_metric_configs = base_metric_configs
+    else:
+        resolved_metric_configs = None
+
+    logger.info(
+        "Resolved metric config metric_configs=%s",
+        None if resolved_metric_configs is None else sorted(resolved_metric_configs),
     )
-    return enabled_metrics, metric_params
+    return resolved_metric_configs

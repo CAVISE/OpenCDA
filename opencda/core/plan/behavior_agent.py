@@ -133,21 +133,19 @@ class BehaviorAgent(object):
         self.obstacle_vehicles = []
         self.objects = {}
 
-        default_metric_params = {
+        default_metric_configs = {
             "speed": {"warmup_steps": 100},
             "acceleration": {"warmup_steps": 100},
             "ttc": {"warmup_steps": 100},
         }
-        enabled_metrics, metric_params = resolve_metric_collector_config(
+        metric_configs = resolve_metric_collector_config(
             config_yaml,
-            default_enabled_metrics=["speed", "acceleration", "ttc"],
-            default_metric_params=default_metric_params,
+            default_metric_configs=default_metric_configs,
         )
         self.metrics_collector = MetricCollector(
             module="planning",
             entity_id=self.vehicle.id,
-            enabled_metrics=enabled_metrics,
-            metric_params=metric_params,
+            metric_configs=metric_configs,
         )
         # print message in debug mode
         self.debug = False if "debug" not in config_yaml else config_yaml["debug"]

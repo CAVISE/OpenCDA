@@ -62,7 +62,7 @@ class UniversalReportBuilder:
         return value_resolver(spec.series_name)
 
     def build_entity_report(self, raw_data: MetricCollection) -> EntityReport:
-        logger.debug(
+        logger.info(
             "Building entity report module=%s entity_id=%s active_metrics=%s",
             raw_data.module,
             raw_data.entity_id,

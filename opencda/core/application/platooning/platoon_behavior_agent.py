@@ -76,10 +76,9 @@ class PlatooningBehaviorAgent(BehaviorAgent):
         # merging vehicle needs to reach this speed before cooperative merge
         self.warm_up_speed = platoon_yaml["warm_up_speed"]
 
-        enabled_metrics, metric_params = resolve_metric_collector_config(
+        metric_configs = resolve_metric_collector_config(
             platoon_yaml,
-            default_enabled_metrics=["time_gap", "distance_gap"],
-            default_metric_params={
+            default_metric_configs={
                 "time_gap": {"warmup_steps": 100},
                 "distance_gap": {"warmup_steps": 100},
             },
@@ -88,8 +87,7 @@ class PlatooningBehaviorAgent(BehaviorAgent):
         self.platooning_metrics_collector = MetricCollector(
             module="platooning",
             entity_id=self.vehicle.id,
-            enabled_metrics=enabled_metrics,
-            metric_params=metric_params,
+            metric_configs=metric_configs,
         )
         self.time_gap = 100.0
         self.dist_gap = 100.0

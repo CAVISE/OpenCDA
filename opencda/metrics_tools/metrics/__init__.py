@@ -14,7 +14,7 @@ def _import_builtin_metrics() -> None:
             continue
         import_module(f"{__name__}.{module_info.name}")
 
-        logger.debug("Importing builtin metric module '%s'.", module_info.name)
+        logger.info("Imported builtin metric module '%s'.", module_info.name)
 
 
 _import_builtin_metrics()
