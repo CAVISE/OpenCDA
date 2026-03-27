@@ -5,6 +5,7 @@ import logging
 import numpy as np
 import pickle as pkl
 from scipy.spatial import distance
+from typing import Any
 
 from opencda.co_simulation.sumo_integration.bridge_helper import BridgeHelper
 from AIM import AIMModel
@@ -14,7 +15,7 @@ logger = logging.getLogger("cavise.codriving_model_manager")
 
 
 class AIMModelManager:
-    def __init__(self, model: AIMModel, nodes, excluded_nodes=None):
+    def __init__(self, model: AIMModel, nodes, excluded_nodes=None, message_handler: Any = None):
         """
         :param model_name: model name contained in the filename
         :param pretrained: filepath to saved model state
@@ -40,9 +41,20 @@ class AIMModelManager:
 
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.model = model
+        self.message_handler = message_handler
+        self.module_name = "AIM.AIMModelManager"
 
         self.yaw_dict = self._load_yaw()
         self.yaw_id = {}
+
+    @staticmethod
+    def __wrap_ndarray(ndarray: np.ndarray) -> dict[str, Any]:
+        return {"data": ndarray.tobytes(), "shape": ndarray.shape, "dtype": str(ndarray.dtype)}
+
+    @staticmethod
+    def __unwrap_ndarray(packed_array: dict[str, Any]) -> np.ndarray:
+        array = np.frombuffer(packed_array["data"], np.dtype(packed_array["dtype"]))
+        return array.reshape(packed_array["shape"])
 
     def _load_yaw(self):
         """
@@ -88,73 +100,154 @@ class AIMModelManager:
 
         self.update_trajs()
 
+        if self.message_handler is None:
+            self._make_trajs_without_messages()
+            return
+
+        self._make_trajs_with_messages()
+
+    def extract_data(self, carla_vmanagers):
+        """
+        Export per-vehicle AIM features into the message handler for CAPI exchange.
+        """
+        self.carla_vmanagers = carla_vmanagers
+        self.cav_ids = [vmanager.vid for vmanager in self.carla_vmanagers]
+        self.update_trajs()
+
+        if self.message_handler is None:
+            return
+
+        for vehicle_id, feature_vector in self._encoding_feature_map().items():
+            with self.message_handler.handle_opencda_message(vehicle_id, self.module_name) as msg:
+                msg["aim_features"] = {
+                    "name": "aim_features",
+                    "label": "LABEL_OPTIONAL",
+                    "type": "NDArray",
+                    "data": self.__wrap_ndarray(feature_vector),
+                }
+
+    def _make_trajs_without_messages(self):
         features, target_agent_ids = self.encoding_scenario_features()
         num_agents = features.shape[0]
 
         if num_agents == 0:
             return
 
-        # Transform coordinates
-        self.transform_sumo2carla(features)
-        features_tensor = torch.tensor(features).float().to(self.device)
+        self._predict_and_apply(features, target_agent_ids)
 
-        predictions = self.model.predict(features, target_agent_ids)
-
-        for idx in range(num_agents):
-            vehicle_id = target_agent_ids[idx]
-
-            pos_x, pos_y = traci.vehicle.getPosition(vehicle_id)
-            curr_pos = np.array([pos_x, pos_y])
-
-            nearest_node = self._get_nearest_node(curr_pos)
-            if self.excluded_nodes and nearest_node in self.excluded_nodes:
+    def _make_trajs_with_messages(self):
+        for cav in self.carla_vmanagers:
+            features, target_agent_ids = self._encoding_features_from_messages(cav.vid)
+            if features.shape[0] == 0:
                 continue
 
-            control_center = np.array(nearest_node.getCoord())
-            distance_to_center = np.linalg.norm(curr_pos - control_center)
+            predictions, features_tensor = self._predict(features, target_agent_ids)
+            ego_index = target_agent_ids.index(cav.vid)
+            self._apply_prediction(cav.vid, predictions[ego_index], features_tensor[ego_index])
 
-            if distance_to_center < self.CONTROL_RADIUS:
-                self.mtp_controlled_vehicles.add(vehicle_id)
+    def _predict_and_apply(self, features, target_agent_ids):
+        predictions, features_tensor = self._predict(features, target_agent_ids)
 
-                pred_delta = predictions[idx].reshape(30, 2).detach().cpu().numpy()
-                local_delta = pred_delta[0].reshape(2, 1)
-                last_delta = pred_delta[-1].reshape(2, 1)
+        for idx, vehicle_id in enumerate(target_agent_ids):
+            self._apply_prediction(vehicle_id, predictions[idx], features_tensor[idx])
 
-                if last_delta[1, 0] <= 1:
-                    local_delta[1, 0] = 1e-8
-                    local_delta[0, 0] = 1e-10
-                else:
-                    local_delta[1, 0] = max(1e-8, local_delta[1, 0])
+    def _predict(self, features, target_agent_ids):
+        self.transform_sumo2carla(features)
+        features_tensor = torch.tensor(features).float().to(self.device)
+        predictions = self.model.predict(features, target_agent_ids)
+        return predictions, features_tensor
 
-                yaw = features_tensor[idx, 3].detach().cpu().item()
-                rotation = self.rotation_matrix_back(yaw)
-                global_delta = (rotation @ local_delta).squeeze()
-                global_delta[1] *= -1
+    def _apply_prediction(self, vehicle_id, prediction, feature_tensor):
+        pos_x, pos_y = traci.vehicle.getPosition(vehicle_id)
+        curr_pos = np.array([pos_x, pos_y])
 
-                cav = self._get_vmanager_by_vid(vehicle_id)
-                if cav is None:
+        nearest_node = self._get_nearest_node(curr_pos)
+        if self.excluded_nodes and nearest_node in self.excluded_nodes:
+            return
+
+        control_center = np.array(nearest_node.getCoord())
+        distance_to_center = np.linalg.norm(curr_pos - control_center)
+
+        if distance_to_center < self.CONTROL_RADIUS:
+            self.mtp_controlled_vehicles.add(vehicle_id)
+
+            pred_delta = prediction.reshape(30, 2).detach().cpu().numpy()
+            local_delta = pred_delta[0].reshape(2, 1)
+            last_delta = pred_delta[-1].reshape(2, 1)
+
+            if last_delta[1, 0] <= 1:
+                local_delta[1, 0] = 1e-8
+                local_delta[0, 0] = 1e-10
+            else:
+                local_delta[1, 0] = max(1e-8, local_delta[1, 0])
+
+            yaw = feature_tensor[3].detach().cpu().item()
+            rotation = self.rotation_matrix_back(yaw)
+            global_delta = (rotation @ local_delta).squeeze()
+            global_delta[1] *= -1
+
+            cav = self._get_vmanager_by_vid(vehicle_id)
+            if cav is None:
+                return
+
+            pos = cav.vehicle.get_location()
+
+            global_delta = np.where(np.abs(global_delta) <= self.THRESHOLD, np.sign(global_delta) * self.FORCE_VALUE, global_delta)
+
+            next_loc = carla.Location(
+                x=pos.x + global_delta[0],
+                y=pos.y - global_delta[1],
+                z=pos.z,
+            )
+
+            cav.set_destination(pos, next_loc, clean=True, end_reset=False)
+            cav.update_info_v2x()
+
+            if len(cav.agent.get_local_planner().get_waypoint_buffer()) == 0:
+                logger.warning(f"{vehicle_id}: waypoint buffer is empty after set_destination!")
+        elif vehicle_id in self.mtp_controlled_vehicles:
+            cav = self._get_vmanager_by_vid(vehicle_id)
+            cav.set_destination(cav.vehicle.get_location(), cav.agent.end_waypoint.transform.location, clean=True, end_reset=True)
+
+            self.mtp_controlled_vehicles.remove(vehicle_id)
+
+    def _encoding_feature_map(self) -> dict[str, np.ndarray]:
+        feature_map = {}
+
+        for vehicle_id, trajectory in self.trajs.items():
+            last_position = trajectory[-1]
+            position = np.array(last_position[:2])
+            distance_to_origin = np.linalg.norm(position)
+
+            if distance_to_origin < self.CONTROL_RADIUS:
+                motion_features = np.array(last_position[:-2], dtype=float)
+                intention_vector = self.get_intention_vector(last_position[-1])
+                feature_map[vehicle_id] = np.concatenate((motion_features, intention_vector)).astype(float)
+
+        return feature_map
+
+    def _encoding_features_from_messages(self, ego_id: str):
+        feature_map = self._encoding_feature_map()
+        if ego_id not in feature_map:
+            return np.empty((0, 7)), []
+
+        features = [feature_map[ego_id]]
+        target_agent_ids = [ego_id]
+
+        if ego_id in self.message_handler.current_message_artery:
+            for cav_id in self.message_handler.current_message_artery[ego_id]:
+                if cav_id == ego_id:
                     continue
+                if self.module_name not in self.message_handler.current_message_artery[ego_id][cav_id]:
+                    continue
+                with self.message_handler.handle_artery_message(ego_id, cav_id, self.module_name) as msg:
+                    if "aim_features" not in msg or msg["aim_features"] is None:
+                        continue
 
-                pos = cav.vehicle.get_location()
+                    features.append(self.__unwrap_ndarray(msg["aim_features"]))
+                    target_agent_ids.append(cav_id)
 
-                global_delta = np.where(np.abs(global_delta) <= self.THRESHOLD, np.sign(global_delta) * self.FORCE_VALUE, global_delta)
-
-                next_loc = carla.Location(
-                    x=pos.x + global_delta[0],
-                    y=pos.y - global_delta[1],
-                    z=pos.z,
-                )
-
-                cav.set_destination(pos, next_loc, clean=True, end_reset=False)
-                cav.update_info_v2x()
-
-                if len(cav.agent.get_local_planner().get_waypoint_buffer()) == 0:
-                    logger.warning(f"{vehicle_id}: waypoint buffer is empty after set_destination!")
-            elif vehicle_id in self.mtp_controlled_vehicles:
-                cav = self._get_vmanager_by_vid(vehicle_id)
-                cav.set_destination(cav.vehicle.get_location(), cav.agent.end_waypoint.transform.location, clean=True, end_reset=True)
-
-                self.mtp_controlled_vehicles.remove(vehicle_id)
+        return np.vstack(features), target_agent_ids
 
     def update_trajs(self):
         """

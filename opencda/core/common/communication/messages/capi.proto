@@ -35,6 +35,7 @@ message Entity {
     optional NDArray voxel_features = 16;
     optional NDArray voxel_coords = 17;
     optional NDArray projected_lidar = 18;
+    optional NDArray aim_features = 19;
 }
 
 message NDArray {
