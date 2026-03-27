@@ -5,7 +5,6 @@ import logging
 import numpy as np
 import pickle as pkl
 from scipy.spatial import distance
-from typing import Any
 
 from opencda.co_simulation.sumo_integration.bridge_helper import BridgeHelper
 from AIM import AIMModel
@@ -15,7 +14,7 @@ logger = logging.getLogger("cavise.opencda.opencda.core.common.aim_model_manager
 
 
 class AIMModelManager:
-    def __init__(self, model: AIMModel, nodes, excluded_nodes=None, message_handler: Any = None):
+    def __init__(self, model: AIMModel, nodes, excluded_nodes=None, payload_handler=None):
         """
         :param model_name: model name contained in the filename
         :param pretrained: filepath to saved model state
@@ -41,20 +40,11 @@ class AIMModelManager:
 
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.model = model
-        self.message_handler = message_handler
+        self.payload_handler = payload_handler
         self.module_name = "AIM.AIMModelManager"
 
         self.yaw_dict = self._load_yaw()
         self.yaw_id = {}
-
-    @staticmethod
-    def __wrap_ndarray(ndarray: np.ndarray) -> dict[str, Any]:
-        return {"data": ndarray.tobytes(), "shape": ndarray.shape, "dtype": str(ndarray.dtype)}
-
-    @staticmethod
-    def __unwrap_ndarray(packed_array: dict[str, Any]) -> np.ndarray:
-        array = np.frombuffer(packed_array["data"], np.dtype(packed_array["dtype"]))
-        return array.reshape(packed_array["shape"])
 
     def _load_yaw(self):
         """
@@ -100,7 +90,7 @@ class AIMModelManager:
 
         self.update_trajs()
 
-        if self.message_handler is None:
+        if self.payload_handler is None:
             self._make_trajs_without_messages()
             return
 
@@ -108,23 +98,18 @@ class AIMModelManager:
 
     def extract_data(self, carla_vmanagers):
         """
-        Export per-vehicle AIM features into the message handler for CAPI exchange.
+        Export per-vehicle AIM features into the payload handler for CAPI exchange.
         """
         self.carla_vmanagers = carla_vmanagers
         self.cav_ids = [vmanager.vid for vmanager in self.carla_vmanagers]
         self.update_trajs()
 
-        if self.message_handler is None:
+        if self.payload_handler is None:
             return
 
         for vehicle_id, feature_vector in self._encoding_feature_map().items():
-            with self.message_handler.handle_opencda_message(vehicle_id, self.module_name) as msg:
-                msg["aim_features"] = {
-                    "name": "aim_features",
-                    "label": "LABEL_OPTIONAL",
-                    "type": "NDArray",
-                    "data": self.__wrap_ndarray(feature_vector),
-                }
+            with self.payload_handler.handle_opencda_payload(vehicle_id, self.module_name) as msg:
+                msg["aim_features"] = feature_vector
 
     def _make_trajs_without_messages(self):
         features, target_agent_ids = self.encoding_scenario_features()
@@ -234,17 +219,17 @@ class AIMModelManager:
         features = [feature_map[ego_id]]
         target_agent_ids = [ego_id]
 
-        if ego_id in self.message_handler.current_message_artery:
-            for cav_id in self.message_handler.current_message_artery[ego_id]:
+        if ego_id in self.payload_handler.current_artery_payload:
+            for cav_id in self.payload_handler.current_artery_payload[ego_id]:
                 if cav_id == ego_id:
                     continue
-                if self.module_name not in self.message_handler.current_message_artery[ego_id][cav_id]:
+                if self.module_name not in self.payload_handler.current_artery_payload[ego_id][cav_id]:
                     continue
-                with self.message_handler.handle_artery_message(ego_id, cav_id, self.module_name) as msg:
+                with self.payload_handler.handle_artery_payload(ego_id, cav_id, self.module_name) as msg:
                     if "aim_features" not in msg or msg["aim_features"] is None:
                         continue
 
-                    features.append(self.__unwrap_ndarray(msg["aim_features"]))
+                    features.append(np.asarray(msg["aim_features"], dtype=float))
                     target_agent_ids.append(cav_id)
 
         return np.vstack(features), target_agent_ids

@@ -150,7 +150,7 @@ class Scenario:
                 model=model,
                 nodes=nodes,
                 excluded_nodes=None,
-                message_handler=self.message_handler,
+                payload_handler=self.payload_handler,
             )
 
         self.platoon_list, self.node_ids["platoon"] = self.scenario_manager.create_platoon_manager(
@@ -265,7 +265,7 @@ class Scenario:
                     transform = self.platoon_list[0].vehicle_manager_list[0].vehicle.get_transform()
                     self.spectator.set_transform(carla.Transform(transform.location + carla.Location(z=50), carla.Rotation(pitch=-90)))
 
-            if opt.with_mtp and self.message_handler is not None:
+            if opt.with_mtp and self.payload_handler is not None:
                 self.codriving_model_manager.extract_data(carla_vmanagers=self.single_cav_list)
             elif opt.with_mtp:
                 self.codriving_model_manager.make_trajs(carla_vmanagers=self.single_cav_list)
@@ -299,7 +299,7 @@ class Scenario:
             logger.info(f"{round(artery_message.ByteSize() / (1 << 20), 3)} MB were received")
             self.payload_handler.make_artery_payload(artery_message)
 
-            if opt.with_mtp and self.message_handler is not None:
+            if opt.with_mtp and self.payload_handler is not None:
                 self.codriving_model_manager.make_trajs(carla_vmanagers=self.single_cav_list)
 
             if self.coperception_model_manager is not None and tick_number > 0:
