@@ -1,6 +1,7 @@
 import importlib
 import sys
 import types
+import pickle
 from typing import Iterable
 
 import pytest
@@ -331,6 +332,10 @@ class TestCommunicationManager:
         mgr.socket.send_behavior = [None]
         mgr.message_order = 7  # Non-zero initial state
         msg = fake_env["proto_opencda"].OpenCDAMessage()
+        ent = msg.entity.add()
+        ent.id = "ego1"
+        payload = {"loc": {"x": 1.0, "y": 2.0}, "meta": {"tick": 5}}
+        ent.auxillary = pickle.dumps(payload, protocol=pickle.HIGHEST_PROTOCOL)
 
         mgr.send_message(msg)
         assert mgr.socket.send_calls == 1
@@ -345,6 +350,10 @@ class TestCommunicationManager:
         sent.ParseFromString(last_sent)
         assert sent.order == 7
         assert sent.WhichOneof("message") == "opencda"
+        assert len(sent.opencda.entity) == 1
+        assert sent.opencda.entity[0].id == "ego1"
+        assert isinstance(sent.opencda.entity[0].auxillary, (bytes, bytearray))
+        assert pickle.loads(sent.opencda.entity[0].auxillary) == payload
         assert sent.opencda.SerializeToString() == msg.SerializeToString()
 
     def test_send_message_timeout_raises(self, fake_env):
@@ -372,12 +381,24 @@ class TestCommunicationManager:
 
         reply = fake_env["proto_capi"].Message(order=5)
         reply.artery.SetInParent()
+        t = reply.artery.transmissions.add()
+        t.id = "ego1"
+        e = t.entity.add()
+        e.id = "veh1"
+        incoming_payload = {"sensor": {"speed": 3.5}, "flags": [1, 2, 3]}
+        e.auxillary = pickle.dumps(incoming_payload, protocol=pickle.HIGHEST_PROTOCOL)
         mgr.socket.recv_behavior = [reply.SerializeToString()]
 
         result = mgr.receive_message()
         assert mgr.message_order == 6  # Increments on successful receive
         assert mgr.socket.recv_calls == 1
         assert mgr.socket.getsockopt_calls.get(fake_env["zmq"].RCVTIMEO, 0) == 1
+        assert len(result.transmissions) == 1
+        assert result.transmissions[0].id == "ego1"
+        assert len(result.transmissions[0].entity) == 1
+        assert result.transmissions[0].entity[0].id == "veh1"
+        assert isinstance(result.transmissions[0].entity[0].auxillary, (bytes, bytearray))
+        assert pickle.loads(result.transmissions[0].entity[0].auxillary) == incoming_payload
         assert result.DESCRIPTOR.full_name == reply.artery.DESCRIPTOR.full_name
         assert result.SerializeToString() == reply.artery.SerializeToString()
 
