@@ -338,7 +338,7 @@ class TestDirectoryProcessor:
         dp = DirectoryProcessor(str(source_dir), str(now_dir))
 
         # Needs at least 2 dirs. Sorted order: d1, d2.
-        # Code picks index -2 -> d1
+        # Code picks index -2 -> d1.
         d1 = source_dir / "d1"
         d2 = source_dir / "d2"
         d1.mkdir()

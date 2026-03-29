@@ -234,7 +234,7 @@ class DirectoryProcessor:
         for item in os.listdir(self.now_directory):
             item_path = os.path.join(self.now_directory, item)
             if os.path.isfile(item_path) or os.path.islink(item_path):
-                os.remove(item_path) 
+                os.remove(item_path)
             elif os.path.isdir(item_path):
                 shutil.rmtree(item_path)
 
