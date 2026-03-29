@@ -43,7 +43,6 @@ jobs:
             opencda/core/common/communication/messages/capi.proto
       - name: Run mypy
         run: mypy .
-        continue-on-error: true
 
   unused-code-check:
     runs-on: ubuntu-latest
