@@ -40,10 +40,12 @@ jobs:
             -I opencda/core/common/communication/messages \
             --python_out=opencda/core/common/communication/protos/cavise \
             --mypy_out=opencda/core/common/communication/protos/cavise \
-            opencda/core/common/communication/messages/capi.proto
+            opencda/core/common/communication/messages/capi.proto \
+            opencda/core/common/communication/messages/artery.proto \
+            opencda/core/common/communication/messages/opencda.proto \
+            opencda/core/common/communication/messages/entity.proto
       - name: Run mypy
         run: mypy .
-        continue-on-error: true
 
   unused-code-check:
     runs-on: ubuntu-latest
