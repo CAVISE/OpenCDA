@@ -91,6 +91,7 @@ def ensure_comm_protos_ready():
             yield
             return
         except (ImportError, AssertionError):
+            # Fast-path import/validation failed; fall through to protobuf regeneration.
             pass
 
         if not shutil.which("protoc"):
@@ -129,6 +130,7 @@ def ensure_comm_protos_ready():
                 try:
                     (protos_dir / name).unlink()
                 except FileNotFoundError:
+                    # File may already have been removed; ignore for best-effort cleanup.
                     pass
 
             # Best-effort cleanup: remove only pycache files created during this session.
@@ -140,12 +142,14 @@ def ensure_comm_protos_ready():
                     try:
                         (pycache / name).unlink()
                     except FileNotFoundError:
+                        # Cache file may already have been removed; ignore for best-effort cleanup.
                         pass
 
                 if not before_pycache_existed:
                     try:
                         pycache.rmdir()
                     except OSError:
+                        # Directory may be non-empty or already gone; ignore for best-effort cleanup.
                         pass
 
 
