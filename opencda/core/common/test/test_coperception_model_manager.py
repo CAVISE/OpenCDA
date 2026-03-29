@@ -534,3 +534,33 @@ class TestDirectoryProcessor:
         dp.clear_directory_now()
 
         assert len(os.listdir(now_dir)) == 0
+
+    def test_update_dataset_logs_warning_for_empty_memory_data_dict(self):
+        """Empty dict as memory_data should be propagated and trigger empty-dataset warning."""
+        dataset_mock = MagicMock()
+        dataset_mock.collate_batch_test = MagicMock()
+        dataset_mock.__len__.return_value = 0
+
+        with patch("opencda.core.common.coperception_model_manager.build_dataset", return_value=dataset_mock):
+            manager = CoperceptionModelManager(DummyOpt(), "2023_01_01")
+
+        with patch("opencda.core.common.coperception_model_manager.logger.warning") as mock_warning:
+            manager.update_dataset(data={})
+
+        dataset_mock.update_database.assert_called_once_with(memory_data={})
+        mock_warning.assert_called_once_with("No samples found in dataset after update.")
+
+    def test_update_dataset_logs_warning_for_none_memory_data(self):
+        """None as memory_data should be propagated and trigger empty-dataset warning."""
+        dataset_mock = MagicMock()
+        dataset_mock.collate_batch_test = MagicMock()
+        dataset_mock.__len__.return_value = 0
+
+        with patch("opencda.core.common.coperception_model_manager.build_dataset", return_value=dataset_mock):
+            manager = CoperceptionModelManager(DummyOpt(), "2023_01_01")
+
+        with patch("opencda.core.common.coperception_model_manager.logger.warning") as mock_warning:
+            manager.update_dataset(data=None)
+
+        dataset_mock.update_database.assert_called_once_with(memory_data=None)
+        mock_warning.assert_called_once_with("No samples found in dataset after update.")
