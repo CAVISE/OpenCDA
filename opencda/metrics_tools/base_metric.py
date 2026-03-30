@@ -22,6 +22,7 @@ class BaseMetric(ABC):
     """
 
     metric_name: ClassVar[str]
+
     def __init_subclass__(cls, **kwargs: Any):
         super().__init_subclass__(**kwargs)
         MetricRegistry.register(cls)

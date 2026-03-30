@@ -79,8 +79,6 @@ class EvaluationManager(object):
         kinematics_reports: list[EntityReport] = []
 
         for vid, vm in self.cav_world.get_vehicle_managers().items():
-            actor_id = vm.vehicle.id
-
             raw_data = vm.agent.metrics_collector.get_raw()
             kinematics_reports.append(report_builder.build_entity_report(raw_data))
 
@@ -93,8 +91,6 @@ class EvaluationManager(object):
         report_builder = UniversalReportBuilder()
         localization_reports: list[EntityReport] = []
         for vid, vm in self.cav_world.get_vehicle_managers().items():
-            actor_id = vm.vehicle.id
-
             raw_data = vm.localizer.metrics_collector.get_raw()
             localization_reports.append(report_builder.build_entity_report(raw_data))
 

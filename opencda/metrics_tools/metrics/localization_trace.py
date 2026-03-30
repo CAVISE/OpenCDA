@@ -41,10 +41,7 @@ class LocalizationTraceMetric(BaseMetric):
             self._samples[series_name].append(self._make_sample(value))
 
     def get_raw(self) -> tuple[MetricSeries, ...]:
-        return tuple(
-            MetricSeries(name=series_name, samples=tuple(self._samples[series_name]))
-            for series_name in self._SERIES_NAMES
-        )
+        return tuple(MetricSeries(name=series_name, samples=tuple(self._samples[series_name])) for series_name in self._SERIES_NAMES)
 
     @classmethod
     def get_report_spec(cls) -> MetricReportSpec:

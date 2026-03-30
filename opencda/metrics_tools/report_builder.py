@@ -6,7 +6,17 @@ import numpy as np
 
 from opencda.metrics_tools.collection_models import MetricCollection
 from opencda.metrics_tools.registry import MetricRegistry
-from opencda.metrics_tools.report_models import EntityMetricCollections, EntityReport, EntityReportInfo, GroupReport, MetricReport, MetricReportSpec, MetricSummarySpec, ModuleReport, SeriesSummary
+from opencda.metrics_tools.report_models import (
+    EntityMetricCollections,
+    EntityReport,
+    EntityReportInfo,
+    GroupReport,
+    MetricReport,
+    MetricReportSpec,
+    MetricSummarySpec,
+    ModuleReport,
+    SeriesSummary,
+)
 
 logger = logging.getLogger(__name__)
 

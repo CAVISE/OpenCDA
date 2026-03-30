@@ -1,4 +1,5 @@
 """Raw collection models used between metrics, collectors, and reports."""
+
 from typing import Any
 from dataclasses import asdict, dataclass
 

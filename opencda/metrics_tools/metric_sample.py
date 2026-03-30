@@ -1,7 +1,7 @@
 """Scalar sample model used by raw metric series."""
 
 from dataclasses import asdict, dataclass
-from typing import TypeVar 
+from typing import TypeVar
 
 
 @dataclass(frozen=True, slots=True)

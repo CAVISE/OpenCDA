@@ -18,10 +18,7 @@ def resolve_metric_collector_config(
     metrics.
     """
     metrics_config = dict((module_config or {}).get("metrics", {}))
-    base_metric_configs = {
-        metric_name: dict(params)
-        for metric_name, params in (default_metric_configs or {}).items()
-    }
+    base_metric_configs = {metric_name: dict(params) for metric_name, params in (default_metric_configs or {}).items()}
 
     legacy_keys = [key for key in ("enabled_metrics", "metric_params") if key in metrics_config]
     if legacy_keys:
@@ -29,15 +26,9 @@ def resolve_metric_collector_config(
             "Legacy metric config keys are not supported anymore: %s",
             ", ".join(sorted(legacy_keys)),
         )
-        raise ValueError(
-            "Legacy metric config keys are not supported anymore: "
-            + ", ".join(sorted(legacy_keys))
-        )
+        raise ValueError("Legacy metric config keys are not supported anymore: " + ", ".join(sorted(legacy_keys)))
 
-    explicit_metric_configs = {
-        metric_name: dict(params)
-        for metric_name, params in metrics_config.get("metric_configs", {}).items()
-    }
+    explicit_metric_configs = {metric_name: dict(params) for metric_name, params in metrics_config.get("metric_configs", {}).items()}
 
     if explicit_metric_configs:
         resolved_metric_configs = {}

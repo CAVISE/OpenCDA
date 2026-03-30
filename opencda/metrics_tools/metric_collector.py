@@ -33,10 +33,7 @@ class MetricCollector:
     ):
         self.module = module
         self.entity_id = entity_id
-        self.metric_configs = {
-            metric_name: dict(params)
-            for metric_name, params in (metric_configs or {}).items()
-        }
+        self.metric_configs = {metric_name: dict(params) for metric_name, params in (metric_configs or {}).items()}
 
         available_metrics = MetricRegistry.list_metrics()
         requested_metrics = self._resolve_requested_metrics(metric_configs, available_metrics)
@@ -122,8 +119,7 @@ class MetricCollector:
             active_metrics=tuple(self.active_metrics),
             disabled_metrics=tuple(self.disabled_metrics),
             unsupported_metrics=tuple(
-                MetricIssue(metric_name=metric_name, reason=reason)
-                for metric_name, reason in self.unsupported_metrics.items()
+                MetricIssue(metric_name=metric_name, reason=reason) for metric_name, reason in self.unsupported_metrics.items()
             ),
             series=tuple(series),
         )
