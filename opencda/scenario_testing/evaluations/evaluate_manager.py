@@ -9,7 +9,7 @@ import logging
 from opencda.metrics_tools.report_models import EntityReport, GroupReport, ModuleReport
 from opencda.metrics_tools.report_builder import UniversalReportBuilder
 
-logger = logging.getLogger("cavise.evaluate_manager")
+logger = logging.getLogger("cavise.opencda.opencda.scenario_testing.evaluations.evaluate_manager")
 
 
 class EvaluationManager(object):

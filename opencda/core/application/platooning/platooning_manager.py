@@ -8,7 +8,7 @@ import carla
 from opencda.metrics_tools.report_models import EntityMetricCollections
 
 
-logger = logging.getLogger("cavise.platooning_manager")
+logger = logging.getLogger("cavise.opencda.opencda.core.application.platooning.platooning_manager")
 
 
 class PlatooningManager(object):
