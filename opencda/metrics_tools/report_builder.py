@@ -17,6 +17,7 @@ from opencda.metrics_tools.report_models import (
     ModuleReport,
     SeriesSummary,
 )
+from opencda.metrics_tools.base_metric import BaseMetric
 
 logger = logging.getLogger("cavise.opencda.opencda.metrics_tools.report_builder")
 
@@ -138,7 +139,7 @@ class UniversalReportBuilder:
             metrics=entity_report.metrics,
         )
 
-    def _build_metric_report(self, metric_cls: type, raw_data: MetricCollection) -> MetricReport:
+    def _build_metric_report(self, metric_cls: type[BaseMetric], raw_data: MetricCollection) -> MetricReport:
         metric_spec = metric_cls.get_report_spec()
         return MetricReport(
             metric_name=metric_spec.metric_name,

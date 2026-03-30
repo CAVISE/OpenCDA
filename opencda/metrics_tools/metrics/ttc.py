@@ -1,7 +1,7 @@
 """Time-to-collision metric implementation."""
 
 import numpy as np
-from typing import Mapping
+from typing import Mapping, Any
 
 from opencda.metrics_tools.base_metric import BaseMetric
 from opencda.metrics_tools.collection_models import MetricSeries
@@ -30,7 +30,7 @@ class TtcMetric(BaseMetric):
     def ttc_list(self) -> list[float]:
         return [sample.value for sample in self._ttc_samples]
 
-    def _process_context(self, context: Mapping[str, object]) -> None:
+    def _process_context(self, context: Mapping[str, Any]) -> None:
         ttc = float(context.get("ttc", 1000.0))
         self._ttc_samples.append(self._make_sample(ttc))
 

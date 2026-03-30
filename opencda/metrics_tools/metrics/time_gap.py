@@ -1,10 +1,11 @@
 """Platooning time-gap metric implementation."""
 
-from typing import Mapping
+from typing import Mapping, Any
 
 from opencda.metrics_tools.base_metric import BaseMetric
 from opencda.metrics_tools.collection_models import MetricSeries
 from opencda.metrics_tools.report_models import MetricReportSpec, MetricSummarySpec
+from opencda.metrics_tools.metric_sample import MetricSample
 
 
 class TimeGapMetric(BaseMetric):
@@ -14,9 +15,9 @@ class TimeGapMetric(BaseMetric):
 
     def __init__(self, warmup_steps: int = 100):
         super().__init__(warmup_steps=warmup_steps)
-        self._samples = []
+        self._samples: list[MetricSample] = []
 
-    def _process_context(self, context: Mapping[str, object]) -> None:
+    def _process_context(self, context: Mapping[str, Any]) -> None:
         time_gap = float(context.get("time_gap", 100.0))
         self._samples.append(self._make_sample(time_gap))
 

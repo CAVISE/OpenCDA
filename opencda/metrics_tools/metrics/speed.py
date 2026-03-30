@@ -1,6 +1,6 @@
 """Speed metric implementation."""
 
-from typing import Mapping
+from typing import Mapping, Any
 
 from opencda.metrics_tools.base_metric import BaseMetric
 from opencda.metrics_tools.collection_models import MetricSeries
@@ -21,7 +21,7 @@ class SpeedMetric(BaseMetric):
     def speed_list(self) -> list[float]:
         return [sample.value for sample in self._speed_samples]
 
-    def _process_context(self, context: Mapping[str, object]) -> None:
+    def _process_context(self, context: Mapping[str, Any]) -> None:
         ego_speed = float(context.get("ego_speed", 0.0))
         self._speed_samples.append(self._make_sample(ego_speed / 3.6))
 

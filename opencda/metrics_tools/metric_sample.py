@@ -1,7 +1,6 @@
 """Scalar sample model used by raw metric series."""
 
 from dataclasses import asdict, dataclass
-from typing import TypeVar
 
 
 @dataclass(frozen=True, slots=True)
@@ -18,7 +17,7 @@ class MetricSample:
     """
 
     tick: int
-    value: TypeVar
+    value: float
 
     def to_dict(self) -> dict[str, float | int]:
         """Return a JSON-serializable representation of the sample."""

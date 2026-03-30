@@ -1,6 +1,6 @@
 """Localization trace metric implementation."""
 
-from typing import Callable, Mapping, Sequence
+from typing import Callable, Mapping, Sequence, Any
 
 from opencda.metrics_tools.base_metric import BaseMetric
 from opencda.metrics_tools.collection_models import MetricSeries
@@ -33,7 +33,7 @@ class LocalizationTraceMetric(BaseMetric):
         super().__init__(warmup_steps=warmup_steps)
         self._samples: dict[str, list[MetricSample]] = {series_name: [] for series_name in self._SERIES_NAMES}
 
-    def _process_context(self, context: Mapping[str, object]) -> None:
+    def _process_context(self, context: Mapping[str, Any]) -> None:
         for series_name in self._SERIES_NAMES:
             value = float(context.get(series_name, 0.0))
             if series_name in self._SPEED_SERIES:
