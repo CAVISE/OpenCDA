@@ -61,6 +61,8 @@ class FPVRCNN(nn.Module):
             batch_dict = self.vsa(batch_dict)
             batch_dict = self.matcher(batch_dict)
             batch_dict = self.roi_head(batch_dict)
+        if pred_box3d_list is None:
+            data_dict["ego"]["fpvrcnn_out"] = None
 
         return batch_dict
 

@@ -13,7 +13,7 @@ from opencda.core.plan.behavior_agent import BehaviorAgent
 from opencda.metrics_tools.config import resolve_metric_collector_config
 from opencda.metrics_tools.metric_collector import MetricCollector
 
-logger = logging.getLogger("cavise.platoon_behavior_agent")
+logger = logging.getLogger("cavise.opencda.opencda.core.application.platooning.platoon_behavior_agent")
 
 
 class PlatooningBehaviorAgent(BehaviorAgent):

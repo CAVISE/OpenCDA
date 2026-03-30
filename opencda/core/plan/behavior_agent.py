@@ -15,7 +15,7 @@ from opencda.core.plan.global_route_planner_dao import GlobalRoutePlannerDAO
 from opencda.metrics_tools.config import resolve_metric_collector_config
 from opencda.metrics_tools.metric_collector import MetricCollector
 
-logger = logging.getLogger("cavise.behavior_agent")
+logger = logging.getLogger("cavise.opencda.opencda.core.plan.behavior_agent")
 
 
 class BehaviorAgent(object):
