@@ -12,7 +12,6 @@ set(PROTO_FILES
     opencda.proto
     artery.proto
     entity.proto
-    ack.proto
 )
 
 protobuf_generate(
