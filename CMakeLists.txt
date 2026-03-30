@@ -48,7 +48,7 @@ endif()
 find_package(pybind11 REQUIRED CONFIG)
 
 if(OPENCDA_BUILD_PROTOBUF)
-    add_subdirectory(opencda/core/common/communication/messages)
+    add_subdirectory(opencda/core/common/communication)
 endif()
 
 if(OPENCDA_BUILD_CUDA)
