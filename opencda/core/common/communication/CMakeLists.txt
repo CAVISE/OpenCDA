@@ -2,16 +2,14 @@ find_package(Protobuf REQUIRED)
 
 find_program(PROTOC_GEN_MYPY NAMES protoc-gen-mypy REQUIRED)
 
-set(PROTO_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
-set(PROTO_INSTALL_DIR ${CMAKE_SOURCE_DIR}/opencda/core/common/communication/protos/cavise)
-
-file(MAKE_DIRECTORY ${PROTO_INSTALL_DIR})
+set(PROTO_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/messages)
+set(PROTO_INSTALL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/protos/cavise)
 
 set(PROTO_FILES
-    capi.proto
-    opencda.proto
-    artery.proto
-    entity.proto
+    ${PROTO_SOURCE_DIR}/capi.proto
+    ${PROTO_SOURCE_DIR}/opencda.proto
+    ${PROTO_SOURCE_DIR}/artery.proto
+    ${PROTO_SOURCE_DIR}/entity.proto
 )
 
 protobuf_generate(
