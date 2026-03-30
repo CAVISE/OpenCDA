@@ -1,4 +1,5 @@
 import os
+from collections import OrderedDict
 import pytest
 from unittest.mock import MagicMock, patch
 from pathlib import Path
@@ -34,7 +35,7 @@ class DummyDataset:
     def visualize_result(self, *args, **kwargs):
         pass
 
-    def update_database(self):
+    def update_database(self, memory_data=None):
         pass
 
 
@@ -129,18 +130,36 @@ class TestCoperceptionModelManager:
         We patch the symbol inside the module under test to ensure we capture the call.
         """
         dataset_mock = DummyDataset()
+        dataset_mock.update_database = MagicMock()
+        memory_data = {0: {"cav_1": {"000010": {"yaml": "a.yaml", "lidar": "a.pcd"}}}}
 
         # Patching where it is imported in the source code
         with patch("opencda.core.common.coperception_model_manager.build_dataset", return_value=dataset_mock) as mock_build:
             opt = DummyOpt()
             manager = CoperceptionModelManager(opt, "2023_01_01")
 
-            manager.update_dataset()
+            manager.update_dataset(data=memory_data)
 
+            dataset_mock.update_database.assert_called_once_with(memory_data=memory_data)
             mock_build.assert_called_with(manager_deps["hypes"], visualize=True, train=False, payload_handler=None)
             assert manager.opencood_dataset == dataset_mock
             assert manager.data_loader is not None
             assert manager.data_loader.dataset == dataset_mock
+
+    def test_update_dataset_logs_warning_for_empty_dataset(self):
+        """Verify warning is emitted when update leads to an empty dataset."""
+        dataset_mock = MagicMock()
+        dataset_mock.collate_batch_test = MagicMock()
+        dataset_mock.__len__.return_value = 0
+
+        with patch("opencda.core.common.coperception_model_manager.build_dataset", return_value=dataset_mock):
+            manager = CoperceptionModelManager(DummyOpt(), "2023_01_01")
+
+        with patch("opencda.core.common.coperception_model_manager.logger.warning") as mock_warning:
+            manager.update_dataset(data={"in_memory": True})
+
+        dataset_mock.update_database.assert_called_once_with(memory_data={"in_memory": True})
+        mock_warning.assert_called_once_with("No samples found in dataset after update.")
 
     def test_make_prediction_state_update(self, manager_deps):
         """Test that final_result_stat is actually updated via caluclate_tp_fp side effect."""
@@ -340,6 +359,172 @@ class TestDirectoryProcessor:
         assert (now_dir / "agent1" / "000010.pcd").exists()
         assert (now_dir / "agent1" / "000010.pcd").read_text() == "pcd"
 
+    def test_retrieve_data_structure_success(self, processor_setup):
+        source_dir, now_dir = processor_setup
+        dp = DirectoryProcessor(str(source_dir), str(now_dir))
+
+        d1 = source_dir / "d1"
+        d2 = source_dir / "d2"
+        d1.mkdir()
+        d2.mkdir()
+
+        rsu = d1 / "rsu_0"
+        cav = d1 / "veh_1"
+        rsu.mkdir()
+        cav.mkdir()
+
+        (rsu / "000010.yaml").write_text("rsu-yaml")
+        (rsu / "000010.pcd").write_text("rsu-pcd")
+        (rsu / "000010_camera0.png").write_text("cam0")
+
+        (cav / "000010.yaml").write_text("cav-yaml")
+        (cav / "000010.pcd").write_text("cav-pcd")
+        (cav / "000010_camera0.png").write_text("cam0")
+
+        structure = dp.retrieve_data_structure(10)
+
+        assert isinstance(structure, OrderedDict)
+        assert list(structure.keys()) == [0]
+        assert list(structure[0].keys()) == ["veh_1", "rsu_0"]
+
+        ts = "000010"
+        cav_data = structure[0]["veh_1"][ts]
+        rsu_data = structure[0]["rsu_0"][ts]
+
+        assert cav_data["yaml"].endswith(os.path.join("veh_1", "000010.yaml"))
+        assert cav_data["lidar"].endswith(os.path.join("veh_1", "000010.pcd"))
+        assert cav_data["camera0"] == [str(cav / "000010_camera0.png")]
+        assert structure[0]["veh_1"]["ego"] is True
+
+        assert rsu_data["yaml"].endswith(os.path.join("rsu_0", "000010.yaml"))
+        assert rsu_data["lidar"].endswith(os.path.join("rsu_0", "000010.pcd"))
+        assert rsu_data["camera0"] == [str(rsu / "000010_camera0.png")]
+        assert structure[0]["rsu_0"]["ego"] is False
+
+    def test_retrieve_data_structure_returns_none_when_not_enough_snapshots(self, processor_setup):
+        source_dir, now_dir = processor_setup
+        dp = DirectoryProcessor(str(source_dir), str(now_dir))
+
+        (source_dir / "d1").mkdir()
+
+        assert dp.retrieve_data_structure(10) is None
+
+    def test_retrieve_data_structure_returns_none_when_no_valid_agents(self, processor_setup):
+        source_dir, now_dir = processor_setup
+        dp = DirectoryProcessor(str(source_dir), str(now_dir))
+
+        d1 = source_dir / "d1"
+        d2 = source_dir / "d2"
+        d1.mkdir()
+        d2.mkdir()
+
+        invalid_agent = d1 / "cav_1"
+        invalid_agent.mkdir()
+        (invalid_agent / "000010.yaml").write_text("only-yaml")
+
+        assert dp.retrieve_data_structure(10) is None
+
+    def test_retrieve_data_structure_returns_none_when_expected_ego_is_incomplete(self, processor_setup):
+        source_dir, now_dir = processor_setup
+        dp = DirectoryProcessor(str(source_dir), str(now_dir))
+
+        d1 = source_dir / "d1"
+        d2 = source_dir / "d2"
+        d1.mkdir()
+        d2.mkdir()
+
+        cav_1 = d1 / "cav_1"
+        cav_2 = d1 / "cav_2"
+        cav_1.mkdir()
+        cav_2.mkdir()
+
+        # First expected ego agent is incomplete for this tick.
+        (cav_1 / "000010.yaml").write_text("yaml")
+
+        # Another agent is valid, but should not silently become ego.
+        (cav_2 / "000010.yaml").write_text("yaml")
+        (cav_2 / "000010.pcd").write_text("pcd")
+
+        assert dp.retrieve_data_structure(10) is None
+
+    def test_retrieve_data_structure_fallback_when_detect_cameras_fails(self, processor_setup, monkeypatch):
+        source_dir, now_dir = processor_setup
+        dp = DirectoryProcessor(str(source_dir), str(now_dir))
+
+        d1 = source_dir / "d1"
+        d2 = source_dir / "d2"
+        d1.mkdir()
+        d2.mkdir()
+
+        cav = d1 / "cav_1"
+        cav.mkdir()
+        (cav / "000010.yaml").write_text("yaml")
+        (cav / "000010.pcd").write_text("pcd")
+
+        monkeypatch.setattr(dp, "detect_cameras", MagicMock(side_effect=RuntimeError("camera probe failed")))
+
+        structure = dp.retrieve_data_structure(10)
+
+        assert structure is not None
+        assert structure[0]["cav_1"]["000010"]["camera0"] == []
+        assert structure[0]["cav_1"]["ego"] is True
+
+    def test_retrieve_data_structure_respects_max_cav(self, processor_setup):
+        source_dir, now_dir = processor_setup
+        dp = DirectoryProcessor(str(source_dir), str(now_dir), max_cav=1)
+
+        d1 = source_dir / "d1"
+        d2 = source_dir / "d2"
+        d1.mkdir()
+        d2.mkdir()
+
+        cav_1 = d1 / "cav_1"
+        cav_2 = d1 / "cav_2"
+        cav_1.mkdir()
+        cav_2.mkdir()
+
+        (cav_1 / "000010.yaml").write_text("yaml")
+        (cav_1 / "000010.pcd").write_text("pcd")
+        (cav_2 / "000010.yaml").write_text("yaml")
+        (cav_2 / "000010.pcd").write_text("pcd")
+
+        structure = dp.retrieve_data_structure(10)
+
+        assert structure is not None
+        assert list(structure[0].keys()) == ["cav_1"]
+        assert structure[0]["cav_1"]["ego"] is True
+
+    def test_retrieve_data_structure_respects_max_cav_after_rsu_reorder(self, processor_setup):
+        source_dir, now_dir = processor_setup
+        dp = DirectoryProcessor(str(source_dir), str(now_dir), max_cav=2)
+
+        d1 = source_dir / "d1"
+        d2 = source_dir / "d2"
+        d1.mkdir()
+        d2.mkdir()
+
+        rsu = d1 / "rsu_0"
+        cav_1 = d1 / "veh_1"
+        cav_2 = d1 / "veh_2"
+        rsu.mkdir()
+        cav_1.mkdir()
+        cav_2.mkdir()
+
+        (rsu / "000010.yaml").write_text("yaml")
+        (rsu / "000010.pcd").write_text("pcd")
+        (cav_1 / "000010.yaml").write_text("yaml")
+        (cav_1 / "000010.pcd").write_text("pcd")
+        (cav_2 / "000010.yaml").write_text("yaml")
+        (cav_2 / "000010.pcd").write_text("pcd")
+
+        structure = dp.retrieve_data_structure(10)
+
+        assert structure is not None
+        assert list(structure[0].keys()) == ["veh_1", "veh_2"]
+        assert "rsu_0" not in structure[0]
+        assert structure[0]["veh_1"]["ego"] is True
+        assert structure[0]["veh_2"]["ego"] is False
+
     def test_clear_directory_now(self, processor_setup):
         _, now_dir = processor_setup
         dp = DirectoryProcessor(now_directory=str(now_dir))
@@ -349,3 +534,33 @@ class TestDirectoryProcessor:
         dp.clear_directory_now()
 
         assert len(os.listdir(now_dir)) == 0
+
+    def test_update_dataset_logs_warning_for_empty_memory_data_dict(self):
+        """Empty dict as memory_data should be propagated and trigger empty-dataset warning."""
+        dataset_mock = MagicMock()
+        dataset_mock.collate_batch_test = MagicMock()
+        dataset_mock.__len__.return_value = 0
+
+        with patch("opencda.core.common.coperception_model_manager.build_dataset", return_value=dataset_mock):
+            manager = CoperceptionModelManager(DummyOpt(), "2023_01_01")
+
+        with patch("opencda.core.common.coperception_model_manager.logger.warning") as mock_warning:
+            manager.update_dataset(data={})
+
+        dataset_mock.update_database.assert_called_once_with(memory_data={})
+        mock_warning.assert_called_once_with("No samples found in dataset after update.")
+
+    def test_update_dataset_logs_warning_for_none_memory_data(self):
+        """None as memory_data should be propagated and trigger empty-dataset warning."""
+        dataset_mock = MagicMock()
+        dataset_mock.collate_batch_test = MagicMock()
+        dataset_mock.__len__.return_value = 0
+
+        with patch("opencda.core.common.coperception_model_manager.build_dataset", return_value=dataset_mock):
+            manager = CoperceptionModelManager(DummyOpt(), "2023_01_01")
+
+        with patch("opencda.core.common.coperception_model_manager.logger.warning") as mock_warning:
+            manager.update_dataset(data=None)
+
+        dataset_mock.update_database.assert_called_once_with(memory_data=None)
+        mock_warning.assert_called_once_with("No samples found in dataset after update.")
