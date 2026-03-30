@@ -4,7 +4,7 @@ from importlib import import_module
 import logging
 import pkgutil
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("cavise.opencda.opencda.metrics_tools.metrics.__init__")
 
 
 def _import_builtin_metrics() -> None:

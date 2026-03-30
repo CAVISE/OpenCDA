@@ -18,7 +18,7 @@ from opencda.metrics_tools.report_models import (
     SeriesSummary,
 )
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("cavise.opencda.opencda.metrics_tools.report_builder")
 
 
 class UniversalReportBuilder:

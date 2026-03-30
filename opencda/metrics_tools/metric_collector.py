@@ -6,7 +6,7 @@ from opencda.metrics_tools.base_metric import BaseMetric
 from opencda.metrics_tools.collection_models import MetricCollection, MetricIssue, MetricSeries
 from opencda.metrics_tools.registry import MetricRegistry
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("cavise.opencda.opencda.metrics_tools.metric_collector")
 
 
 class MetricCollector:

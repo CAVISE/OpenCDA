@@ -3,7 +3,7 @@
 import logging
 from typing import Any, Mapping
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("cavise.opencda.opencda.metrics_tools.config")
 
 
 def resolve_metric_collector_config(
