@@ -151,7 +151,55 @@ class AdvCPVisualizationManager:
             attack_info: Attack metadata
         """
         if normal_case is None or attack_case is None:
+            logger.debug(f"Skipping attack visualization for tick {tick_number}: normal_case or attack_case is None")
             return
+
+        # Validate attack_info structure
+        if "attack_meta" not in attack_info:
+            logger.warning(f"Skipping attack visualization for tick {tick_number}: missing attack_meta")
+            return
+            
+        attack_meta = attack_info["attack_meta"]
+        if "attack_frame_ids" not in attack_meta:
+            logger.warning(f"Skipping attack visualization for tick {tick_number}: missing attack_frame_ids in attack_meta")
+            return
+        
+        frame_ids = attack_meta["attack_frame_ids"]
+        if not frame_ids:
+            logger.warning(f"Skipping attack visualization for tick {tick_number}: empty attack_frame_ids")
+            return
+
+        # Validate attacker and victim IDs
+        if "attacker_vehicle_id" not in attack_meta or "victim_vehicle_id" not in attack_meta:
+            logger.warning(f"Skipping attack visualization for tick {tick_number}: missing attacker_vehicle_id or victim_vehicle_id")
+            return
+        
+        attacker_id = attack_meta["attacker_vehicle_id"]
+        victim_id = attack_meta["victim_vehicle_id"]
+        if attacker_id is None or victim_id is None:
+            logger.debug(f"Skipping attack visualization for tick {tick_number}: attacker_id or victim_id is None")
+            return
+
+        # Validate that normal_case and attack_case have data for all required frame_ids
+        # For multi-frame visualization, we need data for each frame_id
+        missing_frames = []
+        for frame_id in frame_ids:
+            if frame_id not in normal_case or frame_id not in attack_case:
+                missing_frames.append(frame_id)
+        if missing_frames:
+            logger.warning(f"Skipping attack visualization for tick {tick_number}: missing data for frames {missing_frames}")
+            return
+
+        # Validate that each vehicle data contains required keys (lidar, lidar_pose)
+        for case_name, case_data in [("normal", normal_case), ("attack", attack_case)]:
+            for frame_id, frame_data in case_data.items():
+                for vehicle_id, vehicle_data in frame_data.items():
+                    if not isinstance(vehicle_data, dict):
+                        continue
+                    if "lidar" not in vehicle_data or "lidar_pose" not in vehicle_data:
+                        logger.warning(f"Skipping attack visualization for tick {tick_number}: "
+                                     f"missing 'lidar' or 'lidar_pose' in {case_name}_case[{frame_id}][{vehicle_id}]")
+                        return
 
         save_path = None
         if self.save:
@@ -160,8 +208,8 @@ class AdvCPVisualizationManager:
         try:
             draw_attack(
                 attack=attack_info,
-                normal_case={tick_number: normal_case},
-                attack_case={tick_number: attack_case},
+                normal_case=normal_case,
+                attack_case=attack_case,
                 mode="multi_frame",
                 show=self.show,
                 save=save_path,

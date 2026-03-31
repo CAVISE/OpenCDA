@@ -45,6 +45,7 @@ class AdvCPManager:
         self.current_time = current_time
         self.coperception_manager = coperception_manager
         self.message_handler = message_handler
+        self._last_attack_meta = None  # Store attack metadata for visualization
 
         # Attack/Defense flags - MUST be set before initialization methods
         # Handle both Namespace and dict objects
@@ -244,27 +245,99 @@ class AdvCPManager:
                 # The defender expects multi_frame_case with raw data + predictions
                 defended_data, defense_score, defense_metrics = self._apply_defense(raw_data, modified_predictions, tick_number)
 
-                # Visualization
+                # Visualization for late attacks with defense: construct attack case
                 if self.visualization_manager:
+                    attack_case = None
+                    if raw_data and modified_predictions:
+                        ego_id = self._get_ego_vehicle_id(raw_data)
+                        import copy
+                        attack_case = copy.deepcopy(raw_data)
+                        if ego_id in attack_case:
+                            attack_case[ego_id]["pred_bboxes"] = modified_predictions["pred_bboxes"]
+                            attack_case[ego_id]["pred_scores"] = modified_predictions["pred_scores"]
+                            if "gt_bboxes" in modified_predictions:
+                                attack_case[ego_id]["gt_bboxes"] = modified_predictions["gt_bboxes"]
+                    
+                    # Get attacker and victim IDs
+                    attacker_vehicles = self._select_attacker_vehicles(tick_number)
+                    attacker_id = attacker_vehicles[0] if attacker_vehicles else None
+                    victim_id = ego_id
+                    
+                    # Get bboxes for attack visualization
+                    bboxes = None
+                    if attacker_id and raw_data and attacker_id in raw_data:
+                        attack_target = self._select_attack_target(raw_data[attacker_id], attacker_id)
+                        if attack_target and "bboxes" in attack_target:
+                            bboxes = attack_target["bboxes"]
+                    
+                    # For visualization, only use current tick
+                    frame_ids = [tick_number]
+                    
+                    # Wrap data in {tick_number: data} to match expected multi-frame format
                     self.visualization_manager.process_tick(
                         tick_number=tick_number,
-                        raw_data=raw_data,
-                        attacked_data=None,
-                        defended_data=defended_data,
-                        attack_info={"attack_type": self.attack_type, "attack_meta": {"attacker_vehicle_id": None, "victim_vehicle_id": None}},
+                        raw_data={tick_number: raw_data} if raw_data else None,
+                        attacked_data={tick_number: attack_case} if attack_case else None,
+                        defended_data={tick_number: defended_data} if defended_data else None,
+                        attack_info={
+                            "attack_type": self.attack_type,
+                            "attack_meta": {
+                                "attacker_vehicle_id": attacker_id,
+                                "victim_vehicle_id": victim_id,
+                                "attack_frame_ids": frame_ids,
+                                "bboxes": bboxes
+                            }
+                        },
                         defense_metrics=defense_metrics,
                         predictions=modified_predictions,
                     )
                 return defended_data, defense_score, defense_metrics
 
-            # Visualization
+            # Visualization for late attacks: construct attack case from raw_data + modified predictions
             if self.visualization_manager:
+                # Build attack case that includes modified predictions
+                attack_case = None
+                if raw_data and modified_predictions:
+                    ego_id = self._get_ego_vehicle_id(raw_data)
+                    # Deep copy raw_data to avoid mutation
+                    import copy
+                    attack_case = copy.deepcopy(raw_data)
+                    # Add modified predictions to the ego vehicle
+                    if ego_id in attack_case:
+                        attack_case[ego_id]["pred_bboxes"] = modified_predictions["pred_bboxes"]
+                        attack_case[ego_id]["pred_scores"] = modified_predictions["pred_scores"]
+                        if "gt_bboxes" in modified_predictions:
+                            attack_case[ego_id]["gt_bboxes"] = modified_predictions["gt_bboxes"]
+                
+                # Get attacker and victim IDs
+                attacker_vehicles = self._select_attacker_vehicles(tick_number)
+                attacker_id = attacker_vehicles[0] if attacker_vehicles else None
+                victim_id = ego_id
+                
+                # Get bboxes for attack visualization
+                bboxes = None
+                if attacker_id and raw_data and attacker_id in raw_data:
+                    attack_target = self._select_attack_target(raw_data[attacker_id], attacker_id)
+                    if attack_target and "bboxes" in attack_target:
+                        bboxes = attack_target["bboxes"]
+                
+                # For visualization, only use current tick
+                frame_ids = [tick_number]
+                
                 self.visualization_manager.process_tick(
                     tick_number=tick_number,
-                    raw_data=raw_data,
-                    attacked_data=None,
+                    raw_data={tick_number: raw_data} if raw_data else None,
+                    attacked_data={tick_number: attack_case} if attack_case else None,
                     defended_data=None,
-                    attack_info={"attack_type": self.attack_type, "attack_meta": {"attacker_vehicle_id": None, "victim_vehicle_id": None}},
+                    attack_info={
+                        "attack_type": self.attack_type,
+                        "attack_meta": {
+                            "attacker_vehicle_id": attacker_id,
+                            "victim_vehicle_id": victim_id,
+                            "attack_frame_ids": frame_ids,
+                            "bboxes": bboxes
+                        }
+                    },
                     defense_metrics=None,
                     predictions=modified_predictions,
                 )
@@ -307,14 +380,35 @@ class AdvCPManager:
 
                         # Visualization
                         if self.visualization_manager:
+                            # Get attacker and victim IDs
+                            attacker_vehicles = self._select_attacker_vehicles(tick_number)
+                            attacker_id = attacker_vehicles[0] if attacker_vehicles else None
+                            ego_id = self._get_ego_vehicle_id(raw_data)
+                            victim_id = ego_id
+                            
+                            # Get bboxes for attack visualization
+                            bboxes = None
+                            if attacker_id and raw_data and attacker_id in raw_data:
+                                attack_target = self._select_attack_target(raw_data[attacker_id], attacker_id)
+                                if attack_target and "bboxes" in attack_target:
+                                    bboxes = attack_target["bboxes"]
+                            
+                            # For early/intermediate attacks, frame_ids is just the current tick
+                            frame_ids = [tick_number]
+                            
                             self.visualization_manager.process_tick(
                                 tick_number=tick_number,
-                                raw_data=raw_data,
-                                attacked_data=attacked_data,
-                                defended_data=preprocessed_data,
+                                raw_data={tick_number: raw_data} if raw_data else None,
+                                attacked_data={tick_number: attacked_data} if attacked_data else None,
+                                defended_data={tick_number: preprocessed_data} if preprocessed_data else None,
                                 attack_info={
                                     "attack_type": self.attack_type,
-                                    "attack_meta": {"attacker_vehicle_id": None, "victim_vehicle_id": None},
+                                    "attack_meta": {
+                                        "attacker_vehicle_id": attacker_id,
+                                        "victim_vehicle_id": victim_id,
+                                        "attack_frame_ids": frame_ids,
+                                        "bboxes": bboxes
+                                    }
                                 },
                                 defense_metrics=defense_metrics,
                                 predictions=None,

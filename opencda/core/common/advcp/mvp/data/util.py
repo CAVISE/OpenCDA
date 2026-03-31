@@ -130,6 +130,7 @@ def pose_to_transformation(pose: np.ndarray) -> np.ndarray:
 
 
 def bbox_map_to_sensor(bbox: np.ndarray, sensor_calib: np.ndarray) -> np.ndarray:
+    sensor_calib = np.asarray(sensor_calib)
     sensor_location = sensor_calib[:3]
     sensor_rotation = sensor_calib[3:] * np.pi / 180
     new_bbox = np.copy(bbox)
@@ -147,6 +148,7 @@ def bbox_map_to_sensor(bbox: np.ndarray, sensor_calib: np.ndarray) -> np.ndarray
 
 
 def bbox_sensor_to_map(bbox: np.ndarray, sensor_calib: np.ndarray) -> np.ndarray:
+    sensor_calib = np.asarray(sensor_calib)
     sensor_location = sensor_calib[:3]
     sensor_rotation = sensor_calib[3:] * np.pi / 180
     new_bbox = np.copy(bbox)
@@ -164,6 +166,7 @@ def bbox_sensor_to_map(bbox: np.ndarray, sensor_calib: np.ndarray) -> np.ndarray
 
 
 def pcd_sensor_to_map(pcd: np.ndarray, sensor_calib: np.ndarray) -> np.ndarray:
+    sensor_calib = np.asarray(sensor_calib)
     sensor_location = sensor_calib[:3]
     sensor_rotation = sensor_calib[3:] * np.pi / 180
     new_pcd = np.copy(pcd)
@@ -173,6 +176,7 @@ def pcd_sensor_to_map(pcd: np.ndarray, sensor_calib: np.ndarray) -> np.ndarray:
 
 
 def pcd_map_to_sensor(pcd: np.ndarray, sensor_calib: np.ndarray) -> np.ndarray:
+    sensor_calib = np.asarray(sensor_calib)
     sensor_location = sensor_calib[:3]
     sensor_rotation = sensor_calib[3:] * np.pi / 180
     new_pcd = np.copy(pcd)

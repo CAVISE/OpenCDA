@@ -42,7 +42,7 @@ def draw_bboxes_2d(
         boxp = np.insert(boxp, boxp.shape[0], boxp[0, :], 0)
         xs, ys = zip(*boxp)
         ax.plot(xs, ys, linewidth=linewidth, color=color)
-        if bboxes_ids is not None:
+        if bboxes_ids is not None and i < len(bboxes_ids):
             ax.text(xs[0], ys[0], str(bboxes_ids[i]), fontsize="xx-small")
 
 
@@ -53,7 +53,7 @@ def draw_bbox_2d(ax: Any, bboxes_id_color: List[Tuple[np.ndarray, Optional[List[
             boxp = np.insert(boxp, boxp.shape[0], boxp[0, :], 0)
             xs, ys = zip(*boxp)
             ax.plot(xs, ys, linewidth=1, color=color)
-            if bboxes_ids is not None:
+            if bboxes_ids is not None and i < len(bboxes_ids):
                 ax.text(xs[0], ys[0], str(bboxes_ids[i]), fontsize="xx-small")
 
 

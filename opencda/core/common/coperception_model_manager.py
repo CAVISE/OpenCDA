@@ -4,6 +4,7 @@ import shutil
 import logging
 from typing import Any, Dict, List, Optional
 from tqdm import tqdm
+import numpy as np
 
 import torch
 import open3d as o3d
@@ -89,6 +90,8 @@ class CoperceptionModelManager:
         """
         Get raw perception data for a specific tick without running prediction.
         This method is used by AdvCPManager to avoid circular dependency.
+        It retrieves data BEFORE preprocessing, directly from the dataset's
+        scenario database, which includes lidar_np, params (with lidar_pose), and yaml paths.
 
         Args:
             tick_number: The tick number to retrieve data for
@@ -96,24 +99,51 @@ class CoperceptionModelManager:
         Returns:
             Dictionary containing raw perception data, or None if data not available
         """
-        # Directly access the dataset to get raw data (before preprocessing)
-        # This is critical for AdvCP attacks which need raw numpy LiDAR data
         try:
             if self.opencood_dataset is None:
                 logger.error("opencood_dataset is not initialized")
                 raise RuntimeError("opencood_dataset is not initialized")
-            if tick_number < len(self.opencood_dataset):
-                # Get raw data directly from dataset __getitem__
-                # This returns data BEFORE train_utils.to_device() preprocessing
-                raw_data = self.opencood_dataset[tick_number]
-                # Compatibility patch for AdvCP: map OpenCOOD's 'object_bbx_center' to 'gt_bboxes'
-                if raw_data:
-                    for vehicle_id, vehicle_dict in raw_data.items():
-                        if isinstance(vehicle_dict, dict):
-                            if "object_bbx_center" in vehicle_dict and "gt_bboxes" not in vehicle_dict:
-                                vehicle_dict["gt_bboxes"] = vehicle_dict["object_bbx_center"]
-                            # Note: 'object_ids' is already present in both formats
-                return raw_data
+            
+            # Use retrieve_base_data to get raw data BEFORE any preprocessing
+            # This returns data with structure: {vehicle_id: {lidar_np, params, ego, time_delay}}
+            # where params contains lidar_pose and other yaml data
+            raw_data = self.opencood_dataset.retrieve_base_data(tick_number)
+            
+            # Convert to the format expected by AdvCP:
+            # Add 'gt_bboxes' and 'object_ids' from the params (calibration data)
+            if raw_data:
+                for vehicle_id, vehicle_dict in raw_data.items():
+                    if isinstance(vehicle_dict, dict):
+                        # Extract object_ids and gt_bboxes from params["vehicles"]
+                        # The params dict contains vehicle information from calibration
+                        if "params" in vehicle_dict and "vehicles" in vehicle_dict["params"]:
+                            vehicles_dict = vehicle_dict["params"]["vehicles"]
+                            # object_ids are the keys of the vehicles dictionary
+                            vehicle_dict["object_ids"] = list(vehicles_dict.keys())
+
+                            # Build gt_bboxes from vehicle data
+                            gt_bboxes_list = []
+                            for obj_id, obj_data in vehicles_dict.items():
+                                # Format: [x, y, z, length, width, height, angle]
+                                location = obj_data["location"]
+                                extent = obj_data["extent"]
+                                angle = obj_data["angle"][1] * np.pi / 180  # Convert degrees to radians
+                                gt_bboxes_list.append([
+                                    location[0], location[1], location[2],
+                                    extent[0] * 2, extent[1] * 2, extent[2] * 2,
+                                    angle
+                                ])
+                            vehicle_dict["gt_bboxes"] = np.array(gt_bboxes_list)
+
+                        # Ensure lidar_pose is at top level for AdvCP compatibility
+                        if "params" in vehicle_dict and "lidar_pose" in vehicle_dict["params"]:
+                            vehicle_dict["lidar_pose"] = vehicle_dict["params"]["lidar_pose"]
+
+                        # Ensure lidar data is present (it's already in lidar_np from retrieve_base_data)
+                        # but also add 'lidar' key for compatibility with some AdvCP code
+                        if "lidar_np" in vehicle_dict and "lidar" not in vehicle_dict:
+                            vehicle_dict["lidar"] = vehicle_dict["lidar_np"]
+            return raw_data
         except Exception as e:
             logger.warning(f"Failed to get raw data for tick {tick_number}: {e}")
 
@@ -464,12 +494,12 @@ class DirectoryProcessor:
             for file in files:
                 file_path = os.path.join(root, file)
                 # Skip data_protocol.yaml and other non-tick files
-                parts = file.split('.')
-                if len(parts) < 2:
+                # Extract tick number from filename using regex: starts with 6 digits
+                import re
+                match = re.match(r'^(\d{6})', file)
+                if not match:
                     continue
-                tick_str = parts[0]
-                if not tick_str.isdigit():
-                    continue
+                tick_str = match.group(1)
                 
                 tick_num = int(tick_str)
                 if tick_num not in keep_ticks:
