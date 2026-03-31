@@ -35,17 +35,10 @@ if(OPENCDA_BUILD_CUDA)
     endif()
 endif()
 
-execute_process(
-    COMMAND ${Python3_EXECUTABLE} -c "import pybind11; print(pybind11.get_cmake_dir())"
-    OUTPUT_VARIABLE PYBIND11_CMAKE_DIR
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-    ERROR_QUIET
+find_package(pybind11 REQUIRED CONFIG
+    HINTS "${Python3_SITELIB}/pybind11/share/cmake"
+          "${Python3_SITEARCH}/pybind11/share/cmake"
 )
-if(PYBIND11_CMAKE_DIR)
-    list(APPEND CMAKE_PREFIX_PATH "${PYBIND11_CMAKE_DIR}")
-endif()
-
-find_package(pybind11 REQUIRED CONFIG)
 
 if(OPENCDA_BUILD_PROTOBUF)
     add_subdirectory(opencda/core/common/communication)
