@@ -2,22 +2,7 @@ set(CMAKE_CUDA_STANDARD 17)
 set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 set(CMAKE_CUDA_EXTENSIONS OFF)
 
-# Enable relaxed constexpr for CUDA kernel code (required for std::complex and similar types)
-if(NOT CMAKE_CUDA_FLAGS MATCHES "--expt-relaxed-constexpr")
-    string(APPEND CMAKE_CUDA_FLAGS " --expt-relaxed-constexpr")
-endif()
-
-# Fast math improves CUDA performance significantly for these kernels
-# Can be disabled by setting CMAKE_CUDA_FLAGS without this flag
-if(NOT CMAKE_CUDA_FLAGS MATCHES "--use_fast_math")
-    string(APPEND CMAKE_CUDA_FLAGS " --use_fast_math")
-endif()
-
-execute_process(
-    COMMAND ${Python3_EXECUTABLE} -c "import torch; print(torch.utils.cmake_prefix_path)"
-    OUTPUT_VARIABLE TORCH_CMAKE_PATH
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-)
+set(TORCH_CMAKE_PATH "${Python3_SITELIB}/torch/share/cmake")
 list(PREPEND CMAKE_PREFIX_PATH "${TORCH_CMAKE_PATH}")
 find_package(Torch REQUIRED)
 
