@@ -24,13 +24,13 @@ RUN apt-get update && \
         curl=8.5.0-2ubuntu10.8 \
         unzip=6.0-28ubuntu4.1 \
         libjpeg-dev=8c-2ubuntu11 \
-        libtiff6=4.5.1+git230720-4ubuntu2.4 \
+        libtiff6=4.5.1+git230720-4ubuntu2.5 \
         python3-pip=24.0+dfsg-1ubuntu1.3 \
         python3-dev=3.12.3-0ubuntu2.1 \
         vulkan-tools=1.3.275.0+dfsg1-1 \
         libglib2.0-0=2.80.0-6ubuntu1 \
-        cmake=3.28.3-1 \
-        ninja-build=1.12.1-1 \
+        cmake=3.28.3-1build7 \
+        ninja-build=1.11.1-2 \
         g++=4:13.2.0-7ubuntu1 \
     && \
     curl -LO https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/${PROTOC_ZIP} && \
@@ -46,8 +46,5 @@ WORKDIR ${HOME}/cavise/opencda
 
 # Python Version: 3.12.3
 COPY opencda/requirements.txt requirements.txt
-RUN python3 -m pip install --no-cache-dir --break-system-packages --upgrade pip==26.0.1 setuptools==82.0.0 wheel==0.46.3 cmake==3.28.3 ninja==1.12.1 cython==3.0.11 && \
+RUN python3 -m pip install --no-cache-dir --break-system-packages --upgrade pip==26.0.1 setuptools==82.0.0 wheel==0.46.3 cmake==3.28.3 ninja==1.12.1 cython==3.0.11 spconv-cu126==2.3.8 && \
     python3 -m pip install --no-cache-dir --break-system-packages -r requirements.txt
-
-COPY --chown=${USER}:${USER} . .
-RUN python3 -m pip install --no-cache-dir --break-system-packages -e ".[cuda]"
