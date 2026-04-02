@@ -4,6 +4,9 @@ carla==0.9.16
 # Packaging, Build & Runtime Utilities
 coloredlogs==15.0.1
 cumm==0.8.2
+cmake==4.3.1
+ninja==1.13.0
+cython==3.2.4
 
 # Optimization & Convex Programming
 cython==3.2.4
