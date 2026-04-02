@@ -46,5 +46,5 @@ WORKDIR ${HOME}/cavise/opencda
 
 # Python Version: 3.12.3
 COPY opencda/requirements.txt requirements.txt
-RUN python3 -m pip install --no-cache-dir --break-system-packages --upgrade pip==26.0.1 setuptools==82.0.0 wheel==0.46.3 cmake==3.28.3 ninja==1.12.1 cython==3.0.11 spconv-cu126==2.3.8 && \
+RUN python3 -m pip install --no-cache-dir --break-system-packages --upgrade pip==26.0.1 setuptools==82.0.0 wheel==0.46.3 spconv-cu126==2.3.8 && \
     python3 -m pip install --no-cache-dir --break-system-packages -r requirements.txt
