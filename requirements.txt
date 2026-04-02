@@ -8,6 +8,7 @@ cumm==0.8.2
 
 # Optimization & Convex Programming
 cython==3.2.4
+cython-cmake==0.2.2
 easydict==1.13
 einops==0.8.2
 lxml==6.0.2
