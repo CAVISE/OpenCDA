@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.18...3.28)
+cmake_minimum_required(VERSION 3.31.11...4.3.1)
 
 project(OpenCDA
     VERSION 1.0.0
@@ -18,6 +18,8 @@ if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
 endif()
 
 find_package(Python3 3.10 REQUIRED COMPONENTS Interpreter Development NumPy)
+
+list(APPEND CMAKE_MODULE_PATH "${Python3_SITEARCH}/cython_cmake/cmake")
 
 if(OPENCDA_BUILD_PROTOBUF)
     find_package(Protobuf REQUIRED)
