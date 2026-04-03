@@ -88,6 +88,7 @@ class AdvCPVisualizationManager:
     def process_tick(
         self,
         tick_number: int,
+        sim_tick: int,
         raw_data: Optional[Dict] = None,
         attacked_data: Optional[Dict] = None,
         defended_data: Optional[Dict] = None,
@@ -126,13 +127,13 @@ class AdvCPVisualizationManager:
 
         # Generate visualizations based on vis_types
         if "attack" in self.vis_types and attack_info:
-            self._visualize_attack(tick_number, raw_data, attacked_data, attack_info)
+            self._visualize_attack(tick_number, sim_tick, raw_data, attacked_data, attack_info)
 
         if "defense" in self.vis_types and defense_metrics:
-            self._visualize_defense(tick_number, attacked_data, defended_data, defense_metrics)
+            self._visualize_defense(tick_number, sim_tick, attacked_data, defended_data, defense_metrics)
 
         if "ground_seg" in self.vis_types and raw_data and ground_inliers is not None:
-            self._visualize_ground_segmentation(tick_number, raw_data, ground_inliers)
+            self._visualize_ground_segmentation(tick_number, sim_tick, raw_data, ground_inliers)
 
         if "tracking" in self.vis_types and raw_data and predictions:
             self._collect_tracking_data(tick_number, raw_data, predictions)
@@ -140,12 +141,13 @@ class AdvCPVisualizationManager:
         if "roc" in self.vis_types and defense_metrics:
             self._collect_roc_data(defense_metrics)
 
-    def _visualize_attack(self, tick_number: int, normal_case: Optional[Dict], attack_case: Optional[Dict], attack_info: Dict) -> None:
+    def _visualize_attack(self, tick_number: int, sim_tick: int, normal_case: Optional[Dict], attack_case: Optional[Dict], attack_info: Dict) -> None:
         """
         Generate attack visualization comparing normal vs attack case.
 
         Args:
             tick_number: Current simulation tick number
+            sim_tick: Simulation tick number
             normal_case: Original perception data
             attack_case: Data after attack
             attack_info: Attack metadata
@@ -203,7 +205,7 @@ class AdvCPVisualizationManager:
 
         save_path = None
         if self.save:
-            save_path = os.path.join(self.output_dir, f"attack_tick_{tick_number:04d}.png")
+            save_path = os.path.join(self.output_dir, f"attack_tick_{sim_tick:04d}.png")
 
         try:
             draw_attack(
@@ -214,16 +216,17 @@ class AdvCPVisualizationManager:
                 show=self.show,
                 save=save_path,
             )
-            logger.debug(f"Generated attack visualization for tick {tick_number}")
+            logger.debug(f"Generated attack visualization for tick {sim_tick}")
         except Exception as e:
             logger.warning(f"Failed to generate attack visualization: {e}")
 
-    def _visualize_defense(self, tick_number: int, attacked_data: Optional[Dict], defended_data: Optional[Dict], defense_metrics: Dict) -> None:
+    def _visualize_defense(self, tick_number: int, sim_tick: int, attacked_data: Optional[Dict], defended_data: Optional[Dict], defense_metrics: Dict) -> None:
         """
         Generate defense visualization showing occupied/free areas and error regions.
 
         Args:
             tick_number: Current simulation tick number
+            sim_tick: Simulation tick number
             attacked_data: Data after attack
             defended_data: Data after defense
             defense_metrics: Defense metrics including error areas
@@ -234,20 +237,21 @@ class AdvCPVisualizationManager:
 
         save_path = None
         if self.save:
-            save_path = os.path.join(self.output_dir, f"defense_tick_{tick_number:04d}.png")
+            save_path = os.path.join(self.output_dir, f"defense_tick_{sim_tick:04d}.png")
 
         try:
             visualize_defense(case=[{tick_number: case_data}], metrics=[defense_metrics], show=self.show, save=save_path)
-            logger.debug(f"Generated defense visualization for tick {tick_number}")
+            logger.debug(f"Generated defense visualization for tick {sim_tick}")
         except Exception as e:
             logger.warning(f"Failed to generate defense visualization: {e}")
 
-    def _visualize_ground_segmentation(self, tick_number: int, raw_data: Optional[Dict], ground_inliers: np.ndarray) -> None:
+    def _visualize_ground_segmentation(self, tick_number: int, sim_tick: int, raw_data: Optional[Dict], ground_inliers: np.ndarray) -> None:
         """
         Visualize ground segmentation results.
 
         Args:
             tick_number: Current simulation tick number
+            sim_tick: Simulation tick number
             raw_data: Raw perception data containing LiDAR
             ground_inliers: Indices of ground points
         """
@@ -266,11 +270,11 @@ class AdvCPVisualizationManager:
 
         save_path = None
         if self.save:
-            save_path = os.path.join(self.output_dir, f"ground_seg_tick_{tick_number:04d}.png")
+            save_path = os.path.join(self.output_dir, f"ground_seg_tick_{sim_tick:04d}.png")
 
         try:
             draw_ground_segmentation(pcd_data=pcd_data, inliers=ground_inliers, show=self.show, save=save_path)
-            logger.debug(f"Generated ground segmentation visualization for tick {tick_number}")
+            logger.debug(f"Generated ground segmentation visualization for tick {sim_tick}")
         except Exception as e:
             logger.warning(f"Failed to generate ground segmentation visualization: {e}")
 
@@ -321,6 +325,7 @@ class AdvCPVisualizationManager:
     def visualize_multi_vehicle_case(
         self,
         tick_number: int,
+        sim_tick: int,
         case: Dict,
         ego_id: str,
         gt_bboxes: Optional[np.ndarray] = None,
@@ -332,6 +337,7 @@ class AdvCPVisualizationManager:
 
         Args:
             tick_number: Current simulation tick number
+            sim_tick: Simulation tick number
             case: Multi-vehicle case data
             ego_id: Ego vehicle ID
             gt_bboxes: Ground truth bounding boxes
@@ -343,7 +349,7 @@ class AdvCPVisualizationManager:
 
         save_path = None
         if self.save:
-            save_path = os.path.join(self.output_dir, f"multi_vehicle_tick_{tick_number:04d}.png")
+            save_path = os.path.join(self.output_dir, f"multi_vehicle_tick_{sim_tick:04d}.png")
 
         try:
             if self.mode in ["matplotlib", "both"]:
@@ -370,16 +376,17 @@ class AdvCPVisualizationManager:
                     save=None,  # Open3D doesn't support save directly
                 )
 
-            logger.debug(f"Generated multi-vehicle visualization for tick {tick_number}")
+            logger.debug(f"Generated multi-vehicle visualization for tick {sim_tick}")
         except Exception as e:
             logger.warning(f"Failed to generate multi-vehicle visualization: {e}")
 
-    def visualize_polygon_areas(self, tick_number: int, case: Dict, tag: str = "") -> None:
+    def visualize_polygon_areas(self, tick_number: int, sim_tick: int, case: Dict, tag: str = "") -> None:
         """
         Visualize polygon areas (free/occupied areas from defense).
 
         Args:
             tick_number: Current simulation tick number
+            sim_tick: Simulation tick number
             case: Case data with polygon areas
             tag: Optional tag for filename
         """
@@ -388,20 +395,21 @@ class AdvCPVisualizationManager:
 
         save_path = None
         if self.save:
-            save_path = os.path.join(self.output_dir, f"polygon_areas_{tag}tick_{tick_number:04d}.png")
+            save_path = os.path.join(self.output_dir, f"polygon_areas_{tag}tick_{sim_tick:04d}.png")
 
         try:
             draw_polygon_areas(case=case, show=self.show, save=save_path, tag=tag)
-            logger.debug(f"Generated polygon areas visualization for tick {tick_number}")
+            logger.debug(f"Generated polygon areas visualization for tick {sim_tick}")
         except Exception as e:
             logger.warning(f"Failed to generate polygon areas visualization: {e}")
 
-    def visualize_object_tracking(self, tick_number: int) -> None:
+    def visualize_object_tracking(self, tick_number: int, sim_tick: int) -> None:
         """
         Generate object tracking visualization from collected data.
 
         Args:
             tick_number: Current simulation tick number (for filename)
+            sim_tick: Simulation tick number
         """
         if not self.enabled or "tracking" not in self.vis_types:
             return
@@ -411,7 +419,7 @@ class AdvCPVisualizationManager:
 
         save_path = None
         if self.save:
-            save_path = os.path.join(self.output_dir, f"tracking_tick_{tick_number:04d}.png")
+            save_path = os.path.join(self.output_dir, f"tracking_tick_{sim_tick:04d}.png")
 
         try:
             draw_object_tracking(
@@ -421,7 +429,7 @@ class AdvCPVisualizationManager:
                 show=self.show,
                 save=save_path,
             )
-            logger.debug(f"Generated object tracking visualization for tick {tick_number}")
+            logger.debug(f"Generated object tracking visualization for tick {sim_tick}")
         except Exception as e:
             logger.warning(f"Failed to generate object tracking visualization: {e}")
 

@@ -201,13 +201,14 @@ class AdvCPManager:
         return raw_data
 
     def process_tick(
-        self, tick_number: int, batch_data: Optional[Dict] = None, predictions: Optional[Dict] = None
+        self, tick_number: int, sim_tick: int = None, batch_data: Optional[Dict] = None, predictions: Optional[Dict] = None
     ) -> Tuple[Optional[Dict], Optional[float], Optional[Dict]]:
         """
         Process a single simulation tick with AdvCP capabilities.
 
         Args:
             tick_number: Current simulation tick number
+            sim_tick: Simulation tick number
             batch_data: Pre-inference batch data (for early/intermediate attacks)
             predictions: Post-inference predictions (for late attacks)
 
@@ -276,6 +277,7 @@ class AdvCPManager:
                     # Wrap data in {tick_number: data} to match expected multi-frame format
                     self.visualization_manager.process_tick(
                         tick_number=tick_number,
+                        sim_tick=sim_tick if sim_tick is not None else tick_number,
                         raw_data={tick_number: raw_data} if raw_data else None,
                         attacked_data={tick_number: attack_case} if attack_case else None,
                         defended_data={tick_number: defended_data} if defended_data else None,
@@ -326,6 +328,7 @@ class AdvCPManager:
                 
                 self.visualization_manager.process_tick(
                     tick_number=tick_number,
+                    sim_tick = sim_tick if sim_tick is not None else tick_number,
                     raw_data={tick_number: raw_data} if raw_data else None,
                     attacked_data={tick_number: attack_case} if attack_case else None,
                     defended_data=None,
@@ -398,6 +401,7 @@ class AdvCPManager:
                             
                             self.visualization_manager.process_tick(
                                 tick_number=tick_number,
+                                sim_tick = sim_tick if sim_tick is not None else tick_number,
                                 raw_data={tick_number: raw_data} if raw_data else None,
                                 attacked_data={tick_number: attacked_data} if attacked_data else None,
                                 defended_data={tick_number: preprocessed_data} if preprocessed_data else None,

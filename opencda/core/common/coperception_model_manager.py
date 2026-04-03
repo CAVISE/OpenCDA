@@ -185,119 +185,136 @@ class CoperceptionModelManager:
         if self.data_loader is None:
             logger.error("data_loader is not initialized")
             raise RuntimeError("data_loader is not initialized")
-        i = len(self.data_loader) - 1
-        batches = list(self.data_loader)
-        batch_data = batches[i]
-        with torch.no_grad():
-            # Store current batch data for AdvCPManager to avoid circular dependency
-            self._current_batch_index = i
-            self._current_batch_data = batch_data
+        last_batch_index = len(self.data_loader) - 1
+        for i, batch_data in tqdm(enumerate(self.data_loader), total=len(self.data_loader)):
+            if i != last_batch_index:
+                continue
+            with torch.no_grad():
+                # Store current batch data for AdvCPManager to avoid circular dependency
+                self._current_batch_index = i
+                self._current_batch_data = batch_data
 
-            batch_data = train_utils.to_device(batch_data, self.device)
+                batch_data = train_utils.to_device(batch_data, self.device)
 
-            # Apply AdvCP if enabled
-            if self.advcp_manager and self.advcp_manager.with_advcp:
-                # For early/intermediate attacks, we don't need original predictions
-                # The attacks work on raw data and return preprocessed data
-                # For late attacks, we need original predictions first
-                original_pred_box_tensor = None
-                original_pred_score = None
-                original_gt_box_tensor = None
+                # Apply AdvCP if enabled
+                if self.advcp_manager and self.advcp_manager.with_advcp:
+                    # For early/intermediate attacks, we don't need original predictions
+                    # The attacks work on raw data and return preprocessed data
+                    # For late attacks, we need original predictions first
+                    original_pred_box_tensor = None
+                    original_pred_score = None
+                    original_gt_box_tensor = None
 
-                if self.advcp_manager.attack_type in ["lidar_remove_late", "lidar_spoof_late"]:
-                    # Late attacks need predictions
-                    if self.opt.fusion_method == "late":
-                        original_pred_box_tensor, original_pred_score, original_gt_box_tensor = inference_utils.inference_late_fusion(
-                            batch_data, self.model, self.opencood_dataset
-                        )
-                    elif self.opt.fusion_method == "early":
-                        original_pred_box_tensor, original_pred_score, original_gt_box_tensor = inference_utils.inference_early_fusion(
-                            batch_data, self.model, self.opencood_dataset
-                        )
-                    elif self.opt.fusion_method == "intermediate":
-                        original_pred_box_tensor, original_pred_score, original_gt_box_tensor = inference_utils.inference_intermediate_fusion(
-                            batch_data, self.model, self.opencood_dataset
-                        )
-                    else:
-                        raise NotImplementedError("Only early, late and intermediate fusion is supported.")
-
-                    # Prepare predictions for late attacks
-                    predictions = {
-                        "pred_bboxes": original_pred_box_tensor,
-                        "pred_scores": original_pred_score,
-                        "gt_bboxes": original_gt_box_tensor,
-                    }
-                else:
-                    # Early/intermediate attacks don't need predictions
-                    predictions = None
-
-                # Apply AdvCP attacks/defenses
-                modified_data, defense_score, defense_metrics = self.advcp_manager.process_tick(self._current_batch_index, batch_data=batch_data, predictions=predictions)
-
-                if modified_data:
-                    # For early/intermediate attacks, modified_data is preprocessed OpenCOOD format
-                    # We need to run inference on it to get predictions
-                    if self.advcp_manager.attack_type in [
-                        "lidar_remove_early",
-                        "lidar_spoof_early",
-                        "lidar_remove_intermediate",
-                        "lidar_spoof_intermediate",
-                    ]:
-                        # Convert modified_data to batch format and run inference
-                        if self.opencood_dataset is None:
-                            logger.error("opencood_dataset is not initialized")
-                            raise RuntimeError("opencood_dataset is not initialized")
-                        modified_batch_data = self.opencood_dataset.collate_batch_test([modified_data])
-                        modified_batch_data = train_utils.to_device(modified_batch_data, self.device)
-
-                        # Run inference on attacked data
-                        if self.opt.fusion_method == "early":
-                            pred_box_tensor, pred_score, gt_box_tensor = inference_utils.inference_early_fusion(
-                                modified_batch_data, self.model, self.opencood_dataset
+                    if self.advcp_manager.attack_type in ["lidar_remove_late", "lidar_spoof_late"]:
+                        # Late attacks need predictions
+                        if self.opt.fusion_method == "late":
+                            original_pred_box_tensor, original_pred_score, original_gt_box_tensor = inference_utils.inference_late_fusion(
+                                batch_data, self.model, self.opencood_dataset
+                            )
+                        elif self.opt.fusion_method == "early":
+                            original_pred_box_tensor, original_pred_score, original_gt_box_tensor = inference_utils.inference_early_fusion(
+                                batch_data, self.model, self.opencood_dataset
                             )
                         elif self.opt.fusion_method == "intermediate":
-                            pred_box_tensor, pred_score, gt_box_tensor = inference_utils.inference_intermediate_fusion(
-                                modified_batch_data, self.model, self.opencood_dataset
+                            original_pred_box_tensor, original_pred_score, original_gt_box_tensor = inference_utils.inference_intermediate_fusion(
+                                batch_data, self.model, self.opencood_dataset
                             )
                         else:
                             raise NotImplementedError("Only early, late and intermediate fusion is supported.")
+
+                        # Prepare predictions for late attacks
+                        predictions = {
+                            "pred_bboxes": original_pred_box_tensor,
+                            "pred_scores": original_pred_score,
+                            "gt_bboxes": original_gt_box_tensor,
+                        }
                     else:
-                        # For late attacks, modified_data contains predictions
-                        # Extract modified predictions from AdvCP data
-                        pred_box_tensor = None
-                        pred_score = None
-                        gt_box_tensor = None
+                        # Early/intermediate attacks don't need predictions
+                        predictions = None
 
-                        # Check if modified_data is in predictions format (dict with tensor keys)
-                        # vs vehicle data format (dict with vehicle_id keys containing dicts)
-                        if isinstance(modified_data, dict) and "pred_bboxes" in modified_data and "pred_scores" in modified_data:
-                            # Late attack format: modified_data is already a predictions dict
-                            pred_box_tensor = modified_data["pred_bboxes"]
-                            pred_score = modified_data["pred_scores"]
-                            gt_box_tensor = modified_data.get("gt_bboxes", original_gt_box_tensor)
-                        else:
-                            # Early/intermediate attack format: iterate over vehicle data
-                            for vehicle_id, vehicle_data in modified_data.items():
-                                if isinstance(vehicle_data, dict) and "pred_bboxes" in vehicle_data and "pred_scores" in vehicle_data:
-                                    if pred_box_tensor is None:
-                                        pred_box_tensor = torch.from_numpy(vehicle_data["pred_bboxes"]).to(self.device)
-                                        pred_score = torch.from_numpy(vehicle_data["pred_scores"]).to(self.device)
-                                    else:
-                                        pred_box_tensor = torch.cat(
-                                            [pred_box_tensor, torch.from_numpy(vehicle_data["pred_bboxes"]).to(self.device)], dim=0
-                                        )
-                                        pred_score = torch.cat([pred_score, torch.from_numpy(vehicle_data["pred_scores"]).to(self.device)], dim=0)
+                    # Apply AdvCP attacks/defenses
+                    modified_data, defense_score, defense_metrics = self.advcp_manager.process_tick(tick_number = self._current_batch_index, sim_tick = tick_number - 1, batch_data=batch_data, predictions=predictions)
 
-                            if pred_box_tensor is None:
-                                # Fallback to original predictions if AdvCP failed
-                                pred_box_tensor = original_pred_box_tensor
-                                pred_score = original_pred_score
-                                gt_box_tensor = original_gt_box_tensor
+                    if modified_data:
+                        # For early/intermediate attacks, modified_data is preprocessed OpenCOOD format
+                        # We need to run inference on it to get predictions
+                        if self.advcp_manager.attack_type in [
+                            "lidar_remove_early",
+                            "lidar_spoof_early",
+                            "lidar_remove_intermediate",
+                            "lidar_spoof_intermediate",
+                        ]:
+                            # Convert modified_data to batch format and run inference
+                            if self.opencood_dataset is None:
+                                logger.error("opencood_dataset is not initialized")
+                                raise RuntimeError("opencood_dataset is not initialized")
+                            modified_batch_data = self.opencood_dataset.collate_batch_test([modified_data])
+                            modified_batch_data = train_utils.to_device(modified_batch_data, self.device)
+
+                            # Run inference on attacked data
+                            if self.opt.fusion_method == "early":
+                                pred_box_tensor, pred_score, gt_box_tensor = inference_utils.inference_early_fusion(
+                                    modified_batch_data, self.model, self.opencood_dataset
+                                )
+                            elif self.opt.fusion_method == "intermediate":
+                                pred_box_tensor, pred_score, gt_box_tensor = inference_utils.inference_intermediate_fusion(
+                                    modified_batch_data, self.model, self.opencood_dataset
+                                )
                             else:
-                                # Use modified predictions from AdvCP
-                                gt_box_tensor = original_gt_box_tensor
+                                raise NotImplementedError("Only early, late and intermediate fusion is supported.")
+                        else:
+                            # For late attacks, modified_data contains predictions
+                            # Extract modified predictions from AdvCP data
+                            pred_box_tensor = None
+                            pred_score = None
+                            gt_box_tensor = None
+
+                            # Check if modified_data is in predictions format (dict with tensor keys)
+                            # vs vehicle data format (dict with vehicle_id keys containing dicts)
+                            if isinstance(modified_data, dict) and "pred_bboxes" in modified_data and "pred_scores" in modified_data:
+                                # Late attack format: modified_data is already a predictions dict
+                                pred_box_tensor = modified_data["pred_bboxes"]
+                                pred_score = modified_data["pred_scores"]
+                                gt_box_tensor = modified_data.get("gt_bboxes", original_gt_box_tensor)
+                            else:
+                                # Early/intermediate attack format: iterate over vehicle data
+                                for vehicle_id, vehicle_data in modified_data.items():
+                                    if isinstance(vehicle_data, dict) and "pred_bboxes" in vehicle_data and "pred_scores" in vehicle_data:
+                                        if pred_box_tensor is None:
+                                            pred_box_tensor = torch.from_numpy(vehicle_data["pred_bboxes"]).to(self.device)
+                                            pred_score = torch.from_numpy(vehicle_data["pred_scores"]).to(self.device)
+                                        else:
+                                            pred_box_tensor = torch.cat(
+                                                [pred_box_tensor, torch.from_numpy(vehicle_data["pred_bboxes"]).to(self.device)], dim=0
+                                            )
+                                            pred_score = torch.cat([pred_score, torch.from_numpy(vehicle_data["pred_scores"]).to(self.device)], dim=0)
+
+                                if pred_box_tensor is None:
+                                    # Fallback to original predictions if AdvCP failed
+                                    pred_box_tensor = original_pred_box_tensor
+                                    pred_score = original_pred_score
+                                    gt_box_tensor = original_gt_box_tensor
+                                else:
+                                    # Use modified predictions from AdvCP
+                                    gt_box_tensor = original_gt_box_tensor
+                    else:
+                        # No AdvCP applied, use original predictions
+                        if self.opt.fusion_method == "late":
+                            pred_box_tensor, pred_score, gt_box_tensor = inference_utils.inference_late_fusion(
+                                batch_data, self.model, self.opencood_dataset
+                            )
+                        elif self.opt.fusion_method == "early":
+                            pred_box_tensor, pred_score, gt_box_tensor = inference_utils.inference_early_fusion(
+                                batch_data, self.model, self.opencood_dataset
+                            )
+                        elif self.opt.fusion_method == "intermediate":
+                            pred_box_tensor, pred_score, gt_box_tensor = inference_utils.inference_intermediate_fusion(
+                                batch_data, self.model, self.opencood_dataset
+                            )
+                        else:
+                            raise NotImplementedError("Only early, late and intermediate fusion is supported.")
                 else:
-                    # No AdvCP applied, use original predictions
+                    # No AdvCP, use original predictions
                     if self.opt.fusion_method == "late":
                         pred_box_tensor, pred_score, gt_box_tensor = inference_utils.inference_late_fusion(
                             batch_data, self.model, self.opencood_dataset
@@ -312,95 +329,79 @@ class CoperceptionModelManager:
                         )
                     else:
                         raise NotImplementedError("Only early, late and intermediate fusion is supported.")
-            else:
-                # No AdvCP, use original predictions
-                if self.opt.fusion_method == "late":
-                    pred_box_tensor, pred_score, gt_box_tensor = inference_utils.inference_late_fusion(
-                        batch_data, self.model, self.opencood_dataset
-                    )
-                elif self.opt.fusion_method == "early":
-                    pred_box_tensor, pred_score, gt_box_tensor = inference_utils.inference_early_fusion(
-                        batch_data, self.model, self.opencood_dataset
-                    )
-                elif self.opt.fusion_method == "intermediate":
-                    pred_box_tensor, pred_score, gt_box_tensor = inference_utils.inference_intermediate_fusion(
-                        batch_data, self.model, self.opencood_dataset
-                    )
-                else:
-                    raise NotImplementedError("Only early, late and intermediate fusion is supported.")
 
-            eval_utils.caluclate_tp_fp(pred_box_tensor, pred_score, gt_box_tensor, result_stat, 0.3)
-            eval_utils.caluclate_tp_fp(pred_box_tensor, pred_score, gt_box_tensor, result_stat, 0.5)
-            eval_utils.caluclate_tp_fp(pred_box_tensor, pred_score, gt_box_tensor, result_stat, 0.7)
+                eval_utils.caluclate_tp_fp(pred_box_tensor, pred_score, gt_box_tensor, result_stat, 0.3)
+                eval_utils.caluclate_tp_fp(pred_box_tensor, pred_score, gt_box_tensor, result_stat, 0.5)
+                eval_utils.caluclate_tp_fp(pred_box_tensor, pred_score, gt_box_tensor, result_stat, 0.7)
 
-            if self.opt.save_npy:
-                npy_dir = f"simulation_output/coperception/npy/{self.opt.test_scenario}_{self.current_time}"
-                npy_save_path = os.path.join(npy_dir, "npy")
-                os.makedirs(npy_save_path, exist_ok=True)
-                inference_utils.save_prediction_gt(pred_box_tensor, gt_box_tensor, batch_data["ego"]["origin_lidar"][0], self._current_batch_index, npy_save_path)
+                if self.opt.save_npy:
+                    npy_dir = f"simulation_output/coperception/npy/{self.opt.test_scenario}_{self.current_time}"
+                    npy_save_path = os.path.join(npy_dir, "npy")
+                    os.makedirs(npy_save_path, exist_ok=True)
+                    inference_utils.save_prediction_gt(pred_box_tensor, gt_box_tensor, batch_data["ego"]["origin_lidar"][0], self._current_batch_index, npy_save_path)
 
-            if self.opt.save_vis:
-                for mode in ["3d", "bev"]:
-                    if self.hypes["postprocess"]["core_method"] == "BevPostprocessor" and mode == "3d":
-                        continue
-                    pcd_points = None
-                    ego_data = batch_data["ego"]
-                    if "origin_lidar" in ego_data:
-                        pcd_points = ego_data["origin_lidar"]
-                        if self.hypes.get("fusion", {}).get("core_method") == "IntermediateFusionDatasetV2":
-                            pcd_points = pcd_points[:, 1:]
-                        if isinstance(pcd_points, list) or (hasattr(pcd_points, "ndim") and pcd_points.ndim > 2):
-                            pcd_points = pcd_points[0]
-                    elif "lidar_np" in ego_data:
-                        pcd_points = ego_data["lidar_np"]
-                        if isinstance(pcd_points, list):
-                            pcd_points = pcd_points[0]
-                    vis_dir = f"simulation_output/coperception/vis_{mode}/{self.opt.test_scenario}_{self.current_time}"
-                    os.makedirs(vis_dir, exist_ok=True)
-                    vis_save_path = os.path.join(vis_dir, f"{mode}_{tick_number:05d}.png")
-                    simple_vis.visualize(
+                if self.opt.save_vis:
+                    for mode in ["3d", "bev"]:
+                        if self.hypes["postprocess"]["core_method"] == "BevPostprocessor" and mode == "3d":
+                            continue
+                        pcd_points = None
+                        ego_data = batch_data["ego"]
+                        if "origin_lidar" in ego_data:
+                            pcd_points = ego_data["origin_lidar"]
+                            if self.hypes.get("fusion", {}).get("core_method") == "IntermediateFusionDatasetV2":
+                                pcd_points = pcd_points[:, 1:]
+                            if isinstance(pcd_points, list) or (hasattr(pcd_points, "ndim") and pcd_points.ndim > 2):
+                                pcd_points = pcd_points[0]
+                        elif "lidar_np" in ego_data:
+                            pcd_points = ego_data["lidar_np"]
+                            if isinstance(pcd_points, list):
+                                pcd_points = pcd_points[0]
+                        vis_dir = f"simulation_output/coperception/vis_{mode}/{self.opt.test_scenario}_{self.current_time}"
+                        os.makedirs(vis_dir, exist_ok=True)
+                        vis_save_path = os.path.join(vis_dir, f"{mode}_{tick_number:05d}.png")
+                        simple_vis.visualize(
+                            pred_box_tensor,
+                            gt_box_tensor,
+                            pcd_points,
+                            self.hypes["postprocess"]["gt_range"],
+                            vis_save_path,
+                            method=mode,
+                            left_hand=True,
+                            vis_pred_box=True,
+                        )
+
+                if self.opt.show_vis:
+                    vis_save_path = ""
+                    if self.opencood_dataset is None:
+                        logger.error("opencood_dataset is not initialized")
+                        raise RuntimeError("opencood_dataset is not initialized")
+                    self.opencood_dataset.visualize_result(
                         pred_box_tensor,
                         gt_box_tensor,
-                        pcd_points,
-                        self.hypes["postprocess"]["gt_range"],
+                        batch_data["ego"]["origin_lidar"],
+                        self.opt.show_vis,
                         vis_save_path,
-                        method=mode,
-                        left_hand=True,
-                        vis_pred_box=True,
+                        dataset=self.opencood_dataset,
                     )
 
-            if self.opt.show_vis:
-                vis_save_path = ""
-                if self.opencood_dataset is None:
-                    logger.error("opencood_dataset is not initialized")
-                    raise RuntimeError("opencood_dataset is not initialized")
-                self.opencood_dataset.visualize_result(
-                    pred_box_tensor,
-                    gt_box_tensor,
-                    batch_data["ego"]["origin_lidar"],
-                    self.opt.show_vis,
-                    vis_save_path,
-                    dataset=self.opencood_dataset,
-                )
-
-            if self.opt.show_sequence and pred_box_tensor is not None and self.hypes["postprocess"]["core_method"] != "BevPostprocessor":
-                if self.vis is None:
-                    logger.error("Visualizer not initialized")
-                    raise RuntimeError("Visualizer not initialized")
-                self.vis.clear_geometries()
-                pcd, pred_o3d_box, gt_o3d_box = vis_utils.visualize_inference_sample_dataloader(
-                    pred_box_tensor, gt_box_tensor, batch_data["ego"]["origin_lidar"], vis_pcd, mode="constant"
-                )
-                if self._current_batch_index == 0:
-                    self.vis.add_geometry(pcd)
-                    vis_utils.linset_assign_list(self.vis, vis_aabbs_pred, pred_o3d_box, update_mode="add")
-                    vis_utils.linset_assign_list(self.vis, vis_aabbs_gt, gt_o3d_box, update_mode="add")
-                else:
-                    vis_utils.linset_assign_list(self.vis, vis_aabbs_pred, pred_o3d_box)
-                    vis_utils.linset_assign_list(self.vis, vis_aabbs_gt, gt_o3d_box)
-                self.vis.update_geometry(pcd)
-                self.vis.poll_events()
-                self.vis.update_renderer()
+                if self.opt.show_sequence and pred_box_tensor is not None and self.hypes["postprocess"]["core_method"] != "BevPostprocessor":
+                    if self.vis is None:
+                        logger.error("Visualizer not initialized")
+                        raise RuntimeError("Visualizer not initialized")
+                    self.vis.clear_geometries()
+                    pcd, pred_o3d_box, gt_o3d_box = vis_utils.visualize_inference_sample_dataloader(
+                        pred_box_tensor, gt_box_tensor, batch_data["ego"]["origin_lidar"], vis_pcd, mode="constant"
+                    )
+                    if self._current_batch_index == 0:
+                        self.vis.add_geometry(pcd)
+                        vis_utils.linset_assign_list(self.vis, vis_aabbs_pred, pred_o3d_box, update_mode="add")
+                        vis_utils.linset_assign_list(self.vis, vis_aabbs_gt, gt_o3d_box, update_mode="add")
+                    else:
+                        vis_utils.linset_assign_list(self.vis, vis_aabbs_pred, pred_o3d_box)
+                        vis_utils.linset_assign_list(self.vis, vis_aabbs_gt, gt_o3d_box)
+                    self.vis.update_geometry(pcd)
+                    self.vis.poll_events()
+                    self.vis.update_renderer()
 
         for iou in [0.3, 0.5, 0.7]:
             self.final_result_stat[iou]["gt"] = self.final_result_stat[iou]["gt"] + result_stat[iou]["gt"]
