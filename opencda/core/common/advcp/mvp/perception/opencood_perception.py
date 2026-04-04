@@ -17,7 +17,7 @@ from torch import Tensor
 from mvp.config import opencood_root, opencood_models_root, opv2v_data_root
 from mvp.data.util import pose_to_transformation
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("cavise.opencood_perception")
 
 # Try to import OpenCOOD from the configured root
 # Support both external installation and bundled third_party
@@ -256,6 +256,7 @@ class OpencoodPerception(Perception):
         bbox: Optional[NDArray[Any]] = None,
         mode: str = "spoof",
     ) -> Dict[str, Any]:
+        logger.info(f"[DEBUG attack_late] Called with ego_id={ego_id}, attacker_id={attacker_id}, mode={mode}")
         batch = self.preprocessors[self.fusion_method](multi_vehicle_case, ego_id)
         batch_data = self.dataset.collate_batch_test([batch])
         bbox_tensor: Optional[Tensor] = None
@@ -264,6 +265,10 @@ class OpencoodPerception(Perception):
             bbox_np[3:6] = bbox_np[[5, 4, 3]]
             bbox_np[2] += 0.5 * bbox_np[3]
             bbox_tensor = torch.from_numpy(bbox_np).type(torch.float32).to(self.device)
+            logger.info(f"[DEBUG attack_late] bbox_tensor created: {bbox_tensor}")
+        
+        # Log data_dict structure
+        logger.info(f"[DEBUG attack_late] batch keys: {list(batch.keys()) if batch else 'None'}")
 
         with torch.no_grad():
             data_dict = train_utils.to_device(batch_data, self.device)
@@ -278,6 +283,11 @@ class OpencoodPerception(Perception):
             for cav_id, cav_content in data_dict.items():
                 transformation_matrix = cav_content["transformation_matrix"]
                 anchor_box = cav_content["anchor_box"]
+                if cav_id == attacker_id:
+                    logger.info(f"[DEBUG attack_late] cav_id={cav_id}, anchor_box shape: {anchor_box.shape if anchor_box is not None else 'None'}")
+                    if anchor_box is not None:
+                        logger.info(f"[DEBUG attack_late] anchor_box first 3: {anchor_box[:3] if len(anchor_box) > 3 else anchor_box}")
+                    logger.info(f"[DEBUG attack_late] transformation_matrix: {transformation_matrix}")
                 prob = output_dict[cav_id]["psm"]
                 prob = F.sigmoid(prob.permute(0, 2, 3, 1))
                 prob = prob.reshape(1, -1)
@@ -293,13 +303,46 @@ class OpencoodPerception(Perception):
                 # convert output to bounding box
                 if len(boxes3d) != 0:
                     if cav_id == attacker_id and bbox_tensor is not None:
+                        # Transform bbox from attacker sensor coordinates to ego coordinates
+                        T = cav_content["transformation_matrix"]
+                        if not isinstance(T, torch.Tensor):
+                            T = torch.from_numpy(T).to(self.device).type(torch.float32)
+                        else:
+                            T = T.to(self.device).type(torch.float32)
+
+                        target_bbox = bbox_tensor.clone()
+                        # Transform center (x, y, z)
+                        center = target_bbox[:3].view(3, 1)
+                        center_homo = torch.cat([center, torch.ones(1, 1, device=self.device, dtype=torch.float32)], dim=0)
+                        transformed_center_homo = T @ center_homo
+                        target_bbox[:3] = transformed_center_homo[:3, 0]
+                        # Transform yaw (orientation around z)
+                        R = T[:3, :3]
+                        yaw_R = torch.atan2(R[1, 0], R[0, 0])
+                        target_bbox[6] = target_bbox[6] + yaw_R
+
                         if mode == "spoof":
-                            boxes3d = torch.vstack([boxes3d, torch.reshape(bbox_tensor, (1, 7))])
+                            boxes3d = torch.vstack([boxes3d, torch.reshape(target_bbox, (1, 7))])
                             scores = torch.hstack([scores, torch.tensor([1.0]).type(scores.dtype).to(self.device)])
                         elif mode == "remove":
-                            keep_index = torch.sum((boxes3d[:, :2] - bbox_tensor[:2]) ** 2, dim=1) > 4
+                            # DEBUG: Log before removal
+                            logger.info(f"[DEBUG attack_late] cav_id={cav_id}, boxes3d count before removal: {len(boxes3d)}")
+                            logger.info(f"[DEBUG attack_late] target_bbox (ego coords): {target_bbox}")
+                            logger.info(f"[DEBUG attack_late] boxes3d first 3 entries:\n{boxes3d[:3]}")
+                            
+                            # Calculate distances to target
+                            distances = torch.sum((boxes3d[:, :2] - target_bbox[:2]) ** 2, dim=1)
+                            logger.info(f"[DEBUG attack_late] distances to target: {distances}")
+                            logger.info(f"[DEBUG attack_late] min distance: {distances.min().item()}")
+                            logger.info(f"[DEBUG attack_late] threshold: 4")
+                            
+                            keep_index = torch.sum((boxes3d[:, :2] - target_bbox[:2]) ** 2, dim=1) > 4
+                            boxes3d_before = len(boxes3d)
                             boxes3d = boxes3d[keep_index]
                             scores = scores[keep_index]
+                            
+                            logger.info(f"[DEBUG attack_late] boxes3d count after removal: {len(boxes3d)}")
+                            logger.info(f"[DEBUG attack_late] removed {boxes3d_before - len(boxes3d)} boxes")
 
                     # (N, 8, 3)
                     boxes3d_corner = box_utils.boxes_to_corners_3d(boxes3d, order=self.dataset.post_processor.params["order"])
