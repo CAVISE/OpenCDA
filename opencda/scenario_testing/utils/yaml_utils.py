@@ -2,13 +2,20 @@
 Used to load and write yaml files
 """
 
+from __future__ import annotations
+
 import re
-import yaml
 from datetime import datetime
+from os import PathLike
+from typing import Any, TypeAlias, cast
+
+import yaml  # type: ignore[import-untyped]
 from omegaconf import OmegaConf
 
+YamlDict: TypeAlias = dict[str, Any]
 
-def load_yaml(file):
+
+def load_yaml(file: str | PathLike[str]) -> YamlDict:
     """
     Load yaml file and return a dictionary.
     Parameters
@@ -22,7 +29,6 @@ def load_yaml(file):
         A dictionary that contains defined parameters.
     """
 
-    stream = open(file, "r")
     loader = yaml.Loader
     loader.add_implicit_resolver(
         "tag:yaml.org,2002:float",
@@ -38,31 +44,30 @@ def load_yaml(file):
         ),
         list("-+0123456789."),
     )
-    param = yaml.load(stream, Loader=loader)
+    with open(file, "r", encoding="utf-8") as stream:
+        param = cast(YamlDict, yaml.load(stream, Loader=loader))
 
     # load current time for data dumping and evaluation
-    current_time = datetime.now()
-    current_time = current_time.strftime("%Y_%m_%d_%H_%M_%S")
+    current_time = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
 
     param["current_time"] = current_time
 
     return param
 
 
-def add_current_time(params):
+def add_current_time(params: YamlDict) -> tuple[YamlDict, str]:
     """
     Add current time to the params dictionary.
     """
     # load current time for data dumping and evaluation
-    current_time = datetime.now()
-    current_time = current_time.strftime("%Y_%m_%d_%H_%M_%S")
+    current_time = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
 
     params["current_time"] = current_time
 
     return params, current_time
 
 
-def save_yaml(data, save_name):
+def save_yaml(data: Any, save_name: str | PathLike[str]) -> None:
     """
     Save the dictionary into a yaml file.
 
@@ -75,8 +80,8 @@ def save_yaml(data, save_name):
         Full path of the output yaml file.
     """
     if isinstance(data, dict):
-        with open(save_name, "w") as outfile:
+        with open(save_name, "w", encoding="utf-8") as outfile:
             yaml.dump(data, outfile, default_flow_style=False)
     else:
-        with open(save_name, "w") as f:
+        with open(save_name, "w", encoding="utf-8") as f:
             OmegaConf.save(data, f)
