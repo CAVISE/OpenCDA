@@ -3,8 +3,13 @@ Co-simulation scenario manager. The code is modified from CARLA official
 cosimulation code.
 """
 
+from __future__ import annotations
+
 import logging
 import os
+
+from collections.abc import Mapping
+from typing import Any, TypeAlias, cast
 
 import carla
 
@@ -14,6 +19,8 @@ from opencda.co_simulation.sumo_integration.sumo_simulation import SumoSimulatio
 from opencda.scenario_testing.utils.sim_api import ScenarioManager
 
 logger = logging.getLogger("cavise.opencda.opencda.scenario_testing.utils.cosim_api")
+
+NodeIdMapping: TypeAlias = Mapping[str, Mapping[int, str]]
 
 
 class CoScenarioManager(ScenarioManager):
@@ -43,28 +50,28 @@ class CoScenarioManager(ScenarioManager):
 
     def __init__(
         self,
-        scenario_params,
-        apply_ml,
-        carla_version,
-        node_ids,
-        xodr_path=None,
-        town=None,
-        cav_world=None,
-        sumo_file_parent_path=None,
-        carla_host="carla",
-        carla_timeout=30.0,
-    ):
+        scenario_params: dict[str, Any],
+        apply_ml: bool,
+        carla_version: str,
+        node_ids: NodeIdMapping,
+        xodr_path: str | None = None,
+        town: str | None = None,
+        cav_world: Any | None = None,
+        sumo_file_parent_path: str | None = None,
+        carla_host: str = "carla",
+        carla_timeout: float = 30.0,
+    ) -> None:
         # carla side initializations(partial init is already done in scenario manager
         super(CoScenarioManager, self).__init__(scenario_params, apply_ml, carla_version, xodr_path, town, cav_world, carla_host)
 
         # these following sets are used to track the vehicles controlled by sumo side
-        self._active_actors = set()
-        self.spawned_actors = set()
-        self.destroyed_actors = set()
+        self._active_actors: set[int] = set()
+        self.spawned_actors: set[int] = set()
+        self.destroyed_actors: set[int] = set()
         self.node_ids = node_ids
 
         # contains all carla traffic lights objects
-        self._tls = {}
+        self._tls: dict[str, Any] = {}
         for landmark in self.carla_map.get_all_landmarks_of_type("1000001"):
             if landmark.id != "":
                 traffic_ligth = self.world.get_traffic_light(landmark)
@@ -74,6 +81,7 @@ class CoScenarioManager(ScenarioManager):
                     logging.warning(f"Landmark {landmark.id} is not linked to any traffic light")
 
         # sumo side initialization
+        sumo_file_parent_path = cast(str, sumo_file_parent_path)
         base_name = os.path.basename(sumo_file_parent_path)
 
         sumo_key = "sumo"
@@ -98,16 +106,16 @@ class CoScenarioManager(ScenarioManager):
         # Mapped actor ids. All vehicles controlled by sumo is
         # in sumo2carla_ids, all vehicles controlled by carla
         # is saved in carla2sumo_ids
-        self.sumo2carla_ids = {}  # key: sumo id, value: carla id
-        self.carla2sumo_ids = {}  # key: carla id, value: sumo id
+        self.sumo2carla_ids: dict[str, int] = {}  # key: sumo id, value: carla id
+        self.carla2sumo_ids: dict[int, str] = {}  # key: carla id, value: sumo id
 
         BridgeHelper.blueprint_library = self.world.get_blueprint_library()
         BridgeHelper.offset = self.sumo.get_net_offset()
 
-    def sumo_tick(self):
+    def sumo_tick(self) -> None:
         self.sumo.tick()
 
-    def tick(self):
+    def tick(self) -> None:
         """
         Execute a single step of co-simulation. Logic: sumo will move the
         sumo vehicles to certain positions and then carla use set_transform to
@@ -167,14 +175,9 @@ class CoScenarioManager(ScenarioManager):
         self.world.tick()
 
         # Update data structures for the current frame.
-        current_actors = set(
-            [
-                vehicle.id
-                for vehicle in filter(
-                    lambda actor: actor.type_id.startswith("vehicle.") or actor.type_id.startswith("static."), self.world.get_actors()
-                )
-            ]
-        )
+        current_actors: set[int] = {
+            actor.id for actor in self.world.get_actors() if actor.type_id.startswith("vehicle.") or actor.type_id.startswith("static.")
+        }
         self.spawned_actors = current_actors.difference(self._active_actors)
         self.destroyed_actors = self._active_actors.difference(current_actors)
         self._active_actors = current_actors
@@ -183,7 +186,7 @@ class CoScenarioManager(ScenarioManager):
         carla_spawned_actors = self.spawned_actors - set(self.sumo2carla_ids.values())
 
         for carla_actor_id in carla_spawned_actors:
-            carla_actor = self.world.get_actor(carla_actor_id)
+            carla_actor = cast(Any, self.world.get_actor(carla_actor_id))
             type_id = BridgeHelper.get_sumo_vtype(carla_actor)
             color = carla_actor.attributes.get("color", None)
             if type_id is not None:
@@ -210,7 +213,7 @@ class CoScenarioManager(ScenarioManager):
         for carla_actor_id in self.carla2sumo_ids:
             sumo_actor_id = self.carla2sumo_ids[carla_actor_id]
 
-            carla_actor = self.world.get_actor(carla_actor_id)
+            carla_actor = cast(Any, self.world.get_actor(carla_actor_id))
             sumo_actor = self.sumo.get_actor(sumo_actor_id)
             sumo_transform = BridgeHelper.get_sumo_transform(carla_actor.get_transform(), carla_actor.bounding_box.extent)
             self.sumo.synchronize_vehicle(sumo_actor_id, sumo_transform, None)
@@ -226,13 +229,13 @@ class CoScenarioManager(ScenarioManager):
             self.sumo.synchronize_traffic_light(landmark_id, sumo_tl_state)
 
         # update the sumo2carla dict to cav world
-        self.cav_world.update_sumo_vehicles(self.sumo2carla_ids)
+        cast(Any, self.cav_world).update_sumo_vehicles(self.sumo2carla_ids)
 
     @property
-    def traffic_light_ids(self):
+    def traffic_light_ids(self) -> set[str]:
         return set(self._tls.keys())
 
-    def get_traffic_light_state(self, landmark_id):
+    def get_traffic_light_state(self, landmark_id: str) -> Any | None:
         """
         Accessor for traffic light state.
 
@@ -242,7 +245,7 @@ class CoScenarioManager(ScenarioManager):
             return None
         return self._tls[landmark_id].state
 
-    def spawn_actor(self, blueprint, transform):
+    def spawn_actor(self, blueprint: Any, transform: carla.Transform) -> int:
         """
         Spawns a new carla actor based on the given coordinate.
 
@@ -269,7 +272,7 @@ class CoScenarioManager(ScenarioManager):
 
         return response.actor_id
 
-    def synchronize_vehicle(self, vehicle_id, transform):
+    def synchronize_vehicle(self, vehicle_id: int, transform: carla.Transform) -> bool:
         """
         The key function of co-simulation. Given the updated location in sumo,
         carla will move the corresponding vehicle to the same location.
@@ -294,7 +297,7 @@ class CoScenarioManager(ScenarioManager):
         vehicle.set_transform(transform)
         return True
 
-    def destroy_actor(self, actor_id):
+    def destroy_actor(self, actor_id: int) -> bool:
         """
         Destroys the given carla actor.
 
@@ -308,7 +311,7 @@ class CoScenarioManager(ScenarioManager):
             return actor.destroy()
         return False
 
-    def close(self):
+    def close(self) -> None:
         """
         Simulation close.
         """
