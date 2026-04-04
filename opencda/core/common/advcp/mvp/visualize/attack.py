@@ -171,8 +171,9 @@ def draw_attack(
                         bbox_1d = _normalize_bbox(bbox)
                         # Convert to 2D array (1, 7) for bbox_sensor_to_map
                         bbox_2d = bbox_1d[None, :]
-                        bbox = bbox_sensor_to_map(bbox_2d, _to_numpy(attacker_vehicle_data["lidar_pose"]))
-                        total_bboxes.append((bbox, None, "red"))
+                        # REMOVED: bbox = bbox_sensor_to_map(bbox_2d, _to_numpy(attacker_vehicle_data["lidar_pose"]))
+                        # Use bbox_2d directly (world coordinates)
+                        total_bboxes.append((bbox_2d, None, "magenta"))
                     else:
                         logger.debug(f"Frame index {frame_idx} out of range for bboxes (len={len(attack['attack_meta']['bboxes'])}), skipping")
                 else:

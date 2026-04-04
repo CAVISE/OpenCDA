@@ -17,9 +17,10 @@ class LidarSpoofLateAttacker(Attacker):
     def run(self, multi_frame_case: Dict[int, Any], attack_opts: Dict[str, Any]) -> Tuple[Dict[int, Any], List[Dict[str, Any]]]:
         case = copy.deepcopy(multi_frame_case)
         attack_results: List[Dict[str, Any]] = []
-        for frame_id in range(10):
+        current_frame = max(multi_frame_case.keys())
+        for frame_id in sorted(multi_frame_case.keys()):
             attack_results.append({})
-            if frame_id == 9:
+            if frame_id == current_frame:
                 multi_vehicle_case = multi_frame_case[frame_id]
                 attacker_id = attack_opts["attacker_vehicle_id"]
                 ego_id = attack_opts["victim_vehicle_id"]
