@@ -498,10 +498,15 @@ class AdvCPManager:
 
             attacker_id = attacker_vehicles[0]
             victim_id = ego_id  # Attack the ego vehicle
+            logger.info(f"[Late Attack] Tick {tick_number}: attacker={attacker_id}, victim={victim_id}")
 
             # Select attack target
             # For late attacks, the attacker's data is in the multi_frame_case structure
             attack_target = self._select_attack_target(multi_frame_case[tick_number][attacker_id], attacker_id)
+            if attack_target:
+                logger.info(f"[Late Attack] Tick {tick_number}: attack target selected: object_id={attack_target.get('object_id')}, bbox={attack_target.get('bboxes')}")
+            else:
+                logger.warning(f"[Late Attack] Tick {tick_number}: no attack target selected (attacker sees {len(multi_frame_case[tick_number][attacker_id].get('object_ids', []))} objects)")
 
             # Prepare attack options
             attack_opts = {
@@ -518,9 +523,13 @@ class AdvCPManager:
                 if "positions" in attack_target:
                     attack_opts["positions"] = {tick_number: attack_target["positions"]}
 
+            #logger.debug(f"[Late Attack] Tick {tick_number}: attack_opts={attack_opts}")
+
             # Apply late attack
             try:
+                #logger.info(f"[Late Attack] Tick {tick_number}: calling attacker.run")
                 attacked_case, attack_info = self.attacker.run(multi_frame_case, attack_opts)
+                #logger.info(f"[Late Attack] Tick {tick_number}: attacker.run completed, attack_info={attack_info}")
 
                 # Extract the modified predictions for the ego vehicle
                 if tick_number in attacked_case and ego_id in attacked_case[tick_number]:
@@ -529,12 +538,16 @@ class AdvCPManager:
                         "pred_scores": attacked_case[tick_number][ego_id].get("pred_scores", predictions["pred_scores"]),
                         "gt_bboxes": predictions.get("gt_bboxes"),
                     }
+                    # Compare predictions
+                    #orig_count = len(predictions["pred_bboxes"]) if "pred_bboxes" in predictions and predictions["pred_bboxes"] is not None else 0
+                    #mod_count = len(modified_predictions["pred_bboxes"]) if modified_predictions["pred_bboxes"] is not None else 0
+                    #logger.info(f"[Late Attack] Tick {tick_number}: original pred_bboxes count={orig_count}, modified count={mod_count}")
                     return modified_predictions
                 else:
                     logger.warning(f"Late attack did not return data for tick {tick_number}")
                     return predictions
             except Exception as e:
-                logger.error(f"Late attack failed: {e}")
+                logger.error(f"Late attack failed: {e}", exc_info=True)
                 return predictions
 
         # For early/intermediate attacks, format data as multi-frame case
@@ -598,7 +611,7 @@ class AdvCPManager:
 
         import random
 
-        random.seed(42)  # For reproducibility
+        random.seed(20)  # For reproducibility
         return random.sample(all_vehicles, num_attackers)
 
     def _select_attack_target(self, vehicle_data: Dict, vehicle_id: str) -> Optional[Dict]:
