@@ -163,7 +163,7 @@ def draw_attack(
                         "r"
                     ))
                 # label the position of spoofing/removal
-                if attack["attack_meta"].get("bboxes") is not None and len(attack["attack_meta"]["bboxes"]) > 0:
+                if attack["attack_meta"].get("bboxes") is not None and len(attack["attack_meta"]["bboxes"]) > 0 and case_id == 0:
                     frame_idx = frame_ids.index(frame_id)
                     if frame_idx < len(attack["attack_meta"]["bboxes"]):
                         bbox = attack["attack_meta"]["bboxes"][frame_idx]
