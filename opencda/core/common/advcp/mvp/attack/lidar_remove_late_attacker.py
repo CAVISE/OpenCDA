@@ -40,17 +40,17 @@ class LidarRemoveLateAttacker(Attacker):
                 #    bbox_ego = None
                 object_index = multi_vehicle_case[attacker_id]["object_ids"].index(attack_opts["object_id"])
                 bbox_to_remove = multi_vehicle_case[attacker_id]["gt_bboxes"][object_index]
-                bbox_to_remove_ego = bbox_map_to_sensor(bbox_to_remove, ego_pose)
-                #attacker_pose = multi_vehicle_case[attacker_id]['lidar_pose']
-                #bbox_to_remove_attacker=bbox_map_to_sensor(bbox_to_remove, attacker_pose)
-                result = self.perception.attack_late(multi_vehicle_case, ego_id, attacker_id, mode="remove", bbox=bbox_to_remove_ego)
+                #bbox_to_remove_ego = bbox_map_to_sensor(bbox_to_remove, ego_pose)
+                attacker_pose = multi_vehicle_case[attacker_id]['lidar_pose']
+                bbox_to_remove_attacker=bbox_map_to_sensor(bbox_to_remove, attacker_pose)
+                result = self.perception.attack_late(multi_vehicle_case, ego_id, attacker_id, mode="remove", bbox=bbox_to_remove_attacker)
                 case[frame_id][ego_id]["pred_bboxes"] = result["pred_bboxes"]
                 case[frame_id][ego_id]["pred_scores"] = result["pred_scores"]
                 attack_results[-1][ego_id] = {"pred_bboxes": result["pred_bboxes"], "pred_scores": result["pred_scores"]}
                 logger.info(f"[Late Remove] bbox_to_remove(world/map)={bbox_to_remove}")
-                #logger.info(f"[Late Remove] attacker_pose={attacker_pose}")
-                logger.info(f"[Late Remove] [using in attack_late now] bbox_to_remove_ego(victim sensor)={bbox_to_remove_ego}")
-                #logger.info(f"[Late Remove] bbox_to_remove_attacker(attacker sensor)={bbox_to_remove_attacker}")
+                logger.info(f"[Late Remove] attacker_pose={attacker_pose}")
+                #logger.info(f"[Late Remove] [using in attack_late now] bbox_to_remove_ego(victim sensor)={bbox_to_remove_ego}")
+                logger.info(f"[Late Remove] bbox_to_remove_attacker(attacker sensor)={bbox_to_remove_attacker}")
         return case, attack_results
 
     def build_benchmark_meta(self, write: bool = False, max_cnt: int = 500) -> None:
