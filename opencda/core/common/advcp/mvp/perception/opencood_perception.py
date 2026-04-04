@@ -288,6 +288,12 @@ class OpencoodPerception(Perception):
                     if anchor_box is not None:
                         logger.info(f"[DEBUG attack_late] anchor_box first 3: {anchor_box[:3] if len(anchor_box) > 3 else anchor_box}")
                     logger.info(f"[DEBUG attack_late] transformation_matrix: {transformation_matrix}")
+                    # Diagnostic: log coordinate system info
+                    logger.info(f"[DEBUG attack_late] ego_id={ego_id}, attacker_id={attacker_id}")
+                    if "lidar_pose" in cav_content:
+                        logger.info(f"[DEBUG attack_late] cav_id={cav_id} lidar_pose: {cav_content['lidar_pose']}")
+                    if "params" in cav_content and "lidar_pose" in cav_content["params"]:
+                        logger.info(f"[DEBUG attack_late] cav_id={cav_id} params[lidar_pose]: {cav_content['params']['lidar_pose']}")
                 prob = output_dict[cav_id]["psm"]
                 prob = F.sigmoid(prob.permute(0, 2, 3, 1))
                 prob = prob.reshape(1, -1)
@@ -303,40 +309,27 @@ class OpencoodPerception(Perception):
                 # convert output to bounding box
                 if len(boxes3d) != 0:
                     if cav_id == attacker_id and bbox_tensor is not None:
-                        # Transform bbox from attacker sensor coordinates to ego coordinates
-                        T = cav_content["transformation_matrix"]
-                        if not isinstance(T, torch.Tensor):
-                            T = torch.from_numpy(T).to(self.device).type(torch.float32)
-                        else:
-                            T = T.to(self.device).type(torch.float32)
-
-                        target_bbox = bbox_tensor.clone()
-                        # Transform center (x, y, z)
-                        center = target_bbox[:3].view(3, 1)
-                        center_homo = torch.cat([center, torch.ones(1, 1, device=self.device, dtype=torch.float32)], dim=0)
-                        transformed_center_homo = T @ center_homo
-                        target_bbox[:3] = transformed_center_homo[:3, 0]
-                        # Transform yaw (orientation around z)
-                        R = T[:3, :3]
-                        yaw_R = torch.atan2(R[1, 0], R[0, 0])
-                        target_bbox[6] = target_bbox[6] + yaw_R
-
                         if mode == "spoof":
-                            boxes3d = torch.vstack([boxes3d, torch.reshape(target_bbox, (1, 7))])
+                            boxes3d = torch.vstack([boxes3d, torch.reshape(bbox_tensor, (1, 7))])
                             scores = torch.hstack([scores, torch.tensor([1.0]).type(scores.dtype).to(self.device)])
                         elif mode == "remove":
                             # DEBUG: Log before removal
                             logger.info(f"[DEBUG attack_late] cav_id={cav_id}, boxes3d count before removal: {len(boxes3d)}")
-                            logger.info(f"[DEBUG attack_late] target_bbox (ego coords): {target_bbox}")
+                            logger.info(f"[DEBUG attack_late] bbox_tensor (attacker coords): {bbox_tensor}")
                             logger.info(f"[DEBUG attack_late] boxes3d first 3 entries:\n{boxes3d[:3]}")
                             
+                            # Diagnostic: show ranges
+                            logger.info(f"[DEBUG attack_late] boxes3d X range: [{boxes3d[:, 0].min().item()}, {boxes3d[:, 0].max().item()}]")
+                            logger.info(f"[DEBUG attack_late] boxes3d Y range: [{boxes3d[:, 1].min().item()}, {boxes3d[:, 1].max().item()}]")
+                            logger.info(f"[DEBUG attack_late] bbox_tensor X: {bbox_tensor[0].item()}, Y: {bbox_tensor[1].item()}")
+                            
                             # Calculate distances to target
-                            distances = torch.sum((boxes3d[:, :2] - target_bbox[:2]) ** 2, dim=1)
+                            distances = torch.sum((boxes3d[:, :2] - bbox_tensor[:2]) ** 2, dim=1)
                             logger.info(f"[DEBUG attack_late] distances to target: {distances}")
                             logger.info(f"[DEBUG attack_late] min distance: {distances.min().item()}")
                             logger.info(f"[DEBUG attack_late] threshold: 4")
                             
-                            keep_index = torch.sum((boxes3d[:, :2] - target_bbox[:2]) ** 2, dim=1) > 4
+                            keep_index = torch.sum((boxes3d[:, :2] - bbox_tensor[:2]) ** 2, dim=1) > 4
                             boxes3d_before = len(boxes3d)
                             boxes3d = boxes3d[keep_index]
                             scores = scores[keep_index]
