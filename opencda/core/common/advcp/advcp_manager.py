@@ -259,6 +259,12 @@ class AdvCPManager:
                             if "gt_bboxes" in modified_predictions:
                                 attack_case[ego_id]["gt_bboxes"] = modified_predictions["gt_bboxes"]
                     
+                    normal_case_viz = copy.deepcopy(raw_data)
+                    if ego_id in normal_case_viz and predictions is not None:
+                        normal_case_viz[ego_id]["pred_bboxes"] = predictions.get("pred_bboxes")
+                        normal_case_viz[ego_id]["pred_scores"] = predictions.get("pred_scores")
+                        normal_case_viz[ego_id]["gt_bboxes"] = predictions.get("gt_bboxes") 
+                    
                     # Get attacker and victim IDs
                     attacker_vehicles = self._select_attacker_vehicles(tick_number)
                     attacker_id = attacker_vehicles[0] if attacker_vehicles else None
@@ -278,7 +284,7 @@ class AdvCPManager:
                     self.visualization_manager.process_tick(
                         tick_number=tick_number,
                         sim_tick=sim_tick if sim_tick is not None else tick_number,
-                        raw_data={tick_number: raw_data} if raw_data else None,
+                        raw_data={tick_number: normal_case_viz} if normal_case_viz else None,
                         attacked_data={tick_number: attack_case} if attack_case else None,
                         defended_data={tick_number: defended_data} if defended_data else None,
                         attack_info={
@@ -311,6 +317,12 @@ class AdvCPManager:
                         if "gt_bboxes" in modified_predictions:
                             attack_case[ego_id]["gt_bboxes"] = modified_predictions["gt_bboxes"]
                 
+                normal_case_viz = copy.deepcopy(raw_data)
+                if ego_id in normal_case_viz and predictions is not None:
+                    normal_case_viz[ego_id]["pred_bboxes"] = predictions.get("pred_bboxes")
+                    normal_case_viz[ego_id]["pred_scores"] = predictions.get("pred_scores")
+                    normal_case_viz[ego_id]["gt_bboxes"] = predictions.get("gt_bboxes")
+                
                 # Get attacker and victim IDs
                 attacker_vehicles = self._select_attacker_vehicles(tick_number)
                 attacker_id = attacker_vehicles[0] if attacker_vehicles else None
@@ -329,7 +341,7 @@ class AdvCPManager:
                 self.visualization_manager.process_tick(
                     tick_number=tick_number,
                     sim_tick = sim_tick if sim_tick is not None else tick_number,
-                    raw_data={tick_number: raw_data} if raw_data else None,
+                    raw_data={tick_number: normal_case_viz} if normal_case_viz else None,
                     attacked_data={tick_number: attack_case} if attack_case else None,
                     defended_data=None,
                     attack_info={

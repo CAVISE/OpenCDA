@@ -29,12 +29,12 @@ class LidarRemoveLateAttacker(Attacker):
                 ego_pose = multi_vehicle_case[ego_id]["lidar_pose"]
                 
                 # Get bbox in world coordinates from attack_opts
-                if "bboxes" in attack_opts:
-                    bbox_world = attack_opts["bboxes"][0]  # single bbox
-                    # Transform world bbox to ego sensor coordinates
-                    bbox_ego = bbox_map_to_sensor(bbox_world, ego_pose)
-                else:
-                    bbox_ego = None
+                #if "bboxes" in attack_opts:
+                #    bbox_world = attack_opts["bboxes"][0]  # single bbox
+                #    # Transform world bbox to ego sensor coordinates
+                #    bbox_ego = bbox_map_to_sensor(bbox_world, ego_pose)
+                #else:
+                #    bbox_ego = None
                 object_index = multi_vehicle_case[attacker_id]["object_ids"].index(attack_opts["object_id"])
                 bbox_to_remove = multi_vehicle_case[attacker_id]["gt_bboxes"][object_index]
                 bbox_to_remove_ego = bbox_map_to_sensor(bbox_to_remove, ego_pose)
