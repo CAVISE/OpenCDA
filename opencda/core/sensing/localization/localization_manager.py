@@ -14,7 +14,7 @@ from opencda.metrics_tools.config import resolve_metric_collector_config
 from opencda.metrics_tools.metric_collector import MetricCollector
 from opencda.core.sensing.localization.localization_debug_helper import LocDebugHelper
 from opencda.core.sensing.localization.kalman_filter import KalmanFilter
-from opencda.core.sensing.localization.coordinate_transform import geo_to_transform
+from opencda.core.sensing.localization.coordinate_transform import geo_to_transform  # noqa: F401
 
 from opencda.core.attack.gnss_spoofing import GNSSPeriodicSpoofer
 from opencda.core.attack.gnss_spoofing import GNSSSpoofingDetector
@@ -200,14 +200,14 @@ class LocalizationManager(object):
         # Activate GNSS Spoofing attack
         if self.activate and config_yaml["attack"]:
             self.gnns_spoofer = GNSSPeriodicSpoofer(1e-4, 1e-4, 0, 100)
-            logger.info(f"GNSS Spoofing Attack activated!")
+            logger.info("GNSS Spoofing Attack activated!")
         else:
             self.gnns_spoofer = None
 
         # Activate GNSS Spoofing attack detection
         if self.activate and config_yaml["detect"]:
             self.gnns_detector = GNSSSpoofingDetector(config_yaml["dt"])
-            logger.info(f"GNSS Spoofing Attack Detector activated!")
+            logger.info("GNSS Spoofing Attack Detector activated!")
         else:
             self.gnns_detector = None
 
@@ -288,7 +288,7 @@ class LocalizationManager(object):
                     self.gnns_detector.first_step(x, y)
                 else:
                     if self.gnns_detector.detect(x_kf, y_kf, speed_kf):
-                        logger.warning(f"WARNING: GNSS Spoofing attack detected!")
+                        logger.warning("WARNING: GNSS Spoofing attack detected!")
 
             # save the track for future use
             self._ego_pos_history.append(self._ego_pos)
