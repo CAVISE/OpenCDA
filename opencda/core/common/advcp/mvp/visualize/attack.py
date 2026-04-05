@@ -96,6 +96,7 @@ def draw_attack(
         frame_ids = attack["attack_meta"]["attack_frame_ids"]
         frame_num = len(frame_ids)
         fig, axes = plt.subplots(frame_num, 2, figsize=(40, 20 * frame_num))
+        fig.patch.set_facecolor('black')
 
         # draw normal case first
         for case_id, case in enumerate([normal_case, attack_case]):
@@ -104,6 +105,15 @@ def draw_attack(
                     ax = axes[case_id]
                 else:
                     ax = axes[frame_ids.index(frame_id)][case_id]
+
+                # Set axes background to black
+                ax.set_facecolor('black')
+                # Set text and tick colors to white
+                ax.xaxis.label.set_color('white')
+                ax.yaxis.label.set_color('white')
+                ax.tick_params(colors='white')
+                for spine in ax.spines.values():
+                    spine.set_color('white')
 
                 # draw point clouds
                 # pointcloud_all = pcd_sensor_to_map(case[frame_id][attack["attack_opts"]["attacker_vehicle_id"]]["lidar"], case[frame_id][attack["attack_opts"]["attacker_vehicle_id"]]["lidar_pose"])[:,:3]
@@ -120,7 +130,7 @@ def draw_attack(
                 ax.set_xlim(xlim)
                 ax.set_ylim(ylim)
                 # ax.set_aspect('equal', adjustable='box')
-                ax.scatter(pointcloud_all[:, 0], pointcloud_all[:, 1], s=0.01, c="black")
+                ax.scatter(pointcloud_all[:, 0], pointcloud_all[:, 1], s=0.01, c="white")
 
                 # label the location of attacker and victim
                 attacker_vehicle_id = attack["attack_meta"]["attacker_vehicle_id"]
@@ -148,7 +158,7 @@ def draw_attack(
                                 gt_bboxes,
                                 _to_numpy(victim_vehicle_data["lidar_pose"])
                             ),
-                            victim_vehicle_data["object_ids"],
+                            None,  # Don't draw box IDs
                             "g",
                         )
                     )
