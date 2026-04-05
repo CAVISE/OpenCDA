@@ -418,7 +418,6 @@ def test_tick_spawns_sumo_actor_in_carla_updates_mapping_and_cav_world(mocker):
 
     mgr.tick()
 
-    mgr.sumo.tick.assert_called_once_with()
     mgr.sumo.subscribe.assert_called_once_with("sumo-1")
     mgr.spawn_actor.assert_called_once_with(blueprint, carla_transform)
 

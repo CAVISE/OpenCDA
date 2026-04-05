@@ -10,7 +10,7 @@ import subprocess
 import dataclasses
 
 
-logger = logging.getLogger("cavise.protobuf_toolchain")
+logger = logging.getLogger("cavise.opencda.opencda.core.common.communication.toolchain")
 
 
 # Config for protoc
@@ -23,7 +23,7 @@ class MessageConfig:
 class CommunicationToolchain:
     # handle messages, it is assumed that it is safe to import messages after this call
     @staticmethod
-    def handle_messages(messages: typing.List[str], config: typing.Optional[MessageConfig] = None):
+    def handle_messages(messages: typing.List[str], config: typing.Optional[MessageConfig] = None) -> None:
         if config is None:
             config = MessageConfig(
                 pathlib.PurePath("opencda/core/common/communication/messages"), pathlib.PurePath("opencda/core/common/communication/protos/cavise")
@@ -38,6 +38,7 @@ class CommunicationToolchain:
         command = [
             "protoc",
             f"--proto_path={config.source_dir}",
+            f"--mypy_out={config.binary_dir}",
             f"--python_out={config.binary_dir}",
             *map(lambda message: config.source_dir.joinpath(f"{message}.proto"), messages),
         ]

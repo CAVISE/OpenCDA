@@ -329,6 +329,7 @@ def test_spawn_custom_actor_color_invalid_type_raises(mocker):
 def test_spawn_custom_actor_color_not_supported(mocker, caplog):
     """spawn_custom_actor logs warning if color attribute not supported and still spawns actor."""
     import logging
+    from opencda.scenario_testing.utils import sim_api as sim_api_mod
 
     sm, world, bp_lib, blueprint = _setup_spawn_custom_actor(mocker)
 
@@ -339,7 +340,7 @@ def test_spawn_custom_actor_color_not_supported(mocker, caplog):
     spawn_transform = Mock(spec_set=[])
     config = {"model": "vehicle.micro.microlino", "color": [255, 0, 0]}
 
-    with caplog.at_level(logging.WARNING, logger="cavise.sim_api"):
+    with caplog.at_level(logging.WARNING, logger=sim_api_mod.logger.name):
         result = sm.spawn_custom_actor(spawn_transform, config, fallback_model="vehicle.lincoln.mkz_2017")
 
     assert result == "ACTOR"
@@ -350,9 +351,9 @@ def test_spawn_custom_actor_color_not_supported(mocker, caplog):
     matching = [
         r
         for r in caplog.records
-        if r.levelno == logging.WARNING and r.name == "cavise.sim_api" and blueprint.id in r.getMessage() and "color" in r.getMessage().lower()
+        if r.levelno == logging.WARNING and r.name == sim_api_mod.logger.name and blueprint.id in r.getMessage() and "color" in r.getMessage().lower()
     ]
-    assert matching, f"Expected a WARNING from cavise.sim_api mentioning {blueprint.id!r} and color; got:\n{caplog.text}"
+    assert matching, f"Expected a WARNING from {sim_api_mod.logger.name} mentioning {blueprint.id!r} and color; got:\n{caplog.text}"
 
 
 def test_close_restores_settings(mocker):

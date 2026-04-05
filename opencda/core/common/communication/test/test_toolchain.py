@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, patch
 import pathlib
 
 from opencda.core.common.communication.toolchain import CommunicationToolchain, MessageConfig
+import opencda.core.common.communication.toolchain as toolchain_mod
 
 
 def _norm(s) -> str:
@@ -37,8 +38,9 @@ class TestCommunicationToolchain:
         # Check command structure strictly
         assert args[0] == "protoc"
         assert _norm(args[1]) == "--proto_path=opencda/core/common/communication/messages"
-        assert _norm(args[2]) == "--python_out=opencda/core/common/communication/protos/cavise"
-        assert "msg1.proto" in str(args[3])
+        assert _norm(args[2]) == "--mypy_out=opencda/core/common/communication/protos/cavise"
+        assert _norm(args[3]) == "--python_out=opencda/core/common/communication/protos/cavise"
+        assert "msg1.proto" in str(args[4])
 
     def test_handle_messages_custom_config(self, mock_subprocess, mock_importlib):
         """Test handle_messages with custom configuration."""
@@ -53,7 +55,8 @@ class TestCommunicationToolchain:
         args = mock_subprocess.call_args[0][0]
         assert args[0] == "protoc"
         assert args[1] == "--proto_path=src"
-        assert args[2] == "--python_out=bin"
+        assert args[2] == "--mypy_out=bin"
+        assert args[3] == "--python_out=bin"
 
         # Verify all messages are included
         joined_args = _norm(" ".join(str(a) for a in args))
@@ -69,10 +72,15 @@ class TestCommunicationToolchain:
         config = MessageConfig(pathlib.PurePath("s"), pathlib.PurePath("b"))
 
         # Check specific logger
-        with caplog.at_level("INFO", logger="cavise.protobuf_toolchain"):
+        with caplog.at_level("INFO", logger=toolchain_mod.logger.name):
             CommunicationToolchain.generate_message(config, ["msg1"])
 
-        assert "generated protos for: msg1" in caplog.text
+        matching_records = [
+            record
+            for record in caplog.records
+            if record.name == toolchain_mod.logger.name and record.levelname == "INFO" and "generated protos for: msg1" in record.getMessage()
+        ]
+        assert len(matching_records) >= 1
 
     def test_generate_message_failure_exits(self, mock_subprocess, caplog):
         """Test failure generates error log and system exit."""
@@ -85,14 +93,21 @@ class TestCommunicationToolchain:
 
         # Expect sys.exit(1)
         with pytest.raises(SystemExit) as excinfo:
-            with caplog.at_level("ERROR", logger="cavise.protobuf_toolchain"):
+            with caplog.at_level("ERROR", logger=toolchain_mod.logger.name):
                 CommunicationToolchain.generate_message(config, ["msg1"])
 
         assert excinfo.value.code == 1
 
         # Check logs
-        assert "failed to generate protos" in caplog.text
-        assert "STDERR: Protocol error" in caplog.text
+        matching_records = [
+            record
+            for record in caplog.records
+            if record.name == toolchain_mod.logger.name
+            and record.levelname == "ERROR"
+            and "failed to generate protos" in record.getMessage()
+            and "STDERR: Protocol error" in record.getMessage()
+        ]
+        assert len(matching_records) >= 1
 
     def test_handle_messages_empty_list(self, mock_subprocess, mock_importlib):
         """Test behavior with empty message list."""
@@ -109,5 +124,5 @@ class TestCommunicationToolchain:
         args = mock_subprocess.call_args[0][0]
         # args should be: ["protoc", "--proto_path=...", "--python_out=..."]
         # with no further arguments for files
-        assert len(args) == 3
+        assert len(args) == 4
         assert args[0] == "protoc"
