@@ -162,22 +162,21 @@ def draw_attack(
                         None,
                         "r"
                     ))
-                # label the position of spoofing/removal
+                # label the position of spoofing/removal as a purple point
                 if attack["attack_meta"].get("bboxes") is not None and len(attack["attack_meta"]["bboxes"]) > 0 and case_id == 0:
                     frame_idx = frame_ids.index(frame_id)
                     if frame_idx < len(attack["attack_meta"]["bboxes"]):
                         bbox = attack["attack_meta"]["bboxes"][frame_idx]
                         # Normalize bbox to 1D array with 7 elements
                         bbox_1d = _normalize_bbox(bbox)
-                        # Convert to 2D array (1, 7) for bbox_sensor_to_map
-                        bbox_2d = bbox_1d[None, :]
-                        # REMOVED: bbox = bbox_sensor_to_map(bbox_2d, _to_numpy(attacker_vehicle_data["lidar_pose"]))
-                        # Use bbox_2d directly (world coordinates)
-                        total_bboxes.append((bbox_2d, None, "magenta"))
+                        # Extract center point (x, y) - the attack target position
+                        center_x, center_y = bbox_1d[0], bbox_1d[1]
+                        # Draw as a purple point
+                        ax.scatter(center_x, center_y, s=100, c="magenta", marker='o')
                     else:
                         logger.debug(f"Frame index {frame_idx} out of range for bboxes (len={len(attack['attack_meta']['bboxes'])}), skipping")
                 else:
-                    logger.debug(f"No bbox data in attack_meta, skipping attack bbox visualization")
+                    logger.debug(f"No bbox data in attack_meta, skipping attack point visualization")
 
                 draw_bbox_2d(ax, total_bboxes)
     else:
