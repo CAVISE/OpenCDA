@@ -1,66 +1,69 @@
-## Атака GNSS Spoofing
+## GNSS Spoofing Attack
 
-Модуль для симуляции атак подмены GNSS-координат и их обнаружения в рамках конвейера локализации OpenCDA.
+Module for simulating GNSS coordinate spoofing attacks and their detection within the OpenCDA localization pipeline.
 
-**Исходный код:** `opencda/core/attack/gnss_spoofing.py`
+**Source code:** `opencda/core/attack/gnss_spoofing.py`
 
 ---
 
-### Модели атак
+### Attack Models
 
 #### GNSSProgressiveSpoofer
-Линейно нарастающее смещение на каждом тике. Подменённые координаты со временем всё больше отклоняются от истинной позиции.
 
-| Параметр | Описание |
-|----------|----------|
-| `dx`, `dy`, `dz` | Приращение смещения за тик (широта, долгота, высота) |
+Applies a linearly increasing offset on each simulation tick. The spoofed coordinates progressively diverge from the true position over time.
+
+| Parameter | Description |
+|-----------|-------------|
+| `dx`, `dy`, `dz` | Offset increment per tick (latitude, longitude, altitude) |
 
 #### GNSSPeriodicSpoofer
-Периодические всплески подмены со случайными интервалами. Между всплесками координаты передаются без изменений.
 
-| Параметр | Описание |
-|----------|----------|
-| `dx`, `dy`, `dz` | Величина подмены (среднее гауссова распределения) |
-| `period` | Среднее количество тиков между всплесками |
-| `count` | Средняя продолжительность всплеска (тики) |
+Generates sporadic spoofing bursts at randomized intervals. Between bursts, coordinates are passed through unmodified.
 
-Обе модели имеют единый интерфейс: `update(lat, lon, alt) -> (lat, lon, alt)`.
+| Parameter | Description |
+|-----------|-------------|
+| `dx`, `dy`, `dz` | Spoofing magnitude (mean of Gaussian distribution) |
+| `period` | Mean number of ticks between bursts |
+| `count` | Mean burst duration (ticks) |
+
+Both models share a unified interface: `update(lat, lon, alt) -> (lat, lon, alt)`.
 
 ---
 
-### Обнаружение
+### Detection
 
 #### GNSSSpoofingDetector
-Обнаруживает подмену, сравнивая перемещение между последовательными позициями с ожидаемым расстоянием на основе скорости транспортного средства.
 
-Условие срабатывания: `перемещение > скорость * dt + порог`
+Detects spoofing by comparing the displacement between successive positions against the expected distance based on vehicle velocity.
 
-| Параметр | Описание |
-|----------|----------|
-| `dt` | Шаг симуляции (секунды) |
-| `th` | Порог расстояния (метры, по умолчанию 1.0) |
+Triggering condition: `displacement > velocity * dt + threshold`
+
+| Parameter | Description |
+|-----------|-------------|
+| `dt` | Simulation time step (seconds) |
+| `th` | Distance threshold (meters, default 1.0) |
 
 ---
 
-### Интеграция с LocalizationManager
+### Integration with LocalizationManager
 
-Атака и детектор активируются через флаги в YAML-конфиге в секции `localization`:
+The attack and detector are activated via flags in the YAML configuration under the `localization` section:
 
 ```yaml
 localization:
   activate: true
-  attack: true    # включить подмену GNSS
-  detect: true    # включить обнаружение подмены
+  attack: true   # enable GNSS spoofing
+  detect: true   # enable spoofing detection
 ```
 
-При включении `LocalizationManager.localize()` применяет spoofer к GNSS-координатам до фильтра Калмана, а детектор запускается после фильтрации.
+When enabled, `LocalizationManager.localize()` applies the spoofer to GNSS coordinates before the Kalman filter, and the detector runs after filtering.
 
 ---
 
-### Конфигурация сценария
+### Scenario Configuration
 
-Отдельный конфиг сценария с атакой:
+A dedicated scenario configuration with the attack enabled:
 
 `config_yaml/realistic_town06_cosim_gnss_attack.yaml`
 
-Этот файл основан на `realistic_town06_cosim.yaml` с включённой атакой/обнаружением и активированной локализацией. Базовый файл сценария остаётся без изменений.
+This file is based on `realistic_town06_cosim.yaml` with attack/detection enabled and localization activated. The base scenario file remains unchanged.
