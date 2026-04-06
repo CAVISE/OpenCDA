@@ -196,7 +196,6 @@ class LocalizationManager(object):
         # Live visualization helper.
         self.debug_helper = LocDebugHelper(config_yaml["debug_helper"], self.vehicle.id)
 
-
         # Activate GNSS Spoofing attack
         if self.activate and config_yaml["attack"]:
             self.gnns_spoofer = GNSSPeriodicSpoofer(1e-4, 1e-4, 0, 100)
@@ -224,7 +223,7 @@ class LocalizationManager(object):
             speed_noise = self.add_speed_noise(speed_true)
 
             # gnss coordinates under ESU(Unreal coordinate system)
-            #x, y, z = geo_to_transform(self.gnss.lat, self.gnss.lon, self.gnss.alt, self.geo_ref.latitude, self.geo_ref.longitude, 0.0)
+            # x, y, z = geo_to_transform(self.gnss.lat, self.gnss.lon, self.gnss.alt, self.geo_ref.latitude, self.geo_ref.longitude, 0.0)
 
             lat, lon, alt = self.gnss.lat, self.gnss.lon, self.gnss.alt
 
@@ -232,7 +231,6 @@ class LocalizationManager(object):
             if self.gnns_spoofer:
                 lat, lon, alt = self.gnns_spoofer.update(lat, lon, alt)
                 logger.info(f"False GNSS: {lat}, {lon}, {alt}")
-
 
             location = self.map.geolocation_to_transform(carla.GeoLocation(latitude=lat, longitude=lon, altitude=alt))
             x, y, z = location.x, location.y, location.z
@@ -272,7 +270,18 @@ class LocalizationManager(object):
 
             # add data to live debug visualization
             self.debug_helper.run_step(
-                x, y, heading_angle, speed_noise, x_kf, y_kf, heading_angle_kf, self._speed, true_location.x, true_location.y, rotation.yaw, speed_true
+                x,
+                y,
+                heading_angle,
+                speed_noise,
+                x_kf,
+                y_kf,
+                heading_angle_kf,
+                self._speed,
+                true_location.x,
+                true_location.y,
+                rotation.yaw,
+                speed_true,
             )
 
             # the final pose of the vehicle
