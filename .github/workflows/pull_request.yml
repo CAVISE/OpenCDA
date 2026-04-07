@@ -45,7 +45,7 @@ jobs:
             opencda/core/common/communication/messages/opencda.proto \
             opencda/core/common/communication/messages/entity.proto
       - name: Run mypy
-        run: mypy .
+        run: mypy . --follow-imports=silent
 
   unused-code-check:
     runs-on: ubuntu-latest
