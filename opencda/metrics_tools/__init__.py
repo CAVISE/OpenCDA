@@ -17,17 +17,10 @@ from opencda.metrics_tools.report_models import (
     ModuleReport,
     SeriesSummary,
 )
-from opencda.metrics_tools.metrics.acceleration import AccelerationMetric
-from opencda.metrics_tools.metrics.distance_gap import DistanceGapMetric
-from opencda.metrics_tools.metrics.speed import SpeedMetric
-from opencda.metrics_tools.metrics.time_gap import TimeGapMetric
-from opencda.metrics_tools.metrics.ttc import TtcMetric
 from opencda.metrics_tools.registry import MetricRegistry
 
 __all__ = [
-    "AccelerationMetric",
     "BaseMetric",
-    "DistanceGapMetric",
     "EntityMetricCollections",
     "EntityReport",
     "EntityReportInfo",
@@ -44,8 +37,5 @@ __all__ = [
     "ModuleReport",
     "resolve_metric_collector_config",
     "SeriesSummary",
-    "SpeedMetric",
-    "TimeGapMetric",
-    "TtcMetric",
     "UniversalReportBuilder",
 ]
