@@ -79,6 +79,10 @@ vehicle_base:
     localization:
       activate: false # when not activated, ego position will be retrieved from server directly
       dt: ${world.fixed_delta_seconds} # used for kalman filter
+      metrics:
+        metric_configs:
+          trace:
+            warmup_steps: 0
       gnss: # gnss sensor configuration
         noise_alt_stddev: 0.001
         noise_lat_stddev: 1.0e-6
@@ -129,6 +133,14 @@ vehicle_base:
       trajectory_dt: 0.20 # for every dt seconds, we sample a trajectory point from the trajectory path as next goal state
       debug: false # whether to draw future/history waypoints
       debug_trajectory: false # whether to draw the trajectory points and path
+    metrics:
+      metric_configs:
+        speed:
+          warmup_steps: 100
+        acceleration:
+          warmup_steps: 100
+        ttc:
+          warmup_steps: 100
 
   controller:
     type: pid_controller # this has to be exactly the same name as the controller py file
@@ -182,6 +194,12 @@ platoon_base:
   change_leader_speed: true # whether to assign leader multiple speed to follow
   leader_speeds_profile: [ 85, 95 ] # different speed for leader to follow
   stage_duration: 10 # how long should the leader keeps in the current velocity stage
+  metrics:
+    metric_configs:
+      time_gap:
+        warmup_steps: 100
+      distance_gap:
+        warmup_steps: 100
 
 # define tne scenario in each specific scenario
 # scenario:

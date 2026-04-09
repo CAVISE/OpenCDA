@@ -10,6 +10,8 @@ import carla
 import numpy as np
 
 from opencda.core.common.misc import get_speed
+from opencda.metrics_tools.config import resolve_metric_collector_config
+from opencda.metrics_tools.metric_collector import MetricCollector
 from opencda.core.sensing.localization.localization_debug_helper import LocDebugHelper
 from opencda.core.sensing.localization.kalman_filter import KalmanFilter
 from opencda.core.sensing.localization.coordinate_transform import geo_to_transform  # noqa: F401
@@ -147,9 +149,11 @@ class LocalizationManager(object):
         transmission.
     kf : opencda object
         The filter used to fuse different sensors.
+    metrics_collector : opencda object
+        Runtime collector used to record localization traces for reporting.
+
     debug_helper : opencda object
-        The debug helper is used to visualize the accuracy of
-        the localization and provide evaluation functions.
+        Optional live animation helper for localization debugging.
     """
 
     def __init__(self, vehicle, config_yaml, carla_map):
@@ -177,7 +181,19 @@ class LocalizationManager(object):
         # Kalman Filter
         self.kf = KalmanFilter(self.dt)
 
-        # DebugHelper
+        # Runtime metric collection for offline localization reporting.
+        metric_configs = resolve_metric_collector_config(
+            config_yaml,
+            default_metric_configs={"trace": {"warmup_steps": 0}},
+        )
+
+        self.metrics_collector = MetricCollector(
+            module="localization",
+            entity_id=self.vehicle.id,
+            metric_configs=metric_configs,
+        )
+
+        # Live visualization helper.
         self.debug_helper = LocDebugHelper(config_yaml["debug_helper"], self.vehicle.id)
 
         # Activate GNSS Spoofing attack
@@ -236,7 +252,23 @@ class LocalizationManager(object):
                 self._speed = speed_kf * 3.6
                 heading_angle_kf = np.rad2deg(heading_angle_kf)
 
-            # add data to debug helper
+            localization_context = {
+                "gnss_x": x,
+                "gnss_y": y,
+                "gnss_yaw": heading_angle,
+                "gnss_speed": speed_noise,
+                "filter_x": x_kf,
+                "filter_y": y_kf,
+                "filter_yaw": heading_angle_kf,
+                "filter_speed": self._speed,
+                "gt_x": location.x,
+                "gt_y": location.y,
+                "gt_yaw": rotation.yaw,
+                "gt_speed": speed_true,
+            }
+            self.metrics_collector.update(localization_context)
+
+            # add data to live debug visualization
             self.debug_helper.run_step(
                 x,
                 y,
