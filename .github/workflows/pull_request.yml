@@ -59,7 +59,16 @@ jobs:
       - name: Install Dependencies
         run: pip install deadcode
       - name: Run deadcode
-        run: deadcode .
+        run: |
+          python - <<'PY'
+          import sys
+          from deadcode.cli import main
+
+          result = main(['.'])
+          if result is not None:
+              print(result)
+              sys.exit(1)
+          PY
 
   pre-commit:
     runs-on: ubuntu-latest
