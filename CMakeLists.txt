@@ -14,7 +14,7 @@ option(OPENCDA_BUILD_CYTHON "Build Cython extensions" ON)
 option(OPENCDA_BUILD_PROTOBUF "Build Protobuf files" ON)
 
 if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
-    set(CMAKE_CUDA_ARCHITECTURES "86" CACHE STRING "CUDA architectures")
+    set(CMAKE_CUDA_ARCHITECTURES "86")
 endif()
 
 find_package(Python3 3.10 REQUIRED COMPONENTS Interpreter Development NumPy)

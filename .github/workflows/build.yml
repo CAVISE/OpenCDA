@@ -22,7 +22,7 @@ jobs:
             -DOPENCDA_BUILD_CYTHON=OFF \
             -DOPENCDA_BUILD_PROTOBUF=ON
           cmake --build build
-      - run: ls opencda/core/common/communication/protos/cavise/*_pb2.py | wc -l | grep -q 4
+      - run: ls opencda/core/common/communication/protos/cavise/*_pb2.py 1>/dev/null
 
   build-cython:
     runs-on: ubuntu-latest

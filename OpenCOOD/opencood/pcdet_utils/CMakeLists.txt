@@ -2,9 +2,7 @@ set(CMAKE_CUDA_STANDARD 17)
 set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 set(CMAKE_CUDA_EXTENSIONS OFF)
 
-set(TORCH_CMAKE_PATH "${Python3_SITELIB}/torch/share/cmake")
-list(PREPEND CMAKE_PREFIX_PATH "${TORCH_CMAKE_PATH}")
-find_package(Torch REQUIRED)
+find_package(Torch REQUIRED HINTS "${Python3_SITELIB}/torch/share/cmake")
 
 # iou3d_nms_cuda
 set(IOU3D_NMS_SOURCES
