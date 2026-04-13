@@ -1,9 +1,12 @@
+from __future__ import annotations
+
 import os
 import re
 import shutil
 import logging
 from tqdm import tqdm
 from collections import OrderedDict
+from typing import TYPE_CHECKING, Any, TypeAlias, cast
 
 import torch  # type: ignore
 import open3d as o3d
@@ -15,7 +18,18 @@ from opencood.data_utils.datasets import build_dataset
 from opencood.visualization import simple_vis, vis_utils
 from opencood.utils import eval_utils
 
+if TYPE_CHECKING:
+    from opencood.data_utils.datasets.early_fusion_dataset import EarlyFusionDataset
+    from opencood.data_utils.datasets.intermediate_fusion_dataset import IntermediateFusionDataset
+    from opencood.data_utils.datasets.intermediate_fusion_dataset_v2 import IntermediateFusionDatasetV2
+    from opencood.data_utils.datasets.late_fusion_dataset import LateFusionDataset
+
 logger = logging.getLogger("cavise.opencda.opencda.core.common.coperception_model_manager")
+
+if TYPE_CHECKING:
+    DatasetOpenCOOD: TypeAlias = LateFusionDataset | EarlyFusionDataset | IntermediateFusionDataset | IntermediateFusionDatasetV2
+else:
+    DatasetOpenCOOD: TypeAlias = object
 
 
 class CoperceptionModelManager:
@@ -33,12 +47,12 @@ class CoperceptionModelManager:
         self.saved_path = self.opt.model_dir
         _, self.model = train_utils.load_saved_model(self.saved_path, self.model)
 
-        self.opencood_dataset = None
-        self.data_loader = None
+        self.opencood_dataset: DatasetOpenCOOD | None = None
+        self.data_loader: DataLoader[Any] | None = None
         self.payload_handler = payload_handler
 
         logger.info("Initial Dataset Building")
-        self.opencood_dataset = build_dataset(self.hypes, visualize=True, train=False, payload_handler=self.payload_handler)
+        self.opencood_dataset = cast(DatasetOpenCOOD, build_dataset(self.hypes, visualize=True, train=False, payload_handler=self.payload_handler))
 
         self.data_loader = DataLoader(
             self.opencood_dataset,

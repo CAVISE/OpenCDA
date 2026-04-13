@@ -5,7 +5,7 @@ Utility functions for evaluation.
 import sys
 
 
-def lprint(logfile, *argv):
+def lprint(logfile: str, *argv: object) -> None:
     """
     Save string to log file.
 

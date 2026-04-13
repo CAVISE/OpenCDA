@@ -140,10 +140,6 @@ exclude = [
     "^opencda/core/sensing(/|$)",
     "^opencda/customize(/|$)",
     "^opencda/opencda_carla\\.py$",
-    "^opencda/scenario_testing/evaluations/evaluate_manager\\.py$",
-    "^opencda/scenario_testing/evaluations/utils\\.py$",
-    "^opencda/scenario_testing/non_working_scenarios(/|$)",
-    "^opencda/scenario_testing/scenario\\.py$",
     "^opencda\\.py$",
     "^scripts(/|$)",
 ]
