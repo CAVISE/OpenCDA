@@ -24,7 +24,7 @@ from opencda.scenario_testing.evaluations.evaluate_manager import EvaluationMana
 from opencda.scenario_testing.utils.yaml_utils import YamlDict, add_current_time, save_yaml
 
 if TYPE_CHECKING:
-    from opencda.core.common.coperception_model_manager import CoperceptionModelManager, DirectoryProcessor, DatasetOpenCOOD
+    from opencda.core.common.coperception_model_manager import DirectoryProcessor, DatasetOpenCOOD
     from opencda.core.common.communication.communication_manager import CommunicationManager
     from opencda.core.common.communication.payload_handler import PayloadHandler
 
