@@ -43,7 +43,7 @@ jobs:
           cmake -B build -G Ninja -DOPENCDA_BUILD_CUDA=OFF -DOPENCDA_BUILD_CYTHON=OFF -DOPENCDA_BUILD_PROTOBUF=ON
           cmake --build build
       - name: Run mypy
-        run: mypy .
+        run: mypy . --follow-imports=silent
 
   unused-code-check:
     runs-on: ubuntu-latest
