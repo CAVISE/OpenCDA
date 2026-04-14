@@ -1,6 +1,5 @@
 import os
 import re
-import shutil
 import logging
 from tqdm import tqdm
 from collections import OrderedDict
@@ -186,9 +185,8 @@ class CoperceptionModelManager:
 
 
 class DirectoryProcessor:
-    def __init__(self, source_directory="data_dumping", now_directory="data_dumping/sample/now", max_cav=None):
+    def __init__(self, source_directory="data_dumping", max_cav=None):
         self.source_directory = source_directory
-        self.now_directory = now_directory
         self.max_cav = int(max_cav) if max_cav is not None else None
 
     def detect_cameras(self, data_directory):
@@ -202,41 +200,6 @@ class DirectoryProcessor:
         camera_ids = sorted(set(re.findall(r"_camera(\d+)\.png", f)[0] for f in camera_files if re.findall(r"_camera(\d+)\.png", f)))
 
         return [f"_camera{cam_id}.png" for cam_id in camera_ids]
-
-    def process_directory(self, tick_number):
-        number = f"{tick_number:06d}"
-        postfixes = [".pcd", ".yaml"]
-
-        subdirectories = sorted([d for d in os.listdir(self.source_directory) if os.path.isdir(os.path.join(self.source_directory, d))])
-
-        if len(subdirectories) < 2:
-            raise ValueError("Not enough subdirectories in source directory to process.")
-
-        data_directory = os.path.join(self.source_directory, subdirectories[-2])
-
-        camera_postfixes = self.detect_cameras(data_directory)
-        postfixes.extend(camera_postfixes)
-
-        inner_subdirectories = sorted([d for d in os.listdir(data_directory) if os.path.isdir(os.path.join(data_directory, d))])
-
-        shutil.copy(os.path.join(data_directory, "data_protocol.yaml"), self.now_directory)
-
-        for folder in inner_subdirectories:
-            destination_folder = os.path.join(self.now_directory, folder)
-            os.makedirs(destination_folder, exist_ok=True)
-            for postfix in postfixes:
-                source_file_path = os.path.join(data_directory, folder, f"{number}{postfix}")
-                destination_file_path = os.path.join(destination_folder, f"{number}{postfix}")
-                if os.path.exists(source_file_path):
-                    shutil.copy(source_file_path, destination_file_path)
-
-    def clear_directory_now(self):
-        for item in os.listdir(self.now_directory):
-            item_path = os.path.join(self.now_directory, item)
-            if os.path.isfile(item_path) or os.path.islink(item_path):
-                os.remove(item_path)
-            elif os.path.isdir(item_path):
-                shutil.rmtree(item_path)
 
     def retrieve_data_structure(self, tick_number):
         number = f"{tick_number:06d}"

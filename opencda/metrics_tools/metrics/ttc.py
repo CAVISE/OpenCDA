@@ -9,7 +9,7 @@ from opencda.metrics_tools.metric_sample import MetricSample
 from opencda.metrics_tools.report_models import MetricReportSpec, MetricSummarySpec
 
 
-class TtcMetric(BaseMetric):
+class TtcMetric(BaseMetric):  # noqa DC03
     """
     !Should be rewrited to be more generic for any scalar metric.!
     Metric for Time To Collision (TTC).
@@ -46,7 +46,7 @@ class TtcMetric(BaseMetric):
             summary_specs=(MetricSummarySpec(series_name="ttc", cutoff=1000.0),),
         )
 
-    def valid_statistics(self, cutoff: float = 1000.0) -> tuple[float | None, float | None]:
+    def valid_statistics(self, cutoff: float = 1000.0) -> tuple[float | None, float | None]:  # noqa DC04
         ttc_array = np.array(self.ttc_list, dtype=float)
         ttc_array = ttc_array[ttc_array < cutoff]
         if len(ttc_array) == 0:
