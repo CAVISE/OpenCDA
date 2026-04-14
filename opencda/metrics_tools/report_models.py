@@ -56,7 +56,7 @@ class MetricReport:
 
     metric_name: str
     display_name: str | None = None
-    summary: tuple[SeriesSummary, ...] = ()
+    summary: tuple[SeriesSummary, ...] = ()  # noqa DC01
     series: tuple[MetricSeries, ...] = ()
 
 

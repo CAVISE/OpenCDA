@@ -8,7 +8,7 @@ from opencda.metrics_tools.metric_sample import MetricSample
 from opencda.metrics_tools.report_models import MetricReportSpec, MetricSummarySpec
 
 
-class AccelerationMetric(BaseMetric):
+class AccelerationMetric(BaseMetric):  # noqa DC03
     """Metric for ego acceleration."""
 
     metric_name = "acceleration"
@@ -19,7 +19,7 @@ class AccelerationMetric(BaseMetric):
         self._acceleration_samples: list[MetricSample] = []
         self._previous_speed: float | None = None
 
-    @property
+    @property  # noqa DC08
     def acceleration_list(self) -> list[float]:
         return [sample.value for sample in self._acceleration_samples]
 

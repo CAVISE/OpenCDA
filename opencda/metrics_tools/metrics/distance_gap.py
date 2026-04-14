@@ -8,7 +8,7 @@ from opencda.metrics_tools.report_models import MetricReportSpec, MetricSummaryS
 from opencda.metrics_tools.metric_sample import MetricSample
 
 
-class DistanceGapMetric(BaseMetric):
+class DistanceGapMetric(BaseMetric):  # noqa DC03
     """Collect platooning distance-gap samples."""
 
     metric_name = "distance_gap"
