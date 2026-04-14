@@ -139,14 +139,6 @@ vehicle_base:
 #   # x_min, x_max, y_min, y_max, x_step, y_step, vehicle_num
 #   range: []
 
-# define sumo simulation setting for traffic generation
-sumo:
-  port: ~
-  host: ~
-  gui: true
-  client_order: 1
-  step_length: ${world.fixed_delta_seconds}
-
 
 # define tne scenario in each specific scenario
 # scenario:
