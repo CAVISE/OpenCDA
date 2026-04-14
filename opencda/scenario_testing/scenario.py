@@ -131,7 +131,16 @@ class Scenario:
                     logger.error(f'Model directory "{opt.model_dir}" does not exist.')
                     sys.exit(1)
 
-                self.coperception_model_manager = CoperceptionModelManager(opt=opt, current_time=current_time, payload_handler=self.payload_handler)
+                cp_vis_config = omegaconf.OmegaConf.to_container(
+                    scenario_params.get("cooperative_perception_visualization", {}),
+                    resolve=True,
+                )
+                self.coperception_model_manager = CoperceptionModelManager(
+                    opt=opt,
+                    current_time=current_time,
+                    payload_handler=self.payload_handler,
+                    visualization_config=cp_vis_config,
+                )
                 logger.info("created cooperception manager")
 
         if opt.with_aim:
