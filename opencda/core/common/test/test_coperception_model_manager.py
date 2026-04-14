@@ -310,12 +310,8 @@ class TestDirectoryProcessor:
     @pytest.fixture
     def processor_setup(self, tmp_path):
         source_dir = tmp_path / "data_dumping"
-        # IMPORTANT: now_dir must NOT be inside source_dir, otherwise it becomes part of
-        # subdirectories and breaks the "subdirectories[-2]" selection logic.
-        now_dir = tmp_path / "now"
         source_dir.mkdir(parents=True)
-        now_dir.mkdir(parents=True)
-        return source_dir, now_dir
+        return source_dir
 
     def test_detect_cameras(self, tmp_path):
         dp = DirectoryProcessor()
@@ -333,35 +329,9 @@ class TestDirectoryProcessor:
         cameras = dp.detect_cameras(str(data_dir))
         assert cameras == ["_camera0.png", "_camera1.png", "_camera2.png"]
 
-    def test_process_directory_success(self, processor_setup):
-        source_dir, now_dir = processor_setup
-        dp = DirectoryProcessor(str(source_dir), str(now_dir))
-
-        # Needs at least 2 dirs. Sorted order: d1, d2.
-        # Code picks index -2 -> d1.
-        d1 = source_dir / "d1"
-        d2 = source_dir / "d2"
-        d1.mkdir()
-        d2.mkdir()
-
-        (d1 / "data_protocol.yaml").write_text("proto")
-        agent1 = d1 / "agent1"
-        agent1.mkdir()
-
-        # Files for tick 10
-        (agent1 / "000010.pcd").write_text("pcd")
-        (agent1 / "000010.yaml").write_text("yaml")
-
-        dp.process_directory(10)
-
-        assert (now_dir / "data_protocol.yaml").exists()
-        assert (now_dir / "data_protocol.yaml").read_text() == "proto"
-        assert (now_dir / "agent1" / "000010.pcd").exists()
-        assert (now_dir / "agent1" / "000010.pcd").read_text() == "pcd"
-
     def test_retrieve_data_structure_success(self, processor_setup):
-        source_dir, now_dir = processor_setup
-        dp = DirectoryProcessor(str(source_dir), str(now_dir))
+        source_dir = processor_setup
+        dp = DirectoryProcessor(str(source_dir))
 
         d1 = source_dir / "d1"
         d2 = source_dir / "d2"
@@ -402,16 +372,16 @@ class TestDirectoryProcessor:
         assert structure[0]["rsu_0"]["ego"] is False
 
     def test_retrieve_data_structure_returns_none_when_not_enough_snapshots(self, processor_setup):
-        source_dir, now_dir = processor_setup
-        dp = DirectoryProcessor(str(source_dir), str(now_dir))
+        source_dir = processor_setup
+        dp = DirectoryProcessor(str(source_dir))
 
         (source_dir / "d1").mkdir()
 
         assert dp.retrieve_data_structure(10) is None
 
     def test_retrieve_data_structure_returns_none_when_no_valid_agents(self, processor_setup):
-        source_dir, now_dir = processor_setup
-        dp = DirectoryProcessor(str(source_dir), str(now_dir))
+        source_dir = processor_setup
+        dp = DirectoryProcessor(str(source_dir))
 
         d1 = source_dir / "d1"
         d2 = source_dir / "d2"
@@ -425,8 +395,8 @@ class TestDirectoryProcessor:
         assert dp.retrieve_data_structure(10) is None
 
     def test_retrieve_data_structure_returns_none_when_expected_ego_is_incomplete(self, processor_setup):
-        source_dir, now_dir = processor_setup
-        dp = DirectoryProcessor(str(source_dir), str(now_dir))
+        source_dir = processor_setup
+        dp = DirectoryProcessor(str(source_dir))
 
         d1 = source_dir / "d1"
         d2 = source_dir / "d2"
@@ -448,8 +418,8 @@ class TestDirectoryProcessor:
         assert dp.retrieve_data_structure(10) is None
 
     def test_retrieve_data_structure_fallback_when_detect_cameras_fails(self, processor_setup, monkeypatch):
-        source_dir, now_dir = processor_setup
-        dp = DirectoryProcessor(str(source_dir), str(now_dir))
+        source_dir = processor_setup
+        dp = DirectoryProcessor(str(source_dir))
 
         d1 = source_dir / "d1"
         d2 = source_dir / "d2"
@@ -470,8 +440,8 @@ class TestDirectoryProcessor:
         assert structure[0]["cav_1"]["ego"] is True
 
     def test_retrieve_data_structure_respects_max_cav(self, processor_setup):
-        source_dir, now_dir = processor_setup
-        dp = DirectoryProcessor(str(source_dir), str(now_dir), max_cav=1)
+        source_dir = processor_setup
+        dp = DirectoryProcessor(str(source_dir), max_cav=1)
 
         d1 = source_dir / "d1"
         d2 = source_dir / "d2"
@@ -495,8 +465,8 @@ class TestDirectoryProcessor:
         assert structure[0]["cav_1"]["ego"] is True
 
     def test_retrieve_data_structure_respects_max_cav_after_rsu_reorder(self, processor_setup):
-        source_dir, now_dir = processor_setup
-        dp = DirectoryProcessor(str(source_dir), str(now_dir), max_cav=2)
+        source_dir = processor_setup
+        dp = DirectoryProcessor(str(source_dir), max_cav=2)
 
         d1 = source_dir / "d1"
         d2 = source_dir / "d2"
@@ -524,16 +494,6 @@ class TestDirectoryProcessor:
         assert "rsu_0" not in structure[0]
         assert structure[0]["veh_1"]["ego"] is True
         assert structure[0]["veh_2"]["ego"] is False
-
-    def test_clear_directory_now(self, processor_setup):
-        _, now_dir = processor_setup
-        dp = DirectoryProcessor(now_directory=str(now_dir))
-        (now_dir / "file.txt").touch()
-        (now_dir / "subdir").mkdir()
-
-        dp.clear_directory_now()
-
-        assert len(os.listdir(now_dir)) == 0
 
     def test_update_dataset_logs_warning_for_empty_memory_data_dict(self):
         """Empty dict as memory_data should be propagated and trigger empty-dataset warning."""
