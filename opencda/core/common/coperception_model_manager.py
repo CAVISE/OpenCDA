@@ -13,6 +13,13 @@ from opencood.tools import train_utils, inference_utils
 from opencood.data_utils.datasets import build_dataset
 from opencood.visualization import simple_vis, vis_utils
 from opencood.utils import eval_utils
+from opencda.core.attack.advcp import (
+    inference_early_fusion_attack,
+    inference_intermediate_fusion_attack,
+    inference_late_fusion_attack,
+    load_advcp_config,
+)
+from opencda.core.attack.advcp.utils import resolve_attacker_id
 
 logger = logging.getLogger("cavise.opencda.opencda.core.common.coperception_model_manager")
 
@@ -35,6 +42,8 @@ class CoperceptionModelManager:
         self.opencood_dataset = None
         self.data_loader = None
         self.payload_handler = payload_handler
+        self.current_memory_data = None
+        self.advcp_config = load_advcp_config(getattr(self.opt, "advcp_config", None)) if getattr(self.opt, "with_advcp", False) else None
 
         logger.info("Initial Dataset Building")
         self.opencood_dataset = build_dataset(self.hypes, visualize=True, train=False, payload_handler=self.payload_handler)
@@ -57,10 +66,18 @@ class CoperceptionModelManager:
 
     def update_dataset(self, data=None):
         logger.debug("Refreshing dataset indices")
+        self.current_memory_data = data
         self.opencood_dataset.update_database(memory_data=data)
 
         if len(self.opencood_dataset) == 0:
             logger.warning("No samples found in dataset after update.")
+
+    def validate_advcp_agents(self, valid_agent_ids):
+        if not getattr(self.opt, "with_advcp", False) or self.advcp_config is None:
+            return
+
+        resolved_attacker_id = resolve_attacker_id(self.advcp_config.get("attacker_id"), list(valid_agent_ids))
+        self.advcp_config["attacker_id"] = resolved_attacker_id
 
     def make_prediction(self, tick_number):
         assert self.opt.fusion_method in ["late", "early", "intermediate"]
@@ -95,13 +112,35 @@ class CoperceptionModelManager:
             with torch.no_grad():
                 batch_data = train_utils.to_device(batch_data, self.device)
                 if self.opt.fusion_method == "late":
-                    pred_box_tensor, pred_score, gt_box_tensor = inference_utils.inference_late_fusion(batch_data, self.model, self.opencood_dataset)
+                    if getattr(self.opt, "with_advcp", False):
+                        pred_box_tensor, pred_score, gt_box_tensor = inference_late_fusion_attack(
+                            batch_data,
+                            self.model,
+                            self.opencood_dataset,
+                            self.device,
+                            advcp_config=self.advcp_config,
+                            memory_data=self.current_memory_data,
+                        )
+                    else:
+                        pred_box_tensor, pred_score, gt_box_tensor = inference_utils.inference_late_fusion(
+                            batch_data, self.model, self.opencood_dataset
+                        )
                 elif self.opt.fusion_method == "early":
-                    pred_box_tensor, pred_score, gt_box_tensor = inference_utils.inference_early_fusion(batch_data, self.model, self.opencood_dataset)
+                    if getattr(self.opt, "with_advcp", False):
+                        pred_box_tensor, pred_score, gt_box_tensor = inference_early_fusion_attack(batch_data, self.model, self.opencood_dataset)
+                    else:
+                        pred_box_tensor, pred_score, gt_box_tensor = inference_utils.inference_early_fusion(
+                            batch_data, self.model, self.opencood_dataset
+                        )
                 elif self.opt.fusion_method == "intermediate":
-                    pred_box_tensor, pred_score, gt_box_tensor = inference_utils.inference_intermediate_fusion(
-                        batch_data, self.model, self.opencood_dataset
-                    )
+                    if getattr(self.opt, "with_advcp", False):
+                        pred_box_tensor, pred_score, gt_box_tensor = inference_intermediate_fusion_attack(
+                            batch_data, self.model, self.opencood_dataset
+                        )
+                    else:
+                        pred_box_tensor, pred_score, gt_box_tensor = inference_utils.inference_intermediate_fusion(
+                            batch_data, self.model, self.opencood_dataset
+                        )
                 else:
                     raise NotImplementedError("Only early, late and intermediate fusion is supported.")
 

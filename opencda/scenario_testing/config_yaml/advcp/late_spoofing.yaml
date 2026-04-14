@@ -1,0 +1,7 @@
+enabled: true
+mode: spoof
+attacker_id: cav-2
+default_size: [4.5, 2.0, 1.6]
+boxes:
+  - relative: [10.0, 0.0, 0.0, 0.0, 70.0, 0.0]
+  - relative: [0.0, 10.0, 0.0, 0.0, 0.0, 0.0]

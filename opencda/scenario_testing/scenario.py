@@ -162,6 +162,15 @@ class Scenario:
         self.rsu_list, self.node_ids["rsu"] = self.scenario_manager.create_rsu_manager(data_dump=data_dump)
         logger.info(f"created RSU list of size {len(self.rsu_list)}")
 
+        if self.coperception_model_manager is not None and getattr(opt, "with_advcp", False):
+            valid_agent_ids = [vehicle_manager.vid for vehicle_manager in self.single_cav_list]
+            valid_agent_ids.extend(rsu_manager.rid for rsu_manager in self.rsu_list)
+            try:
+                self.coperception_model_manager.validate_advcp_agents(valid_agent_ids)
+            except ValueError as exc:
+                logger.error(str(exc))
+                sys.exit(1)
+
         self.scenario_manager.create_custom_actor_manager(application=["single"], map_helper=map_api.spawn_helper_2lanefree, data_dump=data_dump)
         logger.info("created single custom actors")
 

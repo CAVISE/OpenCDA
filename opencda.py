@@ -138,6 +138,14 @@ def arg_parse() -> argparse.Namespace:
         "but would increase the tolerance for FP (False Positives).",
     )
 
+    # AdvCollaborativePerception module
+    parser.add_argument("--with-advcp", action="store_true", help="Enable AdvCP-style attacks for cooperative perception.")
+    parser.add_argument(
+        "--advcp-config",
+        type=str,
+        help="AdvCP attack config name or path. Relative names are resolved from opencda/scenario_testing/config_yaml/advcp.",
+    )
+
     def verbosity_wrapper(arg: str) -> VerbosityLevel:
         return VerbosityLevel(int(arg))
 
@@ -200,9 +208,32 @@ def main() -> None:
     cwd = pathlib.PurePath(os.getcwd())
     default_yaml = config_yaml = cwd / "opencda/scenario_testing/config_yaml/default.yaml"
     config_yaml = cwd / f"opencda/scenario_testing/config_yaml/{opt.test_scenario}.yaml"
+    advcp_config_dir = cwd / "opencda/scenario_testing/config_yaml/advcp"
     if not os.path.isfile(config_yaml):
         logger.error(f"{config_yaml.relative_to(cwd)} not found!")
         sys.exit(errno.EPERM)
+
+    if opt.with_advcp:
+        if not opt.with_coperception:
+            logger.error("--with-advcp requires --with-coperception.")
+            sys.exit(errno.EPERM)
+
+        if not opt.advcp_config:
+            logger.error("--with-advcp requires --advcp-config.")
+            sys.exit(errno.EPERM)
+
+        advcp_config = pathlib.Path(opt.advcp_config)
+        if not advcp_config.is_absolute():
+            advcp_config = advcp_config_dir / advcp_config
+
+        if advcp_config.suffix == "":
+            advcp_config = advcp_config.with_suffix(".yaml")
+
+        if not os.path.isfile(advcp_config):
+            logger.error(f"AdvCP config not found: {advcp_config}")
+            sys.exit(errno.EPERM)
+
+        opt.advcp_config = str(advcp_config)
 
     # allow OpenCOOD imports
     sys.path.append(str(cwd.joinpath("OpenCOOD")))

@@ -115,33 +115,33 @@ scenario:
       spawn_position: [20, 142.791870, 0.3, 0, 0, 0]
       destination: [170, 142.791870, 0.3]
       id: 2
-    - name: cav3
-      spawn_position: [20, 135.792358, 0.3, 0, 0, 0]
-      destination: [170, 135.792358, 0.3]
-      id: 3
+    # - name: cav3
+    #   spawn_position: [20, 135.792358, 0.3, 0, 0, 0]
+    #   destination: [170, 135.792358, 0.3]
+    #   id: 3
 
-    - name: cav4
-      spawn_position: [35, 149.792206, 0.3, 0, 0, 0]
-      destination: [185, 149.792206, 0.3]
-      id: 4
-    - name: cav5
-      spawn_position: [35, 142.791870, 0.3, 0, 0, 0]
-      destination: [185, 142.791870, 0.3]
-      id: 5
-    - name: cav6
-      spawn_position: [35, 135.792358, 0.3, 0, 0, 0]
-      destination: [185, 135.792358, 0.3]
-      id: 6
+    # - name: cav4
+    #   spawn_position: [35, 149.792206, 0.3, 0, 0, 0]
+    #   destination: [185, 149.792206, 0.3]
+    #   id: 4
+    # - name: cav5
+    #   spawn_position: [35, 142.791870, 0.3, 0, 0, 0]
+    #   destination: [185, 142.791870, 0.3]
+    #   id: 5
+    # - name: cav6
+    #   spawn_position: [35, 135.792358, 0.3, 0, 0, 0]
+    #   destination: [185, 135.792358, 0.3]
+    #   id: 6
 
-    - name: cav7
-      spawn_position: [50, 149.792206, 0.3, 0, 0, 0]
-      destination: [200, 149.792206, 0.3]
-      id: 7
-    - name: cav8
-      spawn_position: [50, 142.791870, 0.3, 0, 0, 0]
-      destination: [200, 142.791870, 0.3]
-      id: 8
-    - name: cav9
-      spawn_position: [50, 135.792358, 0.3, 0, 0, 0]
-      destination: [200, 135.792358, 0.3]
-      id: 9
+    # - name: cav7
+    #   spawn_position: [50, 149.792206, 0.3, 0, 0, 0]
+    #   destination: [200, 149.792206, 0.3]
+    #   id: 7
+    # - name: cav8
+    #   spawn_position: [50, 142.791870, 0.3, 0, 0, 0]
+    #   destination: [200, 142.791870, 0.3]
+    #   id: 8
+    # - name: cav9
+    #   spawn_position: [50, 135.792358, 0.3, 0, 0, 0]
+    #   destination: [200, 135.792358, 0.3]
+    #   id: 9
