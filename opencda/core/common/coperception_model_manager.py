@@ -13,12 +13,10 @@ import open3d as o3d
 from torch.utils.data import DataLoader  # type: ignore
 
 import opencood.hypes_yaml.yaml_utils as yaml_utils
-import opencood.visualization.simple_plot3d.canvas_3d as canvas_3d
-import opencood.visualization.simple_plot3d.canvas_bev as canvas_bev
 from opencood.tools import train_utils, inference_utils
 from opencood.data_utils.datasets import build_dataset
 from opencood.visualization import vis_utils
-from opencood.utils import box_utils, common_utils, eval_utils
+from opencood.utils import eval_utils
 
 logger = logging.getLogger("cavise.opencda.opencda.core.common.coperception_model_manager")
 
@@ -165,6 +163,10 @@ class CoperceptionVisualizer:
         left_hand: bool = False,
         uncertainty=None,
     ):
+        import opencood.visualization.simple_plot3d.canvas_3d as canvas_3d
+        import opencood.visualization.simple_plot3d.canvas_bev as canvas_bev
+        from opencood.utils import common_utils
+
         config = CoperceptionVisualizer.resolve_visualization_config(visualization_config)
         pc_range = [int(i) for i in pc_range]
         pcd_np, point_colors = CoperceptionVisualizer._get_lidar_points_and_colors(batch_data, pcd, config)
@@ -241,10 +243,17 @@ class CoperceptionVisualizer:
     @staticmethod
     def _to_numpy_points(pcd) -> np.ndarray:
         if isinstance(pcd, list):
+            from opencood.utils import common_utils
+
             pcd_np = [common_utils.torch_tensor_to_numpy(x) for x in pcd]
             pcd_np = pcd_np[0]
         else:
-            pcd_np = common_utils.torch_tensor_to_numpy(pcd) if not isinstance(pcd, np.ndarray) else pcd
+            if isinstance(pcd, np.ndarray):
+                pcd_np = pcd
+            else:
+                from opencood.utils import common_utils
+
+                pcd_np = common_utils.torch_tensor_to_numpy(pcd)
 
         if len(pcd_np.shape) > 2:
             pcd_np = pcd_np[0]
@@ -296,6 +305,8 @@ class CoperceptionVisualizer:
                     continue
 
                 if cav_id != "ego":
+                    from opencood.utils import box_utils
+
                     transformation_matrix = cav_content.get("transformation_matrix")
                     if transformation_matrix is not None:
                         transformation_matrix_np = CoperceptionVisualizer._to_numpy_array(transformation_matrix)
@@ -406,11 +417,8 @@ class CoperceptionModelManager:
             if self.vis is None:
                 self.vis = o3d.visualization.Visualizer()  # noqa: DC05
                 self.vis.create_window()  # noqa: DC05
-                self.vis.get_render_option().background_color = (
-                    np.asarray(  # noqa: DC05
-                        self.visualization_config["background"], dtype=np.float64
-                    )
-                    / 255.0
+                self.vis.get_render_option().background_color = (  # noqa: DC05
+                    np.asarray(self.visualization_config["background"], dtype=np.float64) / 255.0
                 )  # noqa: DC05
                 self.vis.get_render_option().point_size = 1.0  # noqa: DC05
                 self.vis.get_render_option().show_coordinate_frame = True  # noqa: DC05
