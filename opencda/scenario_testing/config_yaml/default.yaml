@@ -205,3 +205,10 @@ platoon_base:
 # scenario:
 #   single_cav_list: []
 #   platoon_list: []
+
+sumo:
+  port: 3000
+  host: sumo
+  gui: true
+  client_order: 2
+  step_length: ${world.fixed_delta_seconds}
