@@ -205,6 +205,13 @@ platoon_base:
 #   single_cav_list: []
 #   platoon_list: []
 
+sumo:
+  port: 3000
+  host: sumo
+  gui: true
+  client_order: 2
+  step_length: ${world.fixed_delta_seconds}
+
 cooperative_perception_visualization:
   background: [0, 0, 0]
   lidar_point_colors:
