@@ -37,8 +37,6 @@ class CavWorld(object):
         self._platooning_dict = {}
         self._rsu_manager_dict = {}
         self.ml_manager = None
-        # CAVISE communication protocol manager
-        self.comms_manager = None
 
         if apply_ml:
             # we import in this way so the user don't need to install ml

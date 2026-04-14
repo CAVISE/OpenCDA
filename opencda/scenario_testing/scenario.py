@@ -48,7 +48,7 @@ class Scenario:
         self.cav_world = CavWorld(opt.apply_ml)
         logger.info(f"created cav world, using apply_ml = {opt.apply_ml}")
 
-        self.payload_manager = None
+        self.payload_handler = None
         self.communication_manager = None
         self.coperception_model_manager = None
 
@@ -104,8 +104,6 @@ class Scenario:
             )
             self.payload_handler = PayloadHandler()
             logger.info("running: creating message handler")
-        else:
-            self.payload_handler = None
 
         logger.info(f"using scenario manager of type: {type(self.scenario_manager)}")
 
@@ -177,11 +175,8 @@ class Scenario:
         if self.coperception_model_manager is not None:
             from opencda.core.common.coperception_model_manager import DirectoryProcessor
 
-            now_directory = "simulation_output/data_dumping/sample/now"
             max_cav = self.coperception_model_manager.hypes.get("train_params", {}).get("max_cav")
-            directory_processor = DirectoryProcessor(source_directory="simulation_output/data_dumping", now_directory=now_directory, max_cav=max_cav)
-            os.makedirs(now_directory, exist_ok=True)
-            directory_processor.clear_directory_now()
+            directory_processor = DirectoryProcessor(source_directory="simulation_output/data_dumping", max_cav=max_cav)
         else:
             directory_processor = None
 
