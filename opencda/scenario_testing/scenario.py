@@ -38,12 +38,10 @@ class Scenario:
     scenario_manager: sim_api.ScenarioManager | sim_api.CoScenarioManager
     single_cav_list: list[VehicleManager]
     rsu_list: list[RSUManager]
-    # TODO: find spectator type
     spectator: carla.Actor
     cav_world: CavWorld
     codriving_model_manager: AIMModelManager  # [CoDrivingInt]
     platoon_list: list[PlatooningManager]
-    # TODO: find bg cars type
     bg_veh_list: list[carla.Actor]
     scenario_name: str
 
