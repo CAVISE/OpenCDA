@@ -92,9 +92,6 @@ class Scenario:
         self.cav_world = CavWorld(opt.apply_ml)
         logger.info(f"created cav world, using apply_ml = {opt.apply_ml}")
 
-        self.payload_handler = None
-        self.communication_manager = None
-        self.coperception_model_manager = None
         self.payload_handler: PayloadHandler | None = None
         self.communication_manager: CommunicationManager | None = None
         self.coperception_model_manager: CoperceptionModelManager | None = None

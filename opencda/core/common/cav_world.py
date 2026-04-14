@@ -1,5 +1,14 @@
+from __future__ import annotations
+
 import importlib
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    import carla
+
+    from opencda.core.application.platooning.platooning_manager import PlatooningManager
+    from opencda.core.common.rsu_manager import RSUManager
+    from opencda.core.common.vehicle_manager import VehicleManager
 
 
 class CavWorld(object):
@@ -33,10 +42,10 @@ class CavWorld(object):
     """
 
     def __init__(self, apply_ml: bool = False) -> None:
-        self.vehicle_id_set: set[Any] = set()
-        self._vehicle_manager_dict: dict[Any, Any] = {}
-        self._platooning_dict: dict[Any, Any] = {}
-        self._rsu_manager_dict: dict[Any, Any] = {}
+        self.vehicle_id_set: set[int] = set()
+        self._vehicle_manager_dict: dict[str, VehicleManager] = {}
+        self._platooning_dict: dict[str, PlatooningManager] = {}
+        self._rsu_manager_dict: dict[str, RSUManager] = {}
         self.ml_manager: Any | None = None
 
         if apply_ml:
@@ -47,9 +56,9 @@ class CavWorld(object):
             self.ml_manager = ml_manager()
 
         # this is used only when co-simulation activated.
-        self.sumo2carla_ids: dict[Any, Any] = {}
+        self.sumo2carla_ids: dict[str, int] = {}
 
-    def update_vehicle_manager(self, vehicle_manager: Any) -> None:
+    def update_vehicle_manager(self, vehicle_manager: VehicleManager) -> None:
         """
         Update created CAV manager to the world.
 
@@ -61,7 +70,7 @@ class CavWorld(object):
         self.vehicle_id_set.add(vehicle_manager.vehicle.id)
         self._vehicle_manager_dict.update({vehicle_manager.vid: vehicle_manager})
 
-    def update_platooning(self, platooning_manager: Any) -> None:
+    def update_platooning(self, platooning_manager: PlatooningManager) -> None:
         """
         Add created platooning.
 
@@ -72,7 +81,7 @@ class CavWorld(object):
         """
         self._platooning_dict.update({platooning_manager.pmid: platooning_manager})
 
-    def update_rsu_manager(self, rsu_manager: Any) -> None:
+    def update_rsu_manager(self, rsu_manager: RSUManager) -> None:
         """
         Add rsu manager.
 
@@ -83,7 +92,7 @@ class CavWorld(object):
         """
         self._rsu_manager_dict.update({rsu_manager.rid: rsu_manager})
 
-    def update_sumo_vehicles(self, sumo2carla_ids: dict[Any, Any]) -> None:
+    def update_sumo_vehicles(self, sumo2carla_ids: dict[str, int]) -> None:
         """
         Update the sumo carla mapping dict. This is only called
         when cosimulation is conducted.
@@ -95,19 +104,19 @@ class CavWorld(object):
         """
         self.sumo2carla_ids = sumo2carla_ids
 
-    def get_vehicle_managers(self) -> dict[Any, Any]:
+    def get_vehicle_managers(self) -> dict[str, VehicleManager]:
         """
         Return vehicle manager dictionary.
         """
         return self._vehicle_manager_dict
 
-    def get_platoon_dict(self) -> dict[Any, Any]:
+    def get_platoon_dict(self) -> dict[str, PlatooningManager]:
         """
         Return existing platoons.
         """
         return self._platooning_dict
 
-    def locate_vehicle_manager(self, loc: Any) -> Any | None:
+    def locate_vehicle_manager(self, loc: carla.Location) -> VehicleManager | None:
         """
         Locate the vehicle manager based on the given location.
 
@@ -123,7 +132,7 @@ class CavWorld(object):
         """
 
         target_vm = None
-        for key, vm in self._vehicle_manager_dict.items():
+        for vm in self._vehicle_manager_dict.values():
             x = vm.localizer.get_ego_pos().location.x
             y = vm.localizer.get_ego_pos().location.y
 
