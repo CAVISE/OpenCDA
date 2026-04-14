@@ -2,6 +2,8 @@
 Basic class of CAV
 """
 
+from __future__ import annotations
+
 import logging
 
 from opencda.core.actuation.control_manager import ControlManager
@@ -137,11 +139,18 @@ class VehicleManager(object):
         self.map_manager = MapManager(vehicle, carla_map, map_config)
         # safety manager
         self.safety_manager = SafetyManager(vehicle=vehicle, params=config_yaml["safety_manager"])
-        # behavior agent
-        self.agent = None
+        # behavior agent is always initialized to one of the supported implementations.
+        self.agent: BehaviorAgent
         if "platoon" in application:
             platoon_config = config_yaml["platoon"]
-            self.agent = PlatooningBehaviorAgent(vehicle, self, self.v2x_manager, behavior_config, platoon_config, carla_map)
+            self.agent = PlatooningBehaviorAgent(
+                vehicle,
+                self,
+                self.v2x_manager,
+                behavior_config,
+                platoon_config,
+                carla_map,
+            )
         else:
             self.agent = BehaviorAgent(vehicle, carla_map, behavior_config)
 
