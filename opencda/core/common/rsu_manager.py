@@ -226,11 +226,9 @@ class RSUManager(object):
 
     def __validate_behavior_service_messages(self, messages: list[BehaviorServiceMessageT]) -> None:
         for message in messages:
-            if not is_dataclass(message) or isinstance(message, type):
-                raise TypeError(f"Behavior service input must be a list of dataclass instances; got {type(message).__name__!r}.")
 
             service_id = getattr(message, "service_id", None)
-            if not isinstance(service_id, str) or not service_id:
+            if not isinstance(service_id, str):
                 raise TypeError(f"Each behavior service message must define a non-empty 'service_id' attribute; got {type(message).__name__!r}.")
 
             if service_id not in self._behavior_services_by_id:
