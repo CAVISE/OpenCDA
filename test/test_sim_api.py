@@ -1307,7 +1307,7 @@ def test_create_rsu_manager_single_rsu(mocker, minimal_rsu_config):
     assert rsu_ctor.call_args.args[2] is sm.carla_map
     assert rsu_ctor.call_args.args[3] is sm.cav_world
     assert rsu_ctor.call_args.args[4] == "t0"
-    assert rsu_ctor.call_args.args[5] is False
+    assert rsu_ctor.call_args.kwargs["data_dumping"] is False
 
 
 def test_create_traffic_carla_with_vehicle_list_uses_spawn_vehicles_by_list(mocker):
