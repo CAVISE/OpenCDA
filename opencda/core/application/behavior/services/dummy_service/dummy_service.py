@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Sequence
 
 from opencda.core.application.behavior.registry import BehaviorServiceRegistry
@@ -9,14 +10,19 @@ from opencda.core.application.behavior.registry import BehaviorServiceRegistry
 from .messages import DummyServiceMessage
 from .results import DummyServiceEchoMessage, DummyServiceResult
 
+logger = logging.getLogger("cavise.opencda.opencda.core.application.behavior.services.dummy_service")
 
-@BehaviorServiceRegistry.register
+
 class DummyService:
     """A trivial service that echoes back text with a small modification."""
 
     service_name = "dummy_service"
 
-    def __init__(self, service_id: str = "dummy_service", response_suffix: str = " [dummy processed]") -> None:
+    def __init__(
+        self,
+        service_id: str = "dummy_service",
+        response_suffix: str = " [dummy processed]",
+    ) -> None:
         self._service_id = service_id
         self._response_suffix = response_suffix
         self._owner_id = ""
@@ -36,6 +42,12 @@ class DummyService:
             )
             for message in messages
         )
+        logger.info(
+            "DummyService owner=%s service=%s processed_messages=%s",
+            self._owner_id,
+            self.service_id,
+            [message.text for message in echoed_messages],
+        )
         return DummyServiceResult(
             service_id=self.service_id,
             owner_id=self._owner_id,
@@ -44,3 +56,6 @@ class DummyService:
 
     def on_detach(self) -> None:
         self._owner_id = ""
+
+
+BehaviorServiceRegistry.register(DummyService)

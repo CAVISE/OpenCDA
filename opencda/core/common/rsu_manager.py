@@ -6,6 +6,7 @@ import logging
 from dataclasses import is_dataclass
 from typing import Any, Dict, Iterable, Optional, Tuple
 
+from opencda.core.application.behavior import create_service
 from opencda.core.application.behavior.behavior_service_protocol import BehaviorService
 from opencda.core.common.data_dumper import DataDumper
 from opencda.core.sensing.perception.perception_manager import PerceptionManager
@@ -123,6 +124,9 @@ class RSUManager(object):
         else:
             self.data_dumper = None
 
+        if behavior_services is None:
+            behavior_services = self.__build_behavior_services(config_yaml)
+
         self.__set_behavior_services(behavior_services)
         self.__attach_behavior_services()
 
@@ -137,6 +141,21 @@ class RSUManager(object):
                 RSUManager.current_id += 1
                 return candidate
             RSUManager.current_id += 1
+
+    def __build_behavior_services(self, config_yaml: dict[str, Any]) -> list[Any]:
+        service_configs = config_yaml.get("behavior_services", [])
+        behavior_services = []
+
+        for service_config in service_configs:
+            service_config_dict = dict(service_config)
+            service_type = service_config_dict.pop("type", None)
+            if service_type is None:
+                raise ValueError("Each behavior service config must define 'type'.")
+
+            behavior_services.append(create_service(service_name=service_type, **service_config_dict))
+            logger.info("Attached behavior service '%s' to RSU %r.", service_type, self.rid)
+
+        return behavior_services
 
     def __set_behavior_services(self, behavior_services: Optional[Iterable[BehaviorService[Any, Any]]]) -> None:
         services = tuple(behavior_services or ())
