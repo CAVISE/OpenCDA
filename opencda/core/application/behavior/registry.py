@@ -2,7 +2,11 @@
 
 import inspect
 import logging
-from typing import Any
+from typing import Any, TypeVar
+
+from .behavior_service_protocol import BehaviorService
+
+BehaviorServiceT = TypeVar("BehaviorServiceT", bound=BehaviorService[Any, Any])
 
 logger = logging.getLogger("cavise.opencda.opencda.core.application.behavior.registry")
 
@@ -15,10 +19,10 @@ class BehaviorServiceRegistry:
     or by using ``BehaviorServiceRegistry.register`` as a decorator.
     """
 
-    _registry: dict[str, type] = {}
+    _registry: dict[str, type[BehaviorService[Any, Any]]] = {}
 
     @classmethod
-    def register(cls, service_cls: type) -> type:
+    def register(cls, service_cls: type[BehaviorServiceT]) -> type[BehaviorServiceT]:
         """Register a concrete behavior service class."""
         if inspect.isabstract(service_cls):
             raise ValueError(f"Cannot register abstract behavior service class '{service_cls.__name__}'.")
@@ -34,7 +38,7 @@ class BehaviorServiceRegistry:
         return service_cls
 
     @classmethod
-    def get_service_class(cls, service_name: str) -> type:
+    def get_service_class(cls, service_name: str) -> type[BehaviorService[Any, Any]]:
         """Return a behavior service class for the given service name."""
         if service_name not in cls._registry:
             available = cls.list_services()
@@ -42,7 +46,7 @@ class BehaviorServiceRegistry:
         return cls._registry[service_name]
 
     @classmethod
-    def create_service(cls, service_name: str, **kwargs: Any) -> Any:
+    def create_service(cls, service_name: str, **kwargs: Any) -> BehaviorService[Any, Any]:
         """Instantiate a behavior service by name."""
         service_cls = cls.get_service_class(service_name=service_name)
         return service_cls(**kwargs)
@@ -50,4 +54,4 @@ class BehaviorServiceRegistry:
     @classmethod
     def list_services(cls) -> list[str]:
         """List registered behavior services."""
-        return list(cls._registry)
+        return sorted(list(cls._registry))
