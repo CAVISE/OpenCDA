@@ -300,9 +300,10 @@ class LateFusionDataset(basedataset.BaseDataset):
                 output_dict[cav_id].update({"anchor_box": torch.from_numpy(np.array(cav_content["anchor_box"]))})
             if self.visualize:
                 transformation_matrix = cav_content["transformation_matrix"]
-                origin_lidar = [cav_content["origin_lidar"]]
+                local_lidar = np.array(cav_content["origin_lidar"], copy=True)
+                origin_lidar = [local_lidar]
 
-                projected_lidar = cav_content["origin_lidar"]
+                projected_lidar = np.array(cav_content["origin_lidar"], copy=True)
                 projected_lidar[:, :3] = box_utils.project_points_by_matrix_torch(projected_lidar[:, :3], transformation_matrix)
                 projected_lidar_list.append(projected_lidar)
 
@@ -328,7 +329,7 @@ class LateFusionDataset(basedataset.BaseDataset):
             if self.visualize:
                 origin_lidar = np.array(downsample_lidar_minimum(pcd_np_list=origin_lidar))
                 origin_lidar = torch.from_numpy(origin_lidar)
-                output_dict[cav_id].update({"origin_lidar": origin_lidar})
+                output_dict[cav_id].update({"origin_lidar": origin_lidar, "origin_lidar_local": origin_lidar.clone(), "agent_id": cav_id})
 
         if self.visualize:
             projected_lidar_stack = torch.from_numpy(np.vstack(projected_lidar_list))
