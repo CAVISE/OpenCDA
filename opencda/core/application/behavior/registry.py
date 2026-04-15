@@ -2,11 +2,13 @@
 
 import inspect
 import logging
-from typing import Any
+from typing import Any, TypeVar
 
-from .behavior_service_protocol import BehaviorService, BehaviorServiceMessageT, BehaviorServiceResultT
+from .behavior_service_protocol import BehaviorService
 
 logger = logging.getLogger("cavise.opencda.opencda.core.application.behavior.registry")
+
+BehaviorServiceT = TypeVar("BehaviorServiceT", bound=BehaviorService[Any, Any])
 
 
 class BehaviorServiceRegistry:
@@ -17,10 +19,10 @@ class BehaviorServiceRegistry:
     or by using ``BehaviorServiceRegistry.register`` as a decorator.
     """
 
-    _registry: dict[str, type[BehaviorService[BehaviorServiceMessageT, BehaviorServiceResultT]]] = {}
+    _registry: dict[str, type[BehaviorService[Any, Any]]] = {}
 
     @classmethod
-    def register(cls, service_cls: type[BehaviorService[Any, Any]]) -> type[BehaviorService[Any, Any]]:
+    def register(cls, service_cls: type[BehaviorServiceT]) -> type[BehaviorServiceT]:
         """Register a concrete behavior service class."""
         if inspect.isabstract(service_cls):
             raise ValueError(f"Cannot register abstract behavior service class '{service_cls.__name__}'.")
