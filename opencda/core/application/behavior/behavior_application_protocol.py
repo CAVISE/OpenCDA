@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from typing import Protocol, Sequence, runtime_checkable
+from typing import Protocol, Sequence, TypeVar, runtime_checkable
 
-from .messages import BehaviorApplicationMessage
-from .results import BehaviorApplicationResult
+BehaviorApplicationMessageT = TypeVar("BehaviorApplicationMessageT")
+BehaviorApplicationResultT = TypeVar("BehaviorApplicationResultT")
 
 
 @runtime_checkable
-class BehaviorApplication(Protocol):
+class BehaviorApplication(Protocol[BehaviorApplicationMessageT, BehaviorApplicationResultT]):
     """Protocol implemented by any behavior application attached to a participant."""
 
     @property
@@ -19,7 +19,7 @@ class BehaviorApplication(Protocol):
     def on_attach(self, owner_id: str) -> None:
         """Initialize the application for a particular participant instance."""
 
-    def process(self, messages: Sequence[BehaviorApplicationMessage]) -> BehaviorApplicationResult:
+    def process(self, messages: Sequence[BehaviorApplicationMessageT]) -> BehaviorApplicationResultT:
         """Process typed input messages and return a typed result."""
 
     def on_detach(self) -> None:
