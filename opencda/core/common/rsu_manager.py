@@ -6,11 +6,7 @@ import logging
 from typing import Any, Dict, Iterable, Optional, Tuple
 
 from opencda.core.application.behavior import create_service
-from opencda.core.application.behavior.behavior_service_protocol import (
-    BehaviorService,
-    BehaviorServiceMessageT,
-    BehaviorServiceResultT,
-)
+from opencda.core.application.behavior.behavior_service_protocol import BehaviorService
 from opencda.core.common.data_dumper import DataDumper
 from opencda.core.sensing.perception.perception_manager import PerceptionManager
 from opencda.core.sensing.localization.rsu_localization_manager import LocalizationManager
@@ -68,7 +64,7 @@ class RSUManager(object):
         current_time="",
         data_dumping=False,
         autogenerate_id_on_failure=True,
-        behavior_services: Optional[Iterable[BehaviorService[BehaviorServiceMessageT, BehaviorServiceResultT]]] = None,
+        behavior_services: Optional[Iterable[BehaviorService[Any, Any]]] = None,
     ):
         config_id = config_yaml.get("id")
 
@@ -145,7 +141,7 @@ class RSUManager(object):
                 return candidate
             RSUManager.current_id += 1
 
-    def __build_behavior_services(self, config_yaml: dict[str, Any]) -> list[BehaviorService[BehaviorServiceMessageT, BehaviorServiceResultT]]:
+    def __build_behavior_services(self, config_yaml: dict[str, Any]) -> list[BehaviorService[Any, Any]]:
         service_configs = config_yaml.get("behavior_services", [])
         behavior_services = []
 
@@ -160,16 +156,14 @@ class RSUManager(object):
 
         return behavior_services
 
-    def __set_behavior_services(
-        self, behavior_services: Optional[Iterable[BehaviorService[BehaviorServiceMessageT, BehaviorServiceResultT]]]
-    ) -> None:
+    def __set_behavior_services(self, behavior_services: Optional[Iterable[BehaviorService[Any, Any]]]) -> None:
         services = tuple(behavior_services or ())
         self.__validate_behavior_services(services)
         self.behavior_services = services
         self.behavior_service_results = {}
         self._behavior_services_by_id = {service.service_id: service for service in self.behavior_services}
 
-    def __validate_behavior_services(self, behavior_services: Tuple[BehaviorService[BehaviorServiceMessageT, BehaviorServiceResultT], ...]) -> None:
+    def __validate_behavior_services(self, behavior_services: Tuple[BehaviorService[Any, Any], ...]) -> None:
         seen_service_ids = set()
 
         for service in behavior_services:
@@ -219,7 +213,7 @@ class RSUManager(object):
         if first_exception is not None:
             raise first_exception
 
-    def __validate_behavior_service_messages(self, messages: list[BehaviorServiceMessageT]) -> None:
+    def __validate_behavior_service_messages(self, messages: list[Any]) -> None:
         for message in messages:
             service_id = getattr(message, "service_id", None)
             if not isinstance(service_id, str):
@@ -228,7 +222,7 @@ class RSUManager(object):
             if service_id not in self._behavior_services_by_id:
                 raise ValueError(f"Behavior service message references unknown service_id {service_id!r}.")
 
-    def __group_behavior_service_messages(self, messages: list[BehaviorServiceMessageT]) -> Dict[str, list[BehaviorServiceMessageT]]:
+    def __group_behavior_service_messages(self, messages: list[Any]) -> Dict[str, list[Any]]:
         grouped_messages = {service.service_id: [] for service in self.behavior_services}
 
         for message in messages:
@@ -236,7 +230,7 @@ class RSUManager(object):
 
         return grouped_messages
 
-    def update_behavior_services(self, messages: list[BehaviorServiceMessageT]) -> None:
+    def update_behavior_services(self, messages: list[Any]) -> None:
         self.__validate_behavior_service_messages(messages)
         grouped_messages = self.__group_behavior_service_messages(messages)
         self.behavior_service_results = {}
