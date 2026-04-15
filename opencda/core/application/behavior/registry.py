@@ -20,9 +20,7 @@ class BehaviorServiceRegistry:
     _registry: dict[str, type[BehaviorService[BehaviorServiceMessageT, BehaviorServiceResultT]]] = {}
 
     @classmethod
-    def register(
-        cls, service_cls: type[BehaviorService[BehaviorServiceMessageT, BehaviorServiceResultT]]
-    ) -> type[BehaviorService[BehaviorServiceMessageT, BehaviorServiceResultT]]:
+    def register(cls, service_cls: type[BehaviorService[Any, Any]]) -> type[BehaviorService[Any, Any]]:
         """Register a concrete behavior service class."""
         if inspect.isabstract(service_cls):
             raise ValueError(f"Cannot register abstract behavior service class '{service_cls.__name__}'.")
@@ -38,7 +36,7 @@ class BehaviorServiceRegistry:
         return service_cls
 
     @classmethod
-    def get_service_class(cls, service_name: str) -> type[BehaviorService[BehaviorServiceMessageT, BehaviorServiceResultT]]:
+    def get_service_class(cls, service_name: str) -> type[BehaviorService[Any, Any]]:
         """Return a behavior service class for the given service name."""
         if service_name not in cls._registry:
             available = cls.list_services()
@@ -46,7 +44,7 @@ class BehaviorServiceRegistry:
         return cls._registry[service_name]
 
     @classmethod
-    def create_service(cls, service_name: str, **kwargs: Any) -> BehaviorService[BehaviorServiceMessageT, BehaviorServiceResultT]:
+    def create_service(cls, service_name: str, **kwargs: Any) -> BehaviorService[Any, Any]:
         """Instantiate a behavior service by name."""
         service_cls = cls.get_service_class(service_name=service_name)
         return service_cls(**kwargs)
