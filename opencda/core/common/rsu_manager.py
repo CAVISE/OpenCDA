@@ -3,7 +3,6 @@ Basic class for RSU(Roadside Unit) management.
 """
 
 import logging
-from dataclasses import is_dataclass
 from typing import Any, Dict, Iterable, Optional, Tuple
 
 from opencda.core.application.behavior import create_service
