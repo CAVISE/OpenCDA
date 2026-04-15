@@ -3,10 +3,11 @@ from collections import OrderedDict
 import pytest
 from unittest.mock import MagicMock, patch
 from pathlib import Path
+import numpy as np
 
 # The production code imports are now safe because pytest_configure in conftest.py
 # installs the mocks before collection.
-from opencda.core.common.coperception_model_manager import CoperceptionModelManager, DirectoryProcessor
+from opencda.core.common.coperception_model_manager import CoperceptionModelManager, CoperceptionVisualizer, DirectoryProcessor
 
 
 class DummyOpt:
@@ -250,14 +251,17 @@ class TestCoperceptionModelManager:
         manager.opencood_dataset = MagicMock()
         manager_deps["inference_utils"].inference_late_fusion.return_value = ("p", "s", "g")
 
-        manager.make_prediction(5)
+        with patch.object(CoperceptionVisualizer, "render_inference_to_file") as mock_render:
+            manager.make_prediction(5)
 
         # Verify directories
         base_dir = tmp_path / "simulation_output/coperception"
         assert (base_dir / "vis_3d/scen1_2023_01_01").exists()
         assert (base_dir / "vis_bev/scen1_2023_01_01").exists()
 
-        assert manager_deps["simple_vis"].visualize.call_count == 2
+        assert mock_render.call_count == 2
+        assert mock_render.call_args_list[0].kwargs["method"] == "3d"
+        assert mock_render.call_args_list[1].kwargs["method"] == "bev"
 
     def test_make_prediction_show_sequence(self, manager_deps, fake_heavy_deps):
         """Test Open3D interactions without opening windows."""
@@ -271,7 +275,12 @@ class TestCoperceptionModelManager:
         # Ensure pred is not None
         manager_deps["inference_utils"].inference_late_fusion.return_value = ("box", "score", "gt")
 
-        manager.make_prediction(0)
+        with patch.object(
+            CoperceptionVisualizer,
+            "visualize_inference_sample_dataloader",
+            return_value=(MagicMock(name="pcd"), [MagicMock(name="pred_box")], [MagicMock(name="gt_box")]),
+        ) as mock_visualize:
+            manager.make_prediction(0)
 
         # Check Visualizer creation (mocked class in conftest)
         manager_deps["Visualizer"].assert_called()
@@ -280,6 +289,7 @@ class TestCoperceptionModelManager:
         vis_instance.create_window.assert_called()
         vis_instance.add_geometry.assert_called()  # i=0
         vis_instance.update_renderer.assert_called()
+        mock_visualize.assert_called_once()
 
         # Verify line set assignment was called
         manager_deps["vis_utils"].linset_assign_list.assert_called()
@@ -301,6 +311,75 @@ class TestCoperceptionModelManager:
         assert args[0] is manager.final_result_stat
         assert Path(args[1]).resolve() == expected_dir.resolve()
         assert args[2] == opt.global_sort_detections
+
+
+class TestCoperceptionVisualizer:
+    def test_resolve_visualization_config_merges_defaults_and_overrides(self):
+        config = CoperceptionVisualizer.resolve_visualization_config(
+            {
+                "background": [12, 18, 24],
+                "lidar_point_colors": {
+                    "default": [200, 200, 200],
+                    "cav-2": [10, 20, 30],
+                },
+                "bbox_colors": {"pred": [1, 2, 3]},
+            }
+        )
+
+        assert config["background"] == [12, 18, 24]
+        assert config["lidar_point_colors"]["default"] == [200, 200, 200]
+        assert config["lidar_point_colors"]["ego"] == [80, 255, 80]
+        assert config["lidar_point_colors"]["cav-2"] == [10, 20, 30]
+        assert config["bbox_colors"]["pred"] == [1, 2, 3]
+        assert config["bbox_colors"]["gt"] == [0, 255, 0]
+
+    def test_get_lidar_points_and_colors_keeps_agent_order_and_applies_id_override(self):
+        config = CoperceptionVisualizer.resolve_visualization_config(
+            {
+                "lidar_point_colors": {
+                    "default": [200, 200, 200],
+                    "ego": [10, 250, 10],
+                    "cav-2": [90, 80, 70],
+                }
+            }
+        )
+        batch_data = {
+            "ego": {
+                "origin_lidar_by_agent": [
+                    np.array([[1.0, 0.0, 0.0, 1.0]]),
+                    np.array([[2.0, 0.0, 0.0, 1.0], [3.0, 0.0, 0.0, 1.0]]),
+                ],
+                "origin_lidar_roles": ["ego", "other"],
+                "origin_lidar_agent_ids": ["cav-1", "cav-2"],
+            }
+        }
+
+        points, colors = CoperceptionVisualizer._get_lidar_points_and_colors(batch_data, None, config)
+
+        assert points.tolist() == [[1.0, 0.0, 0.0, 1.0], [2.0, 0.0, 0.0, 1.0], [3.0, 0.0, 0.0, 1.0]]
+        assert colors.tolist() == [[10, 250, 10], [90, 80, 70], [90, 80, 70]]
+
+    def test_get_lidar_points_and_colors_prefers_agent_id_override_over_ego_role(self):
+        config = CoperceptionVisualizer.resolve_visualization_config(
+            {
+                "lidar_point_colors": {
+                    "default": [255, 255, 255],
+                    "ego": [80, 255, 80],
+                    "cav-1": [123, 45, 67],
+                }
+            }
+        )
+        batch_data = {
+            "ego": {
+                "origin_lidar_by_agent": [np.array([[1.0, 2.0, 3.0, 1.0]])],
+                "origin_lidar_roles": ["ego"],
+                "origin_lidar_agent_ids": ["cav-1"],
+            }
+        }
+
+        _, colors = CoperceptionVisualizer._get_lidar_points_and_colors(batch_data, None, config)
+
+        assert colors.tolist() == [[123, 45, 67]]
 
 
 # --- Tests for DirectoryProcessor ---
