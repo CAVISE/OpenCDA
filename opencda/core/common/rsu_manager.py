@@ -145,9 +145,7 @@ class RSUManager(object):
                 return candidate
             RSUManager.current_id += 1
 
-    def __build_behavior_services(
-        self, config_yaml: dict[str, Any]
-    ) -> list[BehaviorService[BehaviorServiceMessageT, BehaviorServiceResultT]]:
+    def __build_behavior_services(self, config_yaml: dict[str, Any]) -> list[BehaviorService[BehaviorServiceMessageT, BehaviorServiceResultT]]:
         service_configs = config_yaml.get("behavior_services", [])
         behavior_services = []
 
@@ -171,9 +169,7 @@ class RSUManager(object):
         self.behavior_service_results = {}
         self._behavior_services_by_id = {service.service_id: service for service in self.behavior_services}
 
-    def __validate_behavior_services(
-        self, behavior_services: Tuple[BehaviorService[BehaviorServiceMessageT, BehaviorServiceResultT], ...]
-    ) -> None:
+    def __validate_behavior_services(self, behavior_services: Tuple[BehaviorService[BehaviorServiceMessageT, BehaviorServiceResultT], ...]) -> None:
         seen_service_ids = set()
 
         for service in behavior_services:
@@ -225,7 +221,6 @@ class RSUManager(object):
 
     def __validate_behavior_service_messages(self, messages: list[BehaviorServiceMessageT]) -> None:
         for message in messages:
-
             service_id = getattr(message, "service_id", None)
             if not isinstance(service_id, str):
                 raise TypeError(f"Each behavior service message must define a non-empty 'service_id' attribute; got {type(message).__name__!r}.")
@@ -233,9 +228,7 @@ class RSUManager(object):
             if service_id not in self._behavior_services_by_id:
                 raise ValueError(f"Behavior service message references unknown service_id {service_id!r}.")
 
-    def __group_behavior_service_messages(
-        self, messages: list[BehaviorServiceMessageT]
-    ) -> Dict[str, list[BehaviorServiceMessageT]]:
+    def __group_behavior_service_messages(self, messages: list[BehaviorServiceMessageT]) -> Dict[str, list[BehaviorServiceMessageT]]:
         grouped_messages = {service.service_id: [] for service in self.behavior_services}
 
         for message in messages:
