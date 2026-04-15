@@ -1,30 +1,30 @@
 """
-Behavior applications public API.
+Behavior services public API.
 
 Provides:
-- BehaviorApplication protocol
-- BehaviorApplicationRegistry runtime registry
-- get_application_class lookup function
-- create_application factory function
-- list_applications utility
+- BehaviorService protocol
+- BehaviorServiceRegistry runtime registry
+- get_service_class lookup function
+- create_service factory function
+- list_services utility
 """
 
 import importlib
 
-from .behavior_application_protocol import BehaviorApplication
-from .registry import BehaviorApplicationRegistry
+from .behavior_service_protocol import BehaviorService
+from .registry import BehaviorServiceRegistry
 
-# Initialize builtin behavior application discovery.
-importlib.import_module("opencda.core.application.behavior.applications")
+# Initialize builtin behavior service discovery.
+importlib.import_module("opencda.core.application.behavior.services")
 
-get_application_class = BehaviorApplicationRegistry.get_application_class
-create_application = BehaviorApplicationRegistry.create_application
-list_applications = BehaviorApplicationRegistry.list_applications
+get_service_class = BehaviorServiceRegistry.get_service_class
+create_service = BehaviorServiceRegistry.create_service
+list_services = BehaviorServiceRegistry.list_services
 
 __all__ = [
-    "BehaviorApplication",
-    "BehaviorApplicationRegistry",
-    "create_application",
-    "get_application_class",
-    "list_applications",
+    "BehaviorService",
+    "BehaviorServiceRegistry",
+    "create_service",
+    "get_service_class",
+    "list_services",
 ]

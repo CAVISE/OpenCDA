@@ -6,7 +6,7 @@ import logging
 from dataclasses import is_dataclass
 from typing import Any, Dict, Iterable, Optional, Tuple
 
-from opencda.core.application.behavior.behavior_application_protocol import BehaviorApplication
+from opencda.core.application.behavior.behavior_service_protocol import BehaviorService
 from opencda.core.common.data_dumper import DataDumper
 from opencda.core.sensing.perception.perception_manager import PerceptionManager
 from opencda.core.sensing.localization.rsu_localization_manager import LocalizationManager
@@ -64,7 +64,7 @@ class RSUManager(object):
         current_time="",
         data_dumping=False,
         autogenerate_id_on_failure=True,
-        behavior_applications: Optional[Iterable[BehaviorApplication[Any, Any]]] = None,
+        behavior_services: Optional[Iterable[BehaviorService[Any, Any]]] = None,
     ):
         config_id = config_yaml.get("id")
 
@@ -123,8 +123,8 @@ class RSUManager(object):
         else:
             self.data_dumper = None
 
-        self.__set_behavior_applications(behavior_applications)
-        self.__attach_behavior_applications()
+        self.__set_behavior_services(behavior_services)
+        self.__attach_behavior_services()
 
         cav_world.update_rsu_manager(self)
 
@@ -138,62 +138,62 @@ class RSUManager(object):
                 return candidate
             RSUManager.current_id += 1
 
-    def __set_behavior_applications(self, behavior_applications: Optional[Iterable[BehaviorApplication[Any, Any]]]) -> None:
-        applications = tuple(behavior_applications or ())
-        self.__validate_behavior_applications(applications)
-        self.behavior_applications = applications
-        self.behavior_application_results = {}
-        self._behavior_applications_by_id = {
-            application.application_id: application for application in self.behavior_applications
+    def __set_behavior_services(self, behavior_services: Optional[Iterable[BehaviorService[Any, Any]]]) -> None:
+        services = tuple(behavior_services or ())
+        self.__validate_behavior_services(services)
+        self.behavior_services = services
+        self.behavior_service_results = {}
+        self._behavior_services_by_id = {
+            service.service_id: service for service in self.behavior_services
         }
 
-    def __validate_behavior_applications(
-        self, behavior_applications: Tuple[BehaviorApplication[Any, Any], ...]
+    def __validate_behavior_services(
+        self, behavior_services: Tuple[BehaviorService[Any, Any], ...]
     ) -> None:
-        seen_application_ids = set()
+        seen_service_ids = set()
 
-        for application in behavior_applications:
-            if not isinstance(application, BehaviorApplication):
+        for service in behavior_services:
+            if not isinstance(service, BehaviorService):
                 raise TypeError(
-                    "Each behavior application must implement the BehaviorApplication protocol; "
-                    f"got {type(application).__name__!r}."
+                    "Each behavior service must implement the BehaviorService protocol; "
+                    f"got {type(service).__name__!r}."
                 )
 
-            application_id = application.application_id
-            if application_id in seen_application_ids:
-                raise ValueError(f"Duplicate behavior application ID detected: {application_id!r}.")
+            service_id = service.service_id
+            if service_id in seen_service_ids:
+                raise ValueError(f"Duplicate behavior service ID detected: {service_id!r}.")
 
-            seen_application_ids.add(application_id)
+            seen_service_ids.add(service_id)
 
-    def __attach_behavior_applications(self) -> None:
-        attached_applications = []
+    def __attach_behavior_services(self) -> None:
+        attached_services = []
 
         try:
-            for application in self.behavior_applications:
-                application.on_attach(self.rid)
-                attached_applications.append(application)
+            for service in self.behavior_services:
+                service.on_attach(self.rid)
+                attached_services.append(service)
         except Exception:
-            for application in reversed(attached_applications):
+            for service in reversed(attached_services):
                 try:
-                    application.on_detach()
+                    service.on_detach()
                 except Exception:
                     logger.exception(
-                        "Failed to detach behavior application %r while rolling back RSU %r attachment.",
-                        application.application_id,
+                        "Failed to detach behavior service %r while rolling back RSU %r attachment.",
+                        service.service_id,
                         self.rid,
                     )
             raise
 
-    def __detach_behavior_applications(self) -> None:
+    def __detach_behavior_services(self) -> None:
         first_exception = None
 
-        for application in reversed(self.behavior_applications):
+        for service in reversed(self.behavior_services):
             try:
-                application.on_detach()
+                service.on_detach()
             except Exception as exc:
                 logger.exception(
-                    "Failed to detach behavior application %r from RSU %r.",
-                    application.application_id,
+                    "Failed to detach behavior service %r from RSU %r.",
+                    service.service_id,
                     self.rid,
                 )
                 if first_exception is None:
@@ -202,42 +202,42 @@ class RSUManager(object):
         if first_exception is not None:
             raise first_exception
 
-    def __validate_behavior_application_messages(self, messages: list[Any]) -> None:
+    def __validate_behavior_service_messages(self, messages: list[Any]) -> None:
         for message in messages:
             if not is_dataclass(message) or isinstance(message, type):
                 raise TypeError(
-                    "Behavior application input must be a list of dataclass instances; "
+                    "Behavior service input must be a list of dataclass instances; "
                     f"got {type(message).__name__!r}."
                 )
 
-            application_id = getattr(message, "application_id", None)
-            if not isinstance(application_id, str) or not application_id:
+            service_id = getattr(message, "service_id", None)
+            if not isinstance(service_id, str) or not service_id:
                 raise TypeError(
-                    "Each behavior application message must define a non-empty 'application_id' attribute; "
+                    "Each behavior service message must define a non-empty 'service_id' attribute; "
                     f"got {type(message).__name__!r}."
                 )
 
-            if application_id not in self._behavior_applications_by_id:
+            if service_id not in self._behavior_services_by_id:
                 raise ValueError(
-                    f"Behavior application message references unknown application_id {application_id!r}."
+                    f"Behavior service message references unknown service_id {service_id!r}."
                 )
 
-    def __group_behavior_application_messages(self, messages: list[Any]) -> Dict[str, list[Any]]:
-        grouped_messages = {application.application_id: [] for application in self.behavior_applications}
+    def __group_behavior_service_messages(self, messages: list[Any]) -> Dict[str, list[Any]]:
+        grouped_messages = {service.service_id: [] for service in self.behavior_services}
 
         for message in messages:
-            grouped_messages[message.application_id].append(message)
+            grouped_messages[message.service_id].append(message)
 
         return grouped_messages
 
-    def update_behavior_applications(self, messages: list[Any]) -> None:
-        self.__validate_behavior_application_messages(messages)
-        grouped_messages = self.__group_behavior_application_messages(messages)
-        self.behavior_application_results = {}
+    def update_behavior_services(self, messages: list[Any]) -> None:
+        self.__validate_behavior_service_messages(messages)
+        grouped_messages = self.__group_behavior_service_messages(messages)
+        self.behavior_service_results = {}
 
-        for application in self.behavior_applications:
-            application_messages = grouped_messages[application.application_id]
-            self.behavior_application_results[application.application_id] = application.process(application_messages)
+        for service in self.behavior_services:
+            service_messages = grouped_messages[service.service_id]
+            self.behavior_service_results[service.service_id] = service.process(service_messages)
 
     def update_info(self):
         """
@@ -258,11 +258,11 @@ class RSUManager(object):
 
     def run_step(self, messages: Optional[list[Any]] = None):
         """
-        Run behavior applications for the provided message batch and
+        Run behavior services for the provided message batch and
         execute the current RSU step side effects.
         """
         if messages is not None:
-            self.update_behavior_applications(messages)
+            self.update_behavior_services(messages)
 
         # dump data
         if self.data_dumper:
@@ -273,7 +273,7 @@ class RSUManager(object):
         Destroy the actor vehicle
         """
         try:
-            self.__detach_behavior_applications()
+            self.__detach_behavior_services()
         finally:
             self.perception_manager.destroy()
             self.localizer.destroy()
