@@ -162,21 +162,14 @@ class RSUManager(object):
         self.__validate_behavior_services(services)
         self.behavior_services = services
         self.behavior_service_results = {}
-        self._behavior_services_by_id = {
-            service.service_id: service for service in self.behavior_services
-        }
+        self._behavior_services_by_id = {service.service_id: service for service in self.behavior_services}
 
-    def __validate_behavior_services(
-        self, behavior_services: Tuple[BehaviorService[Any, Any], ...]
-    ) -> None:
+    def __validate_behavior_services(self, behavior_services: Tuple[BehaviorService[Any, Any], ...]) -> None:
         seen_service_ids = set()
 
         for service in behavior_services:
             if not isinstance(service, BehaviorService):
-                raise TypeError(
-                    "Each behavior service must implement the BehaviorService protocol; "
-                    f"got {type(service).__name__!r}."
-                )
+                raise TypeError(f"Each behavior service must implement the BehaviorService protocol; got {type(service).__name__!r}.")
 
             service_id = service.service_id
             if service_id in seen_service_ids:
@@ -224,22 +217,14 @@ class RSUManager(object):
     def __validate_behavior_service_messages(self, messages: list[Any]) -> None:
         for message in messages:
             if not is_dataclass(message) or isinstance(message, type):
-                raise TypeError(
-                    "Behavior service input must be a list of dataclass instances; "
-                    f"got {type(message).__name__!r}."
-                )
+                raise TypeError(f"Behavior service input must be a list of dataclass instances; got {type(message).__name__!r}.")
 
             service_id = getattr(message, "service_id", None)
             if not isinstance(service_id, str) or not service_id:
-                raise TypeError(
-                    "Each behavior service message must define a non-empty 'service_id' attribute; "
-                    f"got {type(message).__name__!r}."
-                )
+                raise TypeError(f"Each behavior service message must define a non-empty 'service_id' attribute; got {type(message).__name__!r}.")
 
             if service_id not in self._behavior_services_by_id:
-                raise ValueError(
-                    f"Behavior service message references unknown service_id {service_id!r}."
-                )
+                raise ValueError(f"Behavior service message references unknown service_id {service_id!r}.")
 
     def __group_behavior_service_messages(self, messages: list[Any]) -> Dict[str, list[Any]]:
         grouped_messages = {service.service_id: [] for service in self.behavior_services}
