@@ -87,14 +87,6 @@ vehicle_base:
       debug_trajectory: false
       debug: false
 
-# define sumo simulation setting for traffic generation
-sumo:
-  port: 3000
-  host: sumo
-  gui: true
-  client_order: 2
-  step_length: ${world.fixed_delta_seconds}
-
 scenario:
   rsu_list:
     - name: rsu1

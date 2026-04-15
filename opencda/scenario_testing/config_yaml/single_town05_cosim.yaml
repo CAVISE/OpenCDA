@@ -20,14 +20,6 @@ vehicle_base:
     max_speed: 50 # maximum speed, km/h
     tailgate_speed: 60 # when a vehicles needs to be close to another vehicle asap
 
-# define sumo simulation setting for traffic generation
-sumo:
-  port: 4001
-  host: sumo
-  gui: true
-  client_order: 1
-  step_length: ${world.fixed_delta_seconds}
-
 # define scenario. In this scenario, only a single CAV will be spawned
 scenario:
   single_cav_list: # this is for merging vehicle or single cav without v2x
