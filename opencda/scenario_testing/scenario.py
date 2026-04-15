@@ -15,7 +15,6 @@ from omegaconf import DictConfig, OmegaConf
 import opencda.scenario_testing.utils.cosim_api as sim_api
 import opencda.scenario_testing.utils.customized_map_api as map_api
 from AIM import get_model
-from opencda.core.application.behavior.services.dummy_service.messages import DummyServiceMessage
 from opencda.core.application.platooning.platooning_manager import PlatooningManager
 from opencda.core.common.aim_model_manager import AIMModelManager
 from opencda.core.common.cav_world import CavWorld
@@ -81,22 +80,6 @@ class Scenario:
             self._abort_simulation("Co-perception dataset is missing; prediction pipeline cannot continue.")
 
         return opencood_dataset
-
-    def _build_dummy_service_messages(self, rsu: RSUManager, tick_number: int) -> list[DummyServiceMessage]:
-        messages: list[DummyServiceMessage] = []
-
-        for service in getattr(rsu, "behavior_services", ()):
-            if getattr(service, "service_name", None) != "dummy_service":
-                continue
-
-            messages.append(
-                DummyServiceMessage(
-                    service_id=service.service_id,
-                    text=f"dummy scenario message tick={tick_number} rsu={rsu.rid}",
-                )
-            )
-
-        return messages
 
     def __init__(self, opt: argparse.Namespace, scenario_params: DictConfig) -> None:
         self.node_ids: dict[str, dict[int, str]] = {"cav": {}, "rsu": {}, "platoon": {}}
@@ -308,7 +291,7 @@ class Scenario:
 
                 for rsu in self.rsu_list:
                     rsu.update_info()
-                    rsu.run_step(self._build_dummy_service_messages(rsu, tick_number)) # for testing dummy service integration with RSU behavior services
+                    rsu.run_step()
 
     def capi_loop(self, opt: argparse.Namespace, directory_processor: DirectoryProcessor | None) -> None:
         communication_manager = self._require_communication_manager()
@@ -387,7 +370,7 @@ class Scenario:
                 logger.debug("updating RSUs")
                 for rsu in self.rsu_list:
                     rsu.update_info()
-                    rsu.run_step(self._build_dummy_service_messages(rsu, tick_number))
+                    rsu.run_step()
 
     def finalize(self, opt: argparse.Namespace) -> None:
         if opt.record:
