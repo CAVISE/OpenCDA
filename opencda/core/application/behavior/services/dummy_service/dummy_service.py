@@ -13,6 +13,7 @@ from .results import DummyServiceEchoMessage, DummyServiceResult
 logger = logging.getLogger("cavise.opencda.opencda.core.application.behavior.services.dummy_service")
 
 
+@BehaviorServiceRegistry.register
 class DummyService:
     """A trivial service that echoes back text with a small modification."""
 
@@ -56,6 +57,3 @@ class DummyService:
 
     def on_detach(self) -> None:
         self._owner_id = ""
-
-
-BehaviorServiceRegistry.register(DummyService)
