@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Protocol, Sequence, TypeVar, runtime_checkable
 
-BehaviorServiceMessageT = TypeVar("BehaviorServiceMessageT")
-BehaviorServiceResultT = TypeVar("BehaviorServiceResultT")
+BehaviorServiceMessageT = TypeVar("BehaviorServiceMessageT", contravariant=True)
+BehaviorServiceResultT = TypeVar("BehaviorServiceResultT", covariant=True)
 
 
 @runtime_checkable
