@@ -18,7 +18,6 @@ world:
     fog_falloff: 0 # Density of the fog (as in specific mass) from 0 to infinity. The bigger the value, the more dense and heavy it will be, and the fog will reach smaller heights
     wetness: 0
 
-
 # Define the basic parameters of the rsu
 rsu_base:
   sensing:
@@ -212,3 +211,17 @@ sumo:
   gui: true
   client_order: 2
   step_length: ${world.fixed_delta_seconds}
+
+cooperative_perception_visualization:
+  background: [0, 0, 0]
+  lidar_point_colors:
+    default: [255, 255, 255] # fallback color for all lidar points; in general CoP visualization every non-ego agent also uses this color
+    ego: [80, 255, 80] # used when the visualizer can identify ego points
+    attackers: [255, 90, 90] # reserved for real lidar points of attacking agents; not used in the general CoP visualization yet
+    spoofing: [180, 0, 255] # reserved for fake/spoofed lidar points injected by AdvCP; not used in the general CoP visualization yet
+    # cav-1: [255, 220, 0] # optional explicit color override for a specific vehicle id
+    # rsu-2: [0, 200, 255] # optional explicit color override for a specific RSU id
+  bbox_colors:
+    gt: [0, 255, 0]
+    pred: [255, 0, 0]
+    fake: [180, 0, 255]  # works only when AdvCP is enabled
