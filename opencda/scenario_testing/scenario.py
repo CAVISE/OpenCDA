@@ -296,6 +296,7 @@ class Scenario:
 
             if self.rsu_list is not None:
                 logger.debug("updating RSUs")
+
                 for rsu in self.rsu_list:
                     rsu.update_info()
                     rsu.run_step()
