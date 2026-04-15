@@ -165,8 +165,7 @@ class VehicleManager(object):
         else:
             self.data_dumper = None
 
-        if behavior_services is None:
-            behavior_services = self.__build_behavior_services(config_yaml)
+        behavior_services = self.__build_behavior_services(config_yaml)
 
         self.__set_behavior_services(behavior_services)
         self.__attach_behavior_services()
