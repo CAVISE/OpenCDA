@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import copy
 import os
 import re
 import logging
+from typing import TYPE_CHECKING, Any, Dict, Iterable, Mapping, Optional, Tuple, TypeAlias, cast
 from tqdm import tqdm
 from collections import OrderedDict
-from typing import TYPE_CHECKING, Any, TypeAlias, cast
 
+from matplotlib import pyplot as plt
+import numpy as np
 import torch  # type: ignore
 import open3d as o3d
 from torch.utils.data import DataLoader  # type: ignore
@@ -14,7 +17,7 @@ from torch.utils.data import DataLoader  # type: ignore
 import opencood.hypes_yaml.yaml_utils as yaml_utils
 from opencood.tools import train_utils, inference_utils
 from opencood.data_utils.datasets import build_dataset
-from opencood.visualization import simple_vis, vis_utils
+from opencood.visualization import vis_utils
 from opencood.utils import eval_utils
 
 if TYPE_CHECKING:
@@ -25,6 +28,337 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger("cavise.opencda.opencda.core.common.coperception_model_manager")
 
+
+class CoperceptionVisualizer:
+    _DEFAULT_VISUALIZATION_CONFIG: Dict[str, Any] = {
+        "background": [0, 0, 0],
+        "lidar_point_colors": {
+            "default": [255, 255, 255],
+            "ego": [80, 255, 80],
+            "attackers": [255, 90, 90],
+            "spoofing": [180, 0, 255],
+        },
+        "bbox_colors": {
+            "gt": [0, 255, 0],
+            "pred": [255, 0, 0],
+            "fake": [180, 0, 255],
+        },
+    }
+
+    @staticmethod
+    def resolve_visualization_config(config: Optional[Mapping[str, Any]] = None) -> Dict[str, Any]:
+        resolved = copy.deepcopy(CoperceptionVisualizer._DEFAULT_VISUALIZATION_CONFIG)
+        if not config:
+            return resolved
+
+        config_dict = dict(config)
+        for key in ("background",):
+            if key in config_dict and config_dict[key] is not None:
+                resolved[key] = list(config_dict[key])
+
+        for key in ("lidar_point_colors", "bbox_colors"):
+            value = config_dict.get(key)
+            if isinstance(value, Mapping):
+                resolved[key].update(dict(value))
+
+        return resolved
+
+    @staticmethod
+    def render_inference_to_file(
+        pred_box_tensor,
+        gt_tensor,
+        pcd,
+        pc_range,
+        save_path,
+        batch_data=None,
+        visualization_config: Optional[Mapping[str, Any]] = None,
+        method: str = "3d",
+        vis_gt_box: bool = True,
+        vis_pred_box: bool = True,
+        left_hand: bool = False,
+        uncertainty=None,
+    ):
+        config = CoperceptionVisualizer.resolve_visualization_config(visualization_config)
+        canvas = CoperceptionVisualizer._build_canvas(
+            pred_box_tensor=pred_box_tensor,
+            gt_tensor=gt_tensor,
+            pcd=pcd,
+            pc_range=pc_range,
+            batch_data=batch_data,
+            visualization_config=config,
+            method=method,
+            vis_gt_box=vis_gt_box,
+            vis_pred_box=vis_pred_box,
+            left_hand=left_hand,
+            uncertainty=uncertainty,
+        )
+        plt.axis("off")
+        plt.imshow(canvas)
+        plt.tight_layout()
+        plt.savefig(save_path, transparent=False, dpi=400, pad_inches=0.0)
+        plt.clf()
+
+    @staticmethod
+    def show_inference_image(
+        pred_box_tensor,
+        gt_tensor,
+        pcd,
+        pc_range,
+        batch_data=None,
+        visualization_config: Optional[Mapping[str, Any]] = None,
+        method: str = "3d",
+        vis_gt_box: bool = True,
+        vis_pred_box: bool = True,
+        left_hand: bool = False,
+        uncertainty=None,
+    ):
+        config = CoperceptionVisualizer.resolve_visualization_config(visualization_config)
+        canvas = CoperceptionVisualizer._build_canvas(
+            pred_box_tensor=pred_box_tensor,
+            gt_tensor=gt_tensor,
+            pcd=pcd,
+            pc_range=pc_range,
+            batch_data=batch_data,
+            visualization_config=config,
+            method=method,
+            vis_gt_box=vis_gt_box,
+            vis_pred_box=vis_pred_box,
+            left_hand=left_hand,
+            uncertainty=uncertainty,
+        )
+        plt.axis("off")
+        plt.imshow(canvas)
+        plt.tight_layout()
+        plt.show()
+        plt.clf()
+
+    @staticmethod
+    def visualize_inference_sample_dataloader(
+        pred_box_tensor,
+        gt_box_tensor,
+        origin_lidar,
+        o3d_pcd,
+        batch_data=None,
+        visualization_config: Optional[Mapping[str, Any]] = None,
+    ):
+        config = CoperceptionVisualizer.resolve_visualization_config(visualization_config)
+        origin_lidar_np, point_colors_uint8 = CoperceptionVisualizer._get_lidar_points_and_colors(batch_data, origin_lidar, config)
+        pred_color = CoperceptionVisualizer._as_float_color(config["bbox_colors"]["pred"])
+        gt_color = CoperceptionVisualizer._as_float_color(config["bbox_colors"]["gt"])
+
+        origin_lidar_np = np.array(origin_lidar_np, copy=True)
+        origin_lidar_np[:, :1] = -origin_lidar_np[:, :1]
+        point_colors = point_colors_uint8.astype(np.float64) / 255.0
+        o3d_pcd.points = o3d.utility.Vector3dVector(origin_lidar_np[:, :3])
+        o3d_pcd.colors = o3d.utility.Vector3dVector(point_colors)
+
+        pred_o3d_box = vis_utils.bbx2linset(pred_box_tensor, color=pred_color) if pred_box_tensor is not None else []
+        gt_o3d_box = vis_utils.bbx2linset(gt_box_tensor, color=gt_color) if gt_box_tensor is not None else []
+
+        return o3d_pcd, pred_o3d_box, gt_o3d_box
+
+    @staticmethod
+    def _build_canvas(
+        pred_box_tensor,
+        gt_tensor,
+        pcd,
+        pc_range,
+        batch_data=None,
+        visualization_config: Optional[Mapping[str, Any]] = None,
+        method: str = "3d",
+        vis_gt_box: bool = True,
+        vis_pred_box: bool = True,
+        left_hand: bool = False,
+        uncertainty=None,
+    ):
+        import opencood.visualization.simple_plot3d.canvas_3d as canvas_3d
+        import opencood.visualization.simple_plot3d.canvas_bev as canvas_bev
+        from opencood.utils import common_utils
+
+        config = CoperceptionVisualizer.resolve_visualization_config(visualization_config)
+        pc_range = [int(i) for i in pc_range]
+        pcd_np, point_colors = CoperceptionVisualizer._get_lidar_points_and_colors(batch_data, pcd, config)
+        bg_color = CoperceptionVisualizer._as_uint8_color(config["background"])
+        gt_color = CoperceptionVisualizer._as_uint8_color(config["bbox_colors"]["gt"])
+        pred_color = CoperceptionVisualizer._as_uint8_color(config["bbox_colors"]["pred"])
+
+        if vis_pred_box and pred_box_tensor is not None:
+            pred_box_np = common_utils.torch_tensor_to_numpy(pred_box_tensor)
+            pred_name = [""] * pred_box_np.shape[0]
+            if uncertainty is not None:
+                uncertainty_np = common_utils.torch_tensor_to_numpy(uncertainty)
+                uncertainty_np = np.exp(uncertainty_np)
+                d_a_square = 1.6**2 + 3.9**2
+
+                if uncertainty_np.shape[1] == 3:
+                    uncertainty_np[:, :2] *= d_a_square
+                    uncertainty_np = np.sqrt(uncertainty_np)
+                    pred_name = [
+                        f"x_u:{uncertainty_np[i, 0]:.3f} y_u:{uncertainty_np[i, 1]:.3f} a_u:{uncertainty_np[i, 2]:.3f}"
+                        for i in range(uncertainty_np.shape[0])
+                    ]
+                elif uncertainty_np.shape[1] == 2:
+                    uncertainty_np[:, :2] *= d_a_square
+                    uncertainty_np = np.sqrt(uncertainty_np)
+                    pred_name = [f"x_u:{uncertainty_np[i, 0]:.3f} y_u:{uncertainty_np[i, 1]:3f}" for i in range(uncertainty_np.shape[0])]
+                elif uncertainty_np.shape[1] == 7:
+                    uncertainty_np[:, :2] *= d_a_square
+                    uncertainty_np = np.sqrt(uncertainty_np)
+                    pred_name = [
+                        f"x_u:{uncertainty_np[i, 0]:.3f} y_u:{uncertainty_np[i, 1]:3f} a_u:{uncertainty_np[i, 6]:3f}"
+                        for i in range(uncertainty_np.shape[0])
+                    ]
+        else:
+            pred_box_np = None
+            pred_name = []
+
+        if vis_gt_box:
+            gt_box_np = common_utils.torch_tensor_to_numpy(gt_tensor)
+            gt_name = [""] * gt_box_np.shape[0]
+
+        if method == "bev":
+            canvas = canvas_bev.Canvas_BEV_heading_right(
+                canvas_shape=((pc_range[4] - pc_range[1]) * 10, (pc_range[3] - pc_range[0]) * 10),
+                canvas_x_range=(pc_range[0], pc_range[3]),
+                canvas_y_range=(pc_range[1], pc_range[4]),
+                canvas_bg_color=bg_color,
+                left_hand=left_hand,
+            )
+            canvas_xy, valid_mask = canvas.get_canvas_coords(pcd_np)
+            if valid_mask.any():
+                canvas.draw_canvas_points(canvas_xy[valid_mask], colors=point_colors[valid_mask])
+            if vis_gt_box and gt_box_np is not None:
+                canvas.draw_boxes(gt_box_np, colors=gt_color, texts=gt_name, box_line_thickness=5)
+            if vis_pred_box and pred_box_np is not None:
+                canvas.draw_boxes(pred_box_np, colors=pred_color, texts=pred_name, box_line_thickness=5)
+        elif method == "3d":
+            canvas = canvas_3d.Canvas_3D(canvas_bg_color=bg_color, left_hand=left_hand)
+            canvas_xy, valid_mask = canvas.get_canvas_coords(pcd_np)
+            if valid_mask.any():
+                canvas.draw_canvas_points(canvas_xy[valid_mask], colors=point_colors[valid_mask])
+            if vis_gt_box and gt_box_np is not None:
+                canvas.draw_boxes(gt_box_np, colors=gt_color, texts=gt_name)
+            if vis_pred_box and pred_box_np is not None:
+                canvas.draw_boxes(pred_box_np, colors=pred_color, texts=pred_name)
+        else:
+            raise ValueError(f"Unsupported visualization method: {method}")
+
+        return canvas.canvas
+
+    @staticmethod
+    def _to_numpy_points(pcd) -> np.ndarray:
+        if isinstance(pcd, list):
+            from opencood.utils import common_utils
+
+            pcd_np = [common_utils.torch_tensor_to_numpy(x) for x in pcd]
+            pcd_np = pcd_np[0]
+        else:
+            if isinstance(pcd, np.ndarray):
+                pcd_np = pcd
+            else:
+                from opencood.utils import common_utils
+
+                pcd_np = common_utils.torch_tensor_to_numpy(pcd)
+
+        if len(pcd_np.shape) > 2:
+            pcd_np = pcd_np[0]
+        if pcd_np.shape[1] > 4:
+            pcd_np = pcd_np[:, 1:]
+        return np.array(pcd_np, copy=True)
+
+    @staticmethod
+    def _get_lidar_points_and_colors(batch_data, fallback_pcd, config: Mapping[str, Any]) -> Tuple[np.ndarray, np.ndarray]:
+        default_color = CoperceptionVisualizer._as_uint8_color(config["lidar_point_colors"]["default"])
+        ego_color = CoperceptionVisualizer._as_uint8_color(config["lidar_point_colors"].get("ego", default_color))
+
+        if isinstance(batch_data, Mapping):
+            ego_entry = batch_data.get("ego")
+            if isinstance(ego_entry, Mapping) and "origin_lidar_by_agent" in ego_entry:
+                points_by_agent = ego_entry["origin_lidar_by_agent"]
+                roles = list(ego_entry.get("origin_lidar_roles", []))
+                agent_ids = list(ego_entry.get("origin_lidar_agent_ids", []))
+                colored_points = []
+                colored_values = []
+
+                for idx, points in enumerate(points_by_agent):
+                    agent_points = CoperceptionVisualizer._to_numpy_points(points)
+                    if agent_points.size == 0:
+                        continue
+
+                    role = roles[idx] if idx < len(roles) else "default"
+                    agent_id = agent_ids[idx] if idx < len(agent_ids) else None
+                    color = CoperceptionVisualizer._resolve_point_color(
+                        config, agent_id=agent_id, role=role, default_color=default_color, ego_color=ego_color
+                    )
+                    colored_points.append(agent_points)
+                    colored_values.append(np.tile(np.asarray(color, dtype=np.uint8), (agent_points.shape[0], 1)))
+
+                if colored_points:
+                    return np.vstack(colored_points), np.vstack(colored_values)
+
+            colored_points = []
+            colored_values = []
+            for cav_id, cav_content in batch_data.items():
+                if not isinstance(cav_content, Mapping):
+                    continue
+                local_lidar = cav_content.get("origin_lidar_local")
+                if local_lidar is None:
+                    continue
+
+                cav_points = CoperceptionVisualizer._to_numpy_points(local_lidar)
+                if cav_points.size == 0:
+                    continue
+
+                if cav_id != "ego":
+                    from opencood.utils import box_utils
+
+                    transformation_matrix = cav_content.get("transformation_matrix")
+                    if transformation_matrix is not None:
+                        transformation_matrix_np = CoperceptionVisualizer._to_numpy_array(transformation_matrix)
+                        cav_points[:, :3] = box_utils.project_points_by_matrix_torch(cav_points[:, :3], transformation_matrix_np)
+
+                cav_color = CoperceptionVisualizer._resolve_point_color(
+                    config, agent_id=cav_id, role="ego" if cav_id == "ego" else "default", default_color=default_color, ego_color=ego_color
+                )
+                colored_points.append(cav_points)
+                colored_values.append(np.tile(np.asarray(cav_color, dtype=np.uint8), (cav_points.shape[0], 1)))
+
+            if colored_points:
+                return np.vstack(colored_points), np.vstack(colored_values)
+
+        fallback_points = CoperceptionVisualizer._to_numpy_points(fallback_pcd)
+        fallback_colors = np.tile(np.asarray(default_color, dtype=np.uint8), (fallback_points.shape[0], 1))
+        return fallback_points, fallback_colors
+
+    @staticmethod
+    def _as_uint8_color(color: Iterable[Any]) -> Tuple[int, int, int]:
+        rgb = [int(v) for v in list(color)[:3]]
+        return tuple(max(0, min(255, value)) for value in rgb)
+
+    @staticmethod
+    def _as_float_color(color: Iterable[Any]) -> Tuple[float, float, float]:
+        return tuple(channel / 255.0 for channel in CoperceptionVisualizer._as_uint8_color(color))
+
+    @staticmethod
+    def _resolve_point_color(config: Mapping[str, Any], agent_id, role: str, default_color, ego_color):
+        lidar_point_colors = config["lidar_point_colors"]
+        if agent_id is not None and agent_id in lidar_point_colors:
+            return CoperceptionVisualizer._as_uint8_color(lidar_point_colors[agent_id])
+        if role == "ego":
+            return ego_color
+        return default_color
+
+    @staticmethod
+    def _to_numpy_array(value):
+        if isinstance(value, np.ndarray):
+            return np.array(value, copy=True)
+
+        if hasattr(value, "detach"):
+            return value.detach().cpu().numpy()
+
+        return np.array(value, copy=True)
+
+
 if TYPE_CHECKING:
     DatasetOpenCOOD: TypeAlias = LateFusionDataset | EarlyFusionDataset | IntermediateFusionDataset | IntermediateFusionDatasetV2
 else:
@@ -32,12 +366,13 @@ else:
 
 
 class CoperceptionModelManager:
-    def __init__(self, opt, current_time, payload_handler=None):
+    def __init__(self, opt, current_time, payload_handler=None, visualization_config=None):
         self.opt = opt
         self.hypes = yaml_utils.load_yaml(None, self.opt)
         self.model = train_utils.create_model(self.hypes)
         self.current_time = current_time
         self.vis = None
+        self.visualization_config = CoperceptionVisualizer.resolve_visualization_config(visualization_config)
 
         if torch.cuda.is_available():
             self.model.cuda()
@@ -93,7 +428,9 @@ class CoperceptionModelManager:
             if self.vis is None:
                 self.vis = o3d.visualization.Visualizer()  # noqa: DC05
                 self.vis.create_window()  # noqa: DC05
-                self.vis.get_render_option().background_color = [0.05, 0.05, 0.05]  # noqa: DC05
+                self.vis.get_render_option().background_color = (  # noqa: DC05
+                    np.asarray(self.visualization_config["background"], dtype=np.float64) / 255.0
+                )  # noqa: DC05
                 self.vis.get_render_option().point_size = 1.0  # noqa: DC05
                 self.vis.get_render_option().show_coordinate_frame = True  # noqa: DC05
             # used to visualize lidar points
@@ -148,32 +485,52 @@ class CoperceptionModelManager:
                         vis_dir = f"simulation_output/coperception/vis_{mode}/{self.opt.test_scenario}_{self.current_time}"
                         os.makedirs(vis_dir, exist_ok=True)
                         vis_save_path = os.path.join(vis_dir, f"{mode}_{tick_number:05d}.png")
-                        simple_vis.visualize(
+                        CoperceptionVisualizer.render_inference_to_file(
                             pred_box_tensor,
                             gt_box_tensor,
                             pcd_points,
                             self.hypes["postprocess"]["gt_range"],
                             vis_save_path,
+                            batch_data=batch_data,
+                            visualization_config=self.visualization_config,
                             method=mode,
                             left_hand=True,
                             vis_pred_box=True,
                         )
 
                 if self.opt.show_vis:
-                    vis_save_path = ""
-                    self.opencood_dataset.visualize_result(
-                        pred_box_tensor,
-                        gt_box_tensor,
-                        batch_data["ego"]["origin_lidar"],
-                        self.opt.show_vis,
-                        vis_save_path,
-                        dataset=self.opencood_dataset,
-                    )
+                    if self.hypes["postprocess"]["core_method"] == "BevPostprocessor":
+                        CoperceptionVisualizer.show_inference_image(
+                            pred_box_tensor,
+                            gt_box_tensor,
+                            batch_data["ego"]["origin_lidar"],
+                            self.hypes["postprocess"]["gt_range"],
+                            batch_data=batch_data,
+                            visualization_config=self.visualization_config,
+                            method="bev",
+                            left_hand=True,
+                        )
+                    else:
+                        CoperceptionVisualizer.show_inference_image(
+                            pred_box_tensor,
+                            gt_box_tensor,
+                            batch_data["ego"]["origin_lidar"],
+                            self.hypes["postprocess"]["gt_range"],
+                            batch_data=batch_data,
+                            visualization_config=self.visualization_config,
+                            method="3d",
+                            left_hand=True,
+                        )
 
                 if self.opt.show_sequence and pred_box_tensor is not None and self.hypes["postprocess"]["core_method"] != "BevPostprocessor":
                     self.vis.clear_geometries()
-                    pcd, pred_o3d_box, gt_o3d_box = vis_utils.visualize_inference_sample_dataloader(
-                        pred_box_tensor, gt_box_tensor, batch_data["ego"]["origin_lidar"], vis_pcd, mode="constant"
+                    pcd, pred_o3d_box, gt_o3d_box = CoperceptionVisualizer.visualize_inference_sample_dataloader(
+                        pred_box_tensor,
+                        gt_box_tensor,
+                        batch_data["ego"]["origin_lidar"],
+                        vis_pcd,
+                        batch_data=batch_data,
+                        visualization_config=self.visualization_config,
                     )
                     if i == 0:
                         self.vis.add_geometry(pcd)

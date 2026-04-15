@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, NoReturn, cast
 
 import carla
+import omegaconf
 import sumolib
 from omegaconf import DictConfig, OmegaConf
 
@@ -37,12 +38,10 @@ class Scenario:
     scenario_manager: sim_api.ScenarioManager | sim_api.CoScenarioManager
     single_cav_list: list[VehicleManager]
     rsu_list: list[RSUManager]
-    # TODO: find spectator type
     spectator: carla.Actor
     cav_world: CavWorld
     codriving_model_manager: AIMModelManager  # [CoDrivingInt]
     platoon_list: list[PlatooningManager]
-    # TODO: find bg cars type
     bg_veh_list: list[carla.Actor]
     scenario_name: str
 
@@ -175,7 +174,16 @@ class Scenario:
                     logger.error(f'Model directory "{opt.model_dir}" does not exist.')
                     sys.exit(1)
 
-                self.coperception_model_manager = CoperceptionModelManager(opt=opt, current_time=current_time, payload_handler=self.payload_handler)
+                cp_vis_config = omegaconf.OmegaConf.to_container(
+                    scenario_params.get("cooperative_perception_visualization", {}),
+                    resolve=True,
+                )
+                self.coperception_model_manager = CoperceptionModelManager(
+                    opt=opt,
+                    current_time=current_time,
+                    payload_handler=self.payload_handler,
+                    visualization_config=cp_vis_config,
+                )
                 logger.info("created cooperception manager")
 
         if opt.with_aim:
