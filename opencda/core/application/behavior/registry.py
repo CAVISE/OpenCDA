@@ -40,7 +40,7 @@ class BehaviorServiceRegistry:
         return service_cls
 
     @classmethod
-    def get_service_class(cls, service_name: str) -> type[BehaviorService[Any, Any]]:
+    def get_service_class(cls, service_name: str) -> type[BehaviorServiceT]:
         """Return a behavior service class for the given service name."""
         if service_name not in cls._registry:
             available = cls.list_services()
@@ -48,7 +48,7 @@ class BehaviorServiceRegistry:
         return cls._registry[service_name]
 
     @classmethod
-    def create_service(cls, service_name: str, **kwargs: Any) -> BehaviorService[Any, Any]:
+    def create_service(cls, service_name: str, **kwargs: Any) -> BehaviorServiceT:
         """Instantiate a behavior service by name."""
         service_cls = cls.get_service_class(service_name=service_name)
         return service_cls(**kwargs)
