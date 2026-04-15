@@ -3,6 +3,10 @@ Basic class for RSU(Roadside Unit) management.
 """
 
 import logging
+from dataclasses import is_dataclass
+from typing import Any, Dict, Iterable, Optional, Tuple
+
+from opencda.core.application.behavior.behavior_application_protocol import BehaviorApplication
 from opencda.core.common.data_dumper import DataDumper
 from opencda.core.sensing.perception.perception_manager import PerceptionManager
 from opencda.core.sensing.localization.rsu_localization_manager import LocalizationManager
@@ -52,8 +56,16 @@ class RSUManager(object):
     used_ids = set()
 
     def __init__(
-        self, carla_world, config_yaml, carla_map, cav_world, current_time="", data_dumping=False, autogenerate_id_on_failure=True
-    ):  # TODO: Привязать к конфигу сценария
+        self,
+        carla_world,
+        config_yaml,
+        carla_map,
+        cav_world,
+        current_time="",
+        data_dumping=False,
+        autogenerate_id_on_failure=True,
+        behavior_applications: Optional[Iterable[BehaviorApplication[Any, Any]]] = None,
+    ):
         config_id = config_yaml.get("id")
 
         if config_id is not None:
@@ -111,6 +123,9 @@ class RSUManager(object):
         else:
             self.data_dumper = None
 
+        self.__set_behavior_applications(behavior_applications)
+        self.__attach_behavior_applications()
+
         cav_world.update_rsu_manager(self)
 
     def __generate_unique_rsu_id(self):
@@ -122,6 +137,107 @@ class RSUManager(object):
                 RSUManager.current_id += 1
                 return candidate
             RSUManager.current_id += 1
+
+    def __set_behavior_applications(self, behavior_applications: Optional[Iterable[BehaviorApplication[Any, Any]]]) -> None:
+        applications = tuple(behavior_applications or ())
+        self.__validate_behavior_applications(applications)
+        self.behavior_applications = applications
+        self.behavior_application_results = {}
+        self._behavior_applications_by_id = {
+            application.application_id: application for application in self.behavior_applications
+        }
+
+    def __validate_behavior_applications(
+        self, behavior_applications: Tuple[BehaviorApplication[Any, Any], ...]
+    ) -> None:
+        seen_application_ids = set()
+
+        for application in behavior_applications:
+            if not isinstance(application, BehaviorApplication):
+                raise TypeError(
+                    "Each behavior application must implement the BehaviorApplication protocol; "
+                    f"got {type(application).__name__!r}."
+                )
+
+            application_id = application.application_id
+            if application_id in seen_application_ids:
+                raise ValueError(f"Duplicate behavior application ID detected: {application_id!r}.")
+
+            seen_application_ids.add(application_id)
+
+    def __attach_behavior_applications(self) -> None:
+        attached_applications = []
+
+        try:
+            for application in self.behavior_applications:
+                application.on_attach(self.rid)
+                attached_applications.append(application)
+        except Exception:
+            for application in reversed(attached_applications):
+                try:
+                    application.on_detach()
+                except Exception:
+                    logger.exception(
+                        "Failed to detach behavior application %r while rolling back RSU %r attachment.",
+                        application.application_id,
+                        self.rid,
+                    )
+            raise
+
+    def __detach_behavior_applications(self) -> None:
+        first_exception = None
+
+        for application in reversed(self.behavior_applications):
+            try:
+                application.on_detach()
+            except Exception as exc:
+                logger.exception(
+                    "Failed to detach behavior application %r from RSU %r.",
+                    application.application_id,
+                    self.rid,
+                )
+                if first_exception is None:
+                    first_exception = exc
+
+        if first_exception is not None:
+            raise first_exception
+
+    def __validate_behavior_application_messages(self, messages: list[Any]) -> None:
+        for message in messages:
+            if not is_dataclass(message) or isinstance(message, type):
+                raise TypeError(
+                    "Behavior application input must be a list of dataclass instances; "
+                    f"got {type(message).__name__!r}."
+                )
+
+            application_id = getattr(message, "application_id", None)
+            if not isinstance(application_id, str) or not application_id:
+                raise TypeError(
+                    "Each behavior application message must define a non-empty 'application_id' attribute; "
+                    f"got {type(message).__name__!r}."
+                )
+
+            if application_id not in self._behavior_applications_by_id:
+                raise ValueError(
+                    f"Behavior application message references unknown application_id {application_id!r}."
+                )
+
+    def __group_behavior_application_messages(self, messages: list[Any]) -> Dict[str, list[Any]]:
+        grouped_messages = {application.application_id: [] for application in self.behavior_applications}
+
+        for message in messages:
+            grouped_messages[message.application_id].append(message)
+
+        return grouped_messages
+
+    def update_behavior_applications(self, messages: list[Any]) -> None:
+        self.__validate_behavior_application_messages(messages)
+        grouped_messages = self.__group_behavior_application_messages(messages)
+        self.behavior_application_results = {}
+
+        for application in self.behavior_applications:
+            application_messages = grouped_messages[application.application_id]
+            self.behavior_application_results[application.application_id] = application.process(application_messages)
 
     def update_info(self):
         """
@@ -140,10 +256,14 @@ class RSUManager(object):
         # TODO: Добавить обновление информации
         pass
 
-    def run_step(self):
+    def run_step(self, messages: Optional[list[Any]] = None):
         """
-        Currently only used for dumping data.
+        Run behavior applications for the provided message batch and
+        execute the current RSU step side effects.
         """
+        if messages is not None:
+            self.update_behavior_applications(messages)
+
         # dump data
         if self.data_dumper:
             self.data_dumper.run_step(self.perception_manager, self.localizer, None)
@@ -152,5 +272,8 @@ class RSUManager(object):
         """
         Destroy the actor vehicle
         """
-        self.perception_manager.destroy()
-        self.localizer.destroy()
+        try:
+            self.__detach_behavior_applications()
+        finally:
+            self.perception_manager.destroy()
+            self.localizer.destroy()
