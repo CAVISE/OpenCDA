@@ -8,8 +8,7 @@ import logging
 from typing import Any, Dict, Iterable, Optional, Tuple
 
 from opencda.core.actuation.control_manager import ControlManager
-from opencda.core.application.behavior import create_service
-from opencda.core.application.behavior.behavior_service_protocol import BehaviorService
+from opencda.core.application.behavior import create_service, BehaviorService
 from opencda.core.application.platooning.platoon_behavior_agent import PlatooningBehaviorAgent
 from opencda.core.common.v2x_manager import V2XManager
 from opencda.core.sensing.localization.localization_manager import LocalizationManager
