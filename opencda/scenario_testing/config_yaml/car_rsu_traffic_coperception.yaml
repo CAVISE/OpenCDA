@@ -100,14 +100,6 @@ carla_traffic_manager:
   range:
     - [-70, 80, 0, 200, 5, 5, 25]
 
-# define sumo simulation setting for traffic generation
-sumo:
-  port: 3000
-  host: sumo
-  gui: true
-  client_order: 2
-  step_length: ${world.fixed_delta_seconds}
-
 scenario:
   rsu_list:
     - name: rsu1

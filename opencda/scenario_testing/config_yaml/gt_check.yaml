@@ -54,14 +54,6 @@ vehicle_base:
     max_speed: 30
     overtake_allowed: false
 
-# define sumo simulation setting for traffic generation
-sumo:
-  port: 3000
-  host: sumo
-  gui: true
-  client_order: 2
-  step_length: ${world.fixed_delta_seconds}
-
 scenario:
 
   single_cav_list:

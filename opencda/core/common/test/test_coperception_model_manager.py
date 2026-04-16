@@ -1,18 +1,28 @@
 import os
+from collections import OrderedDict
 import pytest
 from unittest.mock import MagicMock, patch
 from pathlib import Path
+import numpy as np
 
 # The production code imports are now safe because pytest_configure in conftest.py
 # installs the mocks before collection.
-from opencda.core.common.coperception_model_manager import CoperceptionModelManager, DirectoryProcessor
+from opencda.core.attack.advcp import AdvCoperceptionModelManager
+from opencda.core.attack.advcp.adv_coperception_model_manager import AdvCoperceptionVisualizer
+from opencda.core.common.coperception_model_manager import (
+    CoperceptionInferenceResult,
+    CoperceptionModelManager,
+    CoperceptionVisualizer,
+    EvaluationResultStat,
+    IoUResultStat,
+)
+from opencda.core.common.directory_processor import DirectoryProcessor
 
 
 class DummyOpt:
     def __init__(self, **kwargs):
         self.model_dir = "test_model_dir"
         self.fusion_method = "late"
-        self.show_vis = False
         self.show_sequence = False
         self.save_npy = False
         self.save_vis = False
@@ -34,7 +44,7 @@ class DummyDataset:
     def visualize_result(self, *args, **kwargs):
         pass
 
-    def update_database(self):
+    def update_database(self, memory_data=None):
         pass
 
 
@@ -129,18 +139,36 @@ class TestCoperceptionModelManager:
         We patch the symbol inside the module under test to ensure we capture the call.
         """
         dataset_mock = DummyDataset()
+        dataset_mock.update_database = MagicMock()
+        memory_data = {0: {"cav_1": {"000010": {"yaml": "a.yaml", "lidar": "a.pcd"}}}}
 
         # Patching where it is imported in the source code
         with patch("opencda.core.common.coperception_model_manager.build_dataset", return_value=dataset_mock) as mock_build:
             opt = DummyOpt()
             manager = CoperceptionModelManager(opt, "2023_01_01")
 
-            manager.update_dataset()
+            manager.update_dataset(data=memory_data)
 
-            mock_build.assert_called_with(manager_deps["hypes"], visualize=True, train=False, message_handler=None)
+            dataset_mock.update_database.assert_called_once_with(memory_data=memory_data)
+            mock_build.assert_called_with(manager_deps["hypes"], visualize=True, train=False, payload_handler=None)
             assert manager.opencood_dataset == dataset_mock
             assert manager.data_loader is not None
             assert manager.data_loader.dataset == dataset_mock
+
+    def test_update_dataset_logs_warning_for_empty_dataset(self):
+        """Verify warning is emitted when update leads to an empty dataset."""
+        dataset_mock = MagicMock()
+        dataset_mock.collate_batch_test = MagicMock()
+        dataset_mock.__len__.return_value = 0
+
+        with patch("opencda.core.common.coperception_model_manager.build_dataset", return_value=dataset_mock):
+            manager = CoperceptionModelManager(DummyOpt(), "2023_01_01")
+
+        with patch("opencda.core.common.coperception_model_manager.logger.warning") as mock_warning:
+            manager.update_dataset(data={"in_memory": True})
+
+        dataset_mock.update_database.assert_called_once_with(memory_data={"in_memory": True})
+        mock_warning.assert_called_once_with("No samples found in dataset after update.")
 
     def test_make_prediction_state_update(self, manager_deps):
         """Test that final_result_stat is actually updated via caluclate_tp_fp side effect."""
@@ -168,6 +196,42 @@ class TestCoperceptionModelManager:
             assert len(manager.final_result_stat[iou]["tp"]) == 1
             assert manager.final_result_stat[iou]["score"][0] == 0.9
 
+    def test_evaluation_result_stat_merges_nested_iou_stats(self):
+        accumulated = EvaluationResultStat.create_empty()
+        batch = EvaluationResultStat.create_empty()
+
+        batch[0.3]["gt"] = 2
+        batch[0.3]["tp"].extend([1, 1])
+        batch[0.3]["fp"].append(0)
+        batch[0.3]["score"].extend([0.7, 0.8])
+
+        batch[0.5]["gt"] = 1
+        batch[0.5]["tp"].append(1)
+        batch[0.5]["score"].append(0.9)
+
+        accumulated.merge_from(batch)
+
+        assert accumulated[0.3]["gt"] == 2
+        assert accumulated[0.3]["tp"] == [1, 1]
+        assert accumulated[0.3]["fp"] == [0]
+        assert accumulated[0.3]["score"] == [0.7, 0.8]
+        assert accumulated[0.5]["gt"] == 1
+        assert accumulated[0.5]["tp"] == [1]
+        assert accumulated[0.5]["score"] == [0.9]
+
+    def test_iou_result_stat_supports_dict_style_updates(self):
+        stat = IoUResultStat.create_empty()
+
+        stat["gt"] += 1
+        stat["tp"].append(1)
+        stat["fp"].append(0)
+        stat["score"].append(0.5)
+
+        assert stat.gt == 1
+        assert stat.tp == [1]
+        assert stat.fp == [0]
+        assert stat.score == [0.5]
+
     @pytest.mark.parametrize("fusion_method", ["late", "early", "intermediate"])
     def test_make_prediction_fusion_methods(self, fusion_method, manager_deps):
         opt = DummyOpt(fusion_method=fusion_method)
@@ -184,15 +248,30 @@ class TestCoperceptionModelManager:
         elif fusion_method == "intermediate":
             manager_deps["inference_utils"].inference_intermediate_fusion.assert_called()
 
+    def test_make_prediction_late_advcp_uses_manager(self, manager_deps):
+        opt = DummyOpt(fusion_method="late", with_advcp=True, advcp_config="dummy.yaml")
+        with patch.object(AdvCoperceptionModelManager, "load_config", return_value={"mode": "spoof", "attacker_id": "cav-2", "boxes": [{}]}):
+            manager = AdvCoperceptionModelManager(opt, "2023_01_01")
+        manager.data_loader = [{"ego": {"origin_lidar": ["lidar_data"]}}]
+        manager.opencood_dataset = MagicMock()
+        manager.advcp_config = {"mode": "spoof", "attacker_id": "cav-2", "boxes": [{}]}
+
+        with patch.object(
+            AdvCoperceptionModelManager,
+            "_inference_late_fusion_attack",
+            return_value=("pred", "score", "gt", {"attacker_ids": ["cav-2"], "fake_box_tensor": "fake"}),
+        ) as mock_advcp:
+            manager.make_prediction(0)
+            result = manager.inference({"ego": {"origin_lidar": ["lidar_data"]}})
+
+        assert mock_advcp.call_count == 2
+        assert isinstance(result, CoperceptionInferenceResult)
+        assert result.visualization_context == {"attacker_ids": ["cav-2"], "fake_box_tensor": "fake"}
+
     def test_make_prediction_assertions(self):
         opt = DummyOpt(fusion_method="invalid")
         manager = CoperceptionModelManager(opt, "2023_01_01")
         with pytest.raises(AssertionError):
-            manager.make_prediction(0)
-
-        opt = DummyOpt(fusion_method="late", show_vis=True, show_sequence=True)
-        manager = CoperceptionModelManager(opt, "2023_01_01")
-        with pytest.raises(AssertionError, match="single image mode or video mode"):
             manager.make_prediction(0)
 
     def test_make_prediction_save_npy(self, manager_deps, tmp_path, monkeypatch):
@@ -231,14 +310,17 @@ class TestCoperceptionModelManager:
         manager.opencood_dataset = MagicMock()
         manager_deps["inference_utils"].inference_late_fusion.return_value = ("p", "s", "g")
 
-        manager.make_prediction(5)
+        with patch.object(CoperceptionVisualizer, "render_inference_to_file") as mock_render:
+            manager.make_prediction(5)
 
         # Verify directories
         base_dir = tmp_path / "simulation_output/coperception"
         assert (base_dir / "vis_3d/scen1_2023_01_01").exists()
         assert (base_dir / "vis_bev/scen1_2023_01_01").exists()
 
-        assert manager_deps["simple_vis"].visualize.call_count == 2
+        assert mock_render.call_count == 2
+        assert mock_render.call_args_list[0].kwargs["method"] == "3d"
+        assert mock_render.call_args_list[1].kwargs["method"] == "bev"
 
     def test_make_prediction_show_sequence(self, manager_deps, fake_heavy_deps):
         """Test Open3D interactions without opening windows."""
@@ -252,7 +334,12 @@ class TestCoperceptionModelManager:
         # Ensure pred is not None
         manager_deps["inference_utils"].inference_late_fusion.return_value = ("box", "score", "gt")
 
-        manager.make_prediction(0)
+        with patch.object(
+            CoperceptionVisualizer,
+            "visualize_inference_sample_dataloader",
+            return_value=(MagicMock(name="pcd"), {"pred": [MagicMock(name="pred_box")], "gt": [MagicMock(name="gt_box")]}),
+        ) as mock_visualize:
+            manager.make_prediction(0)
 
         # Check Visualizer creation (mocked class in conftest)
         manager_deps["Visualizer"].assert_called()
@@ -261,9 +348,45 @@ class TestCoperceptionModelManager:
         vis_instance.create_window.assert_called()
         vis_instance.add_geometry.assert_called()  # i=0
         vis_instance.update_renderer.assert_called()
+        mock_visualize.assert_called_once()
 
         # Verify line set assignment was called
-        manager_deps["vis_utils"].linset_assign_list.assert_called()
+        assert manager_deps["vis_utils"].linset_assign_list.call_count == 2
+
+    def test_make_prediction_warns_and_uses_first_batch_when_loader_has_multiple_batches(self, manager_deps):
+        opt = DummyOpt(fusion_method="late")
+        manager = CoperceptionModelManager(opt, "2023_01_01")
+        manager.data_loader = [
+            {"ego": {"origin_lidar": ["lidar_first"]}},
+            {"ego": {"origin_lidar": ["lidar_second"]}},
+        ]
+        manager.opencood_dataset = MagicMock()
+
+        with patch("opencda.core.common.coperception_model_manager.logger.warning") as mock_warning:
+            manager.make_prediction(0)
+
+        assert manager_deps["train_utils"].to_device.call_count == 1
+        processed_batch = manager_deps["train_utils"].to_device.call_args[0][0]
+        assert processed_batch["ego"]["origin_lidar"] == ["lidar_first"]
+        assert mock_warning.call_count == 2
+        warning_messages = [call.args[0] for call in mock_warning.call_args_list]
+        assert "Expected exactly 1 batch" in warning_messages[0]
+        assert warning_messages[1] == "Only the first batch will be processed."
+
+    def test_make_prediction_warns_and_skips_when_loader_is_empty(self, manager_deps):
+        opt = DummyOpt(fusion_method="late")
+        manager = CoperceptionModelManager(opt, "2023_01_01")
+        manager.data_loader = []
+        manager.opencood_dataset = MagicMock()
+
+        with patch("opencda.core.common.coperception_model_manager.logger.warning") as mock_warning:
+            manager.make_prediction(0)
+
+        manager_deps["train_utils"].to_device.assert_not_called()
+        manager_deps["inference_utils"].inference_late_fusion.assert_not_called()
+        assert mock_warning.call_count == 2
+        assert "Expected exactly 1 batch" in mock_warning.call_args_list[0].args[0]
+        assert mock_warning.call_args_list[1].args[0] == "Skipping cooperative perception prediction because the data loader is empty."
 
     def test_final_eval(self, manager_deps, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
@@ -279,9 +402,108 @@ class TestCoperceptionModelManager:
         manager_deps["eval_utils"].eval_final_results.assert_called()
         args = manager_deps["eval_utils"].eval_final_results.call_args[0]
         # Check path arg
-        assert args[0] is manager.final_result_stat
+        assert args[0] == manager.final_result_stat.as_dict()
         assert Path(args[1]).resolve() == expected_dir.resolve()
         assert args[2] == opt.global_sort_detections
+
+
+class TestCoperceptionVisualizer:
+    def test_resolve_visualization_config_merges_defaults_and_overrides(self):
+        config = CoperceptionVisualizer.resolve_visualization_config(
+            {
+                "background": (12, 18, 24),
+                "lidar_point_colors": {
+                    "default": (200, 200, 200),
+                    "cav-2": (10, 20, 30),
+                },
+                "bbox_colors": {"pred": (1, 2, 3)},
+            }
+        )
+
+        assert config["background"] == (12, 18, 24)
+        assert config["lidar_point_colors"]["default"] == (200, 200, 200)
+        assert config["lidar_point_colors"]["ego"] == (80, 255, 80)
+        assert config["lidar_point_colors"]["cav-2"] == (10, 20, 30)
+        assert config["bbox_colors"]["pred"] == (1, 2, 3)
+        assert config["bbox_colors"]["gt"] == (0, 255, 0)
+
+    def test_get_lidar_points_and_colors_keeps_agent_order_and_applies_id_override(self):
+        config = CoperceptionVisualizer.resolve_visualization_config(
+            {
+                "lidar_point_colors": {
+                    "default": (200, 200, 200),
+                    "ego": (10, 250, 10),
+                    "cav-2": (90, 80, 70),
+                }
+            }
+        )
+        batch_data = {
+            "ego": {
+                "origin_lidar_by_agent": [
+                    np.array([[1.0, 0.0, 0.0, 1.0]]),
+                    np.array([[2.0, 0.0, 0.0, 1.0], [3.0, 0.0, 0.0, 1.0]]),
+                ],
+                "origin_lidar_roles": ["ego", "other"],
+                "origin_lidar_agent_ids": ["cav-1", "cav-2"],
+            }
+        }
+
+        points, colors = CoperceptionVisualizer._get_lidar_points_and_colors(batch_data, None, config)
+
+        assert points.tolist() == [[1.0, 0.0, 0.0, 1.0], [2.0, 0.0, 0.0, 1.0], [3.0, 0.0, 0.0, 1.0]]
+        assert colors.tolist() == [[10, 250, 10], [90, 80, 70], [90, 80, 70]]
+
+    def test_get_lidar_points_and_colors_prefers_agent_id_override_over_ego_role(self):
+        config = CoperceptionVisualizer.resolve_visualization_config(
+            {
+                "lidar_point_colors": {
+                    "default": (255, 255, 255),
+                    "ego": (80, 255, 80),
+                    "cav-1": (123, 45, 67),
+                }
+            }
+        )
+        batch_data = {
+            "ego": {
+                "origin_lidar_by_agent": [np.array([[1.0, 2.0, 3.0, 1.0]])],
+                "origin_lidar_roles": ["ego"],
+                "origin_lidar_agent_ids": ["cav-1"],
+            }
+        }
+
+        _, colors = CoperceptionVisualizer._get_lidar_points_and_colors(batch_data, None, config)
+
+        assert colors.tolist() == [[123, 45, 67]]
+
+    def test_advcp_visualizer_marks_attackers_when_context_is_present(self):
+        config = AdvCoperceptionVisualizer.resolve_visualization_config(
+            {
+                "lidar_point_colors": {
+                    "default": (255, 255, 255),
+                    "ego": (80, 255, 80),
+                    "attackers": (255, 90, 90),
+                }
+            }
+        )
+        batch_data = {
+            "ego": {
+                "origin_lidar_by_agent": [
+                    np.array([[1.0, 2.0, 3.0, 1.0]]),
+                    np.array([[4.0, 5.0, 6.0, 1.0]]),
+                ],
+                "origin_lidar_roles": ["ego", "default"],
+                "origin_lidar_agent_ids": ["cav-1", "cav-2"],
+            }
+        }
+
+        _, colors = AdvCoperceptionVisualizer._get_lidar_points_and_colors(
+            batch_data,
+            None,
+            config,
+            visualization_context={"attacker_ids": ["cav-2"]},
+        )
+
+        assert colors.tolist() == [[80, 255, 80], [255, 90, 90]]
 
 
 # --- Tests for DirectoryProcessor ---
@@ -291,12 +513,8 @@ class TestDirectoryProcessor:
     @pytest.fixture
     def processor_setup(self, tmp_path):
         source_dir = tmp_path / "data_dumping"
-        # IMPORTANT: now_dir must NOT be inside source_dir, otherwise it becomes part of
-        # subdirectories and breaks the "subdirectories[-2]" selection logic.
-        now_dir = tmp_path / "now"
         source_dir.mkdir(parents=True)
-        now_dir.mkdir(parents=True)
-        return source_dir, now_dir
+        return source_dir
 
     def test_detect_cameras(self, tmp_path):
         dp = DirectoryProcessor()
@@ -314,38 +532,198 @@ class TestDirectoryProcessor:
         cameras = dp.detect_cameras(str(data_dir))
         assert cameras == ["_camera0.png", "_camera1.png", "_camera2.png"]
 
-    def test_process_directory_success(self, processor_setup):
-        source_dir, now_dir = processor_setup
-        dp = DirectoryProcessor(str(source_dir), str(now_dir))
+    def test_retrieve_data_structure_success(self, processor_setup):
+        source_dir = processor_setup
+        dp = DirectoryProcessor(str(source_dir))
 
-        # Needs at least 2 dirs. Sorted order: d1, d2.
-        # Code picks index -2 -> d1.
         d1 = source_dir / "d1"
         d2 = source_dir / "d2"
         d1.mkdir()
         d2.mkdir()
 
-        (d1 / "data_protocol.yaml").write_text("proto")
-        agent1 = d1 / "agent1"
-        agent1.mkdir()
+        rsu = d1 / "rsu_0"
+        cav = d1 / "veh_1"
+        rsu.mkdir()
+        cav.mkdir()
 
-        # Files for tick 10
-        (agent1 / "000010.pcd").write_text("pcd")
-        (agent1 / "000010.yaml").write_text("yaml")
+        (rsu / "000010.yaml").write_text("rsu-yaml")
+        (rsu / "000010.pcd").write_text("rsu-pcd")
+        (rsu / "000010_camera0.png").write_text("cam0")
 
-        dp.process_directory(10)
+        (cav / "000010.yaml").write_text("cav-yaml")
+        (cav / "000010.pcd").write_text("cav-pcd")
+        (cav / "000010_camera0.png").write_text("cam0")
 
-        assert (now_dir / "data_protocol.yaml").exists()
-        assert (now_dir / "data_protocol.yaml").read_text() == "proto"
-        assert (now_dir / "agent1" / "000010.pcd").exists()
-        assert (now_dir / "agent1" / "000010.pcd").read_text() == "pcd"
+        structure = dp.retrieve_data_structure(10)
 
-    def test_clear_directory_now(self, processor_setup):
-        _, now_dir = processor_setup
-        dp = DirectoryProcessor(now_directory=str(now_dir))
-        (now_dir / "file.txt").touch()
-        (now_dir / "subdir").mkdir()
+        assert isinstance(structure, OrderedDict)
+        assert list(structure.keys()) == [0]
+        assert list(structure[0].keys()) == ["veh_1", "rsu_0"]
 
-        dp.clear_directory_now()
+        ts = "000010"
+        cav_data = structure[0]["veh_1"][ts]
+        rsu_data = structure[0]["rsu_0"][ts]
 
-        assert len(os.listdir(now_dir)) == 0
+        assert cav_data["yaml"].endswith(os.path.join("veh_1", "000010.yaml"))
+        assert cav_data["lidar"].endswith(os.path.join("veh_1", "000010.pcd"))
+        assert cav_data["camera0"] == [str(cav / "000010_camera0.png")]
+        assert structure[0]["veh_1"]["ego"] is True
+
+        assert rsu_data["yaml"].endswith(os.path.join("rsu_0", "000010.yaml"))
+        assert rsu_data["lidar"].endswith(os.path.join("rsu_0", "000010.pcd"))
+        assert rsu_data["camera0"] == [str(rsu / "000010_camera0.png")]
+        assert structure[0]["rsu_0"]["ego"] is False
+
+    def test_retrieve_data_structure_returns_none_when_not_enough_snapshots(self, processor_setup):
+        source_dir = processor_setup
+        dp = DirectoryProcessor(str(source_dir))
+
+        (source_dir / "d1").mkdir()
+
+        assert dp.retrieve_data_structure(10) is None
+
+    def test_retrieve_data_structure_returns_none_when_no_valid_agents(self, processor_setup):
+        source_dir = processor_setup
+        dp = DirectoryProcessor(str(source_dir))
+
+        d1 = source_dir / "d1"
+        d2 = source_dir / "d2"
+        d1.mkdir()
+        d2.mkdir()
+
+        invalid_agent = d1 / "cav_1"
+        invalid_agent.mkdir()
+        (invalid_agent / "000010.yaml").write_text("only-yaml")
+
+        assert dp.retrieve_data_structure(10) is None
+
+    def test_retrieve_data_structure_returns_none_when_expected_ego_is_incomplete(self, processor_setup):
+        source_dir = processor_setup
+        dp = DirectoryProcessor(str(source_dir))
+
+        d1 = source_dir / "d1"
+        d2 = source_dir / "d2"
+        d1.mkdir()
+        d2.mkdir()
+
+        cav_1 = d1 / "cav_1"
+        cav_2 = d1 / "cav_2"
+        cav_1.mkdir()
+        cav_2.mkdir()
+
+        # First expected ego agent is incomplete for this tick.
+        (cav_1 / "000010.yaml").write_text("yaml")
+
+        # Another agent is valid, but should not silently become ego.
+        (cav_2 / "000010.yaml").write_text("yaml")
+        (cav_2 / "000010.pcd").write_text("pcd")
+
+        assert dp.retrieve_data_structure(10) is None
+
+    def test_retrieve_data_structure_fallback_when_detect_cameras_fails(self, processor_setup, monkeypatch):
+        source_dir = processor_setup
+        dp = DirectoryProcessor(str(source_dir))
+
+        d1 = source_dir / "d1"
+        d2 = source_dir / "d2"
+        d1.mkdir()
+        d2.mkdir()
+
+        cav = d1 / "cav_1"
+        cav.mkdir()
+        (cav / "000010.yaml").write_text("yaml")
+        (cav / "000010.pcd").write_text("pcd")
+
+        monkeypatch.setattr(dp, "detect_cameras", MagicMock(side_effect=RuntimeError("camera probe failed")))
+
+        structure = dp.retrieve_data_structure(10)
+
+        assert structure is not None
+        assert structure[0]["cav_1"]["000010"]["camera0"] == []
+        assert structure[0]["cav_1"]["ego"] is True
+
+    def test_retrieve_data_structure_respects_max_cav(self, processor_setup):
+        source_dir = processor_setup
+        dp = DirectoryProcessor(str(source_dir), max_cav=1)
+
+        d1 = source_dir / "d1"
+        d2 = source_dir / "d2"
+        d1.mkdir()
+        d2.mkdir()
+
+        cav_1 = d1 / "cav_1"
+        cav_2 = d1 / "cav_2"
+        cav_1.mkdir()
+        cav_2.mkdir()
+
+        (cav_1 / "000010.yaml").write_text("yaml")
+        (cav_1 / "000010.pcd").write_text("pcd")
+        (cav_2 / "000010.yaml").write_text("yaml")
+        (cav_2 / "000010.pcd").write_text("pcd")
+
+        structure = dp.retrieve_data_structure(10)
+
+        assert structure is not None
+        assert list(structure[0].keys()) == ["cav_1"]
+        assert structure[0]["cav_1"]["ego"] is True
+
+    def test_retrieve_data_structure_respects_max_cav_after_rsu_reorder(self, processor_setup):
+        source_dir = processor_setup
+        dp = DirectoryProcessor(str(source_dir), max_cav=2)
+
+        d1 = source_dir / "d1"
+        d2 = source_dir / "d2"
+        d1.mkdir()
+        d2.mkdir()
+
+        rsu = d1 / "rsu_0"
+        cav_1 = d1 / "veh_1"
+        cav_2 = d1 / "veh_2"
+        rsu.mkdir()
+        cav_1.mkdir()
+        cav_2.mkdir()
+
+        (rsu / "000010.yaml").write_text("yaml")
+        (rsu / "000010.pcd").write_text("pcd")
+        (cav_1 / "000010.yaml").write_text("yaml")
+        (cav_1 / "000010.pcd").write_text("pcd")
+        (cav_2 / "000010.yaml").write_text("yaml")
+        (cav_2 / "000010.pcd").write_text("pcd")
+
+        structure = dp.retrieve_data_structure(10)
+
+        assert structure is not None
+        assert list(structure[0].keys()) == ["veh_1", "veh_2"]
+        assert "rsu_0" not in structure[0]
+        assert structure[0]["veh_1"]["ego"] is True
+        assert structure[0]["veh_2"]["ego"] is False
+
+    def test_update_dataset_logs_warning_for_empty_memory_data_dict(self):
+        """Empty dict as memory_data should be propagated and trigger empty-dataset warning."""
+        dataset_mock = MagicMock()
+        dataset_mock.collate_batch_test = MagicMock()
+        dataset_mock.__len__.return_value = 0
+
+        with patch("opencda.core.common.coperception_model_manager.build_dataset", return_value=dataset_mock):
+            manager = CoperceptionModelManager(DummyOpt(), "2023_01_01")
+
+        with patch("opencda.core.common.coperception_model_manager.logger.warning") as mock_warning:
+            manager.update_dataset(data={})
+
+        dataset_mock.update_database.assert_called_once_with(memory_data={})
+        mock_warning.assert_called_once_with("No samples found in dataset after update.")
+
+    def test_update_dataset_logs_warning_for_none_memory_data(self):
+        """None as memory_data should be propagated and trigger empty-dataset warning."""
+        dataset_mock = MagicMock()
+        dataset_mock.collate_batch_test = MagicMock()
+        dataset_mock.__len__.return_value = 0
+
+        with patch("opencda.core.common.coperception_model_manager.build_dataset", return_value=dataset_mock):
+            manager = CoperceptionModelManager(DummyOpt(), "2023_01_01")
+
+        with patch("opencda.core.common.coperception_model_manager.logger.warning") as mock_warning:
+            manager.update_dataset(data=None)
+
+        dataset_mock.update_database.assert_called_once_with(memory_data=None)
+        mock_warning.assert_called_once_with("No samples found in dataset after update.")

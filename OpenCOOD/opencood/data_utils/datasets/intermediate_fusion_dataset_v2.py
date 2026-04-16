@@ -18,79 +18,42 @@ from opencood.utils.transformation_utils import x1_to_x2
 from opencood.pcdet_utils.roiaware_pool3d.roiaware_pool3d_utils import points_in_boxes_cpu
 
 
-# TODO: У модели fpvrcnn_intermediate_fusion в этом датасете возникает проблема с весами
-# TODO: Проверить работу моделей с такми датасетом
-# они не правильно расположены
-# size mismatch for spconv_block.conv_out.0.weight: copying a param with shape torch.Size([3, 1, 1, 64, 64]) from checkpoint, the shape in current model is torch.Size([64, 3, 1, 1, 64])
-# Надо будет переобучить модель и обновить код
+# TODO: The fpvrcnn_intermediate_fusion model has an issue with weights on this dataset
+# TODO: Verify the model behavior with this dataset
+# The weights appear to be incorrectly arranged
+# size mismatch for spconv_block.conv_out.0.weight:
+# copying a param with shape torch.Size([3, 1, 1, 64, 64]) from checkpoint,
+# while the current model expects torch.Size([64, 3, 1, 1, 64])
+# The model will need to be retrained and the code updated
 class IntermediateFusionDatasetV2(basedataset.BaseDataset):
     """
     This class is for intermediate fusion where each vehicle transmit the
     deep features to ego.
     """
 
-    def __init__(self, params, visualize, train=True, message_handler=None):
+    def __init__(self, params, visualize, train=True, payload_handler=None):
         super(IntermediateFusionDatasetV2, self).__init__(params, visualize, train)
         self.pre_processor = build_preprocessor(params["preprocess"], train)
         self.post_processor = post_processor.build_postprocessor(params["postprocess"], train)
 
-        self.message_handler = message_handler
+        self.payload_handler = payload_handler
         self.module_name = "OpenCOOD.IntermediateFusionDatasetV2"
-
-    @staticmethod
-    def __wrap_ndarray(ndarray):
-        return {"data": ndarray.tobytes(), "shape": ndarray.shape, "dtype": str(ndarray.dtype)}
 
     def extract_data(self, idx):
         base_data_dict = self.retrieve_base_data(idx, cur_ego_pose_flag=self.cur_ego_pose_flag)
         _, ego_lidar_pose = self.__find_ego_vehicle(base_data_dict)
 
-        if self.message_handler is not None:
+        if self.payload_handler is not None:
             for cav_id, selected_cav_base in base_data_dict.items():
                 selected_cav_processed = self.get_item_single_car(selected_cav_base, ego_lidar_pose)
 
-                with self.message_handler.handle_opencda_message(cav_id, self.module_name) as msg:
-                    msg["object_ids"] = {
-                        "data": selected_cav_processed["object_ids"],  # list
-                        "label": "LABEL_REPEATED",
-                        "name": "object_ids",
-                        "type": "int64",
-                    }
-
-                    msg["object_bbx_center"] = {
-                        "name": "object_bbx_center",
-                        "label": "LABEL_OPTIONAL",
-                        "type": "NDArray",
-                        "data": self.__wrap_ndarray(selected_cav_processed["object_bbx_center"]),
-                    }
-
-                    msg["voxel_num_points"] = {
-                        "name": "voxel_num_points",
-                        "label": "LABEL_OPTIONAL",
-                        "type": "NDArray",
-                        "data": self.__wrap_ndarray(selected_cav_processed["processed_features"]["voxel_num_points"]),
-                    }
-
-                    msg["voxel_features"] = {
-                        "name": "voxel_features",
-                        "label": "LABEL_OPTIONAL",
-                        "type": "NDArray",
-                        "data": self.__wrap_ndarray(selected_cav_processed["processed_features"]["voxel_features"]),
-                    }
-
-                    msg["voxel_coords"] = {
-                        "name": "voxel_coords",
-                        "label": "LABEL_OPTIONAL",
-                        "type": "NDArray",
-                        "data": self.__wrap_ndarray(selected_cav_processed["processed_features"]["voxel_coords"]),
-                    }
-
-                    msg["projected_lidar"] = {
-                        "name": "projected_lidar",
-                        "label": "LABEL_OPTIONAL",
-                        "type": "NDArray",
-                        "data": self.__wrap_ndarray(selected_cav_processed["projected_lidar"]),
-                    }
+                with self.payload_handler.handle_opencda_payload(cav_id, self.module_name) as msg:
+                    msg["object_ids"] = selected_cav_processed["object_ids"]  # list
+                    msg["object_bbx_center"] = selected_cav_processed["object_bbx_center"]
+                    msg["voxel_num_points"] = selected_cav_processed["processed_features"]["voxel_num_points"]
+                    msg["voxel_features"] = selected_cav_processed["processed_features"]["voxel_features"]
+                    msg["voxel_coords"] = selected_cav_processed["processed_features"]["voxel_coords"]
+                    msg["projected_lidar"] = selected_cav_processed["projected_lidar"]
 
     def __find_ego_vehicle(self, base_data_dict):
         ego_id = -1
@@ -114,6 +77,8 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
         object_stack = []
         object_id_stack = []
         projected_lidar_stack = []
+        projected_lidar_roles = []
+        projected_lidar_agent_ids = []
 
         ego_cav_base = base_data_dict.get(ego_id)
         ego_cav_processed = self.get_item_single_car(ego_cav_base, ego_lidar_pose)
@@ -122,31 +87,26 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
         object_stack.append(ego_cav_processed["object_bbx_center"])
         processed_features.append(ego_cav_processed["processed_features"])
         projected_lidar_stack.append(ego_cav_processed["projected_lidar"])
+        projected_lidar_roles.append("ego")
+        projected_lidar_agent_ids.append(ego_id)
 
-        if ego_id in self.message_handler.current_message_artery:
+        if ego_id in self.payload_handler.current_artery_payload:
             for cav_id, _ in base_data_dict.items():
-                if cav_id in self.message_handler.current_message_artery[ego_id]:
-                    with self.message_handler.handle_artery_message(ego_id, cav_id, self.module_name) as msg:
-                        projected = np.frombuffer(msg["projected_lidar"]["data"], np.dtype(msg["projected_lidar"]["dtype"]))
-                        projected = projected.reshape(msg["projected_lidar"]["shape"])
+                if cav_id in self.payload_handler.current_artery_payload[ego_id]:
+                    with self.payload_handler.handle_artery_payload(ego_id, cav_id, self.module_name) as msg:
+                        projected = msg["projected_lidar"]
 
                         if len(projected) > 10:
                             projected_lidar_stack.append(projected)
+                            projected_lidar_roles.append("other")
+                            projected_lidar_agent_ids.append(cav_id)
 
                             object_id_stack += msg["object_ids"]
+                            object_stack.append(msg["object_bbx_center"])
 
-                            bbx = np.frombuffer(msg["object_bbx_center"]["data"], np.dtype(msg["object_bbx_center"]["dtype"]))
-                            bbx = bbx.reshape(msg["object_bbx_center"]["shape"])
-                            object_stack.append(bbx)
-
-                            voxel_num_points = np.frombuffer(msg["voxel_num_points"]["data"], np.dtype(msg["voxel_num_points"]["dtype"]))
-                            voxel_num_points = voxel_num_points.reshape(msg["voxel_num_points"]["shape"])
-
-                            voxel_features = np.frombuffer(msg["voxel_features"]["data"], np.dtype(msg["voxel_features"]["dtype"]))
-                            voxel_features = voxel_features.reshape(msg["voxel_features"]["shape"])
-
-                            voxel_coords = np.frombuffer(msg["voxel_coords"]["data"], np.dtype(msg["voxel_coords"]["dtype"]))
-                            voxel_coords = voxel_coords.reshape(msg["voxel_coords"]["shape"])
+                            voxel_num_points = msg["voxel_num_points"]
+                            voxel_features = msg["voxel_features"]
+                            voxel_coords = msg["voxel_coords"]
 
                             processed_features.append(
                                 {"voxel_num_points": voxel_num_points, "voxel_features": voxel_features, "voxel_coords": voxel_coords}
@@ -157,6 +117,8 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
             "object_stack": object_stack,
             "object_id_stack": object_id_stack,
             "projected_lidar_stack": projected_lidar_stack,
+            "projected_lidar_roles": projected_lidar_roles,
+            "projected_lidar_agent_ids": projected_lidar_agent_ids,
         }
 
     def __process_without_messages(self, ego_lidar_pose, base_data_dict):
@@ -164,6 +126,8 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
         object_stack = []
         object_id_stack = []
         projected_lidar_stack = []
+        projected_lidar_roles = []
+        projected_lidar_agent_ids = []
 
         for cav_id, selected_cav_base in base_data_dict.items():
             dx = selected_cav_base["params"]["lidar_pose"][0] - ego_lidar_pose[0]
@@ -181,12 +145,16 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
                 processed_features.append(selected_cav_processed["processed_features"])
 
                 projected_lidar_stack.append(selected_cav_processed["projected_lidar"])
+                projected_lidar_roles.append("ego" if selected_cav_base["ego"] else "other")
+                projected_lidar_agent_ids.append(cav_id)
 
         return {
             "processed_features": processed_features,
             "object_stack": object_stack,
             "object_id_stack": object_id_stack,
             "projected_lidar_stack": projected_lidar_stack,
+            "projected_lidar_roles": projected_lidar_roles,
+            "projected_lidar_agent_ids": projected_lidar_agent_ids,
         }
 
     def __getitem__(self, idx):
@@ -198,7 +166,7 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
 
         ego_id, ego_lidar_pose = self.__find_ego_vehicle(base_data_dict)
 
-        if self.message_handler is not None:
+        if self.payload_handler is not None:
             data = self.__process_with_messages(ego_id, ego_lidar_pose, base_data_dict)
         else:
             data = self.__process_without_messages(ego_lidar_pose, base_data_dict)
@@ -268,7 +236,14 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
             }
         )
 
-        processed_data_dict["ego"].update({"origin_lidar": data["projected_lidar_stack"]})
+        processed_data_dict["ego"].update(
+            {
+                "origin_lidar": data["projected_lidar_stack"],
+                "origin_lidar_by_agent": data["projected_lidar_stack"],
+                "origin_lidar_roles": data["projected_lidar_roles"],
+                "origin_lidar_agent_ids": data["projected_lidar_agent_ids"],
+            }
+        )
         return processed_data_dict
 
     def get_item_single_car(self, selected_cav_base, ego_pose):
@@ -431,6 +406,15 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
         # check if anchor box in the batch
         if batch[0]["ego"]["anchor_box"] is not None:
             output_dict["ego"].update({"anchor_box": torch.from_numpy(np.array(batch[0]["ego"]["anchor_box"]))})
+
+        if "origin_lidar_by_agent" in batch[0]["ego"]:
+            output_dict["ego"].update(
+                {
+                    "origin_lidar_by_agent": [torch.from_numpy(np.array(points)) for points in batch[0]["ego"]["origin_lidar_by_agent"]],
+                    "origin_lidar_roles": list(batch[0]["ego"]["origin_lidar_roles"]),
+                    "origin_lidar_agent_ids": list(batch[0]["ego"]["origin_lidar_agent_ids"]),
+                }
+            )
 
         # save the transformation matrix (4, 4) to ego vehicle
         transformation_matrix_torch = torch.from_numpy(np.identity(4)).float()

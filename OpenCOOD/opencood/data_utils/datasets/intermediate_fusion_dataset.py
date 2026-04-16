@@ -16,7 +16,7 @@ from opencood.data_utils.datasets import basedataset
 from opencood.data_utils.pre_processor import build_preprocessor
 from opencood.utils.pcd_utils import mask_points_by_range, mask_ego_points, shuffle_points, downsample_lidar_minimum
 
-logger = logging.getLogger("cavise.OpenCOOD.opencood.data_utils.datasets.intermediate_fusion_dataset")
+logger = logging.getLogger("cavise.opencda.OpenCOOD.opencood.data_utils.datasets.intermediate_fusion_dataset")
 
 
 class IntermediateFusionDataset(basedataset.BaseDataset):
@@ -25,7 +25,7 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
     deep features to ego.
     """
 
-    def __init__(self, params, visualize, train=True, message_handler=None):
+    def __init__(self, params, visualize, train=True, payload_handler=None):
         super(IntermediateFusionDataset, self).__init__(params, visualize, train)
 
         # if project first, cav's lidar will first be projected to
@@ -45,84 +45,32 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
         self.pre_processor = build_preprocessor(params["preprocess"], train)
         self.post_processor = post_processor.build_postprocessor(params["postprocess"], train)
 
-        self.message_handler = message_handler
+        self.payload_handler = payload_handler
         self.module_name = "OpenCOOD.IntermediateFusionDataset"
-
-    @staticmethod
-    def __wrap_ndarray(ndarray):
-        return {"data": ndarray.tobytes(), "shape": ndarray.shape, "dtype": str(ndarray.dtype)}
 
     def extract_data(self, idx):
         base_data_dict = self.retrieve_base_data(idx, cur_ego_pose_flag=self.cur_ego_pose_flag)
         _, ego_lidar_pose = self.__find_ego_vehicle(base_data_dict)
 
-        if self.message_handler is not None:
+        if self.payload_handler is not None:
             for cav_id, selected_cav_base in base_data_dict.items():
                 selected_cav_processed = self.get_item_single_car(selected_cav_base, ego_lidar_pose)
 
-                with self.message_handler.handle_opencda_message(cav_id, self.module_name) as msg:
-                    msg["infra"] = {"name": "infra", "label": "LABEL_OPTIONAL", "type": "int64", "data": 1 if "rsu" in cav_id else 0}
-
-                    msg["velocity"] = {"name": "velocity", "label": "LABEL_OPTIONAL", "type": "float", "data": selected_cav_processed["velocity"]}
-
-                    msg["time_delay"] = {
-                        "name": "time_delay",
-                        "label": "LABEL_OPTIONAL",
-                        "type": "float",
-                        "data": float(selected_cav_base["time_delay"]),
-                    }
-
-                    msg["object_ids"] = {
-                        "name": "object_ids",
-                        "label": "LABEL_REPEATED",
-                        "type": "int64",
-                        "data": selected_cav_processed["object_ids"],
-                    }
-
-                    msg["object_bbx_center"] = {
-                        "name": "object_bbx_center",
-                        "label": "LABEL_OPTIONAL",
-                        "type": "NDArray",
-                        "data": self.__wrap_ndarray(selected_cav_processed["object_bbx_center"]),
-                    }
-
-                    msg["spatial_correction_matrix"] = {
-                        "name": "spatial_correction_matrix",
-                        "label": "LABEL_OPTIONAL",
-                        "type": "NDArray",
-                        "data": self.__wrap_ndarray(selected_cav_base["params"]["spatial_correction_matrix"]),
-                    }
-
-                    msg["voxel_num_points"] = {
-                        "name": "voxel_num_points",
-                        "label": "LABEL_OPTIONAL",
-                        "type": "NDArray",
-                        "data": self.__wrap_ndarray(selected_cav_processed["processed_features"]["voxel_num_points"]),
-                    }
-
-                    msg["voxel_features"] = {
-                        "name": "voxel_features",
-                        "label": "LABEL_OPTIONAL",
-                        "type": "NDArray",
-                        "data": self.__wrap_ndarray(selected_cav_processed["processed_features"]["voxel_features"]),
-                    }
-
-                    msg["voxel_coords"] = {
-                        "name": "voxel_coords",
-                        "label": "LABEL_OPTIONAL",
-                        "type": "NDArray",
-                        "data": self.__wrap_ndarray(selected_cav_processed["processed_features"]["voxel_coords"]),
-                    }
+                with self.payload_handler.handle_opencda_payload(cav_id, self.module_name) as msg:
+                    msg["infra"] = 1 if "rsu" in cav_id else 0
+                    msg["velocity"] = selected_cav_processed["velocity"]
+                    msg["time_delay"] = selected_cav_base["time_delay"]
+                    msg["object_ids"] = selected_cav_processed["object_ids"]
+                    msg["object_bbx_center"] = selected_cav_processed["object_bbx_center"]
+                    msg["spatial_correction_matrix"] = selected_cav_base["params"]["spatial_correction_matrix"]
+                    msg["voxel_num_points"] = selected_cav_processed["processed_features"]["voxel_num_points"]
+                    msg["voxel_features"] = selected_cav_processed["processed_features"]["voxel_features"]
+                    msg["voxel_coords"] = selected_cav_processed["processed_features"]["voxel_coords"]
 
                     if self.visualize:
-                        msg["projected_lidar"] = {
-                            "name": "projected_lidar",
-                            "label": "LABEL_OPTIONAL",
-                            "type": "NDArray",
-                            "data": self.__wrap_ndarray(selected_cav_processed["projected_lidar"]),
-                        }
+                        msg["projected_lidar"] = selected_cav_processed["projected_lidar"]
                     else:
-                        msg["projected_lidar_raw"] = None
+                        msg["projected_lidar"] = None
 
     def __find_ego_vehicle(self, base_data_dict):
         ego_id = -1
@@ -174,6 +122,8 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
         infra = []
         spatial_correction_matrix = []
         projected_lidar_stack = [] if self.visualize else None
+        projected_lidar_roles = [] if self.visualize else None
+        projected_lidar_agent_ids = [] if self.visualize else None
 
         ego_cav_base = base_data_dict.get(ego_id)
         ego_cav_processed = self.get_item_single_car(ego_cav_base, ego_lidar_pose)
@@ -187,41 +137,33 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
         processed_features.append(ego_cav_processed["processed_features"])
         if self.visualize:
             projected_lidar_stack.append(ego_cav_processed["projected_lidar"])
+            projected_lidar_roles.append("ego")
+            projected_lidar_agent_ids.append(ego_id)
 
-        if ego_id in self.message_handler.current_message_artery:
+        if ego_id in self.payload_handler.current_artery_payload:
             for cav_id, _ in base_data_dict.items():
-                if cav_id in self.message_handler.current_message_artery[ego_id]:
-                    with self.message_handler.handle_artery_message(ego_id, cav_id, self.module_name) as msg:
+                if cav_id in self.payload_handler.current_artery_payload[ego_id]:
+                    with self.payload_handler.handle_artery_payload(ego_id, cav_id, self.module_name) as msg:
                         infra.append(msg["infra"])
                         velocity.append(msg["velocity"])
                         time_delay.append(msg["time_delay"])
                         object_id_stack += msg["object_ids"]
 
-                        bbx = np.frombuffer(msg["object_bbx_center"]["data"], np.dtype(msg["object_bbx_center"]["dtype"]))
-                        bbx = bbx.reshape(msg["object_bbx_center"]["shape"])
-                        object_stack.append(bbx)
+                        object_stack.append(msg["object_bbx_center"])
+                        spatial_correction_matrix.append(msg["spatial_correction_matrix"])
 
-                        scm = np.frombuffer(msg["spatial_correction_matrix"]["data"], np.dtype(msg["spatial_correction_matrix"]["dtype"]))
-                        scm = scm.reshape(msg["spatial_correction_matrix"]["shape"])
-                        spatial_correction_matrix.append(scm)
-
-                        voxel_num_points = np.frombuffer(msg["voxel_num_points"]["data"], np.dtype(msg["voxel_num_points"]["dtype"]))
-                        voxel_num_points = voxel_num_points.reshape(msg["voxel_num_points"]["shape"])
-
-                        voxel_features = np.frombuffer(msg["voxel_features"]["data"], np.dtype(msg["voxel_features"]["dtype"]))
-                        voxel_features = voxel_features.reshape(msg["voxel_features"]["shape"])
-
-                        voxel_coords = np.frombuffer(msg["voxel_coords"]["data"], np.dtype(msg["voxel_coords"]["dtype"]))
-                        voxel_coords = voxel_coords.reshape(msg["voxel_coords"]["shape"])
+                        voxel_num_points = msg["voxel_num_points"]
+                        voxel_features = msg["voxel_features"]
+                        voxel_coords = msg["voxel_coords"]
 
                         processed_features.append(
                             {"voxel_num_points": voxel_num_points, "voxel_features": voxel_features, "voxel_coords": voxel_coords}
                         )
 
                         if self.visualize:
-                            projected = np.frombuffer(msg["projected_lidar"]["data"], np.dtype(msg["projected_lidar"]["dtype"]))
-                            projected = projected.reshape(msg["projected_lidar"]["shape"])
-                            projected_lidar_stack.append(projected)
+                            projected_lidar_stack.append(msg["projected_lidar"])
+                            projected_lidar_roles.append("other")
+                            projected_lidar_agent_ids.append(cav_id)
 
         return {
             "processed_features": processed_features,
@@ -232,6 +174,8 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
             "infra": infra,
             "spatial_correction_matrix": spatial_correction_matrix,
             "projected_lidar_stack": projected_lidar_stack or [],
+            "projected_lidar_roles": projected_lidar_roles or [],
+            "projected_lidar_agent_ids": projected_lidar_agent_ids or [],
         }
 
     def __process_without_messages(self, ego_lidar_pose, base_data_dict):
@@ -243,6 +187,8 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
         infra = []
         spatial_correction_matrix = []
         projected_lidar_stack = [] if self.visualize else None
+        projected_lidar_roles = [] if self.visualize else None
+        projected_lidar_agent_ids = [] if self.visualize else None
 
         for cav_id, selected_cav_base in base_data_dict.items():
             dx = selected_cav_base["params"]["lidar_pose"][0] - ego_lidar_pose[0]
@@ -264,6 +210,8 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
 
             if self.visualize:
                 projected_lidar_stack.append(selected_cav_processed["projected_lidar"])
+                projected_lidar_roles.append("ego" if selected_cav_base["ego"] else "other")
+                projected_lidar_agent_ids.append(cav_id)
 
         return {
             "processed_features": processed_features,
@@ -274,6 +222,8 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
             "infra": infra,
             "spatial_correction_matrix": spatial_correction_matrix,
             "projected_lidar_stack": projected_lidar_stack or [],
+            "projected_lidar_roles": projected_lidar_roles or [],
+            "projected_lidar_agent_ids": projected_lidar_agent_ids or [],
         }
 
     def __getitem__(self, idx):
@@ -284,7 +234,7 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
         ego_id, ego_lidar_pose = self.__find_ego_vehicle(base_data_dict)
         pairwise_t_matrix = self.get_pairwise_transformation(base_data_dict, self.max_cav)
 
-        if self.message_handler is not None:
+        if self.payload_handler is not None:
             data = self.__process_with_messages(ego_id, ego_lidar_pose, base_data_dict)
         else:
             data = self.__process_without_messages(ego_lidar_pose, base_data_dict)
@@ -318,7 +268,14 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
         )
 
         if self.visualize:
-            processed_data_dict["ego"]["origin_lidar"] = np.vstack(data["projected_lidar_stack"])
+            processed_data_dict["ego"].update(
+                {
+                    "origin_lidar": np.vstack(data["projected_lidar_stack"]),
+                    "origin_lidar_by_agent": data["projected_lidar_stack"],
+                    "origin_lidar_roles": data["projected_lidar_roles"],
+                    "origin_lidar_agent_ids": data["projected_lidar_agent_ids"],
+                }
+            )
 
         return processed_data_dict
 
@@ -502,6 +459,15 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
         # check if anchor box in the batch
         if batch[0]["ego"]["anchor_box"] is not None:
             output_dict["ego"].update({"anchor_box": torch.from_numpy(np.array(batch[0]["ego"]["anchor_box"]))})
+
+        if self.visualize and "origin_lidar_by_agent" in batch[0]["ego"]:
+            output_dict["ego"].update(
+                {
+                    "origin_lidar_by_agent": [torch.from_numpy(np.array(points)) for points in batch[0]["ego"]["origin_lidar_by_agent"]],
+                    "origin_lidar_roles": list(batch[0]["ego"]["origin_lidar_roles"]),
+                    "origin_lidar_agent_ids": list(batch[0]["ego"]["origin_lidar_agent_ids"]),
+                }
+            )
 
         # save the transformation matrix (4, 4) to ego vehicle
         transformation_matrix_torch = torch.from_numpy(np.identity(4)).float()

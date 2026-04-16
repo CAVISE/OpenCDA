@@ -3,11 +3,15 @@ Basic class for RSU(Roadside Unit) management.
 """
 
 import logging
+from typing import Any, Dict, Iterable, Optional, Tuple
+
+from opencda.core.application.behavior import create_service
+from opencda.core.application.behavior.behavior_service_protocol import BehaviorService
 from opencda.core.common.data_dumper import DataDumper
 from opencda.core.sensing.perception.perception_manager import PerceptionManager
 from opencda.core.sensing.localization.rsu_localization_manager import LocalizationManager
 
-logger = logging.getLogger("cavise.rsu_manager")
+logger = logging.getLogger("cavise.opencda.opencda.core.common.rsu_manager")
 
 
 class RSUManager(object):
@@ -52,8 +56,16 @@ class RSUManager(object):
     used_ids = set()
 
     def __init__(
-        self, carla_world, config_yaml, carla_map, cav_world, current_time="", data_dumping=False, autogenerate_id_on_failure=True
-    ):  # TODO: Привязать к конфигу сценария
+        self,
+        carla_world,
+        config_yaml,
+        carla_map,
+        cav_world,
+        current_time="",
+        data_dumping=False,
+        autogenerate_id_on_failure=True,
+        behavior_services: Optional[Iterable[BehaviorService[Any, Any]]] = None,
+    ):
         config_id = config_yaml.get("id")
 
         if config_id is not None:
@@ -111,6 +123,12 @@ class RSUManager(object):
         else:
             self.data_dumper = None
 
+        if behavior_services is None:
+            behavior_services = self.__build_behavior_services(config_yaml)
+
+        self.__set_behavior_services(behavior_services)
+        self.__attach_behavior_services()
+
         cav_world.update_rsu_manager(self)
 
     def __generate_unique_rsu_id(self):
@@ -122,6 +140,104 @@ class RSUManager(object):
                 RSUManager.current_id += 1
                 return candidate
             RSUManager.current_id += 1
+
+    def __build_behavior_services(self, config_yaml: dict[str, Any]) -> list[BehaviorService[Any, Any]]:
+        service_configs = config_yaml.get("behavior_services", [])
+        behavior_services = []
+
+        for service_config in service_configs:
+            service_config_dict = dict(service_config)
+            service_type = service_config_dict.pop("type", None)
+            if service_type is None:
+                raise ValueError("Each behavior service config must define 'type'.")
+
+            behavior_services.append(create_service(service_name=service_type, **service_config_dict))
+            logger.info("Attached behavior service '%s' to RSU %r.", service_type, self.rid)
+
+        return behavior_services
+
+    def __set_behavior_services(self, behavior_services: Optional[Iterable[BehaviorService[Any, Any]]]) -> None:
+        services = tuple(behavior_services or ())
+        self.__validate_behavior_services(services)
+        self.behavior_services = services
+        self.behavior_service_results = {}
+        self._behavior_services_by_id = {service.service_id: service for service in self.behavior_services}
+
+    def __validate_behavior_services(self, behavior_services: Tuple[BehaviorService[Any, Any], ...]) -> None:
+        seen_service_ids = set()
+
+        for service in behavior_services:
+            if not isinstance(service, BehaviorService):
+                raise TypeError(f"Each behavior service must implement the BehaviorService protocol; got {type(service).__name__!r}.")
+
+            service_id = service.service_id
+            if service_id in seen_service_ids:
+                raise ValueError(f"Duplicate behavior service ID detected: {service_id!r}.")
+
+            seen_service_ids.add(service_id)
+
+    def __attach_behavior_services(self) -> None:
+        attached_services = []
+
+        try:
+            for service in self.behavior_services:
+                service.on_attach(self.rid)
+                attached_services.append(service)
+        except Exception:
+            for service in reversed(attached_services):
+                try:
+                    service.on_detach()
+                except Exception:
+                    logger.exception(
+                        "Failed to detach behavior service %r while rolling back RSU %r attachment.",
+                        service.service_id,
+                        self.rid,
+                    )
+            raise
+
+    def __detach_behavior_services(self) -> None:
+        first_exception = None
+
+        for service in reversed(self.behavior_services):
+            try:
+                service.on_detach()
+            except Exception as exc:
+                logger.exception(
+                    "Failed to detach behavior service %r from RSU %r.",
+                    service.service_id,
+                    self.rid,
+                )
+                if first_exception is None:
+                    first_exception = exc
+
+        if first_exception is not None:
+            raise first_exception
+
+    def __validate_behavior_service_messages(self, messages: list[Any]) -> None:
+        for message in messages:
+            service_id = getattr(message, "service_id", None)
+            if not isinstance(service_id, str):
+                raise TypeError(f"Each behavior service message must define a non-empty 'service_id' attribute; got {type(message).__name__!r}.")
+
+            if service_id not in self._behavior_services_by_id:
+                raise ValueError(f"Behavior service message references unknown service_id {service_id!r}.")
+
+    def __group_behavior_service_messages(self, messages: list[Any]) -> Dict[str, list[Any]]:
+        grouped_messages = {service.service_id: [] for service in self.behavior_services}
+
+        for message in messages:
+            grouped_messages[message.service_id].append(message)
+
+        return grouped_messages
+
+    def update_behavior_services(self, messages: list[Any]) -> None:
+        self.__validate_behavior_service_messages(messages)
+        grouped_messages = self.__group_behavior_service_messages(messages)
+        self.behavior_service_results = {}
+
+        for service in self.behavior_services:
+            service_messages = grouped_messages[service.service_id]
+            self.behavior_service_results[service.service_id] = service.process(service_messages)
 
     def update_info(self):
         """
@@ -140,10 +256,14 @@ class RSUManager(object):
         # TODO: Добавить обновление информации
         pass
 
-    def run_step(self):
+    def run_step(self, messages: Optional[list[Any]] = None):
         """
-        Currently only used for dumping data.
+        Run behavior services for the provided message batch and
+        execute the current RSU step side effects.
         """
+        if messages is not None:
+            self.update_behavior_services(messages)
+
         # dump data
         if self.data_dumper:
             self.data_dumper.run_step(self.perception_manager, self.localizer, None)
@@ -152,5 +272,8 @@ class RSUManager(object):
         """
         Destroy the actor vehicle
         """
-        self.perception_manager.destroy()
-        self.localizer.destroy()
+        try:
+            self.__detach_behavior_services()
+        finally:
+            self.perception_manager.destroy()
+            self.localizer.destroy()

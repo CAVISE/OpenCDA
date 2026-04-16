@@ -47,7 +47,7 @@ class VerbosityLevel(enum.IntEnum):
 # Handle cavise log creation, obtain this logger later with a call to
 # logging.getLogger('cavise'). Use for our (cavise) code only.
 def create_logger(level: int, fmt: str = "- [%(asctime)s][%(name)s] %(message)s", datefmt: str = "%H:%M:%S") -> logging.Logger:
-    logger = logging.getLogger("cavise")
+    logger = logging.getLogger("cavise.opencda")
     if coloredlogs is not None:
         coloredlogs.install(level=level, logger=logger, fmt=fmt, datefmt=datefmt)
     else:
@@ -99,9 +99,23 @@ def arg_parse() -> argparse.Namespace:
     parser.add_argument("--free-spectator", action="store_true", help="Enable free movement for the spectator camera.")
     parser.add_argument("-x", "--xodr", action="store_true", help="Run simulation using a custom map from an XODR file.")
     parser.add_argument("-c", "--cosim", action="store_true", help="Enable co-simulation with SUMO.")
-    parser.add_argument("--with-capi", action="store_true", help="wether to run a communication manager instance in this simulation.")
     parser.add_argument("--carla-host", type=str, default="carla", help="IP address or hostname of the CARLA server (default: 'carla')")
-    parser.add_argument("--carla-timeout", type=float, default=30.0, help="Timeout of the CARLA server response (default: '30.0')")
+    parser.add_argument("--carla-timeout", type=float, default=30.0, help="Timeout of the CARLA server response in seconds (default: 30.0)")
+
+    # CAPI parameters
+    parser.add_argument("--with-capi", action="store_true", help="wether to run a communication manager instance in this simulation.")
+    parser.add_argument(
+        "--artery-host", type=str, default="artery:7777", help="IP address or hostname and port of the Artery server (default: 'artery:7777')"
+    )
+    parser.add_argument(
+        "--artery-send-timeout", type=float, default=5.0, help="Maximum time to send a message to the Artery server, in seconds (default: 5.0)."
+    )
+    parser.add_argument(
+        "--artery-receive-timeout",
+        type=float,
+        default=300.0,
+        help="Maximum time to wait for a reply from the Artery server, in seconds (default: 300.0).",
+    )
 
     # Coperception models parameters
     parser.add_argument(
@@ -109,10 +123,7 @@ def arg_parse() -> argparse.Namespace:
     )
     parser.add_argument("--model-dir", type=str, help="Continued training path")
     parser.add_argument("--fusion-method", type=str, default="late", help="late, early or intermediate")
-    parser.add_argument("--show-vis", action="store_true", help="whether to show image visualization result")
-    parser.add_argument(
-        "--show-sequence", action="store_true", help="whether to show video visualization result. It can not be set true with show_vis together."
-    )
+    parser.add_argument("--show-sequence", action="store_true", help="whether to show video visualization result")
     parser.add_argument("--save-vis", action="store_true", help="whether to save visualization result")
     parser.add_argument("--save-npy", action="store_true", help="whether to save prediction and gt result in npy_test file")
     parser.add_argument(
@@ -123,61 +134,12 @@ def arg_parse() -> argparse.Namespace:
         "but would increase the tolerance for FP (False Positives).",
     )
 
-    # AdvCP arguments
+    # AdvCollaborativePerception module
+    parser.add_argument("--with-advcp", action="store_true", help="Enable AdvCP-style attacks for cooperative perception.")
     parser.add_argument(
-        "--with-advcp", action="store_true", help="Whether to enable AdvCollaborativePerception module with attack/defense capabilities"
-    )
-    parser.add_argument("--advcp-config", type=str, default="opencda/core/common/advcp/advcp_config.yaml", help="Path to AdvCP configuration file")
-    parser.add_argument("--attackers-ratio", type=float, default=0.2, help="Ratio of CAVs to be attackers (0.0-1.0)")
-    parser.add_argument(
-        "--attack-type",
+        "--advcp-config",
         type=str,
-        default="lidar_remove_early",
-        choices=[
-            "lidar_remove_early",
-            "lidar_remove_intermediate",
-            "lidar_remove_late",
-            "lidar_spoof_early",
-            "lidar_spoof_intermediate",
-            "lidar_spoof_late",
-            "adv_shape",
-        ],
-        help="Type of attack to execute",
-    )
-    parser.add_argument(
-        "--attack-target",
-        type=str,
-        default="random",
-        choices=["random", "specific_vehicle", "all_non_attackers"],
-        help="Target selection strategy for attacks",
-    )
-    parser.add_argument("--apply-cad-defense", action="store_true", help="Enable CAD defense mechanism")
-    parser.add_argument("--defense-threshold", type=float, default=0.7, help="Trust threshold for CAD defense (0.0-1.0)")
-
-    # AdvCP Visualization arguments
-    parser.add_argument("--advcp-vis", action="store_true", help="Enable AdvCP visualization output")
-    parser.add_argument(
-        "--advcp-vis-mode",
-        type=str,
-        default="matplotlib",
-        choices=["matplotlib", "open3d", "both"],
-        help="Visualization backend: matplotlib (2D), open3d (3D), or both",
-    )
-    parser.add_argument("--advcp-vis-save", action="store_true", help="Save visualization outputs to disk")
-    parser.add_argument("--advcp-vis-show", action="store_true", help="Show interactive visualization (blocks execution)")
-    parser.add_argument(
-        "--advcp-vis-output-dir",
-        type=str,
-        default="simulation_output/advcp_vis",
-        help="Directory to save visualization outputs",
-    )
-    parser.add_argument(
-        "--advcp-vis-types",
-        type=str,
-        nargs="+",
-        default=["attack", "defense"],
-        choices=["attack", "defense", "evaluation", "ground_seg", "tracking", "roc"],
-        help="Types of visualization to generate",
+        help="AdvCP attack config name or path. Relative names are resolved from opencda/scenario_testing/config_yaml/advcp.",
     )
 
     def verbosity_wrapper(arg: str) -> VerbosityLevel:
@@ -192,10 +154,7 @@ def arg_parse() -> argparse.Namespace:
         help="Specifies overall verbosity of output.",
     )
 
-    # [CoDrivingInt] Codriveing models parametrs
-    parser.add_argument("--with-mtp", action="store_true", help="Whether to enable the use of cooperative driving models in this simulation.")
-    parser.add_argument("--mtp-config", type=str, default="mtp_config_default", help="Define configuration of cooperative driving model.")
-    # [CoDrivingInt]
+    parser.add_argument("--with-aim", action="store_true", help="Whether to enable the use of AIM in this simulation.")
 
     parser.add_argument("--ticks", type=int, help="number of simulation ticks to execute")
     return parser.parse_args()
@@ -293,12 +252,35 @@ def main() -> None:
 
     logger.info(f"OpenCDA Version: {__version__}")
 
-    cwd = pathlib.PurePath(os.getcwd())
+    cwd = pathlib.Path.cwd()
     default_yaml = config_yaml = cwd / "opencda/scenario_testing/config_yaml/default.yaml"
     config_yaml = cwd / f"opencda/scenario_testing/config_yaml/{opt.test_scenario}.yaml"
-    if not os.path.isfile(config_yaml):
+    advcp_config_dir = cwd / "opencda/scenario_testing/config_yaml/advcp"
+    if not config_yaml.is_file():
         logger.error(f"{config_yaml.relative_to(cwd)} not found!")
         sys.exit(errno.EPERM)
+
+    if opt.with_advcp:
+        if not opt.with_coperception:
+            logger.error("--with-advcp requires --with-coperception.")
+            sys.exit(errno.EPERM)
+
+        if not opt.advcp_config:
+            logger.error("--with-advcp requires --advcp-config.")
+            sys.exit(errno.EPERM)
+
+        advcp_config = pathlib.Path(opt.advcp_config)
+        if not advcp_config.is_absolute():
+            advcp_config = advcp_config_dir / advcp_config
+
+        if advcp_config.suffix == "":
+            advcp_config = advcp_config.with_suffix(".yaml")
+
+        if not advcp_config.is_file():
+            logger.error(f"AdvCP config not found: {advcp_config}")
+            sys.exit(errno.EPERM)
+
+        opt.advcp_config = str(advcp_config)
 
     # allow OpenCOOD imports
     sys.path.append(str(cwd.joinpath("OpenCOOD")))

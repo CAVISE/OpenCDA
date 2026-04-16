@@ -1,76 +1,119 @@
-import os
-import zmq
-import sys
-import carla
-import sumolib
-import logging
-import argparse
-import omegaconf
+from __future__ import annotations
 
-from pathlib import Path
-from typing import List, Union, Any
+import argparse
+import logging
+import os
+import sys
 from dataclasses import dataclass
+from pathlib import Path
+from typing import TYPE_CHECKING, NoReturn, cast
+
+import carla
+import omegaconf
+import sumolib
+from omegaconf import DictConfig, OmegaConf
 
 import opencda.scenario_testing.utils.cosim_api as sim_api
 import opencda.scenario_testing.utils.customized_map_api as map_api
-
-from opencda.core.common.cav_world import CavWorld
-from opencda.core.common.vehicle_manager import VehicleManager
-from opencda.core.common.rsu_manager import RSUManager
-from opencda.core.common.communication.serialize import MessageHandler
+from AIM import get_model
 from opencda.core.application.platooning.platooning_manager import PlatooningManager
 from opencda.core.common.aim_model_manager import AIMModelManager
-from AIM import get_model
-
+from opencda.core.common.cav_world import CavWorld
+from opencda.core.common.rsu_manager import RSUManager
+from opencda.core.common.vehicle_manager import VehicleManager
 from opencda.scenario_testing.evaluations.evaluate_manager import EvaluationManager
-from opencda.scenario_testing.utils.yaml_utils import add_current_time, save_yaml
+from opencda.scenario_testing.utils.yaml_utils import YamlDict, add_current_time, save_yaml
 
-logger = logging.getLogger("cavise.scenario")
+if TYPE_CHECKING:
+    from opencda.core.common.directory_processor import DirectoryProcessor
+    from opencda.core.common.coperception_model_manager import CoperceptionModelManager
+    from opencda.core.common.coperception_model_manager import DatasetOpenCOOD
+    from opencda.core.common.communication.communication_manager import CommunicationManager
+    from opencda.core.common.communication.payload_handler import PayloadHandler
+
+logger = logging.getLogger("cavise.opencda.opencda.scenario_testing.scenario")
 
 
 @dataclass
 class Scenario:
     eval_manager: EvaluationManager
-    scenario_manager: Union[sim_api.ScenarioManager, sim_api.CoScenarioManager]
-    single_cav_list: List[VehicleManager]
-    rsu_list: List[RSUManager]
-    # TODO: find spectator type
-    spectator: Any
+    scenario_manager: sim_api.ScenarioManager | sim_api.CoScenarioManager
+    single_cav_list: list[VehicleManager]
+    rsu_list: list[RSUManager]
+    spectator: carla.Actor
     cav_world: CavWorld
     codriving_model_manager: AIMModelManager  # [CoDrivingInt]
-    platoon_list: List[PlatooningManager]
-    # TODO: find bg cars type
-    bg_veh_list: Any
+    platoon_list: list[PlatooningManager]
+    bg_veh_list: list[carla.Actor]
     scenario_name: str
 
-    def __init__(self, opt: argparse.Namespace, scenario_params: omegaconf.OmegaConf):
-        self.node_ids = {"cav": [], "rsu": [], "platoon": []}
+    def _abort_simulation(self, message: str) -> NoReturn:
+        logger.error(message)
+        raise RuntimeError(message)
+
+    def _require_cav_world(self) -> CavWorld:
+        cav_world = self.scenario_manager.cav_world
+        if cav_world is None:
+            self._abort_simulation("Scenario manager was initialized without CavWorld; simulation cannot continue.")
+        return cav_world
+
+    def _require_directory_processor(self, directory_processor: DirectoryProcessor | None) -> DirectoryProcessor:
+        if directory_processor is None:
+            self._abort_simulation("DirectoryProcessor is required for cooperative perception flow, but it was not initialized.")
+        return directory_processor
+
+    def _require_communication_manager(self) -> CommunicationManager:
+        if self.communication_manager is None:
+            self._abort_simulation("CommunicationManager is required for CAPI flow, but it was not initialized.")
+        return self.communication_manager
+
+    def _require_payload_handler(self) -> PayloadHandler:
+        if self.payload_handler is None:
+            self._abort_simulation("PayloadHandler is required for CAPI flow, but it was not initialized.")
+        return self.payload_handler
+
+    def _require_opencood_dataset(self) -> DatasetOpenCOOD:
+        if self.coperception_model_manager is None:
+            self._abort_simulation("Co-perception model manager is required, but it was not initialized.")
+
+        opencood_dataset = self.coperception_model_manager.opencood_dataset
+        if opencood_dataset is None:
+            self._abort_simulation("Co-perception dataset is missing; prediction pipeline cannot continue.")
+
+        return opencood_dataset
+
+    def __init__(self, opt: argparse.Namespace, scenario_params: DictConfig) -> None:
+        self.node_ids: dict[str, dict[int, str]] = {"cav": {}, "rsu": {}, "platoon": {}}
         self.scenario_name = opt.test_scenario
-        self.scenario_params, current_time = add_current_time(scenario_params)
+        scenario_config = cast(YamlDict, OmegaConf.to_container(scenario_params, resolve=True))
+        self.scenario_params, current_time = add_current_time(scenario_config)
+        scenario_config = self.scenario_params
         logger.info(f"running scenario with name: {self.scenario_name}; current time: {current_time}")
 
-        self.cav_world = CavWorld(opt.apply_ml, opt.with_capi)
-        logger.info(f"created cav world, using apply_ml = {opt.apply_ml}, with_capi = {opt.with_capi}")
+        self.cav_world = CavWorld(opt.apply_ml)
+        logger.info(f"created cav world, using apply_ml = {opt.apply_ml}")
 
-        self.coperception_model_manager = None
+        self.payload_handler: PayloadHandler | None = None
+        self.communication_manager: CommunicationManager | None = None
+        self.coperception_model_manager: CoperceptionModelManager | None = None
 
-        xodr_path = None
+        xodr_path: str | None = None
         if opt.xodr:
-            xodr_path = Path("opencda/sumo-assets") / self.scenario_name / f"{self.scenario_name}.xodr"
+            xodr_path = str(Path("opencda/sumo-assets") / self.scenario_name / f"{self.scenario_name}.xodr")
             logger.info(f"loading xodr map with name: {xodr_path}")
 
-        town = None
+        town: str | None = None
         if xodr_path is None:
-            if "town" not in scenario_params["world"]:
+            if "town" not in scenario_config["world"]:
                 logger.error(f"You must specify xodr parameter or town key in opencda/scenario_testing/config_yaml/{self.scenario_name}.yaml")
                 sys.exit(1)
-            town = scenario_params["world"]["town"]
+            town = cast(str, scenario_config["world"]["town"])
             logger.info(f"using town: {town}")
 
         if opt.cosim:
-            sumo_cfg = Path("opencda/sumo-assets") / self.scenario_name
+            sumo_cfg = str(Path("opencda/sumo-assets") / self.scenario_name)
             self.scenario_manager = sim_api.CoScenarioManager(
-                scenario_params=scenario_params,
+                scenario_params=scenario_config,
                 apply_ml=opt.apply_ml,
                 carla_version=opt.version,
                 town=town,
@@ -82,7 +125,7 @@ class Scenario:
             )
         else:
             self.scenario_manager = sim_api.ScenarioManager(
-                scenario_params=scenario_params,
+                scenario_params=scenario_config,
                 apply_ml=opt.apply_ml,
                 carla_version=opt.version,
                 xodr_path=xodr_path,
@@ -92,12 +135,20 @@ class Scenario:
                 carla_timeout=opt.carla_timeout,
             )
 
-        if self.cav_world.comms_manager is not None:
-            self.cav_world.comms_manager.create_socket(zmq.PAIR, "connect")
-            self.message_handler = MessageHandler()
+        if opt.with_capi:
+            from opencda.core.common.communication import toolchain
+
+            toolchain.CommunicationToolchain.handle_messages(["entity", "opencda", "artery", "capi"])
+            from opencda.core.common.communication.communication_manager import CommunicationManager
+            from opencda.core.common.communication.payload_handler import PayloadHandler
+
+            self.communication_manager = CommunicationManager(
+                artery_address=f"tcp://{opt.artery_host}",
+                artery_send_timeout=opt.artery_send_timeout,
+                artery_receive_timeout=opt.artery_receive_timeout,
+            )
+            self.payload_handler = PayloadHandler()
             logger.info("running: creating message handler")
-        else:
-            self.message_handler = None
 
         logger.info(f"using scenario manager of type: {type(self.scenario_manager)}")
 
@@ -112,10 +163,14 @@ class Scenario:
             save_yaml_name = Path("simulation_output/data_dumping") / current_time / "data_protocol.yaml"
             logger.info(f"saving params to {save_yaml_name}")
             os.makedirs(os.path.dirname(save_yaml_name), exist_ok=True)
-            save_yaml(scenario_params, save_yaml_name)
+            save_yaml(scenario_config, save_yaml_name)
 
             if opt.with_coperception and opt.model_dir:
-                from opencda.core.common.coperception_model_manager import CoperceptionModelManager
+                CoperceptionManagerClass: type[CoperceptionModelManager]
+                if getattr(opt, "with_advcp", False):
+                    from opencda.core.attack.advcp.adv_coperception_model_manager import AdvCoperceptionModelManager as CoperceptionManagerClass
+                else:
+                    from opencda.core.common.coperception_model_manager import CoperceptionModelManager as CoperceptionManagerClass
 
                 if opt.fusion_method not in ["late", "early", "intermediate"]:
                     logger.error('Invalid fusion method: must be one of "late", "early", or "intermediate".')
@@ -125,69 +180,78 @@ class Scenario:
                     logger.error(f'Model directory "{opt.model_dir}" does not exist.')
                     sys.exit(1)
 
-                self.coperception_model_manager = CoperceptionModelManager(opt=opt, current_time=current_time, message_handler=self.message_handler)
+                cp_vis_config = omegaconf.OmegaConf.to_container(
+                    scenario_params.get("cooperative_perception_visualization", {}),
+                    resolve=True,
+                )
+                self.coperception_model_manager = CoperceptionManagerClass(
+                    opt=opt,
+                    current_time=current_time,
+                    payload_handler=self.payload_handler,
+                    visualization_config=cp_vis_config,
+                )
                 logger.info("created cooperception manager")
 
-        if opt.with_mtp:
+        if opt.with_aim:
             logger.info("Codriving Model is initialized")
 
             net = sumolib.net.readNet(f"opencda/sumo-assets/{self.scenario_name}/{self.scenario_name}.net.xml")
             nodes = net.getNodes()
 
-            aim_config = scenario_params.get("aim", {})
-            aim_model_name = aim_config.pop("model", "MTP")
+            aim_config = cast(YamlDict, scenario_config.get("aim", {}))
+            aim_model_name = cast(str, aim_config.pop("model", "MTP"))
             model = get_model(aim_model_name, **aim_config)
 
             self.codriving_model_manager = AIMModelManager(model=model, nodes=nodes, excluded_nodes=None)
 
-        self.platoon_list, self.node_ids["platoon"] = self.scenario_manager.create_platoon_manager(
+        self.platoon_list, platoon_node_ids = self.scenario_manager.create_platoon_manager(
             map_helper=map_api.spawn_helper_2lanefree, data_dump=data_dump
         )
+        self.node_ids["platoon"] = cast(dict[int, str], platoon_node_ids)
         logger.info(f"created platoon list of size {len(self.platoon_list)}")
 
-        self.single_cav_list, self.node_ids["cav"] = self.scenario_manager.create_vehicle_manager(
+        self.single_cav_list, cav_node_ids = self.scenario_manager.create_vehicle_manager(
             application=["single"], map_helper=map_api.spawn_helper_2lanefree, data_dump=data_dump
         )
+        self.node_ids["cav"] = cast(dict[int, str], cav_node_ids)
         logger.info(f"created single cavs of size {len(self.single_cav_list)}")
 
         _, self.bg_veh_list = self.scenario_manager.create_traffic_carla()
         logger.info(f"created background traffic of size {len(self.bg_veh_list)}")
 
-        self.rsu_list, self.node_ids["rsu"] = self.scenario_manager.create_rsu_manager(data_dump=data_dump)
+        self.rsu_list, rsu_node_ids = self.scenario_manager.create_rsu_manager(data_dump=data_dump)
+        self.node_ids["rsu"] = cast(dict[int, str], rsu_node_ids)
         logger.info(f"created RSU list of size {len(self.rsu_list)}")
+
+        if self.coperception_model_manager is not None and hasattr(self.coperception_model_manager, "validate_advcp_agents"):
+            valid_agent_ids = [vehicle_manager.vid for vehicle_manager in self.single_cav_list]
+            valid_agent_ids.extend(rsu_manager.rid for rsu_manager in self.rsu_list)
+            self.coperception_model_manager.validate_advcp_agents(valid_agent_ids)
 
         self.scenario_manager.create_custom_actor_manager(application=["single"], map_helper=map_api.spawn_helper_2lanefree, data_dump=data_dump)
         logger.info("created single custom actors")
 
-        self.eval_manager = EvaluationManager(
-            self.scenario_manager.cav_world, script_name=self.scenario_name, current_time=scenario_params["current_time"]
-        )
+        cav_world = self._require_cav_world()
+        self.eval_manager = EvaluationManager(cav_world, script_name=self.scenario_name, current_time=scenario_config["current_time"])
 
         self.spectator = self.scenario_manager.world.get_spectator()
 
-    def run(self, opt: argparse.Namespace):
+    def run(self, opt: argparse.Namespace) -> None:
+        directory_processor: DirectoryProcessor | None = None
         if self.coperception_model_manager is not None:
-            from opencda.core.common.coperception_model_manager import DirectoryProcessor
+            from opencda.core.common.directory_processor import DirectoryProcessor
 
-            now_directory = "simulation_output/data_dumping/sample/now"
-            directory_processor = DirectoryProcessor(source_directory="simulation_output/data_dumping", now_directory=now_directory)
-            os.makedirs(now_directory, exist_ok=True)
-            # Determine if we need to keep frames for late attacks
-            keep_frames = 0
-            if (self.coperception_model_manager.advcp_manager is not None and
-                self.coperception_model_manager.advcp_manager.with_advcp and
-                self.coperception_model_manager.advcp_manager.attack_type in ["lidar_remove_late", "lidar_spoof_late"]):
-                keep_frames = 10  # Keep last 10 frames for late attacks
-            directory_processor.clear_directory_now(keep_frames=keep_frames)
+            max_cav = self.coperception_model_manager.hypes.get("train_params", {}).get("max_cav")
+            directory_processor = DirectoryProcessor(source_directory="simulation_output/data_dumping", max_cav=max_cav)
         else:
             directory_processor = None
 
-        if self.cav_world.comms_manager is None:
+        if self.communication_manager is None:
             self.default_loop(opt, directory_processor)
         else:
             self.capi_loop(opt, directory_processor)
 
-    def default_loop(self, opt, directory_processor):
+    def default_loop(self, opt: argparse.Namespace, directory_processor: DirectoryProcessor | None) -> None:
         tick_number = -1
         while True:
             tick_number += 1
@@ -195,6 +259,7 @@ class Scenario:
             if opt.ticks and tick_number > opt.ticks:
                 break
             logger.debug(f"running: simulation tick: {tick_number}")
+            self.scenario_manager.sumo_tick()
             self.scenario_manager.tick()
 
             if not opt.free_spectator and any(array is not None for array in [self.single_cav_list, self.platoon_list]):
@@ -205,26 +270,27 @@ class Scenario:
                     transform = self.platoon_list[0].vehicle_manager_list[0].vehicle.get_transform()
                     self.spectator.set_transform(carla.Transform(transform.location + carla.Location(z=50), carla.Rotation(pitch=-90)))
 
-            if opt.with_mtp:
+            if opt.with_aim:
                 self.codriving_model_manager.make_trajs(carla_vmanagers=self.single_cav_list)
 
             if self.coperception_model_manager is not None and tick_number > 0:
+                active_directory_processor = self._require_directory_processor(directory_processor)
+                memory_structure = None
                 try:
                     logger.info(f"Processing {tick_number} tick")
-                    # Determine if we need to keep frames for late attacks
-                    keep_frames = 0
-                    if (self.coperception_model_manager.advcp_manager is not None and
-                        self.coperception_model_manager.advcp_manager.with_advcp and
-                        self.coperception_model_manager.advcp_manager.attack_type in ["lidar_remove_late", "lidar_spoof_late"]):
-                        keep_frames = 10
-                    directory_processor.clear_directory_now(current_tick=tick_number, keep_frames=keep_frames)
-                    directory_processor.process_directory(tick_number)
+
+                    memory_structure = active_directory_processor.retrieve_data_structure(tick_number)
+
+                    if memory_structure is None:
+                        logger.warning(f"Data for tick {tick_number} not ready yet.")
+
                     logger.info(f"Successfully processed {tick_number} tick")
                 except Exception as e:
                     logger.warning(f"An error occurred during proceesing {tick_number} tick: {e}")
 
-                self.coperception_model_manager.update_dataset()
-                self.coperception_model_manager.make_prediction(tick_number)
+                if memory_structure:
+                    self.coperception_model_manager.update_dataset(memory_structure)
+                    self.coperception_model_manager.make_prediction(tick_number)
 
             if self.platoon_list is not None:
                 logger.debug("updating platoons")
@@ -241,11 +307,14 @@ class Scenario:
 
             if self.rsu_list is not None:
                 logger.debug("updating RSUs")
+
                 for rsu in self.rsu_list:
                     rsu.update_info()
                     rsu.run_step()
 
-    def capi_loop(self, opt, directory_processor):
+    def capi_loop(self, opt: argparse.Namespace, directory_processor: DirectoryProcessor | None) -> None:
+        communication_manager = self._require_communication_manager()
+        payload_handler = self._require_payload_handler()
         tick_number = -1
         while True:
             tick_number += 1
@@ -263,7 +332,7 @@ class Scenario:
                     transform = self.platoon_list[0].vehicle_manager_list[0].vehicle.get_transform()
                     self.spectator.set_transform(carla.Transform(transform.location + carla.Location(z=50), carla.Rotation(pitch=-90)))
 
-            if opt.with_mtp:
+            if opt.with_aim:
                 self.codriving_model_manager.make_trajs(carla_vmanagers=self.single_cav_list)
 
             """
@@ -272,39 +341,36 @@ class Scenario:
             # Alternatively, the data dumper logic could be extracted into separate functions and executed before communication.
             """
             if self.coperception_model_manager is not None and tick_number > 0:
+                active_directory_processor = self._require_directory_processor(directory_processor)
+                memory_structure = None
+                can_predict_current_tick = False
                 try:
-                    logger.info(f"Processing {tick_number} tick")
-                    # Determine if we need to keep frames for late attacks
-                    keep_frames = 0
-                    if (self.coperception_model_manager.advcp_manager is not None and
-                        self.coperception_model_manager.advcp_manager.with_advcp and
-                        self.coperception_model_manager.advcp_manager.attack_type in ["lidar_remove_late", "lidar_spoof_late"]):
-                        keep_frames = 10
-                    directory_processor.clear_directory_now(current_tick=tick_number, keep_frames=keep_frames)
-                    directory_processor.process_directory(tick_number)
-                    logger.info(f"Successfully processed {tick_number} tick")
+                    memory_structure = active_directory_processor.retrieve_data_structure(tick_number)
                 except Exception as e:
-                    logger.warning(f"An error occurred during proceesing {tick_number} tick: {e}")
+                    logger.warning(f"Error processing tick {tick_number}: {e}")
 
-                self.coperception_model_manager.update_dataset()
-                self.coperception_model_manager.opencood_dataset.extract_data(
-                    idx=0  # TODO: Figure out how to select the ego vehicle in cooperative perception models
-                )
+                if memory_structure:
+                    self.coperception_model_manager.update_dataset(memory_structure)
+                    opencood_dataset = self._require_opencood_dataset()
+                    opencood_dataset.extract_data(idx=0)
+                    can_predict_current_tick = True
+            else:
+                can_predict_current_tick = False
 
-            message = self.message_handler.make_opencda_message()
+            opencda_message = payload_handler.make_opencda_message()
+            logger.info(f"{round(opencda_message.ByteSize() / (1 << 20), 3)} MB of payload about to be sent")
+            communication_manager.send_message(opencda_message)
 
-            self.cav_world.comms_manager.send_message(message)
-            logger.info(f"{round(len(message) / (1 << 20), 3)} MB about to be sent")
+            self.scenario_manager.sumo_tick()
 
-            message = self.cav_world.comms_manager.receive_message()
-            logger.info(f"{round(len(message) / (1 << 20), 3)} MB were received")
+            artery_message = communication_manager.receive_message()
+            logger.info(f"{round(artery_message.ByteSize() / (1 << 20), 3)} MB were received")
+            payload_handler.make_artery_payload(artery_message)
 
-            self.message_handler.make_artery_data(message)
-
-            if self.coperception_model_manager is not None and tick_number > 0:
+            if self.coperception_model_manager is not None and tick_number > 0 and can_predict_current_tick:
                 self.coperception_model_manager.make_prediction(tick_number)
 
-            self.message_handler.clear_messages()
+            payload_handler.clear_messages()
 
             if self.platoon_list is not None:
                 logger.debug("updating platoons")
@@ -325,7 +391,7 @@ class Scenario:
                     rsu.update_info()
                     rsu.run_step()
 
-    def finalize(self, opt: argparse.Namespace):
+    def finalize(self, opt: argparse.Namespace) -> None:
         if opt.record:
             self.scenario_manager.client.stop_recorder()
             logger.info("finalizing: stopping recorder")
@@ -361,9 +427,15 @@ class Scenario:
             for v in self.bg_veh_list:
                 v.destroy()
 
+        if self.communication_manager:
+            self.communication_manager.destroy()
 
-def run_scenario(opt, scenario_params) -> None:
-    raised_error = scenario = None
+        # TODO: Add general function to destroy actors
+
+
+def run_scenario(opt: argparse.Namespace, scenario_params: DictConfig) -> None:
+    raised_error: Exception | None = None
+    scenario: Scenario | None = None
     try:
         scenario = Scenario(opt, scenario_params)
         scenario.run(opt)

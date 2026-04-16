@@ -92,15 +92,6 @@ vehicle_base:
       debug: false # whether to draw future/history waypoints
       debug_trajectory: false # whether to draw the trajectory points and path
 
-# define sumo simulation setting for traffic generation
-sumo:
-  port: 3000
-  host: sumo
-  gui: true
-  client_order: 1
-  step_length: ${world.fixed_delta_seconds}
-
-
 scenario:
   rsu_list:
   single_cav_list:

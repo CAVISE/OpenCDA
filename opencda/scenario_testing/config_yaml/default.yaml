@@ -18,7 +18,6 @@ world:
     fog_falloff: 0 # Density of the fog (as in specific mass) from 0 to infinity. The bigger the value, the more dense and heavy it will be, and the fog will reach smaller heights
     wetness: 0
 
-
 # Define the basic parameters of the rsu
 rsu_base:
   sensing:
@@ -79,6 +78,10 @@ vehicle_base:
     localization:
       activate: false # when not activated, ego position will be retrieved from server directly
       dt: ${world.fixed_delta_seconds} # used for kalman filter
+      metrics:
+        metric_configs:
+          trace:
+            warmup_steps: 0
       gnss: # gnss sensor configuration
         noise_alt_stddev: 0.001
         noise_lat_stddev: 1.0e-6
@@ -129,6 +132,14 @@ vehicle_base:
       trajectory_dt: 0.20 # for every dt seconds, we sample a trajectory point from the trajectory path as next goal state
       debug: false # whether to draw future/history waypoints
       debug_trajectory: false # whether to draw the trajectory points and path
+    metrics:
+      metric_configs:
+        speed:
+          warmup_steps: 1
+        acceleration:
+          warmup_steps: 1
+        ttc:
+          warmup_steps: 1
 
   controller:
     type: pid_controller # this has to be exactly the same name as the controller py file
@@ -182,8 +193,35 @@ platoon_base:
   change_leader_speed: true # whether to assign leader multiple speed to follow
   leader_speeds_profile: [ 85, 95 ] # different speed for leader to follow
   stage_duration: 10 # how long should the leader keeps in the current velocity stage
+  metrics:
+    metric_configs:
+      time_gap:
+        warmup_steps: 100
+      distance_gap:
+        warmup_steps: 100
 
 # define tne scenario in each specific scenario
 # scenario:
 #   single_cav_list: []
 #   platoon_list: []
+
+sumo:
+  port: 3000
+  host: sumo
+  gui: true
+  client_order: 2
+  step_length: ${world.fixed_delta_seconds}
+
+cooperative_perception_visualization:
+  background: [0, 0, 0]
+  lidar_point_colors:
+    other: [255, 255, 255] # fallback color for all lidar points; in general CoP visualization every non-ego agent also uses this color
+    ego: [80, 255, 80] # used when the visualizer can identify ego points
+    attackers: [224, 104, 104] # used for real lidar points of attacking agents when AdvCP visualization is active
+    spoofing: [180, 0, 255] # reserved for fake/spoofed lidar points injected by AdvCP; not used yet
+    # cav-1: [255, 220, 0] # optional explicit color override for a specific vehicle id
+    # rsu-2: [0, 200, 255] # optional explicit color override for a specific RSU id
+  bbox_colors:
+    gt: [0, 255, 0]
+    pred: [255, 0, 0]
+    fake: [242, 156, 74]  # used for fake bounding boxes when AdvCP late-fusion visualization is active
