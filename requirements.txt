@@ -1,6 +1,6 @@
 # Simulation & Control
 carla==0.9.16
-cmake==3.31.11
+cmake==3.31.10
 
 # Packaging, Build & Runtime Utilities
 coloredlogs==15.0.1
