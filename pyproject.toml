@@ -1,7 +1,7 @@
 [build-system]
 requires = [
     "scikit-build-core>=0.10.0",
-    "cmake>=4.3.1",
+    "cmake>=3.31.11",
     "ninja>=1.13.0",
     "cython>=3.2.4",
     "cython-cmake>=0.2",
@@ -19,7 +19,7 @@ requires-python = ">=3.10"
 minimum-version = "0.10"
 metadata.version.provider = "opencda.version"
 wheel.packages = ["opencda", "OpenCOOD/opencood"]
-cmake.version = ">=3.18"
+cmake.version = ">=3.31.11"
 ninja.version = ">=1.11"
 ninja.make-fallback = true
 cmake.args = ["-DCMAKE_CUDA_ARCHITECTURES=86"]
