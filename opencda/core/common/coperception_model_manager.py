@@ -10,7 +10,7 @@ from matplotlib import pyplot as plt
 import numpy as np
 import torch  # type: ignore
 import open3d as o3d
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader  # type: ignore
 
 import opencood.hypes_yaml.yaml_utils as yaml_utils
 from opencood.tools import train_utils, inference_utils
@@ -746,17 +746,7 @@ class CoperceptionModelManager:
 
         self.final_result_stat.merge_from(result_stat)
 
-        # Update AdvCP statistics if enabled
-        if self.advcp_manager and self.advcp_manager.with_advcp:
-            attack_stats = self.advcp_manager.get_attack_statistics()
-            defense_stats = self.advcp_manager.get_defense_statistics()
-
-            if attack_stats:
-                logger.info(f"AdvCP Attack Statistics: {attack_stats}")
-            if defense_stats:
-                logger.info(f"AdvCP Defense Statistics: {defense_stats}")
-
-    def final_eval(self) -> None:
+    def final_eval(self):
         eval_dir = f"simulation_output/coperception/results/{self.opt.test_scenario}_{self.current_time}"
         os.makedirs(eval_dir, exist_ok=True)
         eval_utils.eval_final_results(self.final_result_stat.as_dict(), eval_dir, self.opt.global_sort_detections)
