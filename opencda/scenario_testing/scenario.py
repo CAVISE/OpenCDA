@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, NoReturn, cast
 
 import carla
 import omegaconf
-import sumolib
+import traci
 from omegaconf import DictConfig, OmegaConf
 
 import opencda.scenario_testing.utils.cosim_api as sim_api
@@ -23,6 +23,8 @@ from opencda.core.common.rsu_manager import RSUManager
 from opencda.core.common.vehicle_manager import VehicleManager
 from opencda.scenario_testing.evaluations.evaluate_manager import EvaluationManager
 from opencda.scenario_testing.utils.yaml_utils import YamlDict, add_current_time, save_yaml
+
+from opencda.core.application.behavior.services.aim_server.aim_server import AIMServerRequestMessage
 
 if TYPE_CHECKING:
     from opencda.core.common.coperception_model_manager import DirectoryProcessor, DatasetOpenCOOD
@@ -40,7 +42,7 @@ class Scenario:
     rsu_list: list[RSUManager]
     spectator: carla.Actor
     cav_world: CavWorld
-    codriving_model_manager: AIMModelManager  # [CoDrivingInt]
+    codriving_model_manager: AIMModelManager
     platoon_list: list[PlatooningManager]
     bg_veh_list: list[carla.Actor]
     scenario_name: str
@@ -186,18 +188,6 @@ class Scenario:
                 )
                 logger.info("created cooperception manager")
 
-        if opt.with_aim:
-            logger.info("Codriving Model is initialized")
-
-            net = sumolib.net.readNet(f"opencda/sumo-assets/{self.scenario_name}/{self.scenario_name}.net.xml")
-            nodes = net.getNodes()
-
-            aim_config = cast(YamlDict, scenario_config.get("aim", {}))
-            aim_model_name = cast(str, aim_config.pop("model", "MTP"))
-            model = get_model(aim_model_name, **aim_config)
-
-            self.codriving_model_manager = AIMModelManager(model=model, nodes=nodes, excluded_nodes=None)
-
         self.platoon_list, platoon_node_ids = self.scenario_manager.create_platoon_manager(
             map_helper=map_api.spawn_helper_2lanefree, data_dump=data_dump
         )
@@ -224,6 +214,27 @@ class Scenario:
         self.eval_manager = EvaluationManager(cav_world, script_name=self.scenario_name, current_time=scenario_config["current_time"])
 
         self.spectator = self.scenario_manager.world.get_spectator()
+
+        if opt.with_aim:
+            logger.info("Codriving Model is initialized")
+
+            aim_config = cast(YamlDict, scenario_config.get("aim", {}))
+            aim_model_name = cast(str, aim_config.pop("model", "MTP"))
+            model = get_model(aim_model_name, **aim_config)
+
+            current_rsu: RSUManager | None = None
+            for rsu in self.rsu_list:
+                print(f"rsu: {rsu.rid}")
+                if rsu.rid == "rsu-1":
+                    current_rsu = rsu
+            if current_rsu:
+                current_rsu.localizer.localize()
+                rsu_pos = current_rsu.localizer.get_ego_pos()
+                self.codriving_model_manager = AIMModelManager(
+                    model=model,
+                    control_center=rsu_pos,
+                )
+            self.cavs_under_control: set[VehicleManager] = set()
 
     def run(self, opt: argparse.Namespace) -> None:
         directory_processor: DirectoryProcessor | None = None
@@ -260,7 +271,36 @@ class Scenario:
                     self.spectator.set_transform(carla.Transform(transform.location + carla.Location(z=50), carla.Rotation(pitch=-90)))
 
             if opt.with_aim:
-                self.codriving_model_manager.make_trajs(carla_vmanagers=self.single_cav_list)
+                cav_msgs = []
+                for cav in self.single_cav_list:
+                    pos = cav.vehicle.get_transform()
+                    waypoints = cav.agent.get_local_planner().get_waypoint_buffer()
+                    msg = AIMServerRequestMessage(
+                        service_id="aim_server",
+                        text="",
+                        vehicle_id=cav.vid,
+                        position=pos,
+                        speed=traci.vehicle.getSpeed(cav.vid),
+                        yaw=traci.vehicle.getAngle(cav.vid),
+                        waypoints=waypoints,
+                    )
+
+                    cav_msgs.append(msg)
+
+                aim_result = self.codriving_model_manager.process(cav_msgs)
+                logger.debug(f"New aim result: {aim_result}")
+
+                if aim_result.messages:
+                    next_pos = {message.vehicle_id: message.next_position for message in aim_result.messages}
+                    for cav in self.single_cav_list:
+                        vehicle_id = cav.vid
+                        current_location = cav.vehicle.get_location()
+                        if vehicle_id in next_pos:
+                            cav.set_destination(current_location, next_pos[vehicle_id], clean=True, end_reset=False)
+                            self.cavs_under_control.add(cav)
+                        elif vehicle_id in self.cavs_under_control:
+                            cav.set_destination(current_location, cav.agent.end_waypoint.transform.location, clean=True, end_reset=True)
+                            self.cavs_under_control.remove(cav)
 
             if self.coperception_model_manager is not None and tick_number > 0:
                 active_directory_processor = self._require_directory_processor(directory_processor)
@@ -322,7 +362,10 @@ class Scenario:
                     self.spectator.set_transform(carla.Transform(transform.location + carla.Location(z=50), carla.Rotation(pitch=-90)))
 
             if opt.with_aim:
-                self.codriving_model_manager.make_trajs(carla_vmanagers=self.single_cav_list)
+                raise NotImplementedError(
+                    "AIM integration is not currently supported in CAPI loop. Please set --with-aim to false if you want to use CAPI features."
+                )
+                # self.codriving_model_manager.process()
 
             """
             # Tick 0 is an initialization tick. The simulation starts at tick 0, while the data dumper starts at tick 1.
