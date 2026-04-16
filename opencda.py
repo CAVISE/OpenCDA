@@ -124,10 +124,7 @@ def arg_parse() -> argparse.Namespace:
     )
     parser.add_argument("--model-dir", type=str, help="Continued training path")
     parser.add_argument("--fusion-method", type=str, default="late", help="late, early or intermediate")
-    parser.add_argument("--show-vis", action="store_true", help="whether to show image visualization result")
-    parser.add_argument(
-        "--show-sequence", action="store_true", help="whether to show video visualization result. It can not be set true with show_vis together."
-    )
+    parser.add_argument("--show-sequence", action="store_true", help="whether to show video visualization result")
     parser.add_argument("--save-vis", action="store_true", help="whether to save visualization result")
     parser.add_argument("--save-npy", action="store_true", help="whether to save prediction and gt result in npy_test file")
     parser.add_argument(

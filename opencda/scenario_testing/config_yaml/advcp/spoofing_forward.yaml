@@ -1,0 +1,6 @@
+# For 2cars_advcp_attack_check scenario
+mode: spoof
+attacker_id: rsu-1
+default_size: [4.5, 2.0, 1.6]
+boxes:
+  - relative: [5.0, 0.0, 0.0, 0.0, 90.0, 0.0]

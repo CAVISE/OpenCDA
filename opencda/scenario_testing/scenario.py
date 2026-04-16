@@ -25,7 +25,9 @@ from opencda.scenario_testing.evaluations.evaluate_manager import EvaluationMana
 from opencda.scenario_testing.utils.yaml_utils import YamlDict, add_current_time, save_yaml
 
 if TYPE_CHECKING:
-    from opencda.core.common.coperception_model_manager import DirectoryProcessor, DatasetOpenCOOD
+    from opencda.core.common.directory_processor import DirectoryProcessor
+    from opencda.core.common.coperception_model_manager import CoperceptionModelManager
+    from opencda.core.common.coperception_model_manager import DatasetOpenCOOD
     from opencda.core.common.communication.communication_manager import CommunicationManager
     from opencda.core.common.communication.payload_handler import PayloadHandler
 
@@ -164,7 +166,11 @@ class Scenario:
             save_yaml(scenario_config, save_yaml_name)
 
             if opt.with_coperception and opt.model_dir:
-                from opencda.core.common.coperception_model_manager import CoperceptionModelManager
+                CoperceptionManagerClass: type[CoperceptionModelManager]
+                if getattr(opt, "with_advcp", False):
+                    from opencda.core.attack.advcp.adv_coperception_model_manager import AdvCoperceptionModelManager as CoperceptionManagerClass
+                else:
+                    from opencda.core.common.coperception_model_manager import CoperceptionModelManager as CoperceptionManagerClass
 
                 if opt.fusion_method not in ["late", "early", "intermediate"]:
                     logger.error('Invalid fusion method: must be one of "late", "early", or "intermediate".')
@@ -178,7 +184,7 @@ class Scenario:
                     scenario_params.get("cooperative_perception_visualization", {}),
                     resolve=True,
                 )
-                self.coperception_model_manager = CoperceptionModelManager(
+                self.coperception_model_manager = CoperceptionManagerClass(
                     opt=opt,
                     current_time=current_time,
                     payload_handler=self.payload_handler,
@@ -217,14 +223,10 @@ class Scenario:
         self.node_ids["rsu"] = cast(dict[int, str], rsu_node_ids)
         logger.info(f"created RSU list of size {len(self.rsu_list)}")
 
-        if self.coperception_model_manager is not None and getattr(opt, "with_advcp", False):
+        if self.coperception_model_manager is not None and hasattr(self.coperception_model_manager, "validate_advcp_agents"):
             valid_agent_ids = [vehicle_manager.vid for vehicle_manager in self.single_cav_list]
             valid_agent_ids.extend(rsu_manager.rid for rsu_manager in self.rsu_list)
-            try:
-                self.coperception_model_manager.validate_advcp_agents(valid_agent_ids)
-            except ValueError as exc:
-                logger.error(str(exc))
-                sys.exit(1)
+            self.coperception_model_manager.validate_advcp_agents(valid_agent_ids)
 
         self.scenario_manager.create_custom_actor_manager(application=["single"], map_helper=map_api.spawn_helper_2lanefree, data_dump=data_dump)
         logger.info("created single custom actors")
@@ -237,7 +239,7 @@ class Scenario:
     def run(self, opt: argparse.Namespace) -> None:
         directory_processor: DirectoryProcessor | None = None
         if self.coperception_model_manager is not None:
-            from opencda.core.common.coperception_model_manager import DirectoryProcessor
+            from opencda.core.common.directory_processor import DirectoryProcessor
 
             max_cav = self.coperception_model_manager.hypes.get("train_params", {}).get("max_cav")
             directory_processor = DirectoryProcessor(source_directory="simulation_output/data_dumping", max_cav=max_cav)
