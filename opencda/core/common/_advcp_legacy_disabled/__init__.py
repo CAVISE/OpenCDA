@@ -3,6 +3,7 @@ AdvCollaborativePerception (AdvCP) module for OpenCDA.
 This module integrates attack and defense mechanisms for collaborative perception in V2X networks.
 """
 
+'''
 import os
 import sys
 from typing import Any
@@ -33,3 +34,6 @@ def __getattr__(name: str) -> Any:
 
         return AdvCPVisualizationManager
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+'''
+
+raise ImportError("Legacy AdvCP disabled; use opencda.core.attack.advcp")
