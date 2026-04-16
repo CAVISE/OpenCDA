@@ -82,7 +82,7 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
         if not config_path:
             return None
 
-        with open(config_path, "r", encoding="utf-8") as handle:
+        with open(config_path, "r") as handle:
             config = yaml.safe_load(handle) or {}
 
         if not isinstance(config, dict):
@@ -172,6 +172,7 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
         advcp_config: Optional[dict[str, Any]] = None,
         memory_data: Optional[dict[Any, Any]] = None,
     ) -> tuple[Any, Any, Any, dict[str, Any]]:
+        # TODO: Move this up when https://github.com/CAVISE/OpenCDA/pull/65 is merged
         from opencood.utils import box_utils
 
         output_dict: OrderedDict[str, Any] = OrderedDict()
@@ -370,12 +371,16 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
         if has_relative == has_absolute:
             raise ValueError(f"AdvCP box entry #{index} must define exactly one of 'relative' or 'absolute'.")
 
-        pose = spec["relative"] if has_relative else spec["absolute"]
-        pose = AdvCoperceptionModelManager._normalize_pose(pose, f"boxes[{index}]")
-        size = AdvCoperceptionModelManager._normalize_size(
+        pose = np.asarray(spec["relative"] if has_relative else spec["absolute"], dtype=np.float32)
+        if pose.shape != (6,):
+            raise ValueError(f"boxes[{index}] must contain 6 values: [x, y, z, roll, yaw, pitch].")
+
+        size = np.asarray(
             spec.get("size", advcp_config.get("default_size", AdvCoperceptionModelManager.DEFAULT_BOX_SIZE)),
-            f"boxes[{index}].size",
+            dtype=np.float32,
         )
+        if size.shape != (3,):
+            raise ValueError(f"boxes[{index}].size must contain 3 values: [length, width, height].")
 
         if has_relative:
             world_pose = AdvCoperceptionModelManager._compose_relative_pose(ego_state["ego_pose"], pose)
@@ -383,20 +388,6 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
             world_pose = pose
 
         return AdvCoperceptionModelManager._world_box_to_sensor_box(world_pose, size, attacker_state["lidar_pose"])
-
-    @staticmethod
-    def _normalize_pose(raw_pose: Any, field_name: str) -> np.ndarray:
-        pose = np.asarray(raw_pose, dtype=np.float32)
-        if pose.shape != (6,):
-            raise ValueError(f"{field_name} must contain 6 values: [x, y, z, roll, yaw, pitch].")
-        return pose
-
-    @staticmethod
-    def _normalize_size(raw_size: Any, field_name: str) -> np.ndarray:
-        size = np.asarray(raw_size, dtype=np.float32)
-        if size.shape != (3,):
-            raise ValueError(f"{field_name} must contain 3 values: [length, width, height].")
-        return size
 
     @staticmethod
     def _compose_relative_pose(reference_pose: np.ndarray | list[float], relative_pose: np.ndarray) -> np.ndarray:

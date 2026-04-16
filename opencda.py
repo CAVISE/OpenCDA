@@ -202,11 +202,11 @@ def main() -> None:
 
     logger.info(f"OpenCDA Version: {__version__}")
 
-    cwd = pathlib.PurePath(os.getcwd())
+    cwd = pathlib.Path.cwd()
     default_yaml = config_yaml = cwd / "opencda/scenario_testing/config_yaml/default.yaml"
     config_yaml = cwd / f"opencda/scenario_testing/config_yaml/{opt.test_scenario}.yaml"
     advcp_config_dir = cwd / "opencda/scenario_testing/config_yaml/advcp"
-    if not os.path.isfile(config_yaml):
+    if not config_yaml.is_file():
         logger.error(f"{config_yaml.relative_to(cwd)} not found!")
         sys.exit(errno.EPERM)
 
@@ -226,7 +226,7 @@ def main() -> None:
         if advcp_config.suffix == "":
             advcp_config = advcp_config.with_suffix(".yaml")
 
-        if not os.path.isfile(advcp_config):
+        if not advcp_config.is_file():
             logger.error(f"AdvCP config not found: {advcp_config}")
             sys.exit(errno.EPERM)
 
