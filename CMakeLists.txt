@@ -14,7 +14,7 @@ if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
     set(CMAKE_CUDA_ARCHITECTURES "86")
 endif()
 
-find_package(Python3 3.10 REQUIRED COMPONENTS Interpreter Development NumPy)
+find_package(Python3 3.12 REQUIRED COMPONENTS Interpreter Development NumPy)
 
 list(APPEND CMAKE_MODULE_PATH "${Python3_SITEARCH}/cython_cmake/cmake")
 
