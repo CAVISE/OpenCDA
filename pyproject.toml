@@ -16,6 +16,7 @@ dynamic = ["version"]
 requires-python = ">=3.10"
 
 [tool.scikit-build]
+experimental = true
 minimum-version = "0.10"
 metadata.version.provider = "opencda.version"
 wheel.packages = ["opencda", "OpenCOOD/opencood"]
@@ -24,7 +25,7 @@ ninja.version = ">=1.11"
 ninja.make-fallback = true
 cmake.args = ["-DCMAKE_CUDA_ARCHITECTURES=86"]
 editable.mode = "redirect"
-editable.rebuild = true
+editable.rebuild = false
 cmake.define.OPENCDA_BUILD_CUDA = {env = "OPENCDA_BUILD_CUDA", default = "ON"}
 cmake.define.OPENCDA_BUILD_CYTHON = {env = "OPENCDA_BUILD_CYTHON", default = "ON"}
 cmake.define.OPENCDA_BUILD_PROTOBUF = {env = "OPENCDA_BUILD_PROTOBUF", default = "ON"}

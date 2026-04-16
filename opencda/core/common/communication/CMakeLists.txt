@@ -4,6 +4,8 @@ set(PROTO_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/messages)
 set(PROTO_BUILD_DIR ${CMAKE_BINARY_DIR}/protos/cavise)
 set(PROTO_INSTALL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/protos/cavise)
 
+file(MAKE_DIRECTORY ${PROTO_BUILD_DIR})
+
 set(PROTO_FILES
     ${PROTO_SOURCE_DIR}/capi.proto
     ${PROTO_SOURCE_DIR}/opencda.proto
