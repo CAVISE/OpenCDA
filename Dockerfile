@@ -41,12 +41,12 @@ RUN apt-get update && \
     apt-get autoremove -y && \
     rm -rf /var/lib/apt/lists/*
 
-# Python Version: 3.12.3
+WORKDIR /home/opencda/cavise/opencda
 COPY requirements.txt requirements.txt
 
+# Python Version: 3.12.3
 RUN python3 -m pip install --no-cache-dir --break-system-packages -r requirements.txt && \
     python3 -m pip install --no-cache-dir --break-system-packages spconv-cu126==2.3.8
 
 USER ${USER}
 ENV PATH="${HOME}/.local/bin:${PATH}"
-WORKDIR ${HOME}/cavise/opencda
