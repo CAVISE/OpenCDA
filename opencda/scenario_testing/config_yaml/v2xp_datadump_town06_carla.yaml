@@ -97,13 +97,6 @@ carla_traffic_manager:
   range:
     - [-11, 12, 100, 200, 3.5, 15, 25]
 
-sumo:
-  port: 3000
-  host: sumo
-  gui: true
-  client_order: 2
-  step_length: ${world.fixed_delta_seconds}
-
 # define scenario. In this scenario, a 4-vehicle platoon already exists.
 scenario:
   rsu_list:

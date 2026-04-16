@@ -496,7 +496,14 @@ class ScenarioManager:
 
             actor = self.world.spawn_actor(static_bp, spawn_transform)
 
-            rsu_manager = RSUManager(self.world, rsu_config, self.carla_map, self.cav_world, self.scenario_params["current_time"], data_dump)
+            rsu_manager = RSUManager(
+                self.world,
+                rsu_config,
+                self.carla_map,
+                self.cav_world,
+                self.scenario_params["current_time"],
+                data_dumping=data_dump,
+            )
 
             rsu_carla_ids[actor.id] = rsu_manager.rid
 

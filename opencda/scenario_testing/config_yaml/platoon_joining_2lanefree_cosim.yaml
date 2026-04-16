@@ -26,14 +26,6 @@ vehicle_base:
     local_planner: &base_local_planner # trajectory planning related
       trajectory_dt: 0.25 # for every dt seconds, we sample a trajectory point from the trajectory path as next goal state
 
-# define sumo simulation setting for traffic generation
-sumo:
-  port: 3000
-  host: sumo
-  gui: true
-  client_order: 1
-  step_length: ${world.fixed_delta_seconds}
-
 # define the platoon basic characteristics
 platoon_base:
   max_capacity: 10
