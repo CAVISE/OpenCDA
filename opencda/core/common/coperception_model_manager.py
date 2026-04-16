@@ -274,9 +274,6 @@ class CoperceptionVisualizer:
         if vis_gt_box:
             gt_box_np = common_utils.torch_tensor_to_numpy(gt_tensor)
             gt_name = [""] * gt_box_np.shape[0]
-        else:
-            gt_box_np = None
-            gt_name = []
 
         if method == "bev":
             canvas = canvas_bev.Canvas_BEV_heading_right(
