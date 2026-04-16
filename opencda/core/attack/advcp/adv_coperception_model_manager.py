@@ -16,22 +16,20 @@ from opencda.core.common.coperception_model_manager import (
 
 logger = logging.getLogger("cavise.opencda.opencda.core.attack.advcp.advcp_manager")
 
-DEFAULT_BOX_SIZE = [4.5, 2.0, 1.6]
-
 
 class AdvCoperceptionVisualizer(CoperceptionVisualizer):
     _DEFAULT_VISUALIZATION_CONFIG: dict[str, Any] = {
-        "background": [0, 0, 0],
+        "background": (0, 0, 0),
         "lidar_point_colors": {
-            "default": [255, 255, 255],
-            "ego": [80, 255, 80],
-            "attackers": [255, 90, 90],
-            "spoofing": [180, 0, 255],
+            "other": (255, 255, 255),
+            "ego": (80, 255, 80),
+            "attackers": (255, 90, 90),
+            "spoofing": (180, 0, 255),
         },
         "bbox_colors": {
-            "gt": [0, 255, 0],
-            "pred": [255, 0, 0],
-            "fake": [180, 0, 255],
+            "gt": (0, 255, 0),
+            "pred": (255, 0, 0),
+            "fake": (180, 0, 255),
         },
     }
 
@@ -45,25 +43,26 @@ class AdvCoperceptionVisualizer(CoperceptionVisualizer):
     def _resolve_point_color(
         cls,
         config: Mapping[str, Any],
-        agent_id: Any,
+        agent_id: str,
         role: str,
-        default_color: Any,
-        ego_color: Any,
+        other_color: tuple,
+        ego_color: tuple,
         visualization_context: Optional[Mapping[str, Any]] = None,
     ) -> Any:
         lidar_point_colors = config["lidar_point_colors"]
         if agent_id is not None and agent_id in lidar_point_colors:
             return cls._as_uint8_color(lidar_point_colors[agent_id])
         attacker_ids = set((visualization_context or {}).get("attacker_ids", []))
-        attacker_color = cls._as_uint8_color(config["lidar_point_colors"].get("attackers", default_color))
+        attacker_color = cls._as_uint8_color(config["lidar_point_colors"].get("attackers", other_color))
         if agent_id is not None and agent_id in attacker_ids:
             return attacker_color
         if role == "ego":
             return ego_color
-        return default_color
+        return other_color
 
 
 class AdvCoperceptionModelManager(CoperceptionModelManager):
+    DEFAULT_BOX_SIZE = [4.5, 2.0, 1.6]
     VISUALIZER_CLASS = AdvCoperceptionVisualizer
     SEQUENCE_BOX_GROUP_NAMES: tuple[str, ...] = ("pred", "gt", "fake")
 
@@ -90,7 +89,7 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
             raise ValueError("AdvCP config must be a mapping.")
 
         config.setdefault("mode", "spoof")
-        config.setdefault("default_size", list(DEFAULT_BOX_SIZE))
+        config.setdefault("default_size", list(AdvCoperceptionModelManager.DEFAULT_BOX_SIZE))
         config.setdefault("boxes", [])
         return config
 
@@ -117,14 +116,13 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
             logger.warning("AdvCP is enabled, but no valid attackers were resolved. Attacks will not be applied.")
 
     @staticmethod
-    def resolve_attacker_id(attacker_id: Any, valid_agent_ids: list[str]) -> str | None:
+    def resolve_attacker_id(attacker_id: Optional[str], valid_agent_ids: list[str]) -> str | None:
         if attacker_id is None:
             logger.warning("AdvCP attack will not be applied because attacker_id is not defined in the AdvCP config.")
             return None
 
-        attacker_str = str(attacker_id)
-        if attacker_str in valid_agent_ids:
-            return attacker_str
+        if attacker_id in valid_agent_ids:
+            return attacker_id
 
         logger.warning(
             "AdvCP attacker_id '%s' does not exist. Known agents: %s. AdvCP attack will not be applied.",
@@ -209,7 +207,7 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
 
         pred_box3d_list = []
         pred_box2d_list = []
-        pred_is_fake_list = []
+        pred_fake_list = []
 
         for cav_id, cav_content in batch_data.items():
             transformation_matrix = cav_content["transformation_matrix"]
@@ -249,7 +247,7 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
 
             pred_box2d_list.append(boxes2d_score)
             pred_box3d_list.append(projected_boxes3d)
-            pred_is_fake_list.append(is_fake)
+            pred_fake_list.append(is_fake)
 
         if len(pred_box2d_list) == 0 or len(pred_box3d_list) == 0:
             raise RuntimeError("AdvCP late spoofing produced no detection result.")
@@ -257,7 +255,7 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
         pred_box2d_tensor = torch.vstack(pred_box2d_list)
         scores = pred_box2d_tensor[:, -1]
         pred_box3d_tensor = torch.vstack(pred_box3d_list)
-        pred_is_fake_tensor = torch.hstack(pred_is_fake_list)
+        pred_is_fake_tensor = torch.hstack(pred_fake_list)
 
         keep_index_1 = box_utils.remove_large_pred_bbx(pred_box3d_tensor)
         keep_index_2 = box_utils.remove_bbx_abnormal_z(pred_box3d_tensor)
@@ -375,7 +373,7 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
         pose = spec["relative"] if has_relative else spec["absolute"]
         pose = AdvCoperceptionModelManager._normalize_pose(pose, f"boxes[{index}]")
         size = AdvCoperceptionModelManager._normalize_size(
-            spec.get("size", advcp_config.get("default_size", DEFAULT_BOX_SIZE)),
+            spec.get("size", advcp_config.get("default_size", AdvCoperceptionModelManager.DEFAULT_BOX_SIZE)),
             f"boxes[{index}].size",
         )
 

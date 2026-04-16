@@ -411,29 +411,29 @@ class TestCoperceptionVisualizer:
     def test_resolve_visualization_config_merges_defaults_and_overrides(self):
         config = CoperceptionVisualizer.resolve_visualization_config(
             {
-                "background": [12, 18, 24],
+                "background": (12, 18, 24),
                 "lidar_point_colors": {
-                    "default": [200, 200, 200],
-                    "cav-2": [10, 20, 30],
+                    "default": (200, 200, 200),
+                    "cav-2": (10, 20, 30),
                 },
-                "bbox_colors": {"pred": [1, 2, 3]},
+                "bbox_colors": {"pred": (1, 2, 3)},
             }
         )
 
-        assert config["background"] == [12, 18, 24]
-        assert config["lidar_point_colors"]["default"] == [200, 200, 200]
-        assert config["lidar_point_colors"]["ego"] == [80, 255, 80]
-        assert config["lidar_point_colors"]["cav-2"] == [10, 20, 30]
-        assert config["bbox_colors"]["pred"] == [1, 2, 3]
-        assert config["bbox_colors"]["gt"] == [0, 255, 0]
+        assert config["background"] == (12, 18, 24)
+        assert config["lidar_point_colors"]["default"] == (200, 200, 200)
+        assert config["lidar_point_colors"]["ego"] == (80, 255, 80)
+        assert config["lidar_point_colors"]["cav-2"] == (10, 20, 30)
+        assert config["bbox_colors"]["pred"] == (1, 2, 3)
+        assert config["bbox_colors"]["gt"] == (0, 255, 0)
 
     def test_get_lidar_points_and_colors_keeps_agent_order_and_applies_id_override(self):
         config = CoperceptionVisualizer.resolve_visualization_config(
             {
                 "lidar_point_colors": {
-                    "default": [200, 200, 200],
-                    "ego": [10, 250, 10],
-                    "cav-2": [90, 80, 70],
+                    "default": (200, 200, 200),
+                    "ego": (10, 250, 10),
+                    "cav-2": (90, 80, 70),
                 }
             }
         )
@@ -457,9 +457,9 @@ class TestCoperceptionVisualizer:
         config = CoperceptionVisualizer.resolve_visualization_config(
             {
                 "lidar_point_colors": {
-                    "default": [255, 255, 255],
-                    "ego": [80, 255, 80],
-                    "cav-1": [123, 45, 67],
+                    "default": (255, 255, 255),
+                    "ego": (80, 255, 80),
+                    "cav-1": (123, 45, 67),
                 }
             }
         )
@@ -479,9 +479,9 @@ class TestCoperceptionVisualizer:
         config = AdvCoperceptionVisualizer.resolve_visualization_config(
             {
                 "lidar_point_colors": {
-                    "default": [255, 255, 255],
-                    "ego": [80, 255, 80],
-                    "attackers": [255, 90, 90],
+                    "default": (255, 255, 255),
+                    "ego": (80, 255, 80),
+                    "attackers": (255, 90, 90),
                 }
             }
         )

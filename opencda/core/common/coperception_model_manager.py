@@ -103,14 +103,14 @@ class SequenceVisualizationState:
 
 class CoperceptionVisualizer:
     _DEFAULT_VISUALIZATION_CONFIG: Dict[str, Any] = {
-        "background": [0, 0, 0],
+        "background": (0, 0, 0),
         "lidar_point_colors": {
-            "default": [255, 255, 255],
-            "ego": [80, 255, 80],
+            "other": (255, 255, 255),
+            "ego": (80, 255, 80),
         },
         "bbox_colors": {
-            "gt": [0, 255, 0],
-            "pred": [255, 0, 0],
+            "gt": (0, 255, 0),
+            "pred": (255, 0, 0),
         },
     }
 
@@ -123,12 +123,15 @@ class CoperceptionVisualizer:
         config_dict = dict(config)
         for key in ("background",):
             if key in config_dict and config_dict[key] is not None:
-                resolved[key] = list(config_dict[key])
+                resolved[key] = tuple(config_dict[key])
 
         for key in ("lidar_point_colors", "bbox_colors"):
             value = config_dict.get(key)
             if isinstance(value, Mapping):
-                resolved[key].update(dict(value))
+                normalized_values = {name: tuple(color) for name, color in dict(value).items()}
+                if key == "lidar_point_colors" and "default" in normalized_values and "other" not in normalized_values:
+                    normalized_values["other"] = normalized_values["default"]
+                resolved[key].update(normalized_values)
 
         return resolved
 
@@ -335,8 +338,8 @@ class CoperceptionVisualizer:
         config: Mapping[str, Any],
         visualization_context: Optional[Mapping[str, Any]] = None,
     ) -> Tuple[np.ndarray, np.ndarray]:
-        default_color = cls._as_uint8_color(config["lidar_point_colors"]["default"])
-        ego_color = cls._as_uint8_color(config["lidar_point_colors"].get("ego", default_color))
+        other_color = cls._as_uint8_color(config["lidar_point_colors"]["other"])
+        ego_color = cls._as_uint8_color(config["lidar_point_colors"].get("ego", other_color))
 
         if isinstance(batch_data, Mapping):
             ego_entry = batch_data.get("ego")
@@ -358,7 +361,7 @@ class CoperceptionVisualizer:
                         config,
                         agent_id=agent_id,
                         role=role,
-                        default_color=default_color,
+                        other_color=other_color,
                         ego_color=ego_color,
                         visualization_context=visualization_context,
                     )
@@ -393,7 +396,7 @@ class CoperceptionVisualizer:
                     config,
                     agent_id=cav_id,
                     role="ego" if cav_id == "ego" else "default",
-                    default_color=default_color,
+                    other_color=other_color,
                     ego_color=ego_color,
                     visualization_context=visualization_context,
                 )
@@ -404,7 +407,7 @@ class CoperceptionVisualizer:
                 return np.vstack(colored_points), np.vstack(colored_values)
 
         fallback_points = cls._to_numpy_points(fallback_pcd)
-        fallback_colors = np.tile(np.asarray(default_color, dtype=np.uint8), (fallback_points.shape[0], 1))
+        fallback_colors = np.tile(np.asarray(other_color, dtype=np.uint8), (fallback_points.shape[0], 1))
         return fallback_points, fallback_colors
 
     @staticmethod
@@ -420,10 +423,10 @@ class CoperceptionVisualizer:
     def _resolve_point_color(
         cls,
         config: Mapping[str, Any],
-        agent_id,
+        agent_id: str,
         role: str,
-        default_color,
-        ego_color,
+        other_color: tuple,
+        ego_color: tuple,
         visualization_context: Optional[Mapping[str, Any]] = None,
     ):
         lidar_point_colors = config["lidar_point_colors"]
@@ -431,7 +434,7 @@ class CoperceptionVisualizer:
             return cls._as_uint8_color(lidar_point_colors[agent_id])
         if role == "ego":
             return ego_color
-        return default_color
+        return other_color
 
     @classmethod
     def _get_extra_box_tensors(cls, visualization_context: Optional[Mapping[str, Any]] = None) -> Dict[str, Any]:
