@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.31.11...4.3.1)
+cmake_minimum_required(VERSION 3.31.10...4.3.1)
 
 project(OpenCDA)
 
