@@ -122,6 +122,8 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
         infra = []
         spatial_correction_matrix = []
         projected_lidar_stack = [] if self.visualize else None
+        projected_lidar_roles = [] if self.visualize else None
+        projected_lidar_agent_ids = [] if self.visualize else None
 
         ego_cav_base = base_data_dict.get(ego_id)
         ego_cav_processed = self.get_item_single_car(ego_cav_base, ego_lidar_pose)
@@ -135,6 +137,8 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
         processed_features.append(ego_cav_processed["processed_features"])
         if self.visualize:
             projected_lidar_stack.append(ego_cav_processed["projected_lidar"])
+            projected_lidar_roles.append("ego")
+            projected_lidar_agent_ids.append(ego_id)
 
         if ego_id in self.payload_handler.current_artery_payload:
             for cav_id, _ in base_data_dict.items():
@@ -158,6 +162,8 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
 
                         if self.visualize:
                             projected_lidar_stack.append(msg["projected_lidar"])
+                            projected_lidar_roles.append("other")
+                            projected_lidar_agent_ids.append(cav_id)
 
         return {
             "processed_features": processed_features,
@@ -168,6 +174,8 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
             "infra": infra,
             "spatial_correction_matrix": spatial_correction_matrix,
             "projected_lidar_stack": projected_lidar_stack or [],
+            "projected_lidar_roles": projected_lidar_roles or [],
+            "projected_lidar_agent_ids": projected_lidar_agent_ids or [],
         }
 
     def __process_without_messages(self, ego_lidar_pose, base_data_dict):
@@ -179,6 +187,8 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
         infra = []
         spatial_correction_matrix = []
         projected_lidar_stack = [] if self.visualize else None
+        projected_lidar_roles = [] if self.visualize else None
+        projected_lidar_agent_ids = [] if self.visualize else None
 
         for cav_id, selected_cav_base in base_data_dict.items():
             dx = selected_cav_base["params"]["lidar_pose"][0] - ego_lidar_pose[0]
@@ -200,6 +210,8 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
 
             if self.visualize:
                 projected_lidar_stack.append(selected_cav_processed["projected_lidar"])
+                projected_lidar_roles.append("ego" if selected_cav_base["ego"] else "other")
+                projected_lidar_agent_ids.append(cav_id)
 
         return {
             "processed_features": processed_features,
@@ -210,6 +222,8 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
             "infra": infra,
             "spatial_correction_matrix": spatial_correction_matrix,
             "projected_lidar_stack": projected_lidar_stack or [],
+            "projected_lidar_roles": projected_lidar_roles or [],
+            "projected_lidar_agent_ids": projected_lidar_agent_ids or [],
         }
 
     def __getitem__(self, idx):
@@ -254,7 +268,14 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
         )
 
         if self.visualize:
-            processed_data_dict["ego"]["origin_lidar"] = np.vstack(data["projected_lidar_stack"])
+            processed_data_dict["ego"].update(
+                {
+                    "origin_lidar": np.vstack(data["projected_lidar_stack"]),
+                    "origin_lidar_by_agent": data["projected_lidar_stack"],
+                    "origin_lidar_roles": data["projected_lidar_roles"],
+                    "origin_lidar_agent_ids": data["projected_lidar_agent_ids"],
+                }
+            )
 
         return processed_data_dict
 
@@ -438,6 +459,15 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
         # check if anchor box in the batch
         if batch[0]["ego"]["anchor_box"] is not None:
             output_dict["ego"].update({"anchor_box": torch.from_numpy(np.array(batch[0]["ego"]["anchor_box"]))})
+
+        if self.visualize and "origin_lidar_by_agent" in batch[0]["ego"]:
+            output_dict["ego"].update(
+                {
+                    "origin_lidar_by_agent": [torch.from_numpy(np.array(points)) for points in batch[0]["ego"]["origin_lidar_by_agent"]],
+                    "origin_lidar_roles": list(batch[0]["ego"]["origin_lidar_roles"]),
+                    "origin_lidar_agent_ids": list(batch[0]["ego"]["origin_lidar_agent_ids"]),
+                }
+            )
 
         # save the transformation matrix (4, 4) to ego vehicle
         transformation_matrix_torch = torch.from_numpy(np.identity(4)).float()

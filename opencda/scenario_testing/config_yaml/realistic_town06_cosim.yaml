@@ -82,13 +82,6 @@ rsu_base:
         noise_lat_stddev: 3e-6
         noise_lon_stddev: 3e-6
 
-sumo:
-  port: 3000
-  host: sumo # IP address artery docker container
-  gui: true
-  client_order: 2
-  step_length: ${world.fixed_delta_seconds}
-
 # define scenario. In this scenario, only a single CAV will be spawned
 scenario:
   rsu_list:
