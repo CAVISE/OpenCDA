@@ -90,9 +90,10 @@ def arg_parse() -> argparse.Namespace:
         help="Define the name of the scenario you want to test. Notice, this only has effect on configurations that are picked up by scenario",
     )
     parser.add_argument("--record", action="store_true", help="Whether to record and save the simulation process to .log file")
-    parser.add_argument("--apply-ml", action='store_true',
-                        help='whether ml/dl framework such as sklearn/pytorch is needed in the testing. '
-                             'Set it to true only when you have installed the pytorch/sklearn package.')
+    # NOTICE: temporary disabled until we update yolo models.
+    # parser.add_argument("--apply-ml", action='store_true',
+    #                     help='whether ml/dl framework such as sklearn/pytorch is needed in the testing. '
+    #                          'Set it to true only when you have installed the pytorch/sklearn package.')
     parser.add_argument(
         "-v", "--version", type=str, default="0.9.15", help="Specify the CARLA simulator version (this does not have any effect in our fork)"
     )
@@ -185,57 +186,6 @@ def check_buld_for_utils(module_path: str, cwd: pathlib.PurePath, verbose: bool,
         return False
 
 
-def check_build_advcp_module(module_path: str, cwd: pathlib.PurePath, verbose: bool, logger: logging.Logger) -> bool:
-    """
-    Build an AdvCP CUDA/C++ extension module and ensure it is importable.
-
-    Args:
-        module_path: Path to the module directory containing setup.py (relative to cwd)
-        cwd: Current working directory (PurePath)
-        verbose: Whether to output full build logs
-        logger: Logger instance
-
-    Returns:
-        bool: True if build succeeded or already built, False otherwise
-    """
-    marker_file = cwd.joinpath(f"{module_path}/{BUILD_COMPLETED_FLAG}")
-    module_name = module_path.rstrip("/").split("/")[-1]
-    module_abs_path = cwd.joinpath(module_path)  # absolute path to the module directory
-
-    if os.path.isfile(marker_file):
-        logger.info(f"{module_name} is already built")
-        # Ensure the module directory is in sys.path for imports
-        if str(module_abs_path) not in sys.path:
-            sys.path.insert(0, str(module_abs_path))
-            logger.debug(f"Added {module_abs_path} to sys.path")
-        return True
-
-    try:
-        logger.info(f"Building {module_name} ...")
-        result = subprocess.run(
-            ["python", "setup.py", "build_ext", "--inplace"],
-            check=True,
-            cwd=cwd.joinpath(module_path),
-            capture_output=True,
-            text=True,
-        )
-        os.close(os.open(str(marker_file), os.O_CREAT))
-        logger.info(f"Complete building {module_name}")
-        if verbose:
-            logger.info(result.stdout)
-        # Add the module directory to sys.path so the compiled extension can be imported
-        if str(module_abs_path) not in sys.path:
-            sys.path.insert(0, str(module_abs_path))
-            logger.debug(f"Added {module_abs_path} to sys.path")
-        return True
-
-    except subprocess.CalledProcessError as e:
-        logger.info(f"Compilation error {module_name}:")
-        if verbose:
-            logger.info(e.stderr)
-        return False
-
-
 def main() -> None:
     opt = arg_parse()
 
@@ -292,7 +242,7 @@ def main() -> None:
     scene_dict = omegaconf.OmegaConf.merge(default_dict, scene_dict)
 
     # NOTICE: temporary measure (while option is turned off)
-    # opt.apply_ml = False
+    opt.apply_ml = False
 
     if opt.with_coperception:
         opencood_utils = "opencood/utils/"
@@ -301,11 +251,6 @@ def main() -> None:
             logger.error("Failed to build opencood.utils")
         if not check_buld_for_utils(opencood_pcdet_utils, cwd, verbosity == VerbosityLevel.FULL, logger):
             logger.error("Failed to build opencood.pcdet_utils")
-
-    if opt.with_advcp:
-        advcp_cuda_op = "opencda/core/common/advcp/mvp/perception/cuda_op"
-        if not check_build_advcp_module(advcp_cuda_op, cwd, verbosity == VerbosityLevel.FULL, logger):
-            logger.error("Failed to build AdvCP cuda_op")
 
     # this function might setup crucial components in Scenario, so
     # we should import as late as possible
