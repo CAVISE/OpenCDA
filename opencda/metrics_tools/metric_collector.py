@@ -95,7 +95,7 @@ class MetricCollector:
         for metric in self.metrics.values():
             metric.update(context)
 
-    def get_metric(self, metric_name: str) -> BaseMetric | None:
+    def get_metric(self, metric_name: str) -> BaseMetric | None:  # noqa DC04
         """Return an active metric instance by name."""
         return self.metrics.get(metric_name)
 
