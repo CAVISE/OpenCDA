@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     from opencda.core.plan.behavior_agent import BehaviorAgent
     from opencda.core.sensing.localization.localization_manager import LocalizationManager as VehicleLocalizationManager
     from opencda.core.sensing.localization.rsu_localization_manager import LocalizationManager as RsuLocalizationManager
+    from opencda.core.sensing.perception.obstacle_vehicle import ObstacleVehicle
     from opencda.core.sensing.perception.perception_manager import LidarSensor, PerceptionManager
 
 logger = logging.getLogger("cavise.opencda.opencda.core.common.coperception_data_processor")

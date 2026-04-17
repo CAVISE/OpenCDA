@@ -7,6 +7,7 @@ import numpy as np
 # installs the mocks before collection.
 from opencda.core.attack.advcp import AdvCoperceptionModelManager
 from opencda.core.attack.advcp.adv_coperception_model_manager import AdvCoperceptionVisualizer
+from opencda.core.common.coperception_data_processor import CoperceptionDataProcessor
 from opencda.core.common.coperception_model_manager import (
     CoperceptionInferenceResult,
     CoperceptionModelManager,
@@ -531,3 +532,192 @@ class TestCoperceptionVisualizer:
 
         dataset_mock.update_database.assert_called_once_with(memory_data=None)
         mock_warning.assert_called_once_with("No samples found in dataset after update.")
+
+
+class TestCoperceptionDataProcessor:
+    @staticmethod
+    def _make_transform(x=0.0, y=0.0, z=0.0, roll=0.0, yaw=0.0, pitch=0.0):
+        return MagicMock(
+            location=MagicMock(x=x, y=y, z=z),
+            rotation=MagicMock(roll=roll, yaw=yaw, pitch=pitch),
+        )
+
+    @staticmethod
+    def _make_bounding_box(x=0.0, y=0.0, z=0.0, ex=1.0, ey=2.0, ez=3.0):
+        return MagicMock(
+            location=MagicMock(x=x, y=y, z=z),
+            extent=MagicMock(x=ex, y=ey, z=ez),
+        )
+
+    def test_require_lidar_raises_when_missing(self):
+        perception_manager = MagicMock(lidar=None)
+
+        with pytest.raises(RuntimeError, match="requires LiDAR"):
+            CoperceptionDataProcessor._require_lidar(perception_manager)
+
+    def test_require_lidar_data_raises_when_missing(self):
+        lidar = MagicMock(data=None)
+
+        with pytest.raises(RuntimeError, match="requires LiDAR data"):
+            CoperceptionDataProcessor._require_lidar_data(lidar)
+
+    def test_build_live_camera_snapshots_returns_placeholder_list(self):
+        processor = CoperceptionDataProcessor()
+
+        assert processor._build_live_camera_snapshots(MagicMock()) == []
+
+    def test_build_live_params_with_vehicle_localizer_and_behavior_agent(self):
+        processor = CoperceptionDataProcessor()
+
+        valid_vehicle = MagicMock()
+        valid_vehicle.carla_id = 42
+        valid_vehicle.type_id = "vehicle.tesla.model3"
+        valid_vehicle.color = "255,0,0"
+        valid_vehicle.bounding_box = self._make_bounding_box(0.1, 0.2, 0.3, 1.1, 1.2, 1.3)
+        valid_vehicle.get_transform.return_value = self._make_transform(1.0, 2.0, 3.0, 4.0, 5.0, 6.0)
+
+        ignored_vehicle = MagicMock()
+        ignored_vehicle.carla_id = -1
+
+        lidar_transform = self._make_transform(10.0, 20.0, 30.0, 1.0, 2.0, 3.0)
+        camera_transform = self._make_transform(11.0, 21.0, 31.0, 4.0, 5.0, 6.0)
+        perception_manager = MagicMock()
+        perception_manager.objects = {"vehicles": [valid_vehicle, ignored_vehicle]}
+        perception_manager.lidar = MagicMock(sensor=MagicMock(get_transform=MagicMock(return_value=lidar_transform)))
+        perception_manager.rgb_camera = [MagicMock(sensor=MagicMock(get_transform=MagicMock(return_value=camera_transform)))]
+
+        predicted_ego_pos = self._make_transform(100.0, 200.0, 300.0, 7.0, 8.0, 9.0)
+        true_ego_pos = self._make_transform(101.0, 201.0, 301.0, 10.0, 11.0, 12.0)
+        localization_manager = MagicMock()
+        localization_manager.get_ego_pos.return_value = predicted_ego_pos
+        localization_manager.get_ego_spd.return_value = 13.5
+        localization_manager.vehicle = MagicMock(get_transform=MagicMock(return_value=true_ego_pos))
+
+        waypoint = MagicMock(location=MagicMock(x=1.5, y=2.5))
+        behavior_agent = MagicMock()
+        behavior_agent.get_local_planner.return_value.get_trajectory.return_value = [(waypoint, 6.7)]
+
+        with (
+            patch("opencda.core.common.coperception_data_processor.get_speed", return_value=22.2),
+            patch(
+                "opencda.core.common.coperception_data_processor.st.get_camera_intrinsic",
+                return_value=np.eye(3),
+            ),
+            patch(
+                "opencda.core.common.coperception_data_processor.st.x_to_world_transformation",
+                side_effect=[np.eye(4), np.eye(4)],
+            ),
+        ):
+            params = processor.build_live_params(perception_manager, localization_manager, behavior_agent)
+
+        assert params["RSU"] is False
+        assert params["ego_speed"] == 13.5
+        assert params["predicted_ego_pos"] == [100.0, 200.0, 300.0, 7.0, 8.0, 9.0]
+        assert params["true_ego_pos"] == [101.0, 201.0, 301.0, 10.0, 11.0, 12.0]
+        assert params["lidar_pose"] == [10.0, 20.0, 30.0, 1.0, 2.0, 3.0]
+        assert params["plan_trajectory"] == [[1.5, 2.5, 6.7]]
+        assert list(params["vehicles"].keys()) == [42]
+        assert params["vehicles"][42]["speed"] == 22.2
+        assert params["camera0"]["cords"] == [11.0, 21.0, 31.0, 4.0, 5.0, 6.0]
+        assert params["camera0"]["intrinsic"] == np.eye(3).tolist()
+        assert params["camera0"]["extrinsic"] == np.eye(4).tolist()
+
+    def test_build_live_params_with_rsu_localizer_sets_rsu_true(self):
+        processor = CoperceptionDataProcessor()
+
+        lidar_transform = self._make_transform(10.0, 20.0, 30.0, 1.0, 2.0, 3.0)
+        perception_manager = MagicMock()
+        perception_manager.objects = {"vehicles": []}
+        perception_manager.lidar = MagicMock(sensor=MagicMock(get_transform=MagicMock(return_value=lidar_transform)))
+        perception_manager.rgb_camera = []
+
+        predicted_ego_pos = self._make_transform(50.0, 60.0, 70.0, 0.0, 90.0, 0.0)
+        true_ego_pos = self._make_transform(51.0, 61.0, 71.0, 0.0, 91.0, 0.0)
+        localization_manager = MagicMock()
+        localization_manager.get_ego_pos.return_value = predicted_ego_pos
+        localization_manager.get_ego_spd.return_value = 0.0
+        localization_manager.true_ego_pos = true_ego_pos
+        del localization_manager.vehicle
+
+        params = processor.build_live_params(perception_manager, localization_manager, None)
+
+        assert params["RSU"] is True
+        assert "plan_trajectory" not in params
+        assert params["true_ego_pos"] == [51.0, 61.0, 71.0, 0.0, 91.0, 0.0]
+
+    def test_build_live_memory_returns_none_and_warns_for_empty_agents(self):
+        processor = CoperceptionDataProcessor()
+
+        with patch("opencda.core.common.coperception_data_processor.logger.warning") as mock_warning:
+            memory = processor.build_live_memory([], [], 5)
+
+        assert memory is None
+        mock_warning.assert_called_once()
+        assert mock_warning.call_args[0] == (
+            "Skipping cooperative perception tick %s because there are no CAV or RSU agents.",
+            5,
+        )
+
+    def test_build_live_memory_marks_first_vehicle_as_ego_and_formats_timestamp(self):
+        processor = CoperceptionDataProcessor()
+
+        cav1 = MagicMock()
+        cav1.vid = "cav-1"
+        cav1.perception_manager = MagicMock(lidar=MagicMock(data=np.array([[1.0, 2.0, 3.0, 1.0]])))
+        cav1.localizer = MagicMock()
+        cav1.agent = MagicMock()
+
+        cav2 = MagicMock()
+        cav2.vid = "cav-2"
+        cav2.perception_manager = MagicMock(lidar=MagicMock(data=np.array([[4.0, 5.0, 6.0, 1.0]])))
+        cav2.localizer = MagicMock()
+        cav2.agent = MagicMock()
+
+        rsu = MagicMock()
+        rsu.rid = "rsu-1"
+        rsu.perception_manager = MagicMock(lidar=MagicMock(data=np.array([[7.0, 8.0, 9.0, 1.0]])))
+        rsu.localizer = MagicMock()
+
+        with (
+            patch.object(CoperceptionDataProcessor, "build_live_params", side_effect=[{"id": 1}, {"id": 2}, {"id": 3}]),
+            patch.object(
+                CoperceptionDataProcessor,
+                "_build_live_camera_snapshots",
+                return_value=[],
+            ),
+        ):
+            memory = processor.build_live_memory([cav1, cav2], [rsu], 12)
+
+        assert list(memory.keys()) == [0]
+        assert list(memory[0].keys()) == ["cav-1", "cav-2", "rsu-1"]
+        assert memory[0]["cav-1"]["ego"] is True
+        assert memory[0]["cav-2"]["ego"] is False
+        assert memory[0]["rsu-1"]["ego"] is False
+        assert memory[0]["cav-1"]["000012"]["params"] == {"id": 1}
+        assert memory[0]["cav-2"]["000012"]["params"] == {"id": 2}
+        assert memory[0]["rsu-1"]["000012"]["params"] == {"id": 3}
+        assert memory[0]["cav-1"]["000012"]["lidar_np"].tolist() == [[1.0, 2.0, 3.0, 1.0]]
+        assert memory[0]["rsu-1"]["000012"]["lidar_np"].tolist() == [[7.0, 8.0, 9.0, 1.0]]
+        assert memory[0]["cav-1"]["000012"]["camera0"] == []
+
+    def test_build_live_memory_raises_when_vehicle_lidar_is_missing(self):
+        processor = CoperceptionDataProcessor()
+        cav = MagicMock()
+        cav.vid = "cav-1"
+        cav.perception_manager = MagicMock(lidar=None)
+        cav.localizer = MagicMock()
+        cav.agent = MagicMock()
+
+        with pytest.raises(RuntimeError, match="requires LiDAR"):
+            processor.build_live_memory([cav], [], 1)
+
+    def test_build_live_memory_raises_when_vehicle_lidar_data_is_missing(self):
+        processor = CoperceptionDataProcessor()
+        cav = MagicMock()
+        cav.vid = "cav-1"
+        cav.perception_manager = MagicMock(lidar=MagicMock(data=None))
+        cav.localizer = MagicMock()
+        cav.agent = MagicMock()
+
+        with pytest.raises(RuntimeError, match="requires LiDAR data"):
+            processor.build_live_memory([cav], [], 1)
