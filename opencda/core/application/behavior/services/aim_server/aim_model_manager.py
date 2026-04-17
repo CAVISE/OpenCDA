@@ -124,11 +124,7 @@ class AIMModelManager:
             self.cav_data = dict()
             return self._make_result()
 
-        # Transform coordinates
-        self.transform_sumo2carla(features)
-        features_tensor = torch.tensor(features).float().to(self.device)
-
-        predictions = self.model.predict(features, target_agent_ids)
+        predictions = self.model.predict(features.copy(), target_agent_ids)
 
         for idx in range(num_agents):
             vehicle_id = target_agent_ids[idx]
@@ -148,7 +144,7 @@ class AIMModelManager:
                 else:
                     local_delta[1, 0] = max(1e-8, local_delta[1, 0])
 
-                yaw = features_tensor[idx, 3].detach().cpu().item()
+                yaw = features[idx][3]
                 rotation = self.rotation_matrix_back(yaw)
                 global_delta = (rotation @ local_delta).squeeze()
                 global_delta[1] *= -1
@@ -320,23 +316,6 @@ class AIMModelManager:
 
         features = np.vstack(features) if features else np.empty((0, 7))
         return features, target_agent_ids
-
-    @staticmethod
-    def transform_sumo2carla(states: np.ndarray):
-        """
-        In-place transform from sumo to carla: [x_carla, y_carla, yaw_carla] = [x_sumo, -y_sumo, yaw_sumo-90].
-        Note:
-            - the coordinate system in Carla is more convenient since the angle increases in the direction of rotation from +x to +y, while in sumo this is from +y to +x.
-            - the coordinate system in Carla is a left-handed Cartesian coordinate system.
-        """
-        if states.ndim == 1:
-            states[1] = -states[1]
-            states[3] -= np.deg2rad(90)
-        elif states.ndim == 2:
-            states[:, 1] = -states[:, 1]
-            states[:, 3] -= np.deg2rad(90)
-        else:
-            raise NotImplementedError
 
     @staticmethod
     def rotation_matrix_back(yaw):
