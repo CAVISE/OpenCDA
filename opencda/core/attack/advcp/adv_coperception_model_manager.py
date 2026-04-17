@@ -186,11 +186,11 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
         
         attacker_id = None
         attack_boxes = None
-        victim_id = None
+        removal_id = None
         if mode == "spoof":
             attacker_id, attack_boxes = AdvCoperceptionModelManager.resolve_late_spoof_boxes(advcp_config, memory_data)
         elif mode == "remove":
-            attacker_id, victim_id = AdvCoperceptionModelManager.resolve_late_remove_ids(advcp_config, memory_data)
+            attacker_id, removal_id = AdvCoperceptionModelManager.resolve_late_remove_ids(advcp_config, memory_data)
         if attacker_id is not None:
             advcp_context["attacker_ids"] = [attacker_id]
 
@@ -243,15 +243,15 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
                     scores = torch.hstack([scores, injected_scores])
                     is_fake = torch.hstack([is_fake, injected_is_fake])
                 elif mode == "remove":
-                    if victim_id is None:
+                    if removal_id is None:
                         logger.warning(
-                            "AdvCP late removal attack is enabled but victim_id is not defined. No boxes will be removed."
+                            "AdvCP late removal attack is enabled but removal_id is not defined. No boxes will be removed."
                         )
                     else:
                         logger.info(
-                            "AdvCP late removal attack is enabled. Boxes from attacker '%s' will be removed from the cooperative perception results of victim '%s'.",
+                            "AdvCP late removal attack is enabled. Boxes from attacker '%s' will be removed from the cooperative perception results of removal_id '%s'.",
                             attacker_id,
-                            victim_id,
+                            removal_id,
                         )
                         boxes3d = torch.empty((0, 7), dtype=torch.float32, device=device)
                         scores = torch.empty((0,), dtype=torch.float32, device=device)
@@ -367,10 +367,10 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
             raise ValueError("Unable to resolve ego agent for AdvCP attack.")
 
         attacker_id = advcp_config.get("attacker_id")
-        victim_id = advcp_config.get("victim_id")
+        removal_id = advcp_config.get("removal_id")
 
-        if not attacker_id or not victim_id:
-            logger.warning("AdvCP attack will not be applied on this tick because no valid attacker_id or victim_id is configured.")
+        if not attacker_id or not removal_id:
+            logger.warning("AdvCP attack will not be applied on this tick because no valid attacker_id or removal_id is configured.")
             return None, None
 
         if attacker_id not in scenario_data:
@@ -381,15 +381,15 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
             )
             return None, None
 
-        if victim_id not in scenario_data:
+        if removal_id not in scenario_data:
             logger.warning(
-                "AdvCP attack will not be applied on this tick because victim '%s' is not present in the current scenario data. "
+                "AdvCP attack will not be applied on this tick because removal_id '%s' is not present in the current scenario data. "
                 "Continuing with normal cooperative perception inference.",
-                victim_id,
+                removal_id,
             )
             return None, None
 
-        return attacker_id, victim_id
+        return attacker_id, removal_id
 
     @staticmethod
     def _find_ego_agent_id(scenario_data: dict[str, Any]) -> str | None:
