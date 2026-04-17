@@ -186,10 +186,11 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
         
         attacker_id = None
         attack_boxes = None
+        victim_id = None
         if mode == "spoof":
             attacker_id, attack_boxes = AdvCoperceptionModelManager.resolve_late_spoof_boxes(advcp_config, memory_data)
         elif mode == "remove":
-            attacker_id = advcp_config.get("attacker_id")
+            attacker_id, victim_id = AdvCoperceptionModelManager.resolve_late_remove_ids(advcp_config, memory_data)
         if attacker_id is not None:
             advcp_context["attacker_ids"] = [attacker_id]
 
@@ -242,9 +243,19 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
                     scores = torch.hstack([scores, injected_scores])
                     is_fake = torch.hstack([is_fake, injected_is_fake])
                 elif mode == "remove":
-                    boxes3d = torch.empty((0, 7), dtype=torch.float32, device=device)
-                    scores = torch.empty((0,), dtype=torch.float32, device=device)
-                    is_fake = torch.empty((0,), dtype=torch.bool, device=device)
+                    if victim_id is None:
+                        logger.warning(
+                            "AdvCP late removal attack is enabled but victim_id is not defined. No boxes will be removed."
+                        )
+                    else:
+                        logger.info(
+                            "AdvCP late removal attack is enabled. Boxes from attacker '%s' will be removed from the cooperative perception results of victim '%s'.",
+                            attacker_id,
+                            victim_id,
+                        )
+                        boxes3d = torch.empty((0, 7), dtype=torch.float32, device=device)
+                        scores = torch.empty((0,), dtype=torch.float32, device=device)
+                        is_fake = torch.empty((0,), dtype=torch.bool, device=device)
 
             if boxes3d.shape[0] == 0:
                 continue
@@ -258,7 +269,7 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
             pred_box3d_list.append(projected_boxes3d)
             pred_fake_list.append(is_fake)
 
-        if len(pred_box2d_list) == 0 or len(pred_box3d_list) == 0:
+        if len(pred_box2d_list) == 0 or len(pred_box3d_list) == 0 and mode == "spoof":
             raise RuntimeError("AdvCP late spoofing produced no detection result.")
 
         pred_box2d_tensor = torch.vstack(pred_box2d_list)
@@ -338,6 +349,47 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
 
         batch_attacker_id = "ego" if attacker_id == ego_agent_id else attacker_id
         return batch_attacker_id, spoof_boxes
+    
+    @staticmethod
+    def resolve_late_remove_ids(advcp_config: dict[str, Any] | None, memory_data: dict[str, Any] | None) -> tuple[str | None, str | None]:
+        if not advcp_config:
+            return None, None
+
+        if memory_data is None:
+            raise ValueError("AdvCP late removal requires current memory data.")
+
+        if advcp_config.get("mode", "remove") != "remove":
+            raise NotImplementedError(f"AdvCP mode '{advcp_config.get('mode')}' is not available yet.")
+
+        scenario_data = next(iter(memory_data.values()))
+        ego_agent_id = AdvCoperceptionModelManager._find_ego_agent_id(scenario_data)
+        if ego_agent_id is None:
+            raise ValueError("Unable to resolve ego agent for AdvCP attack.")
+
+        attacker_id = advcp_config.get("attacker_id")
+        victim_id = advcp_config.get("victim_id")
+
+        if not attacker_id or not victim_id:
+            logger.warning("AdvCP attack will not be applied on this tick because no valid attacker_id or victim_id is configured.")
+            return None, None
+
+        if attacker_id not in scenario_data:
+            logger.warning(
+                "AdvCP attack will not be applied on this tick because attacker '%s' is not present in the current scenario data. "
+                "Continuing with normal cooperative perception inference.",
+                attacker_id,
+            )
+            return None, None
+
+        if victim_id not in scenario_data:
+            logger.warning(
+                "AdvCP attack will not be applied on this tick because victim '%s' is not present in the current scenario data. "
+                "Continuing with normal cooperative perception inference.",
+                victim_id,
+            )
+            return None, None
+
+        return attacker_id, victim_id
 
     @staticmethod
     def _find_ego_agent_id(scenario_data: dict[str, Any]) -> str | None:
@@ -449,7 +501,3 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
             raise NotImplementedError(f"Unsupported box order for AdvCP spoofing: {order}")
 
         return torch.from_numpy(model_box).type(torch.float32)
-
-    @staticmethod
-    def _inference_late_removal_attack() -> None:
-        raise NotImplementedError("AdvCP late-fusion removal is not available yet.")
