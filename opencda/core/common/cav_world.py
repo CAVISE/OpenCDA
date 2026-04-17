@@ -68,7 +68,7 @@ class CavWorld(object):
             The vehicle manager class.
         """
         self.vehicle_id_set.add(vehicle_manager.vehicle.id)
-        self._vehicle_manager_dict.update({vehicle_manager.vid: vehicle_manager})
+        self._vehicle_manager_dict.update({vehicle_manager.id: vehicle_manager})
 
     def update_platooning(self, platooning_manager: PlatooningManager) -> None:
         """
@@ -90,7 +90,7 @@ class CavWorld(object):
         rsu_manager : opencda object
             The RSU manager class.
         """
-        self._rsu_manager_dict.update({rsu_manager.rid: rsu_manager})
+        self._rsu_manager_dict.update({rsu_manager.id: rsu_manager})
 
     def update_sumo_vehicles(self, sumo2carla_ids: dict[str, int]) -> None:
         """

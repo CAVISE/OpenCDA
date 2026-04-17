@@ -1,3 +1,4 @@
+# from __future__ import annotations
 from collections.abc import Sequence
 
 import carla
@@ -10,10 +11,10 @@ from scipy.spatial import distance
 from opencda.co_simulation.sumo_integration.bridge_helper import BridgeHelper
 from AIM import AIMModel
 
-from opencda.core.application.behavior.services.aim_server.aim_server import AIMServerRequestMessage, AIMServerMessage, AIMServerResult
+from .messages import AIMServerRequestMessage
+from .results import AIMServerResult, AIMServerMessage
 
-
-logger = logging.getLogger("cavise.opencda.opencda.core.common.aim_model_manager")
+logger = logging.getLogger("cavise.opencda.opencda.core.application.behavior.services.aim_server.aim_model_manager")
 
 
 class AIMModelManager:
@@ -21,14 +22,22 @@ class AIMModelManager:
         self,
         model: AIMModel,
         control_center: carla.Transform,
-        service_id: str = "aim_server",
+        service_name: str,
+        owner_id: str,
     ):
         """
-        :param model_name: model name contained in the filename
-        :param pretrained: filepath to saved model state
-        :param nodes: intersections present in the simulation
+        Initialize the standalone AIM model manager.
 
-        :return: None
+        Parameters
+        ----------
+        model : AIMModel
+            Loaded AIM model used for trajectory prediction.
+        control_center : carla.Transform
+            Intersection control point used to normalize vehicle positions.
+        service_name : str
+            Service identifier used in AIM result messages.
+        owner_id : str
+            Identifier for the owner of the AIM model.
         """
         self.CONTROL_RADIUS = 50
         self.THRESHOLD = 10
@@ -44,19 +53,12 @@ class AIMModelManager:
 
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.model = model
-        self.service_id = service_id
-        self._owner_id = ""
+
+        self._service_name = service_name
+        self._owner_id = owner_id
 
         self.yaw_dict = self._load_yaw()
         self.yaw_id = {}
-
-    def on_attach(self, owner_id: str) -> None:
-        """Initialize the service for a particular participant instance."""
-        self._owner_id = owner_id
-
-    def on_detach(self) -> None:
-        """Release service resources before the participant is destroyed."""
-        self._owner_id = ""
 
     def _load_yaw(self):
         """
@@ -76,11 +78,7 @@ class AIMModelManager:
 
     def _preprocess_cav_data(self, msg: AIMServerRequestMessage) -> None:
         """
-        Sets intention for a CAV.
-
-        :param vehicle_id: vehicle identifier
-        :param intention: vehicle intention (e.g., "left", "straight", "right")
-        :return: None
+        Normalize and cache incoming CAV data for the current inference step.
         """
         cav_pos = BridgeHelper.get_sumo_transform(msg.position, carla.Vector3D(0, 0, 0)).location
         curr_pos = np.array([cav_pos.x, cav_pos.y])
@@ -104,21 +102,18 @@ class AIMModelManager:
 
     def _make_result(self, messages: tuple[AIMServerMessage, ...] = ()) -> AIMServerResult:
         return AIMServerResult(
-            service_id=self.service_id,
+            service_name=self._service_name,
             owner_id=self._owner_id,
             messages=messages,
         )
 
     def process(self, messages: Sequence[AIMServerRequestMessage]) -> AIMServerResult:
         """
-        Creates new trajectories based on model predictions.
-
-        :return: batch result with next positions for controlled vehicles.
+        Run AIM inference for the request batch and return predicted targets.
         """
         for msg in messages:
             self._preprocess_cav_data(msg)
-
-        messages: list[AIMServerMessage] = []
+        result_messages: list[AIMServerMessage] = []
 
         self.update_trajs()
 
@@ -167,16 +162,16 @@ class AIMModelManager:
                     y=pos.y - global_delta[1],
                     z=pos.z,
                 )
-                messages.append(
+                result_messages.append(
                     AIMServerMessage(
-                        service_id=self.service_id,
+                        service_name=self._service_name,
                         vehicle_id=vehicle_id,
                         next_position=next_loc,
                     )
                 )
 
         self.cav_data = dict()
-        return self._make_result(messages=tuple(messages))
+        return self._make_result(messages=tuple(result_messages))
 
     def update_trajs(self):
         """

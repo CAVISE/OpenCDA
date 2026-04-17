@@ -101,20 +101,20 @@ class VehicleManager(object):
                 if candidate in VehicleManager.used_ids:
                     logger.warning(f"Duplicate vehicle ID detected: {candidate!r}.")
                     raise ValueError(f"Duplicate vehicle ID detected: {candidate!r}.")
-                self.vid = candidate
-                VehicleManager.used_ids.add(self.vid)
+                self.id = candidate
+                VehicleManager.used_ids.add(self.id)
 
             except (ValueError, TypeError):
                 if autogenerate_id_on_failure:
-                    self.vid = self.__generate_unique_vehicle_id()
-                    logger.warning(f"Invalid or unavailable vehicle ID in config: {config_id!r}. Assigned auto-generated ID: {self.vid}")
+                    self.id = self.__generate_unique_vehicle_id()
+                    logger.warning(f"Invalid or unavailable vehicle ID in config: {config_id!r}. Assigned auto-generated ID: {self.id}")
                 else:
                     logger.error(f"Invalid or unavailable vehicle ID in config: {config_id!r}.")
                     raise
         else:
             if autogenerate_id_on_failure:
-                self.vid = self.__generate_unique_vehicle_id()
-                logger.debug(f"No vehicle ID specified in config. Assigned auto-generated ID: {self.vid}")
+                self.id = self.__generate_unique_vehicle_id()
+                logger.debug(f"No vehicle ID specified in config. Assigned auto-generated ID: {self.id}")
             else:
                 logger.error("No vehicle ID specified in config.")
                 raise ValueError("No vehicle ID specified in config.")
@@ -130,12 +130,12 @@ class VehicleManager(object):
         v2x_config = config_yaml["v2x"]
 
         # v2x module
-        self.v2x_manager = V2XManager(cav_world, v2x_config, self.vid)
+        self.v2x_manager = V2XManager(cav_world, v2x_config, self.id)
         # localization module
         self.localizer = LocalizationManager(vehicle, sensing_config["localization"], carla_map)
         # perception module
         self.perception_manager = PerceptionManager(
-            vehicle=vehicle, config_yaml=sensing_config["perception"], cav_world=cav_world, infra_id=self.vid, data_dump=data_dumping
+            vehicle=vehicle, config_yaml=sensing_config["perception"], cav_world=cav_world, infra_id=self.id, data_dump=data_dumping
         )
         # map manager
         self.map_manager = MapManager(vehicle, carla_map, map_config)
@@ -160,7 +160,7 @@ class VehicleManager(object):
         self.controller = ControlManager(control_config)
 
         if data_dumping:
-            self.data_dumper = DataDumper(self.perception_manager, self.vid, save_time=current_time)
+            self.data_dumper = DataDumper(self.perception_manager, self.id, save_time=current_time)
         else:
             self.data_dumper = None
 
@@ -199,7 +199,7 @@ class VehicleManager(object):
                 raise ValueError("Each behavior service config must define 'type'.")
 
             behavior_services.append(create_service(service_name=service_type, **service_config_dict))
-            logger.info("Attached behavior service '%s' to vehicle %r.", service_type, self.vid)
+            logger.info("Attached behavior service '%s' to vehicle %r.", service_type, self.id)
 
         return behavior_services
 
@@ -208,7 +208,7 @@ class VehicleManager(object):
         self.__validate_behavior_services(services)
         self.behavior_services = services
         self.behavior_service_results = {}
-        self._behavior_services_by_id = {service.service_id: service for service in self.behavior_services}
+        self._behavior_services_by_id = {service.service_name: service for service in self.behavior_services}
 
     def __validate_behavior_services(self, behavior_services: Tuple[BehaviorService[Any, Any], ...]) -> None:
         seen_service_ids = set()
@@ -217,18 +217,18 @@ class VehicleManager(object):
             if not isinstance(service, BehaviorService):
                 raise TypeError(f"Each behavior service must implement the BehaviorService protocol; got {type(service).__name__!r}.")
 
-            service_id = service.service_id
-            if service_id in seen_service_ids:
-                raise ValueError(f"Duplicate behavior service ID detected: {service_id!r}.")
+            service_name = service.service_name
+            if service_name in seen_service_ids:
+                raise ValueError(f"Duplicate behavior service ID detected: {service_name!r}.")
 
-            seen_service_ids.add(service_id)
+            seen_service_ids.add(service_name)
 
     def __attach_behavior_services(self) -> None:
         attached_services = []
 
         try:
             for service in self.behavior_services:
-                service.on_attach(self.vid)
+                service.on_attach(self)
                 attached_services.append(service)
         except Exception:
             for service in reversed(attached_services):
@@ -237,8 +237,8 @@ class VehicleManager(object):
                 except Exception:
                     logger.exception(
                         "Failed to detach behavior service %r while rolling back vehicle %r attachment.",
-                        service.service_id,
-                        self.vid,
+                        service.service_name,
+                        self.id,
                     )
             raise
 
@@ -251,8 +251,8 @@ class VehicleManager(object):
             except Exception as exc:
                 logger.exception(
                     "Failed to detach behavior service %r from vehicle %r.",
-                    service.service_id,
-                    self.vid,
+                    service.service_name,
+                    self.id,
                 )
                 if first_exception is None:
                     first_exception = exc
@@ -262,18 +262,18 @@ class VehicleManager(object):
 
     def __validate_behavior_service_messages(self, messages: list[Any]) -> None:
         for message in messages:
-            service_id = getattr(message, "service_id", None)
-            if not isinstance(service_id, str):
-                raise TypeError(f"Each behavior service message must define a non-empty 'service_id' attribute; got {type(message).__name__!r}.")
+            service_name = getattr(message, "service_name", None)
+            if not isinstance(service_name, str):
+                raise TypeError(f"Each behavior service message must define a non-empty 'service_name' attribute; got {type(message).__name__!r}.")
 
-            if service_id not in self._behavior_services_by_id:
-                raise ValueError(f"Behavior service message references unknown service_id {service_id!r}.")
+            if service_name not in self._behavior_services_by_id:
+                raise ValueError(f"Behavior service message references unknown service_name {service_name!r}.")
 
     def __group_behavior_service_messages(self, messages: list[Any]) -> Dict[str, list[Any]]:
-        grouped_messages = {service.service_id: [] for service in self.behavior_services}
+        grouped_messages = {service.service_name: [] for service in self.behavior_services}
 
         for message in messages:
-            grouped_messages[message.service_id].append(message)
+            grouped_messages[message.service_name].append(message)
 
         return grouped_messages
 
@@ -283,8 +283,8 @@ class VehicleManager(object):
         self.behavior_service_results = {}
 
         for service in self.behavior_services:
-            service_messages = grouped_messages[service.service_id]
-            self.behavior_service_results[service.service_id] = service.process(service_messages)
+            service_messages = grouped_messages[service.service_name]
+            self.behavior_service_results[service.service_name] = service.process(service_messages)
 
     def set_destination(self, start_location, end_location, clean=False, end_reset=True):
         """

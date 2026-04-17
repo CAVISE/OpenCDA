@@ -150,8 +150,6 @@ def arg_parse() -> argparse.Namespace:
         help="Specifies overall verbosity of output.",
     )
 
-    parser.add_argument("--with-aim", action="store_true", help="Whether to enable the use of AIM in this simulation.")
-
     parser.add_argument("--ticks", type=int, help="number of simulation ticks to execute")
     return parser.parse_args()
 

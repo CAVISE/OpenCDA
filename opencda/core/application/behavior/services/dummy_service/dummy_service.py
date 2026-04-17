@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import logging
-from typing import Sequence
+from typing import Any, Sequence
+import weakref
 
 from opencda.core.application.behavior.registry import BehaviorServiceRegistry
 
@@ -21,39 +22,35 @@ class DummyService:
 
     def __init__(
         self,
-        service_id: str = "dummy_service",
         response_suffix: str = " [dummy processed]",
     ) -> None:
-        self._service_id = service_id
         self._response_suffix = response_suffix
-        self._owner_id = ""
+        self._owner_ref = None
 
-    @property
-    def service_id(self) -> str:
-        return self._service_id
-
-    def on_attach(self, owner_id: str) -> None:
-        self._owner_id = owner_id
+    def on_attach(self, owner: Any) -> None:
+        self._owner_ref = weakref.ref(owner)
 
     def process(self, messages: Sequence[DummyServiceMessage]) -> DummyServiceResult:
+        if self._owner_ref() is None:
+            raise RuntimeError("Cannot process messages without an attached owner.")
         echoed_messages = tuple(
             DummyServiceEchoMessage(
-                service_id=self.service_id,
+                service_name=self.service_name,
                 text=f"{message.text}{self._response_suffix}",
             )
             for message in messages
         )
         logger.info(
             "DummyService owner=%s service=%s processed_messages=%s",
-            self._owner_id,
-            self.service_id,
+            self._owner_ref().id,
+            self.service_name,
             [message.text for message in echoed_messages],
         )
         return DummyServiceResult(
-            service_id=self.service_id,
-            owner_id=self._owner_id,
+            service_name=self.service_name,
+            owner_id=self._owner_ref().id,
             messages=echoed_messages,
         )
 
     def on_detach(self) -> None:
-        self._owner_id = ""
+        self._owner_ref = None

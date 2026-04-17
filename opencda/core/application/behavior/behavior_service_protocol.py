@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Protocol, Sequence, TypeVar, runtime_checkable
+from typing import Any, Protocol, Sequence, TypeVar, runtime_checkable
 
 BehaviorServiceMessageT = TypeVar("BehaviorServiceMessageT", contravariant=True)
 BehaviorServiceResultT = TypeVar("BehaviorServiceResultT", covariant=True)
@@ -12,11 +12,7 @@ BehaviorServiceResultT = TypeVar("BehaviorServiceResultT", covariant=True)
 class BehaviorService(Protocol[BehaviorServiceMessageT, BehaviorServiceResultT]):
     """Protocol implemented by any behavior service attached to a participant."""
 
-    @property
-    def service_id(self) -> str:
-        """Return a stable identifier of the service instance."""
-
-    def on_attach(self, owner_id: str) -> None:
+    def on_attach(self, owner: Any) -> None:
         """Initialize the service for a particular participant instance."""
 
     def process(self, messages: Sequence[BehaviorServiceMessageT]) -> BehaviorServiceResultT:

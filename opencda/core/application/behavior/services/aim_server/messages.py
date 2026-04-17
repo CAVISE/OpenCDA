@@ -11,10 +11,10 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True)
 class AIMServerRequestMessage:
-    """Simple text message routed to the AIM server service."""
+    """CAV state and route context routed to the AIM server service."""
 
-    service_id: str
-    text: str
+    owner_id: str
+    service_name: str
     vehicle_id: str
     position: carla.Transform
     speed: float

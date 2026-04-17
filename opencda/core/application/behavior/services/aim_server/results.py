@@ -1,4 +1,4 @@
-"""Result dataclasses for the dummy behavior service."""
+"""Result dataclasses for the AIM server behavior service."""
 
 from __future__ import annotations
 from dataclasses import dataclass
@@ -10,17 +10,17 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True)
 class AIMServerMessage:
-    """Echoed text produced by the dummy service."""
+    """Predicted next target position for a vehicle handled by AIM."""
 
-    service_id: str
+    service_name: str
     vehicle_id: str
     next_position: carla.Location
 
 
 @dataclass(frozen=True)
 class AIMServerResult:
-    """Batch result returned by the dummy service."""
+    """Batch prediction result returned by the AIM server service."""
 
-    service_id: str
+    service_name: str
     owner_id: str
     messages: tuple[AIMServerMessage, ...]

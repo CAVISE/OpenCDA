@@ -7,5 +7,5 @@ from dataclasses import dataclass
 class DummyServiceMessage:
     """Simple text message routed to the dummy service."""
 
-    service_id: str
+    service_name: str
     text: str
