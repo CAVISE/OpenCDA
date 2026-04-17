@@ -4,7 +4,7 @@ import copy
 import os
 import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, Mapping, Optional, Tuple, TypeAlias, cast
+from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, Mapping, Optional, Tuple, TypeAlias, TypedDict, cast
 
 from matplotlib import pyplot as plt
 import numpy as np
@@ -29,6 +29,14 @@ else:
     DatasetOpenCOOD: TypeAlias = object
 
 logger = logging.getLogger("cavise.opencda.opencda.core.common.coperception_model_manager")
+
+ColorRGB = tuple[int, int, int]
+
+
+class CoperceptionVisualizationConfig(TypedDict):
+    background: ColorRGB  # noqa: DC01
+    lidar_point_colors: dict[str, ColorRGB]
+    bbox_colors: dict[str, ColorRGB]  # noqa: DC01
 
 
 @dataclass
@@ -102,7 +110,7 @@ class SequenceVisualizationState:
 
 
 class CoperceptionVisualizer:
-    _DEFAULT_VISUALIZATION_CONFIG: Dict[str, Any] = {
+    _DEFAULT_VISUALIZATION_CONFIG: CoperceptionVisualizationConfig = {
         "background": (0, 0, 0),
         "lidar_point_colors": {
             "other": (255, 255, 255),

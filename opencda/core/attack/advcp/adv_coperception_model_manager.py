@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections import OrderedDict
 import logging
-from typing import Any, Mapping, Optional
+from typing import Any, Mapping, Optional, TypedDict
 
 import numpy as np
 import torch
@@ -11,14 +11,21 @@ import yaml  # type: ignore[import-untyped]
 from opencda.core.common.coperception_model_manager import (
     CoperceptionInferenceResult,
     CoperceptionModelManager,
+    CoperceptionVisualizationConfig,
     CoperceptionVisualizer,
 )
 
 logger = logging.getLogger("cavise.opencda.opencda.core.attack.advcp.advcp_manager")
 
 
+class AdvCPVisualizationContext(TypedDict):
+    attacker_ids: list[str]
+    fake_box_tensor: Any | None  # noqa: DC01
+    mode: str | None
+
+
 class AdvCoperceptionVisualizer(CoperceptionVisualizer):
-    _DEFAULT_VISUALIZATION_CONFIG: dict[str, Any] = {
+    _DEFAULT_VISUALIZATION_CONFIG: CoperceptionVisualizationConfig = {
         "background": (0, 0, 0),
         "lidar_point_colors": {
             "other": (255, 255, 255),
@@ -78,34 +85,46 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
         super().__init__(opt, current_time, payload_handler=payload_handler, visualization_config=visualization_config)
 
     @staticmethod
-    def load_config(config_path: str | None) -> dict[str, Any] | None:
+    def load_config(config_path: str | None) -> dict[str, Any]:
+        config: dict[str, Any] = {}
+
         if not config_path:
-            return None
-
-        with open(config_path, "r") as handle:
-            config = yaml.safe_load(handle) or {}
-
-        if not isinstance(config, dict):
-            raise ValueError("AdvCP config must be a mapping.")
+            logger.warning("AdvCP config path is not provided. Falling back to default AdvCP config.")
+        else:
+            try:
+                with open(config_path, "r", encoding="utf-8") as handle:
+                    loaded_config = yaml.safe_load(handle) or {}
+            except OSError as exc:
+                logger.warning("Unable to load AdvCP config '%s': %s. Falling back to defaults.", config_path, exc)
+            else:
+                if isinstance(loaded_config, dict):
+                    config = loaded_config
+                else:
+                    logger.warning("AdvCP config '%s' is not a mapping. Falling back to defaults.", config_path)
 
         config.setdefault("mode", "spoof")
         config.setdefault("default_size", list(AdvCoperceptionModelManager.DEFAULT_BOX_SIZE))
-        config.setdefault("boxes", [])
+        config.setdefault("boxes", [{"relative": [5.0, 0.0, 0.0, 0.0, 90.0, 0.0]}])
+        config.setdefault("attacker_id", "cav-1")
         return config
 
     def validate_advcp_agents(self, valid_agent_ids: list[str]) -> None:
-        if self.advcp_config is None:
-            return
-
-        resolved_attacker_id = self.resolve_attacker_id(self.advcp_config.get("attacker_id"), list(valid_agent_ids))
-        self.advcp_config["attacker_id"] = resolved_attacker_id
-        self._log_attack_plan()
-
-    def _log_attack_plan(self) -> None:
-        if self.advcp_config is None:
-            return
-
         mode = self.advcp_config.get("mode", "spoof")
+        attacker_id = self.advcp_config.get("attacker_id")
+
+        if attacker_id is None:
+            logger.warning("AdvCP attack will not be applied because attacker_id is not defined in the AdvCP config.")
+            self.advcp_config["attacker_id"] = None
+        elif attacker_id in valid_agent_ids:
+            self.advcp_config["attacker_id"] = attacker_id
+        else:
+            logger.warning(
+                "AdvCP attacker_id '%s' does not exist. Known agents: %s. AdvCP attack will not be applied.",
+                attacker_id,
+                ", ".join(valid_agent_ids),
+            )
+            self.advcp_config["attacker_id"] = None
+
         attacker_ids = [self.advcp_config["attacker_id"]] if self.advcp_config.get("attacker_id") else []
 
         logger.info("AdvCP mode: %s", mode)
@@ -114,22 +133,6 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
             logger.info("AdvCP attackers: %s", ", ".join(attacker_ids))
         else:
             logger.warning("AdvCP is enabled, but no valid attackers were resolved. Attacks will not be applied.")
-
-    @staticmethod
-    def resolve_attacker_id(attacker_id: Optional[str], valid_agent_ids: list[str]) -> str | None:
-        if attacker_id is None:
-            logger.warning("AdvCP attack will not be applied because attacker_id is not defined in the AdvCP config.")
-            return None
-
-        if attacker_id in valid_agent_ids:
-            return attacker_id
-
-        logger.warning(
-            "AdvCP attacker_id '%s' does not exist. Known agents: %s. AdvCP attack will not be applied.",
-            attacker_id,
-            ", ".join(valid_agent_ids),
-        )
-        return None
 
     def _run_late_inference(self, batch_data: Any) -> CoperceptionInferenceResult:  # noqa: DC04
         return self._build_inference_result(
@@ -169,19 +172,19 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
         model: Any,
         dataset: Any,
         device: torch.device,
-        advcp_config: Optional[dict[str, Any]] = None,
+        advcp_config: dict[str, Any],
         memory_data: Optional[dict[Any, Any]] = None,
-    ) -> tuple[Any, Any, Any, dict[str, Any]]:
+    ) -> tuple[Any, Any, Any, AdvCPVisualizationContext]:
         # TODO: Move this up when https://github.com/CAVISE/OpenCDA/pull/65 is merged
         from opencood.utils import box_utils
 
         output_dict: OrderedDict[str, Any] = OrderedDict()
-        advcp_context: dict[str, Any] = {"attacker_ids": [], "fake_box_tensor": None, "mode": None}
+        advcp_context: AdvCPVisualizationContext = {"attacker_ids": [], "fake_box_tensor": None, "mode": None}
 
         for cav_id, cav_content in batch_data.items():
             output_dict[cav_id] = model(cav_content)
 
-        mode = (advcp_config or {}).get("mode", "spoof")
+        mode = advcp_config.get("mode", "spoof")
         advcp_context["mode"] = mode
         if mode == "remove":
             AdvCoperceptionModelManager._raise_late_removal_not_available()
@@ -191,9 +194,7 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
             advcp_context["attacker_ids"] = [attacker_id]
 
         if not attack_boxes:
-            pred_box_tensor, pred_score = dataset.post_processor.post_process(batch_data, output_dict)
-            gt_box_tensor = dataset.post_processor.generate_gt_bbx(batch_data)
-            return pred_box_tensor, pred_score, gt_box_tensor, advcp_context
+            return AdvCoperceptionModelManager._run_default_late_prediction(batch_data, output_dict, dataset, advcp_context)
 
         if attacker_id not in batch_data:
             logger.warning(
@@ -201,10 +202,8 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
                 "Continuing with normal cooperative perception inference.",
                 attacker_id,
             )
-            pred_box_tensor, pred_score = dataset.post_processor.post_process(batch_data, output_dict)
-            gt_box_tensor = dataset.post_processor.generate_gt_bbx(batch_data)
             advcp_context["attacker_ids"] = []
-            return pred_box_tensor, pred_score, gt_box_tensor, advcp_context
+            return AdvCoperceptionModelManager._run_default_late_prediction(batch_data, output_dict, dataset, advcp_context)
 
         pred_box3d_list = []
         pred_box2d_list = []
@@ -282,6 +281,17 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
         return pred_box3d_tensor, pred_score, gt_box_tensor, advcp_context
 
     @staticmethod
+    def _run_default_late_prediction(
+        batch_data: Any,
+        output_dict: OrderedDict[str, Any],
+        dataset: Any,
+        advcp_context: AdvCPVisualizationContext,
+    ) -> tuple[Any, Any, Any, AdvCPVisualizationContext]:
+        pred_box_tensor, pred_score = dataset.post_processor.post_process(batch_data, output_dict)
+        gt_box_tensor = dataset.post_processor.generate_gt_bbx(batch_data)
+        return pred_box_tensor, pred_score, gt_box_tensor, advcp_context
+
+    @staticmethod
     def _inference_early_fusion_attack(*args: Any, **kwargs: Any) -> tuple[Any, Any, Any]:
         raise NotImplementedError("AdvCP early fusion spoofing is not available yet.")
 
@@ -290,10 +300,7 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
         raise NotImplementedError("AdvCP intermediate fusion spoofing is not available yet.")
 
     @staticmethod
-    def resolve_late_spoof_boxes(advcp_config: dict[str, Any] | None, memory_data: dict[str, Any] | None) -> tuple[str | None, list[np.ndarray]]:
-        if not advcp_config:
-            return None, []
-
+    def resolve_late_spoof_boxes(advcp_config: dict[str, Any], memory_data: dict[str, Any] | None) -> tuple[str | None, list[np.ndarray]]:
         if memory_data is None:
             raise ValueError("AdvCP late spoofing requires current memory data.")
 
@@ -301,7 +308,10 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
             raise NotImplementedError(f"AdvCP mode '{advcp_config.get('mode')}' is not available yet.")
 
         scenario_data = next(iter(memory_data.values()))
-        ego_agent_id = AdvCoperceptionModelManager._find_ego_agent_id(scenario_data)
+        ego_agent_id = None
+        for agent_id, agent_data in scenario_data.items():
+            if agent_data.get("ego"):
+                ego_agent_id = agent_id
         if ego_agent_id is None:
             raise ValueError("Unable to resolve ego agent for AdvCP attack.")
 
@@ -330,13 +340,6 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
 
         batch_attacker_id = "ego" if attacker_id == ego_agent_id else attacker_id
         return batch_attacker_id, spoof_boxes
-
-    @staticmethod
-    def _find_ego_agent_id(scenario_data: dict[str, Any]) -> str | None:
-        for agent_id, agent_data in scenario_data.items():
-            if agent_data.get("ego"):
-                return agent_id
-        return None
 
     @staticmethod
     def _load_agent_state(scenario_data: dict[str, Any], agent_id: str) -> dict[str, Any]:
