@@ -343,12 +343,18 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
 
     @staticmethod
     def _load_agent_state(scenario_data: dict[str, Any], agent_id: str) -> dict[str, Any]:
-        from opencood.hypes_yaml.yaml_utils import load_yaml
-
         agent_data = scenario_data[agent_id]
         timestamp = next(key for key in agent_data.keys() if key != "ego")
-        yaml_path = agent_data[timestamp]["yaml"]
-        params = load_yaml(yaml_path)
+        snapshot = agent_data[timestamp]
+        yaml_path = snapshot.get("yaml")
+        params = snapshot.get("params")
+        if params is None:
+            if yaml_path is None:
+                raise ValueError(f"AdvCP agent state for '{agent_id}' does not define either 'params' or 'yaml'.")
+            from opencood.hypes_yaml.yaml_utils import load_yaml
+
+            params = load_yaml(yaml_path)
+
         return {
             "agent_id": agent_id,
             "timestamp": timestamp,

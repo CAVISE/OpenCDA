@@ -262,8 +262,20 @@ class BaseDataset(Dataset):
             data[cav_id]["time_delay"] = timestamp_delay
             # load the corresponding data into the dictionary
             data[cav_id]["params"] = self.reform_param(cav_content, ego_cav_content, timestamp_key, timestamp_key_delay, cur_ego_pose_flag)
-            data[cav_id]["lidar_np"] = pcd_utils.pcd_to_np(cav_content[timestamp_key_delay]["lidar"])
+            data[cav_id]["lidar_np"] = self.load_lidar_data(cav_content[timestamp_key_delay])
         return data
+
+    @staticmethod
+    def load_params(snapshot):
+        if "params" in snapshot:
+            return snapshot["params"]
+        return load_yaml(snapshot["yaml"])
+
+    @staticmethod
+    def load_lidar_data(snapshot):
+        if "lidar_np" in snapshot:
+            return snapshot["lidar_np"]
+        return pcd_utils.pcd_to_np(snapshot["lidar"])
 
     @staticmethod
     def extract_timestamps(yaml_files):
@@ -326,14 +338,14 @@ class BaseDataset(Dataset):
         for cav_id, cav_content in scenario_database.items():
             if cav_content["ego"]:
                 ego_cav_content = cav_content
-                ego_lidar_pose = load_yaml(cav_content[timestamp_key]["yaml"])["lidar_pose"]
+                ego_lidar_pose = self.load_params(cav_content[timestamp_key])["lidar_pose"]
                 break
 
         assert ego_lidar_pose is not None
 
         # calculate the distance
         for cav_id, cav_content in scenario_database.items():
-            cur_lidar_pose = load_yaml(cav_content[timestamp_key]["yaml"])["lidar_pose"]
+            cur_lidar_pose = self.load_params(cav_content[timestamp_key])["lidar_pose"]
 
             dx = cur_lidar_pose[0] - ego_lidar_pose[0]
             dy = cur_lidar_pose[1] - ego_lidar_pose[1]
@@ -424,11 +436,11 @@ class BaseDataset(Dataset):
         ------
         The merged parameters.
         """
-        cur_params = load_yaml(cav_content[timestamp_cur]["yaml"])
-        delay_params = load_yaml(cav_content[timestamp_delay]["yaml"])
+        cur_params = self.load_params(cav_content[timestamp_cur]).copy()
+        delay_params = self.load_params(cav_content[timestamp_delay]).copy()
 
-        cur_ego_params = load_yaml(ego_content[timestamp_cur]["yaml"])
-        delay_ego_params = load_yaml(ego_content[timestamp_delay]["yaml"])
+        cur_ego_params = self.load_params(ego_content[timestamp_cur])
+        delay_ego_params = self.load_params(ego_content[timestamp_delay])
 
         # we need to calculate the transformation matrix from cav to ego
         # at the delayed timestamp

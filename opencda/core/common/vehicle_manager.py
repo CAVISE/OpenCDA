@@ -85,6 +85,7 @@ class VehicleManager(object):
         cav_world,
         current_time="",
         data_dumping=False,
+        with_coperception=False,
         autogenerate_id_on_failure=True,  # TODO: Link with scenario config
         prefix="unknown",
     ):
@@ -135,7 +136,12 @@ class VehicleManager(object):
         self.localizer = LocalizationManager(vehicle, sensing_config["localization"], carla_map)
         # perception module
         self.perception_manager = PerceptionManager(
-            vehicle=vehicle, config_yaml=sensing_config["perception"], cav_world=cav_world, infra_id=self.vid, data_dump=data_dumping
+            vehicle=vehicle,
+            config_yaml=sensing_config["perception"],
+            cav_world=cav_world,
+            infra_id=self.vid,
+            data_dump=data_dumping,
+            with_coperception=with_coperception,
         )
         # map manager
         self.map_manager = MapManager(vehicle, carla_map, map_config)

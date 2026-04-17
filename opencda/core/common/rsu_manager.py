@@ -63,6 +63,7 @@ class RSUManager(object):
         cav_world,
         current_time="",
         data_dumping=False,
+        with_coperception=False,
         autogenerate_id_on_failure=True,
         behavior_services: Optional[Iterable[BehaviorService[Any, Any]]] = None,
     ):
@@ -117,6 +118,7 @@ class RSUManager(object):
             infra_id=self.rid,
             data_dump=data_dumping,
             carla_world=carla_world,
+            with_coperception=with_coperception,
         )
         if data_dumping:
             self.data_dumper = DataDumper(self.perception_manager, self.rid, save_time=current_time)

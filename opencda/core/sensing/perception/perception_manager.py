@@ -316,7 +316,7 @@ class PerceptionManager:
         Open3d point cloud visualizer.
     """
 
-    def __init__(self, vehicle, config_yaml, cav_world, infra_id, data_dump=False, carla_world=None):
+    def __init__(self, vehicle, config_yaml, cav_world, infra_id, data_dump=False, carla_world=None, with_coperception=False):
         self.vehicle = vehicle
         self.carla_world = carla_world if carla_world is not None else self.vehicle.get_world()
         self._map = self.carla_world.get_map()
@@ -368,7 +368,7 @@ class PerceptionManager:
         self.lidar = None
         self.o3d_vis = None
 
-        if self.lidar_visualize or self.activate or data_dump:
+        if self.lidar_visualize or self.activate or data_dump or with_coperception:
             self.lidar = LidarSensor(vehicle, self.carla_world, config_yaml["lidar"], self.global_position)
             if self.lidar_visualize:
                 self.o3d_vis = o3d_visualizer_init(self.id)
@@ -378,9 +378,11 @@ class PerceptionManager:
         if not self.lidar:
             logger.warning("Variable lidar is None. Dumping, detection function or Lidar visualization should be activated to avoid this behavior")
 
-        # if data dump is true, semantic lidar is also spawned
+        # semantic lidar is needed both for dataset dumping and CoP range filtering
         self.data_dump = data_dump
-        if data_dump:
+        self.with_coperception = with_coperception
+        self.semantic_lidar = None
+        if data_dump or with_coperception:
             self.semantic_lidar = SemanticLidarSensor(vehicle, self.carla_world, config_yaml["lidar"], self.global_position)
 
         # count how many steps have been passed
@@ -524,12 +526,12 @@ class PerceptionManager:
         vehicle_list += [i for i in world.get_actors().filter("*walker*")]
 
         # TODO: hard coded
-        thresh = 50 if not self.data_dump else 120
+        thresh = 50 if not (self.data_dump or self.with_coperception) else 120
 
         vehicle_list = [v for v in vehicle_list if self.dist(v) < thresh and v.id != self.carla_id]
 
         # use semantic lidar to filter out vehicles out of the range
-        if self.data_dump:
+        if self.semantic_lidar is not None:
             vehicle_list = self.filter_vehicle_out_sensor(vehicle_list)
 
         # convert carla.Vehicle to opencda.ObstacleVehicle if lidar
@@ -760,5 +762,5 @@ class PerceptionManager:
         if self.lidar_visualize:
             self.o3d_vis.destroy_window()
 
-        if self.data_dump:
+        if self.semantic_lidar is not None:
             self.semantic_lidar.sensor.destroy()

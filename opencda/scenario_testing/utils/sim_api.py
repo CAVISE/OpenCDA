@@ -303,6 +303,7 @@ class ScenarioManager:
         application: list[str],
         map_helper: MapHelper | None = None,
         data_dump: bool = False,
+        with_coperception: bool = False,
         fallback_model: str = "vehicle.lincoln.mkz_2017",
     ) -> tuple[list[VehicleManager], dict[int, Any]]:
         """
@@ -361,6 +362,7 @@ class ScenarioManager:
                 self.cav_world,
                 current_time=self.scenario_params["current_time"],
                 data_dumping=data_dump,
+                with_coperception=with_coperception,
                 prefix="cav",
             )
 
@@ -383,6 +385,7 @@ class ScenarioManager:
         self,
         map_helper: MapHelper | None = None,
         data_dump: bool = False,
+        with_coperception: bool = False,
         fallback_model: str = "vehicle.lincoln.mkz_2017",
     ) -> tuple[list[PlatooningManager], dict[int, Any]]:
         """
@@ -443,6 +446,7 @@ class ScenarioManager:
                     self.cav_world,
                     current_time=self.scenario_params["current_time"],
                     data_dumping=data_dump,
+                    with_coperception=with_coperception,
                     prefix="platoon",
                 )
 
@@ -463,7 +467,7 @@ class ScenarioManager:
 
         return platoon_list, platoon_carla_ids
 
-    def create_rsu_manager(self, data_dump: bool) -> tuple[list[RSUManager], dict[int, Any]]:
+    def create_rsu_manager(self, data_dump: bool, with_coperception: bool = False) -> tuple[list[RSUManager], dict[int, Any]]:
         """
         Create a list of RSU.
 
@@ -503,6 +507,7 @@ class ScenarioManager:
                 self.cav_world,
                 self.scenario_params["current_time"],
                 data_dumping=data_dump,
+                with_coperception=with_coperception,
             )
 
             rsu_carla_ids[actor.id] = rsu_manager.rid
