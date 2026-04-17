@@ -1,0 +1,4 @@
+# For 2cars_advcp_attack_check scenario
+mode: remove
+attacker_id: rsu-1
+victim_id: rsu-2

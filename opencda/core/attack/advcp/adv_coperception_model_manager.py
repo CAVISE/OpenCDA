@@ -183,10 +183,13 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
 
         mode = (advcp_config or {}).get("mode", "spoof")
         advcp_context["mode"] = mode
-        if mode == "remove":
-            AdvCoperceptionModelManager._raise_late_removal_not_available()
-
-        attacker_id, attack_boxes = AdvCoperceptionModelManager.resolve_late_spoof_boxes(advcp_config, memory_data)
+        
+        attacker_id = None
+        attack_boxes = None
+        if mode == "spoof":
+            attacker_id, attack_boxes = AdvCoperceptionModelManager.resolve_late_spoof_boxes(advcp_config, memory_data)
+        elif mode == "remove":
+            attacker_id = advcp_config.get("attacker_id")
         if attacker_id is not None:
             advcp_context["attacker_ids"] = [attacker_id]
 
@@ -228,15 +231,20 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
             is_fake = torch.zeros((scores.shape[0],), dtype=torch.bool, device=device)
 
             if cav_id == attacker_id:
-                injected_box_tensors = [
-                    AdvCoperceptionModelManager._convert_box_for_model(attack_box, dataset).to(device) for attack_box in attack_boxes
-                ]
-                stacked_injected_boxes = torch.stack(injected_box_tensors, dim=0)
-                injected_scores = torch.ones((len(attack_boxes),), dtype=scores.dtype, device=device)
-                injected_is_fake = torch.ones((len(attack_boxes),), dtype=torch.bool, device=device)
-                boxes3d = torch.vstack([boxes3d, stacked_injected_boxes])
-                scores = torch.hstack([scores, injected_scores])
-                is_fake = torch.hstack([is_fake, injected_is_fake])
+                if mode == "spoof":
+                    injected_box_tensors = [
+                        AdvCoperceptionModelManager._convert_box_for_model(attack_box, dataset).to(device) for attack_box in attack_boxes
+                    ]
+                    stacked_injected_boxes = torch.stack(injected_box_tensors, dim=0)
+                    injected_scores = torch.ones((len(attack_boxes),), dtype=scores.dtype, device=device)
+                    injected_is_fake = torch.ones((len(attack_boxes),), dtype=torch.bool, device=device)
+                    boxes3d = torch.vstack([boxes3d, stacked_injected_boxes])
+                    scores = torch.hstack([scores, injected_scores])
+                    is_fake = torch.hstack([is_fake, injected_is_fake])
+                elif mode == "remove":
+                    boxes3d = torch.empty((0, 7), dtype=torch.float32, device=device)
+                    scores = torch.empty((0,), dtype=torch.float32, device=device)
+                    is_fake = torch.empty((0,), dtype=torch.bool, device=device)
 
             if boxes3d.shape[0] == 0:
                 continue
@@ -443,5 +451,5 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
         return torch.from_numpy(model_box).type(torch.float32)
 
     @staticmethod
-    def _raise_late_removal_not_available() -> None:
+    def _inference_late_removal_attack() -> None:
         raise NotImplementedError("AdvCP late-fusion removal is not available yet.")
