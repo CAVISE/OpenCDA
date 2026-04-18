@@ -242,20 +242,40 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
                     boxes3d = torch.vstack([boxes3d, stacked_injected_boxes])
                     scores = torch.hstack([scores, injected_scores])
                     is_fake = torch.hstack([is_fake, injected_is_fake])
+                
                 elif mode == "remove":
                     if removal_id is None:
                         logger.warning(
                             "AdvCP late removal attack is enabled but removal_id is not defined. No boxes will be removed."
                         )
                     else:
-                        logger.info(
-                            "AdvCP late removal attack is enabled. Boxes from attacker '%s' will be removed from the cooperative perception results of removal_id '%s'.",
-                            attacker_id,
-                            removal_id,
-                        )
-                        boxes3d = torch.empty((0, 7), dtype=torch.float32, device=device)
-                        scores = torch.empty((0,), dtype=torch.float32, device=device)
-                        is_fake = torch.empty((0,), dtype=torch.bool, device=device)
+
+                        # removal_id comes from config
+                        # TODO: Consider supporting more flexible removal_id formats in the future (e.g., by box attributes instead of just index)
+                        try:
+                            removal_index = int(removal_id)
+                        except (TypeError, ValueError):
+                            logger.warning(
+                                "AdvCP removal_id '%s' is not a valid integer index. No boxes will be removed.",
+                                removal_id,
+                            )
+                        else:
+                            num_boxes = int(boxes3d.shape[0])
+                            if num_boxes == 0:
+                                logger.info("AdvCP removal: attacker '%s' has no boxes to remove.", attacker_id)
+                            elif removal_index < 0 or removal_index >= num_boxes:
+                                logger.warning(
+                                    "AdvCP removal_id index %s is out of range [0, %s). No boxes will be removed.",
+                                    removal_index,
+                                    num_boxes,
+                                )
+                            else:
+                                keep_mask = torch.ones((num_boxes,), dtype=torch.bool, device=device)
+                                keep_mask[removal_index] = False
+
+                                boxes3d = boxes3d[keep_mask]
+                                scores = scores[keep_mask]
+                                is_fake = is_fake[keep_mask]
 
             if boxes3d.shape[0] == 0:
                 continue
