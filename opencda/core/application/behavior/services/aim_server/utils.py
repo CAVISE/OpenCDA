@@ -4,7 +4,7 @@ import pickle as pkl
 from pathlib import Path
 from typing import Any, Sequence
 
-from .types import Location, Rotation, Transform
+from opencda.core.application.behavior.types import Location, Rotation, Transform
 
 
 def rotation_matrix_back(yaw: float) -> np.ndarray:

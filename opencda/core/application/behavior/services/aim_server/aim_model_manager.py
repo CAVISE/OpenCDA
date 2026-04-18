@@ -9,7 +9,8 @@ from scipy.spatial import distance
 from AIM import AIMModel
 
 from .messages import AIMServerRequest, AIMServerResponse
-from .types import CavData, Transform, Location, Rotation
+from .types import CavData
+from opencda.core.application.behavior.types import Transform, Location, Rotation
 from . import utils
 
 from opencda.core.application.behavior.transport_message import TransportMessage
