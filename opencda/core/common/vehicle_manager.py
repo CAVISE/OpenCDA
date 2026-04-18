@@ -370,7 +370,7 @@ class VehicleManager(object):
         # pass position and speed info to controller
         self.controller.update_info(ego_pos, ego_spd)
 
-    def update_info_v2x(self):
+    def update_info_v2x(self):  # noqa: deadcode
         # TODO: Implement
         pass
 

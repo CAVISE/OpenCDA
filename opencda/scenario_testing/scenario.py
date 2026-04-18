@@ -210,7 +210,6 @@ class Scenario:
 
         self.spectator = self.scenario_manager.world.get_spectator()
 
-        self.cavs_under_control: set[VehicleManager] = set()
         self.messages: list[TransportMessage] = []
 
     def run(self, opt: argparse.Namespace) -> None:

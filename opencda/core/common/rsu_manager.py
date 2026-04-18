@@ -272,7 +272,7 @@ class RSUManager(object):
         # TODO: object detection - pass it to other CAVs for V2X perception
         self.perception_manager.detect(ego_pos)
 
-    def update_info_v2x(self):
+    def update_info_v2x(self):  # noqa: deadcode
         # TODO: Добавить обновление информации
         pass
 
