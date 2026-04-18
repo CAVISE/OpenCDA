@@ -1,3 +1,4 @@
 # Python 3.12 constraints (reproducible CI)
 networkx==3.5
 scipy==1.16.3
+traci==1.26.0
