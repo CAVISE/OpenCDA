@@ -98,9 +98,9 @@ def extract_trajectories_by_id(object_id: int, yaml_param_list: list[ScenarioYam
 
         target_vehicle = vehicles[object_id]
 
-        location = tuple(float(value) for value in cast(list[Numeric], target_vehicle["location"]))
-        center = tuple(float(value) for value in cast(list[Numeric], target_vehicle["center"]))
-        rotation = tuple(float(value) for value in cast(list[Numeric], target_vehicle["angle"]))
+        location = tuple(map(float, cast(list[Numeric], target_vehicle["location"])))
+        center = tuple(map(float, cast(list[Numeric], target_vehicle["center"])))
+        rotation = tuple(map(float, cast(list[Numeric], target_vehicle["angle"])))
         speed = float(cast(float | int, target_vehicle["speed"]))
 
         # we regard the center of the bbx as the vehicle true location
