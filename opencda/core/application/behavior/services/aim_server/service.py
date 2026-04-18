@@ -44,7 +44,7 @@ class AIMServer:
         aim_model_name = cast(str, aim_config.pop("model", "MTP"))
         self.model = get_model(aim_model_name, **aim_config)
 
-    def get_owner(self) -> RSUManager:
+    def _get_owner(self) -> RSUManager:
         owner_ref = self._owner_ref
         if owner_ref is None:
             raise RuntimeError("AIM server is not attached to an owner.")
@@ -59,7 +59,7 @@ class AIMServer:
         """Initialize the service for a particular participant instance."""
         self._owner_ref = weakref.ref(owner)
 
-        owner_instance = self.get_owner()
+        owner_instance = self._get_owner()
         owner_instance.localizer.localize()
         control_center = owner_instance.localizer.get_ego_pos()
         self.aim_model_manager = AIMModelManager(self.model, control_center, self.service_name, owner_instance.id)

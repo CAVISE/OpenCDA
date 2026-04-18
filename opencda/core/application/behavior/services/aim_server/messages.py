@@ -1,12 +1,12 @@
 """Input dataclasses for the AIM server behavior service."""
 
 from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Sequence
 
 if TYPE_CHECKING:
-    from collections import deque
-    from .types import Transform, Location
+    from opencda.core.application.behavior.types import Location, Transform
 
 
 @dataclass(frozen=True)
@@ -17,7 +17,7 @@ class AIMServerRequest:
     position: Transform
     speed: float
     yaw: float
-    waypoints: deque
+    waypoints: Sequence[Any]
 
 
 @dataclass(frozen=True)

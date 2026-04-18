@@ -2,6 +2,7 @@ import numpy as np
 import math
 import pickle as pkl
 from pathlib import Path
+from typing import Any, Sequence
 
 from .types import Location, Rotation, Transform
 
@@ -90,9 +91,10 @@ def get_end(start: str, intention: str) -> str:
                     return "up"
                 case "left":
                     return "right"
+    raise ValueError(f"Unsupported start/intention combination: start={start!r}, intention={intention!r}")
 
 
-def get_distance(waypoint1: Transform, waypoint2: Transform) -> float:
+def get_distance(waypoint1: Transform, waypoint2: Sequence[Any]) -> float:
     """
     Calculates Euclidean distance between two waypoints
 
@@ -103,7 +105,7 @@ def get_distance(waypoint1: Transform, waypoint2: Transform) -> float:
     rel_x = waypoint1.location.x - waypoint2[0].transform.location.x
     rel_y = waypoint1.location.y - waypoint2[0].transform.location.y
     position = np.array([rel_x, rel_y])
-    return np.linalg.norm(position)
+    return float(np.linalg.norm(position))
 
 
 def get_carla_transform(in_sumo_transform: Transform, extent: Location) -> Transform:
@@ -157,11 +159,13 @@ def get_sumo_transform(in_carla_transform: Transform, extent: Location) -> Trans
     return out_transform
 
 
-def load_yaw(yaw_dict_path: Path = None) -> dict:
+def load_yaw(yaw_dict_path: Path | None = None) -> dict[str, Any]:
     """
     Loads yaw dictionary from a predefined address.
 
     :return: yaw_dict
     """
+    if yaw_dict_path is None:
+        yaw_dict_path = Path(__file__).parent / "assets" / "yaw_dict_10m.pkl"
     with yaw_dict_path.open("rb") as f:
         return pkl.load(f)

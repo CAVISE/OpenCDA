@@ -1,6 +1,6 @@
-# from __future__ import annotations
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Any
 
 import logging
 import numpy as np
@@ -43,9 +43,9 @@ class AIMModelManager:
         self.THRESHOLD = 10
         self.FORCE_VALUE = 20
 
-        self.cav_data = dict()
+        self.cav_data: dict[str, CavData] = {}
 
-        self.trajs = dict()
+        self.trajs: dict[str, list[tuple[float, float, float, float, float, str]]] = {}
 
         control_center_location = utils.get_sumo_transform(control_center, Location(0, 0, 0)).location
 
@@ -57,11 +57,11 @@ class AIMModelManager:
         self._owner_id = owner_id
 
         self.__yaw_dict_path = Path(__file__).parent / "assets" / "yaw_dict_10m.pkl"
-        self.yaw_dict = utils.load_yaw(self.__yaw_dict_path)
-        self.yaw_id = {}
+        self.yaw_dict: dict[str, Any] = utils.load_yaw(self.__yaw_dict_path)
+        self.yaw_id: dict[str, dict[str, str]] = {}
 
     def _get_distance_to_center(self, curr_pos: np.ndarray) -> float:
-        return np.linalg.norm(curr_pos - self.control_center_coords)
+        return float(np.linalg.norm(curr_pos - self.control_center_coords))
 
     def _get_distance_to_center_by_vid(self, vehicle_id: str) -> float:
         curr_pos = self._get_cav_sumo_pos(vehicle_id)
@@ -90,7 +90,7 @@ class AIMModelManager:
                 dst_service_type=transport_message.dst_service_type,
             )
 
-    def _get_cav_pos(self, vehicle_id: str) -> np.ndarray:
+    def _get_cav_pos(self, vehicle_id: str) -> Location:
         return self.cav_data[vehicle_id].pos
 
     def _get_cav_sumo_pos(self, vehicle_id: str) -> np.ndarray:
@@ -167,7 +167,7 @@ class AIMModelManager:
         self.cav_data.clear()
         return result_messages
 
-    def update_trajs(self):
+    def update_trajs(self) -> None:
         """
         Updates the self.trajs dictionary, which stores the trajectory history of each vehicle.
         Format:
@@ -210,7 +210,7 @@ class AIMModelManager:
             if vehicle_id not in self.cav_data:
                 del self.trajs[vehicle_id]
 
-    def get_opencda_intention(self, waypoints, mid):
+    def get_opencda_intention(self, waypoints: Sequence[Any], mid: np.ndarray) -> str:
         """
         Gets intention by averaged rotation to pass 3 next waypoints.
 
@@ -254,14 +254,14 @@ class AIMModelManager:
         rotation = (mean_yaw - first_waypoint[0].transform.rotation.yaw + 360) % 360
         return utils.get_intention_by_rotation(rotation)
 
-    def encoding_scenario_features(self):
+    def encoding_scenario_features(self) -> tuple[np.ndarray, list[str]]:
         """
         Encodes data on CAV movement and intentions for processing by ML models
 
         :return: x: list((motion features, intention vector)), target: agent ids list(vehicle id)
         """
-        features = []
-        target_agent_ids = []
+        features: list[np.ndarray] = []
+        target_agent_ids: list[str] = []
 
         for vehicle_id, trajectory in self.trajs.items():
             last_position = trajectory[-1]
@@ -276,10 +276,10 @@ class AIMModelManager:
                 features.append(feature_vector)
                 target_agent_ids.append(vehicle_id)
 
-        features = np.vstack(features) if features else np.empty((0, 7))
-        return features, target_agent_ids
+        feature_matrix = np.vstack(features) if features else np.empty((0, 7))
+        return feature_matrix, target_agent_ids
 
-    def get_yaw(self, vehicle_id: str, pos: np.ndarray, yaw_dict: dict):
+    def get_yaw(self, vehicle_id: str, pos: np.ndarray, yaw_dict: dict[str, Any]) -> float:
         """
         Calculates optimal CAV yaw based on its position, using previously collected trajectory data.
 
@@ -329,4 +329,4 @@ class AIMModelManager:
             return 0.0
         yaws = yaw_dict[route]
         dists = distance.cdist(pos.reshape(1, 2), yaws[:, :-1])
-        return yaws[np.argmin(dists), -1]
+        return float(yaws[np.argmin(dists), -1])

@@ -32,7 +32,7 @@ class MovementController:
         """
         self._owner_ref: weakref.ReferenceType[VehicleManager] | None = None
 
-    def get_owner(self) -> VehicleManager:
+    def _get_owner(self) -> VehicleManager:
         owner_ref = self._owner_ref
         if owner_ref is None:
             raise RuntimeError("AIM server is not attached to an owner.")
@@ -52,15 +52,15 @@ class MovementController:
         self._owner_ref = None
 
     def _filter_messages(self, messages: Sequence[TransportMessage[MovementControllerRequestMessage]]) -> list[MovementControllerRequestMessage]:
-        owner = self.get_owner()
+        owner = self._get_owner()
         valid_messages = []
         for message in messages:
             if message.dst_owner_id == owner.id and message.src_owner_id == owner.id and message.dst_service_type == self.service_name:
                 valid_messages.append(message.payload)
         return valid_messages
 
-    def process(self, messages: Sequence[TransportMessage[MovementControllerRequestMessage]]) -> None:
-        owner = self.get_owner()
+    def process(self, messages: Sequence[TransportMessage[MovementControllerRequestMessage]]) -> Sequence[TransportMessage]:
+        owner = self._get_owner()
         valid_messages = self._filter_messages(messages)
 
         if len(valid_messages) > 0:
@@ -70,3 +70,4 @@ class MovementController:
 
             current_location = owner.vehicle.get_location()
             owner.set_destination(current_location, next_pos[0], clean=True, end_reset=False)
+        return ()

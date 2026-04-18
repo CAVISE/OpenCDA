@@ -1,5 +1,8 @@
 from dataclasses import dataclass
+from typing import Any, Sequence
+
 import numpy as np
+
 from opencda.core.application.behavior.types import Location
 
 
@@ -10,7 +13,7 @@ class CavData:
     sumo_pos: np.ndarray
     speed: float
     yaw: float
-    waypoints: list
+    waypoints: Sequence[Any]
 
     src_owner_id: str
     src_service_type: str
