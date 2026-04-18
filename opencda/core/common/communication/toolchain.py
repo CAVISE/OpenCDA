@@ -35,8 +35,7 @@ class CommunicationToolchain:
     # invoke subroutine to create python message impl from proto file
     @staticmethod
     def generate_message(config: MessageConfig, messages: typing.List[str]) -> None:
-        # First try with mypy plugin
-        command_with_mypy = [
+        command = [
             "protoc",
             f"--proto_path={config.source_dir}",
             f"--mypy_out={config.binary_dir}",
@@ -45,7 +44,7 @@ class CommunicationToolchain:
         ]
 
         process = subprocess.run(
-            command_with_mypy,
+            command,
             encoding="UTF-8",
             # silent run
             stdout=subprocess.PIPE,
@@ -54,36 +53,10 @@ class CommunicationToolchain:
         )
 
         if process.returncode != 0:
-            # Check if the error is due to missing mypy plugin
-            stderr_lower = process.stderr.lower()
-            if "protoc-gen-mypy" in stderr_lower or "mypy" in stderr_lower:
-                logger.warning("protoc-gen-mypy plugin not found. Retrying without mypy type stubs generation.")
-                # Retry without mypy_out
-                command_python_only = [
-                    "protoc",
-                    f"--proto_path={config.source_dir}",
-                    f"--python_out={config.binary_dir}",
-                    *map(lambda message: config.source_dir.joinpath(f"{message}.proto"), messages),
-                ]
-                process = subprocess.run(
-                    command_python_only,
-                    encoding="UTF-8",
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    env=os.environ,
-                )
-                if process.returncode != 0:
-                    logger.error(
-                        f"failed to generate protos (python only), subroutine exited with: {errno.errorcode[process.returncode]}\nSTDERR: {process.stderr.strip()}"
-                    )
-                    raise RuntimeError(f"protoc generation failed with exit code {process.returncode}")
-                else:
-                    logger.info(f"generated protos for: {' '.join(messages)} (without mypy)")
-            else:
-                logger.error(
-                    f"failed to generate protos, subroutine exited with: {errno.errorcode[process.returncode]}\nSTDERR: {process.stderr.strip()}"
-                )
-                raise RuntimeError(f"protoc generation failed with exit code {process.returncode}")
+            logger.error(
+                f"failed to generate protos, subroutine exited with: {errno.errorcode[process.returncode]}\nSTDERR: {process.stderr.strip()}"
+            )
+            sys.exit(process.returncode)
         else:
             logger.info(f"generated protos for: {' '.join(messages)}")
 
