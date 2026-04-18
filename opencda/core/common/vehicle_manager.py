@@ -8,7 +8,7 @@ import logging
 from typing import Any, Dict, Iterable, Optional, Tuple
 
 from opencda.core.actuation.control_manager import ControlManager
-from opencda.core.application.behavior import create_service, BehaviorService
+from opencda.core.application.behavior import BehaviorService, TransportMessage, create_service
 from opencda.core.application.platooning.platoon_behavior_agent import PlatooningBehaviorAgent
 from opencda.core.common.v2x_manager import V2XManager
 from opencda.core.sensing.localization.localization_manager import LocalizationManager
@@ -207,8 +207,8 @@ class VehicleManager(object):
         services = tuple(behavior_services or ())
         self.__validate_behavior_services(services)
         self.behavior_services = services
-        self.behavior_service_results = {}
-        self._behavior_services_by_id = {service.service_name: service for service in self.behavior_services}
+        self.behavior_service_results: list[TransportMessage] = []
+        self._behavior_services_by_name = {service.service_name: service for service in self.behavior_services}
 
     def __validate_behavior_services(self, behavior_services: Tuple[BehaviorService[Any, Any], ...]) -> None:
         seen_service_ids = set()
@@ -260,31 +260,47 @@ class VehicleManager(object):
         if first_exception is not None:
             raise first_exception
 
-    def __validate_behavior_service_messages(self, messages: list[Any]) -> None:
+    def __validate_behavior_service_messages(self, messages: list[TransportMessage]) -> list[TransportMessage]:
+        valid_messages: list[TransportMessage] = []
+
         for message in messages:
-            service_name = getattr(message, "service_name", None)
+            if not isinstance(message, TransportMessage):
+                raise TypeError(f"Each behavior service message must be a TransportMessage; got {type(message).__name__!r}.")
+
+            service_name = getattr(message, "dst_service_type", None)
             if not isinstance(service_name, str):
-                raise TypeError(f"Each behavior service message must define a non-empty 'service_name' attribute; got {type(message).__name__!r}.")
+                raise TypeError(f"Each behavior service message must define a string 'dst_service_type'; got {type(message).__name__!r}.")
 
-            if service_name not in self._behavior_services_by_id:
-                raise ValueError(f"Behavior service message references unknown service_name {service_name!r}.")
+            owner_id = getattr(message, "dst_owner_id", None)
+            if not isinstance(owner_id, str):
+                raise TypeError(f"Each behavior service message must define a string 'dst_owner_id'; got {type(message).__name__!r}.")
 
-    def __group_behavior_service_messages(self, messages: list[Any]) -> Dict[str, list[Any]]:
+            if owner_id == self.id:
+                if service_name not in self._behavior_services_by_name:
+                    raise ValueError(f"Behavior service message references unknown service_name {service_name!r}.")
+                valid_messages.append(message)
+            elif owner_id == "broadcast":
+                if service_name in self._behavior_services_by_name:
+                    valid_messages.append(message)
+
+        return valid_messages
+
+    def __group_behavior_service_messages(self, messages: list[TransportMessage]) -> Dict[str, list[TransportMessage]]:
         grouped_messages = {service.service_name: [] for service in self.behavior_services}
 
         for message in messages:
-            grouped_messages[message.service_name].append(message)
+            grouped_messages[message.dst_service_type].append(message)
 
         return grouped_messages
 
-    def update_behavior_services(self, messages: list[Any]) -> None:
-        self.__validate_behavior_service_messages(messages)
+    def update_behavior_services(self, messages: list[TransportMessage]) -> None:
+        messages = self.__validate_behavior_service_messages(messages)
         grouped_messages = self.__group_behavior_service_messages(messages)
-        self.behavior_service_results = {}
+        self.behavior_service_results.clear()
 
         for service in self.behavior_services:
             service_messages = grouped_messages[service.service_name]
-            self.behavior_service_results[service.service_name] = service.process(service_messages)
+            self.behavior_service_results.append(service.process(service_messages))
 
     def set_destination(self, start_location, end_location, clean=False, end_reset=True):
         """
@@ -348,7 +364,7 @@ class VehicleManager(object):
         # TODO: Implement
         pass
 
-    def run_step(self, target_speed=None, messages: Optional[list[Any]] = None):
+    def run_step(self, target_speed=None, messages: Optional[list[TransportMessage]] = None):
         """
         Execute one step of navigation.
         """

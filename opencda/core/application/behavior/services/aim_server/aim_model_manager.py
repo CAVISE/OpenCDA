@@ -1,5 +1,6 @@
 # from __future__ import annotations
 from collections.abc import Sequence
+from dataclasses import dataclass
 
 import carla
 import torch
@@ -13,8 +14,24 @@ from AIM import AIMModel
 
 from .messages import AIMServerRequestMessage
 from .results import AIMServerResult, AIMServerMessage
+from opencda.core.application.behavior.transport_message import TransportMessage
 
 logger = logging.getLogger("cavise.opencda.opencda.core.application.behavior.services.aim_server.aim_model_manager")
+
+
+@dataclass(frozen=True)
+class CavData:
+    intention: str
+    pos: carla.Location
+    sumo_pos: np.ndarray
+    speed: float
+    yaw: float
+    waypoints: list
+
+    src_owner_id: str
+    src_service_type: str
+    dst_owner_id: str
+    dst_service_type: str
 
 
 class AIMModelManager:
@@ -76,44 +93,54 @@ class AIMModelManager:
         curr_pos = self._get_cav_sumo_pos(vehicle_id)
         return self._get_distance_to_center(curr_pos)
 
-    def _preprocess_cav_data(self, msg: AIMServerRequestMessage) -> None:
+    def _preprocess_cav_data(self, transport_msg: TransportMessage[AIMServerRequestMessage]) -> None:
         """
         Normalize and cache incoming CAV data for the current inference step.
         """
+        msg = transport_msg.payload
         cav_pos = BridgeHelper.get_sumo_transform(msg.position, carla.Vector3D(0, 0, 0)).location
         curr_pos = np.array([cav_pos.x, cav_pos.y])
         distance_to_center = self._get_distance_to_center(curr_pos)
 
         if distance_to_center != -1 and distance_to_center < self.CONTROL_RADIUS:
-            self.cav_data[msg.vehicle_id] = {
-                "intention": self.get_opencda_intention(msg.waypoints, self.control_center_coords),
-                "pos": msg.position.location,
-                "sumo_pos": curr_pos,
-                "speed": msg.speed,
-                "yaw": msg.yaw,
-                "waypoints": msg.waypoints,
-            }
+            self.cav_data[msg.vehicle_id] = CavData(
+                intention=self.get_opencda_intention(msg.waypoints, self.control_center_coords),
+                pos=msg.position.location,
+                sumo_pos=curr_pos,
+                speed=msg.speed,
+                yaw=msg.yaw,
+                waypoints=msg.waypoints,
+                src_owner_id=transport_msg.src_owner_id,
+                src_service_type=transport_msg.src_service_type,
+                dst_owner_id=transport_msg.dst_owner_id,
+                dst_service_type=transport_msg.dst_service_type,
+            )
 
     def _get_cav_pos(self, vehicle_id: str) -> np.ndarray:
-        return self.cav_data[vehicle_id]["pos"]
+        return self.cav_data[vehicle_id].pos
 
     def _get_cav_sumo_pos(self, vehicle_id: str) -> np.ndarray:
-        return self.cav_data[vehicle_id]["sumo_pos"]
+        return self.cav_data[vehicle_id].sumo_pos
 
     def _make_result(self, messages: tuple[AIMServerMessage, ...] = ()) -> AIMServerResult:
-        return AIMServerResult(
-            service_name=self._service_name,
-            owner_id=self._owner_id,
+        payload = AIMServerResult(
             messages=messages,
         )
+        return TransportMessage(
+            src_owner_id=self._owner_id,
+            src_service_type=self._service_name,
+            dst_owner_id="broadcast",
+            dst_service_type="aim_client",
+            payload=payload,
+        )
 
-    def process(self, messages: Sequence[AIMServerRequestMessage]) -> AIMServerResult:
+    def process(self, messages: Sequence[TransportMessage[AIMServerRequestMessage]]) -> TransportMessage[AIMServerResult]:
         """
         Run AIM inference for the request batch and return predicted targets.
         """
         for msg in messages:
             self._preprocess_cav_data(msg)
-        result_messages: list[AIMServerMessage] = []
+        result_messages: list[TransportMessage[AIMServerMessage]] = []
 
         self.update_trajs()
 
@@ -121,7 +148,7 @@ class AIMModelManager:
         num_agents = features.shape[0]
 
         if num_agents == 0:
-            self.cav_data = dict()
+            self.cav_data.clear()
             return self._make_result()
 
         predictions = self.model.predict(features.copy(), target_agent_ids)
@@ -158,15 +185,21 @@ class AIMModelManager:
                     y=pos.y - global_delta[1],
                     z=pos.z,
                 )
+
+                payload = AIMServerMessage(
+                    next_position=next_loc,
+                )
                 result_messages.append(
-                    AIMServerMessage(
-                        service_name=self._service_name,
-                        vehicle_id=vehicle_id,
-                        next_position=next_loc,
+                    TransportMessage(
+                        src_owner_id=self._owner_id,
+                        src_service_type=self._service_name,
+                        dst_owner_id=self.cav_data[vehicle_id].src_owner_id,
+                        dst_service_type=self.cav_data[vehicle_id].src_service_type,
+                        payload=payload,
                     )
                 )
 
-        self.cav_data = dict()
+        self.cav_data.clear()
         return self._make_result(messages=tuple(result_messages))
 
     def update_trajs(self):
@@ -193,8 +226,8 @@ class AIMModelManager:
                     self.trajs[vehicle_id] = []
 
                 # Get vehicle state
-                speed = self.cav_data[vehicle_id]["speed"]
-                yaw = self.cav_data[vehicle_id]["yaw"]
+                speed = self.cav_data[vehicle_id].speed
+                yaw = self.cav_data[vehicle_id].yaw
                 yaw_rad = np.deg2rad(self.get_yaw(vehicle_id, position, self.yaw_dict))
 
                 # Normalize position relative to control node
@@ -288,8 +321,8 @@ class AIMModelManager:
         return self._get_intention_by_rotation(rotation)
 
     def get_intention(self, vehicle_id):
-        if self.cav_data.get(vehicle_id) and self.cav_data[vehicle_id].get("intention"):
-            return self.cav_data[vehicle_id]["intention"]
+        if self.cav_data.get(vehicle_id) and self.cav_data[vehicle_id].intention:
+            return self.cav_data[vehicle_id].intention
         return "null"
 
     def encoding_scenario_features(self):

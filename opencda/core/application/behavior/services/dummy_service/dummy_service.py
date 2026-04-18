@@ -7,6 +7,7 @@ from typing import Any, Sequence
 import weakref
 
 from opencda.core.application.behavior.registry import BehaviorServiceRegistry
+from opencda.core.application.behavior.transport_message import TransportMessage
 
 from .messages import DummyServiceMessage
 from .results import DummyServiceEchoMessage, DummyServiceResult
@@ -30,13 +31,18 @@ class DummyService:
     def on_attach(self, owner: Any) -> None:
         self._owner_ref = weakref.ref(owner)
 
-    def process(self, messages: Sequence[DummyServiceMessage]) -> DummyServiceResult:
+    def process(self, messages: Sequence[TransportMessage[DummyServiceMessage]]) -> TransportMessage[DummyServiceResult]:
         if self._owner_ref() is None:
             raise RuntimeError("Cannot process messages without an attached owner.")
         echoed_messages = tuple(
-            DummyServiceEchoMessage(
-                service_name=self.service_name,
-                text=f"{message.text}{self._response_suffix}",
+            TransportMessage(
+                src_owner_id=self._owner_ref().id,
+                src_service_type=self.service_name,
+                dst_owner_id=message.src_owner_id,
+                dst_service_type=message.src_service_type,
+                payload=DummyServiceEchoMessage(
+                    text=f"{message.payload.text}{self._response_suffix}",
+                ),
             )
             for message in messages
         )
@@ -46,10 +52,15 @@ class DummyService:
             self.service_name,
             [message.text for message in echoed_messages],
         )
-        return DummyServiceResult(
-            service_name=self.service_name,
-            owner_id=self._owner_ref().id,
+        payload = DummyServiceResult(
             messages=echoed_messages,
+        )
+        return TransportMessage(
+            src_owner_id=self._owner_ref().id,
+            src_service_type=self.service_name,
+            dst_owner_id="broadcast",
+            dst_service_type="",
+            payload=payload,
         )
 
     def on_detach(self) -> None:

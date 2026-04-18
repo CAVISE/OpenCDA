@@ -7,6 +7,7 @@ import logging
 from typing import Sequence, cast, TYPE_CHECKING
 
 from opencda.core.application.behavior.registry import BehaviorServiceRegistry
+from opencda.core.application.behavior.transport_message import TransportMessage
 
 from AIM import get_model
 
@@ -55,5 +56,5 @@ class AIMServer:
         """Release service resources before the participant is destroyed."""
         self._owner_ref = None
 
-    def process(self, messages: Sequence[AIMServerRequestMessage]) -> AIMServerResult:
+    def process(self, messages: Sequence[TransportMessage[AIMServerRequestMessage]]) -> TransportMessage[AIMServerResult]:
         return self.aim_model_manager.process(messages)

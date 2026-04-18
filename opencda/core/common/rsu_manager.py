@@ -3,12 +3,13 @@ Basic class for RSU(Roadside Unit) management.
 """
 
 import logging
-from typing import Any, Dict, Iterable, Optional, Tuple
+from typing import Any, Iterable, Optional, Tuple
 
 from opencda.core.application.behavior import BehaviorService, create_service
 from opencda.core.common.data_dumper import DataDumper
 from opencda.core.sensing.perception.perception_manager import PerceptionManager
 from opencda.core.sensing.localization.rsu_localization_manager import LocalizationManager
+from opencda.core.application.behavior import TransportMessage
 
 logger = logging.getLogger("cavise.opencda.opencda.core.common.rsu_manager")
 
@@ -157,7 +158,7 @@ class RSUManager(object):
         services = tuple(behavior_services or ())
         self.__validate_behavior_services(services)
         self.behavior_services = services
-        self.behavior_service_results = {}
+        self.behavior_service_results: list[TransportMessage] = []
         self._behavior_services_by_name = {service.service_name: service for service in self.behavior_services}
 
     def __validate_behavior_services(self, behavior_services: Tuple[BehaviorService[Any, Any], ...]) -> None:
@@ -210,42 +211,47 @@ class RSUManager(object):
         if first_exception is not None:
             raise first_exception
 
-    def __validate_behavior_service_messages(self, messages: list[Any]) -> None:
-        valid_messages = []
+    def __validate_behavior_service_messages(self, messages: list[TransportMessage]) -> list[TransportMessage]:
+        valid_messages: list[TransportMessage] = []
+
         for message in messages:
-            service_name = getattr(message, "service_name", None)
+            if not isinstance(message, TransportMessage):
+                raise TypeError(f"Each behavior service message must be a TransportMessage; got {type(message).__name__!r}.")
+
+            service_name = getattr(message, "dst_service_type", None)
             if not isinstance(service_name, str):
-                raise TypeError(f"Each behavior service message must define a non-empty 'service_name' attribute; got {type(message).__name__!r}.")
-            owner_id = getattr(message, "owner_id", None)
+                raise TypeError(f"Each behavior service message must define a string 'dst_service_type'; got {type(message).__name__!r}.")
+
+            owner_id = getattr(message, "dst_owner_id", None)
             if not isinstance(owner_id, str):
-                raise TypeError(f"Each behavior service message must define a non-empty 'owner_id' attribute; got {type(message).__name__!r}.")
+                raise TypeError(f"Each behavior service message must define a string 'dst_owner_id'; got {type(message).__name__!r}.")
 
-            if service_name not in self._behavior_services_by_name:
-                if owner_id == self.id:
+            if owner_id == self.id:
+                if service_name not in self._behavior_services_by_name:
                     raise ValueError(f"Behavior service message references unknown service_name {service_name!r}.")
-                elif owner_id == "broadcast":
-                    continue
-
-            valid_messages.append(message)
+                valid_messages.append(message)
+            elif owner_id == "broadcast":
+                if service_name in self._behavior_services_by_name:
+                    valid_messages.append(message)
 
         return valid_messages
 
-    def __group_behavior_service_messages(self, messages: list[Any]) -> Dict[str, list[Any]]:
+    def __group_behavior_service_messages(self, messages: list[TransportMessage]) -> dict[str, list[TransportMessage]]:
         grouped_messages = {service.service_name: [] for service in self.behavior_services}
 
         for message in messages:
-            grouped_messages[message.service_name].append(message)
+            grouped_messages[message.dst_service_type].append(message)
 
         return grouped_messages
 
-    def update_behavior_services(self, messages: list[Any]) -> None:
+    def update_behavior_services(self, messages: list[TransportMessage]) -> None:
         messages = self.__validate_behavior_service_messages(messages)
         grouped_messages = self.__group_behavior_service_messages(messages)
-        self.behavior_service_results = {}
+        self.behavior_service_results.clear()
 
         for service in self.behavior_services:
             service_messages = grouped_messages[service.service_name]
-            self.behavior_service_results[service.service_name] = service.process(service_messages)
+            self.behavior_service_results.append(service.process(service_messages))
 
     def update_info(self):
         """
@@ -264,21 +270,18 @@ class RSUManager(object):
         # TODO: Добавить обновление информации
         pass
 
-    def run_step(self, messages: Optional[list[Any]] = None) -> dict[str, Any]:
+    def run_step(self, messages: list[TransportMessage] = []) -> list[TransportMessage]:
         """
         Run behavior services for the provided message batch and
         execute the current RSU step side effects.
         """
-        if messages:
-            self.update_behavior_services(messages)
+        self.update_behavior_services(messages)
 
         # dump data
         if self.data_dumper:
             self.data_dumper.run_step(self.perception_manager, self.localizer, None)
 
-        if messages:
-            return self.behavior_service_results
-        return {}
+        return self.behavior_service_results
 
     def destroy(self):
         """

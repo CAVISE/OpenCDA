@@ -6,10 +6,9 @@ import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, NoReturn, cast, Any
+from typing import TYPE_CHECKING, NoReturn, cast
 
 import carla
-import omegaconf
 import traci
 from omegaconf import DictConfig, OmegaConf
 
@@ -22,7 +21,9 @@ from opencda.core.common.vehicle_manager import VehicleManager
 from opencda.scenario_testing.evaluations.evaluate_manager import EvaluationManager
 from opencda.scenario_testing.utils.yaml_utils import YamlDict, add_current_time, save_yaml
 
+from opencda.core.application.behavior import TransportMessage
 from opencda.core.application.behavior.services.aim_server import AIMServerRequestMessage
+from opencda.core.application.behavior.services.aim_server.results import AIMServerMessage, AIMServerResult
 
 if TYPE_CHECKING:
     from opencda.core.common.coperception_model_manager import DirectoryProcessor, DatasetOpenCOOD
@@ -173,7 +174,7 @@ class Scenario:
                     logger.error(f'Model directory "{opt.model_dir}" does not exist.')
                     sys.exit(1)
 
-                cp_vis_config = omegaconf.OmegaConf.to_container(
+                cp_vis_config = OmegaConf.to_container(
                     scenario_params.get("cooperative_perception_visualization", {}),
                     resolve=True,
                 )
@@ -213,8 +214,7 @@ class Scenario:
         self.spectator = self.scenario_manager.world.get_spectator()
 
         self.cavs_under_control: set[VehicleManager] = set()
-        self.messages_to_rsus: list[Any] = []
-        self.messages_to_cavs: list[Any] = []
+        self.messages: list[TransportMessage] = []
 
     def run(self, opt: argparse.Namespace) -> None:
         directory_processor: DirectoryProcessor | None = None
@@ -275,12 +275,33 @@ class Scenario:
                     platoon.update_information()
                     platoon.run_step()
 
+            new_messages = []
             if self.single_cav_list is not None:
                 logger.debug("updating single cavs")
 
-                next_pos = {message.vehicle_id: message.next_position for message in self.messages_to_cavs}
-
                 for single_cav in self.single_cav_list:
+                    valid_msgs = []
+                    for message in self.messages:
+                        if message.dst_owner_id in (single_cav.id, "broadcast") and message.dst_service_type == "aim_client":
+                            payload = message.payload
+                            if not isinstance(payload, AIMServerResult):
+                                logger.warning(
+                                    f"Received message with unexpected payload type {type(payload)}; expected AIMServerRequestMessage. Ignoring."
+                                )
+                                continue
+                            for msg in payload.messages:
+                                if not isinstance(msg, TransportMessage) or not isinstance(msg.payload, AIMServerMessage):
+                                    logger.warning(f"Received message with unexpected payload type {type(msg)}; expected AIMServerMessage. Ignoring.")
+                                    continue
+                                if msg.dst_owner_id in (single_cav.id, "broadcast") and msg.dst_service_type == "aim_client":
+                                    valid_msgs.append(msg)
+
+                    for message in valid_msgs:
+                        logger.info(
+                            f"Received AIMServerMessage for vehicle {message.dst_owner_id} with next position {message.payload.next_position}"
+                        )
+                    next_pos = {message.dst_owner_id: message.payload.next_position for message in valid_msgs}
+
                     vehicle_id = single_cav.id
                     current_location = single_cav.vehicle.get_location()
                     if vehicle_id in next_pos:
@@ -292,38 +313,36 @@ class Scenario:
 
                     single_cav.update_info()
                     control = single_cav.run_step()
-
                     single_cav.vehicle.apply_control(control)
+
                     pos = single_cav.vehicle.get_transform()
                     waypoints = single_cav.agent.get_local_planner().get_waypoint_buffer()
-                    msg = AIMServerRequestMessage(
-                        owner_id="broadcast",
-                        service_name="aim_server",
+                    payload = AIMServerRequestMessage(
                         vehicle_id=single_cav.id,
                         position=pos,
                         speed=traci.vehicle.getSpeed(single_cav.id),
                         yaw=traci.vehicle.getAngle(single_cav.id),
                         waypoints=waypoints,
                     )
+                    msg = TransportMessage(
+                        src_owner_id=single_cav.id,
+                        src_service_type="aim_client",
+                        dst_owner_id="broadcast",
+                        dst_service_type="aim_server",
+                        payload=payload,
+                    )
 
-                    self.messages_to_rsus.append(msg)
-                self.messages_to_cavs.clear()
+                    self.messages.append(msg)
 
             if self.rsu_list is not None:
                 logger.debug("updating RSUs")
 
                 for rsu in self.rsu_list:
                     rsu.update_info()
-                    messages_to_this_rsu = [
-                        message for message in self.messages_to_rsus if message.owner_id == rsu.id or message.owner_id == "broadcast"
-                    ]  # Middleware emulator
-                    result_msgs = rsu.run_step(messages_to_this_rsu)
-                    if result_msgs and "aim_server" in result_msgs:
-                        messages = result_msgs["aim_server"].messages
-                        if messages:
-                            for message in messages:
-                                self.messages_to_cavs.append(message)
-                self.messages_to_rsus.clear()
+                    result_msgs = rsu.run_step(self.messages)
+                    new_messages.extend(result_msgs)
+
+            self.messages = new_messages
 
     def capi_loop(self, opt: argparse.Namespace, directory_processor: DirectoryProcessor | None) -> None:
         communication_manager = self._require_communication_manager()

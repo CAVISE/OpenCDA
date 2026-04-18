@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Any, Protocol, Sequence, TypeVar, runtime_checkable
+from .transport_message import TransportMessage
 
 BehaviorServiceMessageT = TypeVar("BehaviorServiceMessageT", contravariant=True)
 BehaviorServiceResultT = TypeVar("BehaviorServiceResultT", covariant=True)
@@ -15,7 +16,7 @@ class BehaviorService(Protocol[BehaviorServiceMessageT, BehaviorServiceResultT])
     def on_attach(self, owner: Any) -> None:
         """Initialize the service for a particular participant instance."""
 
-    def process(self, messages: Sequence[BehaviorServiceMessageT]) -> BehaviorServiceResultT:
+    def process(self, messages: Sequence[TransportMessage[BehaviorServiceMessageT]]) -> TransportMessage[BehaviorServiceResultT]:
         """Process typed input messages and return a typed result."""
 
     def on_detach(self) -> None:

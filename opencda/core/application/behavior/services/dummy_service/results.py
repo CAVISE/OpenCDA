@@ -7,7 +7,6 @@ from dataclasses import dataclass
 class DummyServiceEchoMessage:
     """Echoed text produced by the dummy service."""
 
-    service_name: str
     text: str
 
 
@@ -15,6 +14,4 @@ class DummyServiceEchoMessage:
 class DummyServiceResult:
     """Batch result returned by the dummy service."""
 
-    service_name: str
-    owner_id: str
     messages: tuple[DummyServiceEchoMessage, ...]

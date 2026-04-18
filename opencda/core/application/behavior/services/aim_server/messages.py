@@ -10,13 +10,31 @@ if TYPE_CHECKING:
 
 
 @dataclass(frozen=True)
+class Location:
+    x: float
+    y: float
+    z: float
+
+
+@dataclass(frozen=True)
+class Rotation:
+    pitch: float
+    yaw: float
+    roll: float
+
+
+@dataclass(frozen=True)
+class Transform:
+    location: Location
+    rotation: Rotation
+
+
+@dataclass(frozen=True)
 class AIMServerRequestMessage:
     """CAV state and route context routed to the AIM server service."""
 
-    owner_id: str
-    service_name: str
     vehicle_id: str
-    position: carla.Transform
+    position: Transform | carla.Transform
     speed: float
     yaw: float
     waypoints: deque
