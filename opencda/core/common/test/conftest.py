@@ -42,9 +42,16 @@ def _install_mocks():
 
     # 2. Mock torch
     torch = types.ModuleType("torch")
+
+    class MockTensor:
+        pass
+
     torch.cuda = types.ModuleType("torch.cuda")
     torch.cuda.is_available = Mock(return_value=False)
     torch.device = Mock(side_effect=lambda x: f"device({x})")
+    torch.Tensor = MockTensor
+    torch.nn = types.ModuleType("torch.nn")
+    torch.hub = types.SimpleNamespace(load=Mock())
 
     no_grad_mock = MagicMock()
     no_grad_mock.__enter__ = Mock()
@@ -144,6 +151,7 @@ def _install_mocks():
     new_modules = {
         "torch": torch,
         "torch.cuda": torch.cuda,
+        "torch.nn": torch.nn,
         "torch.utils": torch_utils,
         "torch.utils.data": torch_utils_data,
         "open3d": o3d,
