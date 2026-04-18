@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import logging
 from typing import Any, Dict, Iterable, Optional, Tuple
+import carla
 
 from opencda.core.actuation.control_manager import ControlManager
 from opencda.core.application.behavior import BehaviorService, TransportMessage, create_service
@@ -17,6 +18,7 @@ from opencda.core.safety.safety_manager import SafetyManager
 from opencda.core.plan.behavior_agent import BehaviorAgent
 from opencda.core.map.map_manager import MapManager
 from opencda.core.common.data_dumper import DataDumper
+from opencda.core.application.behavior.services.aim_server.models import Location
 
 logger = logging.getLogger("cavise.opencda.opencda.core.common.vehicle_manager")
 
@@ -279,7 +281,7 @@ class VehicleManager(object):
                 if service_name not in self._behavior_services_by_name:
                     raise ValueError(f"Behavior service message references unknown service_name {service_name!r}.")
                 valid_messages.append(message)
-            elif owner_id == "broadcast":
+            elif owner_id == "broadcast" and message.src_owner_id != self.id:
                 if service_name in self._behavior_services_by_name:
                     valid_messages.append(message)
 
@@ -300,9 +302,15 @@ class VehicleManager(object):
 
         for service in self.behavior_services:
             service_messages = grouped_messages[service.service_name]
-            self.behavior_service_results.append(service.process(service_messages))
+            res_messages = service.process(service_messages)
+            if res_messages:
+                self_messages = [msg for msg in res_messages if getattr(msg, "dst_owner_id", None) == self.id]
+                messages.extend(self_messages)
+                grouped_messages = self.__group_behavior_service_messages(messages)
+                out_messages = [msg for msg in res_messages if getattr(msg, "dst_owner_id", None) != self.id]
+                self.behavior_service_results.extend(out_messages)
 
-    def set_destination(self, start_location, end_location, clean=False, end_reset=True):
+    def set_destination(self, start_location: Location, end_location: Location, clean=False, end_reset=True):
         """
         Set global route.
 
@@ -323,8 +331,10 @@ class VehicleManager(object):
         Returns
         -------
         """
+        start_location_carla = carla.Location(start_location.x, start_location.y, start_location.z)
+        end_location_carla = carla.Location(end_location.x, end_location.y, end_location.z)
 
-        self.agent.set_destination(start_location, end_location, clean, end_reset)
+        self.agent.set_destination(start_location_carla, end_location_carla, clean, end_reset)
 
     def update_info(self):
         """
@@ -364,12 +374,11 @@ class VehicleManager(object):
         # TODO: Implement
         pass
 
-    def run_step(self, target_speed=None, messages: Optional[list[TransportMessage]] = None):
+    def run_step(self, target_speed=None, messages: list[TransportMessage] = []):
         """
         Execute one step of navigation.
         """
-        if messages is not None:
-            self.update_behavior_services(messages)
+        self.update_behavior_services(messages)
 
         # visualize the bev map if needed
         self.map_manager.run_step()
@@ -380,7 +389,9 @@ class VehicleManager(object):
         if self.data_dumper:
             self.data_dumper.run_step(self.perception_manager, self.localizer, self.agent)
 
-        return control
+        self.vehicle.apply_control(control)
+
+        return self.behavior_service_results
 
     def destroy(self):
         """

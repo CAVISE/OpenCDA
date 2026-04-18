@@ -9,7 +9,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, NoReturn, cast
 
 import carla
-import traci
 from omegaconf import DictConfig, OmegaConf
 
 import opencda.scenario_testing.utils.cosim_api as sim_api
@@ -22,8 +21,6 @@ from opencda.scenario_testing.evaluations.evaluate_manager import EvaluationMana
 from opencda.scenario_testing.utils.yaml_utils import YamlDict, add_current_time, save_yaml
 
 from opencda.core.application.behavior import TransportMessage
-from opencda.core.application.behavior.services.aim_server import AIMServerRequestMessage
-from opencda.core.application.behavior.services.aim_server.results import AIMServerMessage, AIMServerResult
 
 if TYPE_CHECKING:
     from opencda.core.common.coperception_model_manager import DirectoryProcessor, DatasetOpenCOOD
@@ -280,72 +277,17 @@ class Scenario:
                 logger.debug("updating single cavs")
 
                 for single_cav in self.single_cav_list:
-                    valid_msgs = []
-                    for message in self.messages:
-                        if message.dst_owner_id in (single_cav.id, "broadcast") and message.dst_service_type == "aim_client":
-                            payload = message.payload
-                            if not isinstance(payload, AIMServerResult):
-                                logger.warning(
-                                    f"Received message with unexpected payload type {type(payload)}; expected AIMServerRequestMessage. Ignoring."
-                                )
-                                continue
-                            for msg in payload.messages:
-                                if not isinstance(msg, TransportMessage) or not isinstance(msg.payload, AIMServerMessage):
-                                    logger.warning(f"Received message with unexpected payload type {type(msg)}; expected AIMServerMessage. Ignoring.")
-                                    continue
-                                if msg.dst_owner_id in (single_cav.id, "broadcast") and msg.dst_service_type == "aim_client":
-                                    valid_msgs.append(msg)
-
-                    for message in valid_msgs:
-                        logger.info(
-                            f"Received AIMServerMessage for vehicle {message.dst_owner_id} with next position {message.payload.next_position}"
-                        )
-                    next_pos = {
-                        message.dst_owner_id: carla.Location(
-                            message.payload.next_position.x, message.payload.next_position.y, message.payload.next_position.z
-                        )
-                        for message in valid_msgs
-                    }
-
-                    vehicle_id = single_cav.id
-                    current_location = single_cav.vehicle.get_location()
-                    if vehicle_id in next_pos:
-                        single_cav.set_destination(current_location, next_pos[vehicle_id], clean=True, end_reset=False)
-                        self.cavs_under_control.add(single_cav)
-                    elif vehicle_id in self.cavs_under_control:
-                        single_cav.set_destination(current_location, single_cav.agent.end_waypoint.transform.location, clean=True, end_reset=True)
-                        self.cavs_under_control.remove(single_cav)
-
                     single_cav.update_info()
-                    control = single_cav.run_step()
-                    single_cav.vehicle.apply_control(control)
-
-                    pos = single_cav.vehicle.get_transform()
-                    waypoints = single_cav.agent.get_local_planner().get_waypoint_buffer()
-                    payload = AIMServerRequestMessage(
-                        vehicle_id=single_cav.id,
-                        position=pos,
-                        speed=traci.vehicle.getSpeed(single_cav.id),
-                        yaw=traci.vehicle.getAngle(single_cav.id),
-                        waypoints=waypoints,
-                    )
-                    msg = TransportMessage(
-                        src_owner_id=single_cav.id,
-                        src_service_type="aim_client",
-                        dst_owner_id="broadcast",
-                        dst_service_type="aim_server",
-                        payload=payload,
-                    )
-
-                    self.messages.append(msg)
+                    cav_messages = single_cav.run_step(messages=self.messages)
+                    new_messages.extend(cav_messages)
 
             if self.rsu_list is not None:
                 logger.debug("updating RSUs")
 
                 for rsu in self.rsu_list:
                     rsu.update_info()
-                    result_msgs = rsu.run_step(self.messages)
-                    new_messages.extend(result_msgs)
+                    rsu_messages = rsu.run_step(self.messages)
+                    new_messages.extend(rsu_messages)
 
             self.messages = new_messages
 
@@ -418,14 +360,13 @@ class Scenario:
                 logger.debug("updating single cavs")
                 for single_cav in self.single_cav_list:
                     single_cav.update_info()
-                    control = single_cav.run_step()
-                    single_cav.vehicle.apply_control(control)
+                    single_cav.run_step()  # TODO: handle messages from single cavs
 
             if self.rsu_list is not None:
                 logger.debug("updating RSUs")
                 for rsu in self.rsu_list:
                     rsu.update_info()
-                    rsu.run_step()
+                    rsu.run_step()  # TODO: handle messages from rsus
 
     def finalize(self, opt: argparse.Namespace) -> None:
         if opt.record:

@@ -107,6 +107,9 @@ class AIMModelManager:
     def _get_cav_sumo_pos(self, vehicle_id: str) -> np.ndarray:
         return self.cav_data[vehicle_id].sumo_pos
 
+    def _get_intention(self, vehicle_id: str) -> str:
+        return self.cav_data[vehicle_id].intention
+
     def _make_result(self, messages: tuple[AIMServerMessage, ...] = ()) -> AIMServerResult:
         payload = AIMServerResult(
             messages=messages,
@@ -199,7 +202,6 @@ class AIMModelManager:
             ...
         }
         """
-        logger.debug(f"Updating trajectories for cavs: {self.cav_data.keys()}")
         for vehicle_id in self.cav_data:
             position = self._get_cav_sumo_pos(vehicle_id)
 
@@ -221,7 +223,7 @@ class AIMModelManager:
                 rel_y = position[1] - node_y
 
                 if not self.trajs[vehicle_id] or self.trajs[vehicle_id][-1][-1] == "null":
-                    intention = self.get_intention(vehicle_id)
+                    intention = self._get_intention(vehicle_id)
                 else:
                     intention = self.trajs[vehicle_id][-1][-1]
 
@@ -248,7 +250,7 @@ class AIMModelManager:
             intention = "null"
         return intention
 
-    def _get_distance(self, waypoint1, waypoint2):
+    def _get_distance(self, waypoint1: Transform, waypoint2: Transform) -> float:
         """
         Calculates Euclidean distance between two waypoints
 
@@ -304,11 +306,6 @@ class AIMModelManager:
         mean_yaw //= 3
         rotation = (mean_yaw - first_waypoint[0].transform.rotation.yaw + 360) % 360
         return self._get_intention_by_rotation(rotation)
-
-    def get_intention(self, vehicle_id):
-        if self.cav_data.get(vehicle_id) and self.cav_data[vehicle_id].intention:
-            return self.cav_data[vehicle_id].intention
-        return "null"
 
     def encoding_scenario_features(self):
         """
@@ -370,7 +367,7 @@ class AIMModelManager:
         else:
             if nearest_node not in self.yaw_id[vehicle_id]:
                 # With new nearest node intantion may changes, so we reset trajectory to default and get intention for new node
-                intention = self.get_intention(vehicle_id)
+                intention = self._get_intention(vehicle_id)
                 end = utils.get_end(start, intention)
                 v = f"{start}_{end}"
                 self.yaw_id[vehicle_id] = {nearest_node: v}

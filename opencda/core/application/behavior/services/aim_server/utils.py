@@ -4,7 +4,7 @@ import math
 from .models import Location, Rotation, Transform
 
 
-def rotation_matrix_back(yaw):
+def rotation_matrix_back(yaw: float) -> np.ndarray:
     """
     Rotate back.
     https://en.wikipedia.org/wiki/Rotation_matrix#Non-standard_orientation_of_the_coordinate_system
@@ -31,7 +31,7 @@ def get_intention_vector(intention: str = "straight") -> np.ndarray:
     return intention_feature
 
 
-def get_end(start, intention):
+def get_end(start: str, intention: str) -> str:
     """
     Determines the direction of exit from the turn given its start and vehicle intention.
 
@@ -72,7 +72,7 @@ def get_end(start, intention):
                     return "right"
 
 
-def get_carla_transform(in_sumo_transform, extent):
+def get_carla_transform(in_sumo_transform: Transform, extent: Location) -> Transform:
     """
     Returns carla transform based on sumo transform.
     """
@@ -98,7 +98,7 @@ def get_carla_transform(in_sumo_transform, extent):
     return out_transform
 
 
-def get_sumo_transform(in_carla_transform, extent):
+def get_sumo_transform(in_carla_transform: Transform, extent: Location) -> Transform:
     """
     Returns sumo transform based on carla transform.
     """

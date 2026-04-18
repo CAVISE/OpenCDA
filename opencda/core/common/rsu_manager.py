@@ -230,7 +230,7 @@ class RSUManager(object):
                 if service_name not in self._behavior_services_by_name:
                     raise ValueError(f"Behavior service message references unknown service_name {service_name!r}.")
                 valid_messages.append(message)
-            elif owner_id == "broadcast":
+            elif owner_id == "broadcast" and message.src_owner_id != self.id:
                 if service_name in self._behavior_services_by_name:
                     valid_messages.append(message)
 

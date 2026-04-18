@@ -1,4 +1,4 @@
-"""Dummy behavior service package."""
+"""AIM server service package."""
 
 from .service import AIMServer
 from .messages import AIMServerRequestMessage
