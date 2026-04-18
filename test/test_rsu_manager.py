@@ -33,7 +33,7 @@ def test_valid_id_from_config(mocker, minimal_rsu_config, mock_cav_world):
     cfg = {**minimal_rsu_config, "id": 3}
 
     rsu = RSUManager(Mock(), cfg, Mock(), mock_cav_world, data_dumping=False)
-    assert rsu.rid == "rsu-3"
+    assert rsu.id == "rsu-3"
     mock_cav_world.update_rsu_manager.assert_called_once_with(rsu)
 
 
@@ -57,9 +57,9 @@ def test_duplicate_id_with_autogen_generates_new(mocker, minimal_rsu_config, moc
     rsu1 = RSUManager(Mock(), cfg, Mock(), mock_cav_world, data_dumping=False, autogenerate_id_on_failure=True)
     rsu2 = RSUManager(Mock(), cfg, Mock(), mock_cav_world, data_dumping=False, autogenerate_id_on_failure=True)
 
-    assert rsu1.rid == "rsu-3"
-    assert rsu2.rid == "rsu-1"
-    assert rsu1.rid != rsu2.rid
+    assert rsu1.id == "rsu-3"
+    assert rsu2.id == "rsu-1"
+    assert rsu1.id != rsu2.id
 
 
 def test_negative_id_with_autogen(mocker, minimal_rsu_config, mock_cav_world):
@@ -69,7 +69,7 @@ def test_negative_id_with_autogen(mocker, minimal_rsu_config, mock_cav_world):
     cfg = {**minimal_rsu_config, "id": -1}
 
     rsu = RSUManager(Mock(), cfg, Mock(), mock_cav_world, data_dumping=False)
-    assert rsu.rid == "rsu-1"
+    assert rsu.id == "rsu-1"
 
 
 def test_invalid_id_type_with_autogen(mocker, minimal_rsu_config, mock_cav_world):
@@ -79,7 +79,7 @@ def test_invalid_id_type_with_autogen(mocker, minimal_rsu_config, mock_cav_world
     cfg = {**minimal_rsu_config, "id": "not_a_number"}
 
     rsu = RSUManager(Mock(), cfg, Mock(), mock_cav_world, data_dumping=False, autogenerate_id_on_failure=True)
-    assert rsu.rid == "rsu-1"
+    assert rsu.id == "rsu-1"
 
 
 def test_invalid_id_type_without_autogen(mocker, minimal_rsu_config, mock_cav_world):
@@ -97,7 +97,7 @@ def test_missing_id_with_autogen(mocker, minimal_rsu_config, mock_cav_world):
     from opencda.core.common.rsu_manager import RSUManager
 
     rsu = RSUManager(Mock(), minimal_rsu_config, Mock(), mock_cav_world, data_dumping=False)
-    assert rsu.rid == "rsu-1"
+    assert rsu.id == "rsu-1"
 
 
 def test_missing_id_without_autogen(mocker, minimal_rsu_config, mock_cav_world):
