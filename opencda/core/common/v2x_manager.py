@@ -1,11 +1,19 @@
 """Communication manager for cooperation"""
 
+import logging
 from collections import deque
 import weakref
 import carla
 import numpy as np
 from opencda.core.application.platooning.platooning_plugin import PlatooningPlugin
+from opencda.core.attack.v2x_position_falsification import (
+    V2XConstantOffsetAttacker,
+    V2XGhostVehicleAttacker,
+    V2XProgressiveDriftAttacker
+)
 from opencda.core.common.misc import compute_distance
+
+logger = logging.getLogger("cavise.opencda.opencda.core.common.v2x_manager")
 
 
 class V2XManager(object):
@@ -80,12 +88,49 @@ class V2XManager(object):
         if "lag" in config_yaml:
             self.lag = config_yaml["lag"]
 
+        self._tick_count = 0
+        self._load_position_falsification_config(config_yaml)
+
+    def _load_position_falsification_config(self, config_yaml):
+        # V2X Position Falsification attack (this vehicle lies in its CAM broadcasts)
+        self.v2x_attacker = None
+        self.v2x_attack_start_tick = 0
+        pf_config = config_yaml.get("position_falsification", {}) or {}
+        if pf_config.get("enabled", False):
+            self.v2x_attack_start_tick = pf_config.get("start_tick", 0)
+            attack_type = pf_config.get("type", "constant_offset")
+            if attack_type == "constant_offset":
+                self.v2x_attacker = V2XConstantOffsetAttacker(
+                    dx=pf_config.get("dx", 0.0),
+                    dy=pf_config.get("dy", 0.0),
+                    dz=pf_config.get("dz", 0.0),
+                )
+            elif attack_type == "ghost_vehicle":
+                self.v2x_attacker = V2XGhostVehicleAttacker(
+                    ghost_x=pf_config.get("ghost_x", 0.0),
+                    ghost_y=pf_config.get("ghost_y", 0.0),
+                    ghost_z=pf_config.get("ghost_z", 0.0),
+                    ghost_speed=pf_config.get("ghost_speed", 0.0),
+                )
+            elif attack_type == "progressive_drift":
+                self.v2x_attacker = V2XProgressiveDriftAttacker(
+                    dx=pf_config.get("dx", 0.0),
+                    dy=pf_config.get("dy", 0.0),
+                    dz=pf_config.get("dz", 0.0),
+                )
+            else:
+                logger.warning(f"Unknown V2X position_falsification type: {attack_type}")
+            if self.v2x_attacker is not None:
+                logger.info(f"V2X Position Falsification Attack activated: {attack_type}")
+
+
     def update_info(self, ego_pos, ego_spd):
         """
         Update all communication plugins with current localization info.
         """
         self.ego_pos.append(ego_pos)
         self.ego_spd.append(ego_spd)
+        self._tick_count += 1
         self.search()
 
         # the ego pos in platooning_plugin is used for self-localization,
@@ -118,6 +163,18 @@ class V2XManager(object):
 
         processed_ego_pos = carla.Transform(noise_location, noise_rotation)
 
+        # Apply V2X Position Falsification if this vehicle is an attacker.
+        if self.v2x_attacker is not None and self._tick_count >= self.v2x_attack_start_tick:
+            logger.debug(
+                f"True V2X pos [{self.vid}]: "
+                f"{processed_ego_pos.location.x}, {processed_ego_pos.location.y}, {processed_ego_pos.location.z}"
+            )
+            processed_ego_pos = self.v2x_attacker.falsify_position(processed_ego_pos)
+            logger.debug(
+                f"False V2X pos [{self.vid}]: "
+                f"{processed_ego_pos.location.x}, {processed_ego_pos.location.y}, {processed_ego_pos.location.z}"
+            )
+
         return processed_ego_pos
 
     def get_ego_speed(self):
@@ -134,6 +191,10 @@ class V2XManager(object):
         # add lag
         ego_speed = self.ego_spd[0] if len(self.ego_spd) < self.lag else self.ego_spd[-1 - int(abs(self.lag))]
         processed_ego_speed = np.random.normal(0, self.speed_noise) + ego_speed
+
+        # Apply V2X Position Falsification to the broadcast speed if attacker.
+        if self.v2x_attacker is not None and self._tick_count >= self.v2x_attack_start_tick:
+            processed_ego_speed = self.v2x_attacker.falsify_speed(processed_ego_speed)
 
         return processed_ego_speed
 
