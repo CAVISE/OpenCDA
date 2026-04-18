@@ -1,25 +1,6 @@
 from dataclasses import dataclass
 import numpy as np
-
-
-@dataclass(frozen=True)
-class Location:
-    x: float
-    y: float
-    z: float
-
-
-@dataclass(frozen=True)
-class Rotation:
-    pitch: float
-    yaw: float
-    roll: float
-
-
-@dataclass(frozen=True)
-class Transform:
-    location: Location
-    rotation: Rotation
+from opencda.core.application.behavior.types import Location
 
 
 @dataclass(frozen=True)

@@ -1,12 +1,10 @@
 """AIM server service package."""
 
 from .service import AIMServer
-from .messages import AIMServerRequestMessage
-from .results import AIMServerMessage, AIMServerResult
+from .messages import AIMServerRequest, AIMServerResponse
 
 __all__ = [
     "AIMServer",
-    "AIMServerRequestMessage",
-    "AIMServerMessage",
-    "AIMServerResult",
+    "AIMServerRequest",
+    "AIMServerResponse",
 ]

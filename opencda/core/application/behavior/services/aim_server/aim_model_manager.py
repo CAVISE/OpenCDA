@@ -4,14 +4,12 @@ from pathlib import Path
 
 import logging
 import numpy as np
-import pickle as pkl
 from scipy.spatial import distance
 
 from AIM import AIMModel
 
-from .messages import AIMServerRequestMessage
-from .results import AIMServerResult, AIMServerMessage
-from .models import CavData, Transform, Location, Rotation
+from .messages import AIMServerRequest, AIMServerResponse
+from .types import CavData, Transform, Location, Rotation
 from . import utils
 
 from opencda.core.application.behavior.transport_message import TransportMessage
@@ -58,18 +56,9 @@ class AIMModelManager:
         self._service_name = service_name
         self._owner_id = owner_id
 
-        self.yaw_dict = self._load_yaw()
+        self.__yaw_dict_path = Path(__file__).parent / "assets" / "yaw_dict_10m.pkl"
+        self.yaw_dict = utils.load_yaw(self.__yaw_dict_path)
         self.yaw_id = {}
-
-    def _load_yaw(self):
-        """
-        Loads yaw dictionary from a predefined address.
-
-        :return: yaw_dict
-        """
-        yaw_dict_path = Path(__file__).parent / "assets" / "yaw_dict_10m.pkl"
-        with yaw_dict_path.open("rb") as f:
-            return pkl.load(f)
 
     def _get_distance_to_center(self, curr_pos: np.ndarray) -> float:
         return np.linalg.norm(curr_pos - self.control_center_coords)
@@ -78,27 +67,27 @@ class AIMModelManager:
         curr_pos = self._get_cav_sumo_pos(vehicle_id)
         return self._get_distance_to_center(curr_pos)
 
-    def _preprocess_cav_data(self, transport_msg: TransportMessage[AIMServerRequestMessage]) -> None:
+    def _preprocess_cav_data(self, transport_message: TransportMessage[AIMServerRequest]) -> None:
         """
         Normalize and cache incoming CAV data for the current inference step.
         """
-        msg = transport_msg.payload
-        cav_pos = utils.get_sumo_transform(msg.position, Location(0, 0, 0)).location
+        message = transport_message.payload
+        cav_pos = utils.get_sumo_transform(message.position, Location(0, 0, 0)).location
         curr_pos = np.array([cav_pos.x, cav_pos.y])
         distance_to_center = self._get_distance_to_center(curr_pos)
 
         if distance_to_center != -1 and distance_to_center < self.CONTROL_RADIUS:
-            self.cav_data[msg.vehicle_id] = CavData(
-                intention=self.get_opencda_intention(msg.waypoints, self.control_center_coords),
-                pos=msg.position.location,
+            self.cav_data[message.vehicle_id] = CavData(
+                intention=self.get_opencda_intention(message.waypoints, self.control_center_coords),
+                pos=message.position.location,
                 sumo_pos=curr_pos,
-                speed=msg.speed,
-                yaw=msg.yaw,
-                waypoints=msg.waypoints,
-                src_owner_id=transport_msg.src_owner_id,
-                src_service_type=transport_msg.src_service_type,
-                dst_owner_id=transport_msg.dst_owner_id,
-                dst_service_type=transport_msg.dst_service_type,
+                speed=message.speed,
+                yaw=message.yaw,
+                waypoints=message.waypoints,
+                src_owner_id=transport_message.src_owner_id,
+                src_service_type=transport_message.src_service_type,
+                dst_owner_id=transport_message.dst_owner_id,
+                dst_service_type=transport_message.dst_service_type,
             )
 
     def _get_cav_pos(self, vehicle_id: str) -> np.ndarray:
@@ -107,28 +96,16 @@ class AIMModelManager:
     def _get_cav_sumo_pos(self, vehicle_id: str) -> np.ndarray:
         return self.cav_data[vehicle_id].sumo_pos
 
-    def _get_intention(self, vehicle_id: str) -> str:
+    def _get_cav_intention(self, vehicle_id: str) -> str:
         return self.cav_data[vehicle_id].intention
 
-    def _make_result(self, messages: tuple[AIMServerMessage, ...] = ()) -> AIMServerResult:
-        payload = AIMServerResult(
-            messages=messages,
-        )
-        return TransportMessage(
-            src_owner_id=self._owner_id,
-            src_service_type=self._service_name,
-            dst_owner_id="broadcast",
-            dst_service_type="aim_client",
-            payload=payload,
-        )
-
-    def process(self, messages: Sequence[TransportMessage[AIMServerRequestMessage]]) -> TransportMessage[AIMServerResult]:
+    def process(self, messages: Sequence[TransportMessage[AIMServerRequest]]) -> Sequence[TransportMessage[AIMServerResponse]]:
         """
         Run AIM inference for the request batch and return predicted targets.
         """
-        for msg in messages:
-            self._preprocess_cav_data(msg)
-        result_messages: list[TransportMessage[AIMServerMessage]] = []
+        for message in messages:
+            self._preprocess_cav_data(message)
+        result_messages: list[TransportMessage[AIMServerResponse]] = []
 
         self.update_trajs()
 
@@ -137,7 +114,7 @@ class AIMModelManager:
 
         if num_agents == 0:
             self.cav_data.clear()
-            return self._make_result()
+            return result_messages
 
         predictions = self.model.predict(features.copy(), target_agent_ids)
 
@@ -168,14 +145,14 @@ class AIMModelManager:
 
                 global_delta = np.where(np.abs(global_delta) <= self.THRESHOLD, np.sign(global_delta) * self.FORCE_VALUE, global_delta)
 
-                next_loc = Location(
+                next_location = Location(
                     x=pos.x + global_delta[0],
                     y=pos.y - global_delta[1],
                     z=pos.z,
                 )
 
-                payload = AIMServerMessage(
-                    next_position=next_loc,
+                payload = AIMServerResponse(
+                    next_position=next_location,
                 )
                 result_messages.append(
                     TransportMessage(
@@ -188,7 +165,7 @@ class AIMModelManager:
                 )
 
         self.cav_data.clear()
-        return self._make_result(messages=tuple(result_messages))
+        return result_messages
 
     def update_trajs(self):
         """
@@ -223,7 +200,7 @@ class AIMModelManager:
                 rel_y = position[1] - node_y
 
                 if not self.trajs[vehicle_id] or self.trajs[vehicle_id][-1][-1] == "null":
-                    intention = self._get_intention(vehicle_id)
+                    intention = self._get_cav_intention(vehicle_id)
                 else:
                     intention = self.trajs[vehicle_id][-1][-1]
 
@@ -232,36 +209,6 @@ class AIMModelManager:
         for vehicle_id in list(self.trajs):
             if vehicle_id not in self.cav_data:
                 del self.trajs[vehicle_id]
-
-    def _get_intention_by_rotation(self, rotation: int) -> str:
-        """
-        Distinguishes vehicle intention by its rotation
-
-        :param rotation: rotation degrees (from 0 to 360)
-        :return: intention
-        """
-        if rotation < 30 or rotation > 330:
-            intention = "straight"
-        elif rotation < 135:
-            intention = "right"
-        elif rotation > 225:
-            intention = "left"
-        else:
-            intention = "null"
-        return intention
-
-    def _get_distance(self, waypoint1: Transform, waypoint2: Transform) -> float:
-        """
-        Calculates Euclidean distance between two waypoints
-
-        :param waypoint1: waypoint 2D-coordinates
-        :param waypoint2: waypoint 2D-coordinates
-        :return: distance
-        """
-        rel_x = waypoint1.location.x - waypoint2[0].transform.location.x
-        rel_y = waypoint1.location.y - waypoint2[0].transform.location.y
-        position = np.array([rel_x, rel_y])
-        return np.linalg.norm(position)
 
     def get_opencda_intention(self, waypoints, mid):
         """
@@ -281,11 +228,11 @@ class AIMModelManager:
         rotation = Rotation(0, 0, 0)
 
         in_sumo_transform = Transform(location, rotation)
-        mid = utils.get_carla_transform(in_sumo_transform, Location(0, 0, 0))
-        if self._get_distance(mid, waypoints[0]) > self.CONTROL_RADIUS:
+        mid_carla = utils.get_carla_transform(in_sumo_transform, Location(0, 0, 0))
+        if utils.get_distance(mid_carla, waypoints[0]) > self.CONTROL_RADIUS:
             logger.debug("Car not int radius")
             return "null"
-        while self._get_distance(mid, waypoints[waypoint_index]) > self.CONTROL_RADIUS:
+        while utils.get_distance(mid_carla, waypoints[waypoint_index]) > self.CONTROL_RADIUS:
             waypoint_index += 1
             if waypoint_index >= len(waypoints):
                 logger.debug("No waypoints in radius")
@@ -293,7 +240,7 @@ class AIMModelManager:
 
         first_waypoint = waypoints[waypoint_index]
         first_waypoint_index = waypoint_index
-        while (self._get_distance(mid, waypoints[waypoint_index]) <= self.CONTROL_RADIUS) and waypoint_index < len(waypoints) - 1:
+        while (utils.get_distance(mid_carla, waypoints[waypoint_index]) <= self.CONTROL_RADIUS) and waypoint_index < len(waypoints) - 1:
             waypoint_index += 1
 
         # average the values of several points to reduce noise
@@ -305,7 +252,7 @@ class AIMModelManager:
                 mean_yaw += waypoints[waypoint_index - i][0].transform.rotation.yaw
         mean_yaw //= 3
         rotation = (mean_yaw - first_waypoint[0].transform.rotation.yaw + 360) % 360
-        return self._get_intention_by_rotation(rotation)
+        return utils.get_intention_by_rotation(rotation)
 
     def encoding_scenario_features(self):
         """
@@ -367,7 +314,7 @@ class AIMModelManager:
         else:
             if nearest_node not in self.yaw_id[vehicle_id]:
                 # With new nearest node intantion may changes, so we reset trajectory to default and get intention for new node
-                intention = self._get_intention(vehicle_id)
+                intention = self._get_cav_intention(vehicle_id)
                 end = utils.get_end(start, intention)
                 v = f"{start}_{end}"
                 self.yaw_id[vehicle_id] = {nearest_node: v}

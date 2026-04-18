@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .models import Transform
+    from opencda.core.application.behavior.types import Transform
 
 
 @dataclass(frozen=True)

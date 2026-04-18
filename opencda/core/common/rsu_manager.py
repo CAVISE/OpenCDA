@@ -251,7 +251,13 @@ class RSUManager(object):
 
         for service in self.behavior_services:
             service_messages = grouped_messages[service.service_name]
-            self.behavior_service_results.append(service.process(service_messages))
+            result_messages = service.process(service_messages)
+            if result_messages:
+                self_messages = [msg for msg in result_messages if getattr(msg, "dst_owner_id", None) == self.id]
+                messages.extend(self_messages)
+                grouped_messages = self.__group_behavior_service_messages(messages)
+                out_messages = [msg for msg in result_messages if getattr(msg, "dst_owner_id", None) != self.id]
+                self.behavior_service_results.extend(out_messages)
 
     def update_info(self):
         """

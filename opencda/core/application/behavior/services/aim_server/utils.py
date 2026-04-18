@@ -1,7 +1,9 @@
 import numpy as np
 import math
+import pickle as pkl
+from pathlib import Path
 
-from .models import Location, Rotation, Transform
+from .types import Location, Rotation, Transform
 
 
 def rotation_matrix_back(yaw: float) -> np.ndarray:
@@ -29,6 +31,24 @@ def get_intention_vector(intention: str = "straight") -> np.ndarray:
     else:
         raise NotImplementedError
     return intention_feature
+
+
+def get_intention_by_rotation(rotation: int) -> str:
+    """
+    Distinguishes vehicle intention by its rotation
+
+    :param rotation: rotation degrees (from 0 to 360)
+    :return: intention
+    """
+    if rotation < 30 or rotation > 330:
+        intention = "straight"
+    elif rotation < 135:
+        intention = "right"
+    elif rotation > 225:
+        intention = "left"
+    else:
+        intention = "null"
+    return intention
 
 
 def get_end(start: str, intention: str) -> str:
@@ -70,6 +90,20 @@ def get_end(start: str, intention: str) -> str:
                     return "up"
                 case "left":
                     return "right"
+
+
+def get_distance(waypoint1: Transform, waypoint2: Transform) -> float:
+    """
+    Calculates Euclidean distance between two waypoints
+
+    :param waypoint1: waypoint 2D-coordinates
+    :param waypoint2: waypoint 2D-coordinates
+    :return: distance
+    """
+    rel_x = waypoint1.location.x - waypoint2[0].transform.location.x
+    rel_y = waypoint1.location.y - waypoint2[0].transform.location.y
+    position = np.array([rel_x, rel_y])
+    return np.linalg.norm(position)
 
 
 def get_carla_transform(in_sumo_transform: Transform, extent: Location) -> Transform:
@@ -121,3 +155,13 @@ def get_sumo_transform(in_carla_transform: Transform, extent: Location) -> Trans
     )
 
     return out_transform
+
+
+def load_yaw(yaw_dict_path: Path = None) -> dict:
+    """
+    Loads yaw dictionary from a predefined address.
+
+    :return: yaw_dict
+    """
+    with yaw_dict_path.open("rb") as f:
+        return pkl.load(f)

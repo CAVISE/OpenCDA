@@ -18,7 +18,7 @@ from opencda.core.safety.safety_manager import SafetyManager
 from opencda.core.plan.behavior_agent import BehaviorAgent
 from opencda.core.map.map_manager import MapManager
 from opencda.core.common.data_dumper import DataDumper
-from opencda.core.application.behavior.services.aim_server.models import Location
+from opencda.core.application.behavior.types import Location
 
 logger = logging.getLogger("cavise.opencda.opencda.core.common.vehicle_manager")
 
@@ -302,12 +302,12 @@ class VehicleManager(object):
 
         for service in self.behavior_services:
             service_messages = grouped_messages[service.service_name]
-            res_messages = service.process(service_messages)
-            if res_messages:
-                self_messages = [msg for msg in res_messages if getattr(msg, "dst_owner_id", None) == self.id]
+            result_messages = service.process(service_messages)
+            if result_messages:
+                self_messages = [msg for msg in result_messages if getattr(msg, "dst_owner_id", None) == self.id]
                 messages.extend(self_messages)
                 grouped_messages = self.__group_behavior_service_messages(messages)
-                out_messages = [msg for msg in res_messages if getattr(msg, "dst_owner_id", None) != self.id]
+                out_messages = [msg for msg in result_messages if getattr(msg, "dst_owner_id", None) != self.id]
                 self.behavior_service_results.extend(out_messages)
 
     def set_destination(self, start_location: Location, end_location: Location, clean=False, end_reset=True):
@@ -374,7 +374,7 @@ class VehicleManager(object):
         # TODO: Implement
         pass
 
-    def run_step(self, target_speed=None, messages: list[TransportMessage] = []):
+    def run_step(self, target_speed=None, messages: list[TransportMessage] = []) -> list[TransportMessage]:
         """
         Execute one step of navigation.
         """

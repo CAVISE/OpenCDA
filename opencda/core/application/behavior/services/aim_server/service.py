@@ -14,8 +14,7 @@ from AIM import get_model
 if TYPE_CHECKING:
     from opencda.core.common.rsu_manager import RSUManager
 
-    from .messages import AIMServerRequestMessage
-    from .results import AIMServerResult
+    from .messages import AIMServerRequest, AIMServerResponse
 from .aim_model_manager import AIMModelManager
 
 logger = logging.getLogger("cavise.opencda.opencda.core.application.behavior.services.aim_server")
@@ -45,7 +44,7 @@ class AIMServer:
         aim_model_name = cast(str, aim_config.pop("model", "MTP"))
         self.model = get_model(aim_model_name, **aim_config)
 
-    def _require_owner(self) -> RSUManager:
+    def get_owner(self) -> RSUManager:
         owner_ref = self._owner_ref
         if owner_ref is None:
             raise RuntimeError("AIM server is not attached to an owner.")
@@ -60,7 +59,7 @@ class AIMServer:
         """Initialize the service for a particular participant instance."""
         self._owner_ref = weakref.ref(owner)
 
-        owner_instance = self._require_owner()
+        owner_instance = self.get_owner()
         owner_instance.localizer.localize()
         control_center = owner_instance.localizer.get_ego_pos()
         self.aim_model_manager = AIMModelManager(self.model, control_center, self.service_name, owner_instance.id)
@@ -70,7 +69,7 @@ class AIMServer:
         self._owner_ref = None
         self.aim_model_manager = None
 
-    def process(self, messages: Sequence[TransportMessage[AIMServerRequestMessage]]) -> TransportMessage[AIMServerResult]:
+    def process(self, messages: Sequence[TransportMessage[AIMServerRequest]]) -> Sequence[TransportMessage[AIMServerResponse]]:
         aim_model_manager = self.aim_model_manager
         if aim_model_manager is None:
             raise RuntimeError("AIM server is not attached to an owner.")

@@ -9,9 +9,9 @@ from typing import Sequence, TYPE_CHECKING
 
 from opencda.core.application.behavior.registry import BehaviorServiceRegistry
 from opencda.core.application.behavior.transport_message import TransportMessage
-from opencda.core.application.behavior.services.aim_server import AIMServerRequestMessage, AIMServerMessage, AIMServerResult
+from opencda.core.application.behavior.services.aim_server import AIMServerRequest, AIMServerResponse
 from opencda.core.application.behavior.services.movement_controller import MovementControllerRequestMessage
-from .models import Transform, Rotation
+from opencda.core.application.behavior.types import Rotation, Transform
 
 if TYPE_CHECKING:
     from opencda.core.common.vehicle_manager import VehicleManager
@@ -34,7 +34,7 @@ class AIMClient:
         """
         self._owner_ref: weakref.ReferenceType[VehicleManager] | None = None
 
-    def _require_owner(self) -> VehicleManager:
+    def get_owner(self) -> VehicleManager:
         owner_ref = self._owner_ref
         if owner_ref is None:
             raise RuntimeError("AIM server is not attached to an owner.")
@@ -53,23 +53,21 @@ class AIMClient:
         """Release service resources before the participant is destroyed."""
         self._owner_ref = None
 
-    def _validate_messages(self, messages: Sequence[TransportMessage[AIMServerResult]]) -> list[AIMServerMessage]:
-        owner = self._require_owner()
-        valid_msgs = []
-        for t_message in messages:
-            aim_server_messages = t_message.payload.messages
-            for message in aim_server_messages:
-                if message.dst_owner_id == owner.id and message.dst_service_type == self.service_name:
-                    valid_msgs.append(message.payload)
-        return valid_msgs
+    def _filter_messages(self, messages: Sequence[TransportMessage[AIMServerRequest]]) -> list[AIMServerRequest]:
+        owner = self.get_owner()
+        valid_messages = []
+        for message in messages:
+            if message.dst_owner_id == owner.id and message.dst_service_type == self.service_name:
+                valid_messages.append(message.payload)
+        return valid_messages
 
     def process(
-        self, messages: Sequence[TransportMessage[AIMServerResult]]
-    ) -> Sequence[TransportMessage[AIMServerRequestMessage | MovementControllerRequestMessage]]:
-        owner = self._require_owner()
+        self, messages: Sequence[TransportMessage[AIMServerRequest]]
+    ) -> Sequence[TransportMessage[AIMServerResponse | MovementControllerRequestMessage]]:
+        owner = self.get_owner()
         res_messages = []
 
-        for message in self._validate_messages(messages):
+        for message in self._filter_messages(messages):
             target_position = Transform(message.next_position, Rotation(0, 0, 0))
             payload = MovementControllerRequestMessage(target_position=target_position)
             res_messages.append(
@@ -96,7 +94,7 @@ class AIMClient:
 
         pos = owner.vehicle.get_transform()
         waypoints = owner.agent.get_local_planner().get_waypoint_buffer()
-        payload = AIMServerRequestMessage(
+        payload = AIMServerRequest(
             vehicle_id=owner.id,
             position=pos,
             speed=traci.vehicle.getSpeed(owner.id),

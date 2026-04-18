@@ -32,7 +32,7 @@ class MovementController:
         """
         self._owner_ref: weakref.ReferenceType[VehicleManager] | None = None
 
-    def _require_owner(self) -> VehicleManager:
+    def get_owner(self) -> VehicleManager:
         owner_ref = self._owner_ref
         if owner_ref is None:
             raise RuntimeError("AIM server is not attached to an owner.")
@@ -51,21 +51,21 @@ class MovementController:
         """Release service resources before the participant is destroyed."""
         self._owner_ref = None
 
-    def _validate_messages(self, messages: Sequence[TransportMessage[MovementControllerRequestMessage]]) -> list[MovementControllerRequestMessage]:
-        owner = self._require_owner()
-        valid_msgs = []
+    def _filter_messages(self, messages: Sequence[TransportMessage[MovementControllerRequestMessage]]) -> list[MovementControllerRequestMessage]:
+        owner = self.get_owner()
+        valid_messages = []
         for message in messages:
             if message.dst_owner_id == owner.id and message.src_owner_id == owner.id and message.dst_service_type == self.service_name:
-                valid_msgs.append(message.payload)
-        return valid_msgs
+                valid_messages.append(message.payload)
+        return valid_messages
 
     def process(self, messages: Sequence[TransportMessage[MovementControllerRequestMessage]]) -> None:
-        owner = self._require_owner()
-        valid_msgs = self._validate_messages(messages)
+        owner = self.get_owner()
+        valid_messages = self._filter_messages(messages)
 
-        if len(valid_msgs) > 0:
+        if len(valid_messages) > 0:
             next_pos = [
-                message.target_position.location for message in valid_msgs
+                message.target_position.location for message in valid_messages
             ]  # TODO: think what to do if multiple messages with different target positions are received - for now we just take the first one
 
             current_location = owner.vehicle.get_location()
