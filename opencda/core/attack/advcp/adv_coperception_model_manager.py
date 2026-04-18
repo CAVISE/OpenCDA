@@ -400,7 +400,9 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
                 attacker_id,
             )
             return None, None
-
+        
+        # TODO: Uncomment this block if removal_id is expected to correspond to something in the scenario data. For now, we will just treat it as an opaque identifier (e.g., box index) that is validated later during attack application.
+        '''
         if removal_id not in scenario_data:
             logger.warning(
                 "AdvCP attack will not be applied on this tick because removal_id '%s' is not present in the current scenario data. "
@@ -408,6 +410,7 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
                 removal_id,
             )
             return None, None
+        '''
 
         return attacker_id, removal_id
 
