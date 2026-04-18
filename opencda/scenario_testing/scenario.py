@@ -209,8 +209,8 @@ class Scenario:
         logger.info(f"created RSU list of size {len(self.rsu_list)}")
 
         if self.coperception_model_manager is not None and hasattr(self.coperception_model_manager, "validate_advcp_agents"):
-            valid_agent_ids = [vehicle_manager.vid for vehicle_manager in self.single_cav_list]
-            valid_agent_ids.extend(rsu_manager.rid for rsu_manager in self.rsu_list)
+            valid_agent_ids = [vehicle_manager.id for vehicle_manager in self.single_cav_list]
+            valid_agent_ids.extend(rsu_manager.id for rsu_manager in self.rsu_list)
             self.coperception_model_manager.validate_advcp_agents(valid_agent_ids)
 
         self.scenario_manager.create_custom_actor_manager(application=["single"], map_helper=map_api.spawn_helper_2lanefree, data_dump=data_dump)
