@@ -107,6 +107,8 @@ scenario:
       id: 2
 
 cooperative_perception_visualization:
+  bbox_line_thickness: 2 # optional global line thickness for all rendered bounding boxes in BEV/3D
+  image_dpi: 1200 # optional DPI for saved cooperative perception images
   background: [14, 18, 28]
   lidar_point_colors:
     other: [215, 221, 230]

@@ -37,6 +37,8 @@ class CoperceptionVisualizationConfig(TypedDict):
     background: ColorRGB  # noqa: DC01
     lidar_point_colors: dict[str, ColorRGB]
     bbox_colors: dict[str, ColorRGB]  # noqa: DC01
+    bbox_line_thickness: int
+    image_dpi: int
 
 
 @dataclass
@@ -120,6 +122,8 @@ class CoperceptionVisualizer:
             "gt": (0, 255, 0),
             "pred": (255, 0, 0),
         },
+        "bbox_line_thickness": 5,
+        "image_dpi": 400,
     }
 
     @classmethod
@@ -132,6 +136,10 @@ class CoperceptionVisualizer:
         for key in ("background",):
             if key in config_dict and config_dict[key] is not None:
                 resolved[key] = tuple(config_dict[key])
+
+        for key in ("bbox_line_thickness", "image_dpi"):
+            if key in config_dict and config_dict[key] is not None:
+                resolved[key] = int(config_dict[key])
 
         for key in ("lidar_point_colors", "bbox_colors"):
             value = config_dict.get(key)
@@ -178,7 +186,7 @@ class CoperceptionVisualizer:
         plt.axis("off")
         plt.imshow(canvas)
         plt.tight_layout()
-        plt.savefig(save_path, transparent=False, dpi=400, pad_inches=0.0)
+        plt.savefig(save_path, transparent=False, dpi=config["image_dpi"], pad_inches=0.0)
         plt.clf()
 
     @classmethod
@@ -251,6 +259,7 @@ class CoperceptionVisualizer:
         bg_color = cls._as_uint8_color(config["background"])
         gt_color = cls._as_uint8_color(config["bbox_colors"]["gt"])
         pred_color = cls._as_uint8_color(config["bbox_colors"]["pred"])
+        box_line_thickness = int(config["bbox_line_thickness"])
 
         if vis_pred_box and pred_box_tensor is not None:
             pred_box_np = common_utils.torch_tensor_to_numpy(pred_box_tensor)
@@ -298,9 +307,9 @@ class CoperceptionVisualizer:
             if valid_mask.any():
                 canvas.draw_canvas_points(canvas_xy[valid_mask], colors=point_colors[valid_mask])
             if vis_gt_box and gt_box_np is not None:
-                canvas.draw_boxes(gt_box_np, colors=gt_color, texts=gt_name, box_line_thickness=5)
+                canvas.draw_boxes(gt_box_np, colors=gt_color, texts=gt_name, box_line_thickness=box_line_thickness)
             if vis_pred_box and pred_box_np is not None:
-                canvas.draw_boxes(pred_box_np, colors=pred_color, texts=pred_name, box_line_thickness=5)
+                canvas.draw_boxes(pred_box_np, colors=pred_color, texts=pred_name, box_line_thickness=box_line_thickness)
             cls._draw_extra_boxes(canvas, method, config, visualization_context, common_utils)
         elif method == "3d":
             canvas = canvas_3d.Canvas_3D(canvas_bg_color=bg_color, left_hand=left_hand)
@@ -308,9 +317,9 @@ class CoperceptionVisualizer:
             if valid_mask.any():
                 canvas.draw_canvas_points(canvas_xy[valid_mask], colors=point_colors[valid_mask])
             if vis_gt_box and gt_box_np is not None:
-                canvas.draw_boxes(gt_box_np, colors=gt_color, texts=gt_name)
+                canvas.draw_boxes(gt_box_np, colors=gt_color, texts=gt_name, box_line_thickness=box_line_thickness)
             if vis_pred_box and pred_box_np is not None:
-                canvas.draw_boxes(pred_box_np, colors=pred_color, texts=pred_name)
+                canvas.draw_boxes(pred_box_np, colors=pred_color, texts=pred_name, box_line_thickness=box_line_thickness)
             cls._draw_extra_boxes(canvas, method, config, visualization_context, common_utils)
         else:
             raise ValueError(f"Unsupported visualization method: {method}")
@@ -456,10 +465,11 @@ class CoperceptionVisualizer:
             box_np = common_utils.torch_tensor_to_numpy(box_tensor)
             color = cls._as_uint8_color(config["bbox_colors"][box_name])
             texts = [""] * box_np.shape[0]
+            box_line_thickness = int(config["bbox_line_thickness"])
             if method == "bev":
-                canvas.draw_boxes(box_np, colors=color, texts=texts, box_line_thickness=5)
+                canvas.draw_boxes(box_np, colors=color, texts=texts, box_line_thickness=box_line_thickness)
             else:
-                canvas.draw_boxes(box_np, colors=color, texts=texts)
+                canvas.draw_boxes(box_np, colors=color, texts=texts, box_line_thickness=box_line_thickness)
 
     @staticmethod
     def _to_numpy_array(value):

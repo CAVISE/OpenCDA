@@ -2,12 +2,14 @@ from __future__ import annotations
 
 from collections import OrderedDict
 import logging
+from pathlib import Path
 from typing import Any, Mapping, Optional, TypedDict
 
 import numpy as np
 import torch
 import yaml  # type: ignore[import-untyped]
 
+from opencda.core.attack.advcp.early_fusion_attack import AdvCoperceptionEarlyFusionAttack
 from opencda.core.common.coperception_model_manager import (
     CoperceptionInferenceResult,
     CoperceptionModelManager,
@@ -45,6 +47,61 @@ class AdvCoperceptionVisualizer(CoperceptionVisualizer):
         if not visualization_context:
             return {}
         return {"fake": visualization_context.get("fake_box_tensor")}
+
+    @classmethod
+    def _get_lidar_points_and_colors(
+        cls,
+        batch_data,
+        fallback_pcd,
+        config: Mapping[str, Any],
+        visualization_context: Optional[Mapping[str, Any]] = None,
+    ):
+        if isinstance(batch_data, Mapping):
+            ego_entry = batch_data.get("ego")
+            if isinstance(ego_entry, Mapping) and "origin_lidar_by_agent" in ego_entry and "origin_lidar_spoofing_masks" in ego_entry:
+                other_color = cls._as_uint8_color(config["lidar_point_colors"]["other"])
+                ego_color = cls._as_uint8_color(config["lidar_point_colors"].get("ego", other_color))
+                spoofing_color = cls._as_uint8_color(config["lidar_point_colors"].get("spoofing", other_color))
+                points_by_agent = ego_entry["origin_lidar_by_agent"]
+                roles = list(ego_entry.get("origin_lidar_roles", []))
+                agent_ids = list(ego_entry.get("origin_lidar_agent_ids", []))
+                spoofing_masks = list(ego_entry.get("origin_lidar_spoofing_masks", []))
+                colored_points = []
+                colored_values = []
+
+                for idx, points in enumerate(points_by_agent):
+                    agent_points = cls._to_numpy_points(points)
+                    if agent_points.size == 0:
+                        continue
+
+                    role = roles[idx] if idx < len(roles) else "default"
+                    agent_id = agent_ids[idx] if idx < len(agent_ids) else None
+                    base_color = cls._resolve_point_color(
+                        config,
+                        agent_id=agent_id,
+                        role=role,
+                        other_color=other_color,
+                        ego_color=ego_color,
+                        visualization_context=visualization_context,
+                    )
+                    agent_colors = np.tile(np.asarray(base_color, dtype=np.uint8), (agent_points.shape[0], 1))
+                    if idx < len(spoofing_masks):
+                        spoofing_mask = cls._to_numpy_array(spoofing_masks[idx]).astype(bool).reshape(-1)
+                        if spoofing_mask.shape[0] == agent_points.shape[0]:
+                            agent_colors[spoofing_mask] = np.asarray(spoofing_color, dtype=np.uint8)
+
+                    colored_points.append(agent_points)
+                    colored_values.append(agent_colors)
+
+                if colored_points:
+                    return np.vstack(colored_points), np.vstack(colored_values)
+
+        return super()._get_lidar_points_and_colors(
+            batch_data,
+            fallback_pcd,
+            config,
+            visualization_context=visualization_context,
+        )
 
     @classmethod
     def _resolve_point_color(
@@ -87,10 +144,12 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
     @staticmethod
     def load_config(config_path: str | None) -> dict[str, Any]:
         config: dict[str, Any] = {}
+        config_dir: Path | None = None
 
         if not config_path:
             logger.warning("AdvCP config path is not provided. Falling back to default AdvCP config.")
         else:
+            config_dir = Path(config_path).expanduser().resolve().parent
             try:
                 with open(config_path, "r", encoding="utf-8") as handle:
                     loaded_config = yaml.safe_load(handle) or {}
@@ -106,6 +165,13 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
         config.setdefault("default_size", list(AdvCoperceptionModelManager.DEFAULT_BOX_SIZE))
         config.setdefault("boxes", [{"relative": [5.0, 0.0, 0.0, 0.0, 90.0, 0.0]}])
         config.setdefault("attacker_id", "cav-1")
+        config.setdefault("density", 3)
+        for path_key in ("model_path", "mesh_divide_path"):
+            path_value = config.get(path_key)
+            if path_value is not None and config_dir is not None:
+                path = Path(str(path_value)).expanduser()
+                if not path.is_absolute():
+                    config[path_key] = str((config_dir / path).resolve())
         return config
 
     def validate_advcp_agents(self, valid_agent_ids: list[str]) -> None:
@@ -153,6 +219,8 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
                 self.model,
                 self.opencood_dataset,
                 self.device,
+                advcp_config=self.advcp_config,
+                memory_data=self.current_memory_data,
             )
         )
 
@@ -292,8 +360,8 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
         return pred_box_tensor, pred_score, gt_box_tensor, advcp_context
 
     @staticmethod
-    def _inference_early_fusion_attack(*args: Any, **kwargs: Any) -> tuple[Any, Any, Any]:
-        raise NotImplementedError("AdvCP early fusion spoofing is not available yet.")
+    def _inference_early_fusion_attack(*args: Any, **kwargs: Any) -> tuple[Any, Any, Any, Any]:
+        return AdvCoperceptionEarlyFusionAttack.run(*args, **kwargs)
 
     @staticmethod
     def _inference_intermediate_fusion_attack(*args: Any, **kwargs: Any) -> tuple[Any, Any, Any]:

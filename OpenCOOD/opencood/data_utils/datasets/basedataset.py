@@ -262,7 +262,10 @@ class BaseDataset(Dataset):
             data[cav_id]["time_delay"] = timestamp_delay
             # load the corresponding data into the dictionary
             data[cav_id]["params"] = self.reform_param(cav_content, ego_cav_content, timestamp_key, timestamp_key_delay, cur_ego_pose_flag)
-            data[cav_id]["lidar_np"] = self.load_lidar_data(cav_content[timestamp_key_delay])
+            snapshot = cav_content[timestamp_key_delay]
+            data[cav_id]["lidar_np"] = self.load_lidar_data(snapshot)
+            if "spoofing_mask" in snapshot:
+                data[cav_id]["spoofing_mask"] = snapshot["spoofing_mask"]
         return data
 
     @staticmethod
