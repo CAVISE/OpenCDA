@@ -300,7 +300,12 @@ class Scenario:
                         logger.info(
                             f"Received AIMServerMessage for vehicle {message.dst_owner_id} with next position {message.payload.next_position}"
                         )
-                    next_pos = {message.dst_owner_id: message.payload.next_position for message in valid_msgs}
+                    next_pos = {
+                        message.dst_owner_id: carla.Location(
+                            message.payload.next_position.x, message.payload.next_position.y, message.payload.next_position.z
+                        )
+                        for message in valid_msgs
+                    }
 
                     vehicle_id = single_cav.id
                     current_location = single_cav.vehicle.get_location()

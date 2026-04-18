@@ -1,6 +1,6 @@
 """Dummy behavior service package."""
 
-from .aim_server import AIMServer
+from .service import AIMServer
 from .messages import AIMServerRequestMessage
 from .results import AIMServerMessage, AIMServerResult
 

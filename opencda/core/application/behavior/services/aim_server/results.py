@@ -5,15 +5,14 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    import carla
-    from .messages import Location
+    from .models import Location
 
 
 @dataclass(frozen=True)
 class AIMServerMessage:
     """Predicted next target position for a vehicle handled by AIM."""
 
-    next_position: Location | carla.Location
+    next_position: Location
 
 
 @dataclass(frozen=True)

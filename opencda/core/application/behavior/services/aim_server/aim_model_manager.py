@@ -1,44 +1,29 @@
 # from __future__ import annotations
 from collections.abc import Sequence
-from dataclasses import dataclass
+from pathlib import Path
 
-import carla
-import torch
 import logging
 import numpy as np
 import pickle as pkl
 from scipy.spatial import distance
 
-from opencda.co_simulation.sumo_integration.bridge_helper import BridgeHelper
 from AIM import AIMModel
 
 from .messages import AIMServerRequestMessage
 from .results import AIMServerResult, AIMServerMessage
+from .models import CavData, Transform, Location, Rotation
+from . import utils
+
 from opencda.core.application.behavior.transport_message import TransportMessage
 
 logger = logging.getLogger("cavise.opencda.opencda.core.application.behavior.services.aim_server.aim_model_manager")
-
-
-@dataclass(frozen=True)
-class CavData:
-    intention: str
-    pos: carla.Location
-    sumo_pos: np.ndarray
-    speed: float
-    yaw: float
-    waypoints: list
-
-    src_owner_id: str
-    src_service_type: str
-    dst_owner_id: str
-    dst_service_type: str
 
 
 class AIMModelManager:
     def __init__(
         self,
         model: AIMModel,
-        control_center: carla.Transform,
+        control_center: Transform,
         service_name: str,
         owner_id: str,
     ):
@@ -49,7 +34,7 @@ class AIMModelManager:
         ----------
         model : AIMModel
             Loaded AIM model used for trajectory prediction.
-        control_center : carla.Transform
+        control_center : Transform
             Intersection control point used to normalize vehicle positions.
         service_name : str
             Service identifier used in AIM result messages.
@@ -64,11 +49,10 @@ class AIMModelManager:
 
         self.trajs = dict()
 
-        control_center_location = BridgeHelper.get_sumo_transform(control_center, carla.Vector3D(0, 0, 0)).location
+        control_center_location = utils.get_sumo_transform(control_center, Location(0, 0, 0)).location
 
-        self.control_center_coords = np.array([control_center_location.x, control_center_location.y])
+        self.control_center_coords: np.ndarray = np.array([control_center_location.x, control_center_location.y])
 
-        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.model = model
 
         self._service_name = service_name
@@ -83,7 +67,8 @@ class AIMModelManager:
 
         :return: yaw_dict
         """
-        with open("opencda/assets/yaw_dict_10m.pkl", "rb") as f:
+        yaw_dict_path = Path(__file__).parent / "assets" / "yaw_dict_10m.pkl"
+        with yaw_dict_path.open("rb") as f:
             return pkl.load(f)
 
     def _get_distance_to_center(self, curr_pos: np.ndarray) -> float:
@@ -98,7 +83,7 @@ class AIMModelManager:
         Normalize and cache incoming CAV data for the current inference step.
         """
         msg = transport_msg.payload
-        cav_pos = BridgeHelper.get_sumo_transform(msg.position, carla.Vector3D(0, 0, 0)).location
+        cav_pos = utils.get_sumo_transform(msg.position, Location(0, 0, 0)).location
         curr_pos = np.array([cav_pos.x, cav_pos.y])
         distance_to_center = self._get_distance_to_center(curr_pos)
 
@@ -172,7 +157,7 @@ class AIMModelManager:
                     local_delta[1, 0] = max(1e-8, local_delta[1, 0])
 
                 yaw = features[idx][3]
-                rotation = self.rotation_matrix_back(yaw)
+                rotation = utils.rotation_matrix_back(yaw)
                 global_delta = (rotation @ local_delta).squeeze()
                 global_delta[1] *= -1
 
@@ -180,7 +165,7 @@ class AIMModelManager:
 
                 global_delta = np.where(np.abs(global_delta) <= self.THRESHOLD, np.sign(global_delta) * self.FORCE_VALUE, global_delta)
 
-                next_loc = carla.Location(
+                next_loc = Location(
                     x=pos.x + global_delta[0],
                     y=pos.y - global_delta[1],
                     z=pos.z,
@@ -218,7 +203,7 @@ class AIMModelManager:
         for vehicle_id in self.cav_data:
             position = self._get_cav_sumo_pos(vehicle_id)
 
-            distance_to_center = np.linalg.norm(position - self.control_center_coords)
+            distance_to_center = self._get_distance_to_center(position)
 
             if distance_to_center < self.CONTROL_RADIUS:
                 # Initialize trajectory if this is a new vehicle
@@ -290,11 +275,11 @@ class AIMModelManager:
             return "null"
 
         waypoint_index = 0
-        location = carla.Location(mid[0], mid[1], 0)
-        rotation = carla.Rotation(0)
+        location = Location(mid[0], mid[1], 0)
+        rotation = Rotation(0, 0, 0)
 
-        in_sumo_transform = carla.Transform(location, rotation)
-        mid = BridgeHelper.get_carla_transform(in_sumo_transform, carla.Vector3D(0, 0, 0))
+        in_sumo_transform = Transform(location, rotation)
+        mid = utils.get_carla_transform(in_sumo_transform, Location(0, 0, 0))
         if self._get_distance(mid, waypoints[0]) > self.CONTROL_RADIUS:
             logger.debug("Car not int radius")
             return "null"
@@ -341,7 +326,7 @@ class AIMModelManager:
 
             if distance_to_origin < self.CONTROL_RADIUS:
                 motion_features = np.array(last_position[:-2])
-                intention_vector = self.get_intention_vector(last_position[-1])
+                intention_vector = utils.get_intention_vector(last_position[-1])
                 feature_vector = np.concatenate((motion_features, intention_vector)).reshape(1, -1)
 
                 features.append(feature_vector)
@@ -349,55 +334,6 @@ class AIMModelManager:
 
         features = np.vstack(features) if features else np.empty((0, 7))
         return features, target_agent_ids
-
-    @staticmethod
-    def rotation_matrix_back(yaw):
-        """
-        Rotate back.
-        https://en.wikipedia.org/wiki/Rotation_matrix#Non-standard_orientation_of_the_coordinate_system
-        """
-        rotation = np.array([[np.cos(-np.pi / 2 + yaw), -np.sin(-np.pi / 2 + yaw)], [np.sin(-np.pi / 2 + yaw), np.cos(-np.pi / 2 + yaw)]])
-        return rotation
-
-    def get_end(self, start, intention):
-        """
-        Determines the direction of exit from the turn given its start and vehicle intention.
-
-        :param start: direction from which CAV enters the intersection
-        :param intention: direction of turning relative to CAV movement
-        :return: end
-        """
-        match intention:
-            case "right":
-                match start:
-                    case "up":
-                        return "left"
-                    case "right":
-                        return "up"
-                    case "down":
-                        return "right"
-                    case "left":
-                        return "down"
-            case "left":
-                match start:
-                    case "up":
-                        return "right"
-                    case "right":
-                        return "down"
-                    case "down":
-                        return "left"
-                    case "left":
-                        return "up"
-            case "straight":
-                match start:
-                    case "up":
-                        return "down"
-                    case "right":
-                        return "left"
-                    case "down":
-                        return "up"
-                    case "left":
-                        return "right"
 
     def get_yaw(self, vehicle_id: str, pos: np.ndarray, yaw_dict: dict):
         """
@@ -427,7 +363,7 @@ class AIMModelManager:
             else:
                 start = "down"
 
-        end = self.get_end(start, intention)
+        end = utils.get_end(start, intention)
         v = f"{start}_{end}"
         if vehicle_id not in self.yaw_id:
             self.yaw_id[vehicle_id] = {nearest_node: v}
@@ -435,7 +371,7 @@ class AIMModelManager:
             if nearest_node not in self.yaw_id[vehicle_id]:
                 # With new nearest node intantion may changes, so we reset trajectory to default and get intention for new node
                 intention = self.get_intention(vehicle_id)
-                end = self.get_end(start, intention)
+                end = utils.get_end(start, intention)
                 v = f"{start}_{end}"
                 self.yaw_id[vehicle_id] = {nearest_node: v}
 
@@ -450,21 +386,3 @@ class AIMModelManager:
         yaws = yaw_dict[route]
         dists = distance.cdist(pos.reshape(1, 2), yaws[:, :-1])
         return yaws[np.argmin(dists), -1]
-
-    @staticmethod
-    def get_intention_vector(intention: str = "straight") -> np.ndarray:
-        """
-        Return a 3-bit one-hot format intention vector.
-        """
-        intention_feature = np.zeros(3)
-        if intention == "left":
-            intention_feature[0] = 1
-        elif intention == "straight":
-            intention_feature[1] = 1
-        elif intention == "right":
-            intention_feature[2] = 1
-        elif intention == "null":
-            pass  # return zero array
-        else:
-            raise NotImplementedError
-        return intention_feature
