@@ -249,8 +249,58 @@ class RSUManager(object):
 
         ego_pos = self.localizer.get_ego_pos()
 
-        # TODO: object detection - pass it to other CAVs for V2X perception
-        self.perception_manager.detect(ego_pos)
+        objects = self.perception_manager.detect(ego_pos)
+        shared_vehicles = objects.get("vehicles", [])
+
+        if not shared_vehicles:
+            return
+
+        cav_world = self.perception_manager.cav_world
+        if cav_world is None:
+            return
+
+        for vm in cav_world.get_vehicle_managers().values():
+            if not vm.v2x_manager.cda_enabled:
+                continue
+
+            cav_pos = vm.localizer.get_ego_pos()
+            if cav_pos is None:
+                cav_pos = vm.v2x_manager.get_ego_pos()
+            if cav_pos is None:
+                continue
+
+            if ego_pos.location.distance(cav_pos.location) > vm.v2x_manager.communication_range:
+                continue
+
+            cav_objects = getattr(vm.agent, "objects", None)
+            if not isinstance(cav_objects, dict):
+                continue
+
+            cav_vehicle_objects = cav_objects.setdefault("vehicles", [])
+            seen_vehicle_ids = {
+                getattr(vehicle, "carla_id", -1)
+                for vehicle in cav_vehicle_objects
+                if getattr(vehicle, "carla_id", -1) != -1
+            }
+
+            added_vehicle = False
+            for vehicle in shared_vehicles:
+                vehicle_id = getattr(vehicle, "carla_id", -1)
+
+                if vehicle_id == vm.vehicle.id:
+                    continue
+
+                if vehicle_id != -1 and vehicle_id in seen_vehicle_ids:
+                    continue
+
+                cav_vehicle_objects.append(vehicle)
+                added_vehicle = True
+
+                if vehicle_id != -1:
+                    seen_vehicle_ids.add(vehicle_id)
+
+            if added_vehicle:
+                vm.agent.obstacle_vehicles = vm.agent.white_list_match(cav_vehicle_objects)
 
     def update_info_v2x(self):
         # TODO: Добавить обновление информации
