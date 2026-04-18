@@ -29,12 +29,26 @@ def _install_stub_if_missing(name: str, module: ModuleType) -> None:
         sys.modules[name] = module
 
 
+behavior_services_stub = types.ModuleType("opencda.core.application.behavior.services")
+behavior_services_stub.__all__ = []
+_install_stub_if_missing("opencda.core.application.behavior.services", behavior_services_stub)
+
+
 # Heavy external deps stubs for tests under test/ (torch/open3d/opencood may be absent in CI)
 torch_stub = types.ModuleType("torch")
+
+
+class _TorchTensor:
+    pass
+
+
 torch_stub.cuda = SimpleNamespace(is_available=lambda: False)
 torch_stub.hub = SimpleNamespace(load=Mock())
 torch_stub.device = lambda *args, **kwargs: "cpu"
+torch_stub.Tensor = _TorchTensor
+torch_stub.nn = types.ModuleType("torch.nn")
 _install_stub_if_missing("torch", torch_stub)
+_install_stub_if_missing("torch.nn", torch_stub.nn)
 
 _install_stub_if_missing("open3d", types.ModuleType("open3d"))
 _install_stub_if_missing("opencood", types.ModuleType("opencood"))
