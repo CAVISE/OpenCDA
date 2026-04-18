@@ -6,21 +6,26 @@ import os
 import sys
 import enum
 import errno
-import typing
 import pathlib
 import logging
 import argparse
 import omegaconf
 import subprocess
+from collections.abc import Callable, Collection
+from types import ModuleType
+from typing import cast
 
+from omegaconf import DictConfig
 from opencda.version import __version__
 
 
 try:
-    from rich.traceback import install as rich_traceback_install
+    from rich.traceback import install as _rich_traceback_install
 except ModuleNotFoundError:
-    rich_traceback_install = None
+    rich_traceback_install: Callable[..., object] | None = None
     print("Rich tracebacks are not available, all CLI configuration regarding tracebacks is ignored.")
+else:
+    rich_traceback_install = _rich_traceback_install
 
 
 try:
@@ -59,7 +64,7 @@ def create_logger(level: int, fmt: str = "- [%(asctime)s][%(name)s] %(message)s"
     return logger
 
 
-def install_traceback_handler(verbose: bool = True, suppress_modules: typing.Collection[str] = ()):
+def install_traceback_handler(verbose: bool = True, suppress_modules: Collection[str] = ()) -> None:
     default_filtered_modules = [
         "numpy",
         "scipy",
@@ -73,7 +78,8 @@ def install_traceback_handler(verbose: bool = True, suppress_modules: typing.Col
         "omegaconf",
     ]
 
-    joined = set(default_filtered_modules) & set(suppress_modules)
+    joined_strings = set(default_filtered_modules) & set(suppress_modules)
+    joined: set[str | ModuleType] = set(joined_strings)
     if rich_traceback_install is not None:
         rich_traceback_install(show_locals=verbose, suppress=joined)
 
@@ -124,10 +130,7 @@ def arg_parse() -> argparse.Namespace:
     )
     parser.add_argument("--model-dir", type=str, help="Continued training path")
     parser.add_argument("--fusion-method", type=str, default="late", help="late, early or intermediate")
-    parser.add_argument("--show-vis", action="store_true", help="whether to show image visualization result")
-    parser.add_argument(
-        "--show-sequence", action="store_true", help="whether to show video visualization result. It can not be set true with show_vis together."
-    )
+    parser.add_argument("--show-sequence", action="store_true", help="whether to show video visualization result")
     parser.add_argument("--save-vis", action="store_true", help="whether to save visualization result")
     parser.add_argument("--save-npy", action="store_true", help="whether to save prediction and gt result in npy_test file")
     parser.add_argument(
@@ -136,6 +139,14 @@ def arg_parse() -> argparse.Namespace:
         help="whether to globally sort detections by confidence score."
         "If set to True, it is the mainstream AP computing method,"
         "but would increase the tolerance for FP (False Positives).",
+    )
+
+    # AdvCollaborativePerception module
+    parser.add_argument("--with-advcp", action="store_true", help="Enable AdvCP-style attacks for cooperative perception.")
+    parser.add_argument(
+        "--advcp-config",
+        type=str,
+        help="AdvCP attack config name or path. Relative names are resolved from opencda/scenario_testing/config_yaml/advcp.",
     )
 
     def verbosity_wrapper(arg: str) -> VerbosityLevel:
@@ -149,8 +160,6 @@ def arg_parse() -> argparse.Namespace:
         choices=[level.value for level in VerbosityLevel],
         help="Specifies overall verbosity of output.",
     )
-
-    parser.add_argument("--with-aim", action="store_true", help="Whether to enable the use of AIM in this simulation.")
 
     parser.add_argument("--ticks", type=int, help="number of simulation ticks to execute")
     return parser.parse_args()
@@ -197,12 +206,35 @@ def main() -> None:
 
     logger.info(f"OpenCDA Version: {__version__}")
 
-    cwd = pathlib.PurePath(os.getcwd())
+    cwd = pathlib.Path.cwd()
     default_yaml = config_yaml = cwd / "opencda/scenario_testing/config_yaml/default.yaml"
     config_yaml = cwd / f"opencda/scenario_testing/config_yaml/{opt.test_scenario}.yaml"
-    if not os.path.isfile(config_yaml):
+    advcp_config_dir = cwd / "opencda/scenario_testing/config_yaml/advcp"
+    if not config_yaml.is_file():
         logger.error(f"{config_yaml.relative_to(cwd)} not found!")
         sys.exit(errno.EPERM)
+
+    if opt.with_advcp:
+        if not opt.with_coperception:
+            logger.error("--with-advcp requires --with-coperception.")
+            sys.exit(errno.EPERM)
+
+        if not opt.advcp_config:
+            logger.error("--with-advcp requires --advcp-config.")
+            sys.exit(errno.EPERM)
+
+        advcp_config = pathlib.Path(opt.advcp_config)
+        if not advcp_config.is_absolute():
+            advcp_config = advcp_config_dir / advcp_config
+
+        if advcp_config.suffix == "":
+            advcp_config = advcp_config.with_suffix(".yaml")
+
+        if not advcp_config.is_file():
+            logger.error(f"AdvCP config not found: {advcp_config}")
+            sys.exit(errno.EPERM)
+
+        opt.advcp_config = str(advcp_config)
 
     # allow OpenCOOD imports
     sys.path.append(str(cwd.joinpath("OpenCOOD")))
@@ -212,6 +244,7 @@ def main() -> None:
     default_dict = omegaconf.OmegaConf.load(str(default_yaml))
     scene_dict = omegaconf.OmegaConf.load(str(config_yaml))
     scene_dict = omegaconf.OmegaConf.merge(default_dict, scene_dict)
+    scene_dict = cast(DictConfig, scene_dict)
 
     # NOTICE: temporary measure (while option is turned off)
     opt.apply_ml = False

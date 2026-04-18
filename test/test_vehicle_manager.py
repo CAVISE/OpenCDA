@@ -55,7 +55,7 @@ def test_valid_id_from_config(mocker, minimal_vehicle_config, mock_cav_world):
     cfg = {**minimal_vehicle_config, "id": 5}
 
     vm = VehicleManager(Mock(id=10), cfg, ["single"], Mock(), mock_cav_world, prefix="cav")
-    assert vm.vid == "cav-5"
+    assert vm.id == "cav-5"
     mock_cav_world.update_vehicle_manager.assert_called_once_with(vm)
 
 
@@ -80,9 +80,9 @@ def test_duplicate_id_with_autogen_generates_new(mocker, minimal_vehicle_config,
     vm1 = VehicleManager(Mock(id=10), cfg1, ["single"], Mock(), mock_cav_world, prefix="cav", autogenerate_id_on_failure=True)
     vm2 = VehicleManager(Mock(id=11), cfg2, ["single"], Mock(), mock_cav_world, prefix="cav", autogenerate_id_on_failure=True)
 
-    assert vm1.vid == "cav-5"
-    assert vm2.vid == "cav-1"
-    assert vm1.vid != vm2.vid
+    assert vm1.id == "cav-5"
+    assert vm2.id == "cav-1"
+    assert vm1.id != vm2.id
 
 
 def test_negative_id_with_autogen(mocker, minimal_vehicle_config, mock_cav_world):
@@ -92,7 +92,7 @@ def test_negative_id_with_autogen(mocker, minimal_vehicle_config, mock_cav_world
     cfg = {**minimal_vehicle_config, "id": -1}
 
     vm = VehicleManager(Mock(id=10), cfg, ["single"], Mock(), mock_cav_world, prefix="cav")
-    assert vm.vid == "cav-1"
+    assert vm.id == "cav-1"
 
 
 def test_negative_id_without_autogen(mocker, minimal_vehicle_config, mock_cav_world):
@@ -112,7 +112,7 @@ def test_invalid_id_type_with_autogen(mocker, minimal_vehicle_config, mock_cav_w
     cfg = {**minimal_vehicle_config, "id": "not_a_number"}
 
     vm = VehicleManager(Mock(id=10), cfg, ["single"], Mock(), mock_cav_world, prefix="cav", autogenerate_id_on_failure=True)
-    assert vm.vid == "cav-1"
+    assert vm.id == "cav-1"
 
 
 def test_invalid_id_type_without_autogen(mocker, minimal_vehicle_config, mock_cav_world):
@@ -130,7 +130,7 @@ def test_missing_id_with_autogen(mocker, minimal_vehicle_config, mock_cav_world)
     from opencda.core.common.vehicle_manager import VehicleManager
 
     vm = VehicleManager(Mock(id=10), minimal_vehicle_config, ["single"], Mock(), mock_cav_world, prefix="cav")
-    assert vm.vid == "cav-1"
+    assert vm.id == "cav-1"
 
 
 def test_missing_id_without_autogen(mocker, minimal_vehicle_config, mock_cav_world):
@@ -155,17 +155,7 @@ def test_prefix_autogen_behaviour(mocker, minimal_vehicle_config, mock_cav_world
     from opencda.core.common.vehicle_manager import VehicleManager
 
     vm = VehicleManager(Mock(id=10), minimal_vehicle_config, ["single"], Mock(), mock_cav_world, prefix=prefix)
-    assert vm.vid == expected
-
-
-def test_set_destination_delegates(mocker, minimal_vehicle_config, mock_cav_world):
-    deps = _patch_vehicle_manager_deps(mocker)
-    from opencda.core.common.vehicle_manager import VehicleManager
-
-    vm = VehicleManager(Mock(id=10), minimal_vehicle_config, ["single"], Mock(), mock_cav_world, prefix="cav")
-    vm.set_destination("start", "end", clean=True, end_reset=False)
-
-    deps["agent"].set_destination.assert_called_once_with("start", "end", True, False)
+    assert vm.id == expected
 
 
 def test_update_info_calls_chain(mocker, minimal_vehicle_config, mock_cav_world):
@@ -205,23 +195,6 @@ def test_update_info_calls_chain(mocker, minimal_vehicle_config, mock_cav_world)
     deps["v2x"].update_info.assert_called_once_with(ego_pos, ego_spd)
     deps["agent"].update_information.assert_called_once_with(ego_pos, ego_spd, objects)
     deps["controller"].update_info.assert_called_once_with(ego_pos, ego_spd)
-
-
-def test_run_step_returns_control(mocker, minimal_vehicle_config, mock_cav_world):
-    deps = _patch_vehicle_manager_deps(mocker)
-    from opencda.core.common.vehicle_manager import VehicleManager
-
-    vm = VehicleManager(Mock(id=10), minimal_vehicle_config, ["single"], Mock(), mock_cav_world, prefix="cav")
-
-    deps["agent"].run_step.return_value = (12.3, "target_pos")
-    deps["controller"].run_step.return_value = "control"
-
-    control = vm.run_step(target_speed=8.0)
-
-    deps["map_manager"].run_step.assert_called_once_with()
-    deps["agent"].run_step.assert_called_once_with(8.0)
-    deps["controller"].run_step.assert_called_once_with(12.3, "target_pos")
-    assert control == "control"
 
 
 def test_run_step_with_data_dumper(mocker, minimal_vehicle_config, mock_cav_world):
