@@ -27,3 +27,4 @@ scipy
 
 # optional but often useful in logs/utilities
 tqdm==4.67.1
+traci

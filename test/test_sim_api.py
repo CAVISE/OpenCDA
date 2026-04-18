@@ -386,7 +386,7 @@ def test_create_vehicle_manager_single_cav(mocker, minimal_vehicle_config):
     spawn_custom_actor = mocker.patch.object(sm, "spawn_custom_actor", return_value=vehicle_actor)
 
     vm_mock = Mock()
-    vm_mock.vid = "cav-7"
+    vm_mock.id = "cav-7"
     vm_mock.vehicle = vehicle_actor
     vm_mock.v2x_manager = Mock(spec_set=["set_platoon"])
     vm_mock.v2x_manager.set_platoon = Mock()
@@ -474,10 +474,10 @@ def test_create_platoon_manager_creates_one_platoon_two_members(mocker, minimal_
     spawn_custom_actor = mocker.patch.object(sm, "spawn_custom_actor", side_effect=[actor1, actor2])
 
     vm1 = Mock()
-    vm1.vid = "platoon-1"
+    vm1.id = "platoon-1"
     vm1.vehicle = actor1
     vm2 = Mock()
-    vm2.vid = "platoon-2"
+    vm2.id = "platoon-2"
     vm2.vehicle = actor2
     vehicle_manager_ctor = mocker.patch("opencda.scenario_testing.utils.sim_api.VehicleManager", side_effect=[vm1, vm2])
 
@@ -921,7 +921,7 @@ def test_create_platoon_manager_uses_map_helper_when_spawn_special_present(mocke
     spawn_custom_actor = mocker.patch.object(sm, "spawn_custom_actor", return_value=actor)
 
     vm = Mock()
-    vm.vid = "platoon-1"
+    vm.id = "platoon-1"
     vm.vehicle = actor
     mocker.patch("opencda.scenario_testing.utils.sim_api.VehicleManager", return_value=vm)
 
@@ -992,16 +992,16 @@ def test_create_platoon_manager_multiple_platoons_combines_mapping_and_ticks_eac
     spawn_custom_actor = mocker.patch.object(sm, "spawn_custom_actor", side_effect=[actor1, actor2, actor3, actor4])
 
     vm1 = Mock()
-    vm1.vid = "platoon-1"
+    vm1.id = "platoon-1"
     vm1.vehicle = actor1
     vm2 = Mock()
-    vm2.vid = "platoon-2"
+    vm2.id = "platoon-2"
     vm2.vehicle = actor2
     vm3 = Mock()
-    vm3.vid = "platoon-3"
+    vm3.id = "platoon-3"
     vm3.vehicle = actor3
     vm4 = Mock()
-    vm4.vid = "platoon-4"
+    vm4.id = "platoon-4"
     vm4.vehicle = actor4
     vehicle_manager_ctor = mocker.patch("opencda.scenario_testing.utils.sim_api.VehicleManager", side_effect=[vm1, vm2, vm3, vm4])
 
@@ -1253,8 +1253,8 @@ def test_create_platoon_manager_spawn_position_is_converted_to_transform(mocker,
     actor2.id = 1002
     spawn_custom_actor = mocker.patch.object(sm, "spawn_custom_actor", side_effect=[actor1, actor2])
 
-    vm1 = Mock(vid="platoon-1", vehicle=actor1)
-    vm2 = Mock(vid="platoon-2", vehicle=actor2)
+    vm1 = Mock(id="platoon-1", vehicle=actor1)
+    vm2 = Mock(id="platoon-2", vehicle=actor2)
     mocker.patch("opencda.scenario_testing.utils.sim_api.VehicleManager", side_effect=[vm1, vm2])
 
     sm.create_platoon_manager(map_helper=None, data_dump=False)
@@ -1286,7 +1286,7 @@ def test_create_rsu_manager_single_rsu(mocker, minimal_rsu_config):
     world.spawn_actor.return_value = actor
 
     rsu_mgr = Mock()
-    rsu_mgr.rid = "rsu-3"
+    rsu_mgr.id = "rsu-3"
     rsu_ctor = mocker.patch("opencda.scenario_testing.utils.sim_api.RSUManager", return_value=rsu_mgr)
 
     rsu_list, rsu_ids = sm.create_rsu_manager(data_dump=False)
