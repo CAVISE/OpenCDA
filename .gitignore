@@ -166,3 +166,6 @@ opencda/core/common/advcp/logic_diagram.py
 
 .DS_Store
 **/.DS_Store
+
+# Ignore the legacy version of ADvCP, which is no longer maintained and will be removed in the future.
+opencda/core/common/_advcp_legacy_disabled/
