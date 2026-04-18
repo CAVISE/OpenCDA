@@ -183,7 +183,7 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
 
         mode = (advcp_config or {}).get("mode", "spoof")
         advcp_context["mode"] = mode
-        
+
         attacker_id = None
         attack_boxes = None
         removal_id = None
@@ -242,14 +242,11 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
                     boxes3d = torch.vstack([boxes3d, stacked_injected_boxes])
                     scores = torch.hstack([scores, injected_scores])
                     is_fake = torch.hstack([is_fake, injected_is_fake])
-                
+
                 elif mode == "remove":
                     if removal_id is None:
-                        logger.warning(
-                            "AdvCP late removal attack is enabled but removal_id is not defined. No boxes will be removed."
-                        )
+                        logger.warning("AdvCP late removal attack is enabled but removal_id is not defined. No boxes will be removed.")
                     else:
-
                         # removal_id comes from config
                         # TODO: Consider supporting more flexible removal_id formats in the future (e.g., by box attributes instead of just index)
                         try:
@@ -369,7 +366,7 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
 
         batch_attacker_id = "ego" if attacker_id == ego_agent_id else attacker_id
         return batch_attacker_id, spoof_boxes
-    
+
     @staticmethod
     def resolve_late_remove_ids(advcp_config: dict[str, Any] | None, memory_data: dict[str, Any] | None) -> tuple[str | None, str | None]:
         if not advcp_config:
@@ -400,9 +397,9 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
                 attacker_id,
             )
             return None, None
-        
+
         # TODO: Uncomment this block if removal_id is expected to correspond to something in the scenario data. For now, we will just treat it as an opaque identifier (e.g., box index) that is validated later during attack application.
-        '''
+        """
         if removal_id not in scenario_data:
             logger.warning(
                 "AdvCP attack will not be applied on this tick because removal_id '%s' is not present in the current scenario data. "
@@ -410,7 +407,7 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
                 removal_id,
             )
             return None, None
-        '''
+        """
 
         return attacker_id, removal_id
 
