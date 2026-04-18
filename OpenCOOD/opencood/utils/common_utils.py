@@ -103,45 +103,13 @@ def convert_format(boxes_array):
     Parameters
     ----------
     boxes_array : np.ndarray
-        (N, 4, 2) or (N, 8, 3) or (N, 8) or (N, 7) or (7,) or (8,).
+        (N, 4, 2) or (N, 8, 3).
 
     Returns
     -------
         list of converted shapely.geometry.Polygon object.
 
     """
-    # Ensure input is at least 2D
-    if boxes_array.ndim == 1:
-        boxes_array = boxes_array[np.newaxis, :]
-    
-    # Handle case where input is (N, 8) - reshape to (N, 4, 2)
-    if boxes_array.ndim == 2 and boxes_array.shape[1] == 8:
-        boxes_array = boxes_array.reshape(-1, 4, 2)
-    # Handle case where input is (N, 7) - convert from [x, y, z, length, width, height, yaw] to corners
-    elif boxes_array.ndim == 2 and boxes_array.shape[1] == 7:
-        x = boxes_array[:, 0]
-        y = boxes_array[:, 1]
-        l = boxes_array[:, 3]
-        w = boxes_array[:, 4]
-        yaw = boxes_array[:, 6]
-        cos_yaw = np.cos(yaw)
-        sin_yaw = np.sin(yaw)
-        half_l = l / 2.0
-        half_w = w / 2.0
-        corners = np.zeros((boxes_array.shape[0], 4, 2))
-        # front left
-        corners[:, 0, 0] = x + half_l * cos_yaw - half_w * sin_yaw
-        corners[:, 0, 1] = y + half_l * sin_yaw + half_w * cos_yaw
-        # front right
-        corners[:, 1, 0] = x + half_l * cos_yaw + half_w * sin_yaw
-        corners[:, 1, 1] = y + half_l * sin_yaw - half_w * cos_yaw
-        # rear right
-        corners[:, 2, 0] = x - half_l * cos_yaw + half_w * sin_yaw
-        corners[:, 2, 1] = y - half_l * sin_yaw - half_w * cos_yaw
-        # rear left
-        corners[:, 3, 0] = x - half_l * cos_yaw - half_w * sin_yaw
-        corners[:, 3, 1] = y - half_l * sin_yaw + half_w * cos_yaw
-        boxes_array = corners
     polygons = [Polygon([(box[i, 0], box[i, 1]) for i in range(4)]) for box in boxes_array]
     return np.array(polygons)
 
@@ -158,8 +126,6 @@ def torch_tensor_to_numpy(torch_tensor):
     -------
     A numpy array.
     """
-    if isinstance(torch_tensor, np.ndarray):
-        return torch_tensor
     return torch_tensor.numpy() if not torch_tensor.is_cuda else torch_tensor.cpu().detach().numpy()
 
 
