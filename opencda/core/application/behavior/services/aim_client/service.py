@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 
 import traci
 
+from opencda.core.application.behavior.capability import Capability, CapabilityBindings
 from opencda.core.application.behavior.registry import BehaviorServiceRegistry
 from opencda.core.application.behavior.transport_message import TransportMessage
 from opencda.core.application.behavior.services.aim_server import AIMServerRequest, AIMServerResponse
@@ -27,6 +28,14 @@ class AIMClient:
     """Behavior service that runs AIM predictions for a batch of CAV requests."""
 
     service_name = "aim_client"
+
+    @property
+    def capability_bindings(self) -> CapabilityBindings:
+        return {
+            Capability.RESPONSE_OBSERVE: self._filter_messages,
+            Capability.COMMAND_SUBMIT: self._build_movement_command_message,
+            Capability.REQUEST_SUBMIT: self._build_aim_server_request_message,
+        }
 
     def __init__(
         self,
@@ -63,6 +72,36 @@ class AIMClient:
                 valid_messages.append(message.payload)
         return valid_messages
 
+    def _build_movement_command_message(self, target_position: Transform) -> TransportMessage[MovementControllerRequestMessage]:
+        owner = self._get_owner()
+        payload = MovementControllerRequestMessage(target_position=target_position)
+        return TransportMessage(
+            src_owner_id=owner.id,
+            src_service_type=self.service_name,
+            dst_owner_id=owner.id,
+            dst_service_type="movement_controller",
+            payload=payload,
+        )
+
+    def _build_aim_server_request_message(self) -> TransportMessage[AIMServerRequest]:
+        owner = self._get_owner()
+        position = owner.vehicle.get_transform()
+        waypoints = owner.agent.get_local_planner().get_waypoint_buffer()
+        payload = AIMServerRequest(
+            vehicle_id=owner.id,
+            position=position,
+            speed=traci.vehicle.getSpeed(owner.id),
+            yaw=traci.vehicle.getAngle(owner.id),
+            waypoints=waypoints,
+        )
+        return TransportMessage(
+            src_owner_id=owner.id,
+            src_service_type=self.service_name,
+            dst_owner_id="broadcast",
+            dst_service_type="aim_server",
+            payload=payload,
+        )
+
     def process(
         self,
         messages: Sequence[TransportMessage[AIMServerResponse]],
@@ -72,49 +111,14 @@ class AIMClient:
 
         for message in self._filter_messages(messages):
             target_position = Transform(message.next_position, Rotation(0, 0, 0))
-            payload = MovementControllerRequestMessage(target_position=target_position)
-            res_messages.append(
-                TransportMessage(
-                    src_owner_id=owner.id,
-                    src_service_type=self.service_name,
-                    dst_owner_id=owner.id,
-                    dst_service_type="movement_controller",
-                    payload=payload,
-                )
-            )
+            res_messages.append(self._build_movement_command_message(target_position))
         if len(res_messages) == 0:
             end_waypoint = owner.agent.end_waypoint
             if end_waypoint is None:
                 raise RuntimeError("AIM client requires a valid end waypoint when no AIM response is available.")
             target_position = Transform(end_waypoint.transform.location, Rotation(0, 0, 0))
-            payload = MovementControllerRequestMessage(target_position=target_position)
-            res_messages.append(
-                TransportMessage(
-                    src_owner_id=owner.id,
-                    src_service_type=self.service_name,
-                    dst_owner_id=owner.id,
-                    dst_service_type="movement_controller",
-                    payload=payload,
-                )
-            )
+            res_messages.append(self._build_movement_command_message(target_position))
 
-        pos = owner.vehicle.get_transform()
-        waypoints = owner.agent.get_local_planner().get_waypoint_buffer()
-        server_request_payload = AIMServerRequest(
-            vehicle_id=owner.id,
-            position=pos,
-            speed=traci.vehicle.getSpeed(owner.id),
-            yaw=traci.vehicle.getAngle(owner.id),
-            waypoints=waypoints,
-        )
-        res_messages.append(
-            TransportMessage(
-                src_owner_id=owner.id,
-                src_service_type=self.service_name,
-                dst_owner_id="broadcast",
-                dst_service_type="aim_server",
-                payload=server_request_payload,
-            )
-        )
+        res_messages.append(self._build_aim_server_request_message())
 
         return res_messages

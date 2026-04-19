@@ -6,6 +6,7 @@ import weakref
 import logging
 from typing import Any, Sequence, cast, TYPE_CHECKING
 
+from opencda.core.application.behavior.capability import Capability, CapabilityBindings
 from opencda.core.application.behavior.registry import BehaviorServiceRegistry
 from opencda.core.application.behavior.transport_message import TransportMessage
 
@@ -25,6 +26,14 @@ class AIMServer:
     """Behavior service that runs AIM predictions for a batch of CAV requests."""
 
     service_name = "aim_server"
+
+    @property
+    def capability_bindings(self) -> CapabilityBindings:
+        return {
+            Capability.REQUEST_OBSERVE: self._observe_aim_requests,
+            Capability.RESPONSE_SUBMIT: self._build_aim_response_messages,
+            Capability.STATE_OBSERVE: self._get_runtime_state_snapshot,
+        }
 
     def __init__(
         self,
@@ -69,9 +78,28 @@ class AIMServer:
         self._owner_ref = None
         self.aim_model_manager = None
 
-    def process(self, messages: Sequence[TransportMessage[AIMServerRequest]]) -> Sequence[TransportMessage[AIMServerResponse]]:
+    def _observe_aim_requests(
+        self,
+        messages: Sequence[TransportMessage[AIMServerRequest]],
+    ) -> tuple[TransportMessage[AIMServerRequest], ...]:
+        return tuple(messages)
+
+    def _build_aim_response_messages(
+        self,
+        messages: Sequence[TransportMessage[AIMServerRequest]],
+    ) -> Sequence[TransportMessage[AIMServerResponse]]:
         aim_model_manager = self.aim_model_manager
         if aim_model_manager is None:
             raise RuntimeError("AIM server is not attached to an owner.")
 
         return aim_model_manager.process(messages)
+
+    def _get_runtime_state_snapshot(self) -> dict[str, Any]:
+        aim_model_manager = self.aim_model_manager
+        if aim_model_manager is None:
+            raise RuntimeError("AIM server is not attached to an owner.")
+
+        return aim_model_manager.get_state_snapshot()
+
+    def process(self, messages: Sequence[TransportMessage[AIMServerRequest]]) -> Sequence[TransportMessage[AIMServerResponse]]:
+        return self._build_aim_response_messages(messages)

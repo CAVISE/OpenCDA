@@ -6,6 +6,7 @@ import weakref
 import logging
 from typing import Sequence, TYPE_CHECKING
 
+from opencda.core.application.behavior.capability import CapabilityBindings
 from opencda.core.application.behavior.registry import BehaviorServiceRegistry
 from opencda.core.application.behavior.transport_message import TransportMessage
 from .messages import MovementControllerRequestMessage
@@ -23,6 +24,10 @@ class MovementController:
     """Behavior service that runs AIM predictions for a batch of CAV requests."""
 
     service_name = "movement_controller"
+
+    @property
+    def capability_bindings(self) -> CapabilityBindings:
+        return {}
 
     def __init__(
         self,

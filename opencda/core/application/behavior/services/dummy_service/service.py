@@ -6,6 +6,7 @@ import logging
 from typing import Any, Sequence
 import weakref
 
+from opencda.core.application.behavior.capability import CapabilityBindings
 from opencda.core.application.behavior.registry import BehaviorServiceRegistry
 from opencda.core.application.behavior.transport_message import TransportMessage
 
@@ -20,6 +21,10 @@ class DummyService:
     """A trivial service that echoes back text with a small modification."""
 
     service_name = "dummy_service"
+
+    @property
+    def capability_bindings(self) -> CapabilityBindings:
+        return {}
 
     def __init__(
         self,

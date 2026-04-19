@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Protocol, Sequence, TypeVar, runtime_checkable
 
+from .capability import CapabilityBindings
 from .transport_message import TransportMessage
 
 BehaviorServiceRequestT = TypeVar("BehaviorServiceRequestT")
@@ -15,6 +16,10 @@ class BehaviorService(Protocol[BehaviorServiceRequestT, BehaviorServiceResponseT
     """Protocol implemented by any behavior service attached to a participant."""
 
     service_name: str
+
+    @property
+    def capability_bindings(self) -> CapabilityBindings:
+        """Return capability-to-callable bindings exposed by the service."""
 
     def on_attach(self, owner: Any) -> None:
         """Initialize the service for a particular participant instance."""

@@ -100,6 +100,16 @@ class AIMModelManager:
     def _get_cav_intention(self, vehicle_id: str) -> str:
         return self.cav_data[vehicle_id].intention
 
+    def get_state_snapshot(self) -> dict[str, Any]:
+        """Return an immutable snapshot of the current AIM runtime state."""
+        return {
+            "tracked_vehicle_ids": tuple(sorted(self.cav_data)),
+            "trajectory_vehicle_ids": tuple(sorted(self.trajs)),
+            "tracked_vehicle_count": len(self.cav_data),
+            "trajectory_vehicle_count": len(self.trajs),
+            "control_center_coords": tuple(float(coord) for coord in self.control_center_coords.tolist()),
+        }
+
     def process(self, messages: Sequence[TransportMessage[AIMServerRequest]]) -> Sequence[TransportMessage[AIMServerResponse]]:
         """
         Run AIM inference for the request batch and return predicted targets.
