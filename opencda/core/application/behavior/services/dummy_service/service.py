@@ -20,13 +20,12 @@ class DummyService:
     """A trivial service that echoes back text with a small modification."""
 
     service_name = "dummy_service"
+    priority = 90
 
-    def __init__(
-        self,
-        response_suffix: str = " [dummy processed]",
-    ) -> None:
+    def __init__(self, priority: int = 90, response_suffix: str = " [dummy processed]") -> None:
         self._response_suffix = response_suffix
         self._owner_ref: weakref.ReferenceType[Any] | None = None
+        self.priority = priority
 
     def _get_owner(self) -> Any:
         owner_ref = self._owner_ref

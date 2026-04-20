@@ -27,14 +27,14 @@ class AIMClient:
     """Behavior service that runs AIM predictions for a batch of CAV requests."""
 
     service_name = "aim_client"
+    priority = 20
 
-    def __init__(
-        self,
-    ) -> None:
+    def __init__(self, priority: int = 20) -> None:
         """
         Initialize the AIM-backed behavior service.
         """
         self._owner_ref: weakref.ReferenceType[VehicleManager] | None = None
+        self.priority = priority
 
     def _get_owner(self) -> VehicleManager:
         owner_ref = self._owner_ref

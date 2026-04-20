@@ -25,9 +25,11 @@ class AIMServer:
     """Behavior service that runs AIM predictions for a batch of CAV requests."""
 
     service_name = "aim_server"
+    priority = 20
 
     def __init__(
         self,
+        priority: int = 20,
         **aim_config: Any,
     ) -> None:
         """
@@ -40,6 +42,7 @@ class AIMServer:
         """
         self._owner_ref: weakref.ReferenceType[RSUManager] | None = None
         self.aim_model_manager: AIMModelManager | None = None
+        self.priority = priority
 
         aim_model_name = cast(str, aim_config.pop("model", "MTP"))
         self.model = get_model(aim_model_name, **aim_config)
