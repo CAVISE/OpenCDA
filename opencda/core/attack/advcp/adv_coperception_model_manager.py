@@ -8,7 +8,7 @@ from typing import Any, Mapping, Optional, TypedDict
 import numpy as np
 import torch
 import yaml  # type: ignore[import-untyped]
-from opencood.hypes_yaml.yaml_utils import load_yaml  # type: ignore[import-not-found]
+from opencood.hypes_yaml.yaml_utils import load_yaml
 
 from opencda.core.attack.advcp.early_fusion_attack import AdvCoperceptionEarlyFusionAttack
 from opencda.core.common.coperception_model_manager import (
@@ -41,6 +41,8 @@ class AdvCoperceptionVisualizer(CoperceptionVisualizer):
             "pred": (255, 0, 0),
             "fake": (180, 0, 255),
         },
+        "bbox_line_thickness": 5,
+        "image_dpi": 400,
     }
 
     @classmethod
@@ -52,11 +54,11 @@ class AdvCoperceptionVisualizer(CoperceptionVisualizer):
     @classmethod
     def _get_lidar_points_and_colors(
         cls,
-        batch_data,
-        fallback_pcd,
+        batch_data: Any,
+        fallback_pcd: Any,
         config: Mapping[str, Any],
         visualization_context: Optional[Mapping[str, Any]] = None,
-    ):
+    ) -> tuple[np.ndarray, np.ndarray]:
         if isinstance(batch_data, Mapping):
             ego_entry = batch_data.get("ego")
             if isinstance(ego_entry, Mapping) and "origin_lidar_by_agent" in ego_entry and "origin_lidar_spoofing_masks" in ego_entry:
@@ -76,7 +78,7 @@ class AdvCoperceptionVisualizer(CoperceptionVisualizer):
                         continue
 
                     role = roles[idx] if idx < len(roles) else "default"
-                    agent_id = agent_ids[idx] if idx < len(agent_ids) else None
+                    agent_id = str(agent_ids[idx]) if idx < len(agent_ids) else None
                     base_color = cls._resolve_point_color(
                         config,
                         agent_id=agent_id,
@@ -108,12 +110,12 @@ class AdvCoperceptionVisualizer(CoperceptionVisualizer):
     def _resolve_point_color(
         cls,
         config: Mapping[str, Any],
-        agent_id: str,
+        agent_id: str | None,
         role: str,
-        other_color: tuple,
-        ego_color: tuple,
+        other_color: tuple[int, int, int],
+        ego_color: tuple[int, int, int],
         visualization_context: Optional[Mapping[str, Any]] = None,
-    ) -> Any:
+    ) -> tuple[int, int, int]:
         lidar_point_colors = config["lidar_point_colors"]
         if agent_id is not None and agent_id in lidar_point_colors:
             return cls._as_uint8_color(lidar_point_colors[agent_id])

@@ -367,7 +367,7 @@ class AdvCoperceptionEarlyFusionAttack:
         return cls._build_spoof_mesh_pieces(spoof_box)
 
     @classmethod
-    def _build_collision_mesh(cls, spoof_box: np.ndarray, advcp_config: Mapping[str, Any]):
+    def _build_collision_mesh(cls, spoof_box: np.ndarray, advcp_config: Mapping[str, Any]) -> Any:
         model_meshes = cls._build_real_car_mesh_pieces(spoof_box, advcp_config)
         if model_meshes is not None:
             return model_meshes[0] if len(model_meshes) == 1 else cls._merge_meshes(model_meshes)
@@ -465,7 +465,11 @@ class AdvCoperceptionEarlyFusionAttack:
         return cls.DENSITY_ALIASES[normalized_value]
 
     @staticmethod
-    def _build_box_piece_mesh(spoof_box: np.ndarray, extents: tuple[float, float, float], center_local: tuple[float, float, float]):
+    def _build_box_piece_mesh(
+        spoof_box: np.ndarray,
+        extents: tuple[float, float, float],
+        center_local: tuple[float, float, float],
+    ) -> Any:
         import open3d as o3d
 
         x, y, z, _, _, _, yaw = spoof_box.tolist()
@@ -486,7 +490,7 @@ class AdvCoperceptionEarlyFusionAttack:
         return mesh
 
     @staticmethod
-    def _merge_meshes(meshes: list[Any]):
+    def _merge_meshes(meshes: list[Any]) -> Any:
         merged_mesh = copy.deepcopy(meshes[0])
         for mesh in meshes[1:]:
             merged_mesh += mesh
