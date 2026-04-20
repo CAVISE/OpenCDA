@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from collections import OrderedDict
-from typing import TYPE_CHECKING, Sequence, TypeAlias, cast
+from typing import TYPE_CHECKING, Sequence, TypeAlias, TypedDict, cast
 
 import numpy as np
 
@@ -23,6 +23,32 @@ logger = logging.getLogger("cavise.opencda.opencda.core.common.coperception_data
 
 if TYPE_CHECKING:
     LocalizationManagerLike: TypeAlias = VehicleLocalizationManager | RsuLocalizationManager
+
+
+class VehicleDumpRecord(TypedDict):
+    bp_id: str  # noqa: DC01
+    color: str | None
+    location: list[float]
+    center: list[float]
+    angle: list[float]
+    extent: list[float]
+    speed: float
+
+
+class CameraDumpRecord(TypedDict):
+    cords: list[float]
+    intrinsic: list[list[float]]  # noqa: DC01
+    extrinsic: list[list[float]]  # noqa: DC01
+
+
+class LiveParams(TypedDict, total=False):
+    vehicles: dict[int, "VehicleDumpRecord"]
+    predicted_ego_pos: list[float]
+    true_ego_pos: list[float]
+    ego_speed: float
+    lidar_pose: list[float]
+    RSU: bool  # noqa: DC01
+    plan_trajectory: list[list[float]]  # noqa: DC01
 
 
 class CoperceptionDataProcessor:
@@ -49,9 +75,10 @@ class CoperceptionDataProcessor:
         perception_manager: PerceptionManager,
         localization_manager: LocalizationManagerLike,
         behavior_agent: BehaviorAgent | None,
-    ) -> dict[str, object]:
-        dump_yml: dict[str, object] = {}
-        vehicle_dict: dict[int, dict[str, object]] = {}
+    ) -> LiveParams:
+        dump_yml: LiveParams = {}
+        vehicle_dict: dict[int, "VehicleDumpRecord"] = {}
+        camera_records: dict[str, "CameraDumpRecord"] = {}
 
         objects = perception_manager.objects
         vehicle_list = cast("Sequence[ObstacleVehicle]", objects.get("vehicles", []))
@@ -70,7 +97,7 @@ class CoperceptionDataProcessor:
             veh_bbx = veh.bounding_box
             veh_speed = get_speed(veh)
 
-            vehicle_dict[veh_carla_id] = {
+            vehicle_record: VehicleDumpRecord = {
                 "bp_id": veh.type_id,
                 "color": veh.color,
                 "location": [veh_pos.location.x, veh_pos.location.y, veh_pos.location.z],
@@ -79,6 +106,7 @@ class CoperceptionDataProcessor:
                 "extent": [veh_bbx.extent.x, veh_bbx.extent.y, veh_bbx.extent.z],
                 "speed": veh_speed,
             }
+            vehicle_dict[veh_carla_id] = vehicle_record
 
         dump_yml["vehicles"] = vehicle_dict
 
@@ -106,11 +134,12 @@ class CoperceptionDataProcessor:
             camera2world = st.x_to_world_transformation(camera_transform)
             world2camera = np.linalg.inv(camera2world)
             lidar2camera = np.dot(world2camera, lidar2world)
-            dump_yml[f"camera{i}"] = {
+            camera_record: CameraDumpRecord = {
                 "cords": self._transform_to_list(camera_transform),
-                "intrinsic": camera_intrinsic.tolist(),
-                "extrinsic": lidar2camera.tolist(),
+                "intrinsic": cast(list[list[float]], camera_intrinsic.tolist()),
+                "extrinsic": cast(list[list[float]], lidar2camera.tolist()),
             }
+            camera_records[f"camera{i}"] = camera_record
 
         dump_yml["RSU"] = True
         if behavior_agent is not None:
@@ -118,7 +147,7 @@ class CoperceptionDataProcessor:
             dump_yml["plan_trajectory"] = [[wp.location.x, wp.location.y, spd] for wp, spd in list(trajectory_deque)]
             dump_yml["RSU"] = False
 
-        return dump_yml
+        return cast(LiveParams, {**dump_yml, **camera_records})
 
     def build_live_memory(
         self,
