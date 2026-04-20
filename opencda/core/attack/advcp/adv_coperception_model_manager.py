@@ -6,7 +6,8 @@ from typing import Any, Mapping, Optional, TypedDict
 
 import numpy as np
 import torch
-import yaml  # type: ignore[import-untyped]
+import yaml  # type: ignore
+from opencood.hypes_yaml.yaml_utils import load_yaml
 
 from opencda.core.common.coperception_model_manager import (
     CoperceptionInferenceResult,
@@ -108,7 +109,7 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
         config.setdefault("attacker_id", "cav-1")
         return config
 
-    def validate_advcp_agents(self, valid_agent_ids: list[str]) -> None:
+    def validate_advcp_agents(self, valid_agent_ids: list[str]) -> bool:
         mode = self.advcp_config.get("mode", "spoof")
         attacker_id = self.advcp_config.get("attacker_id")
 
@@ -131,8 +132,10 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
         if attacker_ids:
             logger.info("AdvCP attacks are enabled and will be applied during cooperative perception inference.")
             logger.info("AdvCP attackers: %s", ", ".join(attacker_ids))
+            return True
         else:
             logger.warning("AdvCP is enabled, but no valid attackers were resolved. Attacks will not be applied.")
+            return False
 
     def _run_late_inference(self, batch_data: Any) -> CoperceptionInferenceResult:  # noqa: DC04
         return self._build_inference_result(
@@ -343,12 +346,16 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
 
     @staticmethod
     def _load_agent_state(scenario_data: dict[str, Any], agent_id: str) -> dict[str, Any]:
-        from opencood.hypes_yaml.yaml_utils import load_yaml
-
         agent_data = scenario_data[agent_id]
         timestamp = next(key for key in agent_data.keys() if key != "ego")
-        yaml_path = agent_data[timestamp]["yaml"]
-        params = load_yaml(yaml_path)
+        snapshot = agent_data[timestamp]
+        yaml_path = snapshot.get("yaml")
+        if (params := snapshot.get("params")) is None:
+            if yaml_path is None:
+                raise ValueError(f"AdvCP agent state for '{agent_id}' does not define either 'params' or 'yaml'.")
+
+            params = load_yaml(yaml_path)
+
         return {
             "agent_id": agent_id,
             "timestamp": timestamp,

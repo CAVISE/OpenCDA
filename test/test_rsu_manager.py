@@ -32,7 +32,7 @@ def test_valid_id_from_config(mocker, minimal_rsu_config, mock_cav_world):
 
     cfg = {**minimal_rsu_config, "id": 3}
 
-    rsu = RSUManager(Mock(), cfg, Mock(), mock_cav_world, data_dumping=False)
+    rsu = RSUManager(Mock(), cfg, Mock(), mock_cav_world)
     assert rsu.id == "rsu-3"
     mock_cav_world.update_rsu_manager.assert_called_once_with(rsu)
 
@@ -43,9 +43,9 @@ def test_duplicate_id_raises_when_autogen_disabled(mocker, minimal_rsu_config, m
 
     cfg = {**minimal_rsu_config, "id": 3}
 
-    RSUManager(Mock(), cfg, Mock(), mock_cav_world, data_dumping=False)
+    RSUManager(Mock(), cfg, Mock(), mock_cav_world)
     with pytest.raises(ValueError, match="Duplicate RSU ID"):
-        RSUManager(Mock(), cfg, Mock(), mock_cav_world, data_dumping=False, autogenerate_id_on_failure=False)
+        RSUManager(Mock(), cfg, Mock(), mock_cav_world, autogenerate_id_on_failure=False)
 
 
 def test_duplicate_id_with_autogen_generates_new(mocker, minimal_rsu_config, mock_cav_world):
@@ -54,8 +54,8 @@ def test_duplicate_id_with_autogen_generates_new(mocker, minimal_rsu_config, moc
 
     cfg = {**minimal_rsu_config, "id": 3}
 
-    rsu1 = RSUManager(Mock(), cfg, Mock(), mock_cav_world, data_dumping=False, autogenerate_id_on_failure=True)
-    rsu2 = RSUManager(Mock(), cfg, Mock(), mock_cav_world, data_dumping=False, autogenerate_id_on_failure=True)
+    rsu1 = RSUManager(Mock(), cfg, Mock(), mock_cav_world, autogenerate_id_on_failure=True)
+    rsu2 = RSUManager(Mock(), cfg, Mock(), mock_cav_world, autogenerate_id_on_failure=True)
 
     assert rsu1.id == "rsu-3"
     assert rsu2.id == "rsu-1"
@@ -68,7 +68,7 @@ def test_negative_id_with_autogen(mocker, minimal_rsu_config, mock_cav_world):
 
     cfg = {**minimal_rsu_config, "id": -1}
 
-    rsu = RSUManager(Mock(), cfg, Mock(), mock_cav_world, data_dumping=False)
+    rsu = RSUManager(Mock(), cfg, Mock(), mock_cav_world)
     assert rsu.id == "rsu-1"
 
 
@@ -78,7 +78,7 @@ def test_invalid_id_type_with_autogen(mocker, minimal_rsu_config, mock_cav_world
 
     cfg = {**minimal_rsu_config, "id": "not_a_number"}
 
-    rsu = RSUManager(Mock(), cfg, Mock(), mock_cav_world, data_dumping=False, autogenerate_id_on_failure=True)
+    rsu = RSUManager(Mock(), cfg, Mock(), mock_cav_world, autogenerate_id_on_failure=True)
     assert rsu.id == "rsu-1"
 
 
@@ -89,14 +89,14 @@ def test_invalid_id_type_without_autogen(mocker, minimal_rsu_config, mock_cav_wo
     cfg = {**minimal_rsu_config, "id": "not_a_number"}
 
     with pytest.raises(ValueError):
-        RSUManager(Mock(), cfg, Mock(), mock_cav_world, data_dumping=False, autogenerate_id_on_failure=False)
+        RSUManager(Mock(), cfg, Mock(), mock_cav_world, autogenerate_id_on_failure=False)
 
 
 def test_missing_id_with_autogen(mocker, minimal_rsu_config, mock_cav_world):
     _patch_rsu_manager_deps(mocker)
     from opencda.core.common.rsu_manager import RSUManager
 
-    rsu = RSUManager(Mock(), minimal_rsu_config, Mock(), mock_cav_world, data_dumping=False)
+    rsu = RSUManager(Mock(), minimal_rsu_config, Mock(), mock_cav_world)
     assert rsu.id == "rsu-1"
 
 
@@ -105,14 +105,22 @@ def test_missing_id_without_autogen(mocker, minimal_rsu_config, mock_cav_world):
     from opencda.core.common.rsu_manager import RSUManager
 
     with pytest.raises(ValueError, match="No RSU ID specified"):
-        RSUManager(Mock(), minimal_rsu_config, Mock(), mock_cav_world, data_dumping=False, autogenerate_id_on_failure=False)
+        RSUManager(Mock(), minimal_rsu_config, Mock(), mock_cav_world, autogenerate_id_on_failure=False)
 
 
 def test_data_dumper_created_when_enabled(mocker, minimal_rsu_config, mock_cav_world):
     deps = _patch_rsu_manager_deps(mocker)
     from opencda.core.common.rsu_manager import RSUManager
+    from opencda.core.sensing.perception.perception_manager import PerceptionRequirements
 
-    rsu = RSUManager(Mock(), minimal_rsu_config, Mock(), mock_cav_world, current_time="t0", data_dumping=True)
+    rsu = RSUManager(
+        Mock(),
+        minimal_rsu_config,
+        Mock(),
+        mock_cav_world,
+        current_time="t0",
+        perception_requirements=PerceptionRequirements.from_runtime_flags(data_dump=True),
+    )
     assert rsu.data_dumper is deps["dumper"]
 
 
@@ -120,7 +128,7 @@ def test_data_dumper_none_when_disabled(mocker, minimal_rsu_config, mock_cav_wor
     _patch_rsu_manager_deps(mocker)
     from opencda.core.common.rsu_manager import RSUManager
 
-    rsu = RSUManager(Mock(), minimal_rsu_config, Mock(), mock_cav_world, data_dumping=False)
+    rsu = RSUManager(Mock(), minimal_rsu_config, Mock(), mock_cav_world)
     assert rsu.data_dumper is None
 
 
@@ -128,7 +136,7 @@ def test_update_info_calls_localize_and_detect(mocker, minimal_rsu_config, mock_
     deps = _patch_rsu_manager_deps(mocker)
     from opencda.core.common.rsu_manager import RSUManager
 
-    rsu = RSUManager(Mock(), minimal_rsu_config, Mock(), mock_cav_world, data_dumping=False)
+    rsu = RSUManager(Mock(), minimal_rsu_config, Mock(), mock_cav_world)
 
     ego_pos = Mock()
     deps["localizer"].get_ego_pos.return_value = ego_pos
@@ -142,8 +150,15 @@ def test_update_info_calls_localize_and_detect(mocker, minimal_rsu_config, mock_
 def test_run_step_with_dumper(mocker, minimal_rsu_config, mock_cav_world):
     deps = _patch_rsu_manager_deps(mocker)
     from opencda.core.common.rsu_manager import RSUManager
+    from opencda.core.sensing.perception.perception_manager import PerceptionRequirements
 
-    rsu = RSUManager(Mock(), minimal_rsu_config, Mock(), mock_cav_world, data_dumping=True)
+    rsu = RSUManager(
+        Mock(),
+        minimal_rsu_config,
+        Mock(),
+        mock_cav_world,
+        perception_requirements=PerceptionRequirements.from_runtime_flags(data_dump=True),
+    )
 
     rsu.run_step()
     deps["dumper"].run_step.assert_called_once_with(deps["perception"], deps["localizer"], None)
@@ -153,7 +168,7 @@ def test_run_step_without_dumper(mocker, minimal_rsu_config, mock_cav_world):
     deps = _patch_rsu_manager_deps(mocker)
     from opencda.core.common.rsu_manager import RSUManager
 
-    rsu = RSUManager(Mock(), minimal_rsu_config, Mock(), mock_cav_world, data_dumping=False)
+    rsu = RSUManager(Mock(), minimal_rsu_config, Mock(), mock_cav_world)
 
     rsu.run_step()
     deps["dumper"].run_step.assert_not_called()
@@ -163,7 +178,7 @@ def test_destroy_calls_both_destroy(mocker, minimal_rsu_config, mock_cav_world):
     deps = _patch_rsu_manager_deps(mocker)
     from opencda.core.common.rsu_manager import RSUManager
 
-    rsu = RSUManager(Mock(), minimal_rsu_config, Mock(), mock_cav_world, data_dumping=False)
+    rsu = RSUManager(Mock(), minimal_rsu_config, Mock(), mock_cav_world)
 
     rsu.destroy()
     deps["perception"].destroy.assert_called_once_with()
@@ -175,7 +190,7 @@ def test_update_info_v2x_does_not_raise_and_has_no_side_effects(mocker, minimal_
     deps = _patch_rsu_manager_deps(mocker)
     from opencda.core.common.rsu_manager import RSUManager
 
-    rsu = RSUManager(Mock(), minimal_rsu_config, Mock(), mock_cav_world, data_dumping=False)
+    rsu = RSUManager(Mock(), minimal_rsu_config, Mock(), mock_cav_world)
 
     # Guard against accidental future logic being added to update_info_v2x().
     deps["localizer"].reset_mock()
@@ -191,7 +206,7 @@ def test_update_info_localizer_failure_propagates_and_stops_chain(mocker, minima
     deps = _patch_rsu_manager_deps(mocker)
     from opencda.core.common.rsu_manager import RSUManager
 
-    rsu = RSUManager(Mock(), minimal_rsu_config, Mock(), mock_cav_world, data_dumping=False)
+    rsu = RSUManager(Mock(), minimal_rsu_config, Mock(), mock_cav_world)
     deps["localizer"].localize.side_effect = RuntimeError("localize failed")
 
     with pytest.raises(RuntimeError, match="localize failed"):
@@ -205,7 +220,7 @@ def test_update_info_perception_failure_propagates(mocker, minimal_rsu_config, m
     deps = _patch_rsu_manager_deps(mocker)
     from opencda.core.common.rsu_manager import RSUManager
 
-    rsu = RSUManager(Mock(), minimal_rsu_config, Mock(), mock_cav_world, data_dumping=False)
+    rsu = RSUManager(Mock(), minimal_rsu_config, Mock(), mock_cav_world)
 
     ego_pos = Mock()
     deps["localizer"].get_ego_pos.return_value = ego_pos
