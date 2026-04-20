@@ -587,7 +587,7 @@ class TestCoperceptionDataProcessor:
 
         predicted_ego_pos = self._make_transform(100.0, 200.0, 300.0, 7.0, 8.0, 9.0)
         true_ego_pos = self._make_transform(101.0, 201.0, 301.0, 10.0, 11.0, 12.0)
-        localization_manager = MagicMock()
+        localization_manager = MagicMock(spec_set=["get_ego_pos", "get_ego_spd", "vehicle"])
         localization_manager.get_ego_pos.return_value = predicted_ego_pos
         localization_manager.get_ego_spd.return_value = 13.5
         localization_manager.vehicle = MagicMock(get_transform=MagicMock(return_value=true_ego_pos))
@@ -632,17 +632,38 @@ class TestCoperceptionDataProcessor:
 
         predicted_ego_pos = self._make_transform(50.0, 60.0, 70.0, 0.0, 90.0, 0.0)
         true_ego_pos = self._make_transform(51.0, 61.0, 71.0, 0.0, 91.0, 0.0)
-        localization_manager = MagicMock()
+        localization_manager = MagicMock(spec_set=["get_ego_pos", "get_ego_spd", "true_ego_pos", "rsu"])
         localization_manager.get_ego_pos.return_value = predicted_ego_pos
         localization_manager.get_ego_spd.return_value = 0.0
         localization_manager.true_ego_pos = true_ego_pos
-        del localization_manager.vehicle
+        localization_manager.rsu = MagicMock()
 
         params = processor.build_live_params(perception_manager, localization_manager, None)
 
         assert params["RSU"] is True
         assert "plan_trajectory" not in params
         assert params["true_ego_pos"] == (51.0, 61.0, 71.0, 0.0, 91.0, 0.0)
+
+    def test_build_live_params_raises_for_unknown_localization_manager_type(self):
+        processor = CoperceptionDataProcessor()
+
+        lidar_transform = self._make_transform(10.0, 20.0, 30.0, 1.0, 2.0, 3.0)
+        perception_manager = MagicMock()
+        perception_manager.objects = {"vehicles": []}
+        perception_manager.lidar = MagicMock(sensor=MagicMock(get_transform=MagicMock(return_value=lidar_transform)))
+        perception_manager.rgb_camera = []
+
+        class UnknownLocalizationManager:
+            def get_ego_pos(self):
+                return self_pose
+
+            def get_ego_spd(self):
+                return 0.0
+
+        self_pose = self._make_transform(1.0, 2.0, 3.0, 0.0, 0.0, 0.0)
+
+        with pytest.raises(ValueError, match="Unknown localization manager type"):
+            processor.build_live_params(perception_manager, UnknownLocalizationManager(), None)
 
     def test_build_live_memory_returns_none_and_warns_for_empty_agents(self):
         processor = CoperceptionDataProcessor()

@@ -2,15 +2,15 @@ from __future__ import annotations
 
 import logging
 from collections import OrderedDict
-from typing import TYPE_CHECKING, Sequence, TypeAlias, TypedDict, cast
+from typing import TYPE_CHECKING, Sequence, TypedDict, cast
 
 import numpy as np
 
 from opencda.core.common.misc import get_speed
+from opencda.core.common.utils import transform_to_tuple
 from opencda.core.sensing.perception import sensor_transformation as st
 
 if TYPE_CHECKING:
-    import carla
     from opencda.core.common.rsu_manager import RSUManager
     from opencda.core.common.vehicle_manager import VehicleManager
     from opencda.core.plan.behavior_agent import BehaviorAgent
@@ -20,9 +20,6 @@ if TYPE_CHECKING:
     from opencda.core.sensing.perception.perception_manager import PerceptionManager
 
 logger = logging.getLogger("cavise.opencda.opencda.core.common.coperception_data_processor")
-
-if TYPE_CHECKING:
-    LocalizationManagerLike: TypeAlias = VehicleLocalizationManager | RsuLocalizationManager
 
 
 class VehicleDumpRecord(TypedDict):
@@ -51,6 +48,12 @@ class LiveParams(TypedDict, total=False):
     plan_trajectory: list[tuple[float, float, float]]  # noqa: DC01
 
 
+class LiveMemorySnapshot(TypedDict):
+    params: LiveParams
+    lidar_np: np.ndarray
+    camera0: list[object]  # noqa: DC01
+
+
 class CoperceptionDataProcessor:
     @staticmethod
     def _build_live_camera_snapshots(perception_manager: PerceptionManager) -> list[object]:
@@ -60,20 +63,9 @@ class CoperceptionDataProcessor:
         return []
 
     @staticmethod
-    def _transform_to_tuple(transform: carla.Transform) -> tuple[float, float, float, float, float, float]:
-        return (
-            transform.location.x,
-            transform.location.y,
-            transform.location.z,
-            transform.rotation.roll,
-            transform.rotation.yaw,
-            transform.rotation.pitch,
-        )
-
     def build_live_params(
-        self,
         perception_manager: PerceptionManager,
-        localization_manager: LocalizationManagerLike,
+        localization_manager: VehicleLocalizationManager | RsuLocalizationManager,
         behavior_agent: BehaviorAgent | None,
     ) -> LiveParams:
         dump_yml: LiveParams = {}
@@ -111,26 +103,26 @@ class CoperceptionDataProcessor:
         dump_yml["vehicles"] = vehicle_dict
 
         predicted_ego_pos = localization_manager.get_ego_pos()
-        if hasattr(localization_manager, "vehicle"):
-            vehicle_localizer = cast("VehicleLocalizationManager", localization_manager)
-            true_ego_pos = vehicle_localizer.vehicle.get_transform()
-
-        elif hasattr(localization_manager, "rsu"):
+        if hasattr(localization_manager, "rsu"):
             rsu_localizer = cast("RsuLocalizationManager", localization_manager)
             true_ego_pos = rsu_localizer.true_ego_pos
-
+            dump_yml["RSU"] = True
+        elif hasattr(localization_manager, "vehicle"):
+            vehicle_localizer = cast("VehicleLocalizationManager", localization_manager)
+            true_ego_pos = vehicle_localizer.vehicle.get_transform()
+            dump_yml["RSU"] = False
         else:
             raise ValueError("Unknown localization manager type")
 
-        dump_yml["predicted_ego_pos"] = self._transform_to_tuple(predicted_ego_pos)
-        dump_yml["true_ego_pos"] = self._transform_to_tuple(true_ego_pos)
+        dump_yml["predicted_ego_pos"] = transform_to_tuple(predicted_ego_pos)
+        dump_yml["true_ego_pos"] = transform_to_tuple(true_ego_pos)
         dump_yml["ego_speed"] = float(localization_manager.get_ego_spd())
 
         lidar = perception_manager.lidar
         if lidar is None:
             raise RuntimeError("Coperception requires LiDAR, but perception_manager.lidar is not initialized.")
         lidar_transform = lidar.sensor.get_transform()
-        dump_yml["lidar_pose"] = self._transform_to_tuple(lidar_transform)
+        dump_yml["lidar_pose"] = transform_to_tuple(lidar_transform)
 
         for i, camera in enumerate(getattr(perception_manager, "rgb_camera", None) or []):
             camera_transform = camera.sensor.get_transform()
@@ -140,17 +132,15 @@ class CoperceptionDataProcessor:
             world2camera = np.linalg.inv(camera2world)
             lidar2camera = np.dot(world2camera, lidar2world)
             camera_record: CameraDumpRecord = {
-                "cords": self._transform_to_tuple(camera_transform),
+                "cords": transform_to_tuple(camera_transform),
                 "intrinsic": cast(list[list[float]], camera_intrinsic.tolist()),
                 "extrinsic": cast(list[list[float]], lidar2camera.tolist()),
             }
             camera_records[f"camera{i}"] = camera_record
 
-        dump_yml["RSU"] = True
         if behavior_agent is not None:
             trajectory_deque = behavior_agent.get_local_planner().get_trajectory()
             dump_yml["plan_trajectory"] = [(wp.location.x, wp.location.y, spd) for wp, spd in list(trajectory_deque)]
-            dump_yml["RSU"] = False
 
         return cast(LiveParams, {**dump_yml, **camera_records})
 
@@ -159,13 +149,13 @@ class CoperceptionDataProcessor:
         single_cav_list: Sequence[VehicleManager],
         rsu_list: Sequence[RSUManager],
         tick_number: int,
-    ) -> OrderedDict[int, OrderedDict[str, object]] | None:
+    ) -> OrderedDict[int, OrderedDict[str, OrderedDict[str, LiveMemorySnapshot | bool]]] | None:
         timestamp = f"{tick_number:06d}"
         if len(single_cav_list) == 0 and len(rsu_list) == 0:
             logger.warning("Skipping cooperative perception tick %s because there are no CAV or RSU agents.", tick_number)
             return None
 
-        scenario_data: OrderedDict[int, OrderedDict[str, object]] = OrderedDict()
+        scenario_data: OrderedDict[int, OrderedDict[str, OrderedDict[str, LiveMemorySnapshot | bool]]] = OrderedDict()
         scenario_data[0] = OrderedDict()
 
         ego_vehicle_id = single_cav_list[0].id if len(single_cav_list) > 0 else None
@@ -187,9 +177,9 @@ class CoperceptionDataProcessor:
                 )
                 continue
             vehicle_lidar_data = cast(np.ndarray, vehicle_lidar.data)
-            agent_record: OrderedDict[str, object] = OrderedDict()
+            agent_record: OrderedDict[str, LiveMemorySnapshot | bool] = OrderedDict()
             scenario_data[0][vehicle_manager.id] = agent_record
-            agent_record[timestamp] = {
+            agent_snapshot: LiveMemorySnapshot = {
                 "params": self.build_live_params(
                     vehicle_manager.perception_manager,
                     vehicle_manager.localizer,
@@ -198,6 +188,7 @@ class CoperceptionDataProcessor:
                 "lidar_np": vehicle_lidar_data.copy(),
                 "camera0": self._build_live_camera_snapshots(vehicle_manager.perception_manager),
             }
+            agent_record[timestamp] = agent_snapshot
             agent_record["ego"] = vehicle_manager.id == ego_vehicle_id
 
         for rsu_manager in rsu_list:
@@ -217,9 +208,9 @@ class CoperceptionDataProcessor:
                 )
                 continue
             rsu_lidar_data = cast(np.ndarray, rsu_lidar.data)
-            rsu_record: OrderedDict[str, object] = OrderedDict()
+            rsu_record: OrderedDict[str, LiveMemorySnapshot | bool] = OrderedDict()
             scenario_data[0][rsu_manager.id] = rsu_record
-            rsu_record[timestamp] = {
+            rsu_snapshot: LiveMemorySnapshot = {
                 "params": self.build_live_params(
                     rsu_manager.perception_manager,
                     rsu_manager.localizer,
@@ -228,6 +219,7 @@ class CoperceptionDataProcessor:
                 "lidar_np": rsu_lidar_data.copy(),
                 "camera0": self._build_live_camera_snapshots(rsu_manager.perception_manager),
             }
+            rsu_record[timestamp] = rsu_snapshot
             rsu_record["ego"] = False
 
         if len(scenario_data[0]) == 0:
