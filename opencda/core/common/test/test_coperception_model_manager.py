@@ -481,12 +481,10 @@ class TestCoperceptionModelManager:
         vis_instance = manager.vis
 
         vis_instance.create_window.assert_called()
-        vis_instance.add_geometry.assert_called()  # i=0
+        assert vis_instance.add_geometry.call_count == 3
         vis_instance.update_renderer.assert_called()
         mock_visualize.assert_called_once()
-
-        # Verify line set assignment was called
-        assert manager_deps["vis_utils"].linset_assign_list.call_count == 2
+        manager_deps["vis_utils"].linset_assign_list.assert_not_called()
 
     def test_make_prediction_warns_and_uses_first_batch_when_loader_has_multiple_batches(self, manager_deps):
         opt = DummyOpt()

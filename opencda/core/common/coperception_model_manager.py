@@ -701,7 +701,7 @@ class CoperceptionModelManager:
             self.vis.get_render_option().show_coordinate_frame = True  # noqa: DC05
         return SequenceVisualizationState(
             pcd=o3d.geometry.PointCloud(),
-            box_groups={group_name: [o3d.geometry.LineSet() for _ in range(50)] for group_name in self.SEQUENCE_BOX_GROUP_NAMES},
+            box_groups={group_name: [] for group_name in self.SEQUENCE_BOX_GROUP_NAMES},
         )
 
     def _update_sequence_visualization(
@@ -727,20 +727,13 @@ class CoperceptionModelManager:
             visualization_config=self.visualization_config,
             visualization_context=visualization_context,
         )
-        if index == 0:
-            self.vis.add_geometry(pcd)
-            update_mode = "add"
-        else:
-            update_mode = None
+        self.vis.add_geometry(pcd)
 
         for group_name in self.SEQUENCE_BOX_GROUP_NAMES:
-            kwargs = {"update_mode": update_mode} if update_mode is not None else {}
-            vis_utils.linset_assign_list(
-                self.vis,
-                sequence_state.box_groups[group_name],
-                box_groups.get(group_name, []),
-                **kwargs,
-            )
+            line_sets = list(box_groups.get(group_name, []))
+            sequence_state.box_groups[group_name] = line_sets
+            for line_set in line_sets:
+                self.vis.add_geometry(line_set)
 
         self.vis.update_geometry(pcd)
         self.vis.poll_events()
