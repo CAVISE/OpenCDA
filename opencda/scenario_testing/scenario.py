@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 import logging
 import os
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, NoReturn, cast
@@ -77,8 +76,9 @@ class Scenario:
         town: str | None = None
         if xodr_path is None:
             if "town" not in scenario_config["world"]:
-                logger.error(f"You must specify xodr parameter or town key in opencda/scenario_testing/config_yaml/{self.scenario_name}.yaml")
-                sys.exit(1)
+                self._abort_simulation(
+                    f"You must specify xodr parameter or town key in opencda/scenario_testing/config_yaml/{self.scenario_name}.yaml"
+                )
             town = cast(str, scenario_config["world"]["town"])
             logger.info(f"using town: {town}")
 
@@ -163,8 +163,7 @@ class Scenario:
 
         if opt.with_coperception and opt.model_dir:
             if not os.path.isdir(opt.model_dir):
-                logger.error(f'Model directory "{opt.model_dir}" does not exist.')
-                sys.exit(1)
+                self._abort_simulation(f'Model directory "{opt.model_dir}" does not exist; cannot initialize cooperative perception manager.')
 
             cp_vis_config = OmegaConf.to_container(
                 scenario_params.get("cooperative_perception_visualization", {}),
@@ -172,7 +171,7 @@ class Scenario:
             )
 
             CoperceptionManagerClass: type[CoperceptionModelManager]
-            if getattr(opt, "with_advcp", False):
+            if opt.with_advcp:
                 from opencda.core.attack.advcp.adv_coperception_model_manager import AdvCoperceptionModelManager as CoperceptionManagerClass
             else:
                 from opencda.core.common.coperception_model_manager import CoperceptionModelManager as CoperceptionManagerClass
@@ -198,6 +197,15 @@ class Scenario:
                         visualization_config=cp_vis_config,
                     )
 
+            """
+            TODO: Create decorators to write such stuff
+
+            @cavise.SimObject
+            class SomeCoolManager
+            that would at least take the logging part - writing "creating SomeCoolManager manager", destroying SomeCoolManager manager"
+
+            Also ideally it would also somehow verify manager configs, for example.
+            """
             self.coperception_data_processor = CoperceptionDataProcessor()
             logger.info("created cooperception manager")
 
