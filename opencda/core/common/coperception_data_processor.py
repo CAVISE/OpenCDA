@@ -17,7 +17,7 @@ if TYPE_CHECKING:
     from opencda.core.sensing.localization.localization_manager import LocalizationManager as VehicleLocalizationManager
     from opencda.core.sensing.localization.rsu_localization_manager import LocalizationManager as RsuLocalizationManager
     from opencda.core.sensing.perception.obstacle_vehicle import ObstacleVehicle
-    from opencda.core.sensing.perception.perception_manager import LidarSensor, PerceptionManager
+    from opencda.core.sensing.perception.perception_manager import PerceptionManager
 
 logger = logging.getLogger("cavise.opencda.opencda.core.common.coperception_data_processor")
 
@@ -34,18 +34,6 @@ class CoperceptionDataProcessor:
         return []
 
     @staticmethod
-    def _require_lidar(perception_manager: PerceptionManager) -> LidarSensor:
-        if perception_manager.lidar is None:
-            raise RuntimeError("Co-perception requires LiDAR, but perception_manager.lidar is not initialized.")
-        return perception_manager.lidar
-
-    @staticmethod
-    def _require_lidar_data(lidar: LidarSensor) -> np.ndarray:
-        if lidar.data is None:
-            raise RuntimeError("Co-perception requires LiDAR data, but lidar.data is not initialized.")
-        return cast(np.ndarray, lidar.data)
-
-    @staticmethod
     def _transform_to_list(transform: carla.Transform) -> list[float]:
         return [
             transform.location.x,
@@ -55,10 +43,6 @@ class CoperceptionDataProcessor:
             transform.rotation.yaw,
             transform.rotation.pitch,
         ]
-
-    @staticmethod
-    def _matrix_to_list(matrix: np.ndarray) -> list[list[float]]:
-        return matrix.tolist()
 
     def build_live_params(
         self,
@@ -103,7 +87,9 @@ class CoperceptionDataProcessor:
         dump_yml["true_ego_pos"] = self._transform_to_list(true_ego_pos)
         dump_yml["ego_speed"] = float(localization_manager.get_ego_spd())
 
-        lidar = self._require_lidar(perception_manager)
+        lidar = perception_manager.lidar
+        if lidar is None:
+            raise RuntimeError("Coperception requires LiDAR, but perception_manager.lidar is not initialized.")
         lidar_transform = lidar.sensor.get_transform()
         dump_yml["lidar_pose"] = self._transform_to_list(lidar_transform)
 
@@ -116,8 +102,8 @@ class CoperceptionDataProcessor:
             lidar2camera = np.dot(world2camera, lidar2world)
             dump_yml[f"camera{i}"] = {
                 "cords": self._transform_to_list(camera_transform),
-                "intrinsic": self._matrix_to_list(camera_intrinsic),
-                "extrinsic": self._matrix_to_list(lidar2camera),
+                "intrinsic": camera_intrinsic.tolist(),
+                "extrinsic": lidar2camera.tolist(),
             }
 
         dump_yml["RSU"] = True
@@ -145,8 +131,22 @@ class CoperceptionDataProcessor:
         ego_vehicle_id = single_cav_list[0].id if len(single_cav_list) > 0 else None
 
         for vehicle_manager in single_cav_list:
-            vehicle_lidar = self._require_lidar(vehicle_manager.perception_manager)
-            vehicle_lidar_data = self._require_lidar_data(vehicle_lidar)
+            vehicle_lidar = vehicle_manager.perception_manager.lidar
+            if vehicle_lidar is None:
+                logger.warning(
+                    "Skipping cooperative perception agent %s on tick %s because LiDAR is not initialized.",
+                    vehicle_manager.id,
+                    tick_number,
+                )
+                continue
+            if vehicle_lidar.data is None:
+                logger.warning(
+                    "Skipping cooperative perception agent %s on tick %s because LiDAR data is not initialized.",
+                    vehicle_manager.id,
+                    tick_number,
+                )
+                continue
+            vehicle_lidar_data = cast(np.ndarray, vehicle_lidar.data)
             agent_record: OrderedDict[str, object] = OrderedDict()
             scenario_data[0][vehicle_manager.id] = agent_record
             agent_record[timestamp] = {
@@ -161,8 +161,22 @@ class CoperceptionDataProcessor:
             agent_record["ego"] = vehicle_manager.id == ego_vehicle_id
 
         for rsu_manager in rsu_list:
-            rsu_lidar = self._require_lidar(rsu_manager.perception_manager)
-            rsu_lidar_data = self._require_lidar_data(rsu_lidar)
+            rsu_lidar = rsu_manager.perception_manager.lidar
+            if rsu_lidar is None:
+                logger.warning(
+                    "Skipping cooperative perception agent %s on tick %s because LiDAR is not initialized.",
+                    rsu_manager.id,
+                    tick_number,
+                )
+                continue
+            if rsu_lidar.data is None:
+                logger.warning(
+                    "Skipping cooperative perception agent %s on tick %s because LiDAR data is not initialized.",
+                    rsu_manager.id,
+                    tick_number,
+                )
+                continue
+            rsu_lidar_data = cast(np.ndarray, rsu_lidar.data)
             rsu_record: OrderedDict[str, object] = OrderedDict()
             scenario_data[0][rsu_manager.id] = rsu_record
             rsu_record[timestamp] = {
@@ -175,5 +189,9 @@ class CoperceptionDataProcessor:
                 "camera0": self._build_live_camera_snapshots(rsu_manager.perception_manager),
             }
             rsu_record["ego"] = False
+
+        if len(scenario_data[0]) == 0:
+            logger.warning("Skipping cooperative perception tick %s because no agents have valid LiDAR data.", tick_number)
+            return None
 
         return scenario_data

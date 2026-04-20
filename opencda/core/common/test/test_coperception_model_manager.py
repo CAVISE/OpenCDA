@@ -549,18 +549,6 @@ class TestCoperceptionDataProcessor:
             extent=MagicMock(x=ex, y=ey, z=ez),
         )
 
-    def test_require_lidar_raises_when_missing(self):
-        perception_manager = MagicMock(lidar=None)
-
-        with pytest.raises(RuntimeError, match="requires LiDAR"):
-            CoperceptionDataProcessor._require_lidar(perception_manager)
-
-    def test_require_lidar_data_raises_when_missing(self):
-        lidar = MagicMock(data=None)
-
-        with pytest.raises(RuntimeError, match="requires LiDAR data"):
-            CoperceptionDataProcessor._require_lidar_data(lidar)
-
     def test_build_live_camera_snapshots_returns_placeholder_list(self):
         processor = CoperceptionDataProcessor()
 
@@ -700,7 +688,7 @@ class TestCoperceptionDataProcessor:
         assert memory[0]["rsu-1"]["000012"]["lidar_np"].tolist() == [[7.0, 8.0, 9.0, 1.0]]
         assert memory[0]["cav-1"]["000012"]["camera0"] == []
 
-    def test_build_live_memory_raises_when_vehicle_lidar_is_missing(self):
+    def test_build_live_memory_skips_vehicle_when_lidar_is_missing(self):
         processor = CoperceptionDataProcessor()
         cav = MagicMock()
         cav.id = "cav-1"
@@ -708,10 +696,21 @@ class TestCoperceptionDataProcessor:
         cav.localizer = MagicMock()
         cav.agent = MagicMock()
 
-        with pytest.raises(RuntimeError, match="requires LiDAR"):
-            processor.build_live_memory([cav], [], 1)
+        with patch("opencda.core.common.coperception_data_processor.logger.warning") as mock_warning:
+            memory = processor.build_live_memory([cav], [], 1)
 
-    def test_build_live_memory_raises_when_vehicle_lidar_data_is_missing(self):
+        assert memory is None
+        assert mock_warning.call_args_list[0][0] == (
+            "Skipping cooperative perception agent %s on tick %s because LiDAR is not initialized.",
+            "cav-1",
+            1,
+        )
+        assert mock_warning.call_args_list[1][0] == (
+            "Skipping cooperative perception tick %s because no agents have valid LiDAR data.",
+            1,
+        )
+
+    def test_build_live_memory_skips_vehicle_when_lidar_data_is_missing(self):
         processor = CoperceptionDataProcessor()
         cav = MagicMock()
         cav.id = "cav-1"
@@ -719,5 +718,16 @@ class TestCoperceptionDataProcessor:
         cav.localizer = MagicMock()
         cav.agent = MagicMock()
 
-        with pytest.raises(RuntimeError, match="requires LiDAR data"):
-            processor.build_live_memory([cav], [], 1)
+        with patch("opencda.core.common.coperception_data_processor.logger.warning") as mock_warning:
+            memory = processor.build_live_memory([cav], [], 1)
+
+        assert memory is None
+        assert mock_warning.call_args_list[0][0] == (
+            "Skipping cooperative perception agent %s on tick %s because LiDAR data is not initialized.",
+            "cav-1",
+            1,
+        )
+        assert mock_warning.call_args_list[1][0] == (
+            "Skipping cooperative perception tick %s because no agents have valid LiDAR data.",
+            1,
+        )

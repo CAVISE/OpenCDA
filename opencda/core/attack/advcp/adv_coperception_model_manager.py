@@ -6,7 +6,7 @@ from typing import Any, Mapping, Optional, TypedDict
 
 import numpy as np
 import torch
-import yaml  # type: ignore[import-untyped]
+import yaml  # type: ignore
 
 from opencda.core.common.coperception_model_manager import (
     CoperceptionInferenceResult,
