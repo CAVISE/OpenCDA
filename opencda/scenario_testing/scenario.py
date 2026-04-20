@@ -233,9 +233,6 @@ class Scenario:
                     transform = self.platoon_list[0].vehicle_manager_list[0].vehicle.get_transform()
                     self.spectator.set_transform(carla.Transform(transform.location + carla.Location(z=50), carla.Rotation(pitch=-90)))
 
-            if opt.with_aim:
-                self.codriving_model_manager.make_trajs(carla_vmanagers=self.single_cav_list)
-
             if self.platoon_list is not None:
                 logger.debug("updating platoons")
                 for platoon in self.platoon_list:
