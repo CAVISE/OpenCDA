@@ -5,6 +5,7 @@ Perception module base.
 import weakref
 import sys
 import logging
+from dataclasses import dataclass
 
 import carla
 import cv2
@@ -18,6 +19,25 @@ from opencda.core.sensing.perception.static_obstacle import TrafficLight
 from opencda.core.sensing.perception.o3d_lidar_libs import o3d_visualizer_init, o3d_pointcloud_encode, o3d_visualizer_show, o3d_camera_lidar_fusion
 
 logger = logging.getLogger("cavise.opencda.opencda.core.sensing.perception.perception_manager")
+
+
+@dataclass(frozen=True)
+class PerceptionRequirements:
+    enable_data_dump: bool = False
+    force_rgb_camera: bool = False
+    force_lidar: bool = False
+    force_semantic_lidar: bool = False
+    extend_inactive_detection_range: bool = False
+
+    @classmethod
+    def from_runtime_flags(cls, data_dump: bool = False, with_coperception: bool = False) -> "PerceptionRequirements":
+        return cls(
+            enable_data_dump=data_dump,
+            force_rgb_camera=data_dump,
+            force_lidar=data_dump or with_coperception,
+            force_semantic_lidar=data_dump or with_coperception,
+            extend_inactive_detection_range=data_dump or with_coperception,
+        )
 
 
 class CameraSensor:
@@ -316,12 +336,21 @@ class PerceptionManager:
         Open3d point cloud visualizer.
     """
 
-    def __init__(self, vehicle, config_yaml, cav_world, infra_id, data_dump=False, carla_world=None, with_coperception=False):
+    def __init__(
+        self,
+        vehicle,
+        config_yaml,
+        cav_world,
+        infra_id,
+        perception_requirements: PerceptionRequirements = PerceptionRequirements(),
+        carla_world=None,
+    ):
         self.vehicle = vehicle
         self.carla_world = carla_world if carla_world is not None else self.vehicle.get_world()
         self._map = self.carla_world.get_map()
         # 12 - walker, pedestrian, [13,18] - bikes, motobikes, 14 - vehicles, 15 - vehicles, trucks,  16 - vehicle.mitsubishi.fusorosa,
         self.semantic_tag_list = [12, 13, 14, 15, 16, 18]
+        self.perception_requirements = perception_requirements
 
         self.id = infra_id
         if vehicle is None:
@@ -338,7 +367,7 @@ class PerceptionManager:
         self.cav_world = weakref.ref(cav_world)()
         ml_manager = cav_world.ml_manager
 
-        if self.activate and data_dump:
+        if self.activate and self.perception_requirements.enable_data_dump:
             logger.info("When you dump data for dataset, please deactivate the detection function for precise label.")
 
         if self.activate and not ml_manager:
@@ -349,7 +378,7 @@ class PerceptionManager:
 
         # we only spawn the camera when perception module is activated or
         # camera visualization is needed
-        if self.activate or self.camera_visualize or data_dump:
+        if self.activate or self.camera_visualize or self.perception_requirements.force_rgb_camera:
             self.rgb_camera = []
             mount_position = config_yaml["camera"]["positions"]
             assert len(mount_position) == self.camera_num, "The camera number has to be the same as the length of the relative positions list"
@@ -368,7 +397,7 @@ class PerceptionManager:
         self.lidar = None
         self.o3d_vis = None
 
-        if self.lidar_visualize or self.activate or data_dump or with_coperception:
+        if self.lidar_visualize or self.activate or self.perception_requirements.force_lidar:
             self.lidar = LidarSensor(vehicle, self.carla_world, config_yaml["lidar"], self.global_position)
             if self.lidar_visualize:
                 self.o3d_vis = o3d_visualizer_init(self.id)
@@ -379,10 +408,9 @@ class PerceptionManager:
             logger.warning("Variable lidar is None. Dumping, detection function or Lidar visualization should be activated to avoid this behavior")
 
         # semantic lidar is needed both for dataset dumping and CoP range filtering
-        self.data_dump = data_dump
-        self.with_coperception = with_coperception
+        self.data_dump = self.perception_requirements.enable_data_dump
         self.semantic_lidar = None
-        if data_dump or with_coperception:
+        if self.perception_requirements.force_semantic_lidar:
             self.semantic_lidar = SemanticLidarSensor(vehicle, self.carla_world, config_yaml["lidar"], self.global_position)
 
         # count how many steps have been passed
@@ -526,7 +554,7 @@ class PerceptionManager:
         vehicle_list += [i for i in world.get_actors().filter("*walker*")]
 
         # TODO: hard coded
-        thresh = 50 if not (self.data_dump or self.with_coperception) else 120
+        thresh = 120 if self.perception_requirements.extend_inactive_detection_range else 50
 
         vehicle_list = [v for v in vehicle_list if self.dist(v) < thresh and v.id != self.carla_id]
 

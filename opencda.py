@@ -6,21 +6,26 @@ import os
 import sys
 import enum
 import errno
-import typing
 import pathlib
 import logging
 import argparse
 import omegaconf
 import subprocess
+from collections.abc import Callable, Collection
+from types import ModuleType
+from typing import cast
 
+from omegaconf import DictConfig
 from opencda.version import __version__
 
 
 try:
-    from rich.traceback import install as rich_traceback_install
+    from rich.traceback import install as _rich_traceback_install
 except ModuleNotFoundError:
-    rich_traceback_install = None
+    rich_traceback_install: Callable[..., object] | None = None
     print("Rich tracebacks are not available, all CLI configuration regarding tracebacks is ignored.")
+else:
+    rich_traceback_install = _rich_traceback_install
 
 
 try:
@@ -59,7 +64,7 @@ def create_logger(level: int, fmt: str = "- [%(asctime)s][%(name)s] %(message)s"
     return logger
 
 
-def install_traceback_handler(verbose: bool = True, suppress_modules: typing.Collection[str] = ()):
+def install_traceback_handler(verbose: bool = True, suppress_modules: Collection[str] = ()) -> None:
     default_filtered_modules = [
         "numpy",
         "scipy",
@@ -73,7 +78,8 @@ def install_traceback_handler(verbose: bool = True, suppress_modules: typing.Col
         "omegaconf",
     ]
 
-    joined = set(default_filtered_modules) & set(suppress_modules)
+    joined_strings = set(default_filtered_modules) & set(suppress_modules)
+    joined: set[str | ModuleType] = set(joined_strings)
     if rich_traceback_install is not None:
         rich_traceback_install(show_locals=verbose, suppress=joined)
 
@@ -123,8 +129,7 @@ def arg_parse() -> argparse.Namespace:
         "--with-coperception", action="store_true", help="Whether to enable the use of cooperative perception models in this simulation."
     )
     parser.add_argument("--model-dir", type=str, help="Continued training path")
-    parser.add_argument("--fusion-method", type=str, default="late", help="late, early or intermediate")
-    parser.add_argument("--show-sequence", action="store_true", help="whether to show video visualization result")
+    parser.add_argument("--show-video-vis", action="store_true", help="whether to show video visualization result")
     parser.add_argument("--save-vis", action="store_true", help="whether to save visualization result")
     parser.add_argument("--save-npy", action="store_true", help="whether to save prediction and gt result in npy_test file")
     parser.add_argument(
@@ -154,8 +159,6 @@ def arg_parse() -> argparse.Namespace:
         choices=[level.value for level in VerbosityLevel],
         help="Specifies overall verbosity of output.",
     )
-
-    parser.add_argument("--with-aim", action="store_true", help="Whether to enable the use of AIM in this simulation.")
 
     parser.add_argument("--ticks", type=int, help="number of simulation ticks to execute")
     return parser.parse_args()
@@ -240,6 +243,7 @@ def main() -> None:
     default_dict = omegaconf.OmegaConf.load(str(default_yaml))
     scene_dict = omegaconf.OmegaConf.load(str(config_yaml))
     scene_dict = omegaconf.OmegaConf.merge(default_dict, scene_dict)
+    scene_dict = cast(DictConfig, scene_dict)
 
     # NOTICE: temporary measure (while option is turned off)
     opt.apply_ml = False

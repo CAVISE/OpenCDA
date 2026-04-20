@@ -14,7 +14,7 @@ logger = logging.getLogger("cavise.opencda.opencda.core.attack.advcp.early_fusio
 
 class EarlyAdvCPVisualizationContext(TypedDict):
     attacker_ids: list[str]
-    fake_box_tensor: Any | None
+    fake_box_tensor: Any | None  # noqa: DC01
     mode: str | None
 
 
