@@ -214,7 +214,7 @@ class VehicleManager(object):
     def __set_behavior_services(self, behavior_services: Optional[Iterable[BehaviorService[Any, Any]]]) -> None:
         services = tuple(behavior_services or ())
         self.__validate_behavior_services(services)
-        self.behavior_services = services
+        self.behavior_services = tuple(sorted(services, key=lambda service: service.priority))
         self.behavior_service_results: list[TransportMessage] = []
         self._behavior_services_by_name = {service.service_name: service for service in self.behavior_services}
 
@@ -228,6 +228,9 @@ class VehicleManager(object):
             service_name = service.service_name
             if service_name in seen_service_ids:
                 raise ValueError(f"Duplicate behavior service ID detected: {service_name!r}.")
+
+            if not isinstance(service.priority, int):
+                raise TypeError(f"Behavior service {service_name!r} must define an integer priority; got {type(service.priority).__name__!r}.")
 
             seen_service_ids.add(service_name)
 
