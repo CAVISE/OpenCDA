@@ -151,13 +151,8 @@ class DataDumper(object):
             veh_bbx = veh.bounding_box
             veh_speed = get_speed(veh)
 
-            """
-            NOTE: carla_id == -1 marks a perception-only detection that is not linked to a real CARLA actor.
-            This can happen when objects come from the activated camera/lidar detection pipeline rather than from world.get_actors().
-            Such detections are not reliable ground-truth records, so dataset dumping and cooperative perception snapshot building must ignore them and use only objects backed by real simulator actors.
-            TODO: Rework this behavior
-            """
-            assert veh_carla_id != -1, "Please turn off perception active mode if you are dumping data"
+            # NOTE: carla_id == -1 marks a perception-only detection that is not linked to a real CARLA actor.
+            assert veh_carla_id != -1
 
             vehicle_dict.update(
                 {

@@ -7,6 +7,7 @@ from typing import Any, Mapping, Optional, TypedDict
 import numpy as np
 import torch
 import yaml  # type: ignore
+from opencood.hypes_yaml.yaml_utils import load_yaml
 
 from opencda.core.common.coperception_model_manager import (
     CoperceptionInferenceResult,
@@ -349,11 +350,9 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
         timestamp = next(key for key in agent_data.keys() if key != "ego")
         snapshot = agent_data[timestamp]
         yaml_path = snapshot.get("yaml")
-        params = snapshot.get("params")
-        if params is None:
+        if (params := snapshot.get("params")) is None:
             if yaml_path is None:
                 raise ValueError(f"AdvCP agent state for '{agent_id}' does not define either 'params' or 'yaml'.")
-            from opencood.hypes_yaml.yaml_utils import load_yaml
 
             params = load_yaml(yaml_path)
 

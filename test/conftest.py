@@ -70,14 +70,12 @@ class _PlaceholderPerceptionRequirements:
     def __init__(
         self,
         enable_data_dump: bool = False,
-        enable_cooperative_perception: bool = False,
         force_rgb_camera: bool = False,
         force_lidar: bool = False,
         force_semantic_lidar: bool = False,
         extend_inactive_detection_range: bool = False,
     ):
         self.enable_data_dump = enable_data_dump
-        self.enable_cooperative_perception = enable_cooperative_perception
         self.force_rgb_camera = force_rgb_camera
         self.force_lidar = force_lidar
         self.force_semantic_lidar = force_semantic_lidar
@@ -87,7 +85,6 @@ class _PlaceholderPerceptionRequirements:
     def from_runtime_flags(cls, data_dump: bool = False, with_coperception: bool = False):
         return cls(
             enable_data_dump=data_dump,
-            enable_cooperative_perception=with_coperception,
             force_rgb_camera=data_dump,
             force_lidar=data_dump or with_coperception,
             force_semantic_lidar=data_dump or with_coperception,

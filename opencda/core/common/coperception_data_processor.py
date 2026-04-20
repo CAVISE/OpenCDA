@@ -74,12 +74,8 @@ class CoperceptionDataProcessor:
 
         objects = perception_manager.objects
         vehicle_list = cast("Sequence[ObstacleVehicle]", objects.get("vehicles", []))
-        """
-        NOTE: carla_id == -1 marks a perception-only detection that is not linked to a real CARLA actor.
-        This can happen when objects come from the activated camera/lidar detection pipeline rather than from world.get_actors().
-        Such detections are not reliable ground-truth records, so dataset dumping and cooperative perception snapshot building must ignore them and use only objects backed by real simulator actors.
-        TODO: Rework this behavior
-        """
+
+        # NOTE: carla_id == -1 marks a perception-only detection that is not linked to a real CARLA actor.
         for veh in vehicle_list:
             veh_carla_id = veh.carla_id
             if veh_carla_id == -1:
@@ -118,8 +114,7 @@ class CoperceptionDataProcessor:
         dump_yml["true_ego_pos"] = transform_to_tuple(true_ego_pos)
         dump_yml["ego_speed"] = float(localization_manager.get_ego_spd())
 
-        lidar = perception_manager.lidar
-        if lidar is None:
+        if (lidar := perception_manager.lidar) is None:
             raise RuntimeError("Coperception requires LiDAR, but perception_manager.lidar is not initialized.")
         lidar_transform = lidar.sensor.get_transform()
         dump_yml["lidar_pose"] = transform_to_tuple(lidar_transform)
@@ -155,8 +150,8 @@ class CoperceptionDataProcessor:
             logger.warning("Skipping cooperative perception tick %s because there are no CAV or RSU agents.", tick_number)
             return None
 
-        scenario_data: OrderedDict[int, OrderedDict[str, OrderedDict[str, LiveMemorySnapshot | bool]]] = OrderedDict()
-        scenario_data[0] = OrderedDict()
+        single_batch: OrderedDict[str, OrderedDict[str, LiveMemorySnapshot | bool]]
+        single_batch = OrderedDict()
 
         ego_vehicle_id = single_cav_list[0].id if len(single_cav_list) > 0 else None
 
@@ -178,7 +173,7 @@ class CoperceptionDataProcessor:
                 continue
             vehicle_lidar_data = cast(np.ndarray, vehicle_lidar.data)
             agent_record: OrderedDict[str, LiveMemorySnapshot | bool] = OrderedDict()
-            scenario_data[0][vehicle_manager.id] = agent_record
+            single_batch[vehicle_manager.id] = agent_record
             agent_snapshot: LiveMemorySnapshot = {
                 "params": self.build_live_params(
                     vehicle_manager.perception_manager,
@@ -209,7 +204,7 @@ class CoperceptionDataProcessor:
                 continue
             rsu_lidar_data = cast(np.ndarray, rsu_lidar.data)
             rsu_record: OrderedDict[str, LiveMemorySnapshot | bool] = OrderedDict()
-            scenario_data[0][rsu_manager.id] = rsu_record
+            single_batch[rsu_manager.id] = rsu_record
             rsu_snapshot: LiveMemorySnapshot = {
                 "params": self.build_live_params(
                     rsu_manager.perception_manager,
@@ -222,8 +217,8 @@ class CoperceptionDataProcessor:
             rsu_record[timestamp] = rsu_snapshot
             rsu_record["ego"] = False
 
-        if len(scenario_data[0]) == 0:
+        if len(single_batch) == 0:
             logger.warning("Skipping cooperative perception tick %s because no agents have valid LiDAR data.", tick_number)
             return None
 
-        return scenario_data
+        return OrderedDict({0: single_batch})

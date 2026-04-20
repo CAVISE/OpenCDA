@@ -416,7 +416,6 @@ def test_create_vehicle_manager_single_cav(mocker, minimal_vehicle_config):
     assert ctor_cfg["id"] == 7
     assert ctor_kwargs["prefix"] == "cav"
     assert ctor_kwargs["perception_requirements"].enable_data_dump is False
-    assert ctor_kwargs["perception_requirements"].enable_cooperative_perception is False
     assert ctor_kwargs["current_time"] == "t0"
 
     vm_mock.v2x_manager.set_platoon.assert_called_once_with(None)
@@ -501,7 +500,6 @@ def test_create_platoon_manager_creates_one_platoon_two_members(mocker, minimal_
         assert call_.args[2] == ["platoon"]
         assert call_.kwargs["prefix"] == "platoon"
         assert call_.kwargs["perception_requirements"].enable_data_dump is False
-        assert call_.kwargs["perception_requirements"].enable_cooperative_perception is False
         assert call_.kwargs["current_time"] == "t0"
 
     platoon_manager.set_lead.assert_called_once_with(vm1)
@@ -1026,7 +1024,6 @@ def test_create_platoon_manager_multiple_platoons_combines_mapping_and_ticks_eac
         assert call_.args[2] == ["platoon"]
         assert call_.kwargs["prefix"] == "platoon"
         assert call_.kwargs["perception_requirements"].enable_data_dump is False
-        assert call_.kwargs["perception_requirements"].enable_cooperative_perception is False
         assert call_.kwargs["current_time"] == "t0"
 
     assert platoon_manager_ctor.call_count == 2
@@ -1311,7 +1308,6 @@ def test_create_rsu_manager_single_rsu(mocker, minimal_rsu_config):
     assert rsu_ctor.call_args.args[3] is sm.cav_world
     assert rsu_ctor.call_args.args[4] == "t0"
     assert rsu_ctor.call_args.kwargs["perception_requirements"].enable_data_dump is False
-    assert rsu_ctor.call_args.kwargs["perception_requirements"].enable_cooperative_perception is False
 
 
 def test_create_traffic_carla_with_vehicle_list_uses_spawn_vehicles_by_list(mocker):

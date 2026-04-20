@@ -24,7 +24,6 @@ logger = logging.getLogger("cavise.opencda.opencda.core.sensing.perception.perce
 @dataclass(frozen=True)
 class PerceptionRequirements:
     enable_data_dump: bool = False
-    enable_cooperative_perception: bool = False
     force_rgb_camera: bool = False
     force_lidar: bool = False
     force_semantic_lidar: bool = False
@@ -34,7 +33,6 @@ class PerceptionRequirements:
     def from_runtime_flags(cls, data_dump: bool = False, with_coperception: bool = False) -> "PerceptionRequirements":
         return cls(
             enable_data_dump=data_dump,
-            enable_cooperative_perception=with_coperception,
             force_rgb_camera=data_dump,
             force_lidar=data_dump or with_coperception,
             force_semantic_lidar=data_dump or with_coperception,
@@ -411,7 +409,6 @@ class PerceptionManager:
 
         # semantic lidar is needed both for dataset dumping and CoP range filtering
         self.data_dump = self.perception_requirements.enable_data_dump
-        self.with_coperception = self.perception_requirements.enable_cooperative_perception
         self.semantic_lidar = None
         if self.perception_requirements.force_semantic_lidar:
             self.semantic_lidar = SemanticLidarSensor(vehicle, self.carla_world, config_yaml["lidar"], self.global_position)

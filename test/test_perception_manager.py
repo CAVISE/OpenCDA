@@ -615,21 +615,18 @@ def test_perception_requirements_from_runtime_flags_preserves_expected_sensor_re
     combined = PerceptionRequirements.from_runtime_flags(data_dump=True, with_coperception=True)
 
     assert record_only.enable_data_dump is True
-    assert record_only.enable_cooperative_perception is False
     assert record_only.force_rgb_camera is True
     assert record_only.force_lidar is True
     assert record_only.force_semantic_lidar is True
     assert record_only.extend_inactive_detection_range is True
 
     assert coperception_only.enable_data_dump is False
-    assert coperception_only.enable_cooperative_perception is True
     assert coperception_only.force_rgb_camera is False
     assert coperception_only.force_lidar is True
     assert coperception_only.force_semantic_lidar is True
     assert coperception_only.extend_inactive_detection_range is True
 
     assert combined.enable_data_dump is True
-    assert combined.enable_cooperative_perception is True
     assert combined.force_rgb_camera is True
     assert combined.force_lidar is True
     assert combined.force_semantic_lidar is True
@@ -656,7 +653,6 @@ def test_perception_manager_init_spawns_lidar_and_semantic_lidar_for_coperceptio
     )
 
     assert pm.data_dump is False
-    assert pm.with_coperception is True
     assert pm.rgb_camera is None
     assert pm.lidar is not None
     assert pm.semantic_lidar is not None
