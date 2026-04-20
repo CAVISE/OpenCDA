@@ -114,9 +114,14 @@ class CoperceptionDataProcessor:
         if hasattr(localization_manager, "vehicle"):
             vehicle_localizer = cast("VehicleLocalizationManager", localization_manager)
             true_ego_pos = vehicle_localizer.vehicle.get_transform()
-        else:
+
+        elif hasattr(localization_manager, "rsu"):
             rsu_localizer = cast("RsuLocalizationManager", localization_manager)
             true_ego_pos = rsu_localizer.true_ego_pos
+
+        else:
+            raise ValueError("Unknown localization manager type")
+
         dump_yml["predicted_ego_pos"] = self._transform_to_tuple(predicted_ego_pos)
         dump_yml["true_ego_pos"] = self._transform_to_tuple(true_ego_pos)
         dump_yml["ego_speed"] = float(localization_manager.get_ego_spd())
