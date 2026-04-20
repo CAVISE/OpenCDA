@@ -21,7 +21,7 @@ class DummyOpt:
     def __init__(self, **kwargs):
         self.model_dir = "test_model_dir"
         self.fusion_method = "late"
-        self.show_sequence = False
+        self.show_video_vis = False
         self.save_npy = False
         self.save_vis = False
         self.test_scenario = "test_scenario"
@@ -234,6 +234,13 @@ class TestCoperceptionModelManager:
     def test_make_prediction_fusion_methods(self, fusion_method, manager_deps):
         opt = DummyOpt(fusion_method=fusion_method)
         manager = CoperceptionModelManager(opt, "2023_01_01")
+        core_method_by_fusion = {
+            "late": "LateFusionDataset",
+            "early": "EarlyFusionDataset",
+            "intermediate": "IntermediateFusionDataset",
+        }
+        manager.hypes["fusion"]["core_method"] = core_method_by_fusion[fusion_method]
+        manager.inference = manager._select_inference()
         manager.data_loader = [{"ego": {"origin_lidar": ["lidar_data"]}}]
         manager.opencood_dataset = MagicMock()
 
@@ -250,6 +257,8 @@ class TestCoperceptionModelManager:
         opt = DummyOpt(fusion_method="late", with_advcp=True, advcp_config="dummy.yaml")
         with patch.object(AdvCoperceptionModelManager, "load_config", return_value={"mode": "spoof", "attacker_id": "cav-2", "boxes": [{}]}):
             manager = AdvCoperceptionModelManager(opt, "2023_01_01")
+        manager.hypes["fusion"]["core_method"] = "LateFusionDataset"
+        manager.inference = manager._select_inference()
         manager.data_loader = [{"ego": {"origin_lidar": ["lidar_data"]}}]
         manager.opencood_dataset = MagicMock()
         manager.advcp_config = {"mode": "spoof", "attacker_id": "cav-2", "boxes": [{}]}
@@ -266,11 +275,13 @@ class TestCoperceptionModelManager:
         assert isinstance(result, CoperceptionInferenceResult)
         assert result.visualization_context == {"attacker_ids": ["cav-2"], "fake_box_tensor": "fake"}
 
-    def test_make_prediction_assertions(self):
+    def test_select_inference_unsupported_core_method(self):
         opt = DummyOpt(fusion_method="invalid")
         manager = CoperceptionModelManager(opt, "2023_01_01")
-        with pytest.raises(AssertionError):
-            manager.make_prediction(0)
+        manager.hypes["fusion"]["core_method"] = "UnknownFusionDataset"
+
+        with pytest.raises(NotImplementedError):
+            manager._select_inference()
 
     def test_make_prediction_save_npy(self, manager_deps, tmp_path, monkeypatch):
         """Test saving NPY files using real filesystem operations in tmp_path."""
@@ -320,9 +331,9 @@ class TestCoperceptionModelManager:
         assert mock_render.call_args_list[0].kwargs["method"] == "3d"
         assert mock_render.call_args_list[1].kwargs["method"] == "bev"
 
-    def test_make_prediction_show_sequence(self, manager_deps, fake_heavy_deps):
+    def test_make_prediction_show_video_vis(self, manager_deps, fake_heavy_deps):
         """Test Open3D interactions without opening windows."""
-        opt = DummyOpt(show_sequence=True)
+        opt = DummyOpt(show_video_vis=True)
         manager = CoperceptionModelManager(opt, "2023_01_01")
 
         manager.data_loader = [

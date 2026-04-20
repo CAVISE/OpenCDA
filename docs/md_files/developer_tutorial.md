@@ -65,7 +65,7 @@ class CavWorld(object):
     def __init__(self, apply_ml=False):
         # store the set of carla.Vehicle ids.
         self.vehicle_id_set = set()
-        # store (VehicleManager.vid, VehicleManager) pairs
+        # store (VehicleManager.id, VehicleManager) pairs
         self._vehicle_manager_dict = {}
         # store (PlatooningManger.pmid, PlatooningManger) pairs
         self._platooning_dict = {}
@@ -217,7 +217,7 @@ class VehicleManager(object):
                  carla_map, cav_world, current_time='',data_dumping=False):
 
         # an unique uuid for this vehicle
-        self.vid = str(uuid.uuid1())
+        self.id = str(uuid.uuid1())
         self.vehicle = vehicle
         self.carla_map = carla_map
 
@@ -495,7 +495,7 @@ class BehaviorAgent(object):
 
 ```python
 class V2XManager(object):
-    def __init__(self, cav_world, config_yaml, vid):
+    def __init__(self, cav_world, config_yaml, id):
         # if disabled, no cooperation will be operated
         self.cda_enabled = config_yaml['enabled']
         self.communication_range = config_yaml['communication_range']
@@ -516,7 +516,7 @@ class V2XManager(object):
         self.ego_pos = deque(maxlen=100)
         self.ego_spd = deque(maxlen=100)
         # used to exclude the cav self during searching
-        self.vid = vid
+        self.id = id
 
         # check if lag or noise needed to be added during communication
         self.loc_noise = 0.0

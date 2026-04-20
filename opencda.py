@@ -129,7 +129,6 @@ def arg_parse() -> argparse.Namespace:
         "--with-coperception", action="store_true", help="Whether to enable the use of cooperative perception models in this simulation."
     )
     parser.add_argument("--model-dir", type=str, help="Continued training path")
-    parser.add_argument("--fusion-method", type=str, default="late", help="late, early or intermediate")
     parser.add_argument("--show-video-vis", action="store_true", help="whether to show video visualization result")
     parser.add_argument("--save-vis", action="store_true", help="whether to save visualization result")
     parser.add_argument("--save-npy", action="store_true", help="whether to save prediction and gt result in npy_test file")

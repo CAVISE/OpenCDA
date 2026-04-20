@@ -67,6 +67,7 @@ class Scenario:
         self.communication_manager: CommunicationManager | None = None
         self.coperception_model_manager: CoperceptionModelManager | None = None
         self.coperception_data_processor: CoperceptionDataProcessor | None = None
+        cp_vis_config = None
 
         xodr_path: str | None = None
         if opt.xodr:
@@ -122,12 +123,9 @@ class Scenario:
             logger.info("running: creating message handler")
 
         logger.info(f"using scenario manager of type: {type(self.scenario_manager)}")
+        logger.info(f"data dump is {'ON' if opt.record else 'OFF'}")
 
-        data_dump = opt.record
-
-        logger.info(f"data dump is {'ON' if data_dump else 'OFF'}")
-
-        if data_dump:
+        if opt.record:
             logger.info("beginning to record the simulation in simulation_output/data_dumping")
             self.scenario_manager.client.start_recorder(f"{self.scenario_name}.log", True)
 
@@ -136,37 +134,9 @@ class Scenario:
             os.makedirs(os.path.dirname(save_yaml_name), exist_ok=True)
             save_yaml(scenario_config, save_yaml_name)
 
-        if opt.with_coperception and opt.model_dir:
-            CoperceptionManagerClass: type[CoperceptionModelManager]
-            if getattr(opt, "with_advcp", False):
-                from opencda.core.attack.advcp.adv_coperception_model_manager import AdvCoperceptionModelManager as CoperceptionManagerClass
-            else:
-                from opencda.core.common.coperception_model_manager import CoperceptionModelManager as CoperceptionManagerClass
-
-            if opt.fusion_method not in ["late", "early", "intermediate"]:
-                logger.error('Invalid fusion method: must be one of "late", "early", or "intermediate".')
-                sys.exit(1)
-
-            if not os.path.isdir(opt.model_dir):
-                logger.error(f'Model directory "{opt.model_dir}" does not exist.')
-                sys.exit(1)
-
-            cp_vis_config = OmegaConf.to_container(
-                scenario_params.get("cooperative_perception_visualization", {}),
-                resolve=True,
-            )
-            self.coperception_model_manager = CoperceptionManagerClass(
-                opt=opt,
-                current_time=current_time,
-                payload_handler=self.payload_handler,
-                visualization_config=cp_vis_config,
-            )
-            self.coperception_data_processor = CoperceptionDataProcessor()
-            logger.info("created cooperception manager")
-
         self.platoon_list, platoon_node_ids = self.scenario_manager.create_platoon_manager(
             map_helper=map_api.spawn_helper_2lanefree,
-            data_dump=data_dump,
+            data_dump=opt.record,
             with_coperception=opt.with_coperception,
         )
         self.node_ids["platoon"] = cast(dict[int, str], platoon_node_ids)
@@ -175,7 +145,7 @@ class Scenario:
         self.single_cav_list, cav_node_ids = self.scenario_manager.create_vehicle_manager(
             application=["single"],
             map_helper=map_api.spawn_helper_2lanefree,
-            data_dump=data_dump,
+            data_dump=opt.record,
             with_coperception=opt.with_coperception,
         )
         self.node_ids["cav"] = cast(dict[int, str], cav_node_ids)
@@ -185,18 +155,53 @@ class Scenario:
         logger.info(f"created background traffic of size {len(self.bg_veh_list)}")
 
         self.rsu_list, rsu_node_ids = self.scenario_manager.create_rsu_manager(
-            data_dump=data_dump,
+            data_dump=opt.record,
             with_coperception=opt.with_coperception,
         )
         self.node_ids["rsu"] = cast(dict[int, str], rsu_node_ids)
         logger.info(f"created RSU list of size {len(self.rsu_list)}")
 
-        if self.coperception_model_manager is not None and hasattr(self.coperception_model_manager, "validate_advcp_agents"):
+        if opt.with_coperception and opt.model_dir:
+            if not os.path.isdir(opt.model_dir):
+                logger.error(f'Model directory "{opt.model_dir}" does not exist.')
+                sys.exit(1)
+
+            cp_vis_config = OmegaConf.to_container(
+                scenario_params.get("cooperative_perception_visualization", {}),
+                resolve=True,
+            )
+
+            CoperceptionManagerClass: type[CoperceptionModelManager]
+            if getattr(opt, "with_advcp", False):
+                from opencda.core.attack.advcp.adv_coperception_model_manager import AdvCoperceptionModelManager as CoperceptionManagerClass
+            else:
+                from opencda.core.common.coperception_model_manager import CoperceptionModelManager as CoperceptionManagerClass
+
+            self.coperception_model_manager = CoperceptionManagerClass(
+                opt=opt,
+                current_time=current_time,
+                payload_handler=self.payload_handler,
+                visualization_config=cp_vis_config,
+            )
             valid_agent_ids = [vehicle_manager.id for vehicle_manager in self.single_cav_list]
             valid_agent_ids.extend(rsu_manager.id for rsu_manager in self.rsu_list)
-            self.coperception_model_manager.validate_advcp_agents(valid_agent_ids)
+            if hasattr(self.coperception_model_manager, "validate_advcp_agents"):
+                advcp_ready = self.coperception_model_manager.validate_advcp_agents(valid_agent_ids)
+                if not advcp_ready:
+                    from opencda.core.common.coperception_model_manager import CoperceptionModelManager
 
-        self.scenario_manager.create_custom_actor_manager(application=["single"], map_helper=map_api.spawn_helper_2lanefree, data_dump=data_dump)
+                    logger.warning("AdvCP validation failed. Falling back to the default cooperative perception manager for this run.")
+                    self.coperception_model_manager = CoperceptionModelManager(
+                        opt=opt,
+                        current_time=current_time,
+                        payload_handler=self.payload_handler,
+                        visualization_config=cp_vis_config,
+                    )
+
+            self.coperception_data_processor = CoperceptionDataProcessor()
+            logger.info("created cooperception manager")
+
+        self.scenario_manager.create_custom_actor_manager(application=["single"], map_helper=map_api.spawn_helper_2lanefree, data_dump=opt.record)
         logger.info("created single custom actors")
 
         cav_world = self.scenario_manager.cav_world

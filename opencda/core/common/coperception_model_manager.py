@@ -475,10 +475,11 @@ class CoperceptionVisualizer:
 class CoperceptionModelManager:
     VISUALIZER_CLASS = CoperceptionVisualizer
     SEQUENCE_BOX_GROUP_NAMES: tuple[str, ...] = ("pred", "gt")
-    INFERENCE_BY_FUSION: dict[str, str] = {
-        "late": "_run_late_inference",
-        "early": "_run_early_inference",
-        "intermediate": "_run_intermediate_inference",
+    INFERENCE_BY_CORE_METHOD: dict[str, str] = {
+        "LateFusionDataset": "_run_late_inference",
+        "EarlyFusionDataset": "_run_early_inference",
+        "IntermediateFusionDataset": "_run_intermediate_inference",
+        "IntermediateFusionDatasetV2": "_run_intermediate_inference",
     }
 
     def __init__(self, opt, current_time, payload_handler=None, visualization_config=None):
@@ -531,11 +532,18 @@ class CoperceptionModelManager:
         if len(self.opencood_dataset) == 0:
             logger.warning("No samples found in dataset after update.")
 
-    def _select_inference(self) -> Callable[[Any], CoperceptionInferenceResult]:
-        method_name = self.INFERENCE_BY_FUSION.get(self.opt.fusion_method)
+    def _resolve_inference_method_name(self) -> str:
+        core_method = self.hypes.get("fusion", {}).get("core_method")
+        method_name = self.INFERENCE_BY_CORE_METHOD.get(core_method)
         if method_name is None:
-            return self._run_unsupported_inference
-        return getattr(self, method_name)
+            raise NotImplementedError(
+                f'Unsupported cooperative perception fusion.core_method "{core_method}". '
+                "Only LateFusionDataset, EarlyFusionDataset, IntermediateFusionDataset, and IntermediateFusionDatasetV2 are supported."
+            )
+        return method_name
+
+    def _select_inference(self) -> Callable[[Any], CoperceptionInferenceResult]:
+        return getattr(self, self._resolve_inference_method_name())
 
     def _run_late_inference(self, batch_data):  # noqa: DC04
         return self._build_inference_result(*inference_utils.inference_late_fusion(batch_data, self.model, self.opencood_dataset))
@@ -545,9 +553,6 @@ class CoperceptionModelManager:
 
     def _run_intermediate_inference(self, batch_data):  # noqa: DC04
         return self._build_inference_result(*inference_utils.inference_intermediate_fusion(batch_data, self.model, self.opencood_dataset))
-
-    def _run_unsupported_inference(self, batch_data):
-        raise NotImplementedError("Only early, late and intermediate fusion is supported.")
 
     @staticmethod
     def _build_inference_result(*inference_output) -> CoperceptionInferenceResult:
@@ -697,10 +702,9 @@ class CoperceptionModelManager:
         self.vis.update_renderer()
 
     def make_prediction(self, tick_number):
-        assert self.opt.fusion_method in ["late", "early", "intermediate"]
         self.model.eval()
         result_stat = self._create_evaluation_stat()
-        sequence_state = self._init_sequence_visualization() if self.opt.show_sequence else None
+        sequence_state = self._init_sequence_visualization() if self.opt.show_video_vis else None
 
         visualizer_cls = self.VISUALIZER_CLASS
         inference_name = getattr(self.inference, "__qualname__", repr(self.inference))
