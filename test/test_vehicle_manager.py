@@ -200,6 +200,7 @@ def test_update_info_calls_chain(mocker, minimal_vehicle_config, mock_cav_world)
 def test_run_step_with_data_dumper(mocker, minimal_vehicle_config, mock_cav_world):
     deps = _patch_vehicle_manager_deps(mocker)
     from opencda.core.common.vehicle_manager import VehicleManager
+    from opencda.core.sensing.perception.perception_manager import PerceptionRequirements
 
     vm = VehicleManager(
         Mock(id=10),
@@ -208,7 +209,7 @@ def test_run_step_with_data_dumper(mocker, minimal_vehicle_config, mock_cav_worl
         Mock(),
         mock_cav_world,
         prefix="cav",
-        data_dumping=True,
+        perception_requirements=PerceptionRequirements.from_runtime_flags(data_dump=True),
         current_time="t0",
     )
 
@@ -361,6 +362,7 @@ def test_run_step_controller_failure_propagates_and_skips_data_dump(mocker, mini
     """If controller.run_step() fails, run_step() should propagate and data dumper must not run."""
     deps = _patch_vehicle_manager_deps(mocker)
     from opencda.core.common.vehicle_manager import VehicleManager
+    from opencda.core.sensing.perception.perception_manager import PerceptionRequirements
 
     vm = VehicleManager(
         Mock(id=10),
@@ -369,7 +371,7 @@ def test_run_step_controller_failure_propagates_and_skips_data_dump(mocker, mini
         Mock(),
         mock_cav_world,
         prefix="cav",
-        data_dumping=True,
+        perception_requirements=PerceptionRequirements.from_runtime_flags(data_dump=True),
         current_time="t0",
     )
 

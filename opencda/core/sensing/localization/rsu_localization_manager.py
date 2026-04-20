@@ -101,6 +101,7 @@ class LocalizationManager(object):
             carla.Location(x=config_yaml["global_position"][0], y=config_yaml["global_position"][1], z=config_yaml["global_position"][2])
         )
         self._speed = 0
+        self.rsu = None  # temporary attribute to store the reference to the rsu manager
 
     def localize(self):
         """

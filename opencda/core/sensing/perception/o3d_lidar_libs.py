@@ -3,6 +3,7 @@ Utility functions for 3d lidar visualization
 and processing by utilizing open3d.
 """
 
+import logging
 import time
 
 import open3d as o3d
@@ -18,6 +19,8 @@ from scipy.stats import mode
 import opencda.core.sensing.perception.sensor_transformation as st
 from opencda.core.sensing.perception.obstacle_vehicle import is_vehicle_cococlass, ObstacleVehicle
 from opencda.core.sensing.perception.static_obstacle import StaticObstacle
+
+logger = logging.getLogger("cavise.opencda.opencda.core.sensing.perception.o3d_lidar_libs")
 
 
 def _cmap_colors(name: str) -> np.ndarray:
@@ -69,6 +72,7 @@ LABEL_COLORS = (  # noqa: DC01
     )
     / 255.0
 )  # normalize each channel [0-1] since is what Open3D uses
+_EMPTY_AABB_WARNING_EMITTED = False
 
 
 def o3d_pointcloud_encode(raw_data, point_cloud):
@@ -243,7 +247,16 @@ def o3d_camera_lidar_fusion(objects, yolo_bbx, lidar_3d, projected_lidar, lidar_
         )
         select_points = select_points[points_inlier]
 
+        select_points = select_points[np.all(np.isfinite(select_points), axis=1)]
+
         if select_points.shape[0] < 2:
+            global _EMPTY_AABB_WARNING_EMITTED
+            if not _EMPTY_AABB_WARNING_EMITTED:
+                logger.warning(
+                    "Skipping Open3D axis-aligned bounding box creation for empty or invalid LiDAR point clusters. "
+                    "Further identical warnings are suppressed."
+                )
+                _EMPTY_AABB_WARNING_EMITTED = True
             continue
 
         # to visualize 3d lidar points in o3d visualizer, we need to
