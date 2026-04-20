@@ -20,7 +20,7 @@ class V2XManager(object):
     config_yaml : dict
         The configuration dictionary of the v2x module.
 
-    vid : str
+    id : str
         The corresponding vehicle manager's uuid.
 
     Attributes
@@ -42,7 +42,7 @@ class V2XManager(object):
 
     """
 
-    def __init__(self, cav_world, config_yaml, vid):
+    def __init__(self, cav_world, config_yaml, id):
         # if disabled, no cooperation will be operated
         self.cda_enabled = config_yaml["enabled"]
         self.communication_range = config_yaml["communication_range"]
@@ -62,7 +62,7 @@ class V2XManager(object):
         self.ego_pos = deque(maxlen=100)
         self.ego_spd = deque(maxlen=100)
         # used to exclude the cav self during searching
-        self.vid = vid
+        self.id = id
 
         # check if lag or noise needed to be added during communication
         self.loc_noise = 0.0
@@ -143,17 +143,17 @@ class V2XManager(object):
         """
         vehicle_manager_dict = self.cav_world.get_vehicle_managers()
 
-        for vid, vm in vehicle_manager_dict.items():
+        for id, vm in vehicle_manager_dict.items():
             # avoid the Nonetype error at the first simulation step
             if not vm.v2x_manager.get_ego_pos():
                 continue
             # avoid add itself as the cav nearby
-            if vid == self.vid:
+            if id == self.id:
                 continue
             distance = compute_distance(self.ego_pos[-1].location, vm.v2x_manager.get_ego_pos().location)
 
             if distance < self.communication_range:
-                self.cav_nearby.update({vid: vm})
+                self.cav_nearby.update({id: vm})
 
     """
     -----------------------------------------------------------

@@ -142,13 +142,13 @@ class CoperceptionDataProcessor:
         scenario_data: OrderedDict[int, OrderedDict[str, object]] = OrderedDict()
         scenario_data[0] = OrderedDict()
 
-        ego_vehicle_id = single_cav_list[0].vid if len(single_cav_list) > 0 else None
+        ego_vehicle_id = single_cav_list[0].id if len(single_cav_list) > 0 else None
 
         for vehicle_manager in single_cav_list:
             vehicle_lidar = self._require_lidar(vehicle_manager.perception_manager)
             vehicle_lidar_data = self._require_lidar_data(vehicle_lidar)
             agent_record: OrderedDict[str, object] = OrderedDict()
-            scenario_data[0][vehicle_manager.vid] = agent_record
+            scenario_data[0][vehicle_manager.id] = agent_record
             agent_record[timestamp] = {
                 "params": self.build_live_params(
                     vehicle_manager.perception_manager,
@@ -158,13 +158,13 @@ class CoperceptionDataProcessor:
                 "lidar_np": vehicle_lidar_data.copy(),
                 "camera0": self._build_live_camera_snapshots(vehicle_manager.perception_manager),
             }
-            agent_record["ego"] = vehicle_manager.vid == ego_vehicle_id
+            agent_record["ego"] = vehicle_manager.id == ego_vehicle_id
 
         for rsu_manager in rsu_list:
             rsu_lidar = self._require_lidar(rsu_manager.perception_manager)
             rsu_lidar_data = self._require_lidar_data(rsu_lidar)
             rsu_record: OrderedDict[str, object] = OrderedDict()
-            scenario_data[0][rsu_manager.rid] = rsu_record
+            scenario_data[0][rsu_manager.id] = rsu_record
             rsu_record[timestamp] = {
                 "params": self.build_live_params(
                     rsu_manager.perception_manager,

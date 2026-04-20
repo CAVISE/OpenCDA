@@ -366,7 +366,7 @@ class ScenarioManager:
                 prefix="cav",
             )
 
-            cav_carla_list[vehicle.id] = vehicle_manager.vid
+            cav_carla_list[vehicle.id] = vehicle_manager.id
 
             self.world.tick()
 
@@ -377,7 +377,7 @@ class ScenarioManager:
             vehicle_manager.set_destination(vehicle_manager.vehicle.get_location(), destination, clean=True)
 
             single_cav_list.append(vehicle_manager)
-            logger.info(f"Created CAV with id {vehicle_manager.vid}")
+            logger.info(f"Created CAV with id {vehicle_manager.id}")
 
         return single_cav_list, cav_carla_list
 
@@ -450,7 +450,7 @@ class ScenarioManager:
                     prefix="platoon",
                 )
 
-                platoon_carla_ids[vehicle.id] = vehicle_manager.vid
+                platoon_carla_ids[vehicle.id] = vehicle_manager.id
 
                 # add the vehicle manager to platoon
                 if j == 0:
@@ -510,10 +510,10 @@ class ScenarioManager:
                 with_coperception=with_coperception,
             )
 
-            rsu_carla_ids[actor.id] = rsu_manager.rid
+            rsu_carla_ids[actor.id] = rsu_manager.id
 
             rsu_list.append(rsu_manager)
-            logger.info(f"Created RSU with id {rsu_manager.rid}")
+            logger.info(f"Created RSU with id {rsu_manager.id}")
 
         return rsu_list, rsu_carla_ids
 

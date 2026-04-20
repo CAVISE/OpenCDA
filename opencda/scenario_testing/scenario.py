@@ -9,21 +9,19 @@ from pathlib import Path
 from typing import TYPE_CHECKING, NoReturn, cast
 
 import carla
-import omegaconf
-import sumolib
 from omegaconf import DictConfig, OmegaConf
 
 import opencda.scenario_testing.utils.cosim_api as sim_api
 import opencda.scenario_testing.utils.customized_map_api as map_api
-from AIM import get_model
 from opencda.core.application.platooning.platooning_manager import PlatooningManager
-from opencda.core.common.aim_model_manager import AIMModelManager
 from opencda.core.common.cav_world import CavWorld
 from opencda.core.common.coperception_data_processor import CoperceptionDataProcessor
 from opencda.core.common.rsu_manager import RSUManager
 from opencda.core.common.vehicle_manager import VehicleManager
 from opencda.scenario_testing.evaluations.evaluate_manager import EvaluationManager
 from opencda.scenario_testing.utils.yaml_utils import YamlDict, add_current_time, save_yaml
+
+from opencda.core.application.behavior import TransportMessage
 
 if TYPE_CHECKING:
     from opencda.core.common.coperception_model_manager import CoperceptionModelManager
@@ -41,7 +39,6 @@ class Scenario:
     rsu_list: list[RSUManager]
     spectator: carla.Actor
     cav_world: CavWorld
-    codriving_model_manager: AIMModelManager  # [CoDrivingInt]
     platoon_list: list[PlatooningManager]
     bg_veh_list: list[carla.Actor]
     scenario_name: str
@@ -154,7 +151,7 @@ class Scenario:
                 logger.error(f'Model directory "{opt.model_dir}" does not exist.')
                 sys.exit(1)
 
-            cp_vis_config = omegaconf.OmegaConf.to_container(
+            cp_vis_config = OmegaConf.to_container(
                 scenario_params.get("cooperative_perception_visualization", {}),
                 resolve=True,
             )
@@ -166,18 +163,6 @@ class Scenario:
             )
             self.coperception_data_processor = CoperceptionDataProcessor()
             logger.info("created cooperception manager")
-
-        if opt.with_aim:
-            logger.info("Codriving Model is initialized")
-
-            net = sumolib.net.readNet(f"opencda/sumo-assets/{self.scenario_name}/{self.scenario_name}.net.xml")
-            nodes = net.getNodes()
-
-            aim_config = cast(YamlDict, scenario_config.get("aim", {}))
-            aim_model_name = cast(str, aim_config.pop("model", "MTP"))
-            model = get_model(aim_model_name, **aim_config)
-
-            self.codriving_model_manager = AIMModelManager(model=model, nodes=nodes, excluded_nodes=None)
 
         self.platoon_list, platoon_node_ids = self.scenario_manager.create_platoon_manager(
             map_helper=map_api.spawn_helper_2lanefree,
@@ -207,8 +192,8 @@ class Scenario:
         logger.info(f"created RSU list of size {len(self.rsu_list)}")
 
         if self.coperception_model_manager is not None and hasattr(self.coperception_model_manager, "validate_advcp_agents"):
-            valid_agent_ids = [vehicle_manager.vid for vehicle_manager in self.single_cav_list]
-            valid_agent_ids.extend(rsu_manager.rid for rsu_manager in self.rsu_list)
+            valid_agent_ids = [vehicle_manager.id for vehicle_manager in self.single_cav_list]
+            valid_agent_ids.extend(rsu_manager.id for rsu_manager in self.rsu_list)
             self.coperception_model_manager.validate_advcp_agents(valid_agent_ids)
 
         self.scenario_manager.create_custom_actor_manager(application=["single"], map_helper=map_api.spawn_helper_2lanefree, data_dump=data_dump)
@@ -220,6 +205,8 @@ class Scenario:
         self.eval_manager = EvaluationManager(cav_world, script_name=self.scenario_name, current_time=scenario_config["current_time"])
 
         self.spectator = self.scenario_manager.world.get_spectator()
+
+        self.messages: list[TransportMessage] = []
 
     def run(self, opt: argparse.Namespace) -> None:
         if self.communication_manager is None:
@@ -254,8 +241,10 @@ class Scenario:
                 for platoon in self.platoon_list:
                     platoon.update_information()
 
+            new_messages = []
             if self.single_cav_list is not None:
                 logger.debug("updating single cavs")
+
                 for single_cav in self.single_cav_list:
                     single_cav.update_info()
 
@@ -280,12 +269,15 @@ class Scenario:
 
             if self.single_cav_list is not None:
                 for single_cav in self.single_cav_list:
-                    control = single_cav.run_step()
-                    single_cav.vehicle.apply_control(control)
+                    cav_messages = single_cav.run_step(messages=self.messages)
+                    new_messages.extend(cav_messages)
 
             if self.rsu_list is not None:
                 for rsu in self.rsu_list:
-                    rsu.run_step()
+                    rsu_messages = rsu.run_step(self.messages)
+                    new_messages.extend(rsu_messages)
+
+            self.messages = new_messages
 
     def capi_loop(self, opt: argparse.Namespace) -> None:
         if self.communication_manager is None:
@@ -311,8 +303,7 @@ class Scenario:
                     transform = self.platoon_list[0].vehicle_manager_list[0].vehicle.get_transform()
                     self.spectator.set_transform(carla.Transform(transform.location + carla.Location(z=50), carla.Rotation(pitch=-90)))
 
-            if opt.with_aim:
-                self.codriving_model_manager.make_trajs(carla_vmanagers=self.single_cav_list)
+            # TODO: Add aim service support
 
             if self.platoon_list is not None:
                 logger.debug("updating platoons")
@@ -361,12 +352,11 @@ class Scenario:
 
             if self.single_cav_list is not None:
                 for single_cav in self.single_cav_list:
-                    control = single_cav.run_step()
-                    single_cav.vehicle.apply_control(control)
+                    single_cav.run_step()  # TODO: handle messages from single cavs
 
             if self.rsu_list is not None:
                 for rsu in self.rsu_list:
-                    rsu.run_step()
+                    rsu.run_step()  # TODO: handle messages from rsus
 
     def finalize(self, opt: argparse.Namespace) -> None:
         if opt.record:

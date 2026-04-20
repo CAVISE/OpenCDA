@@ -662,19 +662,19 @@ class TestCoperceptionDataProcessor:
         processor = CoperceptionDataProcessor()
 
         cav1 = MagicMock()
-        cav1.vid = "cav-1"
+        cav1.id = "cav-1"
         cav1.perception_manager = MagicMock(lidar=MagicMock(data=np.array([[1.0, 2.0, 3.0, 1.0]])))
         cav1.localizer = MagicMock()
         cav1.agent = MagicMock()
 
         cav2 = MagicMock()
-        cav2.vid = "cav-2"
+        cav2.id = "cav-2"
         cav2.perception_manager = MagicMock(lidar=MagicMock(data=np.array([[4.0, 5.0, 6.0, 1.0]])))
         cav2.localizer = MagicMock()
         cav2.agent = MagicMock()
 
         rsu = MagicMock()
-        rsu.rid = "rsu-1"
+        rsu.id = "rsu-1"
         rsu.perception_manager = MagicMock(lidar=MagicMock(data=np.array([[7.0, 8.0, 9.0, 1.0]])))
         rsu.localizer = MagicMock()
 
@@ -703,7 +703,7 @@ class TestCoperceptionDataProcessor:
     def test_build_live_memory_raises_when_vehicle_lidar_is_missing(self):
         processor = CoperceptionDataProcessor()
         cav = MagicMock()
-        cav.vid = "cav-1"
+        cav.id = "cav-1"
         cav.perception_manager = MagicMock(lidar=None)
         cav.localizer = MagicMock()
         cav.agent = MagicMock()
@@ -714,7 +714,7 @@ class TestCoperceptionDataProcessor:
     def test_build_live_memory_raises_when_vehicle_lidar_data_is_missing(self):
         processor = CoperceptionDataProcessor()
         cav = MagicMock()
-        cav.vid = "cav-1"
+        cav.id = "cav-1"
         cav.perception_manager = MagicMock(lidar=MagicMock(data=None))
         cav.localizer = MagicMock()
         cav.agent = MagicMock()
