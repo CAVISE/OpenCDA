@@ -53,7 +53,7 @@ class CoperceptionDataProcessor:
         dump_yml: dict[str, object] = {}
         vehicle_dict: dict[int, dict[str, object]] = {}
 
-        objects = getattr(perception_manager, "objects", {}) or {}
+        objects = perception_manager.objects
         vehicle_list = cast("Sequence[ObstacleVehicle]", objects.get("vehicles", []))
         for veh in vehicle_list:
             veh_carla_id = veh.carla_id

@@ -66,6 +66,35 @@ class _Placeholder:
         pass
 
 
+class _PlaceholderPerceptionRequirements:
+    def __init__(
+        self,
+        enable_data_dump: bool = False,
+        enable_cooperative_perception: bool = False,
+        force_rgb_camera: bool = False,
+        force_lidar: bool = False,
+        force_semantic_lidar: bool = False,
+        extend_inactive_detection_range: bool = False,
+    ):
+        self.enable_data_dump = enable_data_dump
+        self.enable_cooperative_perception = enable_cooperative_perception
+        self.force_rgb_camera = force_rgb_camera
+        self.force_lidar = force_lidar
+        self.force_semantic_lidar = force_semantic_lidar
+        self.extend_inactive_detection_range = extend_inactive_detection_range
+
+    @classmethod
+    def from_runtime_flags(cls, data_dump: bool = False, with_coperception: bool = False):
+        return cls(
+            enable_data_dump=data_dump,
+            enable_cooperative_perception=with_coperception,
+            force_rgb_camera=data_dump,
+            force_lidar=data_dump or with_coperception,
+            force_semantic_lidar=data_dump or with_coperception,
+            extend_inactive_detection_range=data_dump or with_coperception,
+        )
+
+
 # Install carla stub using existing mocked_carla classes
 carla_stub = types.ModuleType("carla")
 carla_stub.Location = mocked_carla.Location
@@ -198,7 +227,11 @@ _install_stub(
 )
 _install_stub(
     "opencda.core.sensing.perception.perception_manager",
-    _make_placeholder_module("opencda.core.sensing.perception.perception_manager", PerceptionManager=_Placeholder),
+    _make_placeholder_module(
+        "opencda.core.sensing.perception.perception_manager",
+        PerceptionManager=_Placeholder,
+        PerceptionRequirements=_PlaceholderPerceptionRequirements,
+    ),
 )
 _install_stub(
     "opencda.core.safety.safety_manager",

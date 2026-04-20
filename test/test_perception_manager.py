@@ -562,7 +562,7 @@ def test_perception_manager_init_exits_when_activate_and_no_ml_manager(perceptio
 
     world = _FakeWorld(blueprint_library=_FakeBlueprintLibrary({}), carla_map=Mock())
     with pytest.raises(SystemExit):
-        PerceptionManager(vehicle=None, config_yaml=cfg, cav_world=cav_world, infra_id=1, data_dump=False, carla_world=world)
+        PerceptionManager(vehicle=None, config_yaml=cfg, cav_world=cav_world, infra_id=1, carla_world=world)
 
 
 def test_perception_manager_init_spawns_camera_and_lidar_when_activate_true(perception_manager_module):
@@ -574,7 +574,7 @@ def test_perception_manager_init_spawns_camera_and_lidar_when_activate_true(perc
     cav_world.sumo2carla_ids = {}
 
     world = _make_perception_world_with_camera_and_lidar()
-    pm = PerceptionManager(vehicle=None, config_yaml=cfg, cav_world=cav_world, infra_id=1, data_dump=False, carla_world=world)
+    pm = PerceptionManager(vehicle=None, config_yaml=cfg, cav_world=cav_world, infra_id=1, carla_world=world)
 
     assert pm.activate is True
     assert pm.rgb_camera is not None
@@ -584,6 +584,7 @@ def test_perception_manager_init_spawns_camera_and_lidar_when_activate_true(perc
 
 def test_perception_manager_init_spawns_semantic_lidar_when_data_dump_true(perception_manager_module):
     PerceptionManager = perception_manager_module.PerceptionManager
+    PerceptionRequirements = perception_manager_module.PerceptionRequirements
 
     cfg = _perception_config(activate=False, camera_visualize=0, lidar_visualize=False)
     cav_world = Mock()
@@ -591,9 +592,73 @@ def test_perception_manager_init_spawns_semantic_lidar_when_data_dump_true(perce
     cav_world.sumo2carla_ids = {}
 
     world = _make_perception_world_with_camera_and_lidar()
-    pm = PerceptionManager(vehicle=None, config_yaml=cfg, cav_world=cav_world, infra_id=1, data_dump=True, carla_world=world)
+    pm = PerceptionManager(
+        vehicle=None,
+        config_yaml=cfg,
+        cav_world=cav_world,
+        infra_id=1,
+        perception_requirements=PerceptionRequirements.from_runtime_flags(data_dump=True),
+        carla_world=world,
+    )
 
     assert pm.data_dump is True
+    assert pm.rgb_camera is not None
+    assert pm.lidar is not None
+    assert pm.semantic_lidar is not None
+
+
+def test_perception_requirements_from_runtime_flags_preserves_expected_sensor_requirements(perception_manager_module):
+    PerceptionRequirements = perception_manager_module.PerceptionRequirements
+
+    record_only = PerceptionRequirements.from_runtime_flags(data_dump=True, with_coperception=False)
+    coperception_only = PerceptionRequirements.from_runtime_flags(data_dump=False, with_coperception=True)
+    combined = PerceptionRequirements.from_runtime_flags(data_dump=True, with_coperception=True)
+
+    assert record_only.enable_data_dump is True
+    assert record_only.enable_cooperative_perception is False
+    assert record_only.force_rgb_camera is True
+    assert record_only.force_lidar is True
+    assert record_only.force_semantic_lidar is True
+    assert record_only.extend_inactive_detection_range is True
+
+    assert coperception_only.enable_data_dump is False
+    assert coperception_only.enable_cooperative_perception is True
+    assert coperception_only.force_rgb_camera is False
+    assert coperception_only.force_lidar is True
+    assert coperception_only.force_semantic_lidar is True
+    assert coperception_only.extend_inactive_detection_range is True
+
+    assert combined.enable_data_dump is True
+    assert combined.enable_cooperative_perception is True
+    assert combined.force_rgb_camera is True
+    assert combined.force_lidar is True
+    assert combined.force_semantic_lidar is True
+    assert combined.extend_inactive_detection_range is True
+
+
+def test_perception_manager_init_spawns_lidar_and_semantic_lidar_for_coperception_only(perception_manager_module):
+    PerceptionManager = perception_manager_module.PerceptionManager
+    PerceptionRequirements = perception_manager_module.PerceptionRequirements
+
+    cfg = _perception_config(activate=False, camera_visualize=0, lidar_visualize=False)
+    cav_world = Mock()
+    cav_world.ml_manager = Mock()
+    cav_world.sumo2carla_ids = {}
+
+    world = _make_perception_world_with_camera_and_lidar()
+    pm = PerceptionManager(
+        vehicle=None,
+        config_yaml=cfg,
+        cav_world=cav_world,
+        infra_id=1,
+        perception_requirements=PerceptionRequirements.from_runtime_flags(with_coperception=True),
+        carla_world=world,
+    )
+
+    assert pm.data_dump is False
+    assert pm.with_coperception is True
+    assert pm.rgb_camera is None
+    assert pm.lidar is not None
     assert pm.semantic_lidar is not None
 
 
@@ -606,7 +671,7 @@ def test_perception_manager_init_spawns_camera_when_camera_visualize_enabled(per
     cav_world.sumo2carla_ids = {}
 
     world = _make_perception_world_with_camera_and_lidar()
-    pm = PerceptionManager(vehicle=None, config_yaml=cfg, cav_world=cav_world, infra_id=1, data_dump=False, carla_world=world)
+    pm = PerceptionManager(vehicle=None, config_yaml=cfg, cav_world=cav_world, infra_id=1, carla_world=world)
 
     assert pm.rgb_camera is not None
     assert len(pm.rgb_camera) == 1
@@ -625,7 +690,7 @@ def test_perception_manager_init_spawns_lidar_and_visualizer_when_lidar_visualiz
     vis = _O3DVisualizer()
     monkeypatch.setattr(perception_manager_module, "o3d_visualizer_init", lambda _actor_id: vis)
 
-    pm = PerceptionManager(vehicle=None, config_yaml=cfg, cav_world=cav_world, infra_id=7, data_dump=False, carla_world=world)
+    pm = PerceptionManager(vehicle=None, config_yaml=cfg, cav_world=cav_world, infra_id=7, carla_world=world)
 
     assert pm.lidar is not None
     assert pm.o3d_vis is vis
@@ -644,7 +709,7 @@ def test_perception_manager_vehicle_mode_sets_carla_id_and_attaches_sensors(perc
     vehicle.id = 123
     vehicle.get_world.return_value = world
 
-    pm = PerceptionManager(vehicle=vehicle, config_yaml=cfg, cav_world=cav_world, infra_id=999, data_dump=False, carla_world=None)
+    pm = PerceptionManager(vehicle=vehicle, config_yaml=cfg, cav_world=cav_world, infra_id=999, carla_world=None)
     assert pm.carla_id == 123
 
     assert world.spawn_calls
@@ -661,7 +726,7 @@ def test_detect_dispatches_between_activate_and_deactivate_modes(perception_mana
     cav_world.ml_manager = Mock()
 
     world = _FakeWorld(blueprint_library=_FakeBlueprintLibrary({}), carla_map=Mock())
-    pm = PerceptionManager(vehicle=None, config_yaml=cfg, cav_world=cav_world, infra_id=1, data_dump=False, carla_world=world)
+    pm = PerceptionManager(vehicle=None, config_yaml=cfg, cav_world=cav_world, infra_id=1, carla_world=world)
 
     pm.deactivate_mode = Mock(side_effect=lambda objects: {**objects, "vehicles": ["x"]})
     ego_pos = carla.Transform(carla.Location(x=0.0, y=0.0, z=0.0), carla.Rotation())
@@ -690,7 +755,7 @@ def test_dist_uses_actor_location_distance(perception_manager_module):
     cav_world.ml_manager = Mock()
 
     world = _FakeWorld(blueprint_library=_FakeBlueprintLibrary({}), carla_map=Mock())
-    pm = PerceptionManager(vehicle=None, config_yaml=cfg, cav_world=cav_world, infra_id=1, data_dump=False, carla_world=world)
+    pm = PerceptionManager(vehicle=None, config_yaml=cfg, cav_world=cav_world, infra_id=1, carla_world=world)
 
     pm.ego_pos = carla.Transform(carla.Location(x=0.0, y=0.0, z=0.0), carla.Rotation())
     actor = Mock(spec_set=["get_location"])
@@ -725,7 +790,7 @@ def test_deactivate_mode_filters_by_distance_and_excludes_self(perception_manage
     actors = _FakeActorList({"*vehicle*": [v_close, v_far, v_self]})
     world = _FakeWorld(blueprint_library=_FakeBlueprintLibrary({}), actors=actors, carla_map=Mock())
 
-    pm = PerceptionManager(vehicle=None, config_yaml=cfg, cav_world=cav_world, infra_id=1, data_dump=False, carla_world=world)
+    pm = PerceptionManager(vehicle=None, config_yaml=cfg, cav_world=cav_world, infra_id=1, carla_world=world)
     pm.ego_pos = ego
 
     constructed = []
@@ -747,6 +812,7 @@ def test_deactivate_mode_calls_filter_vehicle_out_sensor_when_data_dump_true(per
     import carla
 
     PerceptionManager = perception_manager_module.PerceptionManager
+    PerceptionRequirements = perception_manager_module.PerceptionRequirements
 
     cfg = _perception_config(activate=False)
     cav_world = Mock()
@@ -766,7 +832,14 @@ def test_deactivate_mode_calls_filter_vehicle_out_sensor_when_data_dump_true(per
     actors = _FakeActorList({"*vehicle*": [v_close]})
     world = _make_perception_world_with_camera_and_lidar(actors=actors)
 
-    pm = PerceptionManager(vehicle=None, config_yaml=cfg, cav_world=cav_world, infra_id=1, data_dump=True, carla_world=world)
+    pm = PerceptionManager(
+        vehicle=None,
+        config_yaml=cfg,
+        cav_world=cav_world,
+        infra_id=1,
+        perception_requirements=PerceptionRequirements.from_runtime_flags(data_dump=True),
+        carla_world=world,
+    )
     pm.ego_pos = ego
 
     called = {"n": 0}
@@ -786,7 +859,7 @@ def test_filter_vehicle_out_sensor_contracts(perception_manager_module):
     cav_world.ml_manager = Mock()
 
     world = _FakeWorld(blueprint_library=_FakeBlueprintLibrary({}), carla_map=Mock())
-    pm = PerceptionManager(vehicle=None, config_yaml=cfg, cav_world=cav_world, infra_id=1, data_dump=False, carla_world=world)
+    pm = PerceptionManager(vehicle=None, config_yaml=cfg, cav_world=cav_world, infra_id=1, carla_world=world)
 
     class _Veh:
         def __init__(self, actor_id: int):
@@ -838,7 +911,7 @@ def test_speed_retrieve_matches_by_xy_threshold_and_sets_velocity_and_id(percept
     actors = _FakeActorList({"*vehicle*": [actor]})
     world = _FakeWorld(blueprint_library=_FakeBlueprintLibrary({}), actors=actors, carla_map=Mock())
 
-    pm = PerceptionManager(vehicle=None, config_yaml=cfg, cav_world=cav_world, infra_id=1, data_dump=False, carla_world=world)
+    pm = PerceptionManager(vehicle=None, config_yaml=cfg, cav_world=cav_world, infra_id=1, carla_world=world)
     pm.ego_pos = ego
 
     monkeypatch.setattr(
@@ -896,7 +969,7 @@ def test_speed_retrieve_sumo_override(perception_manager_module, monkeypatch):
     actors = _FakeActorList({"*vehicle*": [actor]})
     world = _FakeWorld(blueprint_library=_FakeBlueprintLibrary({}), actors=actors, carla_map=Mock())
 
-    pm = PerceptionManager(vehicle=None, config_yaml=cfg, cav_world=cav_world, infra_id=1, data_dump=False, carla_world=world)
+    pm = PerceptionManager(vehicle=None, config_yaml=cfg, cav_world=cav_world, infra_id=1, carla_world=world)
     pm.ego_pos = ego
 
     monkeypatch.setattr(perception_manager_module, "get_speed", lambda ov: abs(ov.get_velocity().x))
@@ -949,7 +1022,7 @@ def test_speed_retrieve_does_not_override_already_matched_obstacle(perception_ma
     actors = _FakeActorList({"*vehicle*": [actor]})
     world = _FakeWorld(blueprint_library=_FakeBlueprintLibrary({}), actors=actors, carla_map=Mock())
 
-    pm = PerceptionManager(vehicle=None, config_yaml=cfg, cav_world=cav_world, infra_id=1, data_dump=False, carla_world=world)
+    pm = PerceptionManager(vehicle=None, config_yaml=cfg, cav_world=cav_world, infra_id=1, carla_world=world)
     pm.ego_pos = carla.Transform(carla.Location(x=0.0, y=0.0, z=0.0), carla.Rotation())
 
     monkeypatch.setattr(perception_manager_module, "get_speed", lambda _ov: 1.0)
@@ -992,7 +1065,7 @@ def test_speed_retrieve_boundary_thresholds_match_and_non_match(perception_manag
     actors = _FakeActorList({"*vehicle*": [actor]})
     world = _FakeWorld(blueprint_library=_FakeBlueprintLibrary({}), actors=actors, carla_map=Mock())
 
-    pm = PerceptionManager(vehicle=None, config_yaml=cfg, cav_world=cav_world, infra_id=1, data_dump=False, carla_world=world)
+    pm = PerceptionManager(vehicle=None, config_yaml=cfg, cav_world=cav_world, infra_id=1, carla_world=world)
     pm.ego_pos = carla.Transform(carla.Location(x=0.0, y=0.0, z=0.0), carla.Rotation())
 
     monkeypatch.setattr(perception_manager_module, "get_speed", lambda _ov: 0.0)
@@ -1083,7 +1156,7 @@ def test_get_active_light_selects_light_on_same_road_and_forward_direction(perce
     )
 
     world = _FakeWorld(blueprint_library=_FakeBlueprintLibrary({}), carla_map=fake_map)
-    pm = PerceptionManager(vehicle=None, config_yaml=cfg, cav_world=cav_world, infra_id=1, data_dump=False, carla_world=world)
+    pm = PerceptionManager(vehicle=None, config_yaml=cfg, cav_world=cav_world, infra_id=1, carla_world=world)
 
     tl_actor = Mock(spec_set=[])
     monkeypatch.setattr(TrafficLight, "get_trafficlight_trigger_location", staticmethod(lambda _tl: trigger_loc))
@@ -1125,7 +1198,7 @@ def test_get_active_light_returns_last_non_intersection_before_intersection(perc
     )
 
     world = _FakeWorld(blueprint_library=_FakeBlueprintLibrary({}), carla_map=fake_map)
-    pm = PerceptionManager(vehicle=None, config_yaml=cfg, cav_world=cav_world, infra_id=1, data_dump=False, carla_world=world)
+    pm = PerceptionManager(vehicle=None, config_yaml=cfg, cav_world=cav_world, infra_id=1, carla_world=world)
 
     tl_actor = Mock(spec_set=[])
     monkeypatch.setattr(TrafficLight, "get_trafficlight_trigger_location", staticmethod(lambda _tl: trigger_loc))
@@ -1161,7 +1234,7 @@ def test_get_active_light_returns_none_on_wrong_road_or_reverse_direction(percep
         blueprint_library=_FakeBlueprintLibrary({}),
         carla_map=_FakeMap({(vehicle_loc.x, vehicle_loc.y, vehicle_loc.z): veh_wp, (trigger_loc.x, trigger_loc.y, trigger_loc.z): tl_wp_wrong_road}),
     )
-    pm1 = PerceptionManager(vehicle=None, config_yaml=cfg, cav_world=cav_world, infra_id=1, data_dump=False, carla_world=world1)
+    pm1 = PerceptionManager(vehicle=None, config_yaml=cfg, cav_world=cav_world, infra_id=1, carla_world=world1)
     monkeypatch.setattr(TrafficLight, "get_trafficlight_trigger_location", staticmethod(lambda _tl: trigger_loc))
     assert pm1._get_active_light([tl_actor], vehicle_loc, veh_wp) == (None, None)
 
@@ -1169,7 +1242,7 @@ def test_get_active_light_returns_none_on_wrong_road_or_reverse_direction(percep
         blueprint_library=_FakeBlueprintLibrary({}),
         carla_map=_FakeMap({(vehicle_loc.x, vehicle_loc.y, vehicle_loc.z): veh_wp, (trigger_loc.x, trigger_loc.y, trigger_loc.z): tl_wp_reverse}),
     )
-    pm2 = PerceptionManager(vehicle=None, config_yaml=cfg, cav_world=cav_world, infra_id=1, data_dump=False, carla_world=world2)
+    pm2 = PerceptionManager(vehicle=None, config_yaml=cfg, cav_world=cav_world, infra_id=1, carla_world=world2)
     monkeypatch.setattr(TrafficLight, "get_trafficlight_trigger_location", staticmethod(lambda _tl: trigger_loc))
     assert pm2._get_active_light([tl_actor], vehicle_loc, veh_wp) == (None, None)
 
@@ -1199,7 +1272,7 @@ def test_get_active_light_next_none_breaks_and_returns_current_waypoint_location
     )
 
     world = _FakeWorld(blueprint_library=_FakeBlueprintLibrary({}), carla_map=fake_map)
-    pm = PerceptionManager(vehicle=None, config_yaml=cfg, cav_world=cav_world, infra_id=1, data_dump=False, carla_world=world)
+    pm = PerceptionManager(vehicle=None, config_yaml=cfg, cav_world=cav_world, infra_id=1, carla_world=world)
 
     tl_actor = Mock(spec_set=[])
     monkeypatch.setattr(TrafficLight, "get_trafficlight_trigger_location", staticmethod(lambda _tl: trigger_loc))
@@ -1221,7 +1294,7 @@ def test_retrieve_traffic_lights_adds_active_light(perception_manager_module, mo
     world = _FakeWorld(blueprint_library=_FakeBlueprintLibrary({}), carla_map=Mock())
     world.get_actors = lambda: _FakeActorList({"traffic.traffic_light*": [Mock(spec_set=[])]})
 
-    pm = PerceptionManager(vehicle=None, config_yaml=cfg, cav_world=cav_world, infra_id=1, data_dump=False, carla_world=world)
+    pm = PerceptionManager(vehicle=None, config_yaml=cfg, cav_world=cav_world, infra_id=1, carla_world=world)
     pm.ego_pos = carla.Transform(carla.Location(x=0.0, y=0.0, z=0.0), carla.Rotation())
 
     active_tl = Mock(spec_set=["get_state"])
@@ -1256,7 +1329,7 @@ def test_retrieve_traffic_lights_returns_empty_when_no_active_light(perception_m
     world = _FakeWorld(blueprint_library=_FakeBlueprintLibrary({}), carla_map=Mock())
     world.get_actors = lambda: _FakeActorList({"traffic.traffic_light*": [Mock(spec_set=[])]})
 
-    pm = PerceptionManager(vehicle=None, config_yaml=cfg, cav_world=cav_world, infra_id=1, data_dump=False, carla_world=world)
+    pm = PerceptionManager(vehicle=None, config_yaml=cfg, cav_world=cav_world, infra_id=1, carla_world=world)
     pm.ego_pos = carla.Transform(carla.Location(x=0.0, y=0.0, z=0.0), carla.Rotation())
 
     monkeypatch.setattr(pm, "_get_active_light", lambda _tl_list, _vl, _vw: (None, None))
@@ -1273,6 +1346,7 @@ def test_destroy_calls_destroy_on_spawned_sensors_and_visualizers(perception_man
     import cv2
 
     PerceptionManager = perception_manager_module.PerceptionManager
+    PerceptionRequirements = perception_manager_module.PerceptionRequirements
 
     cam_bp = _FakeBlueprint("sensor.camera.rgb")
     lidar_bp = _FakeBlueprint("sensor.lidar.ray_cast")
@@ -1301,7 +1375,14 @@ def test_destroy_calls_destroy_on_spawned_sensors_and_visualizers(perception_man
 
     monkeypatch.setattr(perception_manager_module, "o3d_visualizer_init", lambda _actor_id: _O3DVisualizer())
 
-    pm = PerceptionManager(vehicle=None, config_yaml=cfg, cav_world=cav_world, infra_id=1, data_dump=True, carla_world=world)
+    pm = PerceptionManager(
+        vehicle=None,
+        config_yaml=cfg,
+        cav_world=cav_world,
+        infra_id=1,
+        perception_requirements=PerceptionRequirements.from_runtime_flags(data_dump=True),
+        carla_world=world,
+    )
 
     destroy_all = Mock()
     monkeypatch.setattr(cv2, "destroyAllWindows", destroy_all, raising=True)
@@ -1326,7 +1407,7 @@ def test_visualize_3d_bbx_front_camera_draws_only_objects_in_fov(perception_mana
     cav_world.ml_manager = Mock()
 
     world = _FakeWorld(blueprint_library=_FakeBlueprintLibrary({}), carla_map=Mock())
-    pm = PerceptionManager(vehicle=None, config_yaml=cfg, cav_world=cav_world, infra_id=1, data_dump=False, carla_world=world)
+    pm = PerceptionManager(vehicle=None, config_yaml=cfg, cav_world=cav_world, infra_id=1, carla_world=world)
 
     cam_transform = carla.Transform(carla.Location(x=0.0, y=0.0, z=0.0), carla.Rotation(yaw=0.0))
     cam_sensor = Mock(spec_set=["get_transform"])
@@ -1384,7 +1465,7 @@ def test_deactivate_mode_camera_visualize_calls_visualize_and_imshow(perception_
     actors = _FakeActorList({"*vehicle*": [_Veh(10, carla.Location(x=10.0, y=0.0, z=0.0))]})
     world = _make_perception_world_with_camera_and_lidar(actors=actors)
 
-    pm = PerceptionManager(vehicle=None, config_yaml=cfg, cav_world=cav_world, infra_id=5, data_dump=False, carla_world=world)
+    pm = PerceptionManager(vehicle=None, config_yaml=cfg, cav_world=cav_world, infra_id=5, carla_world=world)
     pm.ego_pos = carla.Transform(carla.Location(x=0.0, y=0.0, z=0.0), carla.Rotation())
 
     pm.rgb_camera[0].image = np.zeros((2, 2, 3), dtype=np.uint8)
@@ -1417,7 +1498,7 @@ def test_activate_mode_contract_without_visualization(perception_manager_module,
     cav_world.ml_manager = Mock()
 
     world = _FakeWorld(blueprint_library=_FakeBlueprintLibrary({}), carla_map=Mock())
-    pm = PerceptionManager(vehicle=None, config_yaml=cfg, cav_world=cav_world, infra_id=1, data_dump=False, carla_world=world)
+    pm = PerceptionManager(vehicle=None, config_yaml=cfg, cav_world=cav_world, infra_id=1, carla_world=world)
 
     pm.ml_manager = Mock()
     pm.camera_num = 1
@@ -1470,7 +1551,7 @@ def test_activate_mode_calls_fusion_and_speed_retrieve_per_camera(perception_man
     cav_world.ml_manager = Mock()
     world = _FakeWorld(blueprint_library=_FakeBlueprintLibrary({}), carla_map=Mock())
 
-    pm = PerceptionManager(vehicle=None, config_yaml=cfg, cav_world=cav_world, infra_id=1, data_dump=False, carla_world=world)
+    pm = PerceptionManager(vehicle=None, config_yaml=cfg, cav_world=cav_world, infra_id=1, carla_world=world)
 
     pm.ml_manager = Mock()
     pm.camera_num = 2
@@ -1512,7 +1593,7 @@ def test_activate_mode_camera_visualize_calls_draw_and_imshow(perception_manager
     cav_world.ml_manager = Mock()
     world = _FakeWorld(blueprint_library=_FakeBlueprintLibrary({}), carla_map=Mock())
 
-    pm = PerceptionManager(vehicle=None, config_yaml=cfg, cav_world=cav_world, infra_id=1, data_dump=False, carla_world=world)
+    pm = PerceptionManager(vehicle=None, config_yaml=cfg, cav_world=cav_world, infra_id=1, carla_world=world)
 
     pm.ml_manager = Mock()
     pm.camera_num = 1
@@ -1555,7 +1636,7 @@ def test_activate_mode_lidar_visualize_calls_encode_and_show(perception_manager_
     cav_world = Mock()
     cav_world.ml_manager = Mock()
     world = _FakeWorld(blueprint_library=_FakeBlueprintLibrary({}), carla_map=Mock())
-    pm = PerceptionManager(vehicle=None, config_yaml=cfg, cav_world=cav_world, infra_id=1, data_dump=False, carla_world=world)
+    pm = PerceptionManager(vehicle=None, config_yaml=cfg, cav_world=cav_world, infra_id=1, carla_world=world)
 
     pm.ml_manager = Mock()
     pm.camera_num = 1

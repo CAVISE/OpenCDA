@@ -7,7 +7,7 @@ from typing import Any, Iterable, Optional, Tuple
 
 from opencda.core.application.behavior import BehaviorService, create_service
 from opencda.core.common.data_dumper import DataDumper
-from opencda.core.sensing.perception.perception_manager import PerceptionManager
+from opencda.core.sensing.perception.perception_manager import PerceptionManager, PerceptionRequirements
 from opencda.core.sensing.localization.rsu_localization_manager import LocalizationManager
 from opencda.core.application.behavior import TransportMessage
 
@@ -62,8 +62,7 @@ class RSUManager(object):
         carla_map,
         cav_world,
         current_time="",
-        data_dumping=False,
-        with_coperception=False,
+        perception_requirements: PerceptionRequirements | None = None,
         autogenerate_id_on_failure=True,
     ):
         config_id = config_yaml.get("id")
@@ -105,6 +104,7 @@ class RSUManager(object):
         sensing_config = config_yaml["sensing"]
         sensing_config["localization"]["global_position"] = config_yaml["spawn_position"]
         sensing_config["perception"]["global_position"] = config_yaml["spawn_position"]
+        self.perception_requirements = perception_requirements or PerceptionRequirements()
 
         # localization module
         self.localizer = LocalizationManager(carla_world, sensing_config["localization"], self.carla_map)
@@ -115,11 +115,10 @@ class RSUManager(object):
             config_yaml=sensing_config["perception"],
             cav_world=cav_world,
             infra_id=self.id,
-            data_dump=data_dumping,
+            perception_requirements=self.perception_requirements,
             carla_world=carla_world,
-            with_coperception=with_coperception,
         )
-        if data_dumping:
+        if self.perception_requirements.enable_data_dump:
             self.data_dumper = DataDumper(self.perception_manager, self.id, save_time=current_time)
         else:
             self.data_dumper = None

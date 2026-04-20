@@ -17,6 +17,7 @@ from opencda.core.common.cav_world import CavWorld
 from opencda.core.common.coperception_data_processor import CoperceptionDataProcessor
 from opencda.core.common.rsu_manager import RSUManager
 from opencda.core.common.vehicle_manager import VehicleManager
+from opencda.core.sensing.perception.perception_manager import PerceptionRequirements
 from opencda.scenario_testing.evaluations.evaluate_manager import EvaluationManager
 from opencda.scenario_testing.utils.yaml_utils import YamlDict, add_current_time, save_yaml
 
@@ -134,10 +135,14 @@ class Scenario:
             os.makedirs(os.path.dirname(save_yaml_name), exist_ok=True)
             save_yaml(scenario_config, save_yaml_name)
 
-        self.platoon_list, platoon_node_ids = self.scenario_manager.create_platoon_manager(
-            map_helper=map_api.spawn_helper_2lanefree,
+        perception_requirements = PerceptionRequirements.from_runtime_flags(
             data_dump=opt.record,
             with_coperception=opt.with_coperception,
+        )
+
+        self.platoon_list, platoon_node_ids = self.scenario_manager.create_platoon_manager(
+            map_helper=map_api.spawn_helper_2lanefree,
+            perception_requirements=perception_requirements,
         )
         self.node_ids["platoon"] = cast(dict[int, str], platoon_node_ids)
         logger.info(f"created platoon list of size {len(self.platoon_list)}")
@@ -145,8 +150,7 @@ class Scenario:
         self.single_cav_list, cav_node_ids = self.scenario_manager.create_vehicle_manager(
             application=["single"],
             map_helper=map_api.spawn_helper_2lanefree,
-            data_dump=opt.record,
-            with_coperception=opt.with_coperception,
+            perception_requirements=perception_requirements,
         )
         self.node_ids["cav"] = cast(dict[int, str], cav_node_ids)
         logger.info(f"created single cavs of size {len(self.single_cav_list)}")
@@ -155,8 +159,7 @@ class Scenario:
         logger.info(f"created background traffic of size {len(self.bg_veh_list)}")
 
         self.rsu_list, rsu_node_ids = self.scenario_manager.create_rsu_manager(
-            data_dump=opt.record,
-            with_coperception=opt.with_coperception,
+            perception_requirements=perception_requirements,
         )
         self.node_ids["rsu"] = cast(dict[int, str], rsu_node_ids)
         logger.info(f"created RSU list of size {len(self.rsu_list)}")
