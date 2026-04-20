@@ -4,7 +4,7 @@ import copy
 import os
 import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, Mapping, Optional, Tuple, TypeAlias, TypedDict, cast
+from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, Literal, Mapping, Optional, Tuple, TypeAlias, TypedDict, cast
 
 from matplotlib import pyplot as plt
 import numpy as np
@@ -31,6 +31,12 @@ else:
 logger = logging.getLogger("cavise.opencda.opencda.core.common.coperception_model_manager")
 
 ColorRGB = tuple[int, int, int]
+CoreMethodName = Literal[
+    "LateFusionDataset",
+    "EarlyFusionDataset",
+    "IntermediateFusionDataset",
+    "IntermediateFusionDatasetV2",
+]
 
 
 class CoperceptionVisualizationConfig(TypedDict):
@@ -45,6 +51,42 @@ class CoperceptionInferenceResult:
     pred_score: Any
     gt_box_tensor: Any
     visualization_context: Optional[Mapping[str, Any]] = None
+
+
+class InferenceMapper:
+    _INFERENCE_CORE_METHOD_ATTR = "__inference_core_method__"
+    mapping: dict[CoreMethodName, Callable[..., CoperceptionInferenceResult]] = {}
+
+    @classmethod
+    def for_core_method(
+        cls,
+        core_method: CoreMethodName,
+    ) -> Callable[[Callable[..., CoperceptionInferenceResult]], Callable[..., CoperceptionInferenceResult]]:
+        def decorator(
+            func: Callable[..., CoperceptionInferenceResult],
+        ) -> Callable[..., CoperceptionInferenceResult]:
+            registered_methods = tuple(getattr(func, cls._INFERENCE_CORE_METHOD_ATTR, ()))
+            setattr(func, cls._INFERENCE_CORE_METHOD_ATTR, (*registered_methods, core_method))
+            cls.mapping[core_method] = func
+            return func
+
+        return decorator
+
+    @classmethod
+    def resolve(
+        cls,
+        owner: type["CoperceptionModelManager"],
+        core_method: str | None,
+    ) -> Callable[..., CoperceptionInferenceResult]:
+        for base in owner.__mro__:
+            for value in base.__dict__.values():
+                if core_method in getattr(value, cls._INFERENCE_CORE_METHOD_ATTR, ()):
+                    return cast(Callable[..., CoperceptionInferenceResult], getattr(owner, value.__name__))
+
+        supported_methods = ", ".join(cls.mapping.keys())
+        raise NotImplementedError(
+            f'Unsupported cooperative perception fusion.core_method "{core_method}". Supported core methods: {supported_methods}.'
+        )
 
 
 @dataclass
@@ -475,11 +517,6 @@ class CoperceptionVisualizer:
 class CoperceptionModelManager:
     VISUALIZER_CLASS = CoperceptionVisualizer
     SEQUENCE_BOX_GROUP_NAMES: tuple[str, ...] = ("pred", "gt")
-    INFERENCE_BY_FUSION: dict[str, str] = {
-        "late": "_run_late_inference",
-        "early": "_run_early_inference",
-        "intermediate": "_run_intermediate_inference",
-    }
 
     def __init__(self, opt, current_time, payload_handler=None, visualization_config=None):
         self.opt = opt
@@ -531,23 +568,26 @@ class CoperceptionModelManager:
         if len(self.opencood_dataset) == 0:
             logger.warning("No samples found in dataset after update.")
 
-    def _select_inference(self) -> Callable[[Any], CoperceptionInferenceResult]:
-        method_name = self.INFERENCE_BY_FUSION.get(self.opt.fusion_method)
-        if method_name is None:
-            return self._run_unsupported_inference
-        return getattr(self, method_name)
+    def _resolve_inference_callable(self) -> Callable[..., CoperceptionInferenceResult]:
+        core_method = self.hypes.get("fusion", {}).get("core_method")
+        return InferenceMapper.resolve(type(self), core_method)
 
-    def _run_late_inference(self, batch_data):  # noqa: DC04
+    def _select_inference(self) -> Callable[[Any], CoperceptionInferenceResult]:
+        inference_callable = self._resolve_inference_callable()
+        return cast(Callable[[Any], CoperceptionInferenceResult], inference_callable.__get__(self, type(self)))
+
+    @InferenceMapper.for_core_method("LateFusionDataset")  # noqa: DC04
+    def _run_late_inference(self, batch_data):
         return self._build_inference_result(*inference_utils.inference_late_fusion(batch_data, self.model, self.opencood_dataset))
 
-    def _run_early_inference(self, batch_data):  # noqa: DC04
+    @InferenceMapper.for_core_method("EarlyFusionDataset")  # noqa: DC04
+    def _run_early_inference(self, batch_data):
         return self._build_inference_result(*inference_utils.inference_early_fusion(batch_data, self.model, self.opencood_dataset))
 
-    def _run_intermediate_inference(self, batch_data):  # noqa: DC04
+    @InferenceMapper.for_core_method("IntermediateFusionDataset")  # noqa: DC04
+    @InferenceMapper.for_core_method("IntermediateFusionDatasetV2")
+    def _run_intermediate_inference(self, batch_data):
         return self._build_inference_result(*inference_utils.inference_intermediate_fusion(batch_data, self.model, self.opencood_dataset))
-
-    def _run_unsupported_inference(self, batch_data):
-        raise NotImplementedError("Only early, late and intermediate fusion is supported.")
 
     @staticmethod
     def _build_inference_result(*inference_output) -> CoperceptionInferenceResult:
@@ -697,10 +737,9 @@ class CoperceptionModelManager:
         self.vis.update_renderer()
 
     def make_prediction(self, tick_number):
-        assert self.opt.fusion_method in ["late", "early", "intermediate"]
         self.model.eval()
         result_stat = self._create_evaluation_stat()
-        sequence_state = self._init_sequence_visualization() if self.opt.show_sequence else None
+        sequence_state = self._init_sequence_visualization() if self.opt.show_video_vis else None
 
         visualizer_cls = self.VISUALIZER_CLASS
         inference_name = getattr(self.inference, "__qualname__", repr(self.inference))
