@@ -55,6 +55,12 @@ class CoperceptionDataProcessor:
 
         objects = perception_manager.objects
         vehicle_list = cast("Sequence[ObstacleVehicle]", objects.get("vehicles", []))
+        """
+        NOTE: carla_id == -1 marks a perception-only detection that is not linked to a real CARLA actor.
+        This can happen when objects come from the activated camera/lidar detection pipeline rather than from world.get_actors().
+        Such detections are not reliable ground-truth records, so dataset dumping and cooperative perception snapshot building must ignore them and use only objects backed by real simulator actors.
+        TODO: Rework this behavior
+        """
         for veh in vehicle_list:
             veh_carla_id = veh.carla_id
             if veh_carla_id == -1:
