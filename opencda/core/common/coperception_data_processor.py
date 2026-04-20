@@ -28,27 +28,27 @@ if TYPE_CHECKING:
 class VehicleDumpRecord(TypedDict):
     bp_id: str  # noqa: DC01
     color: str | None
-    location: list[float]
-    center: list[float]
-    angle: list[float]
-    extent: list[float]
+    location: tuple[float, float, float]
+    center: tuple[float, float, float]
+    angle: tuple[float, float, float]
+    extent: tuple[float, float, float]
     speed: float
 
 
 class CameraDumpRecord(TypedDict):
-    cords: list[float]
+    cords: tuple[float, float, float, float, float, float]
     intrinsic: list[list[float]]  # noqa: DC01
     extrinsic: list[list[float]]  # noqa: DC01
 
 
 class LiveParams(TypedDict, total=False):
     vehicles: dict[int, "VehicleDumpRecord"]
-    predicted_ego_pos: list[float]
-    true_ego_pos: list[float]
+    predicted_ego_pos: tuple[float, float, float, float, float, float]
+    true_ego_pos: tuple[float, float, float, float, float, float]
     ego_speed: float
-    lidar_pose: list[float]
+    lidar_pose: tuple[float, float, float, float, float, float]
     RSU: bool  # noqa: DC01
-    plan_trajectory: list[list[float]]  # noqa: DC01
+    plan_trajectory: list[tuple[float, float, float]]  # noqa: DC01
 
 
 class CoperceptionDataProcessor:
@@ -60,15 +60,15 @@ class CoperceptionDataProcessor:
         return []
 
     @staticmethod
-    def _transform_to_list(transform: carla.Transform) -> list[float]:
-        return [
+    def _transform_to_tuple(transform: carla.Transform) -> tuple[float, float, float, float, float, float]:
+        return (
             transform.location.x,
             transform.location.y,
             transform.location.z,
             transform.rotation.roll,
             transform.rotation.yaw,
             transform.rotation.pitch,
-        ]
+        )
 
     def build_live_params(
         self,
@@ -100,10 +100,10 @@ class CoperceptionDataProcessor:
             vehicle_record: VehicleDumpRecord = {
                 "bp_id": veh.type_id,
                 "color": veh.color,
-                "location": [veh_pos.location.x, veh_pos.location.y, veh_pos.location.z],
-                "center": [veh_bbx.location.x, veh_bbx.location.y, veh_bbx.location.z],
-                "angle": [veh_pos.rotation.roll, veh_pos.rotation.yaw, veh_pos.rotation.pitch],
-                "extent": [veh_bbx.extent.x, veh_bbx.extent.y, veh_bbx.extent.z],
+                "location": (veh_pos.location.x, veh_pos.location.y, veh_pos.location.z),
+                "center": (veh_bbx.location.x, veh_bbx.location.y, veh_bbx.location.z),
+                "angle": (veh_pos.rotation.roll, veh_pos.rotation.yaw, veh_pos.rotation.pitch),
+                "extent": (veh_bbx.extent.x, veh_bbx.extent.y, veh_bbx.extent.z),
                 "speed": veh_speed,
             }
             vehicle_dict[veh_carla_id] = vehicle_record
@@ -117,15 +117,15 @@ class CoperceptionDataProcessor:
         else:
             rsu_localizer = cast("RsuLocalizationManager", localization_manager)
             true_ego_pos = rsu_localizer.true_ego_pos
-        dump_yml["predicted_ego_pos"] = self._transform_to_list(predicted_ego_pos)
-        dump_yml["true_ego_pos"] = self._transform_to_list(true_ego_pos)
+        dump_yml["predicted_ego_pos"] = self._transform_to_tuple(predicted_ego_pos)
+        dump_yml["true_ego_pos"] = self._transform_to_tuple(true_ego_pos)
         dump_yml["ego_speed"] = float(localization_manager.get_ego_spd())
 
         lidar = perception_manager.lidar
         if lidar is None:
             raise RuntimeError("Coperception requires LiDAR, but perception_manager.lidar is not initialized.")
         lidar_transform = lidar.sensor.get_transform()
-        dump_yml["lidar_pose"] = self._transform_to_list(lidar_transform)
+        dump_yml["lidar_pose"] = self._transform_to_tuple(lidar_transform)
 
         for i, camera in enumerate(getattr(perception_manager, "rgb_camera", None) or []):
             camera_transform = camera.sensor.get_transform()
@@ -135,7 +135,7 @@ class CoperceptionDataProcessor:
             world2camera = np.linalg.inv(camera2world)
             lidar2camera = np.dot(world2camera, lidar2world)
             camera_record: CameraDumpRecord = {
-                "cords": self._transform_to_list(camera_transform),
+                "cords": self._transform_to_tuple(camera_transform),
                 "intrinsic": cast(list[list[float]], camera_intrinsic.tolist()),
                 "extrinsic": cast(list[list[float]], lidar2camera.tolist()),
             }
@@ -144,7 +144,7 @@ class CoperceptionDataProcessor:
         dump_yml["RSU"] = True
         if behavior_agent is not None:
             trajectory_deque = behavior_agent.get_local_planner().get_trajectory()
-            dump_yml["plan_trajectory"] = [[wp.location.x, wp.location.y, spd] for wp, spd in list(trajectory_deque)]
+            dump_yml["plan_trajectory"] = [(wp.location.x, wp.location.y, spd) for wp, spd in list(trajectory_deque)]
             dump_yml["RSU"] = False
 
         return cast(LiveParams, {**dump_yml, **camera_records})

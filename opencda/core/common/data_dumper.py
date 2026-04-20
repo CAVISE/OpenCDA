@@ -157,17 +157,17 @@ class DataDumper(object):
             Such detections are not reliable ground-truth records, so dataset dumping and cooperative perception snapshot building must ignore them and use only objects backed by real simulator actors.
             TODO: Rework this behavior
             """
-            assert veh_carla_id != -1, "Please turn off perception activemode if you are dumping data"
+            assert veh_carla_id != -1, "Please turn off perception active mode if you are dumping data"
 
             vehicle_dict.update(
                 {
                     veh_carla_id: {
                         "bp_id": veh.type_id,
                         "color": veh.color,
-                        "location": [veh_pos.location.x, veh_pos.location.y, veh_pos.location.z],
-                        "center": [veh_bbx.location.x, veh_bbx.location.y, veh_bbx.location.z],
-                        "angle": [veh_pos.rotation.roll, veh_pos.rotation.yaw, veh_pos.rotation.pitch],
-                        "extent": [veh_bbx.extent.x, veh_bbx.extent.y, veh_bbx.extent.z],
+                        "location": (veh_pos.location.x, veh_pos.location.y, veh_pos.location.z),
+                        "center": (veh_bbx.location.x, veh_bbx.location.y, veh_bbx.location.z),
+                        "angle": (veh_pos.rotation.roll, veh_pos.rotation.yaw, veh_pos.rotation.pitch),
+                        "extent": (veh_bbx.extent.x, veh_bbx.extent.y, veh_bbx.extent.z),
                         "speed": veh_speed,
                     }
                 }
@@ -182,26 +182,26 @@ class DataDumper(object):
 
         dump_yml.update(
             {
-                "predicted_ego_pos": [
+                "predicted_ego_pos": (
                     predicted_ego_pos.location.x,
                     predicted_ego_pos.location.y,
                     predicted_ego_pos.location.z,
                     predicted_ego_pos.rotation.roll,
                     predicted_ego_pos.rotation.yaw,
                     predicted_ego_pos.rotation.pitch,
-                ]
+                )
             }
         )
         dump_yml.update(
             {
-                "true_ego_pos": [
+                "true_ego_pos": (
                     true_ego_pos.location.x,
                     true_ego_pos.location.y,
                     true_ego_pos.location.z,
                     true_ego_pos.rotation.roll,
                     true_ego_pos.rotation.yaw,
                     true_ego_pos.rotation.pitch,
-                ]
+                )
             }
         )
         dump_yml.update({"ego_speed": float(localization_manager.get_ego_spd())})
@@ -210,14 +210,14 @@ class DataDumper(object):
         lidar_transformation = self.lidar.sensor.get_transform()
         dump_yml.update(
             {
-                "lidar_pose": [
+                "lidar_pose": (
                     lidar_transformation.location.x,
                     lidar_transformation.location.y,
                     lidar_transformation.location.z,
                     lidar_transformation.rotation.roll,
                     lidar_transformation.rotation.yaw,
                     lidar_transformation.rotation.pitch,
-                ]
+                )
             }
         )
 
@@ -227,14 +227,14 @@ class DataDumper(object):
             camera_transformation = camera.sensor.get_transform()
             camera_param.update(
                 {
-                    "cords": [
+                    "cords": (
                         camera_transformation.location.x,
                         camera_transformation.location.y,
                         camera_transformation.location.z,
                         camera_transformation.rotation.roll,
                         camera_transformation.rotation.yaw,
                         camera_transformation.rotation.pitch,
-                    ]
+                    )
                 }
             )
 
@@ -265,7 +265,7 @@ class DataDumper(object):
                 y = tmp_buffer[0].location.y
                 spd = tmp_buffer[1]
 
-                trajectory_list.append([x, y, spd])
+                trajectory_list.append((x, y, spd))
 
             dump_yml.update({"plan_trajectory": trajectory_list})
             dump_yml.update({"RSU": False})

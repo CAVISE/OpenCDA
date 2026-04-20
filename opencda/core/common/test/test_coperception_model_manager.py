@@ -611,13 +611,13 @@ class TestCoperceptionDataProcessor:
 
         assert params["RSU"] is False
         assert params["ego_speed"] == 13.5
-        assert params["predicted_ego_pos"] == [100.0, 200.0, 300.0, 7.0, 8.0, 9.0]
-        assert params["true_ego_pos"] == [101.0, 201.0, 301.0, 10.0, 11.0, 12.0]
-        assert params["lidar_pose"] == [10.0, 20.0, 30.0, 1.0, 2.0, 3.0]
-        assert params["plan_trajectory"] == [[1.5, 2.5, 6.7]]
+        assert params["predicted_ego_pos"] == (100.0, 200.0, 300.0, 7.0, 8.0, 9.0)
+        assert params["true_ego_pos"] == (101.0, 201.0, 301.0, 10.0, 11.0, 12.0)
+        assert params["lidar_pose"] == (10.0, 20.0, 30.0, 1.0, 2.0, 3.0)
+        assert params["plan_trajectory"] == [(1.5, 2.5, 6.7)]
         assert list(params["vehicles"].keys()) == [42]
         assert params["vehicles"][42]["speed"] == 22.2
-        assert params["camera0"]["cords"] == [11.0, 21.0, 31.0, 4.0, 5.0, 6.0]
+        assert params["camera0"]["cords"] == (11.0, 21.0, 31.0, 4.0, 5.0, 6.0)
         assert params["camera0"]["intrinsic"] == np.eye(3).tolist()
         assert params["camera0"]["extrinsic"] == np.eye(4).tolist()
 
@@ -642,7 +642,7 @@ class TestCoperceptionDataProcessor:
 
         assert params["RSU"] is True
         assert "plan_trajectory" not in params
-        assert params["true_ego_pos"] == [51.0, 61.0, 71.0, 0.0, 91.0, 0.0]
+        assert params["true_ego_pos"] == (51.0, 61.0, 71.0, 0.0, 91.0, 0.0)
 
     def test_build_live_memory_returns_none_and_warns_for_empty_agents(self):
         processor = CoperceptionDataProcessor()
