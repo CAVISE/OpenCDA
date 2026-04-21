@@ -447,8 +447,8 @@ def test_create_platoon_manager_creates_one_platoon_two_members(mocker, minimal_
             {
                 "destination": [10.0, 20.0, 0.0],
                 "members": [
-                    {"id": 1, "spawn_position": [0.0, 0.0, 0.0, 0.0, 90.0, 0.0]},
-                    {"id": 2, "spawn_position": [5.0, 0.0, 0.0, 0.0, 90.0, 0.0]},
+                    {"id": 1, "spawn_position": (0.0, 0.0, 0.0, 0.0, 90.0, 0.0)},
+                    {"id": 2, "spawn_position": (5.0, 0.0, 0.0, 0.0, 90.0, 0.0)},
                 ],
             }
         ]
@@ -949,15 +949,15 @@ def test_create_platoon_manager_multiple_platoons_combines_mapping_and_ticks_eac
             {
                 "destination": [10.0, 0.0, 0.0],
                 "members": [
-                    {"id": 1, "spawn_position": [0.0, 0.0, 0.0, 0.0, 90.0, 0.0]},
-                    {"id": 2, "spawn_position": [5.0, 0.0, 0.0, 0.0, 90.0, 0.0]},
+                    {"id": 1, "spawn_position": (0.0, 0.0, 0.0, 0.0, 90.0, 0.0)},
+                    {"id": 2, "spawn_position": (5.0, 0.0, 0.0, 0.0, 90.0, 0.0)},
                 ],
             },
             {
                 "destination": [20.0, 0.0, 0.0],
                 "members": [
-                    {"id": 3, "spawn_position": [100.0, 0.0, 0.0, 0.0, 90.0, 0.0]},
-                    {"id": 4, "spawn_position": [105.0, 0.0, 0.0, 0.0, 90.0, 0.0]},
+                    {"id": 3, "spawn_position": (100.0, 0.0, 0.0, 0.0, 90.0, 0.0)},
+                    {"id": 4, "spawn_position": (105.0, 0.0, 0.0, 0.0, 90.0, 0.0)},
                 ],
             },
         ]

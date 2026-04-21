@@ -25,6 +25,7 @@ _MOCKED_MODULE_NAMES = [
     "opencood.visualization.simple_vis",
     "opencood.visualization.vis_utils",
     "opencood.utils",
+    "opencood.utils.transformation_utils",
     "opencood.utils.eval_utils",
     "tqdm",
 ]
@@ -115,7 +116,17 @@ def _install_mocks():
     opencood.visualization = visualization
 
     utils = types.ModuleType("opencood.utils")
+    transformation_utils = types.ModuleType("opencood.utils.transformation_utils")
     eval_utils = types.ModuleType("opencood.utils.eval_utils")
+    transformation_utils.x_to_world = Mock(
+        side_effect=lambda pose: [
+            [1.0, 0.0, 0.0, float(pose[0])],
+            [0.0, 1.0, 0.0, float(pose[1])],
+            [0.0, 0.0, 1.0, float(pose[2])],
+            [0.0, 0.0, 0.0, 1.0],
+        ]
+    )
+    utils.transformation_utils = transformation_utils
     utils.eval_utils = eval_utils
     opencood.utils = utils
 
@@ -169,6 +180,7 @@ def _install_mocks():
         "opencood.visualization.simple_vis": simple_vis,
         "opencood.visualization.vis_utils": vis_utils,
         "opencood.utils": utils,
+        "opencood.utils.transformation_utils": transformation_utils,
         "opencood.utils.eval_utils": eval_utils,
         "tqdm": tqdm_module,
     }
