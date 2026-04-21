@@ -17,10 +17,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
@@ -63,7 +63,7 @@ jobs:
       - name: Upload JUnit report
         # actions/upload-artifact typically fails under nektos/act (no ACTIONS_RUNTIME_TOKEN)
         if: always() && !env.ACT
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: pytest-junit-${{ matrix.python-version }}
           path: reports/pytest-${{ matrix.python-version }}.xml

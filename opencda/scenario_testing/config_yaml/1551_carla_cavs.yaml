@@ -94,16 +94,6 @@ vehicle_base:
       debug: false # whether to draw future/history waypoints
       debug_trajectory: false # whether to draw the trajectory points and path
 
-# define sumo simulation setting for traffic generation
-sumo:
-  port: 3000
-  host: sumo
-  gui: true
-  client_order: 1
-  step_length: ${world.fixed_delta_seconds}
-
-
-
 scenario:
   rsu_list:
   single_cav_list:
@@ -145,3 +135,21 @@ scenario:
       spawn_position: [50, 135.792358, 0.3, 0, 0, 0]
       destination: [200, 135.792358, 0.3]
       id: 9
+
+cooperative_perception_visualization:
+  background: [10, 14, 24]
+  lidar_point_colors:
+    other: [214, 220, 229]
+    cav-1: [111, 214, 255]
+    cav-2: [127, 236, 173]
+    cav-3: [255, 207, 119]
+    cav-4: [255, 154, 162]
+    cav-5: [199, 166, 255]
+    cav-6: [123, 206, 190]
+    cav-7: [245, 186, 110]
+    cav-8: [255, 214, 232]
+    cav-9: [181, 225, 140]
+
+  bbox_colors:
+    gt: [88, 221, 154]
+    pred: [255, 117, 117]

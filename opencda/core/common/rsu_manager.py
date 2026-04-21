@@ -3,9 +3,13 @@ Basic class for RSU(Roadside Unit) management.
 """
 
 import logging
+from typing import Any, Iterable, Optional, Tuple
+
+from opencda.core.application.behavior import BehaviorService, create_service
 from opencda.core.common.data_dumper import DataDumper
-from opencda.core.sensing.perception.perception_manager import PerceptionManager
+from opencda.core.sensing.perception.perception_manager import PerceptionManager, PerceptionRequirements
 from opencda.core.sensing.localization.rsu_localization_manager import LocalizationManager
+from opencda.core.application.behavior import TransportMessage
 
 logger = logging.getLogger("cavise.opencda.opencda.core.common.rsu_manager")
 
@@ -52,8 +56,15 @@ class RSUManager(object):
     used_ids = set()
 
     def __init__(
-        self, carla_world, config_yaml, carla_map, cav_world, current_time="", data_dumping=False, autogenerate_id_on_failure=True
-    ):  # TODO: Привязать к конфигу сценария
+        self,
+        carla_world,
+        config_yaml,
+        carla_map,
+        cav_world,
+        current_time="",
+        perception_requirements: PerceptionRequirements | None = None,
+        autogenerate_id_on_failure=True,
+    ):
         config_id = config_yaml.get("id")
 
         if config_id is not None:
@@ -66,20 +77,20 @@ class RSUManager(object):
                 if candidate in RSUManager.used_ids:
                     logger.warning(f"Duplicate RSU ID detected: {candidate!r}.")
                     raise ValueError(f"Duplicate RSU ID detected: {candidate!r}.")
-                self.rid = candidate
-                RSUManager.used_ids.add(self.rid)
+                self.id = candidate
+                RSUManager.used_ids.add(self.id)
 
             except (ValueError, TypeError):
                 if autogenerate_id_on_failure:
-                    self.rid = self.__generate_unique_rsu_id()
-                    logger.warning(f"Invalid or unavailable RSU ID in config: {config_id!r}. Assigned auto-generated ID: {self.rid}")
+                    self.id = self.__generate_unique_rsu_id()
+                    logger.warning(f"Invalid or unavailable RSU ID in config: {config_id!r}. Assigned auto-generated ID: {self.id}")
                 else:
                     logger.error(f"Invalid or unavailable RSU ID in config: {config_id!r}.")
                     raise
         else:
             if autogenerate_id_on_failure:
-                self.rid = self.__generate_unique_rsu_id()
-                logger.debug(f"No RSU ID specified in config. Assigned auto-generated ID: {self.rid}")
+                self.id = self.__generate_unique_rsu_id()
+                logger.debug(f"No RSU ID specified in config. Assigned auto-generated ID: {self.id}")
             else:
                 logger.error("No RSU ID specified in config.")
                 raise ValueError("No RSU ID specified in config.")
@@ -93,6 +104,7 @@ class RSUManager(object):
         sensing_config = config_yaml["sensing"]
         sensing_config["localization"]["global_position"] = config_yaml["spawn_position"]
         sensing_config["perception"]["global_position"] = config_yaml["spawn_position"]
+        self.perception_requirements = perception_requirements or PerceptionRequirements()
 
         # localization module
         self.localizer = LocalizationManager(carla_world, sensing_config["localization"], self.carla_map)
@@ -102,14 +114,19 @@ class RSUManager(object):
             vehicle=None,
             config_yaml=sensing_config["perception"],
             cav_world=cav_world,
-            infra_id=self.rid,
-            data_dump=data_dumping,
+            infra_id=self.id,
+            perception_requirements=self.perception_requirements,
             carla_world=carla_world,
         )
-        if data_dumping:
-            self.data_dumper = DataDumper(self.perception_manager, self.rid, save_time=current_time)
+        if self.perception_requirements.enable_data_dump:
+            self.data_dumper = DataDumper(self.perception_manager, self.id, save_time=current_time)
         else:
             self.data_dumper = None
+
+        behavior_services = self.__build_behavior_services(config_yaml)
+
+        self.__set_behavior_services(behavior_services)
+        self.__attach_behavior_services()
 
         cav_world.update_rsu_manager(self)
 
@@ -122,6 +139,130 @@ class RSUManager(object):
                 RSUManager.current_id += 1
                 return candidate
             RSUManager.current_id += 1
+
+    def __build_behavior_services(self, config_yaml: dict[str, Any]) -> list[BehaviorService[Any, Any]]:
+        service_configs = config_yaml.get("behavior_services", [])
+        behavior_services = []
+
+        for service_config in service_configs:
+            service_config_dict = dict(service_config)
+            service_type = service_config_dict.pop("type", None)
+            if service_type is None:
+                raise ValueError("Each behavior service config must define 'type'.")
+
+            service = create_service(service_name=service_type, **service_config_dict)
+            behavior_services.append(service)
+            logger.info("Attached behavior service '%s' to RSU %r.", service_type, self.id)
+
+        return behavior_services
+
+    def __set_behavior_services(self, behavior_services: Optional[Iterable[BehaviorService[Any, Any]]]) -> None:
+        services = tuple(behavior_services or ())
+        self.__validate_behavior_services(services)
+        self.behavior_services = tuple(sorted(services, key=lambda service: service.priority))
+        self.behavior_service_results: list[TransportMessage] = []
+        self._behavior_services_by_name = {service.service_name: service for service in self.behavior_services}
+
+    def __validate_behavior_services(self, behavior_services: Tuple[BehaviorService[Any, Any], ...]) -> None:
+        seen_service_names = set()
+
+        for service in behavior_services:
+            if not isinstance(service, BehaviorService):
+                raise TypeError(f"Each behavior service must implement the BehaviorService protocol; got {type(service).__name__!r}.")
+
+            service_name = service.service_name
+            if service_name in seen_service_names:
+                raise ValueError(f"Duplicate behavior service ID detected: {service_name!r}.")
+
+            if not isinstance(service.priority, int):
+                raise TypeError(f"Behavior service {service_name!r} must define an integer priority; got {type(service.priority).__name__!r}.")
+
+            seen_service_names.add(service_name)
+
+    def __attach_behavior_services(self) -> None:
+        attached_services = []
+
+        try:
+            for service in self.behavior_services:
+                service.on_attach(self)
+                attached_services.append(service)
+        except Exception:
+            for service in reversed(attached_services):
+                try:
+                    service.on_detach()
+                except Exception:
+                    logger.exception(
+                        "Failed to detach behavior service %r while rolling back RSU %r attachment.",
+                        service.service_name,
+                        self.id,
+                    )
+            raise
+
+    def __detach_behavior_services(self) -> None:
+        first_exception = None
+
+        for service in reversed(self.behavior_services):
+            try:
+                service.on_detach()
+            except Exception as exc:
+                logger.exception(
+                    "Failed to detach behavior service %r from RSU %r.",
+                    service.service_name,
+                    self.id,
+                )
+                if first_exception is None:
+                    first_exception = exc
+
+        if first_exception is not None:
+            raise first_exception
+
+    def __validate_behavior_service_messages(self, messages: list[TransportMessage]) -> list[TransportMessage]:
+        valid_messages: list[TransportMessage] = []
+
+        for message in messages:
+            if not isinstance(message, TransportMessage):
+                raise TypeError(f"Each behavior service message must be a TransportMessage; got {type(message).__name__!r}.")
+
+            service_name = getattr(message, "dst_service_type", None)
+            if not isinstance(service_name, str):
+                raise TypeError(f"Each behavior service message must define a string 'dst_service_type'; got {type(message).__name__!r}.")
+
+            owner_id = getattr(message, "dst_owner_id", None)
+            if not isinstance(owner_id, str):
+                raise TypeError(f"Each behavior service message must define a string 'dst_owner_id'; got {type(message).__name__!r}.")
+
+            if owner_id == self.id:
+                if service_name not in self._behavior_services_by_name:
+                    raise ValueError(f"Behavior service message references unknown service_name {service_name!r}.")
+                valid_messages.append(message)
+            elif owner_id == "broadcast" and message.src_owner_id != self.id:
+                if service_name in self._behavior_services_by_name:
+                    valid_messages.append(message)
+
+        return valid_messages
+
+    def __group_behavior_service_messages(self, messages: list[TransportMessage]) -> dict[str, list[TransportMessage]]:
+        grouped_messages = {service.service_name: [] for service in self.behavior_services}
+
+        for message in messages:
+            grouped_messages[message.dst_service_type].append(message)
+
+        return grouped_messages
+
+    def update_behavior_services(self, messages: list[TransportMessage]) -> None:
+        messages = self.__validate_behavior_service_messages(messages)
+        grouped_messages = self.__group_behavior_service_messages(messages)
+        self.behavior_service_results.clear()
+
+        for service in self.behavior_services:
+            service_messages = grouped_messages[service.service_name]
+            result_messages = service.process(service_messages)
+            if result_messages:
+                self_messages = [msg for msg in result_messages if getattr(msg, "dst_owner_id", None) == self.id]
+                messages.extend(self_messages)
+                grouped_messages = self.__group_behavior_service_messages(messages)
+                out_messages = [msg for msg in result_messages if getattr(msg, "dst_owner_id", None) != self.id]
+                self.behavior_service_results.extend(out_messages)
 
     def update_info(self):
         """
@@ -136,21 +277,29 @@ class RSUManager(object):
         # TODO: object detection - pass it to other CAVs for V2X perception
         self.perception_manager.detect(ego_pos)
 
-    def update_info_v2x(self):
+    def update_info_v2x(self):  # noqa: deadcode
         # TODO: Добавить обновление информации
         pass
 
-    def run_step(self):
+    def run_step(self, messages: list[TransportMessage] = []) -> list[TransportMessage]:
         """
-        Currently only used for dumping data.
+        Run behavior services for the provided message batch and
+        execute the current RSU step side effects.
         """
+        self.update_behavior_services(messages)
+
         # dump data
         if self.data_dumper:
             self.data_dumper.run_step(self.perception_manager, self.localizer, None)
+
+        return self.behavior_service_results
 
     def destroy(self):
         """
         Destroy the actor vehicle
         """
-        self.perception_manager.destroy()
-        self.localizer.destroy()
+        try:
+            self.__detach_behavior_services()
+        finally:
+            self.perception_manager.destroy()
+            self.localizer.destroy()
