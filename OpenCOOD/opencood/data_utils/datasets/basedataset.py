@@ -267,6 +267,8 @@ class BaseDataset(Dataset):
                 if "lidar_np" in cav_content[timestamp_key_delay]
                 else pcd_utils.pcd_to_np(cav_content[timestamp_key_delay]["lidar"])
             )
+            if "spoofing_mask" in cav_content[timestamp_key_delay]:
+                data[cav_id]["spoofing_mask"] = cav_content[timestamp_key_delay]["spoofing_mask"]
         return data
 
     @staticmethod

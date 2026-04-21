@@ -14,7 +14,7 @@ from opencood.utils import box_utils
 from opencood.data_utils.post_processor import build_postprocessor
 from opencood.data_utils.datasets import basedataset
 from opencood.data_utils.pre_processor import build_preprocessor
-from opencood.utils.pcd_utils import mask_ego_points, shuffle_points, downsample_lidar_minimum
+from opencood.utils.pcd_utils import downsample_lidar_minimum
 from opencood.utils.transformation_utils import x1_to_x2
 
 logger = logging.getLogger("cavise.opencda.OpenCOOD.opencood.data_utils.datasets.early_fusion_dataset")
@@ -62,6 +62,7 @@ class EarlyFusionDataset(basedataset.BaseDataset):
                     msg["object_ids"] = selected_cav_processed["object_ids"]  # list
                     msg["object_bbx_center"] = selected_cav_processed["object_bbx_center"]
                     msg["projected_lidar"] = selected_cav_processed["projected_lidar"]
+                    msg["projected_lidar_spoofing_mask"] = selected_cav_processed["projected_lidar_spoofing_mask"]
 
     def __process_with_messages(self, ego_id, ego_lidar_pose, base_data_dict):
         object_stack = []
@@ -69,6 +70,7 @@ class EarlyFusionDataset(basedataset.BaseDataset):
         projected_lidar_stack = []
         projected_lidar_roles = []
         projected_lidar_agent_ids = []
+        projected_lidar_spoofing_masks = []
 
         ego_cav_base = base_data_dict.get(ego_id)
         ego_cav_processed = self.get_item_single_car(ego_cav_base, ego_lidar_pose)
@@ -78,6 +80,7 @@ class EarlyFusionDataset(basedataset.BaseDataset):
         projected_lidar_stack.append(ego_cav_processed["projected_lidar"])
         projected_lidar_roles.append("ego")
         projected_lidar_agent_ids.append(ego_id)
+        projected_lidar_spoofing_masks.append(ego_cav_processed["projected_lidar_spoofing_mask"])
 
         if ego_id in self.payload_handler.current_artery_payload:
             for cav_id, _ in base_data_dict.items():
@@ -88,6 +91,9 @@ class EarlyFusionDataset(basedataset.BaseDataset):
                         projected_lidar_stack.append(msg["projected_lidar"])
                         projected_lidar_roles.append("other")
                         projected_lidar_agent_ids.append(cav_id)
+                        projected_lidar_spoofing_masks.append(
+                            np.asarray(msg.get("projected_lidar_spoofing_mask", np.zeros((msg["projected_lidar"].shape[0],), dtype=np.bool_)))
+                        )
 
         return {
             "object_stack": object_stack,
@@ -95,6 +101,7 @@ class EarlyFusionDataset(basedataset.BaseDataset):
             "projected_lidar_stack": projected_lidar_stack,
             "projected_lidar_roles": projected_lidar_roles,
             "projected_lidar_agent_ids": projected_lidar_agent_ids,
+            "projected_lidar_spoofing_masks": projected_lidar_spoofing_masks,
         }
 
     def __process_without_messages(self, ego_lidar_pose, base_data_dict):
@@ -103,6 +110,7 @@ class EarlyFusionDataset(basedataset.BaseDataset):
         object_id_stack = []
         projected_lidar_roles = []
         projected_lidar_agent_ids = []
+        projected_lidar_spoofing_masks = []
 
         # loop over all CAVs to process information
         for cav_id, selected_cav_base in base_data_dict.items():
@@ -120,6 +128,7 @@ class EarlyFusionDataset(basedataset.BaseDataset):
             object_id_stack += selected_cav_processed["object_ids"]
             projected_lidar_roles.append("ego" if selected_cav_base["ego"] else "other")
             projected_lidar_agent_ids.append(cav_id)
+            projected_lidar_spoofing_masks.append(selected_cav_processed["projected_lidar_spoofing_mask"])
 
         return {
             "object_stack": object_stack,
@@ -127,6 +136,7 @@ class EarlyFusionDataset(basedataset.BaseDataset):
             "projected_lidar_stack": projected_lidar_stack,
             "projected_lidar_roles": projected_lidar_roles,
             "projected_lidar_agent_ids": projected_lidar_agent_ids,
+            "projected_lidar_spoofing_masks": projected_lidar_spoofing_masks,
         }
 
     def __getitem__(self, idx):
@@ -157,6 +167,7 @@ class EarlyFusionDataset(basedataset.BaseDataset):
         point_source = np.concatenate(
             [np.full(points.shape[0], idx, dtype=np.int32) for idx, points in enumerate(data["projected_lidar_stack"])], axis=0
         )
+        point_spoofing = np.concatenate([np.asarray(mask, dtype=np.bool_) for mask in data["projected_lidar_spoofing_masks"]], axis=0)
 
         # data augmentation
         projected_lidar_stack, object_bbx_center, mask = self.augment(projected_lidar_stack, object_bbx_center, mask)
@@ -173,6 +184,7 @@ class EarlyFusionDataset(basedataset.BaseDataset):
         )
         projected_lidar_stack = projected_lidar_stack[lidar_mask]
         point_source = point_source[lidar_mask]
+        point_spoofing = point_spoofing[lidar_mask]
         # augmentation may remove some of the bbx out of range
         object_bbx_center_valid = object_bbx_center[mask == 1]
         object_bbx_center_valid, range_mask = box_utils.mask_boxes_outside_range_numpy(
@@ -211,6 +223,7 @@ class EarlyFusionDataset(basedataset.BaseDataset):
                     "origin_lidar_by_agent": [projected_lidar_stack[point_source == idx] for idx in valid_agent_indices],
                     "origin_lidar_roles": [data["projected_lidar_roles"][idx] for idx in valid_agent_indices],
                     "origin_lidar_agent_ids": [data["projected_lidar_agent_ids"][idx] for idx in valid_agent_indices],
+                    "origin_lidar_spoofing_masks": [point_spoofing[point_source == idx] for idx in valid_agent_indices],
                 }
             )
 
@@ -242,14 +255,26 @@ class EarlyFusionDataset(basedataset.BaseDataset):
 
         # filter lidar
         lidar_np = selected_cav_base["lidar_np"]
-        lidar_np = shuffle_points(lidar_np)
+        spoofing_mask = np.asarray(selected_cav_base.get("spoofing_mask", np.zeros((lidar_np.shape[0],), dtype=np.bool_)), dtype=np.bool_)
+
+        shuffle_idx = np.random.permutation(lidar_np.shape[0])
+        lidar_np = lidar_np[shuffle_idx]
+        spoofing_mask = spoofing_mask[shuffle_idx]
+
         # remove points that hit itself
-        lidar_np = mask_ego_points(lidar_np)
+        ego_mask = (lidar_np[:, 0] >= -1.95) & (lidar_np[:, 0] <= 2.95) & (lidar_np[:, 1] >= -1.1) & (lidar_np[:, 1] <= 1.1)
+        lidar_np = lidar_np[np.logical_not(ego_mask)]
+        spoofing_mask = spoofing_mask[np.logical_not(ego_mask)]
         # project the lidar to ego space
         lidar_np[:, :3] = box_utils.project_points_by_matrix_torch(lidar_np[:, :3], transformation_matrix)
 
         selected_cav_processed.update(
-            {"object_bbx_center": object_bbx_center[object_bbx_mask == 1], "object_ids": object_ids, "projected_lidar": lidar_np}
+            {
+                "object_bbx_center": object_bbx_center[object_bbx_mask == 1],
+                "object_ids": object_ids,
+                "projected_lidar": lidar_np,
+                "projected_lidar_spoofing_mask": spoofing_mask,
+            }
         )
 
         return selected_cav_processed
@@ -317,6 +342,9 @@ class EarlyFusionDataset(basedataset.BaseDataset):
                             "origin_lidar_by_agent": [torch.from_numpy(np.array(points)) for points in cav_content["origin_lidar_by_agent"]],
                             "origin_lidar_roles": list(cav_content["origin_lidar_roles"]),
                             "origin_lidar_agent_ids": list(cav_content["origin_lidar_agent_ids"]),
+                            "origin_lidar_spoofing_masks": [
+                                torch.from_numpy(np.asarray(mask, dtype=np.bool_)) for mask in cav_content["origin_lidar_spoofing_masks"]
+                            ],
                         }
                     )
 

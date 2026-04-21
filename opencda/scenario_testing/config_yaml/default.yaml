@@ -214,6 +214,8 @@ sumo:
 
 cooperative_perception_visualization:
   background: [0, 0, 0]
+  bbox_line_thickness: 5 # optional global line thickness for all rendered bounding boxes in BEV/3D
+  image_dpi: 400 # optional DPI for saved cooperative perception images
   lidar_point_colors:
     other: [255, 255, 255] # fallback color for all lidar points; in general CoP visualization every non-ego agent also uses this color
     ego: [80, 255, 80] # used when the visualizer can identify ego points
@@ -225,3 +227,5 @@ cooperative_perception_visualization:
     gt: [0, 255, 0]
     pred: [255, 0, 0]
     fake: [242, 156, 74]  # used for fake bounding boxes when AdvCP late-fusion visualization is active
+  # bbox_line_thickness: 8
+  # image_dpi: 600
