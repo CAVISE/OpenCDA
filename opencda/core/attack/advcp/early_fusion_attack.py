@@ -16,7 +16,6 @@ logger = logging.getLogger("cavise.opencda.opencda.core.attack.advcp.early_fusio
 
 
 class AdvCoperceptionEarlyFusionAttack:
-    DENSE_DISTANCE = 10.0
     DENSITY_ALIASES = {
         0: 0,
         1: 1,
@@ -38,7 +37,7 @@ class AdvCoperceptionEarlyFusionAttack:
         advcp_config: dict[str, Any],
         memory_data: dict[Any, Any] | None = None,
     ) -> AdvCPAttackResult:
-        mode = advcp_config.get("mode", "spoof")
+        mode = AdvCPAttackHelper.require_config_value(advcp_config, "mode")
         advcp_context: AdvCPVisualizationContext = {
             "attacker_ids": [],
             "fake_box_tensor": None,
@@ -53,10 +52,7 @@ class AdvCoperceptionEarlyFusionAttack:
             raise ValueError("AdvCP early spoofing requires current memory data.")
 
         scenario_data = next(iter(memory_data.values()))
-        attacker_id = advcp_config.get("attacker_id")
-        if not attacker_id:
-            logger.warning("AdvCP early attack will not be applied on this tick because no valid attacker_id is configured.")
-            return (*inference_utils.inference_early_fusion(batch_data, model, dataset), advcp_context)
+        attacker_id = AdvCPAttackHelper.require_config_value(advcp_config, "attacker_id")
         if attacker_id not in scenario_data:
             logger.warning(
                 "AdvCP early attack will not be applied on this tick because attacker '%s' is not present in the current scenario data. "
@@ -66,7 +62,7 @@ class AdvCoperceptionEarlyFusionAttack:
             return (*inference_utils.inference_early_fusion(batch_data, model, dataset), advcp_context)
 
         _, _, _, attack_boxes = AdvCPAttackHelper.resolve_spoof_boxes_for_agent(scenario_data, advcp_config, attacker_id)
-        density = AdvCoperceptionEarlyFusionAttack._resolve_density(advcp_config.get("density", 3))
+        density = AdvCoperceptionEarlyFusionAttack._resolve_density(AdvCPAttackHelper.require_config_value(advcp_config, "density"))
         advcp_context["attacker_ids"] = [attacker_id]
 
         attacked_memory = copy.deepcopy(memory_data)
@@ -213,6 +209,7 @@ class AdvCoperceptionEarlyFusionAttack:
         if lidar.size == 0:
             return lidar, spoofing_mask
 
+        dense_distance = float(AdvCPAttackHelper.require_config_value(advcp_config, "dense_distance"))
         point_xyz = np.asarray(lidar[:, :3], dtype=np.float32)
         point_distance = np.linalg.norm(point_xyz, axis=1)
         valid_mask = point_distance > 1e-6
@@ -244,7 +241,7 @@ class AdvCoperceptionEarlyFusionAttack:
         target_offset = spoof_box[:2]
         target_distance = float(np.linalg.norm(target_offset))
         if target_distance > 1e-6:
-            lidar_offset = target_offset / target_distance * max(target_distance - AdvCoperceptionEarlyFusionAttack.DENSE_DISTANCE, 0.0)
+            lidar_offset = target_offset / target_distance * max(target_distance - dense_distance, 0.0)
             extra_rays = np.array(rays, copy=True)
             extra_rays[:, :2] = lidar_offset
             extra_rays_list.append(extra_rays)
@@ -262,7 +259,7 @@ class AdvCoperceptionEarlyFusionAttack:
                 offset_distance = float(np.linalg.norm(target_offset - lidar_offset))
                 if offset_distance <= 1e-6:
                     continue
-                shifted_offset = target_offset + (lidar_offset - target_offset) / offset_distance * AdvCoperceptionEarlyFusionAttack.DENSE_DISTANCE
+                shifted_offset = target_offset + (lidar_offset - target_offset) / offset_distance * dense_distance
                 extra_rays = np.array(rays, copy=True)
                 extra_rays[:, :2] = shifted_offset
                 extra_rays_list.append(extra_rays)

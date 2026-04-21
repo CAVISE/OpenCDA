@@ -49,6 +49,21 @@ class DummyDataset:
         pass
 
 
+def make_advcp_config(**overrides):
+    config = {
+        "mode": "spoof",
+        "attacker_id": "cav-2",
+        "boxes": [{"relative": (5.0, 0.0, 0.0, 0.0, 90.0, 0.0)}],
+        "default_size": (4.5, 2.0, 1.6),
+        "density": 3,
+        "dense_distance": 10.0,
+        "car_mesh_path": "dummy_car_mesh.ply",
+        "car_mesh_divide_path": "dummy_car_mesh_divide.pkl",
+    }
+    config.update(overrides)
+    return config
+
+
 class TestCoperceptionModelManager:
     @pytest.fixture
     def manager_deps(self, fake_heavy_deps):
@@ -256,7 +271,7 @@ class TestCoperceptionModelManager:
     def test_make_prediction_late_advcp_dispatches_to_late_attack_class(self, manager_deps):
         manager_deps["hypes"]["fusion"]["core_method"] = "LateFusionDataset"
         opt = DummyOpt(with_advcp=True, advcp_config="dummy.yaml")
-        with patch.object(AdvCoperceptionModelManager, "load_config", return_value={"mode": "spoof", "attacker_id": "cav-2", "boxes": [{}]}):
+        with patch.object(AdvCoperceptionModelManager, "load_config", return_value=make_advcp_config(boxes=[{}])):
             manager = AdvCoperceptionModelManager(opt, "2023_01_01")
         manager.data_loader = [{"ego": {"origin_lidar": ["lidar_data"]}}]
         manager.opencood_dataset = MagicMock()
@@ -276,7 +291,7 @@ class TestCoperceptionModelManager:
     def test_make_prediction_early_advcp_dispatches_to_early_attack_class(self, manager_deps):
         manager_deps["hypes"]["fusion"]["core_method"] = "EarlyFusionDataset"
         opt = DummyOpt(with_advcp=True, advcp_config="dummy.yaml")
-        with patch.object(AdvCoperceptionModelManager, "load_config", return_value={"mode": "spoof", "attacker_id": "cav-2", "boxes": [{}]}):
+        with patch.object(AdvCoperceptionModelManager, "load_config", return_value=make_advcp_config(boxes=[{}])):
             manager = AdvCoperceptionModelManager(opt, "2023_01_01")
         manager.data_loader = [{"ego": {"origin_lidar": ["lidar_data"]}}]
         manager.opencood_dataset = MagicMock()
@@ -316,7 +331,7 @@ class TestCoperceptionModelManager:
             model,
             dataset,
             "device(cpu)",
-            {"mode": "spoof", "attacker_id": "cav-2", "boxes": [{"relative": [5.0, 0.0, 0.0, 0.0, 90.0, 0.0]}]},
+            make_advcp_config(),
             memory_data=memory_data,
         )
 
@@ -389,7 +404,7 @@ class TestCoperceptionModelManager:
                 model,
                 dataset,
                 "device(cpu)",
-                {"mode": "spoof", "attacker_id": "cav-2", "boxes": [{"relative": [5.0, 0.0, 0.0, 0.0, 90.0, 0.0]}]},
+                make_advcp_config(),
                 memory_data=memory_data,
             )
 

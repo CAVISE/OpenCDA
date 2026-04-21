@@ -31,7 +31,7 @@ class AdvCoperceptionLateFusionAttack:
         for cav_id, cav_content in batch_data.items():
             output_dict[cav_id] = model(cav_content)
 
-        mode = advcp_config.get("mode", "spoof")
+        mode = AdvCPAttackHelper.require_config_value(advcp_config, "mode")
         advcp_context["mode"] = mode
         if mode == "remove":
             AdvCoperceptionLateFusionAttack._raise_removal_not_available()

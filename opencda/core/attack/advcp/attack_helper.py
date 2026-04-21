@@ -17,7 +17,12 @@ logger = logging.getLogger("cavise.opencda.opencda.core.attack.advcp.advcp_manag
 
 
 class AdvCPAttackHelper:
-    DEFAULT_BOX_SIZE = [4.5, 2.0, 1.6]
+    @staticmethod
+    def require_config_value(config: Mapping[str, Any], key: str, config_name: str = "AdvCP config") -> Any:
+        value = config.get(key)
+        if value is None:
+            raise ValueError(f"Unexpected None in {config_name} for '{key}'.")
+        return value
 
     @staticmethod
     def resolve_ego_agent_id(scenario_data: Mapping[str, Any]) -> str:
@@ -57,16 +62,14 @@ class AdvCPAttackHelper:
         if memory_data is None:
             raise ValueError("AdvCP late spoofing requires current memory data.")
 
-        if advcp_config.get("mode", "spoof") != "spoof":
-            raise NotImplementedError(f"AdvCP mode '{advcp_config.get('mode')}' is not available yet.")
+        mode = cls.require_config_value(advcp_config, "mode")
+        if mode != "spoof":
+            raise NotImplementedError(f"AdvCP mode '{mode}' is not available yet.")
 
         scenario_data = next(iter(memory_data.values()))
         ego_agent_id = cls.resolve_ego_agent_id(scenario_data)
 
-        attacker_id = advcp_config.get("attacker_id")
-        if not attacker_id:
-            logger.warning("AdvCP attack will not be applied on this tick because no valid attacker_id is configured.")
-            return None, []
+        attacker_id = cls.require_config_value(advcp_config, "attacker_id")
         if attacker_id not in scenario_data:
             logger.warning(
                 "AdvCP attack will not be applied on this tick because attacker '%s' is not present in the current scenario data. "
@@ -90,7 +93,7 @@ class AdvCPAttackHelper:
         ego_state = cls.load_agent_state(scenario_data, ego_agent_id)
         attacker_state = cls.load_agent_state(scenario_data, attacker_id)
 
-        box_specs = advcp_config.get("boxes", [])
+        box_specs = cls.require_config_value(advcp_config, "boxes")
         if not isinstance(box_specs, list) or len(box_specs) == 0:
             raise ValueError("AdvCP config must define a non-empty boxes list.")
 
@@ -119,7 +122,7 @@ class AdvCPAttackHelper:
             raise ValueError(f"boxes[{index}] must contain 6 values: [x, y, z, roll, yaw, pitch].")
 
         size = np.asarray(
-            spec.get("size", advcp_config.get("default_size", cls.DEFAULT_BOX_SIZE)),
+            spec.get("size", cls.require_config_value(advcp_config, "default_size")),
             dtype=np.float32,
         )
         if size.shape != (3,):
@@ -183,7 +186,6 @@ class AdvCPAttackHelper:
 
 
 class AdvCPCarMeshHelper:
-    DEFAULT_CAR_MESH_FILENAME = "car_mesh_0200.ply"
     CAR_MESH_3D_EXAMPLES = {
         "car_000000": np.array([0.0, 0.0, 0.0, 5.00, 2.00, 1.75, 0.0], dtype=np.float32),
         "car_mesh_0200": np.array([0.0, 0.0, 0.0, 4.30, 1.91, 1.26, 0.0], dtype=np.float32),
@@ -231,6 +233,8 @@ class AdvCPCarMeshHelper:
     def build_real_car_mesh_pieces(cls, spoof_box: np.ndarray, advcp_config: Mapping[str, Any]) -> list[Any] | None:
         import open3d as o3d
 
+        # TODO: Replace bundled car_mesh/car_mesh_divide asset loading with on-the-fly asset generation
+        # once AdvCP issue #8 is resolved: https://github.com/zqzqz/AdvCollaborativePerception/issues/8
         car_mesh_path, car_mesh_divide_path = cls.resolve_car_mesh_paths(advcp_config)
         if car_mesh_path is None or not car_mesh_path.exists():
             return None
@@ -279,26 +283,15 @@ class AdvCPCarMeshHelper:
         return car_mesh_path.stem
 
     @classmethod
-    def resolve_car_mesh_paths(cls, advcp_config: Mapping[str, Any]) -> tuple[Path | None, Path | None]:
-        local_model_root = Path(__file__).resolve().parent / "3d_models"
-        car_mesh_path_value = advcp_config.get("car_mesh_path", advcp_config.get("model_path"))
-        if car_mesh_path_value:
-            car_mesh_path = Path(str(car_mesh_path_value)).expanduser()
-        else:
-            car_mesh_path = local_model_root / cls.DEFAULT_CAR_MESH_FILENAME
+    def resolve_car_mesh_paths(cls, advcp_config: Mapping[str, Any]) -> tuple[Path, Path]:
+        car_mesh_path = Path(str(AdvCPAttackHelper.require_config_value(advcp_config, "car_mesh_path"))).expanduser()
 
         if not car_mesh_path.is_absolute():
             car_mesh_path = (Path.cwd() / car_mesh_path).resolve()
 
-        car_mesh_divide_path_value = advcp_config.get("car_mesh_divide_path", advcp_config.get("mesh_divide_path"))
-        if car_mesh_divide_path_value:
-            car_mesh_divide_path = Path(str(car_mesh_divide_path_value)).expanduser()
-            if not car_mesh_divide_path.is_absolute():
-                car_mesh_divide_path = (Path.cwd() / car_mesh_divide_path).resolve()
-        else:
-            car_mesh_divide_path = local_model_root / "spoof" / "car_mesh_divide.pkl"
-            if not car_mesh_divide_path.exists():
-                car_mesh_divide_path = car_mesh_path.parent / "spoof" / "car_mesh_divide.pkl"
+        car_mesh_divide_path = Path(str(AdvCPAttackHelper.require_config_value(advcp_config, "car_mesh_divide_path"))).expanduser()
+        if not car_mesh_divide_path.is_absolute():
+            car_mesh_divide_path = (Path.cwd() / car_mesh_divide_path).resolve()
 
         return car_mesh_path, car_mesh_divide_path
 
