@@ -182,12 +182,12 @@ def transform_carla2sumo(states: Union[torch.Tensor, np.ndarray]) -> Union[torch
     return states
 
 
-def MPC_Block(
+def MPC_Block(  # noqa: DC02
     curr_states: np.ndarray,
     target_states: np.ndarray,
     acc_delta_old: np.ndarray,
     noise_range: float = 0.0,
-) -> Tuple[np.ndarray, np.ndarray]:  # noqa: DC02
+) -> Tuple[np.ndarray, np.ndarray]:
     """
     mpc block for computing control inputs for multiple vehicles
 
