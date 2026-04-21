@@ -341,6 +341,7 @@ def normalize_coords(coords: Union[torch.Tensor, np.ndarray], circle_boundary) -
 
     :return: normalized coordinates
     """
+    # return min_max_normalize(coords, config.vehicle.collect_data_radius * circle_boundary, 1)
     return min_max_normalize(coords, circle_boundary, 1)
 
 
@@ -353,6 +354,7 @@ def denormalize_coords(coords: Union[torch.Tensor, np.ndarray], circle_boundary)
 
     :return: denormalized coordinates
     """
+    # return min_max_normalize(coords, 1, config.vehicle.collect_data_radius * circle_boundary)
     return min_max_normalize(coords, 1, circle_boundary)
 
 
@@ -365,7 +367,7 @@ def normalize_speed(speed: Union[torch.Tensor, np.ndarray], vechicle_max_speed) 
 
     :return: normalized speed
     """
-    return min_max_normalize(speed, vechicle_max_speed, 1)
+    return min_max_normalize(speed, config.vehicle.max_speed * vechicle_max_speed, 1)
 
 
 def denormalize_speed(speed: Union[torch.Tensor, np.ndarray], vechicle_max_speed: float) -> Union[torch.Tensor, np.ndarray]:
@@ -377,7 +379,7 @@ def denormalize_speed(speed: Union[torch.Tensor, np.ndarray], vechicle_max_speed
 
     :return: denormalized speed
     """
-    return min_max_normalize(speed, 1, vechicle_max_speed)
+    return min_max_normalize(speed, 1, config.vehicle.max_speed * vechicle_max_speed)
 
 
 def normalize_input_data(x: Union[torch.Tensor, np.ndarray], circle_boundary, vechicle_max_speed) -> Union[torch.Tensor, np.ndarray]:
@@ -494,7 +496,7 @@ def normalize_input_features(x: np.ndarray, map_bounding: np.ndarray) -> None:
     :param x: input features array
     :param map_bounding: map boundary size
     """
-    normalize_input_data(x, config.vehicle.collect_data_radius * map_bounding, config.vehicle.max_speed * map_bounding)
+    normalize_input_data(x, map_bounding, map_bounding)
     normalize_yaw(x[:, 4])
     normalize_yaw(x[:, 5])
 
@@ -535,17 +537,18 @@ def preprocess_file(
 
             features = extract_needed_features(coords, start_yaw, last_yaw)
 
-            # --------------- only for several time while looking for how sumo calcs yaw
-            cool_angles = np.array([[-1, 0, 1]])
-            last_cos_idx = np.argmin(np.abs(features[:, 8:9] - cool_angles), axis=-1)
-            last_sin_idx = np.argmin(np.abs(features[:, 9:10] - cool_angles), axis=-1)
-            features[:, 8] = cool_angles[0, last_cos_idx]
-            features[:, 9] = cool_angles[0, last_sin_idx]
-            # ---------------
+            # # --------------- only for several time while looking for how sumo calcs yaw
+            # cool_angles = np.array([[-1, 0, 1]])
+            # last_cos_idx = np.argmin(np.abs(features[:, 8:9] - cool_angles), axis=-1)
+            # last_sin_idx = np.argmin(np.abs(features[:, 9:10] - cool_angles), axis=-1)
+            # features[:, 8] = cool_angles[0, last_cos_idx]
+            # features[:, 9] = cool_angles[0, last_sin_idx]
+            # # ---------------
 
             all_features.append(features)
             # may happen what some cars have more than config.model.obs_len + config.model.num_predict timesteps
             if features.shape[0] != all_features[0].shape[0]:
+                print(f"features.shape[0] != all_features[0].shape[0] for file with name: {csv_file}")
                 return
 
     if len(all_features) == 0:
@@ -589,12 +592,12 @@ def preprocess_file(
         future_states = adjust_future_deltas(curr_states, future_states)
 
         # [vehicle, config.model.num_predict, 2], [acc, delta]
-        acc_delta_old = all_features[:, row + 1 : row + 1 + config.model.num_predict, -2:]
-        shifted_curr, mpc_output = MPC_Block(
-            curr_states, future_states, acc_delta_old, noise_range=0
-        )  # [vehicle, 4], [vehicle, config.model.num_predict, 6]: [x, y, v, yaw, acc, delta]
-        # store the control vector to accelerate future MPC opt
-        all_features[:, row + 1 : row + 1 + config.model.num_predict, -2:] = mpc_output[:, :, -2:]
+        # acc_delta_old = all_features[:, row + 1 : row + 1 + config.model.num_predict, -2:]
+        # shifted_curr, mpc_output = MPC_Block(
+        #     curr_states, future_states, acc_delta_old, noise_range=0
+        # )  # [vehicle, 4], [vehicle, config.model.num_predict, 6]: [x, y, v, yaw, acc, delta]
+        # # store the control vector to accelerate future MPC opt
+        # all_features[:, row + 1 : row + 1 + config.model.num_predict, -2:] = mpc_output[:, :, -2:]
 
         # speed = all_features[:, row + 1 : row + 1 + config.model.num_predict, 2:3]  # [vehicle, config.model.num_predict, 1]
         speed = (
@@ -612,11 +615,12 @@ def preprocess_file(
             )  # [vehicle, config.model.num_predict, 1], align the initial direction to +Y
 
         # [vehicle, config.model.num_predict, 6]
-        y = np.concatenate((y, speed, yaw, mpc_output[:, :, -2:]), axis=2)
+        # y = np.concatenate((y, speed, yaw, mpc_output[:, :, -2:]), axis=2)
+        y = np.concatenate((y, speed, yaw), axis=2)
 
         if config.data_processing.normalize_data:
             normalize_input_features(x, map_bounding)
-            min_max_normalize_target_data(y, config.vehicle.collect_data_radius * map_bounding, config.vehicle.max_speed * map_bounding)
+            min_max_normalize_target_data(y, map_bounding, map_bounding)
 
         # [vehicle, config.model.num_predict*6]
         y = y.reshape(num_cars, -1)
@@ -692,8 +696,8 @@ def z_score_normalize_file(
     with open(y_y_dist_params_file, "rb") as f:
         y_y_mean, y_y_std = pickle.load(f)
 
-    z_score_normalize(data[1][:, 0::6], y_x_mean, y_x_std)
-    z_score_normalize(data[1][:, 1::6], y_y_mean, y_y_std)
+    z_score_normalize(data[1][:, 0::4], y_x_mean, y_x_std)
+    z_score_normalize(data[1][:, 1::4], y_y_mean, y_y_std)
 
     with open(
         preprocess_file_path,

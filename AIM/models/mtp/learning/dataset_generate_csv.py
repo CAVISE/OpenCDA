@@ -43,7 +43,14 @@ if __name__ == "__main__":
         shutil.rmtree(path_config.paths.sumo_gened_maps_path)
 
     TRAFFIC_SCALE = 1.0  # regulate the traffic flow
-    LENGTH_PER_SCENE = (config.model.num_predict + config.model.obs_len) // config.temporal.sample_rate
+
+    csv_dir_path_main = os.path.join(path_config.paths.data_path, "csv", split)
+    for net_file_name in os.listdir(csv_dir_path_main):
+        net_name = net_file_name.split(sep=".")[0]
+        csv_dir_path = os.path.join(csv_dir_path_main, net_name)
+
+        if os.path.exists(csv_dir_path):  # delete directory with old data if exists
+            shutil.rmtree(csv_dir_path)
 
     for net_file_name in os.listdir(nets_dir_path):
         net_name = net_file_name.split(sep=".")[0]
@@ -92,7 +99,6 @@ if __name__ == "__main__":
         generate_csv_from_fcd(
             fcd_file,
             csv_dir_path,
-            LENGTH_PER_SCENE,
             map_bounding,
             path_config.file_names.start_positions_file,
             path_config.file_names.last_positions_file,

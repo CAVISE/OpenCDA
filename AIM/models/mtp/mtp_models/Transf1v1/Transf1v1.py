@@ -1,6 +1,6 @@
 import torch
 
-from AIM.models.mtp.mtp_models.encoders_car.transformer_based.encoder_car_v1 import CarsEncoder, SimpleDecoder
+from AIM.models.mtp.mtp_models.encoders_car.transformer_based.encoder_car import CarsEncoder, SimpleDecoder
 from AIM.aim_model import MTPModel
 
 
