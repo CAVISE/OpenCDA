@@ -52,6 +52,17 @@ _install_stub_if_missing("torch.nn", torch_stub.nn)
 
 _install_stub_if_missing("open3d", types.ModuleType("open3d"))
 _install_stub_if_missing("opencood", types.ModuleType("opencood"))
+opencood_utils_stub = types.ModuleType("opencood.utils")
+opencood_transformation_utils_stub = types.ModuleType("opencood.utils.transformation_utils")
+opencood_transformation_utils_stub.x_to_world = lambda pose: [
+    [1.0, 0.0, 0.0, float(pose[0])],
+    [0.0, 1.0, 0.0, float(pose[1])],
+    [0.0, 0.0, 1.0, float(pose[2])],
+    [0.0, 0.0, 0.0, 1.0],
+]
+opencood_utils_stub.transformation_utils = opencood_transformation_utils_stub
+_install_stub_if_missing("opencood.utils", opencood_utils_stub)
+_install_stub_if_missing("opencood.utils.transformation_utils", opencood_transformation_utils_stub)
 
 
 def _make_placeholder_module(mod_name: str, **attrs) -> ModuleType:
