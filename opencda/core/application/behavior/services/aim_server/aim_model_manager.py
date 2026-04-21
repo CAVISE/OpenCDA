@@ -6,7 +6,7 @@ import logging
 import numpy as np
 from scipy.spatial import distance
 
-from AIM import AIMModel
+from AIM import AIMModelWrapper
 
 from .messages import AIMServerRequest, AIMServerResponse
 from .types import CavData
@@ -21,7 +21,7 @@ logger = logging.getLogger("cavise.opencda.opencda.core.application.behavior.ser
 class AIMModelManager:
     def __init__(
         self,
-        model: AIMModel,
+        model: AIMModelWrapper,
         control_center: Transform,
         service_name: str,
         owner_id: str,

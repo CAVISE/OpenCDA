@@ -9,7 +9,7 @@ from typing import Any, Sequence, cast, TYPE_CHECKING
 from opencda.core.application.behavior.registry import BehaviorServiceRegistry
 from opencda.core.application.behavior.transport_message import TransportMessage
 
-from AIM import get_model
+from AIM import get_model_wrapper
 
 if TYPE_CHECKING:
     from opencda.core.common.rsu_manager import RSUManager
@@ -45,7 +45,7 @@ class AIMServer:
         self.priority = priority
 
         aim_model_name = cast(str, aim_config.pop("model", "MTP"))
-        self.model = get_model(aim_model_name, **aim_config)
+        self.model = get_model_wrapper(aim_model_name, **aim_config)
 
     def _get_owner(self) -> RSUManager:
         owner_ref = self._owner_ref
