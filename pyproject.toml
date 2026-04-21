@@ -172,9 +172,7 @@ exclude = [
     "^opencda/core/safety/sensors\\.py$",
     "^opencda/core/sensing(/|$)",
     "^opencda/customize(/|$)",
-    "^opencda/opencda_carla\\.py$",
-    "^opencda\\.py$",
-    "^scripts(/|$)",
+    "^opencda/opencda_carla\\.py$"
 ]
 
 

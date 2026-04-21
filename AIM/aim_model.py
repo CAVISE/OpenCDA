@@ -34,7 +34,7 @@ class AIMModel(ABC):
     @abstractmethod
     def predict(
         self,
-        features: List[Any],
+        features: Any,
         target_agent_ids: List[str],
     ) -> Any:
         """

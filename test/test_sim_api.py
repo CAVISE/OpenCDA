@@ -181,7 +181,7 @@ def test_create_vehicle_manager_empty(mocker):
     params.pop("scenario", None)
 
     sm, _, _ = _make_scenario_manager(mocker, params)
-    cav_list, cav_ids = sm.create_vehicle_manager(application=["single"], map_helper=None, data_dump=False)
+    cav_list, cav_ids = sm.create_vehicle_manager(application=["single"], map_helper=None)
 
     assert cav_list == []
     assert cav_ids == {}
@@ -192,7 +192,7 @@ def test_create_rsu_manager_empty(mocker):
     params.pop("scenario", None)
 
     sm, _, _ = _make_scenario_manager(mocker, params)
-    rsu_list, rsu_ids = sm.create_rsu_manager(data_dump=False)
+    rsu_list, rsu_ids = sm.create_rsu_manager()
 
     assert rsu_list == []
     assert rsu_ids == {}
@@ -386,7 +386,7 @@ def test_create_vehicle_manager_single_cav(mocker, minimal_vehicle_config):
     spawn_custom_actor = mocker.patch.object(sm, "spawn_custom_actor", return_value=vehicle_actor)
 
     vm_mock = Mock()
-    vm_mock.vid = "cav-7"
+    vm_mock.id = "cav-7"
     vm_mock.vehicle = vehicle_actor
     vm_mock.v2x_manager = Mock(spec_set=["set_platoon"])
     vm_mock.v2x_manager.set_platoon = Mock()
@@ -395,7 +395,7 @@ def test_create_vehicle_manager_single_cav(mocker, minimal_vehicle_config):
 
     vehicle_manager_ctor = mocker.patch("opencda.scenario_testing.utils.sim_api.VehicleManager", return_value=vm_mock)
 
-    cav_list, cav_carla_list = sm.create_vehicle_manager(application=["single"], map_helper=None, data_dump=False)
+    cav_list, cav_carla_list = sm.create_vehicle_manager(application=["single"], map_helper=None)
 
     assert cav_list == [vm_mock]
     assert cav_carla_list == {123: "cav-7"}
@@ -415,7 +415,7 @@ def test_create_vehicle_manager_single_cav(mocker, minimal_vehicle_config):
     assert ctor_world is sm.cav_world
     assert ctor_cfg["id"] == 7
     assert ctor_kwargs["prefix"] == "cav"
-    assert ctor_kwargs["data_dumping"] is False
+    assert ctor_kwargs["perception_requirements"].enable_data_dump is False
     assert ctor_kwargs["current_time"] == "t0"
 
     vm_mock.v2x_manager.set_platoon.assert_called_once_with(None)
@@ -447,8 +447,8 @@ def test_create_platoon_manager_creates_one_platoon_two_members(mocker, minimal_
             {
                 "destination": [10.0, 20.0, 0.0],
                 "members": [
-                    {"id": 1, "spawn_position": [0.0, 0.0, 0.0, 0.0, 90.0, 0.0]},
-                    {"id": 2, "spawn_position": [5.0, 0.0, 0.0, 0.0, 90.0, 0.0]},
+                    {"id": 1, "spawn_position": (0.0, 0.0, 0.0, 0.0, 90.0, 0.0)},
+                    {"id": 2, "spawn_position": (5.0, 0.0, 0.0, 0.0, 90.0, 0.0)},
                 ],
             }
         ]
@@ -474,14 +474,14 @@ def test_create_platoon_manager_creates_one_platoon_two_members(mocker, minimal_
     spawn_custom_actor = mocker.patch.object(sm, "spawn_custom_actor", side_effect=[actor1, actor2])
 
     vm1 = Mock()
-    vm1.vid = "platoon-1"
+    vm1.id = "platoon-1"
     vm1.vehicle = actor1
     vm2 = Mock()
-    vm2.vid = "platoon-2"
+    vm2.id = "platoon-2"
     vm2.vehicle = actor2
     vehicle_manager_ctor = mocker.patch("opencda.scenario_testing.utils.sim_api.VehicleManager", side_effect=[vm1, vm2])
 
-    platoons, mapping = sm.create_platoon_manager(map_helper=None, data_dump=False)
+    platoons, mapping = sm.create_platoon_manager(map_helper=None)
 
     cav_world_ctor.assert_called_once_with(False)
     assert sm.cav_world is cav_world_instance
@@ -499,7 +499,7 @@ def test_create_platoon_manager_creates_one_platoon_two_members(mocker, minimal_
     for call_ in vehicle_manager_ctor.call_args_list:
         assert call_.args[2] == ["platoon"]
         assert call_.kwargs["prefix"] == "platoon"
-        assert call_.kwargs["data_dumping"] is False
+        assert call_.kwargs["perception_requirements"].enable_data_dump is False
         assert call_.kwargs["current_time"] == "t0"
 
     platoon_manager.set_lead.assert_called_once_with(vm1)
@@ -921,11 +921,11 @@ def test_create_platoon_manager_uses_map_helper_when_spawn_special_present(mocke
     spawn_custom_actor = mocker.patch.object(sm, "spawn_custom_actor", return_value=actor)
 
     vm = Mock()
-    vm.vid = "platoon-1"
+    vm.id = "platoon-1"
     vm.vehicle = actor
     mocker.patch("opencda.scenario_testing.utils.sim_api.VehicleManager", return_value=vm)
 
-    platoons, mapping = sm.create_platoon_manager(map_helper=map_helper, data_dump=False)
+    platoons, mapping = sm.create_platoon_manager(map_helper=map_helper)
 
     assert platoons == [platoon_manager]
     assert mapping == {501: "platoon-1"}
@@ -949,15 +949,15 @@ def test_create_platoon_manager_multiple_platoons_combines_mapping_and_ticks_eac
             {
                 "destination": [10.0, 0.0, 0.0],
                 "members": [
-                    {"id": 1, "spawn_position": [0.0, 0.0, 0.0, 0.0, 90.0, 0.0]},
-                    {"id": 2, "spawn_position": [5.0, 0.0, 0.0, 0.0, 90.0, 0.0]},
+                    {"id": 1, "spawn_position": (0.0, 0.0, 0.0, 0.0, 90.0, 0.0)},
+                    {"id": 2, "spawn_position": (5.0, 0.0, 0.0, 0.0, 90.0, 0.0)},
                 ],
             },
             {
                 "destination": [20.0, 0.0, 0.0],
                 "members": [
-                    {"id": 3, "spawn_position": [100.0, 0.0, 0.0, 0.0, 90.0, 0.0]},
-                    {"id": 4, "spawn_position": [105.0, 0.0, 0.0, 0.0, 90.0, 0.0]},
+                    {"id": 3, "spawn_position": (100.0, 0.0, 0.0, 0.0, 90.0, 0.0)},
+                    {"id": 4, "spawn_position": (105.0, 0.0, 0.0, 0.0, 90.0, 0.0)},
                 ],
             },
         ]
@@ -992,20 +992,20 @@ def test_create_platoon_manager_multiple_platoons_combines_mapping_and_ticks_eac
     spawn_custom_actor = mocker.patch.object(sm, "spawn_custom_actor", side_effect=[actor1, actor2, actor3, actor4])
 
     vm1 = Mock()
-    vm1.vid = "platoon-1"
+    vm1.id = "platoon-1"
     vm1.vehicle = actor1
     vm2 = Mock()
-    vm2.vid = "platoon-2"
+    vm2.id = "platoon-2"
     vm2.vehicle = actor2
     vm3 = Mock()
-    vm3.vid = "platoon-3"
+    vm3.id = "platoon-3"
     vm3.vehicle = actor3
     vm4 = Mock()
-    vm4.vid = "platoon-4"
+    vm4.id = "platoon-4"
     vm4.vehicle = actor4
     vehicle_manager_ctor = mocker.patch("opencda.scenario_testing.utils.sim_api.VehicleManager", side_effect=[vm1, vm2, vm3, vm4])
 
-    platoons, mapping = sm.create_platoon_manager(map_helper=None, data_dump=False)
+    platoons, mapping = sm.create_platoon_manager(map_helper=None)
 
     cav_world_ctor.assert_called_once_with(False)
     assert sm.cav_world is cav_world_instance
@@ -1023,7 +1023,7 @@ def test_create_platoon_manager_multiple_platoons_combines_mapping_and_ticks_eac
     for call_ in vehicle_manager_ctor.call_args_list:
         assert call_.args[2] == ["platoon"]
         assert call_.kwargs["prefix"] == "platoon"
-        assert call_.kwargs["data_dumping"] is False
+        assert call_.kwargs["perception_requirements"].enable_data_dump is False
         assert call_.kwargs["current_time"] == "t0"
 
     assert platoon_manager_ctor.call_count == 2
@@ -1253,11 +1253,11 @@ def test_create_platoon_manager_spawn_position_is_converted_to_transform(mocker,
     actor2.id = 1002
     spawn_custom_actor = mocker.patch.object(sm, "spawn_custom_actor", side_effect=[actor1, actor2])
 
-    vm1 = Mock(vid="platoon-1", vehicle=actor1)
-    vm2 = Mock(vid="platoon-2", vehicle=actor2)
+    vm1 = Mock(id="platoon-1", vehicle=actor1)
+    vm2 = Mock(id="platoon-2", vehicle=actor2)
     mocker.patch("opencda.scenario_testing.utils.sim_api.VehicleManager", side_effect=[vm1, vm2])
 
-    sm.create_platoon_manager(map_helper=None, data_dump=False)
+    sm.create_platoon_manager(map_helper=None)
 
     expected_t1 = carla.Transform(carla.Location(1.0, 2.0, 3.0), carla.Rotation(pitch=6.0, yaw=5.0, roll=4.0))
     expected_t2 = carla.Transform(carla.Location(7.0, 8.0, 9.0), carla.Rotation(pitch=12.0, yaw=11.0, roll=10.0))
@@ -1286,10 +1286,10 @@ def test_create_rsu_manager_single_rsu(mocker, minimal_rsu_config):
     world.spawn_actor.return_value = actor
 
     rsu_mgr = Mock()
-    rsu_mgr.rid = "rsu-3"
+    rsu_mgr.id = "rsu-3"
     rsu_ctor = mocker.patch("opencda.scenario_testing.utils.sim_api.RSUManager", return_value=rsu_mgr)
 
-    rsu_list, rsu_ids = sm.create_rsu_manager(data_dump=False)
+    rsu_list, rsu_ids = sm.create_rsu_manager()
 
     assert rsu_list == [rsu_mgr]
     assert rsu_ids == {999: "rsu-3"}
@@ -1307,7 +1307,7 @@ def test_create_rsu_manager_single_rsu(mocker, minimal_rsu_config):
     assert rsu_ctor.call_args.args[2] is sm.carla_map
     assert rsu_ctor.call_args.args[3] is sm.cav_world
     assert rsu_ctor.call_args.args[4] == "t0"
-    assert rsu_ctor.call_args.kwargs["data_dumping"] is False
+    assert rsu_ctor.call_args.kwargs["perception_requirements"].enable_data_dump is False
 
 
 def test_create_traffic_carla_with_vehicle_list_uses_spawn_vehicles_by_list(mocker):

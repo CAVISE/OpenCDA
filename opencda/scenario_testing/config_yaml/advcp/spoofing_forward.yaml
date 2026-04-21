@@ -1,0 +1,9 @@
+# For 2cars_advcp_attack_check scenario
+mode: spoof
+attacker_id: cav-2
+density: 2 # 0=replace, 1=dense_a, 2=dense_all, 3=sampled
+default_size: [4.5, 2.0, 1.6]
+# model_path: /absolute/path/to/custom_vehicle_mesh.ply
+# mesh_divide_path: /absolute/path/to/custom_mesh_divide.pkl
+boxes:
+  - relative: [15.0, 0.0, 0.0, 0.0, 90.0, 0.0]

@@ -26,6 +26,7 @@ from opencda.core.common.vehicle_manager import VehicleManager
 from opencda.core.application.platooning.platooning_manager import PlatooningManager
 from opencda.core.common.rsu_manager import RSUManager
 from opencda.core.common.cav_world import CavWorld
+from opencda.core.sensing.perception.perception_manager import PerceptionRequirements
 from opencda.scenario_testing.utils.customized_map_api import load_customized_world, bcolors
 
 logger = logging.getLogger("cavise.opencda.opencda.scenario_testing.utils.sim_api")
@@ -302,7 +303,7 @@ class ScenarioManager:
         self,
         application: list[str],
         map_helper: MapHelper | None = None,
-        data_dump: bool = False,
+        perception_requirements: PerceptionRequirements | None = None,
         fallback_model: str = "vehicle.lincoln.mkz_2017",
     ) -> tuple[list[VehicleManager], dict[int, Any]]:
         """
@@ -317,8 +318,8 @@ class ScenarioManager:
             A function to help spawn vehicle on a specific position in
             a specific map.
 
-        data_dump : bool
-            Whether to dump sensor data.
+        perception_requirements : PerceptionRequirements
+            Sensor/runtime requirements used to initialize perception-related modules.
 
         fallback_model: str
             Fallback cav model if none provided by config.
@@ -330,6 +331,7 @@ class ScenarioManager:
         """
         single_cav_list: list[VehicleManager] = []
         cav_carla_list: dict[int, Any] = {}
+        perception_requirements = perception_requirements or PerceptionRequirements()
 
         if self.scenario_params.get("scenario") is None or self.scenario_params["scenario"].get("single_cav_list", None) is None:
             logger.info("No CAV was created")
@@ -360,11 +362,11 @@ class ScenarioManager:
                 self.carla_map,
                 self.cav_world,
                 current_time=self.scenario_params["current_time"],
-                data_dumping=data_dump,
+                perception_requirements=perception_requirements,
                 prefix="cav",
             )
 
-            cav_carla_list[vehicle.id] = vehicle_manager.vid
+            cav_carla_list[vehicle.id] = vehicle_manager.id
 
             self.world.tick()
 
@@ -375,14 +377,14 @@ class ScenarioManager:
             vehicle_manager.set_destination(vehicle_manager.vehicle.get_location(), destination, clean=True)
 
             single_cav_list.append(vehicle_manager)
-            logger.info(f"Created CAV with id {vehicle_manager.vid}")
+            logger.info(f"Created CAV with id {vehicle_manager.id}")
 
         return single_cav_list, cav_carla_list
 
     def create_platoon_manager(
         self,
         map_helper: MapHelper | None = None,
-        data_dump: bool = False,
+        perception_requirements: PerceptionRequirements | None = None,
         fallback_model: str = "vehicle.lincoln.mkz_2017",
     ) -> tuple[list[PlatooningManager], dict[int, Any]]:
         """
@@ -394,8 +396,8 @@ class ScenarioManager:
             A function to help spawn vehicle on a specific position in a
             specific map.
 
-        data_dump : bool
-            Whether to dump sensor data.
+        perception_requirements : PerceptionRequirements
+            Sensor/runtime requirements used to initialize perception-related modules.
 
         fallback_model: str
             Fallback cav model if none provided by config.
@@ -407,6 +409,7 @@ class ScenarioManager:
         """
         platoon_list: list[PlatooningManager] = []
         platoon_carla_ids: dict[int, Any] = {}
+        perception_requirements = perception_requirements or PerceptionRequirements()
 
         self.cav_world = CavWorld(self.apply_ml)
 
@@ -442,11 +445,11 @@ class ScenarioManager:
                     self.carla_map,
                     self.cav_world,
                     current_time=self.scenario_params["current_time"],
-                    data_dumping=data_dump,
+                    perception_requirements=perception_requirements,
                     prefix="platoon",
                 )
 
-                platoon_carla_ids[vehicle.id] = vehicle_manager.vid
+                platoon_carla_ids[vehicle.id] = vehicle_manager.id
 
                 # add the vehicle manager to platoon
                 if j == 0:
@@ -463,14 +466,14 @@ class ScenarioManager:
 
         return platoon_list, platoon_carla_ids
 
-    def create_rsu_manager(self, data_dump: bool) -> tuple[list[RSUManager], dict[int, Any]]:
+    def create_rsu_manager(self, perception_requirements: PerceptionRequirements | None = None) -> tuple[list[RSUManager], dict[int, Any]]:
         """
         Create a list of RSU.
 
         Parameters
         ----------
-        data_dump : bool
-            Whether to dump sensor data.
+        perception_requirements : PerceptionRequirements
+            Sensor/runtime requirements used to initialize perception-related modules.
 
         Returns
         -------
@@ -479,6 +482,7 @@ class ScenarioManager:
         """
         rsu_list: list[RSUManager] = []
         rsu_carla_ids: dict[int, Any] = {}
+        perception_requirements = perception_requirements or PerceptionRequirements()
 
         if self.scenario_params.get("scenario") is None or self.scenario_params["scenario"].get("rsu_list", None) is None:
             logger.info("No RSU was created")
@@ -502,13 +506,13 @@ class ScenarioManager:
                 self.carla_map,
                 self.cav_world,
                 self.scenario_params["current_time"],
-                data_dumping=data_dump,
+                perception_requirements=perception_requirements,
             )
 
-            rsu_carla_ids[actor.id] = rsu_manager.rid
+            rsu_carla_ids[actor.id] = rsu_manager.id
 
             rsu_list.append(rsu_manager)
-            logger.info(f"Created RSU with id {rsu_manager.rid}")
+            logger.info(f"Created RSU with id {rsu_manager.id}")
 
         return rsu_list, rsu_carla_ids
 

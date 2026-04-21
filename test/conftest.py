@@ -29,15 +29,40 @@ def _install_stub_if_missing(name: str, module: ModuleType) -> None:
         sys.modules[name] = module
 
 
+behavior_services_stub = types.ModuleType("opencda.core.application.behavior.services")
+behavior_services_stub.__all__ = []
+_install_stub_if_missing("opencda.core.application.behavior.services", behavior_services_stub)
+
+
 # Heavy external deps stubs for tests under test/ (torch/open3d/opencood may be absent in CI)
 torch_stub = types.ModuleType("torch")
+
+
+class _TorchTensor:
+    pass
+
+
 torch_stub.cuda = SimpleNamespace(is_available=lambda: False)
 torch_stub.hub = SimpleNamespace(load=Mock())
 torch_stub.device = lambda *args, **kwargs: "cpu"
+torch_stub.Tensor = _TorchTensor
+torch_stub.nn = types.ModuleType("torch.nn")
 _install_stub_if_missing("torch", torch_stub)
+_install_stub_if_missing("torch.nn", torch_stub.nn)
 
 _install_stub_if_missing("open3d", types.ModuleType("open3d"))
 _install_stub_if_missing("opencood", types.ModuleType("opencood"))
+opencood_utils_stub = types.ModuleType("opencood.utils")
+opencood_transformation_utils_stub = types.ModuleType("opencood.utils.transformation_utils")
+opencood_transformation_utils_stub.x_to_world = lambda pose: [
+    [1.0, 0.0, 0.0, float(pose[0])],
+    [0.0, 1.0, 0.0, float(pose[1])],
+    [0.0, 0.0, 1.0, float(pose[2])],
+    [0.0, 0.0, 0.0, 1.0],
+]
+opencood_utils_stub.transformation_utils = opencood_transformation_utils_stub
+_install_stub_if_missing("opencood.utils", opencood_utils_stub)
+_install_stub_if_missing("opencood.utils.transformation_utils", opencood_transformation_utils_stub)
 
 
 def _make_placeholder_module(mod_name: str, **attrs) -> ModuleType:
@@ -50,6 +75,32 @@ def _make_placeholder_module(mod_name: str, **attrs) -> ModuleType:
 class _Placeholder:
     def __init__(self, *args, **kwargs):
         pass
+
+
+class _PlaceholderPerceptionRequirements:
+    def __init__(
+        self,
+        enable_data_dump: bool = False,
+        force_rgb_camera: bool = False,
+        force_lidar: bool = False,
+        force_semantic_lidar: bool = False,
+        extend_inactive_detection_range: bool = False,
+    ):
+        self.enable_data_dump = enable_data_dump
+        self.force_rgb_camera = force_rgb_camera
+        self.force_lidar = force_lidar
+        self.force_semantic_lidar = force_semantic_lidar
+        self.extend_inactive_detection_range = extend_inactive_detection_range
+
+    @classmethod
+    def from_runtime_flags(cls, data_dump: bool = False, with_coperception: bool = False):
+        return cls(
+            enable_data_dump=data_dump,
+            force_rgb_camera=data_dump,
+            force_lidar=data_dump or with_coperception,
+            force_semantic_lidar=data_dump or with_coperception,
+            extend_inactive_detection_range=data_dump or with_coperception,
+        )
 
 
 # Install carla stub using existing mocked_carla classes
@@ -184,7 +235,11 @@ _install_stub(
 )
 _install_stub(
     "opencda.core.sensing.perception.perception_manager",
-    _make_placeholder_module("opencda.core.sensing.perception.perception_manager", PerceptionManager=_Placeholder),
+    _make_placeholder_module(
+        "opencda.core.sensing.perception.perception_manager",
+        PerceptionManager=_Placeholder,
+        PerceptionRequirements=_PlaceholderPerceptionRequirements,
+    ),
 )
 _install_stub(
     "opencda.core.safety.safety_manager",
