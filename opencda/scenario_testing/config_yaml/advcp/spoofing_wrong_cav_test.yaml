@@ -1,0 +1,12 @@
+# Test wrong configuration
+mode: spoof
+attacker_id: wrong-cav-100
+default_size: [4.5, 2.0, 1.6]
+boxes:
+  - relative: [10.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+  - relative: [-10.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+  - relative: [0.0, 10.0, 0.0, 0.0, 0.0, 0.0]
+  - relative: [0.0, -10.0, 0.0, 0.0, 0.0, 0.0]
+    size: [6, 3, 1.7]
+  - absolute: [12.0, 192.31, 0.3, 0.0, 45.0, 0.0]
+    size: [4.8, 2.1, 1.7]

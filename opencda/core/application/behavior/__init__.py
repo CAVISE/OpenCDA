@@ -13,6 +13,7 @@ import importlib
 
 from .behavior_service_protocol import BehaviorService
 from .registry import BehaviorServiceRegistry
+from .transport_message import TransportMessage
 
 # Initialize builtin behavior service discovery.
 importlib.import_module("opencda.core.application.behavior.services")
@@ -24,6 +25,7 @@ list_services = BehaviorServiceRegistry.list_services
 __all__ = [
     "BehaviorService",
     "BehaviorServiceRegistry",
+    "TransportMessage",
     "create_service",
     "get_service_class",
     "list_services",

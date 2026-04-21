@@ -139,7 +139,7 @@ scenario:
 cooperative_perception_visualization:
   background: [10, 14, 24]
   lidar_point_colors:
-    default: [214, 220, 229]
+    other: [214, 220, 229]
     cav-1: [111, 214, 255]
     cav-2: [127, 236, 173]
     cav-3: [255, 207, 119]

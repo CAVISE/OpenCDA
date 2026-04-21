@@ -94,7 +94,6 @@ scenario:
       id: 1
       behavior_services:
         - type: dummy_service
-          service_id: dummy_service_rsu1
     - name: rsu2
       spawn_position: [-16.29, 36.37, 2, 0, 0, 0]
       id: 2

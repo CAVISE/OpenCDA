@@ -20,7 +20,7 @@ def test_parser():
     parser.add_argument("--fusion_method", required=True, type=str, default="late", help="late, early or intermediate")
     parser.add_argument("--show_vis", action="store_true", help="whether to show image visualization result")
     parser.add_argument(
-        "--show_sequence", action="store_true", help="whether to show video visualization result.it can note be set true with show_vis together "
+        "--show_video_vis", action="store_true", help="whether to show video visualization result.it can note be set true with show_vis together "
     )
     parser.add_argument("--save_vis", action="store_true", help="whether to save visualization result")
     parser.add_argument("--save_npy", action="store_true", help="whether to save prediction and gt resultin npy_test file")
@@ -38,7 +38,7 @@ def test_parser():
 def main():
     opt = test_parser()
     assert opt.fusion_method in ["late", "early", "intermediate"]
-    assert not (opt.show_vis and opt.show_sequence), "you can only visualize the results in single image mode or video mode"
+    assert not (opt.show_vis and opt.show_video_vis), "you can only visualize the results in single image mode or video mode"
 
     hypes = yaml_utils.load_yaml(None, opt)
 
@@ -75,7 +75,7 @@ def main():
         0.7: {"tp": [], "fp": [], "gt": 0, "score": []},
     }
 
-    if opt.show_sequence:
+    if opt.show_video_vis:
         vis = o3d.visualization.Visualizer()
         vis.create_window()
 
@@ -126,7 +126,7 @@ def main():
                     pred_box_tensor, gt_box_tensor, batch_data["ego"]["origin_lidar"], opt.show_vis, vis_save_path, dataset=opencood_dataset
                 )
 
-            if opt.show_sequence:
+            if opt.show_video_vis:
                 pcd, pred_o3d_box, gt_o3d_box = vis_utils.visualize_inference_sample_dataloader(
                     pred_box_tensor, gt_box_tensor, batch_data["ego"]["origin_lidar"], vis_pcd, mode="constant"
                 )
@@ -144,7 +144,7 @@ def main():
                 time.sleep(0.001)
 
     eval_utils.eval_final_results(result_stat, opt.model_dir, opt.global_sort_detections)
-    if opt.show_sequence:
+    if opt.show_video_vis:
         vis.destroy_window()
 
 

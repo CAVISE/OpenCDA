@@ -1,6 +1,6 @@
 """Dummy behavior service package."""
 
-from .dummy_service import DummyService
+from .service import DummyService
 from .messages import DummyServiceMessage
 from .results import DummyServiceEchoMessage, DummyServiceResult
 
