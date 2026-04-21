@@ -6,8 +6,10 @@ import numpy as np
 # The production code imports are now safe because pytest_configure in conftest.py
 # installs the mocks before collection.
 from opencda.core.attack.advcp import AdvCoperceptionModelManager
+from opencda.core.attack.advcp.attack_helper import AdvCPAttackHelper
 from opencda.core.attack.advcp.adv_coperception_model_manager import AdvCoperceptionVisualizer
 from opencda.core.attack.advcp.early_fusion_attack import AdvCoperceptionEarlyFusionAttack
+from opencda.core.attack.advcp.late_fusion_attack import AdvCoperceptionLateFusionAttack
 from opencda.core.common.coperception_data_processor import CoperceptionDataProcessor
 from opencda.core.common.coperception_model_manager import (
     CoperceptionInferenceResult,
@@ -251,18 +253,17 @@ class TestCoperceptionModelManager:
 
         getattr(manager_deps["inference_utils"], inference_attr).assert_called()
 
-    def test_make_prediction_late_advcp_uses_manager(self, manager_deps):
+    def test_make_prediction_late_advcp_dispatches_to_late_attack_class(self, manager_deps):
         manager_deps["hypes"]["fusion"]["core_method"] = "LateFusionDataset"
         opt = DummyOpt(with_advcp=True, advcp_config="dummy.yaml")
         with patch.object(AdvCoperceptionModelManager, "load_config", return_value={"mode": "spoof", "attacker_id": "cav-2", "boxes": [{}]}):
             manager = AdvCoperceptionModelManager(opt, "2023_01_01")
         manager.data_loader = [{"ego": {"origin_lidar": ["lidar_data"]}}]
         manager.opencood_dataset = MagicMock()
-        manager.advcp_config = {"mode": "spoof", "attacker_id": "cav-2", "boxes": [{}]}
 
         with patch.object(
-            AdvCoperceptionModelManager,
-            "_inference_late_fusion_attack",
+            AdvCoperceptionLateFusionAttack,
+            "run",
             return_value=("pred", "score", "gt", {"attacker_ids": ["cav-2"], "fake_box_tensor": "fake"}),
         ) as mock_advcp:
             manager.make_prediction(0)
@@ -371,10 +372,10 @@ class TestCoperceptionModelManager:
         spoofed_lidar = np.array([[9.0, 9.0, 9.0, 1.0]], dtype=np.float32)
 
         with (
-            patch.object(AdvCoperceptionModelManager, "_load_agent_state", side_effect=lambda scenario_data, agent_id: states[agent_id]),
+            patch.object(AdvCPAttackHelper, "load_agent_state", side_effect=lambda scenario_data, agent_id: states[agent_id]),
             patch.object(
-                AdvCoperceptionModelManager,
-                "_resolve_box_spec",
+                AdvCPAttackHelper,
+                "resolve_box_spec",
                 return_value=spoof_box,
             ),
             patch.object(

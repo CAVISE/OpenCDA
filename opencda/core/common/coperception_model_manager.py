@@ -49,9 +49,9 @@ class CoperceptionVisualizationConfig(TypedDict):
 
 @dataclass
 class CoperceptionInferenceResult:
-    pred_box_tensor: Any
-    pred_score: Any
-    gt_box_tensor: Any
+    pred_box_tensor: torch.Tensor | None
+    pred_score: torch.Tensor | None
+    gt_box_tensor: torch.Tensor | None
     visualization_context: Optional[Mapping[str, Any]] = None
 
 
