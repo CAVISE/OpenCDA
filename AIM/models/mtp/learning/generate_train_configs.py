@@ -85,8 +85,9 @@ def generate_configs() -> None:
 
     train_config_params = {}
     # train_config_params = {
-    #     "lr": [5e-5, 1e-4],
-    #     "weight_decay": [1e-4, 5e-4],
+    #     "collision_penalty_factor": [300, 500, 1000],
+    #     "lr": [5e-5, 5e-4],
+    #     "weight_decay": [5e-4],
     # }
 
     model_config_params = {}

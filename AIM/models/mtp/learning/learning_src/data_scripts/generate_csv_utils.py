@@ -1,9 +1,9 @@
 import os
 import random
-import shutil
 import xml.dom.minidom
 from typing import NoReturn
-import numpy as np
+
+# import numpy as np
 import pandas as pd
 import sumolib
 import xml.etree.ElementTree as ET
@@ -103,23 +103,81 @@ def get_entry_exit_edges(net_path: str) -> dict[str, list[str]]:
     return result
 
 
-def get_connection_via(root: Element, from_edge: str, to_edge: str) -> str:
+def get_connection_via(root: Element, from_edge: str, to_edge: str):
     """
-    Find the internal edge (via) that connects two edges.
+    Find all internal edges (via) that connect two edges.
 
-    :param root: root elemet of net.xml file
+    :param root: root element of net.xml
     :param from_edge: start edge
-    :param to_edge: end egde
+    :param to_edge: end edge
+    :return: list of via edge
     """
     for connection in root.findall("connection"):
         conn_from = connection.get("from")
         conn_to = connection.get("to")
 
-        if conn_from == from_edge and conn_to == to_edge and not conn_from.startswith(":"):
+        if conn_from == from_edge and conn_to == to_edge:
             via = connection.get("via")
-            if via:
-                via_edge = via.rsplit("_", 1)[0]
-                return via_edge
+
+            if not via:
+                return []
+
+            via_edge = via.rsplit("_", 1)[0]
+            rest = get_connection_via(root, via_edge, to_edge)
+
+            return [via_edge] + rest
+
+    return []
+
+
+def get_connection_lanes(root: Element, from_edge: str, to_edge: str):
+    """
+    Get connection lanes
+
+    :param root: root element of net.xml
+    :param from_edge: start edge
+    :param to_edge: end edge
+    :return: lanes ids in strings
+    """
+    from_lanes, to_lanes = [], []
+
+    for connection in root.findall("connection"):
+        conn_from = connection.get("from")
+        conn_to = connection.get("to")
+
+        if conn_from == from_edge and conn_to == to_edge:
+            from_lane = connection.get("fromLane", None)
+            to_lane = connection.get("toLane", None)
+
+            from_lanes.append(from_lane)
+            to_lanes.append(to_lane)
+
+    return from_lanes, to_lanes
+
+
+def get_connection_priority(root: Element, from_edge: str, to_edge: str):
+    """
+    Gets connection priority
+
+    :param root: root element of net.xml
+    :param from_edge: start edge
+    :param to_edge: end edge
+    :return: 1 if Major priority overwise 0
+    """
+    for connection in root.findall("connection"):
+        conn_from = connection.get("from")
+        conn_to = connection.get("to")
+
+        if conn_from == from_edge and conn_to == to_edge:
+            priority = connection.get("state")
+
+            if priority == "M":
+                return 1
+            elif priority == "m":
+                return 0
+            else:
+                return None
+
     return None
 
 
@@ -273,9 +331,7 @@ def generate_sumocfg(sumo_files_path: str, rou_xml_filename: str, net_filename: 
     return sumocfg_filename
 
 
-def generate_csv_from_fcd(
-    fcd_file: str, csv_dir: str, time_per_scene: int, map_boundings: float, start_positions_file: str, last_positions_file: str
-) -> NoReturn:
+def generate_csv_from_fcd(fcd_file: str, csv_dir: str, map_boundings: float, start_positions_file: str, last_positions_file: str) -> NoReturn:
     """
     generate csv files from sumo fcd (floating car data) file
 
@@ -286,23 +342,27 @@ def generate_csv_from_fcd(
     :param start_positions_file: filename for saving initial vehicle positions
     :param last_positions_file: filename for saving final vehicle positions
     """
-    if os.path.exists(csv_dir):  # delete directory with old data if exists
-        shutil.rmtree(csv_dir)
-
     DOMTree = xml.dom.minidom.parse(fcd_file)
     collection = DOMTree.documentElement
     tracks = collection.getElementsByTagName("timestep")
     df = pd.DataFrame()
     tgt_agent_ids = []
 
+    assert (config.model.num_predict + config.model.obs_len) % 2 == 0
+    assert (config.model.num_predict + config.model.obs_len) % config.temporal.sample_rate == 0
+
+    time_per_scene = (config.model.num_predict + config.model.obs_len) / config.temporal.sample_rate
+    overlay_window_size = time_per_scene / 2
+
     start_cars_info = {}
     last_cars_info = {}
-    collect_data_radius = config.vehicle.collect_data_radius * map_boundings
+    start_time = 0
 
     for t in trange(len(tracks)):  # each timestamp (0.1s)
         track = tracks[t]
         timestamp = float(track.getAttribute("time"))
         vehicles = track.getElementsByTagName("vehicle")
+
         # add cars from current timestamp
         for vehicle in vehicles:
             track_id = vehicle.getAttribute("id")
@@ -325,71 +385,56 @@ def generate_csv_from_fcd(
                 ]
             )
             df = pd.concat([df, new_row], ignore_index=True)
+
+            if track_id not in tgt_agent_ids:
+                tgt_agent_ids.append(track_id)
+
+                start_cars_info[track_id] = {
+                    "TIMESTAMP": timestamp,
+                    "X": x,
+                    "Y": y,
+                    "yaw": yaw_angle,
+                    "speed": speed,
+                }
+                start_time = timestamp
+
+            if track_id not in last_cars_info or last_cars_info[track_id]["TIMESTAMP"] < timestamp:
+                last_cars_info[track_id] = {
+                    "TIMESTAMP": timestamp,
+                    "X": x,
+                    "Y": y,
+                    "yaw": yaw_angle,
+                    "speed": speed,
+                }
+
+        stale_agent_ids = [tgt_agent_id for tgt_agent_id in tgt_agent_ids if last_cars_info[tgt_agent_id]["TIMESTAMP"] < timestamp]
+        if stale_agent_ids:
+            stale_set = set(stale_agent_ids)
+            tgt_agent_ids = [tgt_agent_id for tgt_agent_id in tgt_agent_ids if tgt_agent_id not in stale_set]
+            df = df[~df["TRACK_ID"].isin(stale_set)]
+            start_time = timestamp
+
         if len(df) == 0:
             continue
 
-        curr_time = df["TIMESTAMP"].max() - (config.model.num_predict / config.temporal.sample_rate)
-        max_time = int(df["TIMESTAMP"].max())
-        min_time = max_time - time_per_scene
+        curr_time = float(df["TIMESTAMP"].max())
 
+        all_vecs_have_data_points = True
         for track_id, remain_df in df.groupby("TRACK_ID"):
-            nearby_data = remain_df.loc[np.isclose(remain_df["TIMESTAMP"], curr_time)]
-            if len(nearby_data) == 0:
-                continue
+            nearby_data = remain_df.loc[remain_df["TIMESTAMP"] >= start_time]
 
-            norm = np.sqrt(remain_df["X"] ** 2 + remain_df["Y"] ** 2)
-            mask = norm < collect_data_radius
-            norm_remain_df = remain_df.loc[mask, ["TIMESTAMP", "X", "Y", "yaw", "speed"]]
-            norm_remain_df = norm_remain_df[norm_remain_df["TIMESTAMP"] >= min_time]
+            if len(nearby_data) < (config.model.num_predict + config.model.obs_len):
+                all_vecs_have_data_points = False
+                break
 
-            if len(norm_remain_df) < config.model.num_predict + config.model.obs_len:
-                continue
+        if all_vecs_have_data_points:
+            csv_df = df.loc[df["TIMESTAMP"] >= start_time]
+            df = df.drop(df.loc[df["TIMESTAMP"] < start_time + overlay_window_size].index)
 
-            x, y = nearby_data[["X", "Y"]].values.reshape(-1)
-            if (-collect_data_radius < x < collect_data_radius) and (-collect_data_radius < y < collect_data_radius):
-                tgt_agent_ids.append(track_id)
-
-            first_row = norm_remain_df.sort_values("TIMESTAMP").iloc[0]
-            if track_id not in start_cars_info.keys():
-                start_cars_info[track_id] = {
-                    "TIMESTAMP": float(first_row["TIMESTAMP"]),
-                    "X": float(first_row["X"]),
-                    "Y": float(first_row["Y"]),
-                    "yaw": float(first_row["yaw"]),
-                    "speed": float(first_row["speed"]),
-                }
-
-        if len(tgt_agent_ids) > 0:
-            df = df.drop(df[df.TIMESTAMP < (df["TIMESTAMP"].max() - time_per_scene)].index)  # make sure each scene is exactly time_per_scene length
-            csv_df = df.loc[[id in tgt_agent_ids for id in df["TRACK_ID"].values.tolist()]]
-
-            norm = np.sqrt(csv_df["X"] ** 2 + csv_df["Y"] ** 2)
-            mask = norm < collect_data_radius
-            csv_df = csv_df.loc[mask]
-
-            if csv_df["speed"].sum() < 1e-1:
-                continue
-
-            for track_id, vehicle_df in csv_df.groupby("TRACK_ID"):
-                last_row = vehicle_df.sort_values("TIMESTAMP").iloc[-1]
-                last_timestamp = float(last_row["TIMESTAMP"])
-
-                if track_id not in last_cars_info or last_timestamp > last_cars_info[track_id]["TIMESTAMP"]:
-                    last_cars_info[track_id] = {
-                        "TIMESTAMP": last_timestamp,
-                        "X": float(last_row["X"]),
-                        "Y": float(last_row["Y"]),
-                        "yaw": float(last_row["yaw"]),
-                        "speed": float(last_row["speed"]),
-                    }
-
-            csv_name = f"{(min_time):0>5}-{(max_time):0>5}"
+            csv_name = f"{(start_time):0>5}-{(curr_time):0>5}"
             save_csv(csv_df, csv_name, csv_dir)
-            df = df.drop(
-                df[df.TIMESTAMP <= (df["TIMESTAMP"].max() - time_per_scene + 3.5)].index
-            )  # sliding window of 3.5 seconds (avoid overlap between 2 csv)
+            start_time = start_time + overlay_window_size
             del csv_df
-            tgt_agent_ids = []
 
     start_cars_df = pd.DataFrame.from_dict(start_cars_info, orient="index")
     start_cars_df.index.name = "TRACK_ID"

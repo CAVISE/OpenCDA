@@ -139,7 +139,7 @@ def main() -> None:
 
     parser.add_argument("--max_needed_gpu_usage", type=float, help="max needed gpu usage", default=0.85)
     parser.add_argument("--max_mem_usage", type=float, help="max mem usage", default=0.7)
-    parser.add_argument("--max_processes", type=float, help="max processes number to be runned", default=3)
+    parser.add_argument("--max_processes", type=int, help="max processes number to be runned", default=1)
 
     args = parser.parse_args()
 

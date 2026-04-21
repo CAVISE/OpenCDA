@@ -19,14 +19,15 @@ data_processing:
 
 # model input/output dimensions
 model:
-  input_vector_size: 6 # size of input feature vector
+  input_vector_size: 7 # size of input feature vector
   predict_vector_size: 2 # size of prediction output vector
-  obs_len: 20 # observation sequence length (number of past timesteps)
+  obs_len: 1 # observation sequence length (number of past timesteps)
   pred_len: 1 # length of sequence to be predicted by model
-  num_predict_on_predict: 29 # number of predictions based on previous predictions
-  num_predict: 30 # total number of predictions to generate
+  num_predict_on_predict: 38 # number of predictions based on previous predictions
+  num_predict: 39 # total number of predictions to generate
+  k_dot_steps: 4 # number of steps back and forward on lane to gather information
 
-# image and map configuration
+# image map configuration
 image_map:
   img_shape: 128 # image dimensions
   bg_color: 0 # background color value (black in numpy)
@@ -35,6 +36,17 @@ image_map:
   map_img_name: "map" # map image file name
   map_parts_name: "map_parts_info" # map parts information file name
   map_lane_name: "map_lane_info" # map lane information file name
+
+# object map configuration
+object_map:
+  dt: 1e-2 # time to calc movement orientation
+  n_lane_samples: 35 # number of points on lane
+  non_linear_coeff: 1 # coeff of non-linear function to generate timestaps with respect to middle
+  object_vector_size: 5
+  neighbour_factor_high: 1.5
+  neighbour_low_lateral_factor: 0.5
+  cos_dotproduct_threshold: 0.95
+  vecs_dots_radius_factor: 4
 
 # temporal parameters
 temporal:

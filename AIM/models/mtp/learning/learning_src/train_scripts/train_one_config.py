@@ -5,14 +5,16 @@ import shutil
 from tqdm import tqdm
 import torch
 import torch.optim as optim
+import copy
 from torch_geometric.loader import DataLoader as GeometricDataLoader
+from torch_geometric.data import Batch
 from torch.utils.data import DataLoader
 import numpy as np
 import pandas as pd
 import pickle as pkl
 import math
 from torch.nn.utils.rnn import pad_sequence
-from typing import Optional, Tuple, Any, Dict
+from typing import Any, Dict, List, Optional, Tuple
 from multiprocessing.connection import Connection
 
 from AIM.models.mtp.learning.data_path_config import path_config
@@ -165,7 +167,9 @@ def get_optimizer(optimizer_name: str) -> type:
 #     return x, y, weights, attn_mask, map_infos, map_attn_masks, map_boundaries
 
 
-def my_collate_fn(batch: list) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+def my_collate_fn(
+    batch: list,
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     batch_size = len(batch)
 
     data_cells = [b[0] for b in batch]
@@ -195,10 +199,17 @@ def my_collate_fn(batch: list) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor
     for i, d in enumerate(data_cells):
         attn_mask[i] = d.attn_mask
 
-    map_infos0 = batch[0][1]
+    map_infos0 = batch[0][1]["dot"].x
     map_infos = torch.empty((batch_size, *map_infos0.shape), dtype=map_infos0.dtype)
+    map_infos_list = []
     for i, b in enumerate(batch):
-        map_infos[i] = b[1]
+        map_infos[i] = b[1]["dot"].x
+
+        for k in range(x0.shape[0]):
+            g = copy.deepcopy(b[1])
+            map_infos_list.append(g)
+
+    map_infos_graph = Batch.from_data_list(map_infos_list)
 
     map_attn0 = batch[0][2]
     map_attn_masks = torch.empty((batch_size, *map_attn0.shape), dtype=map_attn0.dtype)
@@ -210,7 +221,17 @@ def my_collate_fn(batch: list) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor
     for i, b in enumerate(batch):
         map_boundaries[i] = b[3]
 
-    return x, x_global, y, weights, attn_mask, map_infos, map_attn_masks, map_boundaries
+    map_lane_repr0 = batch[0][4]
+    map_lane_reprs = torch.empty((batch_size, *map_lane_repr0.shape), dtype=map_lane_repr0.dtype)
+    for i, b in enumerate(batch):
+        map_lane_reprs[i] = b[4]
+
+    map_lane_repr_mask0 = batch[0][5]
+    map_lane_repr_masks = torch.empty((batch_size, *map_lane_repr_mask0.shape), dtype=map_lane_repr_mask0.dtype)
+    for i, b in enumerate(batch):
+        map_lane_repr_masks[i] = b[5]
+
+    return x, x_global, y, weights, attn_mask, map_infos, map_infos_graph, map_attn_masks, map_boundaries, map_lane_reprs, map_lane_repr_masks
 
 
 def init_dataloaders(
@@ -336,9 +357,9 @@ def load_yaw_dict() -> Dict[Any, Any]:
             "left_up": 10 * math.atan2(0, 1) + math.atan2(-1, 0),
             "left_right": 10 * math.atan2(0, 1) + math.atan2(0, 1),
             "left_down": 10 * math.atan2(0, 1) + math.atan2(1, 0),
-            "up_right": 10 * math.atan2(1, 0) + math.atan2(0, -1),
+            "up_right": 10 * math.atan2(1, 0) + math.atan2(0, 1),
             "up_down": 10 * math.atan2(1, 0) + math.atan2(1, 0),
-            "up_left": 10 * math.atan2(1, 0) + math.atan2(0, 1),
+            "up_left": 10 * math.atan2(1, 0) + math.atan2(0, -1),
             "right_down": 10 * math.atan2(0, -1) + math.atan2(1, 0),
             "right_left": 10 * math.atan2(0, -1) + math.atan2(0, -1),
             "right_up": 10 * math.atan2(0, -1) + math.atan2(-1, 0),
@@ -370,6 +391,12 @@ def train_one_epoch(
     y_y_std: float,
     start_prediction_time: float = 0.2,
     is_transformer: bool = False,
+    coord_loss_weight_x: float = 1.0,
+    coord_loss_weight_y: float = 1.0,
+    gt_vel_movement_threshold: float = 0.04,
+    vel_loss_weight: float = 0.3,
+    cls_loss_weight: float = 0.2,
+    predict_movement_threshold: float = 0.2,
 ) -> float:
     """
     perform one epoch of model training
@@ -392,6 +419,8 @@ def train_one_epoch(
     :param y_y_std: standard deviation for y coordinate normalization
     :param start_prediction_time: ratio of epoch/epochs to start making predictions on predictions (set maximum of 0.5 for correct calculation)
     :param is_transformer: flag if using transformer model
+    :param coord_loss_weight_x: train/val loss weight for local x delta (z-score)
+    :param coord_loss_weight_y: train/val loss weight for local y delta (z-score); >1 stresses lateral
 
     :return: average loss for epoch
     """
@@ -415,6 +444,12 @@ def train_one_epoch(
             y_y_mean,
             y_y_std,
             start_prediction_time,
+            coord_loss_weight_x,
+            coord_loss_weight_y,
+            gt_vel_movement_threshold,
+            vel_loss_weight,
+            cls_loss_weight,
+            predict_movement_threshold,
         )
     else:
         return gnn_train_one_epoch(
@@ -456,7 +491,13 @@ def evaluate(
     y_y_std: float,
     start_prediction_time: float = 0.2,
     is_transformer: bool = False,
-) -> Tuple[float, float, float, float, float, float]:
+    coord_loss_weight_x: float = 1.0,
+    coord_loss_weight_y: float = 1.0,
+    gt_vel_movement_threshold: float = 0.04,
+    vel_loss_weight: float = 0.3,
+    cls_loss_weight: float = 0.2,
+    predict_movement_threshold: float = 0.2,
+) -> Tuple[float, float, float, float, float, float, List[Tuple[int, int, float, float]]]:
     """
     evaluate model on validation data
 
@@ -478,7 +519,7 @@ def evaluate(
     :param start_prediction_time: ratio of epoch/epochs to start making predictions on predictions (set maximum of 0.5 for correct calculation)
     :param is_transformer: flag if using transformer model
 
-    :return: tuple of (ade, fde, mr, collision_rate, val_loss, collision_penalties)
+    :return: tuple (ade, fde, mr, collision_rate, val_loss, collision_penalties, rollout_per_step); last is [] for GNN
     """
     if is_transformer:
         return transformer_evaluate(
@@ -498,6 +539,12 @@ def evaluate(
             y_y_mean,
             y_y_std,
             start_prediction_time,
+            coord_loss_weight_x,
+            coord_loss_weight_y,
+            gt_vel_movement_threshold,
+            vel_loss_weight,
+            cls_loss_weight,
+            predict_movement_threshold,
         )
     else:
         return gnn_evaluate(
@@ -520,7 +567,55 @@ def evaluate(
         )
 
 
-METRICS = ["ade", "fde", "mr", "collision_rate", "val_loss", "collision_penalties"]
+METRICS = [
+    "ade",
+    "fde",
+    "mr",
+    "collision_rate",
+    "val_loss",
+    "collision_penalties",
+    "fde_rollout_s0",
+    "mr_rollout_s0",
+    "fde_rollout_s_mid",
+    "mr_rollout_s_mid",
+    "fde_rollout_s_max",
+    "mr_rollout_s_max",
+]
+
+
+def _rollout_milestone_dict(
+    rollout_per_step: List[Tuple[int, int, float, float]],
+) -> Dict[str, float]:
+    """
+    Pick FDE/MR at rollout indices 0, mid, max (max = num_predict_on_predict) for plotting
+    """
+
+    k_max = config.model.num_predict_on_predict
+    mid = k_max // 2
+    by_idx = {row[0]: row for row in rollout_per_step}
+    out: Dict[str, float] = {}
+
+    for label, idx in (("s0", 0), ("s_mid", mid), ("s_max", k_max)):
+        if idx in by_idx:
+            _, _, fd, mr, _ = by_idx[idx]
+            out[f"fde_rollout_{label}"] = fd
+            out[f"mr_rollout_{label}"] = mr
+        else:
+            out[f"fde_rollout_{label}"] = float("nan")
+            out[f"mr_rollout_{label}"] = float("nan")
+
+    return out
+
+
+def _rollout_nan_milestones() -> Dict[str, float]:
+    return {
+        "fde_rollout_s0": float("nan"),
+        "mr_rollout_s0": float("nan"),
+        "fde_rollout_s_mid": float("nan"),
+        "mr_rollout_s_mid": float("nan"),
+        "fde_rollout_s_max": float("nan"),
+        "mr_rollout_s_max": float("nan"),
+    }
 
 
 def train_one_config(
@@ -592,6 +687,13 @@ def train_one_config(
     num_workers = train_config.num_workers
     pin_memory = train_config.pin_memory
 
+    coord_loss_weight_x = getattr(train_config, "coord_loss_weight_x", 1.0)
+    coord_loss_weight_y = getattr(train_config, "coord_loss_weight_y", 1.0)
+    gt_vel_movement_threshold = getattr(train_config, "gt_vel_movement_threshold")
+    vel_loss_weight = getattr(train_config, "vel_loss_weight")
+    cls_loss_weight = getattr(train_config, "cls_loss_weight")
+    predict_movement_threshold = getattr(train_config, "predict_movement_threshold")
+
     train_loader, val_loader = init_dataloaders(
         exp_paths.train_data_dir,
         exp_paths.val_data_dir,
@@ -639,7 +741,7 @@ def train_one_config(
     yaw_keys = torch.tensor(list(yaw_dict.keys()), device=device)
     values_list = list(yaw_dict.values())
     values_list = [torch.tensor(v, device=device) for v in values_list]
-    yaw_values = pad_sequence(values_list, batch_first=True, padding_value=10000000)
+    yaw_values = pad_sequence(values_list, batch_first=True, padding_value=100000000000)
 
     process_conection.send(1)  # tells parent process that everything is inited
     process_conection.close()
@@ -664,12 +766,18 @@ def train_one_config(
             y_y_std,
             start_prediction_time,
             is_transformer=is_transformer,
+            coord_loss_weight_x=coord_loss_weight_x,
+            coord_loss_weight_y=coord_loss_weight_y,
+            gt_vel_movement_threshold=gt_vel_movement_threshold,
+            vel_loss_weight=vel_loss_weight,
+            cls_loss_weight=cls_loss_weight,
+            predict_movement_threshold=predict_movement_threshold,
         )
 
         loss_logger.add_metric_points([epoch], [epoch * len(train_loader)], [epoch_loss])
 
         if epoch % metrics_log_epoch_frequency == 0:
-            ade, fde, mr, collision_rate, val_loss, collision_penalties = evaluate(
+            ade, fde, mr, collision_rate, val_loss, collision_penalties, rollout_per_step = evaluate(
                 model,
                 device,
                 val_loader,
@@ -687,6 +795,12 @@ def train_one_config(
                 y_y_std,
                 start_prediction_time,
                 is_transformer=is_transformer,
+                coord_loss_weight_x=coord_loss_weight_x,
+                coord_loss_weight_y=coord_loss_weight_y,
+                gt_vel_movement_threshold=gt_vel_movement_threshold,
+                vel_loss_weight=vel_loss_weight,
+                cls_loss_weight=cls_loss_weight,
+                predict_movement_threshold=predict_movement_threshold,
             )
             epoch_metrics = {
                 "ade": ade,
@@ -696,6 +810,17 @@ def train_one_config(
                 "val_loss": val_loss,
                 "collision_penalties": collision_penalties,
             }
+            if is_transformer:
+                epoch_metrics.update(_rollout_milestone_dict(rollout_per_step))
+                rollout_csv = os.path.join(exp_paths.logs_dir, "val_rollout_breakdown.csv")
+                if not os.path.exists(rollout_csv):
+                    with open(rollout_csv, "w", encoding="utf-8") as f:
+                        f.write("epoch,rollout_idx,n_samples,fde_mean,mr\n")
+                with open(rollout_csv, "a", encoding="utf-8") as f:
+                    for step_idx, n_s, fde_m, mr_m, _ in rollout_per_step:
+                        f.write(f"{epoch},{step_idx},{n_s},{fde_m},{mr_m}\n")
+            else:
+                epoch_metrics.update(_rollout_nan_milestones())
 
             record.append(epoch_metrics)
 

@@ -9,7 +9,7 @@ import shutil
 from .data_path_config import path_config
 from .learning_src.data_scripts.data_config import config
 from .learning_src.data_scripts.preprocess_utils import preprocess_file, z_score_normalize_file
-from .learning_src.data_scripts.preprocess_map import preprocess_map
+from .learning_src.data_scripts.preprocess_map import preprocess_object_map
 from .learning_src.data_scripts.generate_csv_utils import get_map_bounding
 
 
@@ -33,8 +33,8 @@ def get_distribution_params(distr_params_dir: str, preprocess_folder_path: str) 
             with open(file_path, "rb") as f:
                 data = pkl.load(f)
 
-            y_x.append(data[1][:, 0::6].flatten())
-            y_y.append(data[1][:, 1::6].flatten())
+            y_x.append(data[1][:, 0::4].flatten())
+            y_y.append(data[1][:, 1::4].flatten())
 
     y_x = np.concatenate(y_x)
     y_y = np.concatenate(y_y)
@@ -117,7 +117,7 @@ if __name__ == "__main__":
                 except Exception as e:
                     print(f"Error: {e}")
 
-            preprocess_map(net_file_path=net_file_path, output_dir=preprocess_folder_subpath_path)
+            preprocess_object_map(net_file_path=net_file_path, output_dir=preprocess_folder_subpath_path)
             print(f"Progress: {i + 1}/{maps_to_process}")
 
         if config.data_processing.normalize_data and config.data_processing.zscore_normalize:

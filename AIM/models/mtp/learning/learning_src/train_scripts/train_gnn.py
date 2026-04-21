@@ -411,4 +411,5 @@ def gnn_evaluate(
         collision_rate,
         val_losses.item(),
         collision_penalty,
+        [],
     )

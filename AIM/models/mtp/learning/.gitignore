@@ -2,6 +2,7 @@
 data/csv
 data/sumo_gened_maps
 data/vizualization
+data/sumo_maps_backup
 
 
 experements
@@ -15,5 +16,3 @@ experements_configs/*
 bash_prepare_data.sh
 bash_train.sh
 bash_scrit.sh
-tests.py
-test1.py
