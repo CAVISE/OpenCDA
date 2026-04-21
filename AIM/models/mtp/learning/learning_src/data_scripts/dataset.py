@@ -35,21 +35,6 @@ class GnnCarDataset(InMemoryDataset):
         super().__init__(preprocess_folder)
         self.data, self.slices = torch.load(self.processed_paths[0], weights_only=False)
 
-    @property
-    def processed_file_names(self) -> list[str]:
-        """
-        get processed file names based on model type and augmentation
-
-        :return: list of processed file names
-        """
-        pt_name = "data"
-        pt_name += "_mlp" if self.mlp else "_gnn"
-
-        if self.mpc_aug:
-            pt_name += "_aug"
-
-        return [f"{pt_name}.pt"]
-
     def process(self) -> None:
         """
         convert raw data into gnn-readable format by constructing graphs from connectivity matrices
@@ -296,7 +281,7 @@ class TransformerCarDataset(Dataset):
         norms_mask = torch.tril(torch.ones((map_info_coords.shape[0], norms.shape[1], norms.shape[1]), dtype=torch.bool))
         INF = 1e6
         norms[~norms_mask] = INF
-        start_args, start_idxs = torch.min(torch.abs(norms), dim=-1)
+        _, start_idxs = torch.min(torch.abs(norms), dim=-1)
 
         end_idxs = start_idxs + 1
         zero_mask = torch.gather(norms, dim=2, index=start_idxs.unsqueeze(-1)).squeeze(-1) < 0

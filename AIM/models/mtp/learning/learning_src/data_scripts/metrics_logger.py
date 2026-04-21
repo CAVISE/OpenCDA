@@ -39,7 +39,7 @@ class MetricLogger:
         """
         self.fig, self.ax = plt.subplots(figsize=(8, 6))
 
-    def clear_logs(self) -> None:
+    def clear_logs(self) -> None:  # noqa: DC04
         """
         clear all logged timestamps and metrics from memory
         """

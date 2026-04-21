@@ -167,7 +167,7 @@ def transform_sumo2carla(states: Union[torch.Tensor, np.ndarray]) -> Union[torch
     return states
 
 
-def transform_carla2sumo(states: Union[torch.Tensor, np.ndarray]) -> Union[torch.Tensor, np.ndarray]:
+def transform_carla2sumo(states: Union[torch.Tensor, np.ndarray]) -> Union[torch.Tensor, np.ndarray]:  # noqa: DC02
     """
     in-place. transform vehicle states from carla to sumo coordinate system (in-place, in radians)
     transformation: [x_sumo, y_sumo, velocity, yaw_sumo] = [x_carla, -y_carla, velocity, yaw_carla+90]
@@ -187,7 +187,7 @@ def MPC_Block(
     target_states: np.ndarray,
     acc_delta_old: np.ndarray,
     noise_range: float = 0.0,
-) -> Tuple[np.ndarray, np.ndarray]:
+) -> Tuple[np.ndarray, np.ndarray]:  # noqa: DC02
     """
     mpc block for computing control inputs for multiple vehicles
 
@@ -398,7 +398,7 @@ def normalize_input_data(x: Union[torch.Tensor, np.ndarray], circle_boundary, ve
     return x
 
 
-def de_normalize_input_data(x: Union[torch.Tensor, np.ndarray], circle_boundary, vechicle_max_speed) -> Union[torch.Tensor, np.ndarray]:
+def de_normalize_input_data(x: Union[torch.Tensor, np.ndarray], circle_boundary, vechicle_max_speed) -> Union[torch.Tensor, np.ndarray]:  # noqa: DC02
     """
     in-place. denormalize input data from [-1, 1] in coords and yaw, [0, 1] in speed (in-place)
 
@@ -430,7 +430,7 @@ def min_max_normalize_target_data(y: Union[torch.Tensor, np.ndarray], circle_bou
     return y
 
 
-def de_normalize_target_data(y: Union[torch.Tensor, np.ndarray], circle_boundary, vechicle_max_speed) -> Union[torch.Tensor, np.ndarray]:
+def de_normalize_target_data(y: Union[torch.Tensor, np.ndarray], circle_boundary, vechicle_max_speed) -> Union[torch.Tensor, np.ndarray]:  # noqa: DC02
     """
     in-place. denormalize target data from [-1, 1] in coords and yaw, [0, 1] in speed
 

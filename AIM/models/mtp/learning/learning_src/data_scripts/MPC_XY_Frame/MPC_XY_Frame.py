@@ -22,9 +22,9 @@ def load_config():
         return yaml.safe_load(f)
 
 
-K_STEER = 56.0
-K_THROTTLE = 1.5
-K_BRAKE = 0.15
+K_STEER = 56.0  # noqa: DC01
+K_THROTTLE = 1.5  # noqa: DC01
+K_BRAKE = 0.15  # noqa: DC01
 cfg = load_config()
 system_params = cfg["mpc"]["system"]
 vehicle_params = cfg["mpc"]["vehicle"]
@@ -48,9 +48,9 @@ class P:
     R = np.diag(base_params["r"])  # penalty for inputs  # Dekai: had better choose large penalty for steering to avoid zig-zag
     Rd = np.diag(base_params["rd"])  # penalty for change of inputs
 
-    dist_stop = base_params["dist_stop"]  # stop permitted when dist to goal < dist_stop
-    speed_stop = base_params["speed_stop"]  # stop permitted when speed < speed_stop
-    time_max = base_params["time_max"]  # max simulation time
+    dist_stop = base_params["dist_stop"]  # noqa: DC01 # stop permitted when dist to goal < dist_stop
+    speed_stop = base_params["speed_stop"]  # noqa: DC01 # stop permitted when speed < speed_stop
+    time_max = base_params["time_max"]  # noqa: DC01 # max simulation time
     iter_max = base_params["iter_max"]  # max iteration
     target_speed = base_params["target_speed"]  # target speed
     N_IND = base_params["N_IND"]  # search index number
@@ -59,19 +59,19 @@ class P:
     du_res = base_params["du_res"]  # threshold for stopping iteration
 
     # vehicle config
-    RF = vehicle_params["rf"]  # [m] distance from rear to vehicle front end of vehicle
-    RB = vehicle_params["rb"]  # [m] distance from rear to vehicle back end of vehicle
+    RF = vehicle_params["rf"]  # noqa: DC01 # [m] distance from rear to vehicle front end of vehicle
+    RB = vehicle_params["rb"]  # noqa: DC01 # [m] distance from rear to vehicle back end of vehicle
     W = vehicle_params["w"]  # [m] width of vehicle
-    WD = vehicle_params["wd"] * W  # [m] distance between left-right wheels
+    WD = vehicle_params["wd"] * W  # noqa: DC01 # [m] distance between left-right wheels
     WB = vehicle_params["wb"]  # [m] Wheel base
-    TR = vehicle_params["tr"]  # [m] Tyre radius
-    TW = vehicle_params["tw"]  # [m] Tyre width
+    TR = vehicle_params["tr"]  # noqa: DC01 # [m] Tyre radius
+    TW = vehicle_params["tw"]  # noqa: DC01 # [m] Tyre width
 
     steer_max = np.deg2rad(vehicle_params["steer_max"])  # max steering angle [rad]
-    steer_change_max = np.deg2rad(vehicle_params["steer_change_max"])  # maximum steering speed [rad/s]
+    steer_change_max = np.deg2rad(vehicle_params["steer_change_max"])  # noqa: DC01 # maximum steering speed [rad/s]
     speed_max = vehicle_params["speed_max"]  # maximum speed [m/s]
     speed_min = vehicle_params["speed_min"]  # minimum speed [m/s]
-    acceleration_max = vehicle_params["acceleration_max"]  # maximum acceleration [m/s2]
+    acceleration_max = vehicle_params["acceleration_max"]  # noqa: DC01 # maximum acceleration [m/s2]
 
 
 class Node:
@@ -112,7 +112,7 @@ class Node:
         return v
 
 
-class PATH:
+class PATH:  # noqa: DC03
     def __init__(self, cx, cy, cyaw, cv, ck=None):
         self.cx = [cx]
         self.cy = [cy]
@@ -122,7 +122,7 @@ class PATH:
         self.ind_old = 0
         self.cv = [cv]
 
-    def update_route(self, cx, cy, cyaw, cv):
+    def update_route(self, cx, cy, cyaw, cv):  # noqa: DC04
         self.cx += [cx]
         self.cy += [cy]
         self.cyaw += [cyaw]
@@ -132,7 +132,7 @@ class PATH:
         # self.cy = [cy]
         # self.cyaw = [cyaw]
 
-    def nearest_index(self, node):
+    def nearest_index(self, node):  # noqa: DC04
         """
         calc index of the nearest node in N steps
         :param node: current information
@@ -157,7 +157,7 @@ class PATH:
         return ind, er
 
 
-def calc_ref_trajectory_in_T_step(node, ref_path, sp=None) -> np.ndarray:
+def calc_ref_trajectory_in_T_step(node, ref_path, sp=None) -> np.ndarray:  # noqa: DC02
     """
     calc referent trajectory in T steps: [x, y, v, yaw]
     using the current velocity, calc the T points along the reference path
@@ -220,7 +220,7 @@ def calc_ref_trajectory_in_T_step(node, ref_path, sp=None) -> np.ndarray:
     return z_ref, 0
 
 
-def get_destination_in_T_step(node, ref_path) -> np.ndarray:
+def get_destination_in_T_step(node, ref_path) -> np.ndarray:  # noqa: DC02
     """
     calc desired destination in T steps: [x, y, v, yaw]
     :param node: current information
@@ -237,7 +237,7 @@ def get_destination_in_T_step(node, ref_path) -> np.ndarray:
     return z_target
 
 
-def linear_mpc_control(z_ref, z0, a_old, delta_old):
+def linear_mpc_control(z_ref, z0, a_old, delta_old):  # noqa: DC02
     """
     linear mpc controller
     :param z_ref: reference trajectory in T steps
@@ -506,7 +506,7 @@ def solve_linear_mpc_2(z_target: np.ndarray, z_bar: np.ndarray, z0: list, d_bar:
     return a, delta, x, y, yaw, v
 
 
-def calc_speed_profile(cx, cy, cyaw, target_speed) -> list:
+def calc_speed_profile(cx, cy, cyaw, target_speed) -> list:  # noqa: DC02
     """
     design appropriate speed strategy
     :param cx: x of reference path [m]

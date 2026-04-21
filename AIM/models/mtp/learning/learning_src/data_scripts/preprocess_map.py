@@ -448,7 +448,7 @@ def preprocess_object_map(net_file_path: str, output_dir: Optional[str] = None, 
     return lane_level_object_data
 
 
-def preprocess_image_map(net_file_path: str, output_dir: Optional[str] = None, save_png: bool = False) -> Tuple[np.ndarray, np.ndarray]:
+def preprocess_image_map(net_file_path: str, output_dir: Optional[str] = None, save_png: bool = False) -> Tuple[np.ndarray, np.ndarray]:  # noqa: DC02
     """
     preprocess sumo network map and generate map representations at different levels in image based encoding in image format
 
