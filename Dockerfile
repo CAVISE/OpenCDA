@@ -1,7 +1,7 @@
 FROM docker.io/nvidia/cuda:12.8.1-cudnn-devel-ubuntu24.04@sha256:24c8e3581ea6330038b0d374920721983312627f8adbfcf390bdb4b399d280ed AS opencda
 
 ARG USER=opencda
-ARG UID=1000 # default uid
+ARG UID=1000
 ARG HOME=/home/${USER}
 ENV TORCH_CUDA_ARCH_LIST="8.6"
 
@@ -41,12 +41,24 @@ RUN apt-get update && \
     apt-get autoremove -y && \
     rm -rf /var/lib/apt/lists/*
 
-WORKDIR /home/opencda/cavise/opencda
-COPY requirements.txt requirements.txt
+WORKDIR ${HOME}/cavise/opencda
 
-# Python Version: 3.12.3
-RUN python3 -m pip install --no-cache-dir --break-system-packages -r requirements.txt && \
-    python3 -m pip install --no-cache-dir --break-system-packages spconv-cu126==2.3.8
+COPY requirements.txt pyproject.toml CMakeLists.txt ./
+COPY opencda/version.py ./opencda/
 
+RUN python3 -m pip install --no-cache-dir --break-system-packages --upgrade pip==26.0.1 setuptools==82.0.0 wheel==0.46.3 && \
+    python3 -m pip install --no-cache-dir --break-system-packages -r requirements.txt
+
+# Добавьте spconv если нужен:
+RUN python3 -m pip install --no-cache-dir --break-system-packages spconv-cu126==2.3.8
+
+COPY opencda/ ./opencda/
+COPY OpenCOOD/ ./OpenCOOD/
+
+RUN chown -R ${USER}:${USER} .
 USER ${USER}
 ENV PATH="${HOME}/.local/bin:${PATH}"
+
+RUN python3 -m pip install --no-cache-dir --break-system-packages .
+
+CMD ["/bin/bash"]
