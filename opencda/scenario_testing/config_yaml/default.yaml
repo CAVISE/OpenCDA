@@ -226,4 +226,7 @@ cooperative_perception_visualization:
   bbox_colors:
     gt: [237, 255, 246]
     pred: [164, 73, 148]
-    # fake: [242, 156, 74]  # used for fake bounding boxes when AdvCP late-fusion visualization is active
+    # fake: [242, 156, 74]  # AdvCP-only extra box color
+    # In late spoofing, this box corresponds to a fake box that survived the model prediction pipeline.
+    # In intermediate spoofing, this box is the attack target / desired spoof location and does not by itself
+    # mean that the model actually produced a matching prediction at that location.
