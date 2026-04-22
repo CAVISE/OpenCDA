@@ -506,8 +506,8 @@ class TestCoperceptionModelManager:
             patch.object(AdvCPAttackHelper, "load_agent_state", side_effect=lambda scenario_data, agent_id: states[agent_id]),
             patch.object(
                 AdvCPAttackHelper,
-                "resolve_box_spec",
-                return_value=spoof_box,
+                "resolve_spoof_boxes_for_agent",
+                return_value=("cav-1", states["cav-1"], states["cav-2"], [spoof_box]),
             ),
             patch.object(
                 AdvCoperceptionEarlyFusionAttack,

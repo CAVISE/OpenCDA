@@ -284,7 +284,7 @@ class AdvCoperceptionIntermediateFusionAttack:
                 return (*inference_utils.inference_intermediate_fusion(real_original_batch, model, dataset), None)
 
         with torch.no_grad():
-            optimize_output_dict, optimize_spatial_features = cls._attack_forward(
+            _, optimize_spatial_features = cls._attack_forward(
                 optimize_batch,
                 model,
                 optimize_attacker_index,
@@ -292,7 +292,7 @@ class AdvCoperceptionIntermediateFusionAttack:
                 centers=None,
                 max_perturb=max_perturb,
             )
-            original_output_dict, original_spatial_features = cls._attack_forward(
+            _, original_spatial_features = cls._attack_forward(
                 original_optimize_batch,
                 model,
                 optimize_attacker_index,

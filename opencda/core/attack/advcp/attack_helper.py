@@ -137,23 +137,6 @@ class AdvCPAttackHelper:
         return ego_agent_id, ego_state, attacker_state, attack_boxes
 
     @classmethod
-    def resolve_box_spec(
-        cls,
-        spec: dict[str, Any],
-        index: int,
-        advcp_config: Mapping[str, Any],
-        ego_state: AdvCPAgentState,
-        attacker_state: AdvCPAgentState,
-    ) -> np.ndarray:
-        return cls.resolve_box_spec_for_sensor_pose(
-            spec,
-            index,
-            advcp_config,
-            ego_state,
-            attacker_state["lidar_pose"],
-        )
-
-    @classmethod
     def resolve_box_spec_for_sensor_pose(
         cls,
         spec: dict[str, Any],
