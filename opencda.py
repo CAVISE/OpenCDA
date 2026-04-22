@@ -2,7 +2,6 @@
 Script to run different scenarios.
 """
 
-import os
 import sys
 import enum
 import errno
@@ -11,7 +10,6 @@ import logging
 import argparse
 import omegaconf
 import importlib.util
-import subprocess
 from collections.abc import Callable, Collection
 from types import ModuleType
 from typing import cast
