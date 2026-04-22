@@ -26,9 +26,6 @@ class AdvCoperceptionVisualizer(CoperceptionVisualizer):
         "background": (0, 0, 0),
         "lidar_point_colors": {
             "other": (255, 255, 255),
-            "ego": (80, 255, 80),
-            "attackers": (255, 90, 90),
-            "spoofing": (180, 0, 255),
         },
         "bbox_colors": {
             "gt": (0, 255, 0),
@@ -89,9 +86,10 @@ class AdvCoperceptionVisualizer(CoperceptionVisualizer):
                 visualization_context=visualization_context,
             )
 
+        lidar_point_colors = config["lidar_point_colors"]
         other_color = cls._as_uint8_color(cls._require_visualization_value(config, "lidar_point_colors", "other"))
-        ego_color = cls._as_uint8_color(cls._require_visualization_value(config, "lidar_point_colors", "ego"))
-        spoofing_color = cls._as_uint8_color(cls._require_visualization_value(config, "lidar_point_colors", "spoofing"))
+        ego_color = cls._as_uint8_color(lidar_point_colors.get("ego", other_color))
+        spoofing_color = cls._as_uint8_color(lidar_point_colors.get("spoofing", other_color))
         points_by_agent = ego_entry["origin_lidar_by_agent"]
         roles = list(ego_entry.get("origin_lidar_roles", []))
         agent_ids = list(ego_entry.get("origin_lidar_agent_ids", []))
@@ -147,7 +145,7 @@ class AdvCoperceptionVisualizer(CoperceptionVisualizer):
         if agent_id is not None and agent_id in lidar_point_colors:
             return cls._as_uint8_color(lidar_point_colors[agent_id])
         attacker_ids = set((visualization_context or {}).get("attacker_ids", []))
-        attacker_color = cls._as_uint8_color(cls._require_visualization_value(config, "lidar_point_colors", "attackers"))
+        attacker_color = cls._as_uint8_color(lidar_point_colors.get("attackers", other_color))
         if agent_id is not None and agent_id in attacker_ids:
             return attacker_color
         if role == "ego":

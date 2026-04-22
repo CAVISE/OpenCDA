@@ -158,7 +158,6 @@ class CoperceptionVisualizer:
         "background": (0, 0, 0),
         "lidar_point_colors": {
             "other": (255, 255, 255),
-            "ego": (80, 255, 80),
         },
         "bbox_colors": {
             "gt": (0, 255, 0),

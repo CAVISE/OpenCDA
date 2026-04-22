@@ -97,7 +97,43 @@ class AdvCPAttackHelper:
         if not isinstance(box_specs, list) or len(box_specs) == 0:
             raise ValueError("AdvCP config must define a non-empty boxes list.")
 
-        attack_boxes = [cls.resolve_box_spec(spec, index, advcp_config, ego_state, attacker_state) for index, spec in enumerate(box_specs)]
+        attack_boxes = [
+            cls.resolve_box_spec_for_sensor_pose(
+                spec,
+                index,
+                advcp_config,
+                ego_state,
+                attacker_state["lidar_pose"],
+            )
+            for index, spec in enumerate(box_specs)
+        ]
+        return ego_agent_id, ego_state, attacker_state, attack_boxes
+
+    @classmethod
+    def resolve_spoof_boxes_for_ego(
+        cls,
+        scenario_data: Mapping[str, Any],
+        advcp_config: Mapping[str, Any],
+        attacker_id: str,
+    ) -> tuple[str, AdvCPAgentState, AdvCPAgentState, list[np.ndarray]]:
+        ego_agent_id = cls.resolve_ego_agent_id(scenario_data)
+        ego_state = cls.load_agent_state(scenario_data, ego_agent_id)
+        attacker_state = cls.load_agent_state(scenario_data, attacker_id)
+
+        box_specs = cls.require_config_value(advcp_config, "boxes")
+        if not isinstance(box_specs, list) or len(box_specs) == 0:
+            raise ValueError("AdvCP config must define a non-empty boxes list.")
+
+        attack_boxes = [
+            cls.resolve_box_spec_for_sensor_pose(
+                spec,
+                index,
+                advcp_config,
+                ego_state,
+                ego_state["lidar_pose"],
+            )
+            for index, spec in enumerate(box_specs)
+        ]
         return ego_agent_id, ego_state, attacker_state, attack_boxes
 
     @classmethod
@@ -108,6 +144,23 @@ class AdvCPAttackHelper:
         advcp_config: Mapping[str, Any],
         ego_state: AdvCPAgentState,
         attacker_state: AdvCPAgentState,
+    ) -> np.ndarray:
+        return cls.resolve_box_spec_for_sensor_pose(
+            spec,
+            index,
+            advcp_config,
+            ego_state,
+            attacker_state["lidar_pose"],
+        )
+
+    @classmethod
+    def resolve_box_spec_for_sensor_pose(
+        cls,
+        spec: dict[str, Any],
+        index: int,
+        advcp_config: Mapping[str, Any],
+        ego_state: AdvCPAgentState,
+        sensor_pose: Sequence[float],
     ) -> np.ndarray:
         if not isinstance(spec, dict):
             raise ValueError(f"AdvCP box entry #{index} must be a mapping.")
@@ -133,7 +186,7 @@ class AdvCPAttackHelper:
         else:
             world_pose = pose
 
-        return cls.world_box_to_sensor_box(world_pose, size, attacker_state["lidar_pose"])
+        return cls.world_box_to_sensor_box(world_pose, size, sensor_pose)
 
     @staticmethod
     def compose_relative_pose(reference_pose: np.ndarray | Sequence[float], relative_pose: np.ndarray) -> np.ndarray:

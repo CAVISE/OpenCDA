@@ -575,10 +575,30 @@ class TestCoperceptionVisualizer:
         assert config["bbox_line_thickness"] == 7
         assert config["image_dpi"] == 600
         assert config["lidar_point_colors"]["default"] == (200, 200, 200)
-        assert config["lidar_point_colors"]["ego"] == (80, 255, 80)
+        assert "ego" not in config["lidar_point_colors"]
         assert config["lidar_point_colors"]["cav-2"] == (10, 20, 30)
         assert config["bbox_colors"]["pred"] == (1, 2, 3)
         assert config["bbox_colors"]["gt"] == (0, 255, 0)
+
+    def test_get_lidar_points_and_colors_uses_other_for_ego_when_ego_color_is_not_configured(self):
+        config = CoperceptionVisualizer.resolve_visualization_config(
+            {
+                "lidar_point_colors": {
+                    "other": (200, 200, 200),
+                }
+            }
+        )
+        batch_data = {
+            "ego": {
+                "origin_lidar_by_agent": [np.array([[1.0, 0.0, 0.0, 1.0]])],
+                "origin_lidar_roles": ["ego"],
+                "origin_lidar_agent_ids": ["cav-1"],
+            }
+        }
+
+        _, colors = CoperceptionVisualizer._get_lidar_points_and_colors(batch_data, None, config)
+
+        assert colors.tolist() == [[200, 200, 200]]
 
     def test_get_lidar_points_and_colors_keeps_agent_order_and_applies_id_override(self):
         config = CoperceptionVisualizer.resolve_visualization_config(
@@ -692,6 +712,38 @@ class TestCoperceptionVisualizer:
         )
 
         assert colors.tolist() == [[80, 255, 80], [255, 90, 90], [242, 156, 74]]
+
+    def test_advcp_visualizer_uses_other_color_when_special_colors_are_not_configured(self):
+        config = AdvCoperceptionVisualizer.resolve_visualization_config(
+            {
+                "lidar_point_colors": {
+                    "other": (255, 70, 0),
+                }
+            }
+        )
+        batch_data = {
+            "ego": {
+                "origin_lidar_by_agent": [
+                    np.array([[1.0, 2.0, 3.0, 1.0]]),
+                    np.array([[4.0, 5.0, 6.0, 1.0], [7.0, 8.0, 9.0, 1.0]]),
+                ],
+                "origin_lidar_roles": ["ego", "default"],
+                "origin_lidar_agent_ids": ["cav-1", "cav-2"],
+                "origin_lidar_spoofing_masks": [
+                    np.array([False]),
+                    np.array([False, True]),
+                ],
+            }
+        }
+
+        _, colors = AdvCoperceptionVisualizer._get_lidar_points_and_colors(
+            batch_data,
+            None,
+            config,
+            visualization_context={"attacker_ids": ["cav-2"]},
+        )
+
+        assert colors.tolist() == [[255, 70, 0], [255, 70, 0], [255, 70, 0]]
 
     def test_early_advcp_density_aliases_are_supported(self):
         assert AdvCoperceptionEarlyFusionAttack._resolve_density(0) == 0
