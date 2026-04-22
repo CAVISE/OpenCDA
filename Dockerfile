@@ -49,7 +49,6 @@ COPY opencda/version.py ./opencda/
 RUN python3 -m pip install --no-cache-dir --break-system-packages --upgrade pip==26.0.1 setuptools==82.0.0 wheel==0.46.3 && \
     python3 -m pip install --no-cache-dir --break-system-packages -r requirements.txt
 
-# Добавьте spconv если нужен:
 RUN python3 -m pip install --no-cache-dir --break-system-packages spconv-cu126==2.3.8
 
 COPY opencda/ ./opencda/
