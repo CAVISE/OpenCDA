@@ -244,7 +244,7 @@ class AdvCoperceptionIntermediateFusionAttack:
 
         max_perturb = float(AdvCPAttackHelper.require_config_value(advcp_config, "max_perturb"))
         learning_rate = float(AdvCPAttackHelper.require_config_value(advcp_config, "lr"))
-        max_iteration = int(AdvCPAttackHelper.require_config_value(advcp_config, "max_iteration"))
+        optimization_steps = int(AdvCPAttackHelper.require_config_value(advcp_config, "step"))
         feature_size = int(AdvCPAttackHelper.require_config_value(advcp_config, "feature_size"))
         use_init = bool(AdvCPAttackHelper.require_config_value(advcp_config, "init"))
 
@@ -363,7 +363,7 @@ class AdvCoperceptionIntermediateFusionAttack:
         best_gt_box_tensor: torch.Tensor | None = None
         best_init_perturbation: list[np.ndarray] | None = None
 
-        for _ in range(max_iteration):
+        for _ in range(optimization_steps):
             output_dict, _ = cls._attack_forward(
                 original_optimize_batch,
                 model,

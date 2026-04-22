@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import os
 import logging
+from contextlib import nullcontext
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, Literal, Mapping, Optional, Tuple, TypeAlias, TypedDict, cast
 
@@ -585,6 +586,9 @@ class CoperceptionModelManager:
         inference_callable = self._resolve_inference_callable()
         return cast(Callable[[Any], CoperceptionInferenceResult], inference_callable.__get__(self, type(self)))
 
+    def _requires_grad_for_inference(self) -> bool:
+        return False
+
     @InferenceMapper.for_core_method("LateFusionDataset")  # noqa: DC04
     def _run_late_inference(self, batch_data):
         return self._build_inference_result(*inference_utils.inference_late_fusion(batch_data, self.model, self.opencood_dataset))
@@ -759,14 +763,16 @@ class CoperceptionModelManager:
             logger.warning("Only the first batch will be processed.")
 
         batch_data = next(iter(self.data_loader))
-        with torch.no_grad():
-            batch_data = train_utils.to_device(batch_data, self.device)
+        batch_data = train_utils.to_device(batch_data, self.device)
+        inference_context = nullcontext() if self._requires_grad_for_inference() else torch.no_grad()
+        with inference_context:
             inference_result = self.inference(batch_data)
             pred_box_tensor = inference_result.pred_box_tensor
             pred_score = inference_result.pred_score
             gt_box_tensor = inference_result.gt_box_tensor
             visualization_context = inference_result.visualization_context
 
+        with torch.no_grad():
             self._update_evaluation_stat(result_stat, pred_box_tensor, pred_score, gt_box_tensor)
 
             if self.opt.save_npy:

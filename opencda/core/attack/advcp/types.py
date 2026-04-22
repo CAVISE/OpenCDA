@@ -21,14 +21,14 @@ class AdvCPAgentState(TypedDict):
     ego_pose: Sequence[float]
 
 
+class AdvCPIntermediateAttackState(TypedDict, total=False):
+    previous_memory_data: dict[Any, Any] | None
+    init_perturbation: list[np.ndarray] | None
+
+
 AdvCPAttackResult: TypeAlias = tuple[
     torch.Tensor | None,
     torch.Tensor | None,
     torch.Tensor | None,
     AdvCPVisualizationContext,
 ]
-
-
-class AdvCPIntermediateAttackState(TypedDict, total=False):
-    previous_memory_data: dict[Any, Any] | None
-    init_perturbation: list[np.ndarray] | None

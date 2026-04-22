@@ -5,10 +5,11 @@ from pathlib import Path
 from typing import Any, Mapping, Optional
 
 import numpy as np
-import yaml  # type: ignore[import-untyped]
+import yaml  # type: ignore[import-untyped, unused-ignore]
 
 from opencda.core.attack.advcp.attack_helper import AdvCPAttackHelper
 from opencda.core.attack.advcp.early_fusion_attack import AdvCoperceptionEarlyFusionAttack
+from opencda.core.attack.advcp.intermediate_fusion_attack import AdvCoperceptionIntermediateFusionAttack
 from opencda.core.attack.advcp.late_fusion_attack import AdvCoperceptionLateFusionAttack
 from opencda.core.attack.advcp.types import AdvCPAttackResult
 from opencda.core.common.coperception_model_manager import (
@@ -166,6 +167,7 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
     ) -> None:
         self.advcp_config = self.load_config(getattr(opt, "advcp_config", None))
         self.current_memory_data: Optional[dict[Any, Any]] = None
+        self.intermediate_attack_state: dict[str, Any] = {}
         super().__init__(opt, current_time, payload_handler=payload_handler, visualization_config=visualization_config)
 
     @staticmethod
@@ -195,12 +197,18 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
         config.setdefault("attacker_id", "cav-1")
         config.setdefault("density", 3)
         config.setdefault("dense_distance", 10.0)
-        if "car_mesh_path" not in config and "model_path" in config:
-            config["car_mesh_path"] = config["model_path"]
-        if "car_mesh_divide_path" not in config and "mesh_divide_path" in config:
-            config["car_mesh_divide_path"] = config["mesh_divide_path"]
-        config.setdefault("car_mesh_path", str(local_model_root / "car_mesh_0200.ply"))
-        config.setdefault("car_mesh_divide_path", str(local_model_root / "spoof" / "car_mesh_divide.pkl"))
+        config.setdefault("sync", 1)
+        config.setdefault("init", True)
+        config.setdefault("online", True)
+        config.setdefault("step", 25)
+        config.setdefault("max_perturb", 10.0)
+        config.setdefault("lr", 1.0 if int(config["step"]) <= 2 else 0.05)
+        config.setdefault("feature_size", 10)
+        config.setdefault("car_mesh_path", config.get("model_path", str(local_model_root / "car_mesh_0200.ply")))
+        config.setdefault(
+            "car_mesh_divide_path",
+            config.get("mesh_divide_path", str(local_model_root / "spoof" / "car_mesh_divide.pkl")),
+        )
 
         for required_key in (
             "mode",
@@ -209,6 +217,13 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
             "attacker_id",
             "density",
             "dense_distance",
+            "sync",
+            "init",
+            "online",
+            "step",
+            "max_perturb",
+            "lr",
+            "feature_size",
             "car_mesh_path",
             "car_mesh_divide_path",
         ):
@@ -278,8 +293,15 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
                 self.model,
                 self.opencood_dataset,
                 self.device,
+                advcp_config=self.advcp_config,
+                memory_data=self.current_memory_data,
+                attack_state=self.intermediate_attack_state,
             )
         )
+
+    def _requires_grad_for_inference(self) -> bool:
+        core_method = self.hypes.get("fusion", {}).get("core_method")
+        return core_method in {"IntermediateFusionDataset", "IntermediateFusionDatasetV2"}
 
     @staticmethod
     def _inference_late_fusion_attack(*args: Any, **kwargs: Any) -> AdvCPAttackResult:
@@ -290,5 +312,5 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
         return AdvCoperceptionEarlyFusionAttack.run(*args, **kwargs)
 
     @staticmethod
-    def _inference_intermediate_fusion_attack(*args: Any, **kwargs: Any) -> tuple[Any, Any, Any]:
-        raise NotImplementedError("AdvCP intermediate fusion spoofing is not available yet.")
+    def _inference_intermediate_fusion_attack(*args: Any, **kwargs: Any) -> AdvCPAttackResult:
+        return AdvCoperceptionIntermediateFusionAttack.run(*args, **kwargs)
