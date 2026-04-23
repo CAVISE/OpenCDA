@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import copy
 from collections import OrderedDict
+from functools import wraps
 import logging
-from typing import Any, Mapping, Sequence, cast
+from typing import Any, Callable, Mapping, Sequence, cast
 
 import numpy as np
 import torch
@@ -48,95 +49,103 @@ class AdvCoperceptionIntermediateFusionAttack:
             raise ValueError("AdvCP intermediate spoofing requires current memory data.")
 
         intermediate_state: AdvCPIntermediateAttackState = attack_state if attack_state is not None else {}
+        online_enabled = bool(AdvCPAttackHelper.require_config_value(advcp_config, "online"))
         attacker_id = str(AdvCPAttackHelper.require_config_value(advcp_config, "attacker_id"))
-        current_scenario_data = next(iter(memory_data.values()))
-        if attacker_id not in current_scenario_data:
-            logger.warning(
-                "AdvCP intermediate attack will not be applied on this tick because attacker '%s' is not present in the current scenario data. "
-                "Continuing with normal cooperative perception inference.",
-                attacker_id,
-            )
-            AdvCoperceptionIntermediateFusionAttack._update_attack_state(
-                intermediate_state,
-                memory_data,
-                init_perturbation=None,
-                online=bool(AdvCPAttackHelper.require_config_value(advcp_config, "online")),
-            )
-            return (*inference_utils.inference_intermediate_fusion(batch_data, model, dataset), advcp_context)
 
-        current_attacker_index = AdvCoperceptionIntermediateFusionAttack._resolve_attacker_index(batch_data, attacker_id)
-        if current_attacker_index is None:
-            logger.warning(
-                "AdvCP intermediate attack will not be applied on this tick because attacker '%s' is not present in the current batch. "
-                "Continuing with normal cooperative perception inference.",
-                attacker_id,
-            )
-            AdvCoperceptionIntermediateFusionAttack._update_attack_state(
-                intermediate_state,
-                memory_data,
-                init_perturbation=None,
-                online=bool(AdvCPAttackHelper.require_config_value(advcp_config, "online")),
-            )
-            return (*inference_utils.inference_intermediate_fusion(batch_data, model, dataset), advcp_context)
+        AttackResultTuple = tuple[torch.Tensor | None, torch.Tensor | None, torch.Tensor | None]
 
-        current_ego_boxes = AdvCoperceptionIntermediateFusionAttack._resolve_ego_attack_boxes(
-            current_scenario_data,
-            advcp_config,
-            attacker_id,
-        )
-        current_target_boxes = torch.stack(
-            [AdvCPAttackHelper.convert_box_for_model(attack_box, dataset).to(device) for attack_box in current_ego_boxes],
-            dim=0,
-        )
-        advcp_context["attacker_ids"] = [attacker_id]
-        advcp_context["fake_box_tensor"] = box_utils.boxes_to_corners_3d(
-            current_target_boxes,
-            order=dataset.post_processor.params.get("order", "hwl"),
-        )
-
-        sync_enabled = bool(AdvCPAttackHelper.require_config_value(advcp_config, "sync"))
-        optimize_memory_data = memory_data
-        optimize_ego_boxes = current_ego_boxes
-        previous_memory_data = intermediate_state.get("previous_memory_data")
-        if sync_enabled and previous_memory_data is not None:
-            previous_scenario_data = next(iter(previous_memory_data.values()))
-            if attacker_id in previous_scenario_data:
-                optimize_memory_data = previous_memory_data
-                optimize_ego_boxes = AdvCoperceptionIntermediateFusionAttack._resolve_ego_attack_boxes(
-                    previous_scenario_data,
-                    advcp_config,
-                    attacker_id,
+        def stateful(executor: Callable[[], tuple[AttackResultTuple | None, list[np.ndarray] | None]]) -> Callable[[], AdvCPAttackResult]:
+            @wraps(executor)
+            def wrapped() -> AdvCPAttackResult:
+                attack_result, init_perturbation = executor()
+                AdvCoperceptionIntermediateFusionAttack._update_attack_state(
+                    intermediate_state,
+                    memory_data,
+                    init_perturbation=init_perturbation,
+                    online=online_enabled,
                 )
-            else:
+                if attack_result is None:
+                    return (*inference_utils.inference_intermediate_fusion(batch_data, model, dataset), advcp_context)
+
+                pred_box_tensor, pred_score, gt_box_tensor = attack_result
+                return pred_box_tensor, pred_score, gt_box_tensor, advcp_context
+
+            return wrapped
+
+        @stateful
+        def execute_attack() -> tuple[AttackResultTuple | None, list[np.ndarray] | None]:
+            current_scenario_data = next(iter(memory_data.values()))
+            if attacker_id not in current_scenario_data:
                 logger.warning(
-                    "AdvCP intermediate previous-tick optimization skipped previous tick because attacker '%s' was not present. "
-                    "Falling back to current-tick optimization.",
+                    "AdvCP intermediate attack will not be applied on this tick because attacker '%s' is not present in the current scenario data. "
+                    "Continuing with normal cooperative perception inference.",
                     attacker_id,
                 )
+                return None, None
 
-        try:
-            pred_box_tensor, pred_score, gt_box_tensor, init_perturbation = AdvCoperceptionIntermediateFusionAttack._optimize_spoofing(
-                model,
-                dataset,
-                device,
+            current_attacker_index = AdvCoperceptionIntermediateFusionAttack._resolve_attacker_index(batch_data, attacker_id)
+            if current_attacker_index is None:
+                logger.warning(
+                    "AdvCP intermediate attack will not be applied on this tick because attacker '%s' is not present in the current batch. "
+                    "Continuing with normal cooperative perception inference.",
+                    attacker_id,
+                )
+                return None, None
+
+            current_ego_boxes = AdvCoperceptionIntermediateFusionAttack._resolve_ego_attack_boxes(
+                current_scenario_data,
                 advcp_config,
                 attacker_id,
-                optimize_memory_data,
-                optimize_ego_boxes,
-                memory_data if optimize_memory_data is not memory_data else None,
-                current_ego_boxes if optimize_memory_data is not memory_data else None,
-                intermediate_state.get("init_perturbation"),
             )
-        finally:
-            dataset.update_database(memory_data=memory_data)
+            current_target_boxes = torch.stack(
+                [AdvCPAttackHelper.convert_box_for_model(attack_box, dataset).to(device) for attack_box in current_ego_boxes],
+                dim=0,
+            )
+            advcp_context["attacker_ids"] = [attacker_id]
+            advcp_context["fake_box_tensor"] = box_utils.boxes_to_corners_3d(
+                current_target_boxes,
+                order=dataset.post_processor.params.get("order", "hwl"),
+            )
 
-        AdvCoperceptionIntermediateFusionAttack._update_attack_state(
-            intermediate_state,
-            memory_data,
-            init_perturbation=init_perturbation,
-            online=bool(AdvCPAttackHelper.require_config_value(advcp_config, "online")),
-        )
-        return pred_box_tensor, pred_score, gt_box_tensor, advcp_context
+            sync_enabled = bool(AdvCPAttackHelper.require_config_value(advcp_config, "sync"))
+            optimize_memory_data = memory_data
+            optimize_ego_boxes = current_ego_boxes
+            previous_memory_data = intermediate_state.get("previous_memory_data")
+            if sync_enabled and previous_memory_data is not None:
+                previous_scenario_data = next(iter(previous_memory_data.values()))
+                if attacker_id in previous_scenario_data:
+                    optimize_memory_data = previous_memory_data
+                    optimize_ego_boxes = AdvCoperceptionIntermediateFusionAttack._resolve_ego_attack_boxes(
+                        previous_scenario_data,
+                        advcp_config,
+                        attacker_id,
+                    )
+                else:
+                    logger.warning(
+                        "AdvCP intermediate previous-tick optimization skipped previous tick because attacker '%s' was not present. "
+                        "Falling back to current-tick optimization.",
+                        attacker_id,
+                    )
+
+            try:
+                pred_box_tensor, pred_score, gt_box_tensor, init_perturbation = AdvCoperceptionIntermediateFusionAttack._optimize_spoofing(
+                    model,
+                    dataset,
+                    device,
+                    advcp_config,
+                    attacker_id,
+                    optimize_memory_data,
+                    optimize_ego_boxes,
+                    memory_data if optimize_memory_data is not memory_data else None,
+                    current_ego_boxes if optimize_memory_data is not memory_data else None,
+                    intermediate_state.get("init_perturbation"),
+                )
+            finally:
+                dataset.update_database(memory_data=memory_data)
+
+            return (pred_box_tensor, pred_score, gt_box_tensor), init_perturbation
+
+        return execute_attack()
 
     @staticmethod
     def _update_attack_state(
