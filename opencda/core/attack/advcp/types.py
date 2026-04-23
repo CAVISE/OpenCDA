@@ -41,6 +41,7 @@ class AdvCPConfig(TypedDict, total=False):
     init: bool
     online: bool
     step: int
+    random_seed: int
     max_perturb: float
     lr: float  # noqa: DC01
     feature_size: int

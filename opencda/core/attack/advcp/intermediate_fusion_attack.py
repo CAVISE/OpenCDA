@@ -265,9 +265,6 @@ class AdvCoperceptionIntermediateFusionAttack:
         sync_enabled: bool,
         stored_init_perturbation: list[np.ndarray] | None,
     ) -> tuple[torch.Tensor | None, torch.Tensor | None, torch.Tensor | None, list[np.ndarray] | None]:
-        torch.manual_seed(1)
-        np.random.seed(1)
-
         max_perturb = float(AdvCPAttackHelper.require_config_value(advcp_config, "max_perturb"))
         learning_rate = float(AdvCPAttackHelper.require_config_value(advcp_config, "lr"))
         optimization_steps = int(AdvCPAttackHelper.require_config_value(advcp_config, "step"))

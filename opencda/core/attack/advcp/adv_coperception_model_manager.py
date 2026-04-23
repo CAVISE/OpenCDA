@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Mapping, Optional, cast
 
 import numpy as np
+import torch
 import yaml  # type: ignore
 
 from opencda.core.attack.advcp.attack_helper import AdvCPAttackHelper
@@ -168,9 +169,17 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
         visualization_config: Optional[Mapping[str, Any]] = None,
     ) -> None:
         self.advcp_config = self.load_config(getattr(opt, "advcp_config", None))
+        self._initialize_random_seed()
         self.current_memory_data: Optional[OrderedDict[int, OrderedDict[str, OrderedDict[str, LiveMemorySnapshot | bool]]]] = None
         self.intermediate_attack_state: AdvCPIntermediateAttackState = {}
         super().__init__(opt, current_time, payload_handler=payload_handler, visualization_config=visualization_config)
+
+    def _initialize_random_seed(self) -> None:
+        random_seed = int(AdvCPAttackHelper.require_config_value(self.advcp_config, "random_seed"))
+        # Initialize deterministic RNG state once per AdvCP manager lifecycle.
+        # Intermediate spoofing optimization uses this global torch/numpy RNG state.
+        torch.manual_seed(random_seed)
+        np.random.seed(random_seed)
 
     @staticmethod
     def load_config(config_path: str | None) -> AdvCPConfig:
@@ -203,6 +212,7 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
         config.setdefault("init", True)
         config.setdefault("online", True)
         config.setdefault("step", 25)
+        config.setdefault("random_seed", 1)
         config.setdefault("max_perturb", 10.0)
         step_value = cast(int | str, config["step"])
         config.setdefault("lr", 1.0 if int(step_value) <= 2 else 0.05)
@@ -224,6 +234,7 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
             "init",
             "online",
             "step",
+            "random_seed",
             "max_perturb",
             "lr",
             "feature_size",

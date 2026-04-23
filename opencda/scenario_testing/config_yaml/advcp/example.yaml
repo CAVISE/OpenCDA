@@ -98,6 +98,13 @@ lr: 0.05
 # Larger values usually make the attack stronger, but slower.
 step: 25
 
+# Random seed for intermediate spoofing optimization.
+# Applied once at AdvCP manager initialization to seed:
+# - torch.manual_seed(random_seed)
+# - np.random.seed(random_seed)
+# Keep fixed for reproducible runs, or change to vary perturbation search trajectories.
+random_seed: 1
+
 # Async toggle:
 # - false: optimize and evaluate on the current tick
 # - true: optimize on the previous tick, then apply/evaluate on the current tick

@@ -62,6 +62,7 @@ def make_advcp_config(**overrides):
         "init": True,
         "online": True,
         "step": 25,
+        "random_seed": 1,
         "max_perturb": 10.0,
         "lr": 0.05,
         "feature_size": 10,
