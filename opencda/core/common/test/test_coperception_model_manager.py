@@ -58,7 +58,7 @@ def make_advcp_config(**overrides):
         "default_size": (4.5, 2.0, 1.6),
         "density": 3,
         "dense_distance": 10.0,
-        "sync": 1,
+        "sync": True,
         "init": True,
         "online": True,
         "step": 25,

@@ -63,8 +63,11 @@ class AdvCPAttackHelper:
             raise ValueError("AdvCP late spoofing requires current memory data.")
 
         mode = cls.require_config_value(advcp_config, "mode")
-        if mode != "spoof":
-            raise NotImplementedError(f"AdvCP mode '{mode}' is not available yet.")
+        match mode:
+            case "spoof":
+                pass
+            case _:
+                raise NotImplementedError(f"AdvCP mode '{mode}' is not available yet.")
 
         scenario_data = next(iter(memory_data.values()))
         ego_agent_id = cls.resolve_ego_agent_id(scenario_data)

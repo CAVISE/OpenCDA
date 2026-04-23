@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any, Mapping, Optional
 
 import numpy as np
-import yaml  # type: ignore[import-untyped, unused-ignore]
+import yaml  # type: ignore
 
 from opencda.core.attack.advcp.attack_helper import AdvCPAttackHelper
 from opencda.core.attack.advcp.early_fusion_attack import AdvCoperceptionEarlyFusionAttack
@@ -197,7 +197,7 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
         config.setdefault("attacker_id", "cav-1")
         config.setdefault("density", 3)
         config.setdefault("dense_distance", 10.0)
-        config.setdefault("sync", 1)
+        config.setdefault("sync", True)
         config.setdefault("init", True)
         config.setdefault("online", True)
         config.setdefault("step", 25)

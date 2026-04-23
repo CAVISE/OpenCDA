@@ -44,10 +44,13 @@ class AdvCoperceptionEarlyFusionAttack:
             "mode": mode,
         }
 
-        if mode == "remove":
-            raise NotImplementedError("AdvCP early-fusion removal is not available yet.")
-        if mode != "spoof":
-            raise NotImplementedError(f"AdvCP mode '{mode}' is not available for early fusion.")
+        match mode:
+            case "remove":
+                raise NotImplementedError("AdvCP early-fusion removal is not available yet.")
+            case "spoof":
+                pass
+            case _:
+                raise NotImplementedError(f"AdvCP mode '{mode}' is not available for early fusion.")
         if memory_data is None:
             raise ValueError("AdvCP early spoofing requires current memory data.")
 

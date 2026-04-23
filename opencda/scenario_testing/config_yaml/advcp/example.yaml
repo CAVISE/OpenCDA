@@ -99,13 +99,13 @@ lr: 0.05
 step: 25
 
 # Async toggle:
-# - 0: optimize and evaluate on the current tick
-# - 1: optimize on the previous tick, then apply/evaluate on the current tick
+# - false: optimize and evaluate on the current tick
+# - true: optimize on the previous tick, then apply/evaluate on the current tick
 #
-# In practice, `sync: 1` means the attacker spends one tick estimating the perturbation
+# In practice, `sync: true` means the attacker spends one tick estimating the perturbation
 # and then uses it on the next tick. This is closer to an online setting, but slower
 # and more sensitive to scene changes between ticks.
-sync: 1
+sync: true
 
 # If enabled, initialize the intermediate attack from a mesh-based LiDAR spoof.
 # In plain terms, this gives the feature attack a better starting point than all zeros.

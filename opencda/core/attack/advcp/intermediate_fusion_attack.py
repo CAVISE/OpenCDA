@@ -36,10 +36,13 @@ class AdvCoperceptionIntermediateFusionAttack:
             "mode": mode,
         }
 
-        if mode == "remove":
-            raise NotImplementedError("AdvCP intermediate-fusion removal is not available yet.")
-        if mode != "spoof":
-            raise NotImplementedError(f"AdvCP mode '{mode}' is not available for intermediate fusion.")
+        match mode:
+            case "remove":
+                raise NotImplementedError("AdvCP intermediate-fusion removal is not available yet.")
+            case "spoof":
+                pass
+            case _:
+                raise NotImplementedError(f"AdvCP mode '{mode}' is not available for intermediate fusion.")
         if memory_data is None:
             raise ValueError("AdvCP intermediate spoofing requires current memory data.")
 
@@ -105,7 +108,7 @@ class AdvCoperceptionIntermediateFusionAttack:
                 )
             else:
                 logger.warning(
-                    "AdvCP intermediate async optimization skipped previous tick because attacker '%s' was not present. "
+                    "AdvCP intermediate previous-tick optimization skipped previous tick because attacker '%s' was not present. "
                     "Falling back to current-tick optimization.",
                     attacker_id,
                 )
