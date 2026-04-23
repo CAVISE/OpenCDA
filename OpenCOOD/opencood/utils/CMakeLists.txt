@@ -26,4 +26,8 @@ target_compile_options(box_overlaps PRIVATE
     $<$<CONFIG:Debug>:-g -O0>
 )
 
+set_target_properties(box_overlaps PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
 install(TARGETS box_overlaps LIBRARY DESTINATION opencood/utils)
