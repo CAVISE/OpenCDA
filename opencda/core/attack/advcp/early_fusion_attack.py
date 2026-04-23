@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+from collections import OrderedDict
 import logging
 from typing import Any, Mapping
 
@@ -10,7 +11,8 @@ from opencood.tools import inference_utils, train_utils
 from opencood.utils.transformation_utils import x_to_world
 
 from opencda.core.attack.advcp.attack_helper import AdvCPAttackHelper, AdvCPCarMeshHelper
-from opencda.core.attack.advcp.types import AdvCPAttackResult, AdvCPVisualizationContext
+from opencda.core.attack.advcp.types import AdvCPAttackResult, AdvCPConfig, AdvCPVisualizationContext
+from opencda.core.common.coperception_data_processor import LiveMemorySnapshot
 
 logger = logging.getLogger("cavise.opencda.opencda.core.attack.advcp.early_fusion_attack")
 
@@ -34,8 +36,8 @@ class AdvCoperceptionEarlyFusionAttack:
         model: Any,
         dataset: Any,
         device: torch.device,
-        advcp_config: dict[str, Any],
-        memory_data: dict[Any, Any] | None = None,
+        advcp_config: AdvCPConfig,
+        memory_data: OrderedDict[int, OrderedDict[str, OrderedDict[str, LiveMemorySnapshot | bool]]] | None = None,
     ) -> AdvCPAttackResult:
         mode = AdvCPAttackHelper.require_config_value(advcp_config, "mode")
         advcp_context: AdvCPVisualizationContext = {
@@ -117,7 +119,7 @@ class AdvCoperceptionEarlyFusionAttack:
         spoof_box: np.ndarray,
         lidar_poses: Mapping[str, np.ndarray],
         attacker_id: str,
-        advcp_config: Mapping[str, Any],
+        advcp_config: AdvCPConfig,
         density: int,
     ) -> tuple[np.ndarray, np.ndarray]:
         if density != 3:
@@ -206,7 +208,7 @@ class AdvCoperceptionEarlyFusionAttack:
         spoof_box: np.ndarray,
         lidar_poses: Mapping[str, np.ndarray],
         attacker_id: str,
-        advcp_config: Mapping[str, Any],
+        advcp_config: AdvCPConfig,
         density: int,
     ) -> tuple[np.ndarray, np.ndarray]:
         if lidar.size == 0:

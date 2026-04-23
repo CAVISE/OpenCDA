@@ -13,7 +13,8 @@ from opencood.utils import box_utils
 
 from opencda.core.attack.advcp.attack_helper import AdvCPAttackHelper
 from opencda.core.attack.advcp.early_fusion_attack import AdvCoperceptionEarlyFusionAttack
-from opencda.core.attack.advcp.types import AdvCPAttackResult, AdvCPIntermediateAttackState, AdvCPVisualizationContext
+from opencda.core.attack.advcp.types import AdvCPAttackResult, AdvCPConfig, AdvCPIntermediateAttackState, AdvCPVisualizationContext
+from opencda.core.common.coperception_data_processor import LiveMemorySnapshot
 
 logger = logging.getLogger("cavise.opencda.opencda.core.attack.advcp.intermediate_fusion_attack")
 
@@ -25,8 +26,8 @@ class AdvCoperceptionIntermediateFusionAttack:
         model: Any,
         dataset: Any,
         device: torch.device,
-        advcp_config: dict[str, Any],
-        memory_data: dict[Any, Any] | None = None,
+        advcp_config: AdvCPConfig,
+        memory_data: OrderedDict[int, OrderedDict[str, OrderedDict[str, LiveMemorySnapshot | bool]]] | None = None,
         attack_state: AdvCPIntermediateAttackState | None = None,
     ) -> AdvCPAttackResult:
         mode = AdvCPAttackHelper.require_config_value(advcp_config, "mode")
@@ -140,7 +141,7 @@ class AdvCoperceptionIntermediateFusionAttack:
     @staticmethod
     def _update_attack_state(
         attack_state: AdvCPIntermediateAttackState,
-        memory_data: dict[Any, Any],
+        memory_data: OrderedDict[int, OrderedDict[str, OrderedDict[str, LiveMemorySnapshot | bool]]],
         init_perturbation: list[np.ndarray] | None,
         online: bool,
     ) -> None:
@@ -150,7 +151,7 @@ class AdvCoperceptionIntermediateFusionAttack:
     @staticmethod
     def _resolve_ego_attack_boxes(
         scenario_data: Mapping[str, Any],
-        advcp_config: Mapping[str, Any],
+        advcp_config: AdvCPConfig,
         attacker_id: str,
     ) -> list[np.ndarray]:
         _, _, _, attack_boxes = AdvCPAttackHelper.resolve_spoof_boxes_for_ego(
@@ -180,7 +181,7 @@ class AdvCoperceptionIntermediateFusionAttack:
         cls,
         dataset: Any,
         device: torch.device,
-        memory_data: dict[Any, Any],
+        memory_data: OrderedDict[int, OrderedDict[str, OrderedDict[str, LiveMemorySnapshot | bool]]],
     ) -> Mapping[str, Any]:
         dataset.update_database(memory_data=memory_data)
         batch = dataset.collate_batch_test([dataset[0]])
@@ -189,10 +190,10 @@ class AdvCoperceptionIntermediateFusionAttack:
     @classmethod
     def _apply_init_spoof_to_memory(
         cls,
-        memory_data: dict[Any, Any],
-        advcp_config: Mapping[str, Any],
+        memory_data: OrderedDict[int, OrderedDict[str, OrderedDict[str, LiveMemorySnapshot | bool]]],
+        advcp_config: AdvCPConfig,
         attacker_id: str,
-    ) -> dict[Any, Any]:
+    ) -> OrderedDict[int, OrderedDict[str, OrderedDict[str, LiveMemorySnapshot | bool]]]:
         attacked_memory = copy.deepcopy(memory_data)
         attacked_scenario_data = next(iter(attacked_memory.values()))
         original_scenario_data = next(iter(memory_data.values()))
@@ -234,11 +235,11 @@ class AdvCoperceptionIntermediateFusionAttack:
         model: Any,
         dataset: Any,
         device: torch.device,
-        advcp_config: Mapping[str, Any],
+        advcp_config: AdvCPConfig,
         attacker_id: str,
-        optimize_memory_data: dict[Any, Any],
+        optimize_memory_data: OrderedDict[int, OrderedDict[str, OrderedDict[str, LiveMemorySnapshot | bool]]],
         optimize_attack_boxes: Sequence[np.ndarray],
-        real_memory_data: dict[Any, Any] | None,
+        real_memory_data: OrderedDict[int, OrderedDict[str, OrderedDict[str, LiveMemorySnapshot | bool]]] | None,
         real_attack_boxes: Sequence[np.ndarray] | None,
         stored_init_perturbation: list[np.ndarray] | None,
     ) -> tuple[torch.Tensor | None, torch.Tensor | None, torch.Tensor | None, list[np.ndarray] | None]:

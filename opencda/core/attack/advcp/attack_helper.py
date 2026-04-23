@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+from collections import OrderedDict
 import logging
 from pathlib import Path
 import pickle
@@ -11,7 +12,8 @@ import torch
 from opencood.hypes_yaml.yaml_utils import load_yaml
 from opencood.utils.transformation_utils import x_to_world
 
-from opencda.core.attack.advcp.types import AdvCPAgentState
+from opencda.core.attack.advcp.types import AdvCPAgentState, AdvCPBoxSpec, AdvCPConfig
+from opencda.core.common.coperception_data_processor import LiveMemorySnapshot
 
 logger = logging.getLogger("cavise.opencda.opencda.core.attack.advcp.advcp_manager")
 
@@ -56,8 +58,8 @@ class AdvCPAttackHelper:
     @classmethod
     def resolve_spoof_boxes(
         cls,
-        advcp_config: Mapping[str, Any],
-        memory_data: Mapping[Any, Any] | None,
+        advcp_config: AdvCPConfig,
+        memory_data: OrderedDict[int, OrderedDict[str, OrderedDict[str, LiveMemorySnapshot | bool]]] | None,
     ) -> tuple[str | None, list[np.ndarray]]:
         if memory_data is None:
             raise ValueError("AdvCP late spoofing requires current memory data.")
@@ -89,7 +91,7 @@ class AdvCPAttackHelper:
     def resolve_spoof_boxes_for_agent(
         cls,
         scenario_data: Mapping[str, Any],
-        advcp_config: Mapping[str, Any],
+        advcp_config: AdvCPConfig,
         attacker_id: str,
     ) -> tuple[str, AdvCPAgentState, AdvCPAgentState, list[np.ndarray]]:
         ego_agent_id = cls.resolve_ego_agent_id(scenario_data)
@@ -116,7 +118,7 @@ class AdvCPAttackHelper:
     def resolve_spoof_boxes_for_ego(
         cls,
         scenario_data: Mapping[str, Any],
-        advcp_config: Mapping[str, Any],
+        advcp_config: AdvCPConfig,
         attacker_id: str,
     ) -> tuple[str, AdvCPAgentState, AdvCPAgentState, list[np.ndarray]]:
         ego_agent_id = cls.resolve_ego_agent_id(scenario_data)
@@ -142,9 +144,9 @@ class AdvCPAttackHelper:
     @classmethod
     def resolve_box_spec_for_sensor_pose(
         cls,
-        spec: dict[str, Any],
+        spec: AdvCPBoxSpec,
         index: int,
-        advcp_config: Mapping[str, Any],
+        advcp_config: AdvCPConfig,
         ego_state: AdvCPAgentState,
         sensor_pose: Sequence[float],
     ) -> np.ndarray:
@@ -248,7 +250,7 @@ class AdvCPCarMeshHelper:
         return [AdvCPCarMeshHelper.build_box_piece_mesh(spoof_box, extents, center) for extents, center in pieces]
 
     @classmethod
-    def build_spoof_meshes(cls, spoof_box: np.ndarray, advcp_config: Mapping[str, Any]) -> list[Any]:
+    def build_spoof_meshes(cls, spoof_box: np.ndarray, advcp_config: AdvCPConfig) -> list[Any]:
         car_mesh_pieces = cls.build_real_car_mesh_pieces(spoof_box, advcp_config)
         if car_mesh_pieces is not None:
             return car_mesh_pieces
@@ -258,7 +260,7 @@ class AdvCPCarMeshHelper:
         return cls.build_spoof_mesh_pieces(spoof_box)
 
     @classmethod
-    def build_collision_mesh(cls, spoof_box: np.ndarray, advcp_config: Mapping[str, Any]) -> Any:
+    def build_collision_mesh(cls, spoof_box: np.ndarray, advcp_config: AdvCPConfig) -> Any:
         car_mesh_pieces = cls.build_real_car_mesh_pieces(spoof_box, advcp_config)
         if car_mesh_pieces is not None:
             return car_mesh_pieces[0] if len(car_mesh_pieces) == 1 else cls.merge_meshes(car_mesh_pieces)
@@ -269,7 +271,7 @@ class AdvCPCarMeshHelper:
         )
 
     @classmethod
-    def build_real_car_mesh_pieces(cls, spoof_box: np.ndarray, advcp_config: Mapping[str, Any]) -> list[Any] | None:
+    def build_real_car_mesh_pieces(cls, spoof_box: np.ndarray, advcp_config: AdvCPConfig) -> list[Any] | None:
         import open3d as o3d
 
         # TODO: Replace bundled car_mesh/car_mesh_divide asset loading with on-the-fly asset generation
@@ -322,7 +324,7 @@ class AdvCPCarMeshHelper:
         return car_mesh_path.stem
 
     @classmethod
-    def resolve_car_mesh_paths(cls, advcp_config: Mapping[str, Any]) -> tuple[Path, Path]:
+    def resolve_car_mesh_paths(cls, advcp_config: AdvCPConfig) -> tuple[Path, Path]:
         car_mesh_path = Path(str(AdvCPAttackHelper.require_config_value(advcp_config, "car_mesh_path"))).expanduser()
 
         if not car_mesh_path.is_absolute():

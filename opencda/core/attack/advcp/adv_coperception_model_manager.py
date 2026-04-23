@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import logging
+from collections import OrderedDict
 from pathlib import Path
-from typing import Any, Mapping, Optional
+from typing import Any, Mapping, Optional, cast
 
 import numpy as np
 import yaml  # type: ignore
@@ -11,7 +12,8 @@ from opencda.core.attack.advcp.attack_helper import AdvCPAttackHelper
 from opencda.core.attack.advcp.early_fusion_attack import AdvCoperceptionEarlyFusionAttack
 from opencda.core.attack.advcp.intermediate_fusion_attack import AdvCoperceptionIntermediateFusionAttack
 from opencda.core.attack.advcp.late_fusion_attack import AdvCoperceptionLateFusionAttack
-from opencda.core.attack.advcp.types import AdvCPAttackResult
+from opencda.core.attack.advcp.types import AdvCPAttackResult, AdvCPConfig, AdvCPIntermediateAttackState
+from opencda.core.common.coperception_data_processor import LiveMemorySnapshot
 from opencda.core.common.coperception_model_manager import (
     CoperceptionInferenceResult,
     CoperceptionModelManager,
@@ -166,13 +168,13 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
         visualization_config: Optional[Mapping[str, Any]] = None,
     ) -> None:
         self.advcp_config = self.load_config(getattr(opt, "advcp_config", None))
-        self.current_memory_data: Optional[dict[Any, Any]] = None
-        self.intermediate_attack_state: dict[str, Any] = {}
+        self.current_memory_data: Optional[OrderedDict[int, OrderedDict[str, OrderedDict[str, LiveMemorySnapshot | bool]]]] = None
+        self.intermediate_attack_state: AdvCPIntermediateAttackState = {}
         super().__init__(opt, current_time, payload_handler=payload_handler, visualization_config=visualization_config)
 
     @staticmethod
-    def load_config(config_path: str | None) -> dict[str, Any]:
-        config: dict[str, Any] = {}
+    def load_config(config_path: str | None) -> AdvCPConfig:
+        config: dict[str, object] = {}
         config_dir: Path | None = None
         local_model_root = Path(__file__).resolve().parent / "3d_models"
 
@@ -235,7 +237,7 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
                 path = Path(str(path_value)).expanduser()
                 if not path.is_absolute():
                     config[path_key] = str((config_dir / path).resolve())
-        return config
+        return cast(AdvCPConfig, config)
 
     def validate_advcp_agents(self, valid_agent_ids: list[str]) -> bool:
         mode = AdvCPAttackHelper.require_config_value(self.advcp_config, "mode")
