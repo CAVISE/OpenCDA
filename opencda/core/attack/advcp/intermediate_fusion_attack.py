@@ -108,25 +108,6 @@ class AdvCoperceptionIntermediateFusionAttack:
             )
 
             sync_enabled = bool(AdvCPAttackHelper.require_config_value(advcp_config, "sync"))
-            optimize_memory_data = memory_data
-            optimize_ego_boxes = current_ego_boxes
-            previous_memory_data = intermediate_state.get("previous_memory_data")
-            if sync_enabled and previous_memory_data is not None:
-                previous_scenario_data = next(iter(previous_memory_data.values()))
-                if attacker_id in previous_scenario_data:
-                    optimize_memory_data = previous_memory_data
-                    optimize_ego_boxes = AdvCoperceptionIntermediateFusionAttack._resolve_ego_attack_boxes(
-                        previous_scenario_data,
-                        advcp_config,
-                        attacker_id,
-                    )
-                else:
-                    logger.warning(
-                        "AdvCP intermediate previous-tick optimization skipped previous tick because attacker '%s' was not present. "
-                        "Falling back to current-tick optimization.",
-                        attacker_id,
-                    )
-
             try:
                 pred_box_tensor, pred_score, gt_box_tensor, init_perturbation = AdvCoperceptionIntermediateFusionAttack._optimize_spoofing(
                     model,
@@ -134,10 +115,10 @@ class AdvCoperceptionIntermediateFusionAttack:
                     device,
                     advcp_config,
                     attacker_id,
-                    optimize_memory_data,
-                    optimize_ego_boxes,
-                    memory_data if optimize_memory_data is not memory_data else None,
-                    current_ego_boxes if optimize_memory_data is not memory_data else None,
+                    memory_data,
+                    current_ego_boxes,
+                    intermediate_state.get("previous_memory_data"),
+                    sync_enabled,
                     intermediate_state.get("init_perturbation"),
                 )
             finally:
@@ -246,10 +227,10 @@ class AdvCoperceptionIntermediateFusionAttack:
         device: torch.device,
         advcp_config: AdvCPConfig,
         attacker_id: str,
-        optimize_memory_data: OrderedDict[int, OrderedDict[str, OrderedDict[str, LiveMemorySnapshot | bool]]],
-        optimize_attack_boxes: Sequence[np.ndarray],
-        real_memory_data: OrderedDict[int, OrderedDict[str, OrderedDict[str, LiveMemorySnapshot | bool]]] | None,
-        real_attack_boxes: Sequence[np.ndarray] | None,
+        memory_data: OrderedDict[int, OrderedDict[str, OrderedDict[str, LiveMemorySnapshot | bool]]],
+        current_attack_boxes: Sequence[np.ndarray],
+        previous_memory_data: OrderedDict[int, OrderedDict[str, OrderedDict[str, LiveMemorySnapshot | bool]]] | None,
+        sync_enabled: bool,
         stored_init_perturbation: list[np.ndarray] | None,
     ) -> tuple[torch.Tensor | None, torch.Tensor | None, torch.Tensor | None, list[np.ndarray] | None]:
         torch.manual_seed(1)
@@ -260,6 +241,29 @@ class AdvCoperceptionIntermediateFusionAttack:
         optimization_steps = int(AdvCPAttackHelper.require_config_value(advcp_config, "step"))
         feature_size = int(AdvCPAttackHelper.require_config_value(advcp_config, "feature_size"))
         use_init = bool(AdvCPAttackHelper.require_config_value(advcp_config, "init"))
+
+        optimize_memory_data = memory_data
+        optimize_attack_boxes = current_attack_boxes
+        real_memory_data: OrderedDict[int, OrderedDict[str, OrderedDict[str, LiveMemorySnapshot | bool]]] | None = None
+        real_attack_boxes: Sequence[np.ndarray] | None = None
+
+        if sync_enabled and previous_memory_data is not None:
+            previous_scenario_data = next(iter(previous_memory_data.values()))
+            if attacker_id in previous_scenario_data:
+                optimize_memory_data = previous_memory_data
+                optimize_attack_boxes = cls._resolve_ego_attack_boxes(
+                    previous_scenario_data,
+                    advcp_config,
+                    attacker_id,
+                )
+                real_memory_data = memory_data
+                real_attack_boxes = current_attack_boxes
+            else:
+                logger.warning(
+                    "AdvCP intermediate previous-tick optimization skipped previous tick because attacker '%s' was not present. "
+                    "Falling back to current-tick optimization.",
+                    attacker_id,
+                )
 
         original_optimize_batch = cls._build_batch_from_memory(dataset, device, optimize_memory_data)
         optimize_batch = (
