@@ -34,10 +34,12 @@ if(OPENCDA_BUILD_CUDA)
     endif()
 endif()
 
-find_package(pybind11 REQUIRED CONFIG
-    HINTS "${Python3_SITELIB}/pybind11/share/cmake"
-          "${Python3_SITEARCH}/pybind11/share/cmake"
-)
+if(OPENCDA_BUILD_CUDA)
+    find_package(pybind11 REQUIRED CONFIG
+        HINTS "${Python3_SITELIB}/pybind11/share/cmake"
+              "${Python3_SITEARCH}/pybind11/share/cmake"
+    )
+endif()
 
 if(OPENCDA_BUILD_PROTOBUF)
     add_subdirectory(opencda/core/common/communication)

@@ -45,7 +45,13 @@ USER ${USER}
 ENV PATH="${HOME}/.local/bin:${PATH}"
 WORKDIR ${HOME}/cavise/opencda
 
+COPY requirements.txt pyproject.toml ./
+
 # Python Version: 3.12.3
 RUN python3 -m pip install --no-cache-dir --break-system-packages --upgrade pip==26.0.1 setuptools==82.0.0 wheel==0.46.3 && \
     python3 -m pip install --no-cache-dir --break-system-packages -r requirements.txt && \
     python3 -m pip install --no-cache-dir --break-system-packages spconv-cu126==2.3.8
+
+COPY opencda/ opencda/
+COPY OpenCOOD/ OpenCOOD/
+COPY CMakeLists.txt ./
