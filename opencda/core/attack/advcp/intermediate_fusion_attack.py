@@ -135,8 +135,40 @@ class AdvCoperceptionIntermediateFusionAttack:
         init_perturbation: list[np.ndarray] | None,
         online: bool,
     ) -> None:
-        attack_state["previous_memory_data"] = copy.deepcopy(memory_data)
+        previous_buffer = attack_state.get("previous_memory_data")
+        current_buffer = attack_state.get("current_memory_data")
+        if previous_buffer is None:
+            previous_buffer = OrderedDict()
+        if current_buffer is None:
+            current_buffer = OrderedDict()
+
+        # Swap the two reusable buffers and overwrite only the current one
+        # with a structural copy of fresh tick data.
+        previous_buffer, current_buffer = current_buffer, previous_buffer
+        AdvCoperceptionIntermediateFusionAttack._refresh_memory_buffer(current_buffer, memory_data)
+
+        attack_state["previous_memory_data"] = previous_buffer if len(previous_buffer) > 0 else None
+        attack_state["current_memory_data"] = current_buffer
         attack_state["init_perturbation"] = init_perturbation if online else None
+
+    @staticmethod
+    def _refresh_memory_buffer(
+        target_buffer: OrderedDict[int, OrderedDict[str, OrderedDict[str, LiveMemorySnapshot | bool]]],
+        source_memory_data: OrderedDict[int, OrderedDict[str, OrderedDict[str, LiveMemorySnapshot | bool]]],
+    ) -> None:
+        """Copy only dict structure; keep heavy numpy payload objects by reference."""
+        target_buffer.clear()
+        for batch_idx, source_batch in source_memory_data.items():
+            batch_copy: OrderedDict[str, OrderedDict[str, LiveMemorySnapshot | bool]] = OrderedDict()
+            target_buffer[batch_idx] = batch_copy
+            for agent_id, source_agent_record in source_batch.items():
+                agent_record_copy: OrderedDict[str, LiveMemorySnapshot | bool] = OrderedDict()
+                batch_copy[agent_id] = agent_record_copy
+                for record_key, record_value in source_agent_record.items():
+                    if isinstance(record_value, Mapping):
+                        agent_record_copy[record_key] = cast(LiveMemorySnapshot, dict(record_value))
+                    else:
+                        agent_record_copy[record_key] = record_value
 
     @staticmethod
     def _resolve_ego_attack_boxes(

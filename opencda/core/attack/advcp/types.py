@@ -52,6 +52,7 @@ class AdvCPConfig(TypedDict, total=False):
 
 class AdvCPIntermediateAttackState(TypedDict, total=False):
     previous_memory_data: OrderedDict[int, OrderedDict[str, OrderedDict[str, LiveMemorySnapshot | bool]]] | None
+    current_memory_data: OrderedDict[int, OrderedDict[str, OrderedDict[str, LiveMemorySnapshot | bool]]] | None
     init_perturbation: list[np.ndarray] | None
 
 
