@@ -25,29 +25,29 @@ class AdvCPAgentState(TypedDict):
 
 
 class AdvCPBoxSpec(TypedDict, total=False):
-    relative: Sequence[float]
-    absolute: Sequence[float]
+    relative: Sequence[float]  # noqa: DC01
+    absolute: Sequence[float]  # noqa: DC01
     size: Sequence[float]
 
 
 class AdvCPConfig(TypedDict, total=False):
     mode: str
-    default_size: Sequence[float]
+    default_size: Sequence[float]  # noqa: DC01
     boxes: list[AdvCPBoxSpec]
     attacker_id: str | None
     density: int | str
     dense_distance: float
-    sync: bool
+    sync: bool  # noqa: DC01
     init: bool
     online: bool
     step: int
     max_perturb: float
-    lr: float
+    lr: float  # noqa: DC01
     feature_size: int
     car_mesh_path: str
     car_mesh_divide_path: str
-    model_path: str
-    mesh_divide_path: str
+    model_path: str  # noqa: DC01
+    mesh_divide_path: str  # noqa: DC01
 
 
 class AdvCPIntermediateAttackState(TypedDict, total=False):

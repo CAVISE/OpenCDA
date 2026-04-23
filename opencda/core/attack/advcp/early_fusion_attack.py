@@ -3,7 +3,7 @@ from __future__ import annotations
 import copy
 from collections import OrderedDict
 import logging
-from typing import Any, Mapping
+from typing import Any, Mapping, cast
 
 import numpy as np
 import torch
@@ -74,7 +74,7 @@ class AdvCoperceptionEarlyFusionAttack:
         attacked_scenario_data = next(iter(attacked_memory.values()))
         attacked_agent_data = attacked_scenario_data[attacker_id]
         attacked_timestamp = next(key for key in attacked_agent_data.keys() if key != "ego")
-        attacked_snapshot = attacked_agent_data[attacked_timestamp]
+        attacked_snapshot = cast(LiveMemorySnapshot, attacked_agent_data[attacked_timestamp])
         attacker_lidar = attacked_snapshot.get("lidar_np")
         if attacker_lidar is None:
             raise ValueError(f"AdvCP early attack requires in-memory lidar_np for attacker '{attacker_id}'.")

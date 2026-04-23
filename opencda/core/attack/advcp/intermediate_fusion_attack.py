@@ -3,7 +3,7 @@ from __future__ import annotations
 import copy
 from collections import OrderedDict
 import logging
-from typing import Any, Mapping, Sequence
+from typing import Any, Mapping, Sequence, cast
 
 import numpy as np
 import torch
@@ -201,7 +201,7 @@ class AdvCoperceptionIntermediateFusionAttack:
         _, _, _, attack_boxes = AdvCPAttackHelper.resolve_spoof_boxes_for_agent(original_scenario_data, advcp_config, attacker_id)
         attacked_agent_data = attacked_scenario_data[attacker_id]
         attacked_timestamp = next(key for key in attacked_agent_data.keys() if key != "ego")
-        attacked_snapshot = attacked_agent_data[attacked_timestamp]
+        attacked_snapshot = cast(LiveMemorySnapshot, attacked_agent_data[attacked_timestamp])
         attacker_lidar = attacked_snapshot.get("lidar_np")
         if attacker_lidar is None:
             raise ValueError(f"AdvCP intermediate init requires in-memory lidar_np for attacker '{attacker_id}'.")

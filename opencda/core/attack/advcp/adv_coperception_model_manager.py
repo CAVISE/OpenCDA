@@ -204,7 +204,8 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
         config.setdefault("online", True)
         config.setdefault("step", 25)
         config.setdefault("max_perturb", 10.0)
-        config.setdefault("lr", 1.0 if int(config["step"]) <= 2 else 0.05)
+        step_value = cast(int | str, config["step"])
+        config.setdefault("lr", 1.0 if int(step_value) <= 2 else 0.05)
         config.setdefault("feature_size", 10)
         config.setdefault("car_mesh_path", config.get("model_path", str(local_model_root / "car_mesh_0200.ply")))
         config.setdefault(
@@ -253,7 +254,8 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
             )
             self.advcp_config["attacker_id"] = None
 
-        attacker_ids = [self.advcp_config["attacker_id"]] if self.advcp_config.get("attacker_id") else []
+        attacker_id_value = self.advcp_config.get("attacker_id")
+        attacker_ids = [attacker_id_value] if attacker_id_value is not None else []
 
         logger.info("AdvCP mode: %s", mode)
         if attacker_ids:
