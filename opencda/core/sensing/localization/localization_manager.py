@@ -2,6 +2,7 @@
 Localization module
 """
 
+import logging
 import weakref
 from collections import deque
 
@@ -13,7 +14,12 @@ from opencda.metrics_tools.config import resolve_metric_collector_config
 from opencda.metrics_tools.metric_collector import MetricCollector
 from opencda.core.sensing.localization.localization_debug_helper import LocDebugHelper
 from opencda.core.sensing.localization.kalman_filter import KalmanFilter
-from opencda.core.sensing.localization.coordinate_transform import geo_to_transform
+from opencda.core.sensing.localization.coordinate_transform import geo_to_transform  # noqa: F401
+
+from opencda.core.attack.gnss_spoofing import GNSSPeriodicSpoofer
+from opencda.core.attack.gnss_spoofing import GNSSSpoofingDetector
+
+logger = logging.getLogger("cavise.localization_manager")
 
 
 class GnssSensor(object):
@@ -190,6 +196,20 @@ class LocalizationManager(object):
         # Live visualization helper.
         self.debug_helper = LocDebugHelper(config_yaml["debug_helper"], self.vehicle.id)
 
+        # Activate GNSS Spoofing attack
+        if self.activate and config_yaml["attack"]:
+            self.gnns_spoofer = GNSSPeriodicSpoofer(1e-4, 1e-4, 0, 100)
+            logger.info("GNSS Spoofing Attack activated!")
+        else:
+            self.gnns_spoofer = None
+
+        # Activate GNSS Spoofing attack detection
+        if self.activate and config_yaml["detect"]:
+            self.gnns_detector = GNSSSpoofingDetector(config_yaml["dt"])
+            logger.info("GNSS Spoofing Attack Detector activated!")
+        else:
+            self.gnns_detector = None
+
     def localize(self):
         """
         Currently implemented in a naive way.
@@ -203,10 +223,20 @@ class LocalizationManager(object):
             speed_noise = self.add_speed_noise(speed_true)
 
             # gnss coordinates under ESU(Unreal coordinate system)
-            x, y, z = geo_to_transform(self.gnss.lat, self.gnss.lon, self.gnss.alt, self.geo_ref.latitude, self.geo_ref.longitude, 0.0)
+            # x, y, z = geo_to_transform(self.gnss.lat, self.gnss.lon, self.gnss.alt, self.geo_ref.latitude, self.geo_ref.longitude, 0.0)
+
+            lat, lon, alt = self.gnss.lat, self.gnss.lon, self.gnss.alt
+
+            logger.info(f"True GNSS:  {lat}, {lon}, {alt}")
+            if self.gnns_spoofer:
+                lat, lon, alt = self.gnns_spoofer.update(lat, lon, alt)
+                logger.info(f"False GNSS: {lat}, {lon}, {alt}")
+
+            location = self.map.geolocation_to_transform(carla.GeoLocation(latitude=lat, longitude=lon, altitude=alt))
+            x, y, z = location.x, location.y, location.z
 
             # only use this for debugging purpose
-            location = self.vehicle.get_transform().location
+            true_location = self.vehicle.get_transform().location
 
             # We add synthetic noise to the heading direction
             rotation = self.vehicle.get_transform().rotation
@@ -240,11 +270,34 @@ class LocalizationManager(object):
 
             # add data to live debug visualization
             self.debug_helper.run_step(
-                x, y, heading_angle, speed_noise, x_kf, y_kf, heading_angle_kf, self._speed, location.x, location.y, rotation.yaw, speed_true
+                x,
+                y,
+                heading_angle,
+                speed_noise,
+                x_kf,
+                y_kf,
+                heading_angle_kf,
+                self._speed,
+                true_location.x,
+                true_location.y,
+                rotation.yaw,
+                speed_true,
             )
 
             # the final pose of the vehicle
             self._ego_pos = carla.Transform(carla.Location(x=x_kf, y=y_kf, z=z), carla.Rotation(pitch=0, yaw=heading_angle_kf, roll=0))
+
+            # Print ENU coordinates
+            logger.info(f"True ENU:  {true_location.x}, {true_location.y}, {true_location.z}")
+            logger.info(f"False ENU: {x_kf}, {y_kf}, {z}")
+
+            # Detecting
+            if self.gnns_detector:
+                if len(self._ego_pos_history) == 0:
+                    self.gnns_detector.first_step(x, y)
+                else:
+                    if self.gnns_detector.detect(x_kf, y_kf, speed_kf):
+                        logger.warning("WARNING: GNSS Spoofing attack detected!")
 
             # save the track for future use
             self._ego_pos_history.append(self._ego_pos)
