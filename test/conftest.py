@@ -47,12 +47,25 @@ torch_stub.hub = SimpleNamespace(load=Mock())
 torch_stub.device = lambda *args, **kwargs: "cpu"
 torch_stub.Tensor = _TorchTensor
 torch_stub.nn = types.ModuleType("torch.nn")
+torch_stub.nn.functional = types.ModuleType("torch.nn.functional")
+torch_stub.nn.functional.affine_grid = lambda *args, **kwargs: Mock(name="affine_grid")()
+torch_stub.nn.functional.grid_sample = lambda input_tensor, *args, **kwargs: input_tensor
+torch_stub.optim = types.ModuleType("torch.optim")
+torch_stub.optim.Adam = Mock
+torch_stub.manual_seed = Mock()
+torch_stub.from_numpy = lambda array: Mock(name="from_numpy_tensor")()
+torch_stub.zeros = lambda *args, **kwargs: Mock(name="zeros_tensor")()
+torch_stub.stack = lambda *args, **kwargs: Mock(name="stack_tensor")()
+torch_stub.float32 = "float32"
 _install_stub_if_missing("torch", torch_stub)
 _install_stub_if_missing("torch.nn", torch_stub.nn)
+_install_stub_if_missing("torch.nn.functional", torch_stub.nn.functional)
+_install_stub_if_missing("torch.optim", torch_stub.optim)
 
 _install_stub_if_missing("open3d", types.ModuleType("open3d"))
 _install_stub_if_missing("opencood", types.ModuleType("opencood"))
 opencood_utils_stub = types.ModuleType("opencood.utils")
+opencood_box_utils_stub = types.ModuleType("opencood.utils.box_utils")
 opencood_transformation_utils_stub = types.ModuleType("opencood.utils.transformation_utils")
 opencood_transformation_utils_stub.x_to_world = lambda pose: [
     [1.0, 0.0, 0.0, float(pose[0])],
@@ -60,8 +73,12 @@ opencood_transformation_utils_stub.x_to_world = lambda pose: [
     [0.0, 0.0, 1.0, float(pose[2])],
     [0.0, 0.0, 0.0, 1.0],
 ]
+opencood_box_utils_stub.boxes_to_corners_3d = lambda boxes, order=None: boxes
+opencood_box_utils_stub.boxes_to_corners2d = lambda boxes, order=None: boxes
+opencood_utils_stub.box_utils = opencood_box_utils_stub
 opencood_utils_stub.transformation_utils = opencood_transformation_utils_stub
 _install_stub_if_missing("opencood.utils", opencood_utils_stub)
+_install_stub_if_missing("opencood.utils.box_utils", opencood_box_utils_stub)
 _install_stub_if_missing("opencood.utils.transformation_utils", opencood_transformation_utils_stub)
 
 
