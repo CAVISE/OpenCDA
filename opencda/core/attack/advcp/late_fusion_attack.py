@@ -2,12 +2,13 @@ from __future__ import annotations
 
 from collections import OrderedDict
 import logging
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 import torch
 from opencda.core.attack.advcp.attack_helper import AdvCPAttackHelper
-from opencda.core.attack.advcp.types import AdvCPAttackResult, AdvCPVisualizationContext
+from opencda.core.attack.advcp.types import AdvCPAttackResult, AdvCPConfig, AdvCPVisualizationContext
+from opencda.core.common.coperception_data_processor import LiveMemorySnapshot
 
 logger = logging.getLogger("cavise.opencda.opencda.core.attack.advcp.advcp_manager")
 
@@ -19,8 +20,8 @@ class AdvCoperceptionLateFusionAttack:
         model: Any,
         dataset: Any,
         device: torch.device,
-        advcp_config: dict[str, Any],
-        memory_data: Optional[dict[Any, Any]] = None,
+        advcp_config: AdvCPConfig,
+        memory_data: OrderedDict[int, OrderedDict[str, OrderedDict[str, LiveMemorySnapshot | bool]]] | None = None,
     ) -> AdvCPAttackResult:
         # TODO: Move this up when https://github.com/CAVISE/OpenCDA/pull/65 is merged
         from opencood.utils import box_utils
@@ -33,8 +34,13 @@ class AdvCoperceptionLateFusionAttack:
 
         mode = AdvCPAttackHelper.require_config_value(advcp_config, "mode")
         advcp_context["mode"] = mode
-        if mode == "remove":
-            AdvCoperceptionLateFusionAttack._raise_removal_not_available()
+        match mode:
+            case "remove":
+                AdvCoperceptionLateFusionAttack._raise_removal_not_available()
+            case "spoof":
+                pass
+            case _:
+                raise NotImplementedError(f"AdvCP mode '{mode}' is not available for late fusion.")
 
         attacker_id, attack_boxes = AdvCoperceptionLateFusionAttack.resolve_spoof_boxes(advcp_config, memory_data)
         if attacker_id is not None:
@@ -137,7 +143,10 @@ class AdvCoperceptionLateFusionAttack:
         return pred_box_tensor, pred_score, gt_box_tensor, advcp_context
 
     @staticmethod
-    def resolve_spoof_boxes(advcp_config: dict[str, Any], memory_data: dict[str, Any] | None) -> tuple[str | None, list[np.ndarray]]:
+    def resolve_spoof_boxes(
+        advcp_config: AdvCPConfig,
+        memory_data: OrderedDict[int, OrderedDict[str, OrderedDict[str, LiveMemorySnapshot | bool]]] | None,
+    ) -> tuple[str | None, list[np.ndarray]]:
         return AdvCPAttackHelper.resolve_spoof_boxes(advcp_config, memory_data)
 
     @staticmethod
