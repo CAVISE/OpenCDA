@@ -137,7 +137,7 @@ exclude = [
     "^opencda/core/plan(/|$)",
     "^opencda/core/safety/safety_manager\\.py$",
     "^opencda/core/safety/sensors\\.py$",
-    "^opencda/core/sensing(/|$)",
+    "^opencda/core/sensing/perception(/|$)",
     "^opencda/customize(/|$)",
     "^opencda/opencda_carla\\.py$"
 ]
