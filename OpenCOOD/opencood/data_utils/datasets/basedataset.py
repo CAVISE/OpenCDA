@@ -262,7 +262,13 @@ class BaseDataset(Dataset):
             data[cav_id]["time_delay"] = timestamp_delay
             # load the corresponding data into the dictionary
             data[cav_id]["params"] = self.reform_param(cav_content, ego_cav_content, timestamp_key, timestamp_key_delay, cur_ego_pose_flag)
-            data[cav_id]["lidar_np"] = pcd_utils.pcd_to_np(cav_content[timestamp_key_delay]["lidar"])
+            data[cav_id]["lidar_np"] = (
+                cav_content[timestamp_key_delay]["lidar_np"]
+                if "lidar_np" in cav_content[timestamp_key_delay]
+                else pcd_utils.pcd_to_np(cav_content[timestamp_key_delay]["lidar"])
+            )
+            if "spoofing_mask" in cav_content[timestamp_key_delay]:
+                data[cav_id]["spoofing_mask"] = cav_content[timestamp_key_delay]["spoofing_mask"]
         return data
 
     @staticmethod
@@ -326,14 +332,18 @@ class BaseDataset(Dataset):
         for cav_id, cav_content in scenario_database.items():
             if cav_content["ego"]:
                 ego_cav_content = cav_content
-                ego_lidar_pose = load_yaml(cav_content[timestamp_key]["yaml"])["lidar_pose"]
+                ego_lidar_pose = (
+                    cav_content[timestamp_key]["params"] if "params" in cav_content[timestamp_key] else load_yaml(cav_content[timestamp_key]["yaml"])
+                )["lidar_pose"]
                 break
 
         assert ego_lidar_pose is not None
 
         # calculate the distance
         for cav_id, cav_content in scenario_database.items():
-            cur_lidar_pose = load_yaml(cav_content[timestamp_key]["yaml"])["lidar_pose"]
+            cur_lidar_pose = (
+                cav_content[timestamp_key]["params"] if "params" in cav_content[timestamp_key] else load_yaml(cav_content[timestamp_key]["yaml"])
+            )["lidar_pose"]
 
             dx = cur_lidar_pose[0] - ego_lidar_pose[0]
             dy = cur_lidar_pose[1] - ego_lidar_pose[1]
@@ -424,11 +434,19 @@ class BaseDataset(Dataset):
         ------
         The merged parameters.
         """
-        cur_params = load_yaml(cav_content[timestamp_cur]["yaml"])
-        delay_params = load_yaml(cav_content[timestamp_delay]["yaml"])
+        cur_params = (
+            cav_content[timestamp_cur]["params"] if "params" in cav_content[timestamp_cur] else load_yaml(cav_content[timestamp_cur]["yaml"])
+        ).copy()
+        delay_params = (
+            cav_content[timestamp_delay]["params"] if "params" in cav_content[timestamp_delay] else load_yaml(cav_content[timestamp_delay]["yaml"])
+        ).copy()
 
-        cur_ego_params = load_yaml(ego_content[timestamp_cur]["yaml"])
-        delay_ego_params = load_yaml(ego_content[timestamp_delay]["yaml"])
+        cur_ego_params = (
+            ego_content[timestamp_cur]["params"] if "params" in ego_content[timestamp_cur] else load_yaml(ego_content[timestamp_cur]["yaml"])
+        )
+        delay_ego_params = (
+            ego_content[timestamp_delay]["params"] if "params" in ego_content[timestamp_delay] else load_yaml(ego_content[timestamp_delay]["yaml"])
+        )
 
         # we need to calculate the transformation matrix from cav to ego
         # at the delayed timestamp
