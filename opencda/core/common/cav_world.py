@@ -118,7 +118,7 @@ class CavWorld(object):
 
     def get_rsu_managers(self) -> dict[str, RSUManager]:
         """
-            Return RSU managers.
+        Return RSU managers.
         """
         return self._rsu_manager_dict
 
