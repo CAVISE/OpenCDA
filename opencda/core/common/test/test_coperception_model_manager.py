@@ -9,6 +9,7 @@ from opencda.core.attack.advcp import AdvCoperceptionModelManager
 from opencda.core.attack.advcp.attack_helper import AdvCPAttackHelper
 from opencda.core.attack.advcp.adv_coperception_model_manager import AdvCoperceptionVisualizer
 from opencda.core.attack.advcp.early_fusion_attack import AdvCoperceptionEarlyFusionAttack
+from opencda.core.attack.advcp.intermediate_fusion_attack import AdvCoperceptionIntermediateFusionAttack
 from opencda.core.attack.advcp.late_fusion_attack import AdvCoperceptionLateFusionAttack
 from opencda.core.common.coperception_data_processor import CoperceptionDataProcessor
 from opencda.core.common.coperception_model_manager import (
@@ -57,6 +58,14 @@ def make_advcp_config(**overrides):
         "default_size": (4.5, 2.0, 1.6),
         "density": 3,
         "dense_distance": 10.0,
+        "sync": True,
+        "init": True,
+        "online": True,
+        "step": 25,
+        "random_seed": 1,
+        "max_perturb": 10.0,
+        "lr": 0.05,
+        "feature_size": 10,
         "car_mesh_path": "dummy_car_mesh.ply",
         "car_mesh_divide_path": "dummy_car_mesh_divide.pkl",
     }
@@ -308,6 +317,50 @@ class TestCoperceptionModelManager:
         assert isinstance(result, CoperceptionInferenceResult)
         assert result.visualization_context == {"attacker_ids": ["cav-2"], "fake_box_tensor": None, "mode": "spoof"}
 
+    def test_make_prediction_intermediate_advcp_dispatches_to_intermediate_attack_class(self, manager_deps):
+        manager_deps["hypes"]["fusion"]["core_method"] = "IntermediateFusionDataset"
+        opt = DummyOpt(with_advcp=True, advcp_config="dummy.yaml")
+        with patch.object(AdvCoperceptionModelManager, "load_config", return_value=make_advcp_config(boxes=[{}])):
+            manager = AdvCoperceptionModelManager(opt, "2023_01_01")
+        manager.data_loader = [{"ego": {"origin_lidar": ["lidar_data"]}}]
+        manager.opencood_dataset = MagicMock()
+
+        with patch.object(
+            AdvCoperceptionIntermediateFusionAttack,
+            "run",
+            return_value=("pred", "score", "gt", {"attacker_ids": ["cav-2"], "fake_box_tensor": None, "mode": "spoof"}),
+        ) as mock_attack:
+            manager.make_prediction(0)
+            result = manager.inference({"ego": {"origin_lidar": ["lidar_data"]}})
+
+        assert mock_attack.call_count == 2
+        assert isinstance(result, CoperceptionInferenceResult)
+        assert result.visualization_context == {"attacker_ids": ["cav-2"], "fake_box_tensor": None, "mode": "spoof"}
+
+    def test_intermediate_advcp_requires_grad_for_inference(self, manager_deps):
+        manager_deps["hypes"]["fusion"]["core_method"] = "IntermediateFusionDataset"
+        opt = DummyOpt(with_advcp=True, advcp_config="dummy.yaml")
+        with patch.object(AdvCoperceptionModelManager, "load_config", return_value=make_advcp_config(boxes=[{}])):
+            manager = AdvCoperceptionModelManager(opt, "2023_01_01")
+
+        assert manager._requires_grad_for_inference() is True
+
+    def test_intermediate_advcp_passes_attack_state_to_handler(self, manager_deps):
+        manager_deps["hypes"]["fusion"]["core_method"] = "IntermediateFusionDataset"
+        opt = DummyOpt(with_advcp=True, advcp_config="dummy.yaml")
+        with patch.object(AdvCoperceptionModelManager, "load_config", return_value=make_advcp_config(boxes=[{}])):
+            manager = AdvCoperceptionModelManager(opt, "2023_01_01")
+        manager.opencood_dataset = MagicMock()
+
+        with patch.object(
+            AdvCoperceptionIntermediateFusionAttack,
+            "run",
+            return_value=("pred", "score", "gt", {"attacker_ids": ["cav-2"], "fake_box_tensor": None, "mode": "spoof"}),
+        ) as mock_attack:
+            manager.inference({"ego": {"origin_lidar": ["lidar_data"]}})
+
+        assert mock_attack.call_args.kwargs["attack_state"] is manager.intermediate_attack_state
+
     def test_early_advcp_run_falls_back_when_attacker_is_missing(self, manager_deps):
         batch_data = {"ego": {"origin_lidar": ["lidar_data"]}}
         dataset = MagicMock()
@@ -337,6 +390,70 @@ class TestCoperceptionModelManager:
 
         manager_deps["inference_utils"].inference_early_fusion.assert_called_once_with(batch_data, model, dataset)
         assert result[0] == manager_deps["inference_utils"].inference_early_fusion.return_value[0]
+        assert result[3] == {"attacker_ids": [], "fake_box_tensor": None, "mode": "spoof"}
+
+    def test_intermediate_advcp_run_falls_back_when_attacker_is_missing(self, manager_deps):
+        batch_data = {"ego": {"origin_lidar": ["lidar_data"]}}
+        dataset = MagicMock()
+        model = MagicMock()
+        memory_data = {
+            0: {
+                "cav-1": {
+                    "ego": True,
+                    "000001": {
+                        "params": {
+                            "lidar_pose": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                            "true_ego_pos": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                        }
+                    },
+                }
+            }
+        }
+
+        result = AdvCoperceptionIntermediateFusionAttack.run(
+            batch_data,
+            model,
+            dataset,
+            "device(cpu)",
+            make_advcp_config(),
+            memory_data=memory_data,
+        )
+
+        manager_deps["inference_utils"].inference_intermediate_fusion.assert_called_once_with(batch_data, model, dataset)
+        assert result[0] == manager_deps["inference_utils"].inference_intermediate_fusion.return_value[0]
+        assert result[3] == {"attacker_ids": [], "fake_box_tensor": None, "mode": "spoof"}
+
+    def test_intermediate_advcp_run_falls_back_when_attacker_is_missing_from_batch(self, manager_deps):
+        batch_data = {
+            "ego": {
+                "origin_lidar_agent_ids": ["cav-1"],
+            }
+        }
+        dataset = MagicMock()
+        model = MagicMock()
+        memory_data = {
+            0: {
+                "cav-1": {"ego": True, "000001": {"params": {"lidar_pose": [0.0] * 6, "true_ego_pos": [0.0] * 6}}},
+                "cav-2": {"ego": False, "000001": {"params": {"lidar_pose": [1.0] * 6, "true_ego_pos": [1.0] * 6}}},
+            }
+        }
+
+        with patch.object(
+            AdvCPAttackHelper,
+            "resolve_spoof_boxes_for_agent",
+            return_value=("cav-1", MagicMock(), MagicMock(), [np.array([5.0, 0.0, 0.0, 4.5, 2.0, 1.6, 0.0], dtype=np.float32)]),
+        ):
+            result = AdvCoperceptionIntermediateFusionAttack.run(
+                batch_data,
+                model,
+                dataset,
+                "device(cpu)",
+                make_advcp_config(),
+                memory_data=memory_data,
+            )
+
+        manager_deps["inference_utils"].inference_intermediate_fusion.assert_called_once_with(batch_data, model, dataset)
+        assert result[0] == manager_deps["inference_utils"].inference_intermediate_fusion.return_value[0]
         assert result[3] == {"attacker_ids": [], "fake_box_tensor": None, "mode": "spoof"}
 
     def test_early_advcp_run_rebuilds_batch_with_attacked_memory(self, manager_deps):
@@ -390,8 +507,8 @@ class TestCoperceptionModelManager:
             patch.object(AdvCPAttackHelper, "load_agent_state", side_effect=lambda scenario_data, agent_id: states[agent_id]),
             patch.object(
                 AdvCPAttackHelper,
-                "resolve_box_spec",
-                return_value=spoof_box,
+                "resolve_spoof_boxes_for_agent",
+                return_value=("cav-1", states["cav-1"], states["cav-2"], [spoof_box]),
             ),
             patch.object(
                 AdvCoperceptionEarlyFusionAttack,
@@ -575,10 +692,30 @@ class TestCoperceptionVisualizer:
         assert config["bbox_line_thickness"] == 7
         assert config["image_dpi"] == 600
         assert config["lidar_point_colors"]["default"] == (200, 200, 200)
-        assert config["lidar_point_colors"]["ego"] == (80, 255, 80)
+        assert "ego" not in config["lidar_point_colors"]
         assert config["lidar_point_colors"]["cav-2"] == (10, 20, 30)
         assert config["bbox_colors"]["pred"] == (1, 2, 3)
         assert config["bbox_colors"]["gt"] == (0, 255, 0)
+
+    def test_get_lidar_points_and_colors_uses_other_for_ego_when_ego_color_is_not_configured(self):
+        config = CoperceptionVisualizer.resolve_visualization_config(
+            {
+                "lidar_point_colors": {
+                    "other": (200, 200, 200),
+                }
+            }
+        )
+        batch_data = {
+            "ego": {
+                "origin_lidar_by_agent": [np.array([[1.0, 0.0, 0.0, 1.0]])],
+                "origin_lidar_roles": ["ego"],
+                "origin_lidar_agent_ids": ["cav-1"],
+            }
+        }
+
+        _, colors = CoperceptionVisualizer._get_lidar_points_and_colors(batch_data, None, config)
+
+        assert colors.tolist() == [[200, 200, 200]]
 
     def test_get_lidar_points_and_colors_keeps_agent_order_and_applies_id_override(self):
         config = CoperceptionVisualizer.resolve_visualization_config(
@@ -692,6 +829,38 @@ class TestCoperceptionVisualizer:
         )
 
         assert colors.tolist() == [[80, 255, 80], [255, 90, 90], [242, 156, 74]]
+
+    def test_advcp_visualizer_uses_other_color_when_special_colors_are_not_configured(self):
+        config = AdvCoperceptionVisualizer.resolve_visualization_config(
+            {
+                "lidar_point_colors": {
+                    "other": (255, 70, 0),
+                }
+            }
+        )
+        batch_data = {
+            "ego": {
+                "origin_lidar_by_agent": [
+                    np.array([[1.0, 2.0, 3.0, 1.0]]),
+                    np.array([[4.0, 5.0, 6.0, 1.0], [7.0, 8.0, 9.0, 1.0]]),
+                ],
+                "origin_lidar_roles": ["ego", "default"],
+                "origin_lidar_agent_ids": ["cav-1", "cav-2"],
+                "origin_lidar_spoofing_masks": [
+                    np.array([False]),
+                    np.array([False, True]),
+                ],
+            }
+        }
+
+        _, colors = AdvCoperceptionVisualizer._get_lidar_points_and_colors(
+            batch_data,
+            None,
+            config,
+            visualization_context={"attacker_ids": ["cav-2"]},
+        )
+
+        assert colors.tolist() == [[255, 70, 0], [255, 70, 0], [255, 70, 0]]
 
     def test_early_advcp_density_aliases_are_supported(self):
         assert AdvCoperceptionEarlyFusionAttack._resolve_density(0) == 0

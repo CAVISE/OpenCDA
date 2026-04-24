@@ -1,16 +1,20 @@
 from __future__ import annotations
 
 import logging
+from collections import OrderedDict
 from pathlib import Path
-from typing import Any, Mapping, Optional
+from typing import Any, Mapping, Optional, cast
 
 import numpy as np
-import yaml  # type: ignore[import-untyped]
+import torch
+import yaml  # type: ignore
 
 from opencda.core.attack.advcp.attack_helper import AdvCPAttackHelper
 from opencda.core.attack.advcp.early_fusion_attack import AdvCoperceptionEarlyFusionAttack
+from opencda.core.attack.advcp.intermediate_fusion_attack import AdvCoperceptionIntermediateFusionAttack
 from opencda.core.attack.advcp.late_fusion_attack import AdvCoperceptionLateFusionAttack
-from opencda.core.attack.advcp.types import AdvCPAttackResult
+from opencda.core.attack.advcp.types import AdvCPAttackResult, AdvCPConfig, AdvCPIntermediateAttackState
+from opencda.core.common.coperception_data_processor import LiveMemorySnapshot
 from opencda.core.common.coperception_model_manager import (
     CoperceptionInferenceResult,
     CoperceptionModelManager,
@@ -26,9 +30,6 @@ class AdvCoperceptionVisualizer(CoperceptionVisualizer):
         "background": (0, 0, 0),
         "lidar_point_colors": {
             "other": (255, 255, 255),
-            "ego": (80, 255, 80),
-            "attackers": (255, 90, 90),
-            "spoofing": (180, 0, 255),
         },
         "bbox_colors": {
             "gt": (0, 255, 0),
@@ -89,9 +90,10 @@ class AdvCoperceptionVisualizer(CoperceptionVisualizer):
                 visualization_context=visualization_context,
             )
 
+        lidar_point_colors = config["lidar_point_colors"]
         other_color = cls._as_uint8_color(cls._require_visualization_value(config, "lidar_point_colors", "other"))
-        ego_color = cls._as_uint8_color(cls._require_visualization_value(config, "lidar_point_colors", "ego"))
-        spoofing_color = cls._as_uint8_color(cls._require_visualization_value(config, "lidar_point_colors", "spoofing"))
+        ego_color = cls._as_uint8_color(lidar_point_colors.get("ego", other_color))
+        spoofing_color = cls._as_uint8_color(lidar_point_colors.get("spoofing", other_color))
         points_by_agent = ego_entry["origin_lidar_by_agent"]
         roles = list(ego_entry.get("origin_lidar_roles", []))
         agent_ids = list(ego_entry.get("origin_lidar_agent_ids", []))
@@ -147,7 +149,7 @@ class AdvCoperceptionVisualizer(CoperceptionVisualizer):
         if agent_id is not None and agent_id in lidar_point_colors:
             return cls._as_uint8_color(lidar_point_colors[agent_id])
         attacker_ids = set((visualization_context or {}).get("attacker_ids", []))
-        attacker_color = cls._as_uint8_color(cls._require_visualization_value(config, "lidar_point_colors", "attackers"))
+        attacker_color = cls._as_uint8_color(lidar_point_colors.get("attackers", other_color))
         if agent_id is not None and agent_id in attacker_ids:
             return attacker_color
         if role == "ego":
@@ -167,12 +169,21 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
         visualization_config: Optional[Mapping[str, Any]] = None,
     ) -> None:
         self.advcp_config = self.load_config(getattr(opt, "advcp_config", None))
-        self.current_memory_data: Optional[dict[Any, Any]] = None
+        self._initialize_random_seed()
+        self.current_memory_data: Optional[OrderedDict[int, OrderedDict[str, OrderedDict[str, LiveMemorySnapshot | bool]]]] = None
+        self.intermediate_attack_state: AdvCPIntermediateAttackState = {}
         super().__init__(opt, current_time, payload_handler=payload_handler, visualization_config=visualization_config)
 
+    def _initialize_random_seed(self) -> None:
+        random_seed = int(AdvCPAttackHelper.require_config_value(self.advcp_config, "random_seed"))
+        # Initialize deterministic RNG state once per AdvCP manager lifecycle.
+        # Intermediate spoofing optimization uses this global torch/numpy RNG state.
+        torch.manual_seed(random_seed)
+        np.random.seed(random_seed)
+
     @staticmethod
-    def load_config(config_path: str | None) -> dict[str, Any]:
-        config: dict[str, Any] = {}
+    def load_config(config_path: str | None) -> AdvCPConfig:
+        config: dict[str, object] = {}
         config_dir: Path | None = None
         local_model_root = Path(__file__).resolve().parent / "3d_models"
 
@@ -197,12 +208,20 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
         config.setdefault("attacker_id", "cav-1")
         config.setdefault("density", 3)
         config.setdefault("dense_distance", 10.0)
-        if "car_mesh_path" not in config and "model_path" in config:
-            config["car_mesh_path"] = config["model_path"]
-        if "car_mesh_divide_path" not in config and "mesh_divide_path" in config:
-            config["car_mesh_divide_path"] = config["mesh_divide_path"]
-        config.setdefault("car_mesh_path", str(local_model_root / "car_mesh_0200.ply"))
-        config.setdefault("car_mesh_divide_path", str(local_model_root / "spoof" / "car_mesh_divide.pkl"))
+        config.setdefault("sync", True)
+        config.setdefault("init", True)
+        config.setdefault("online", True)
+        config.setdefault("step", 25)
+        config.setdefault("random_seed", 1)
+        config.setdefault("max_perturb", 10.0)
+        step_value = cast(int | str, config["step"])
+        config.setdefault("lr", 1.0 if int(step_value) <= 2 else 0.05)
+        config.setdefault("feature_size", 10)
+        config.setdefault("car_mesh_path", config.get("model_path", str(local_model_root / "car_mesh_0200.ply")))
+        config.setdefault(
+            "car_mesh_divide_path",
+            config.get("mesh_divide_path", str(local_model_root / "spoof" / "car_mesh_divide.pkl")),
+        )
 
         for required_key in (
             "mode",
@@ -211,6 +230,14 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
             "attacker_id",
             "density",
             "dense_distance",
+            "sync",
+            "init",
+            "online",
+            "step",
+            "random_seed",
+            "max_perturb",
+            "lr",
+            "feature_size",
             "car_mesh_path",
             "car_mesh_divide_path",
         ):
@@ -222,7 +249,7 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
                 path = Path(str(path_value)).expanduser()
                 if not path.is_absolute():
                     config[path_key] = str((config_dir / path).resolve())
-        return config
+        return cast(AdvCPConfig, config)
 
     def validate_advcp_agents(self, valid_agent_ids: list[str]) -> bool:
         mode = AdvCPAttackHelper.require_config_value(self.advcp_config, "mode")
@@ -238,7 +265,8 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
             )
             self.advcp_config["attacker_id"] = None
 
-        attacker_ids = [self.advcp_config["attacker_id"]] if self.advcp_config.get("attacker_id") else []
+        attacker_id_value = self.advcp_config.get("attacker_id")
+        attacker_ids = [attacker_id_value] if attacker_id_value is not None else []
 
         logger.info("AdvCP mode: %s", mode)
         if attacker_ids:
@@ -280,8 +308,15 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
                 self.model,
                 self.opencood_dataset,
                 self.device,
+                advcp_config=self.advcp_config,
+                memory_data=self.current_memory_data,
+                attack_state=self.intermediate_attack_state,
             )
         )
+
+    def _requires_grad_for_inference(self) -> bool:
+        core_method = self.hypes.get("fusion", {}).get("core_method")
+        return core_method in {"IntermediateFusionDataset", "IntermediateFusionDatasetV2"}
 
     @staticmethod
     def _inference_late_fusion_attack(*args: Any, **kwargs: Any) -> AdvCPAttackResult:
@@ -292,5 +327,5 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
         return AdvCoperceptionEarlyFusionAttack.run(*args, **kwargs)
 
     @staticmethod
-    def _inference_intermediate_fusion_attack(*args: Any, **kwargs: Any) -> tuple[Any, Any, Any]:
-        raise NotImplementedError("AdvCP intermediate fusion spoofing is not available yet.")
+    def _inference_intermediate_fusion_attack(*args: Any, **kwargs: Any) -> AdvCPAttackResult:
+        return AdvCoperceptionIntermediateFusionAttack.run(*args, **kwargs)

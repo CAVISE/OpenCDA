@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import copy
+from collections import OrderedDict
 import logging
-from typing import Any, Mapping
+from typing import Any, Mapping, cast
 
 import numpy as np
 import torch
@@ -10,7 +11,8 @@ from opencood.tools import inference_utils, train_utils
 from opencood.utils.transformation_utils import x_to_world
 
 from opencda.core.attack.advcp.attack_helper import AdvCPAttackHelper, AdvCPCarMeshHelper
-from opencda.core.attack.advcp.types import AdvCPAttackResult, AdvCPVisualizationContext
+from opencda.core.attack.advcp.types import AdvCPAttackResult, AdvCPConfig, AdvCPVisualizationContext
+from opencda.core.common.coperception_data_processor import LiveMemorySnapshot
 
 logger = logging.getLogger("cavise.opencda.opencda.core.attack.advcp.early_fusion_attack")
 
@@ -34,8 +36,8 @@ class AdvCoperceptionEarlyFusionAttack:
         model: Any,
         dataset: Any,
         device: torch.device,
-        advcp_config: dict[str, Any],
-        memory_data: dict[Any, Any] | None = None,
+        advcp_config: AdvCPConfig,
+        memory_data: OrderedDict[int, OrderedDict[str, OrderedDict[str, LiveMemorySnapshot | bool]]] | None = None,
     ) -> AdvCPAttackResult:
         mode = AdvCPAttackHelper.require_config_value(advcp_config, "mode")
         advcp_context: AdvCPVisualizationContext = {
@@ -44,10 +46,13 @@ class AdvCoperceptionEarlyFusionAttack:
             "mode": mode,
         }
 
-        if mode == "remove":
-            raise NotImplementedError("AdvCP early-fusion removal is not available yet.")
-        if mode != "spoof":
-            raise NotImplementedError(f"AdvCP mode '{mode}' is not available for early fusion.")
+        match mode:
+            case "remove":
+                raise NotImplementedError("AdvCP early-fusion removal is not available yet.")
+            case "spoof":
+                pass
+            case _:
+                raise NotImplementedError(f"AdvCP mode '{mode}' is not available for early fusion.")
         if memory_data is None:
             raise ValueError("AdvCP early spoofing requires current memory data.")
 
@@ -69,7 +74,7 @@ class AdvCoperceptionEarlyFusionAttack:
         attacked_scenario_data = next(iter(attacked_memory.values()))
         attacked_agent_data = attacked_scenario_data[attacker_id]
         attacked_timestamp = next(key for key in attacked_agent_data.keys() if key != "ego")
-        attacked_snapshot = attacked_agent_data[attacked_timestamp]
+        attacked_snapshot = cast(LiveMemorySnapshot, attacked_agent_data[attacked_timestamp])
         attacker_lidar = attacked_snapshot.get("lidar_np")
         if attacker_lidar is None:
             raise ValueError(f"AdvCP early attack requires in-memory lidar_np for attacker '{attacker_id}'.")
@@ -114,7 +119,7 @@ class AdvCoperceptionEarlyFusionAttack:
         spoof_box: np.ndarray,
         lidar_poses: Mapping[str, np.ndarray],
         attacker_id: str,
-        advcp_config: Mapping[str, Any],
+        advcp_config: AdvCPConfig,
         density: int,
     ) -> tuple[np.ndarray, np.ndarray]:
         if density != 3:
@@ -203,7 +208,7 @@ class AdvCoperceptionEarlyFusionAttack:
         spoof_box: np.ndarray,
         lidar_poses: Mapping[str, np.ndarray],
         attacker_id: str,
-        advcp_config: Mapping[str, Any],
+        advcp_config: AdvCPConfig,
         density: int,
     ) -> tuple[np.ndarray, np.ndarray]:
         if lidar.size == 0:
