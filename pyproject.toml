@@ -1,6 +1,6 @@
 [build-system]
 requires = [
-    "scikit-build-core>=0.10.0",
+    "scikit-build-core>=0.10.7",
     "cmake>=3.31.10",
     "ninja>=1.13.0",
     "cython>=3.2.4",
@@ -12,13 +12,12 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "opencda"
-dynamic = ["version"]
+version = "0.2.0"
 requires-python = ">=3.10"
 
 [tool.scikit-build]
 experimental = true
 minimum-version = "0.10"
-metadata.version.provider = "opencda.version"
 wheel.packages = ["opencda", "OpenCOOD/opencood"]
 cmake.version = ">=3.31.10"
 ninja.version = ">=1.11"
