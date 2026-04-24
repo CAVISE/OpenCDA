@@ -47,7 +47,6 @@ class AIMModelManager:
         self.FORCE_VALUE = 20
 
         self.cav_data: dict[str, CavData] = {}
-        self.stored_cav_data: dict[str, CavData] = {}
 
         self.trajs: dict[str, list[tuple[float, float, float, float, float, str]]] = {}
 
@@ -125,7 +124,6 @@ class AIMModelManager:
         """
         for message in messages:
             self._preprocess_cav_data(message)
-        self.stored_cav_data = self.cav_data.copy()
 
         result_messages: list[TransportMessage[AIMServerResponse]] = []
 

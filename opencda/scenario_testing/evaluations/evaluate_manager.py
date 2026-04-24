@@ -118,14 +118,11 @@ class EvaluationManager(object):
         report_builder = UniversalReportBuilder()
         aim_reports: list[EntityReport] = []
 
-        logger.info("RSU MANAGERS")
         logger.info(self.cav_world.get_rsu_managers())
 
         for _, rsu in self.cav_world.get_rsu_managers().items():
-            logger.info("BEHAVIOUR SERVICES")
             logger.info(rsu.behavior_services)
             for service in rsu.behavior_services:
-                logger.info("SERVICE NAME")
                 logger.info(service.service_name)
                 if service.service_name != "aim_server":
                     continue

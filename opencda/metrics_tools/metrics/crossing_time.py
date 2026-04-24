@@ -47,7 +47,7 @@ class CrossingTimeMetric(BaseMetric):
             summary_specs=(
                 MetricSummarySpec(
                     series_name="crossing_time",
-                    cutoff=100.0,
+                    cutoff=50.0,
                 ),
             ),
         )
