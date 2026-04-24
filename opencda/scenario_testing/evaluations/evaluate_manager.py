@@ -58,6 +58,9 @@ class EvaluationManager(object):
         platooning_reports = self.platooning_eval()
         logger.info("Platooning Evaluation Done")
 
+        aim_report = self.aim_eval()
+        logger.info("AIM Evaluation Done")
+
         json_save_path = os.path.join(self.eval_save_path, "report.json")
         with open(json_save_path, "w", encoding="utf-8") as output_file:
             json.dump(
@@ -65,6 +68,7 @@ class EvaluationManager(object):
                     "planning": planning_report.to_dict(),
                     "localization": localization_report.to_dict(),
                     "platooning": [report.to_dict() for report in platooning_reports],
+                    "aim": aim_report.to_dict(),
                 },
                 output_file,
                 indent=2,
@@ -109,3 +113,24 @@ class EvaluationManager(object):
             platooning_reports.append(report_builder.build_group_report(pmid, member_metrics, module="platooning"))
 
         return tuple(platooning_reports)
+
+    def aim_eval(self) -> ModuleReport:
+        report_builder = UniversalReportBuilder()
+        aim_reports: list[EntityReport] = []
+
+        logger.info("RSU MANAGERS")
+        logger.info(self.cav_world.get_rsu_managers())
+
+        for _, rsu in self.cav_world.get_rsu_managers().items():
+            logger.info("BEHAVIOUR SERVICES")
+            logger.info(rsu.behavior_services)
+            for service in rsu.behavior_services:
+                logger.info("SERVICE NAME")
+                logger.info(service.service_name)
+                if service.service_name != "aim_server":
+                    continue
+
+                raw_data = service.aim_model_manager.metrics_collector.get_raw()
+                aim_reports.append(report_builder.build_entity_report(raw_data))
+
+        return report_builder.build_module_report("aim", aim_reports)

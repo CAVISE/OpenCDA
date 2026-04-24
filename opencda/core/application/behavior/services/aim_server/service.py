@@ -74,4 +74,5 @@ class AIMServer:
         if aim_model_manager is None:
             raise RuntimeError("AIM server is not attached to an owner.")
 
-        return aim_model_manager.process(messages)
+        result = aim_model_manager.process(messages)
+        return result
