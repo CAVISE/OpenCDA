@@ -78,10 +78,10 @@ class MTP(AIMModel):
         # Transform coordinates and make a model prediction
         self._transform_sumo2carla(features)
 
-        x_tensor: torch.Tensor = torch.tensor(features).float().to(self.device)
+        features_tensor: torch.Tensor = torch.tensor(features).float().to(self.device)
 
         predictions: torch.Tensor = self.model(
-            x_tensor[:, [0, 1, 4, 5, 6]],
+            features_tensor[:, [0, 1, 4, 5, 6]],
             edge_index,
         )
 
@@ -106,7 +106,9 @@ class MTP(AIMModel):
         """
         if states.ndim == 1:
             states[1] = -states[1]
+            states[3] -= np.deg2rad(90)
         elif states.ndim == 2:
             states[:, 1] = -states[:, 1]
+            states[:, 3] -= np.deg2rad(90)
         else:
             raise NotImplementedError("Unsupported input shape for states.")

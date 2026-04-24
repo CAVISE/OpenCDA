@@ -121,13 +121,13 @@ Before you run the following command, first make sure the `validation_dir` in co
 refers to the testing dataset path, e.g. `opv2v_data_dumping/test`.
 
 ```python
-python opencood/tools/inference.py --model_dir ${CHECKPOINT_FOLDER} --fusion_method ${FUSION_STRATEGY} [--show_vis] [--show_sequence]
+python opencood/tools/inference.py --model_dir ${CHECKPOINT_FOLDER} --fusion_method ${FUSION_STRATEGY} [--show_vis] [--show_video_vis]
 ```
 Arguments Explanation:
 - `model_dir`: the path to your saved model.
 - `fusion_method`: indicate the fusion strategy, currently support 'early', 'late', and 'intermediate'.
 - `show_vis`: whether to visualize the detection overlay with point cloud.
-- `show_sequence` : the detection results will visualized in a video stream. It can NOT be set with `show_vis` at the same time.
+- `show_video_vis` : the detection results will visualized in a video stream. It can NOT be set with `show_vis` at the same time.
 - `global_sort_detections`: whether to globally sort detections by confidence score. If set to True, it is the mainstream AP computing method, but would increase the tolerance for FP (False Positives). **OPV2V paper does not perform the global sort.** Please choose the consistent AP calculation method in your paper for fair comparison.
 
 The evaluation results  will be dumped in the model directory.

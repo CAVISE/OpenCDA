@@ -8,6 +8,8 @@ _ORIGINAL_MODULES = {}
 _MOCKED_MODULE_NAMES = [
     "torch",
     "torch.cuda",
+    "torch.nn",
+    "torch.nn.functional",
     "torch.utils",
     "torch.utils.data",
     "open3d",
@@ -25,6 +27,8 @@ _MOCKED_MODULE_NAMES = [
     "opencood.visualization.simple_vis",
     "opencood.visualization.vis_utils",
     "opencood.utils",
+    "opencood.utils.box_utils",
+    "opencood.utils.transformation_utils",
     "opencood.utils.eval_utils",
     "tqdm",
 ]
@@ -42,9 +46,31 @@ def _install_mocks():
 
     # 2. Mock torch
     torch = types.ModuleType("torch")
+
+    class MockTensor:
+        pass
+
     torch.cuda = types.ModuleType("torch.cuda")
     torch.cuda.is_available = Mock(return_value=False)
     torch.device = Mock(side_effect=lambda x: f"device({x})")
+    torch.Tensor = MockTensor
+    torch.nn = types.ModuleType("torch.nn")
+    torch_nn_functional = types.ModuleType("torch.nn.functional")
+    torch_nn_functional.affine_grid = Mock(side_effect=lambda *args, **kwargs: MagicMock(name="affine_grid"))
+    torch_nn_functional.grid_sample = Mock(side_effect=lambda input_tensor, *args, **kwargs: input_tensor)
+    torch.nn.functional = torch_nn_functional
+    torch.hub = types.SimpleNamespace(load=Mock())
+    torch.manual_seed = Mock()
+    torch.from_numpy = Mock(
+        side_effect=lambda array: MagicMock(
+            name="from_numpy", to=Mock(return_value=MagicMock(name="tensor")), type=Mock(return_value=MagicMock(name="typed_tensor"))
+        )
+    )
+    torch.zeros = Mock(side_effect=lambda *args, **kwargs: MagicMock(name="zeros_tensor"))
+    torch.stack = Mock(side_effect=lambda *args, **kwargs: MagicMock(name="stack_tensor"))
+    torch.float32 = "float32"
+    torch.optim = types.ModuleType("torch.optim")
+    torch.optim.Adam = Mock(side_effect=lambda *args, **kwargs: MagicMock(name="Adam"))
 
     no_grad_mock = MagicMock()
     no_grad_mock.__enter__ = Mock()
@@ -108,7 +134,21 @@ def _install_mocks():
     opencood.visualization = visualization
 
     utils = types.ModuleType("opencood.utils")
+    box_utils = types.ModuleType("opencood.utils.box_utils")
+    transformation_utils = types.ModuleType("opencood.utils.transformation_utils")
     eval_utils = types.ModuleType("opencood.utils.eval_utils")
+    transformation_utils.x_to_world = Mock(
+        side_effect=lambda pose: [
+            [1.0, 0.0, 0.0, float(pose[0])],
+            [0.0, 1.0, 0.0, float(pose[1])],
+            [0.0, 0.0, 1.0, float(pose[2])],
+            [0.0, 0.0, 0.0, 1.0],
+        ]
+    )
+    box_utils.boxes_to_corners_3d = Mock(side_effect=lambda boxes, order=None: boxes)
+    box_utils.boxes_to_corners2d = Mock(side_effect=lambda boxes, order=None: boxes)
+    utils.transformation_utils = transformation_utils
+    utils.box_utils = box_utils
     utils.eval_utils = eval_utils
     opencood.utils = utils
 
@@ -144,6 +184,9 @@ def _install_mocks():
     new_modules = {
         "torch": torch,
         "torch.cuda": torch.cuda,
+        "torch.nn": torch.nn,
+        "torch.nn.functional": torch_nn_functional,
+        "torch.optim": torch.optim,
         "torch.utils": torch_utils,
         "torch.utils.data": torch_utils_data,
         "open3d": o3d,
@@ -161,6 +204,8 @@ def _install_mocks():
         "opencood.visualization.simple_vis": simple_vis,
         "opencood.visualization.vis_utils": vis_utils,
         "opencood.utils": utils,
+        "opencood.utils.box_utils": box_utils,
+        "opencood.utils.transformation_utils": transformation_utils,
         "opencood.utils.eval_utils": eval_utils,
         "tqdm": tqdm_module,
     }

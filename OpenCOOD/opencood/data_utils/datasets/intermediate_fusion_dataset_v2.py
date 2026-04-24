@@ -36,6 +36,13 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
         self.pre_processor = build_preprocessor(params["preprocess"], train)
         self.post_processor = post_processor.build_postprocessor(params["postprocess"], train)
 
+        # whether there is a time delay between the time that cav project
+        # lidar to ego and the ego receive the delivered feature
+        if "cur_ego_pose_flag" in params["fusion"]["args"]:
+            self.cur_ego_pose_flag = params["fusion"]["args"]["cur_ego_pose_flag"]
+        else:
+            self.cur_ego_pose_flag = True
+
         self.payload_handler = payload_handler
         self.module_name = "OpenCOOD.IntermediateFusionDatasetV2"
 
@@ -77,6 +84,8 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
         object_stack = []
         object_id_stack = []
         projected_lidar_stack = []
+        projected_lidar_roles = []
+        projected_lidar_agent_ids = []
 
         ego_cav_base = base_data_dict.get(ego_id)
         ego_cav_processed = self.get_item_single_car(ego_cav_base, ego_lidar_pose)
@@ -85,6 +94,8 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
         object_stack.append(ego_cav_processed["object_bbx_center"])
         processed_features.append(ego_cav_processed["processed_features"])
         projected_lidar_stack.append(ego_cav_processed["projected_lidar"])
+        projected_lidar_roles.append("ego")
+        projected_lidar_agent_ids.append(ego_id)
 
         if ego_id in self.payload_handler.current_artery_payload:
             for cav_id, _ in base_data_dict.items():
@@ -94,6 +105,8 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
 
                         if len(projected) > 10:
                             projected_lidar_stack.append(projected)
+                            projected_lidar_roles.append("other")
+                            projected_lidar_agent_ids.append(cav_id)
 
                             object_id_stack += msg["object_ids"]
                             object_stack.append(msg["object_bbx_center"])
@@ -111,6 +124,8 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
             "object_stack": object_stack,
             "object_id_stack": object_id_stack,
             "projected_lidar_stack": projected_lidar_stack,
+            "projected_lidar_roles": projected_lidar_roles,
+            "projected_lidar_agent_ids": projected_lidar_agent_ids,
         }
 
     def __process_without_messages(self, ego_lidar_pose, base_data_dict):
@@ -118,6 +133,8 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
         object_stack = []
         object_id_stack = []
         projected_lidar_stack = []
+        projected_lidar_roles = []
+        projected_lidar_agent_ids = []
 
         for cav_id, selected_cav_base in base_data_dict.items():
             dx = selected_cav_base["params"]["lidar_pose"][0] - ego_lidar_pose[0]
@@ -135,12 +152,16 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
                 processed_features.append(selected_cav_processed["processed_features"])
 
                 projected_lidar_stack.append(selected_cav_processed["projected_lidar"])
+                projected_lidar_roles.append("ego" if selected_cav_base["ego"] else "other")
+                projected_lidar_agent_ids.append(cav_id)
 
         return {
             "processed_features": processed_features,
             "object_stack": object_stack,
             "object_id_stack": object_id_stack,
             "projected_lidar_stack": projected_lidar_stack,
+            "projected_lidar_roles": projected_lidar_roles,
+            "projected_lidar_agent_ids": projected_lidar_agent_ids,
         }
 
     def __getitem__(self, idx):
@@ -222,7 +243,14 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
             }
         )
 
-        processed_data_dict["ego"].update({"origin_lidar": data["projected_lidar_stack"]})
+        processed_data_dict["ego"].update(
+            {
+                "origin_lidar": data["projected_lidar_stack"],
+                "origin_lidar_by_agent": data["projected_lidar_stack"],
+                "origin_lidar_roles": data["projected_lidar_roles"],
+                "origin_lidar_agent_ids": data["projected_lidar_agent_ids"],
+            }
+        )
         return processed_data_dict
 
     def get_item_single_car(self, selected_cav_base, ego_pose):
@@ -385,6 +413,15 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
         # check if anchor box in the batch
         if batch[0]["ego"]["anchor_box"] is not None:
             output_dict["ego"].update({"anchor_box": torch.from_numpy(np.array(batch[0]["ego"]["anchor_box"]))})
+
+        if "origin_lidar_by_agent" in batch[0]["ego"]:
+            output_dict["ego"].update(
+                {
+                    "origin_lidar_by_agent": [torch.from_numpy(np.array(points)) for points in batch[0]["ego"]["origin_lidar_by_agent"]],
+                    "origin_lidar_roles": list(batch[0]["ego"]["origin_lidar_roles"]),
+                    "origin_lidar_agent_ids": list(batch[0]["ego"]["origin_lidar_agent_ids"]),
+                }
+            )
 
         # save the transformation matrix (4, 4) to ego vehicle
         transformation_matrix_torch = torch.from_numpy(np.identity(4)).float()
