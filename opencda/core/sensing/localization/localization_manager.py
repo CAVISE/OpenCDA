@@ -4,6 +4,7 @@ Localization module
 
 import weakref
 from collections import deque
+from typing import Any, Mapping
 
 import carla
 import numpy as np
@@ -34,7 +35,7 @@ class GnssSensor(object):
         The current sensor actors that will be attach to the vehicles.
     """
 
-    def __init__(self, vehicle: carla.Vehicle, config: dict):
+    def __init__(self, vehicle: carla.Vehicle, config: Mapping[str, Any]):
         world = vehicle.get_world()
         blueprint = world.get_blueprint_library().find("sensor.other.gnss")
 
@@ -155,7 +156,7 @@ class LocalizationManager(object):
         Optional live animation helper for localization debugging.
     """
 
-    def __init__(self, vehicle: carla.Vehicle, config_yaml: dict, carla_map: carla.Map):
+    def __init__(self, vehicle: carla.Vehicle, config_yaml: Mapping[str, Any], carla_map: carla.Map):
         self.vehicle = vehicle
         self.activate = config_yaml["activate"]
         self.map = carla_map

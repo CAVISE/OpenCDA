@@ -2,15 +2,13 @@
 Visualization tools for localization
 """
 
-from typing import Any, TypeAlias
+from typing import Any, Mapping
 
 import numpy as np
 import numpy.typing as npt
 import matplotlib
 
 import matplotlib.pyplot as plt
-
-FloatArray: TypeAlias = npt.NDArray[np.float64]
 
 
 class LocDebugHelper(object):
@@ -62,7 +60,7 @@ class LocDebugHelper(object):
             The list of ground truth speed values.
     """
 
-    def __init__(self, config_yaml: dict[str, Any], actor_id: int) -> None:
+    def __init__(self, config_yaml: Mapping[str, Any], actor_id: int) -> None:
         self.show_animation: bool = config_yaml["show_animation"]
         self.x_scale: float = config_yaml["x_scale"]
         self.y_scale: float = config_yaml["y_scale"]
@@ -85,11 +83,11 @@ class LocDebugHelper(object):
 
         # online animation
         # filtered x y coordinates
-        self.hxEst: FloatArray = np.zeros((2, 1))
+        self.hxEst: npt.NDArray[np.float64] = np.zeros((2, 1))
         # gt x y coordinates
-        self.hTrue: FloatArray = np.zeros((2, 1))
+        self.hTrue: npt.NDArray[np.float64] = np.zeros((2, 1))
         # gnss x y coordinates
-        self.hz: FloatArray = np.zeros((2, 1))
+        self.hz: npt.NDArray[np.float64] = np.zeros((2, 1))
 
         self.actor_id: int = actor_id
 

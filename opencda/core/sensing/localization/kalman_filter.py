@@ -4,12 +4,9 @@ Reference: https://www.bzarg.com/p/how-a-kalman-filter-works-in-pictures/
 """
 
 import math
-from typing import TypeAlias
 
 import numpy as np
 import numpy.typing as npt
-
-FloatArray: TypeAlias = npt.NDArray[np.float64]
 
 
 class KalmanFilter(object):
@@ -60,7 +57,7 @@ class KalmanFilter(object):
         self.xEst = np.zeros((4, 1))
         self.PEst = np.eye(4)
 
-    def motion_model(self, x: FloatArray, u: FloatArray) -> FloatArray:
+    def motion_model(self, x: npt.NDArray[np.float64], u: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
         """
         Predict current position and yaw based on
         previous result (X = F * X_prev + B * u).
@@ -86,7 +83,7 @@ class KalmanFilter(object):
 
         return x
 
-    def observation_model(self, x: FloatArray) -> FloatArray:
+    def observation_model(self, x: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
         """
         Project the state matrix to sensor measurement matrix.
 

@@ -4,7 +4,7 @@ Localization module for RSU.
 
 import weakref
 from collections import deque
-from typing import Any, Sequence
+from typing import Any, Sequence, Mapping
 
 import carla
 
@@ -37,7 +37,7 @@ class GnssSensor(object):
         The current sensor actors that will be attach to the vehicles.
     """
 
-    def __init__(self, world: Any, config: dict[str, Any], global_position: Sequence[float]) -> None:
+    def __init__(self, world: carla.World, config: Mapping[str, Any], global_position: Sequence[float]) -> None:
         blueprint = world.get_blueprint_library().find("sensor.other.gnss")
 
         # set the noise for gps
@@ -89,7 +89,7 @@ class LocalizationManager(object):
         transmission.
     """
 
-    def __init__(self, world: carla.World, config_yaml: dict[str, Any], carla_map: carla.Map) -> None:
+    def __init__(self, world: carla.World, config_yaml: Mapping[str, Any], carla_map: carla.Map) -> None:
         self.activate = config_yaml["activate"]
         self.map = carla_map
         self.geo_ref = self.map.transform_to_geolocation(carla.Location(x=0, y=0, z=0))
