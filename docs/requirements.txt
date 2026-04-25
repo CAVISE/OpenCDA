@@ -1,5 +1,5 @@
 carla==0.9.16
-matplotlib==3.10.8
+matplotlib==3.10.9
 mkdocs==1.6.1
 networkx==3.6.1
 numpy==2.4.4

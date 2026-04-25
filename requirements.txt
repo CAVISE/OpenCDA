@@ -5,19 +5,19 @@ carla==0.9.16
 
 # Packaging, Build & Runtime Utilities
 coloredlogs==15.0.1
-cumm-cu126>=0.7.11,<0.8.0
+cumm-cu126>=0.8.2,<0.9.0
 
 # Optimization & Convex Programming
 cython==3.2.4
 easydict==1.13
 einops==0.8.2
-lxml==6.0.4
+lxml==6.1.0
 
 # Visualization & Logging
-matplotlib==3.10.8
+matplotlib==3.10.9
 
 # Tools
-mypy==1.20.1
+mypy==1.20.2
 mypy-protobuf==5.0.0
 
 # Graphs & Networks
@@ -35,7 +35,7 @@ pandas==3.0.2
 pillow==12.2.0
 
 # Protobuf & Code Generation
-protobuf==6.33.5
+protobuf==7.34.1
 protoc-wheel==21.1
 
 # Multimedia & GUI
