@@ -152,7 +152,7 @@ def downsample_lidar_minimum(pcd_np_list):
     pcd_np_list : list
         Downsampled point clouds.
     """
-    minimum = np.Inf
+    minimum = np.inf
 
     for i in range(len(pcd_np_list)):
         num = pcd_np_list[i].shape[0]

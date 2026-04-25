@@ -15,6 +15,7 @@ class BehaviorService(Protocol[BehaviorServiceRequestT, BehaviorServiceResponseT
     """Protocol implemented by any behavior service attached to a participant."""
 
     service_name: str
+    priority: int = 100  # Less is better
 
     def on_attach(self, owner: Any) -> None:
         """Initialize the service for a particular participant instance."""

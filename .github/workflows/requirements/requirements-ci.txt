@@ -6,11 +6,11 @@ matplotlib==3.10.7
 
 mypy-protobuf==5.0.0
 
-# keep networkx unpinned here; pin it via constraints for py310 if needed
+# keep networkx unpinned here; pin it via CI constraints if needed
 networkx
 
 # keep numpy pinned to avoid accidental numpy>=2 upgrades / binary incompat
-numpy==1.26.4
+numpy==2.4.4
 
 # image I/O used by MLManager tests
 opencv-python-headless==4.11.0.86
@@ -22,7 +22,7 @@ PyYAML==6.0.3
 pyzmq==27.1.0
 
 # used by KF/EKF tests
-# version is pinned via per-python constraints (py310 vs py311)
+# version is pinned via CI constraints
 scipy
 
 # optional but often useful in logs/utilities

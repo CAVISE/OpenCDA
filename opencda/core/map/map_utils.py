@@ -2,14 +2,16 @@
 
 import carla
 import numpy as np
+import numpy.typing as npt
+from typing import Sequence
 
 
-def lateral_shift(transform, shift):
+def lateral_shift(transform: carla.Transform, shift: float) -> carla.Location:
     transform.rotation.yaw += 90
     return transform.location + shift * transform.get_forward_vector()
 
 
-def list_loc2array(list_location):
+def list_loc2array(list_location: Sequence[carla.Location]) -> npt.NDArray[np.float64]:
     """
     Convert list of carla location to np.array
     Parameters
@@ -22,7 +24,7 @@ def list_loc2array(list_location):
     loc_array : np.array
         Numpy array of shape (N, 3)
     """
-    loc_array = np.zeros((len(list_location), 3))
+    loc_array = np.zeros((len(list_location), 3), dtype=np.float64)
     for i, carla_location in enumerate(list_location):
         loc_array[i, 0] = carla_location.x
         loc_array[i, 1] = carla_location.y
@@ -31,7 +33,7 @@ def list_loc2array(list_location):
     return loc_array
 
 
-def list_wpt2array(list_wpt):
+def list_wpt2array(list_wpt: Sequence[carla.Waypoint]) -> npt.NDArray[np.float64]:
     """
     Convert list of carla transform to np.array
     Parameters
@@ -44,7 +46,7 @@ def list_wpt2array(list_wpt):
     loc_array : np.array
         Numpy array of shape (N, 3)
     """
-    loc_array = np.zeros((len(list_wpt), 3))
+    loc_array = np.zeros((len(list_wpt), 3), dtype=np.float64)
     for i, carla_wpt in enumerate(list_wpt):
         loc_array[i, 0] = carla_wpt.transform.location.x
         loc_array[i, 1] = carla_wpt.transform.location.y
@@ -53,7 +55,7 @@ def list_wpt2array(list_wpt):
     return loc_array
 
 
-def convert_tl_status(status):
+def convert_tl_status(status: carla.TrafficLightState) -> str:
     """
     Convert carla.TrafficLightState to str.
     Parameters

@@ -39,7 +39,7 @@ For full installation and launch instructions, use the CAVISE wiki:
 At a high level, the current fork expects:
 
 - CARLA `0.9.16`
-- Python `3.10` or higher
+- Python `3.12` or higher
 - CUDA and support for GPU inside Docker runtime
 
 This fork is intended to run inside the CAVISE Docker environment. Running this fork outside Docker has not been tested.
