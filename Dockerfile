@@ -24,7 +24,7 @@ RUN apt-get update && \
         curl=8.5.0-2ubuntu10.8 \
         unzip=6.0-28ubuntu4.1 \
         libjpeg-dev=8c-2ubuntu11 \
-        libtiff6=4.5.1+git230720-4ubuntu2.4 \
+        libtiff6=4.5.1+git230720-4ubuntu2.5 \
         python3-pip=24.0+dfsg-1ubuntu1.3 \
         python3-dev=3.12.3-0ubuntu2.1 \
         vulkan-tools=1.3.275.0+dfsg1-1 \
@@ -43,6 +43,5 @@ WORKDIR ${HOME}/cavise/opencda
 
 # Python Version: 3.12.3
 COPY opencda/requirements.txt requirements.txt
-RUN python3 -m pip install --no-cache-dir --break-system-packages --upgrade pip==26.0.1 setuptools==82.0.0 wheel==0.46.3 && \
-    python3 -m pip install --no-cache-dir --break-system-packages -r requirements.txt && \
-    python3 -m pip install --no-cache-dir --break-system-packages spconv-cu126==2.3.8
+RUN python3 -m pip install --no-cache-dir --break-system-packages --upgrade pip==26.0.1 setuptools==82.0.1 wheel==0.47.0 && \
+    python3 -m pip install --no-cache-dir --break-system-packages -r requirements.txt
