@@ -127,7 +127,8 @@ class EvaluationManager(object):
                 if service.service_name != "aim_server":
                     continue
 
-                raw_data = service.aim_model_manager.metrics_collector.get_raw()
-                aim_reports.append(report_builder.build_entity_report(raw_data))
+                if hasattr(service, 'aim_model_manager'):
+                    raw_data = service.aim_model_manager.metrics_collector.get_raw()
+                    aim_reports.append(report_builder.build_entity_report(raw_data))
 
         return report_builder.build_module_report("aim", aim_reports)
