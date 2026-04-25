@@ -63,9 +63,7 @@ class AIMModelManager:
         self.yaw_dict: dict[str, Any] = utils.load_yaw(self.__yaw_dict_path)
         self.yaw_id: dict[str, dict[str, str]] = {}
 
-        default_metric_configs = {
-            "crossing_time": {"warmup_steps": 10}
-        }
+        default_metric_configs = {"crossing_time": {"warmup_steps": 10}}
         metric_configs = resolve_metric_collector_config(
             module_config=None,
             default_metric_configs=default_metric_configs,
