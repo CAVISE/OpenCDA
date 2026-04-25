@@ -10,7 +10,7 @@ from opencda.metrics_tools.metric_sample import MetricSample
 import time
 
 
-class CrossingTimeMetric(BaseMetric): # noqa DC03
+class CrossingTimeMetric(BaseMetric):  # noqa DC03
     """Metric for AIM"""
 
     metric_name = "crossing_time"
