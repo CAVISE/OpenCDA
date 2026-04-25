@@ -65,6 +65,8 @@ class AIMServer:
         owner_instance = self._get_owner()
         owner_instance.localizer.localize()
         control_center = owner_instance.localizer.get_ego_pos()
+        if control_center is None:
+            raise RuntimeError("AIM server could not resolve the node localization control center.")
         self.aim_model_manager = AIMModelManager(self.model, control_center, self.service_name, owner_instance.id)
 
     def on_detach(self) -> None:
