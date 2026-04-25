@@ -5,7 +5,7 @@ Functions to transfer coordinates under different coordinate system
 import numpy as np
 
 
-def geo_to_transform(lat, lon, alt, lat_0, lon_0, alt_0):
+def geo_to_transform(lat: float, lon: float, alt: float, lat_0: float, lon_0: float, alt_0: float) -> tuple[float, float, float]:
     """
     Convert WG84 to ENU. The origin of the ENU should pass the geo reference.
     Note this function is a writen by reversing the
@@ -58,4 +58,4 @@ def geo_to_transform(lat, lon, alt, lat_0, lon_0, alt_0):
 
     z = alt - alt_0
 
-    return x, y, z
+    return float(x), float(y), float(z)
