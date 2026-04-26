@@ -1,4 +1,5 @@
 version: 2
+
 registries:
   pytorch-cu130:
     type: python-index
@@ -6,23 +7,33 @@ registries:
   ratharog-cumm-spconv:
     type: python-index
     url: https://ratharog.github.io/cumm-spconv/
+
 updates:
-- package-ecosystem: pip
-  directory: "/"
-  registries:
-    - pytorch-cu130
-    - ratharog-cumm-spconv
-  schedule:
-    interval: "monthly"
-  groups:
-    python-packages:
-      patterns:
-        - "*"
-- package-ecosystem: "github-actions"
-  directory: "/"
-  schedule:
-    interval: "monthly"
-  groups:
-    github-actions-updates:
-      patterns:
-        - "*"
+  - package-ecosystem: pip
+    directory: "/"
+    registries: &pip_registries
+      - pytorch-cu130
+      - ratharog-cumm-spconv
+    schedule: &monthly_schedule
+      interval: "monthly"
+    groups:
+      python-packages:
+        patterns:
+          - "*"
+
+  - package-ecosystem: pip
+    directory: "/.github/workflows/requirements"
+    registries: *pip_registries
+    schedule: *monthly_schedule
+    groups:
+      python-workflow-requirements:
+        patterns:
+          - "*"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule: *monthly_schedule
+    groups:
+      github-actions-updates:
+        patterns:
+          - "*"
