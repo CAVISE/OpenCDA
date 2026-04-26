@@ -9,7 +9,6 @@ import opencda.core.attack.advcp.early_fusion_attack as early_fusion_attack_modu
 from opencda.core.attack.advcp import AdvCoperceptionModelManager
 from opencda.core.attack.advcp.attack_helper import AdvCPAttackHelper
 from opencda.core.attack.advcp.adv_coperception_model_manager import AdvCoperceptionVisualizer
-from opencda.core.attack.advcp.early_fusion_attack import AdvCoperceptionEarlyFusionAttack
 from opencda.core.attack.advcp.intermediate_fusion_attack import AdvCoperceptionIntermediateFusionAttack
 from opencda.core.attack.advcp.late_fusion_attack import AdvCoperceptionLateFusionAttack
 
