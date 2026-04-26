@@ -19,3 +19,14 @@ class CavData:
     src_service_type: str
     dst_owner_id: str
     dst_service_type: str
+
+
+@dataclass(frozen=True, slots=True)
+class AIMServerState:
+    service_name: str
+    owner_id: str | None
+    is_attached: bool
+    tracked_vehicle_ids: tuple[str, ...]
+    trajectory_vehicle_ids: tuple[str, ...]
+    tracked_vehicle_count: int
+    trajectory_vehicle_count: int

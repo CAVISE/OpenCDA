@@ -24,6 +24,9 @@ class BehaviorService(Protocol[BehaviorServiceRequestT, BehaviorServiceResponseT
     def on_attach(self, owner: Any) -> None:
         """Initialize the service for a particular participant instance."""
 
+    def get_state(self) -> Any:
+        """Return an immutable snapshot of the current service state."""
+
     def process(
         self,
         messages: Sequence[TransportMessage[BehaviorServiceRequestT]],

@@ -17,6 +17,7 @@ if TYPE_CHECKING:
 
     from .messages import AIMServerRequest, AIMServerResponse
 from .aim_model_manager import AIMModelManager
+from .types import AIMServerState
 
 logger = logging.getLogger("cavise.opencda.opencda.core.application.behavior.services.aim_server")
 
@@ -32,7 +33,7 @@ class AIMServer:
         return {
             Capability.REQUEST_OBSERVE: self._observe_aim_requests,
             Capability.RESPONSE_SUBMIT: self._build_aim_response_messages,
-            Capability.STATE_OBSERVE: self._get_runtime_state_snapshot,
+            Capability.STATE_OBSERVE: self.get_state,
         }
 
     def __init__(
@@ -78,6 +79,20 @@ class AIMServer:
         self._owner_ref = None
         self.aim_model_manager = None
 
+    def get_state(self) -> AIMServerState:
+        if self.aim_model_manager is None:
+            return AIMServerState(
+                service_name=self.service_name,
+                owner_id=None,
+                is_attached=False,
+                tracked_vehicle_ids=(),
+                trajectory_vehicle_ids=(),
+                tracked_vehicle_count=0,
+                trajectory_vehicle_count=0,
+            )
+
+        return self.aim_model_manager.get_state_snapshot()
+
     def _observe_aim_requests(
         self,
         messages: Sequence[TransportMessage[AIMServerRequest]],
@@ -93,13 +108,6 @@ class AIMServer:
             raise RuntimeError("AIM server is not attached to an owner.")
 
         return aim_model_manager.process(messages)
-
-    def _get_runtime_state_snapshot(self) -> dict[str, Any]:
-        aim_model_manager = self.aim_model_manager
-        if aim_model_manager is None:
-            raise RuntimeError("AIM server is not attached to an owner.")
-
-        return aim_model_manager.get_state_snapshot()
 
     def process(self, messages: Sequence[TransportMessage[AIMServerRequest]]) -> Sequence[TransportMessage[AIMServerResponse]]:
         return self._build_aim_response_messages(messages)

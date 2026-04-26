@@ -12,6 +12,7 @@ from opencda.core.application.behavior.transport_message import TransportMessage
 
 from .messages import DummyServiceMessage
 from .results import DummyServiceEchoMessage, DummyServiceResult
+from .types import DummyServiceState
 
 logger = logging.getLogger("cavise.opencda.opencda.core.application.behavior.services.dummy_service")
 
@@ -46,6 +47,15 @@ class DummyService:
 
     def on_attach(self, owner: Any) -> None:
         self._owner_ref = weakref.ref(owner)
+
+    def get_state(self) -> DummyServiceState:
+        owner_ref = self._owner_ref
+        owner = owner_ref() if owner_ref is not None else None
+        return DummyServiceState(
+            service_name=self.service_name,
+            owner_id=getattr(owner, "id", None) if owner is not None else None,
+            is_attached=owner is not None,
+        )
 
     def process(self, messages: Sequence[TransportMessage[DummyServiceMessage]]) -> Sequence[TransportMessage[DummyServiceResult]]:
         owner = self._get_owner()

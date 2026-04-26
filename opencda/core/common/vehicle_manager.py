@@ -210,6 +210,7 @@ class VehicleManager(object):
         self.__validate_behavior_services(services)
         self.behavior_services = services
         self.behavior_service_results: list[TransportMessage] = []
+        self.behavior_service_states: dict[str, Any] = {}
         self._behavior_services_by_name = {service.service_name: service for service in self.behavior_services}
 
     def __validate_behavior_services(self, behavior_services: Tuple[BehaviorService[Any, Any], ...]) -> None:
@@ -303,6 +304,7 @@ class VehicleManager(object):
         for service in self.behavior_services:
             service_messages = grouped_messages[service.service_name]
             result_messages = service.process(service_messages)
+            self.behavior_service_states[service.service_name] = service.get_state()
             if result_messages:
                 self_messages = [msg for msg in result_messages if getattr(msg, "dst_owner_id", None) == self.id]
                 messages.extend(self_messages)
@@ -391,7 +393,7 @@ class VehicleManager(object):
 
         self.vehicle.apply_control(control)
 
-        return self.behavior_service_results
+        return (self.behavior_service_results, self.behavior_service_states)
 
     def destroy(self):
         """

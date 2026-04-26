@@ -17,6 +17,7 @@ class AttackStage(Protocol):
 
     stage_name: str
     required_capabilities: Collection[Capability]
+    description: str
 
     def execute(self, services: Sequence[BehaviorService[Any, Any]]) -> AttackStageResult:
         """Execute a single stage against the provided service pool."""

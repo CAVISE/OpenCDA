@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     import carla
 
+    from opencda.core.application.behavior.behavior_service_protocol import BehaviorService
     from opencda.core.application.platooning.platooning_manager import PlatooningManager
     from opencda.core.common.rsu_manager import RSUManager
     from opencda.core.common.vehicle_manager import VehicleManager
@@ -109,6 +110,31 @@ class CavWorld(object):
         Return vehicle manager dictionary.
         """
         return self._vehicle_manager_dict
+
+    def get_rsu_managers(self) -> dict[str, RSUManager]:
+        """
+        Return RSU manager dictionary.
+        """
+        return self._rsu_manager_dict
+
+    def resolve_behavior_service(self, node_id: str, service_name: str) -> BehaviorService[Any, Any] | None:
+        """
+        Resolve a behavior service instance by node ID and service name.
+        """
+        vehicle_manager = self._vehicle_manager_dict.get(node_id)
+        if vehicle_manager is not None:
+            for service in vehicle_manager.behavior_services:
+                if service.service_name == service_name:
+                    return service
+            return None
+
+        rsu_manager = self._rsu_manager_dict.get(node_id)
+        if rsu_manager is not None:
+            for service in rsu_manager.behavior_services:
+                if service.service_name == service_name:
+                    return service
+
+        return None
 
     def get_platoon_dict(self) -> dict[str, PlatooningManager]:
         """

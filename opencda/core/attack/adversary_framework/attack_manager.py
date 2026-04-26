@@ -1,37 +1,63 @@
-"""Orchestration manager for capability-based service attacks."""
+"""Orchestration manager for event-driven service attacks."""
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable
+from collections.abc import Iterable
 from typing import Any
 
-from opencda.core.application.behavior.capability import Capability
 from opencda.core.application.behavior.behavior_service_protocol import BehaviorService
+from opencda.scenario_testing.types import SimulationSnapshot
 
-from .attack_protocol import Attack
+from .attack_protocol import Attack, ServiceResolver
 from .attack_result import AttackResult, AttackStageResult, Status
-from .utils import match_services
 
 
 class AttackManager:
     """Manage attack execution inside the current simulation."""
 
-    def __init__(self, services: Iterable[BehaviorService[Any, Any]] = ()) -> None:
-        self._services = list(services)
+    def __init__(self) -> None:
+        self.previous_snapshot: SimulationSnapshot | None = None
 
-    def run(
+    def evaluate(
+        self,
+        attacks: Iterable[Attack],
+        current_snapshot: SimulationSnapshot,
+        *,
+        service_resolver: ServiceResolver,
+    ) -> tuple[AttackResult, ...]:
+        """Evaluate event-driven attacks against the current simulation snapshot."""
+        previous_snapshot = self.previous_snapshot
+        results: list[AttackResult] = []
+
+        for attack in attacks:
+            if not attack.should_start(previous_snapshot, current_snapshot):
+                continue
+
+            target_services = tuple(attack.resolve_targets(current_snapshot, service_resolver))
+            if not target_services:
+                results.append(
+                    AttackResult(
+                        attack_name=attack.attack_name,
+                        status=Status.FAIL,
+                        reason="Attack trigger fired, but no target services were resolved.",
+                    )
+                )
+                continue
+
+            result = self._run_attack(attack, target_services)
+            if result.status == Status.SUCCESS:
+                attack.mark_active()
+            results.append(result)
+
+        self.previous_snapshot = current_snapshot
+        return tuple(results)
+
+    def _run_attack(
         self,
         attack: Attack,
-        *,
-        target_service: BehaviorService[Any, Any] | None = None,
-        service_filter: Callable[[BehaviorService[Any, Any]], bool] | None = None,
+        available_services: tuple[BehaviorService[Any, Any], ...],
     ) -> AttackResult:
-        """Run a single attack as a linear stage pipeline."""
-        available_services = self._match_services(
-            attack,
-            target_service=target_service,
-            service_filter=service_filter,
-        )
+        """Run attack stages against an already resolved service set."""
         stages = tuple(attack.stages)
         if not stages:
             raise RuntimeError(f"Attack '{attack.attack_name}' does not define any stages.")
@@ -64,36 +90,3 @@ class AttackManager:
             reason="Attack pipeline finished successfully.",
             stage_history=tuple(stage_history),
         )
-
-    def _match_services(
-        self,
-        attack: Attack,
-        *,
-        target_service: BehaviorService[Any, Any] | None = None,
-        service_filter: Callable[[BehaviorService[Any, Any]], bool] | None = None,
-    ) -> tuple[BehaviorService[Any, Any], ...]:
-        candidate_services = [target_service] if target_service is not None else list(self._services)
-        if service_filter is not None:
-            candidate_services = [service for service in candidate_services if service_filter(service)]
-
-        required_capabilities = self._collect_required_capabilities(attack)
-        matched_services = match_services(candidate_services, required_capabilities)
-        if not matched_services:
-            raise RuntimeError(
-                f"No matching service found for attack '{attack.attack_name}' and required "
-                f"capabilities {sorted(cap.value for cap in required_capabilities)}."
-            )
-
-        return tuple(matched_services)
-
-    @staticmethod
-    def _collect_required_capabilities(attack: Attack) -> tuple[Capability, ...]:
-        required_capabilities: list[Capability] = []
-        seen_capabilities: set[Capability] = set()
-        for stage in attack.stages:
-            for capability in stage.required_capabilities:
-                if capability in seen_capabilities:
-                    continue
-                seen_capabilities.add(capability)
-                required_capabilities.append(capability)
-        return tuple(required_capabilities)

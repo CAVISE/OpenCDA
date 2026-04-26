@@ -9,7 +9,9 @@ from typing import Sequence, TYPE_CHECKING
 from opencda.core.application.behavior.capability import CapabilityBindings
 from opencda.core.application.behavior.registry import BehaviorServiceRegistry
 from opencda.core.application.behavior.transport_message import TransportMessage
+from opencda.core.application.behavior.types import Location
 from .messages import MovementControllerRequestMessage
+from .types import MovementControllerState
 
 
 if TYPE_CHECKING:
@@ -36,6 +38,7 @@ class MovementController:
         Initialize the AIM-backed behavior service.
         """
         self._owner_ref: weakref.ReferenceType[VehicleManager] | None = None
+        self._target_position: Location | None = None
 
     def _get_owner(self) -> VehicleManager:
         owner_ref = self._owner_ref
@@ -52,9 +55,20 @@ class MovementController:
         """Initialize the service for a particular participant instance."""
         self._owner_ref = weakref.ref(owner)
 
+    def get_state(self) -> MovementControllerState:
+        owner_ref = self._owner_ref
+        owner = owner_ref() if owner_ref is not None else None
+        return MovementControllerState(
+            service_name=self.service_name,
+            owner_id=owner.id if owner is not None else None,
+            is_attached=owner is not None,
+            target_position=self._target_position,
+        )
+
     def on_detach(self) -> None:
         """Release service resources before the participant is destroyed."""
         self._owner_ref = None
+        self._target_position = None
 
     def _filter_messages(self, messages: Sequence[TransportMessage[MovementControllerRequestMessage]]) -> list[MovementControllerRequestMessage]:
         owner = self._get_owner()
@@ -67,12 +81,14 @@ class MovementController:
     def process(self, messages: Sequence[TransportMessage[MovementControllerRequestMessage]]) -> Sequence[TransportMessage]:
         owner = self._get_owner()
         valid_messages = self._filter_messages(messages)
+        self._target_position = None
 
         if len(valid_messages) > 0:
             next_pos = [
                 message.target_position.location for message in valid_messages
             ]  # TODO: think what to do if multiple messages with different target positions are received - for now we just take the first one
 
+            self._target_position = next_pos[0]
             current_location = owner.vehicle.get_location()
             owner.set_destination(current_location, next_pos[0], clean=True, end_reset=False)
         return ()

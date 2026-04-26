@@ -14,7 +14,8 @@ from opencda.core.application.behavior.registry import BehaviorServiceRegistry
 from opencda.core.application.behavior.transport_message import TransportMessage
 from opencda.core.application.behavior.services.aim_server import AIMServerRequest, AIMServerResponse
 from opencda.core.application.behavior.services.movement_controller import MovementControllerRequestMessage
-from opencda.core.application.behavior.types import Rotation, Transform
+from opencda.core.application.behavior.types import Location, Rotation, Transform
+from opencda.core.application.behavior.services.aim_client.types import AIMClientState
 
 if TYPE_CHECKING:
     from opencda.core.common.vehicle_manager import VehicleManager
@@ -44,6 +45,7 @@ class AIMClient:
         Initialize the AIM-backed behavior service.
         """
         self._owner_ref: weakref.ReferenceType[VehicleManager] | None = None
+        self._next_position: Location | None = None
 
     def _get_owner(self) -> VehicleManager:
         owner_ref = self._owner_ref
@@ -60,9 +62,20 @@ class AIMClient:
         """Initialize the service for a particular participant instance."""
         self._owner_ref = weakref.ref(owner)
 
+    def get_state(self) -> AIMClientState:
+        owner_ref = self._owner_ref
+        owner = owner_ref() if owner_ref is not None else None
+        return AIMClientState(
+            service_name=self.service_name,
+            owner_id=owner.id if owner is not None else None,
+            is_attached=owner is not None,
+            next_position=self._next_position,
+        )
+
     def on_detach(self) -> None:
         """Release service resources before the participant is destroyed."""
         self._owner_ref = None
+        self._next_position = None
 
     def _filter_messages(self, messages: Sequence[TransportMessage[AIMServerResponse]]) -> list[AIMServerResponse]:
         owner = self._get_owner()
@@ -107,15 +120,18 @@ class AIMClient:
         messages: Sequence[TransportMessage[AIMServerResponse]],
     ) -> Sequence[TransportMessage[MovementControllerRequestMessage | AIMServerRequest]]:
         owner = self._get_owner()
+        self._next_position = None
         res_messages: list[TransportMessage[MovementControllerRequestMessage | AIMServerRequest]] = []
 
         for message in self._filter_messages(messages):
+            self._next_position = message.next_position
             target_position = Transform(message.next_position, Rotation(0, 0, 0))
             res_messages.append(self._build_movement_command_message(target_position))
         if len(res_messages) == 0:
             end_waypoint = owner.agent.end_waypoint
             if end_waypoint is None:
                 raise RuntimeError("AIM client requires a valid end waypoint when no AIM response is available.")
+            self._next_position = end_waypoint.transform.location
             target_position = Transform(end_waypoint.transform.location, Rotation(0, 0, 0))
             res_messages.append(self._build_movement_command_message(target_position))
 
