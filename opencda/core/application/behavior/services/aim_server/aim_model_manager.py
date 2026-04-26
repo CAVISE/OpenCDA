@@ -56,6 +56,7 @@ class AIMModelManager:
 
         self._service_name = service_name
         self._owner_id = owner_id
+        self._last_state_snapshot: AIMServerState
 
         self.__yaw_dict_path = Path(__file__).parent / "assets" / "yaw_dict_10m.pkl"
         self.yaw_dict: dict[str, Any] = utils.load_yaw(self.__yaw_dict_path)
@@ -102,7 +103,10 @@ class AIMModelManager:
 
     def get_state_snapshot(self) -> AIMServerState:
         """Return an immutable snapshot of the current AIM runtime state."""
-        return AIMServerState(
+        return self._last_state_snapshot
+
+    def _finalize_tick_state(self) -> None:
+        self._last_state_snapshot = AIMServerState(
             service_name=self._service_name,
             owner_id=self._owner_id,
             is_attached=True,
@@ -111,6 +115,7 @@ class AIMModelManager:
             tracked_vehicle_count=len(self.cav_data),
             trajectory_vehicle_count=len(self.trajs),
         )
+        self.cav_data.clear()
 
     def process(self, messages: Sequence[TransportMessage[AIMServerRequest]]) -> Sequence[TransportMessage[AIMServerResponse]]:
         """
@@ -126,7 +131,7 @@ class AIMModelManager:
         num_agents = features.shape[0]
 
         if num_agents == 0:
-            self.cav_data.clear()
+            self._finalize_tick_state()
             return result_messages
 
         predictions = self.model.predict(features.copy(), target_agent_ids)
@@ -177,7 +182,7 @@ class AIMModelManager:
                     )
                 )
 
-        self.cav_data.clear()
+        self._finalize_tick_state()
         return result_messages
 
     def update_trajs(self) -> None:
