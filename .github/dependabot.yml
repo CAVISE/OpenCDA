@@ -11,10 +11,11 @@ registries:
 updates:
   - package-ecosystem: pip
     directory: "/"
-    registries: &pip_registries
+    registries:
       - pytorch-cu130
       - ratharog-cumm-spconv
-    schedule: &monthly_schedule
+    insecure-external-code-execution: allow
+    schedule:
       interval: "monthly"
     groups:
       python-packages:
@@ -23,8 +24,12 @@ updates:
 
   - package-ecosystem: pip
     directory: "/.github/workflows/requirements"
-    registries: *pip_registries
-    schedule: *monthly_schedule
+    registries:
+      - pytorch-cu130
+      - ratharog-cumm-spconv
+    insecure-external-code-execution: allow
+    schedule:
+      interval: "monthly"
     groups:
       python-workflow-requirements:
         patterns:
@@ -32,7 +37,8 @@ updates:
 
   - package-ecosystem: "github-actions"
     directory: "/"
-    schedule: *monthly_schedule
+    schedule:
+      interval: "monthly"
     groups:
       github-actions-updates:
         patterns:
