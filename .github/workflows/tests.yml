@@ -26,14 +26,13 @@ jobs:
           cache: pip
           cache-dependency-path: |
             .github/workflows/requirements/requirements-ci.txt
-            .github/workflows/requirements/constraints-py312.txt
             pyproject.toml
       # CI minimal
       - name: Install dependencies
         shell: bash
         run: |
           python -m pip install --upgrade pip
-          pip install -r .github/workflows/requirements/requirements-ci.txt -c .github/workflows/requirements/constraints-py312.txt
+          pip install -r .github/workflows/requirements/requirements-ci.txt
 
       - name: Generate protobufs (capi)
         shell: bash
