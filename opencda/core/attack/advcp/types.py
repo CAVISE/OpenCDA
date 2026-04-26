@@ -34,7 +34,7 @@ class AdvCPConfig(TypedDict, total=False):
     mode: str
     default_size: Sequence[float]  # noqa: DC01
     boxes: list[AdvCPBoxSpec]
-    attacker_id: str | None
+    attacker_ids: list[str]
     density: int | str
     dense_distance: float
     sync: bool  # noqa: DC01

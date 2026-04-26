@@ -50,7 +50,19 @@ class AdvCoperceptionIntermediateFusionAttack:
 
         intermediate_state: AdvCPIntermediateAttackState = attack_state if attack_state is not None else {}
         online_enabled = bool(AdvCPAttackHelper.require_config_value(advcp_config, "online"))
-        attacker_id = str(AdvCPAttackHelper.require_config_value(advcp_config, "attacker_id"))
+        configured_attacker_ids = AdvCPAttackHelper.resolve_configured_attacker_ids(advcp_config)
+        if len(configured_attacker_ids) > 1:
+            raise NotImplementedError(
+                "AdvCP intermediate-fusion spoofing for multiple attackers is not implemented yet. "
+                "Please configure exactly one attacker for intermediate fusion."
+            )
+        if len(configured_attacker_ids) == 0:
+            logger.warning(
+                "AdvCP intermediate attack will not be applied because no attackers are configured. "
+                "Continuing with normal cooperative perception inference."
+            )
+            return (*inference_utils.inference_intermediate_fusion(batch_data, model, dataset), advcp_context)
+        attacker_id = configured_attacker_ids[0]
 
         AttackResultTuple = tuple[torch.Tensor | None, torch.Tensor | None, torch.Tensor | None]
 

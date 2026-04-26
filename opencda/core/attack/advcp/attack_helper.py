@@ -55,12 +55,31 @@ class AdvCPAttackHelper:
             "ego_pose": params.get("true_ego_pos", lidar_pose),
         }
 
+    @staticmethod
+    def _deduplicate_attacker_ids(attacker_ids: Sequence[str]) -> list[str]:
+        ordered_ids: list[str] = []
+        seen_ids: set[str] = set()
+        for attacker_id in attacker_ids:
+            normalized_attacker_id = str(attacker_id).strip()
+            if not normalized_attacker_id or normalized_attacker_id in seen_ids:
+                continue
+            seen_ids.add(normalized_attacker_id)
+            ordered_ids.append(normalized_attacker_id)
+        return ordered_ids
+
     @classmethod
-    def resolve_spoof_boxes(
+    def resolve_configured_attacker_ids(cls, advcp_config: AdvCPConfig) -> list[str]:
+        attacker_ids_raw = cls.require_config_value(advcp_config, "attacker_ids")
+        if not isinstance(attacker_ids_raw, Sequence) or isinstance(attacker_ids_raw, (str, bytes)):
+            raise ValueError("AdvCP config key 'attacker_ids' must be a sequence of agent ids.")
+        return cls._deduplicate_attacker_ids([str(attacker_id) for attacker_id in attacker_ids_raw if attacker_id is not None])
+
+    @classmethod
+    def resolve_spoof_boxes_by_attacker(
         cls,
         advcp_config: AdvCPConfig,
         memory_data: OrderedDict[int, OrderedDict[str, OrderedDict[str, LiveMemorySnapshot | bool]]] | None,
-    ) -> tuple[str | None, list[np.ndarray]]:
+    ) -> tuple[list[str], dict[str, list[np.ndarray]]]:
         if memory_data is None:
             raise ValueError("AdvCP late spoofing requires current memory data.")
 
@@ -74,18 +93,37 @@ class AdvCPAttackHelper:
         scenario_data = next(iter(memory_data.values()))
         ego_agent_id = cls.resolve_ego_agent_id(scenario_data)
 
-        attacker_id = cls.require_config_value(advcp_config, "attacker_id")
-        if attacker_id not in scenario_data:
-            logger.warning(
-                "AdvCP attack will not be applied on this tick because attacker '%s' is not present in the current scenario data. "
-                "Continuing with normal cooperative perception inference.",
-                attacker_id,
-            )
-            return None, []
+        configured_attacker_ids = cls.resolve_configured_attacker_ids(advcp_config)
+        resolved_attacker_ids: list[str] = []
+        attack_boxes_by_batch_attacker: dict[str, list[np.ndarray]] = {}
 
-        _, _, _, attack_boxes = cls.resolve_spoof_boxes_for_agent(scenario_data, advcp_config, attacker_id)
-        batch_attacker_id = "ego" if attacker_id == ego_agent_id else attacker_id
-        return batch_attacker_id, attack_boxes
+        for attacker_id in configured_attacker_ids:
+            if attacker_id not in scenario_data:
+                logger.warning(
+                    "AdvCP attack will not be applied on this tick because attacker '%s' is not present in the current scenario data. "
+                    "Continuing with normal cooperative perception inference.",
+                    attacker_id,
+                )
+                continue
+
+            _, _, _, attack_boxes = cls.resolve_spoof_boxes_for_agent(scenario_data, advcp_config, attacker_id)
+            batch_attacker_id = "ego" if attacker_id == ego_agent_id else attacker_id
+            attack_boxes_by_batch_attacker.setdefault(batch_attacker_id, []).extend(attack_boxes)
+            resolved_attacker_ids.append(attacker_id)
+
+        return resolved_attacker_ids, attack_boxes_by_batch_attacker
+
+    @classmethod
+    def resolve_spoof_boxes(
+        cls,
+        advcp_config: AdvCPConfig,
+        memory_data: OrderedDict[int, OrderedDict[str, OrderedDict[str, LiveMemorySnapshot | bool]]] | None,
+    ) -> tuple[str | None, list[np.ndarray]]:
+        _, attack_boxes_by_batch_attacker = cls.resolve_spoof_boxes_by_attacker(advcp_config, memory_data)
+        if not attack_boxes_by_batch_attacker:
+            return None, []
+        attacker_id, attack_boxes = next(iter(attack_boxes_by_batch_attacker.items()))
+        return attacker_id, attack_boxes
 
     @classmethod
     def resolve_spoof_boxes_for_agent(

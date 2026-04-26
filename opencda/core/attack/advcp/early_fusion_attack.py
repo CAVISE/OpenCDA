@@ -57,48 +57,58 @@ class AdvCoperceptionEarlyFusionAttack:
             raise ValueError("AdvCP early spoofing requires current memory data.")
 
         scenario_data = next(iter(memory_data.values()))
-        attacker_id = AdvCPAttackHelper.require_config_value(advcp_config, "attacker_id")
-        if attacker_id not in scenario_data:
+        configured_attacker_ids = AdvCPAttackHelper.resolve_configured_attacker_ids(advcp_config)
+        if not configured_attacker_ids:
             logger.warning(
-                "AdvCP early attack will not be applied on this tick because attacker '%s' is not present in the current scenario data. "
-                "Continuing with normal cooperative perception inference.",
-                attacker_id,
+                "AdvCP early attack will not be applied because no attackers are configured. Continuing with normal cooperative perception inference."
             )
             return (*inference_utils.inference_early_fusion(batch_data, model, dataset), advcp_context)
 
-        _, _, _, attack_boxes = AdvCPAttackHelper.resolve_spoof_boxes_for_agent(scenario_data, advcp_config, attacker_id)
         density = AdvCoperceptionEarlyFusionAttack._resolve_density(AdvCPAttackHelper.require_config_value(advcp_config, "density"))
-        advcp_context["attacker_ids"] = [attacker_id]
 
         attacked_memory = copy.deepcopy(memory_data)
         attacked_scenario_data = next(iter(attacked_memory.values()))
-        attacked_agent_data = attacked_scenario_data[attacker_id]
-        attacked_timestamp = next(key for key in attacked_agent_data.keys() if key != "ego")
-        attacked_snapshot = cast(LiveMemorySnapshot, attacked_agent_data[attacked_timestamp])
-        attacker_lidar = attacked_snapshot.get("lidar_np")
-        if attacker_lidar is None:
-            raise ValueError(f"AdvCP early attack requires in-memory lidar_np for attacker '{attacker_id}'.")
-
         lidar_poses = {
             agent_id: np.asarray(AdvCPAttackHelper.load_agent_state(scenario_data, agent_id)["lidar_pose"], dtype=np.float32)
             for agent_id in scenario_data
         }
 
-        spoofed_lidar = np.asarray(attacker_lidar, dtype=np.float32)
-        spoofing_mask = np.zeros((spoofed_lidar.shape[0],), dtype=np.bool_)
-        for attack_box in attack_boxes:
-            spoofed_lidar, box_spoofing_mask = AdvCoperceptionEarlyFusionAttack._apply_sampled_ray_traced_spoof(
-                spoofed_lidar,
-                spoofing_mask,
-                attack_box,
-                lidar_poses,
-                attacker_id,
-                advcp_config,
-                density,
-            )
-            spoofing_mask = box_spoofing_mask
-        attacked_snapshot["lidar_np"] = spoofed_lidar
-        attacked_snapshot["spoofing_mask"] = spoofing_mask
+        for attacker_id in configured_attacker_ids:
+            if attacker_id not in scenario_data:
+                logger.warning(
+                    "AdvCP early attack will not be applied on this tick because attacker '%s' is not present in the current scenario data. "
+                    "Continuing with normal cooperative perception inference for this attacker.",
+                    attacker_id,
+                )
+                continue
+
+            _, _, _, attack_boxes = AdvCPAttackHelper.resolve_spoof_boxes_for_agent(scenario_data, advcp_config, attacker_id)
+            attacked_agent_data = attacked_scenario_data[attacker_id]
+            attacked_timestamp = next(key for key in attacked_agent_data.keys() if key != "ego")
+            attacked_snapshot = cast(LiveMemorySnapshot, attacked_agent_data[attacked_timestamp])
+            attacker_lidar = attacked_snapshot.get("lidar_np")
+            if attacker_lidar is None:
+                raise ValueError(f"AdvCP early attack requires in-memory lidar_np for attacker '{attacker_id}'.")
+
+            spoofed_lidar = np.asarray(attacker_lidar, dtype=np.float32)
+            spoofing_mask = np.zeros((spoofed_lidar.shape[0],), dtype=np.bool_)
+            for attack_box in attack_boxes:
+                spoofed_lidar, box_spoofing_mask = AdvCoperceptionEarlyFusionAttack._apply_sampled_ray_traced_spoof(
+                    spoofed_lidar,
+                    spoofing_mask,
+                    attack_box,
+                    lidar_poses,
+                    attacker_id,
+                    advcp_config,
+                    density,
+                )
+                spoofing_mask = box_spoofing_mask
+            attacked_snapshot["lidar_np"] = spoofed_lidar
+            attacked_snapshot["spoofing_mask"] = spoofing_mask
+            advcp_context["attacker_ids"].append(attacker_id)
+
+        if not advcp_context["attacker_ids"]:
+            return (*inference_utils.inference_early_fusion(batch_data, model, dataset), advcp_context)
 
         dataset.update_database(memory_data=attacked_memory)
         try:

@@ -205,7 +205,9 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
         config.setdefault("mode", "spoof")
         config.setdefault("default_size", (4.5, 2.0, 1.6))
         config.setdefault("boxes", [{"relative": (5.0, 0.0, 0.0, 0.0, 90.0, 0.0)}])
-        config.setdefault("attacker_id", "cav-1")
+        if "attacker_id" in config:
+            raise ValueError("AdvCP config key 'attacker_id' is no longer supported. Use 'attacker_ids: [<agent_id>]' instead.")
+        config.setdefault("attacker_ids", ["cav-1"])
         config.setdefault("density", 3)
         config.setdefault("dense_distance", 10.0)
         config.setdefault("sync", True)
@@ -223,11 +225,13 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
             config.get("mesh_divide_path", str(local_model_root / "spoof" / "car_mesh_divide.pkl")),
         )
 
+        config["attacker_ids"] = AdvCPAttackHelper.resolve_configured_attacker_ids(cast(AdvCPConfig, config))
+
         for required_key in (
             "mode",
             "default_size",
             "boxes",
-            "attacker_id",
+            "attacker_ids",
             "density",
             "dense_distance",
             "sync",
@@ -253,20 +257,19 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
 
     def validate_advcp_agents(self, valid_agent_ids: list[str]) -> bool:
         mode = AdvCPAttackHelper.require_config_value(self.advcp_config, "mode")
-        attacker_id = AdvCPAttackHelper.require_config_value(self.advcp_config, "attacker_id")
+        configured_attacker_ids = AdvCPAttackHelper.resolve_configured_attacker_ids(self.advcp_config)
+        attacker_ids: list[str] = []
+        for attacker_id in configured_attacker_ids:
+            if attacker_id in valid_agent_ids:
+                attacker_ids.append(attacker_id)
+            else:
+                logger.warning(
+                    "AdvCP attacker_id '%s' does not exist. Known agents: %s. AdvCP attack will not be applied for this attacker.",
+                    attacker_id,
+                    ", ".join(valid_agent_ids),
+                )
 
-        if attacker_id in valid_agent_ids:
-            self.advcp_config["attacker_id"] = attacker_id
-        else:
-            logger.warning(
-                "AdvCP attacker_id '%s' does not exist. Known agents: %s. AdvCP attack will not be applied.",
-                attacker_id,
-                ", ".join(valid_agent_ids),
-            )
-            self.advcp_config["attacker_id"] = None
-
-        attacker_id_value = self.advcp_config.get("attacker_id")
-        attacker_ids = [attacker_id_value] if attacker_id_value is not None else []
+        self.advcp_config["attacker_ids"] = attacker_ids
 
         logger.info("AdvCP mode: %s", mode)
         if attacker_ids:

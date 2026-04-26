@@ -42,19 +42,26 @@ class AdvCoperceptionLateFusionAttack:
             case _:
                 raise NotImplementedError(f"AdvCP mode '{mode}' is not available for late fusion.")
 
-        attacker_id, attack_boxes = AdvCoperceptionLateFusionAttack.resolve_spoof_boxes(advcp_config, memory_data)
-        if attacker_id is not None:
-            advcp_context["attacker_ids"] = [attacker_id]
+        attacker_ids, attack_boxes_by_attacker = AdvCoperceptionLateFusionAttack.resolve_spoof_boxes_by_attacker(
+            advcp_config,
+            memory_data,
+        )
+        advcp_context["attacker_ids"] = attacker_ids
 
-        if not attack_boxes:
+        if not attack_boxes_by_attacker:
             return AdvCoperceptionLateFusionAttack._run_default_prediction(batch_data, output_dict, dataset, advcp_context)
 
-        if attacker_id not in batch_data:
-            logger.warning(
-                "AdvCP attack will not be applied on this tick because attacker '%s' is not present in the current batch. "
-                "Continuing with normal cooperative perception inference.",
-                attacker_id,
-            )
+        attack_boxes_by_attacker_in_batch: dict[str, list[np.ndarray]] = {}
+        for attacker_id, attack_boxes in attack_boxes_by_attacker.items():
+            if attacker_id in batch_data:
+                attack_boxes_by_attacker_in_batch[attacker_id] = attack_boxes
+            else:
+                logger.warning(
+                    "AdvCP attack will not be applied on this tick because attacker '%s' is not present in the current batch. "
+                    "Continuing with normal cooperative perception inference for this attacker.",
+                    attacker_id,
+                )
+        if not attack_boxes_by_attacker_in_batch:
             advcp_context["attacker_ids"] = []
             return AdvCoperceptionLateFusionAttack._run_default_prediction(batch_data, output_dict, dataset, advcp_context)
 
@@ -79,11 +86,12 @@ class AdvCoperceptionLateFusionAttack:
             scores = torch.masked_select(prob[0], mask[0])
             is_fake = torch.zeros((scores.shape[0],), dtype=torch.bool, device=device)
 
-            if cav_id == attacker_id:
-                injected_box_tensors = [AdvCPAttackHelper.convert_box_for_model(attack_box, dataset).to(device) for attack_box in attack_boxes]
+            cav_attack_boxes = attack_boxes_by_attacker_in_batch.get(cav_id)
+            if cav_attack_boxes:
+                injected_box_tensors = [AdvCPAttackHelper.convert_box_for_model(attack_box, dataset).to(device) for attack_box in cav_attack_boxes]
                 stacked_injected_boxes = torch.stack(injected_box_tensors, dim=0)
-                injected_scores = torch.ones((len(attack_boxes),), dtype=scores.dtype, device=device)
-                injected_is_fake = torch.ones((len(attack_boxes),), dtype=torch.bool, device=device)
+                injected_scores = torch.ones((len(cav_attack_boxes),), dtype=scores.dtype, device=device)
+                injected_is_fake = torch.ones((len(cav_attack_boxes),), dtype=torch.bool, device=device)
                 boxes3d = torch.vstack([boxes3d, stacked_injected_boxes])
                 scores = torch.hstack([scores, injected_scores])
                 is_fake = torch.hstack([is_fake, injected_is_fake])
@@ -148,6 +156,13 @@ class AdvCoperceptionLateFusionAttack:
         memory_data: OrderedDict[int, OrderedDict[str, OrderedDict[str, LiveMemorySnapshot | bool]]] | None,
     ) -> tuple[str | None, list[np.ndarray]]:
         return AdvCPAttackHelper.resolve_spoof_boxes(advcp_config, memory_data)
+
+    @staticmethod
+    def resolve_spoof_boxes_by_attacker(
+        advcp_config: AdvCPConfig,
+        memory_data: OrderedDict[int, OrderedDict[str, OrderedDict[str, LiveMemorySnapshot | bool]]] | None,
+    ) -> tuple[list[str], dict[str, list[np.ndarray]]]:
+        return AdvCPAttackHelper.resolve_spoof_boxes_by_attacker(advcp_config, memory_data)
 
     @staticmethod
     def _raise_removal_not_available() -> None:
