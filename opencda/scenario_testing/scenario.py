@@ -239,13 +239,19 @@ class Scenario:
             logger.info("attack=%s status=%s reason=%s", result.attack_name, result.status.value, result.reason)
 
     def _build_simulation_snapshot(self, tick: int) -> SimulationSnapshot:
+        vehicle_managers: list[VehicleManager] = []
+        vehicle_managers.extend(self.single_cav_list)
+
+        for platoon in self.platoon_list:
+            vehicle_managers.extend(platoon.vehicle_manager_list)
+
         vehicle_nodes = tuple(
             NodeSnapshot(
                 node_id=vehicle_manager.id,
                 node_type="vehicle",
                 service_states=dict(vehicle_manager.behavior_service_states),
             )
-            for vehicle_manager in self.cav_world.get_vehicle_managers().values()
+            for vehicle_manager in vehicle_managers
         )
 
         rsu_nodes = tuple(
@@ -254,7 +260,7 @@ class Scenario:
                 node_type="rsu",
                 service_states=dict(rsu.behavior_service_states),
             )
-            for rsu in self.cav_world.get_rsu_managers().values()
+            for rsu in self.rsu_list
         )
 
         return SimulationSnapshot(
