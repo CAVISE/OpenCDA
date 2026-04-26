@@ -19,10 +19,3 @@ def _import_builtin_attack_stages() -> None:
 
 
 _import_builtin_attack_stages()
-
-from .sniffer import ObservedOutput, SnifferStage
-
-__all__ = [
-    "ObservedOutput",
-    "SnifferStage",
-]

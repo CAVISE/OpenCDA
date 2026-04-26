@@ -1,7 +1,7 @@
 """Public API for adversary framework primitives."""
 
-from . import attacks as _builtin_attacks
-from . import stages as _builtin_stages
+from .attacks import _import_builtin_attacks
+from .stages import _import_builtin_attack_stages
 from .attack_manager import AttackManager
 from .attack_protocol import Attack, ServiceResolver
 from .attack_result import AttackResult, AttackStageResult, Status
@@ -36,3 +36,6 @@ __all__ = [
     "service_supports_capabilities",
     "wrap_method_output",
 ]
+
+_import_builtin_attacks()
+_import_builtin_attack_stages()

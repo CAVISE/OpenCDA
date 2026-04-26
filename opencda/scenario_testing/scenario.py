@@ -341,7 +341,7 @@ class Scenario:
 
             self.messages = new_messages
             self.simulation_snapshot = self._build_simulation_snapshot(tick_number)
-            
+
             self.attack_results = self.attack_manager.evaluate(
                 self.attacks,
                 self.simulation_snapshot,
@@ -415,17 +415,20 @@ class Scenario:
                     platoon.update_information()
                     platoon.run_step()
 
+            new_messages = []
             if self.single_cav_list is not None:
                 logger.debug("updating single cavs")
                 for single_cav in self.single_cav_list:
                     single_cav.update_info()
                     cav_messages, cav_states = single_cav.run_step(messages=self.messages)  # TODO: handle messages from single cavs
+                    new_messages.extend(cav_messages)
 
             if self.rsu_list is not None:
                 logger.debug("updating RSUs")
                 for rsu in self.rsu_list:
                     rsu.update_info()
                     rsu_messages, rsu_states = rsu.run_step(messages=self.messages)  # TODO: handle messages from rsus
+                    new_messages.extend(cav_messages)
 
             self.simulation_snapshot = self._build_simulation_snapshot(tick_number)
             self.attack_results = self.attack_manager.evaluate(
