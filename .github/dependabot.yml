@@ -8,6 +8,8 @@ updates:
     python-packages:
       patterns:
         - "*"
+  ignore:
+    - dependency-name: "cumm-cu126"
 - package-ecosystem: "github-actions"
   directory: "/"
   schedule:

@@ -1,4 +1,4 @@
-FROM docker.io/nvidia/cuda:12.8.1-cudnn-devel-ubuntu24.04@sha256:24c8e3581ea6330038b0d374920721983312627f8adbfcf390bdb4b399d280ed AS opencda
+FROM docker.io/nvidia/cuda:12.6.3-cudnn-devel-ubuntu24.04@sha256:50efab398f76258daa91ceebb33b6467e40217c67ea44fb5a2cebc6be7d9cce3 AS opencda
 
 ARG USER=opencda
 ARG UID=1000 # default uid
@@ -11,7 +11,7 @@ RUN mkdir -p $XDG_RUNTIME_DIR && \
     chmod 700 $XDG_RUNTIME_DIR && \
     ln -sf /usr/bin/python3 /usr/bin/python
 
-ARG PROTOC_VERSION=33.5
+ARG PROTOC_VERSION=34.1
 ARG PROTOC_ZIP=protoc-${PROTOC_VERSION}-linux-x86_64.zip
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \

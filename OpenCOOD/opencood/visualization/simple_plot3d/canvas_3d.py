@@ -286,9 +286,9 @@ class Canvas_3D(object):
         center_x, center_y, center_z = camera_center_coords
         focus_x, focus_y, focus_z = camera_focus_coords
         az, el, depth = Canvas_3D.cart2sph(np.array([[focus_x - center_x, focus_y - center_y, focus_z - center_z]]))
-        az = float(az)
-        el = float(el)
-        depth = float(depth)
+        az = np.asarray(az).item()
+        el = np.asarray(el).item()
+        depth = np.asarray(depth).item()
 
         ### First, construct extrinsics
         ## Rotation matrix
