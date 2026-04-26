@@ -87,16 +87,32 @@ vehicle_base:
       debug_trajectory: false
       debug: false
 
+aim:
+  model: "MTP"
+  underling_model: "GNN_mtl_gnn"
+  hidden_channels: 128
+  weight: "model_rot_gnn_mtl_np_sumo_0911_e3_1930.pth"
+
 scenario:
   rsu_list:
     - name: rsu1
       spawn_position: [16.292295, 60.521175, 2, 0, 0, 0]
       id: 1
       behavior_services:
-        - type: dummy_service
+        - type: aim_server
+          model: "MTP"
+          underling_model: "GNN_mtl_gnn"
+          hidden_channels: 128
+          weight: "model_rot_gnn_mtl_np_sumo_0911_e3_1930.pth"
     - name: rsu2
       spawn_position: [-16.29, 36.37, 2, 0, 0, 0]
       id: 2
+      behavior_services:
+        - type: aim_server
+          model: "MTP"
+          underling_model: "GNN_mtl_gnn"
+          hidden_channels: 128
+          weight: "model_rot_gnn_mtl_np_sumo_0911_e3_1930.pth"
 
   single_cav_list:
     - name: cav1
@@ -104,8 +120,14 @@ scenario:
       destination: [-6.09, 67.87, 1.71]
       id: 100
       color: [123, 10, 231]
+      behavior_services:
+        - type: aim_client
+        - type: movement_controller
     - name: cav2
       spawn_position: [-147.66, 49.19, 0.3, 0, 0, 0]
       destination: [375.14, 48.54, 1.05]
       id: 200
       color: [123, 10, 231]
+      behavior_services:
+        - type: aim_client
+        - type: movement_controller

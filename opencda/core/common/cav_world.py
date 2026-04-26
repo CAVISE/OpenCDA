@@ -116,6 +116,12 @@ class CavWorld(object):
         """
         return self._platooning_dict
 
+    def get_rsu_managers(self) -> dict[str, RSUManager]:
+        """
+        Return RSU managers.
+        """
+        return self._rsu_manager_dict
+
     def locate_vehicle_manager(self, loc: carla.Location) -> VehicleManager | None:
         """
         Locate the vehicle manager based on the given location.

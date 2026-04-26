@@ -14,6 +14,8 @@ from opencda.core.application.behavior.types import Transform, Location, Rotatio
 from . import utils
 
 from opencda.core.application.behavior.transport_message import TransportMessage
+from opencda.metrics_tools.config import resolve_metric_collector_config
+from opencda.metrics_tools.metric_collector import MetricCollector
 
 logger = logging.getLogger("cavise.opencda.opencda.core.application.behavior.services.aim_server.aim_model_manager")
 
@@ -37,8 +39,8 @@ class AIMModelManager:
             Intersection control point used to normalize vehicle positions.
         service_name : str
             Service identifier used in AIM result messages.
-        owner_id : str
-            Identifier for the owner of the AIM model.
+        owner_id: str
+            Owner ID of the AIM model.
         """
         self.CONTROL_RADIUS = 50
         self.THRESHOLD = 10
@@ -61,6 +63,17 @@ class AIMModelManager:
         self.yaw_dict: dict[str, Any] = utils.load_yaw(self.__yaw_dict_path)
         self.yaw_id: dict[str, dict[str, str]] = {}
 
+        default_metric_configs = {"crossing_time": {"warmup_steps": 10}}
+        metric_configs = resolve_metric_collector_config(
+            module_config=None,
+            default_metric_configs=default_metric_configs,
+        )
+        self.metrics_collector = MetricCollector(
+            module="aim",
+            entity_id=self._owner_id,
+            metric_configs=metric_configs,
+        )
+
     def _get_distance_to_center(self, curr_pos: np.ndarray) -> float:
         return float(np.linalg.norm(curr_pos - self.control_center_coords))
 
@@ -73,12 +86,12 @@ class AIMModelManager:
         Normalize and cache incoming CAV data for the current inference step.
         """
         message = transport_message.payload
+        cav_id = message.vehicle_id
         cav_pos = utils.get_sumo_transform(message.position, Location(0, 0, 0)).location
         curr_pos = np.array([cav_pos.x, cav_pos.y])
         distance_to_center = self._get_distance_to_center(curr_pos)
-
         if distance_to_center != -1 and distance_to_center < self.CONTROL_RADIUS:
-            self.cav_data[message.vehicle_id] = CavData(
+            self.cav_data[cav_id] = CavData(
                 intention=self.get_opencda_intention(message.waypoints, self.control_center_coords),
                 pos=message.position.location,
                 sumo_pos=curr_pos,
@@ -90,6 +103,9 @@ class AIMModelManager:
                 dst_owner_id=transport_message.dst_owner_id,
                 dst_service_type=transport_message.dst_service_type,
             )
+            self.metrics_collector.update({"at_intersection": [{"id": cav_id, "crossing": True}]})
+        else:
+            self.metrics_collector.update({"at_intersection": [{"id": cav_id, "crossing": False}]})
 
     def _get_cav_pos(self, vehicle_id: str) -> Location:
         return self.cav_data[vehicle_id].pos
@@ -106,6 +122,7 @@ class AIMModelManager:
         """
         for message in messages:
             self._preprocess_cav_data(message)
+
         result_messages: list[TransportMessage[AIMServerResponse]] = []
 
         self.update_trajs()
@@ -164,7 +181,6 @@ class AIMModelManager:
                         payload=payload,
                     )
                 )
-
         self.cav_data.clear()
         return result_messages
 
