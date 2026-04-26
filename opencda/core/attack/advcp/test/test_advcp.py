@@ -3,7 +3,6 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import opencda.core.common.coperception_model_manager as coperception_model_manager_module
 import opencda.core.attack.advcp.early_fusion_attack as early_fusion_attack_module
-import opencda.core.attack.advcp.intermediate_fusion_attack as intermediate_fusion_attack_module
 
 # The production code imports are now safe because pytest_configure in conftest.py
 # installs the mocks before collection.
