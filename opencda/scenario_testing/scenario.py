@@ -428,7 +428,7 @@ class Scenario:
                 for rsu in self.rsu_list:
                     rsu.update_info()
                     rsu_messages, rsu_states = rsu.run_step(messages=self.messages)  # TODO: handle messages from rsus
-                    new_messages.extend(cav_messages)
+                    new_messages.extend(rsu_messages)
 
             self.simulation_snapshot = self._build_simulation_snapshot(tick_number)
             self.attack_results = self.attack_manager.evaluate(
