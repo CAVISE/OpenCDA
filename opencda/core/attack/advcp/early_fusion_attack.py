@@ -72,14 +72,11 @@ class AdvCoperceptionEarlyFusionAttack:
             agent_id: np.asarray(AdvCPAttackHelper.load_agent_state(scenario_data, agent_id)["lidar_pose"], dtype=np.float32)
             for agent_id in scenario_data
         }
+        missing_attacker_ids: list[str] = []
 
         for attacker_id in configured_attacker_ids:
             if attacker_id not in scenario_data:
-                logger.warning(
-                    "AdvCP early attack will not be applied on this tick because attacker '%s' is not present in the current scenario data. "
-                    "Continuing with normal cooperative perception inference for this attacker.",
-                    attacker_id,
-                )
+                missing_attacker_ids.append(attacker_id)
                 continue
 
             _, _, _, attack_boxes = AdvCPAttackHelper.resolve_spoof_boxes_for_agent(scenario_data, advcp_config, attacker_id)
@@ -108,6 +105,13 @@ class AdvCoperceptionEarlyFusionAttack:
             advcp_context["attacker_ids"].append(attacker_id)
 
         if not advcp_context["attacker_ids"]:
+            if missing_attacker_ids:
+                logger.warning(
+                    "AdvCP early attack will not be applied on this tick because none of the configured attackers are present in the current scenario data. "
+                    "Configured attackers: %s. Available agents: %s. Continuing with normal cooperative perception inference.",
+                    ", ".join(missing_attacker_ids),
+                    ", ".join(str(agent_id) for agent_id in scenario_data.keys()),
+                )
             return (*inference_utils.inference_early_fusion(batch_data, model, dataset), advcp_context)
 
         dataset.update_database(memory_data=attacked_memory)

@@ -52,16 +52,20 @@ class AdvCoperceptionLateFusionAttack:
             return AdvCoperceptionLateFusionAttack._run_default_prediction(batch_data, output_dict, dataset, advcp_context)
 
         attack_boxes_by_attacker_in_batch: dict[str, list[np.ndarray]] = {}
+        missing_attacker_ids: list[str] = []
         for attacker_id, attack_boxes in attack_boxes_by_attacker.items():
             if attacker_id in batch_data:
                 attack_boxes_by_attacker_in_batch[attacker_id] = attack_boxes
             else:
-                logger.warning(
-                    "AdvCP attack will not be applied on this tick because attacker '%s' is not present in the current batch. "
-                    "Continuing with normal cooperative perception inference for this attacker.",
-                    attacker_id,
-                )
+                missing_attacker_ids.append(attacker_id)
         if not attack_boxes_by_attacker_in_batch:
+            if missing_attacker_ids:
+                logger.warning(
+                    "AdvCP attack will not be applied on this tick because none of the configured attackers are present in the current batch. "
+                    "Configured attackers: %s. Batch agents: %s. Continuing with normal cooperative perception inference.",
+                    ", ".join(missing_attacker_ids),
+                    ", ".join(str(agent_id) for agent_id in batch_data.keys()),
+                )
             advcp_context["attacker_ids"] = []
             return AdvCoperceptionLateFusionAttack._run_default_prediction(batch_data, output_dict, dataset, advcp_context)
 

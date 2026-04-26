@@ -55,24 +55,23 @@ class AdvCPAttackHelper:
             "ego_pose": params.get("true_ego_pos", lidar_pose),
         }
 
-    @staticmethod
-    def _deduplicate_attacker_ids(attacker_ids: Sequence[str]) -> list[str]:
+    @classmethod
+    def resolve_configured_attacker_ids(cls, advcp_config: AdvCPConfig) -> list[str]:
+        attacker_ids_raw = cls.require_config_value(advcp_config, "attacker_ids")
+        if not isinstance(attacker_ids_raw, Sequence) or isinstance(attacker_ids_raw, (str, bytes)):
+            raise ValueError("AdvCP config key 'attacker_ids' must be a sequence of agent ids.")
+
         ordered_ids: list[str] = []
         seen_ids: set[str] = set()
-        for attacker_id in attacker_ids:
+        for attacker_id in attacker_ids_raw:
+            if attacker_id is None:
+                continue
             normalized_attacker_id = str(attacker_id).strip()
             if not normalized_attacker_id or normalized_attacker_id in seen_ids:
                 continue
             seen_ids.add(normalized_attacker_id)
             ordered_ids.append(normalized_attacker_id)
         return ordered_ids
-
-    @classmethod
-    def resolve_configured_attacker_ids(cls, advcp_config: AdvCPConfig) -> list[str]:
-        attacker_ids_raw = cls.require_config_value(advcp_config, "attacker_ids")
-        if not isinstance(attacker_ids_raw, Sequence) or isinstance(attacker_ids_raw, (str, bytes)):
-            raise ValueError("AdvCP config key 'attacker_ids' must be a sequence of agent ids.")
-        return cls._deduplicate_attacker_ids([str(attacker_id) for attacker_id in attacker_ids_raw if attacker_id is not None])
 
     @classmethod
     def resolve_spoof_boxes_by_attacker(
@@ -96,20 +95,25 @@ class AdvCPAttackHelper:
         configured_attacker_ids = cls.resolve_configured_attacker_ids(advcp_config)
         resolved_attacker_ids: list[str] = []
         attack_boxes_by_batch_attacker: dict[str, list[np.ndarray]] = {}
+        missing_attacker_ids: list[str] = []
 
         for attacker_id in configured_attacker_ids:
             if attacker_id not in scenario_data:
-                logger.warning(
-                    "AdvCP attack will not be applied on this tick because attacker '%s' is not present in the current scenario data. "
-                    "Continuing with normal cooperative perception inference.",
-                    attacker_id,
-                )
+                missing_attacker_ids.append(attacker_id)
                 continue
 
             _, _, _, attack_boxes = cls.resolve_spoof_boxes_for_agent(scenario_data, advcp_config, attacker_id)
             batch_attacker_id = "ego" if attacker_id == ego_agent_id else attacker_id
             attack_boxes_by_batch_attacker.setdefault(batch_attacker_id, []).extend(attack_boxes)
             resolved_attacker_ids.append(attacker_id)
+
+        if not resolved_attacker_ids and missing_attacker_ids:
+            logger.warning(
+                "AdvCP attack will not be applied on this tick because none of the configured attackers are present in the current scenario data. "
+                "Configured attackers: %s. Available agents: %s. Continuing with normal cooperative perception inference.",
+                ", ".join(missing_attacker_ids),
+                ", ".join(str(agent_id) for agent_id in scenario_data.keys()),
+            )
 
         return resolved_attacker_ids, attack_boxes_by_batch_attacker
 
