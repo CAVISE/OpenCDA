@@ -1,6 +1,7 @@
 import pytest
 from unittest.mock import MagicMock, patch
 from pathlib import Path
+from importlib import import_module
 import numpy as np
 
 # The production code imports are now safe because pytest_configure in conftest.py
@@ -99,6 +100,7 @@ class TestCoperceptionModelManager:
         # Re-bind imported module-level dependencies to this fixture's mocks.
         # This keeps tests deterministic even when other test trees import the
         # manager module before these conftest mocks are installed.
+        coperception_model_manager_module = import_module(CoperceptionModelManager.__module__)
         coperception_model_manager_module.torch = torch
         coperception_model_manager_module.o3d = open3d
         coperception_model_manager_module.yaml_utils = opencood.hypes_yaml.yaml_utils

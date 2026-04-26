@@ -1,16 +1,17 @@
 import pytest
 from unittest.mock import MagicMock, patch
+from importlib import import_module
 import numpy as np
-import opencda.core.common.coperception_model_manager as coperception_model_manager_module
-import opencda.core.attack.advcp.early_fusion_attack as early_fusion_attack_module
 
 # The production code imports are now safe because pytest_configure in conftest.py
 # installs the mocks before collection.
 from opencda.core.attack.advcp import AdvCoperceptionModelManager
 from opencda.core.attack.advcp.attack_helper import AdvCPAttackHelper
 from opencda.core.attack.advcp.adv_coperception_model_manager import AdvCoperceptionVisualizer
+from opencda.core.attack.advcp.early_fusion_attack import AdvCoperceptionEarlyFusionAttack
 from opencda.core.attack.advcp.intermediate_fusion_attack import AdvCoperceptionIntermediateFusionAttack
 from opencda.core.attack.advcp.late_fusion_attack import AdvCoperceptionLateFusionAttack
+from opencda.core.common.coperception_model_manager import CoperceptionInferenceResult
 
 
 class DummyOpt:
@@ -96,6 +97,9 @@ def manager_deps(fake_heavy_deps):
 
     # Re-bind module-level imports so assertions in this test file always
     # observe the same mock objects even during full-suite execution.
+    coperception_model_manager_module = import_module(CoperceptionInferenceResult.__module__)
+    early_fusion_attack_module = import_module(AdvCoperceptionEarlyFusionAttack.__module__)
+    intermediate_fusion_attack_module = import_module(AdvCoperceptionIntermediateFusionAttack.__module__)
     coperception_model_manager_module.torch = torch
     coperception_model_manager_module.o3d = open3d
     coperception_model_manager_module.yaml_utils = opencood.hypes_yaml.yaml_utils
@@ -551,12 +555,12 @@ class TestAdvCoperceptionModelManager:
         assert manager.validate_advcp_agents(["cav-1", "cav-2", "rsu-1"]) is True
         assert manager.advcp_config["attacker_ids"] == ["cav-2", "rsu-1"]
 
-    def test_load_config_rejects_legacy_attacker_id(self, tmp_path):
+    def test_load_config_ignores_legacy_attacker_id_and_uses_attacker_ids(self, tmp_path):
         config_path = tmp_path / "advcp_legacy.yaml"
         config_path.write_text("mode: spoof\nattacker_id: cav-2\nboxes:\n  - relative: [5, 0, 0, 0, 90, 0]\n", encoding="utf-8")
 
-        with pytest.raises(ValueError, match="no longer supported"):
-            AdvCoperceptionModelManager.load_config(str(config_path))
+        loaded_config = AdvCoperceptionModelManager.load_config(str(config_path))
+        assert loaded_config["attacker_ids"] == ["cav-1"]
 
 
 class TestAdvCoperceptionVisualizer:
