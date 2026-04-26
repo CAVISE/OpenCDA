@@ -205,8 +205,6 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
         config.setdefault("mode", "spoof")
         config.setdefault("default_size", (4.5, 2.0, 1.6))
         config.setdefault("boxes", [{"relative": (5.0, 0.0, 0.0, 0.0, 90.0, 0.0)}])
-        if "attacker_id" in config:
-            raise ValueError("AdvCP config key 'attacker_id' is no longer supported. Use 'attacker_ids: [<agent_id>]' instead.")
         config.setdefault("attacker_ids", ["cav-1"])
         config.setdefault("density", 3)
         config.setdefault("dense_distance", 10.0)
