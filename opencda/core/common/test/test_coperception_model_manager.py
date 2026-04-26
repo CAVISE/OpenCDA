@@ -2,7 +2,6 @@ import pytest
 from unittest.mock import MagicMock, patch
 from pathlib import Path
 import numpy as np
-import opencda.core.common.coperception_model_manager as coperception_model_manager_module
 
 # The production code imports are now safe because pytest_configure in conftest.py
 # installs the mocks before collection.
