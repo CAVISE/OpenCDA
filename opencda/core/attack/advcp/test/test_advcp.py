@@ -13,7 +13,6 @@ from opencda.core.attack.advcp.adv_coperception_model_manager import AdvCopercep
 from opencda.core.attack.advcp.early_fusion_attack import AdvCoperceptionEarlyFusionAttack
 from opencda.core.attack.advcp.intermediate_fusion_attack import AdvCoperceptionIntermediateFusionAttack
 from opencda.core.attack.advcp.late_fusion_attack import AdvCoperceptionLateFusionAttack
-from opencda.core.common.coperception_model_manager import CoperceptionInferenceResult
 
 
 class DummyOpt:
