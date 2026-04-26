@@ -12,11 +12,11 @@ networkx==3.6.1
 numpy==2.4.4
 
 # image I/O used by MLManager tests
-opencv-python-headless==4.11.0.86
+opencv-python-headless==4.13.0.92
 protobuf==7.34.1
 protoc-wheel==21.1
 pytest==9.0.3
-pytest-mock==3.14.0
+pytest-mock==3.15.1
 PyYAML==6.0.3
 pyzmq==27.1.0
 
