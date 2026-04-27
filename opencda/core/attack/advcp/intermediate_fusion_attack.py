@@ -22,7 +22,6 @@ from opencda.core.attack.advcp.types import (
     AdvCPMemoryData,
     AdvCPMemoryRecord,
     AdvCPScenarioData,
-    AdvCPVisualizationContext,
 )
 from opencda.core.common.coperception_data_processor import LiveMemorySnapshot
 
@@ -41,11 +40,7 @@ class AdvCoperceptionIntermediateFusionAttack:
         attack_state: AdvCPIntermediateAttackState | None = None,
     ) -> AdvCPAttackResult:
         mode = AdvCPAttackHelper.require_config_value(advcp_config, "mode")
-        advcp_context: AdvCPVisualizationContext = {
-            "attacker_ids": [],
-            "fake_box_tensor": None,
-            "mode": mode,
-        }
+        advcp_context = AdvCPAttackHelper.build_attack_context(mode=mode)
 
         match mode:
             case "remove":
@@ -66,10 +61,7 @@ class AdvCoperceptionIntermediateFusionAttack:
                 "Please configure exactly one attacker for intermediate fusion."
             )
         if len(configured_attacker_ids) == 0:
-            logger.warning(
-                "AdvCP intermediate attack will not be applied because no attackers are configured. "
-                "Continuing with normal cooperative perception inference."
-            )
+            AdvCPAttackHelper.log_no_configured_attackers("intermediate")
             return (*inference_utils.inference_intermediate_fusion(batch_data, model, dataset), advcp_context)
         attacker_id = configured_attacker_ids[0]
 

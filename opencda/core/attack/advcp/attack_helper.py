@@ -12,7 +12,7 @@ import torch
 from opencood.hypes_yaml.yaml_utils import load_yaml
 from opencood.utils.transformation_utils import x_to_world
 
-from opencda.core.attack.advcp.types import AdvCPAgentState, AdvCPBoxSpec, AdvCPConfig, AdvCPMemoryData
+from opencda.core.attack.advcp.types import AdvCPAgentState, AdvCPBoxSpec, AdvCPConfig, AdvCPMemoryData, AdvCPVisualizationContext
 
 logger = logging.getLogger("cavise.opencda.opencda.core.attack.advcp.advcp_manager")
 
@@ -87,6 +87,43 @@ class AdvCPAttackHelper:
                 missing_attacker_ids.append(attacker_id)
         return present_attacker_ids, missing_attacker_ids
 
+    @staticmethod
+    def log_no_configured_attackers(fusion_name: str) -> None:
+        logger.warning(
+            "AdvCP %s attack will not be applied because no attackers are configured. Continuing with normal cooperative perception inference.",
+            fusion_name,
+        )
+
+    @staticmethod
+    def build_attack_context(mode: str | None) -> AdvCPVisualizationContext:
+        return {
+            "attacker_ids": [],
+            "fake_box_tensor": None,
+            "mode": mode,
+        }
+
+    @staticmethod
+    def log_all_configured_attackers_missing(
+        missing_attacker_ids: Sequence[str],
+        available_agent_ids: Iterable[Any],
+        *,
+        scope_name: str,
+        available_label: str,
+        fusion_name: str | None = None,
+    ) -> None:
+        if not missing_attacker_ids:
+            return
+        attack_prefix = "AdvCP attack" if fusion_name is None else f"AdvCP {fusion_name} attack"
+        logger.warning(
+            "%s will not be applied on this tick because none of the configured attackers are present in the current %s. "
+            "Configured attackers: %s. %s: %s. Continuing with normal cooperative perception inference.",
+            attack_prefix,
+            scope_name,
+            ", ".join(missing_attacker_ids),
+            available_label,
+            ", ".join(str(agent_id) for agent_id in available_agent_ids),
+        )
+
     @classmethod
     def resolve_spoof_boxes_by_attacker(
         cls,
@@ -120,12 +157,12 @@ class AdvCPAttackHelper:
             attack_boxes_by_batch_attacker.setdefault(batch_attacker_id, []).extend(attack_boxes)
             resolved_attacker_ids.append(attacker_id)
 
-        if not resolved_attacker_ids and missing_attacker_ids:
-            logger.warning(
-                "AdvCP attack will not be applied on this tick because none of the configured attackers are present in the current scenario data. "
-                "Configured attackers: %s. Available agents: %s. Continuing with normal cooperative perception inference.",
-                ", ".join(missing_attacker_ids),
-                ", ".join(str(agent_id) for agent_id in scenario_data.keys()),
+        if not resolved_attacker_ids:
+            cls.log_all_configured_attackers_missing(
+                missing_attacker_ids,
+                scenario_data.keys(),
+                scope_name="scenario data",
+                available_label="Available agents",
             )
 
         return resolved_attacker_ids, attack_boxes_by_batch_attacker

@@ -1,15 +1,12 @@
 from __future__ import annotations
 
 from collections import OrderedDict
-import logging
 from typing import Any
 
 import numpy.typing as npt
 import torch
 from opencda.core.attack.advcp.attack_helper import AdvCPAttackHelper
 from opencda.core.attack.advcp.types import AdvCPAttackResult, AdvCPConfig, AdvCPMemoryData, AdvCPVisualizationContext
-
-logger = logging.getLogger("cavise.opencda.opencda.core.attack.advcp.advcp_manager")
 
 
 class AdvCoperceptionLateFusionAttack:
@@ -26,13 +23,12 @@ class AdvCoperceptionLateFusionAttack:
         from opencood.utils import box_utils
 
         output_dict: OrderedDict[str, Any] = OrderedDict()
-        advcp_context: AdvCPVisualizationContext = {"attacker_ids": [], "fake_box_tensor": None, "mode": None}
 
         for cav_id, cav_content in batch_data.items():
             output_dict[cav_id] = model(cav_content)
 
         mode = AdvCPAttackHelper.require_config_value(advcp_config, "mode")
-        advcp_context["mode"] = mode
+        advcp_context = AdvCPAttackHelper.build_attack_context(mode=mode)
         match mode:
             case "remove":
                 AdvCoperceptionLateFusionAttack._raise_removal_not_available()
@@ -40,6 +36,11 @@ class AdvCoperceptionLateFusionAttack:
                 pass
             case _:
                 raise NotImplementedError(f"AdvCP mode '{mode}' is not available for late fusion.")
+
+        configured_attacker_ids = AdvCPAttackHelper.resolve_configured_attacker_ids(advcp_config)
+        if len(configured_attacker_ids) == 0:
+            AdvCPAttackHelper.log_no_configured_attackers("late")
+            return AdvCoperceptionLateFusionAttack._run_default_prediction(batch_data, output_dict, dataset, advcp_context)
 
         attacker_ids, attack_boxes_by_attacker = AdvCoperceptionLateFusionAttack.resolve_spoof_boxes_by_attacker(
             advcp_config,
@@ -58,13 +59,13 @@ class AdvCoperceptionLateFusionAttack:
             attacker_id: attack_boxes_by_attacker[attacker_id] for attacker_id in present_batch_attacker_ids
         }
         if not attack_boxes_by_attacker_in_batch:
-            if missing_attacker_ids:
-                logger.warning(
-                    "AdvCP attack will not be applied on this tick because none of the configured attackers are present in the current batch. "
-                    "Configured attackers: %s. Batch agents: %s. Continuing with normal cooperative perception inference.",
-                    ", ".join(missing_attacker_ids),
-                    ", ".join(str(agent_id) for agent_id in batch_data.keys()),
-                )
+            AdvCPAttackHelper.log_all_configured_attackers_missing(
+                missing_attacker_ids,
+                batch_data.keys(),
+                scope_name="batch",
+                available_label="Batch agents",
+                fusion_name="late",
+            )
             advcp_context["attacker_ids"] = []
             return AdvCoperceptionLateFusionAttack._run_default_prediction(batch_data, output_dict, dataset, advcp_context)
 

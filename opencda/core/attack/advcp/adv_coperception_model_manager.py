@@ -34,6 +34,7 @@ class AdvCoperceptionVisualizer(CoperceptionVisualizer):
             "gt": (0, 255, 0),
             "pred": (255, 0, 0),
             "fake": (180, 0, 255),
+            "removed": (56, 189, 248),
         },
         "bbox_line_thickness": 5,
         "image_dpi": 400,
@@ -43,7 +44,10 @@ class AdvCoperceptionVisualizer(CoperceptionVisualizer):
     def _get_extra_box_tensors(cls, visualization_context: Optional[Mapping[str, Any]] = None) -> dict[str, Any]:
         if not visualization_context:
             return {}
-        return {"fake": visualization_context.get("fake_box_tensor")}
+        return {
+            "fake": visualization_context.get("fake_box_tensor"),
+            "removed": visualization_context.get("removed_box_tensor"),
+        }
 
     @staticmethod
     def _require_visualization_value(config: Mapping[str, Any], section: str, key: str) -> Any:
@@ -158,7 +162,7 @@ class AdvCoperceptionVisualizer(CoperceptionVisualizer):
 
 class AdvCoperceptionModelManager(CoperceptionModelManager):
     VISUALIZER_CLASS = AdvCoperceptionVisualizer
-    SEQUENCE_BOX_GROUP_NAMES: tuple[str, ...] = ("pred", "gt", "fake")
+    SEQUENCE_BOX_GROUP_NAMES: tuple[str, ...] = ("pred", "gt", "fake", "removed")
 
     def __init__(
         self,
@@ -205,6 +209,7 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
         config.setdefault("default_size", (4.5, 2.0, 1.6))
         config.setdefault("boxes", [{"relative": (5.0, 0.0, 0.0, 0.0, 90.0, 0.0)}])
         config.setdefault("attacker_ids", ["cav-1"])
+        config.setdefault("advshape", False)
         config.setdefault("density", 3)
         config.setdefault("dense_distance", 10.0)
         config.setdefault("sync", True)
@@ -229,6 +234,7 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
             "default_size",
             "boxes",
             "attacker_ids",
+            "advshape",
             "density",
             "dense_distance",
             "sync",
@@ -250,6 +256,13 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
                 path = Path(str(path_value)).expanduser()
                 if not path.is_absolute():
                     config[path_key] = str((config_dir / path).resolve())
+
+        for optional_path_key in ("remove_adv_shape_perturb_path", "remove_adv_shape_divide_path"):
+            path_value = config.get(optional_path_key)
+            if path_value is not None and config_dir is not None:
+                path = Path(str(path_value)).expanduser()
+                if not path.is_absolute():
+                    config[optional_path_key] = str((config_dir / path).resolve())
         return cast(AdvCPConfig, config)
 
     def validate_advcp_agents(self, valid_agent_ids: list[str]) -> bool:

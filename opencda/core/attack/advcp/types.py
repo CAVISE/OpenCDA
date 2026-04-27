@@ -13,9 +13,10 @@ AdvCPScenarioData: TypeAlias = OrderedDict[str, AdvCPMemoryRecord]
 AdvCPMemoryData: TypeAlias = OrderedDict[int, AdvCPScenarioData]
 
 
-class AdvCPVisualizationContext(TypedDict):
+class AdvCPVisualizationContext(TypedDict, total=False):
     attacker_ids: list[str]
     fake_box_tensor: torch.Tensor | None  # noqa: DC01
+    removed_box_tensor: torch.Tensor | None  # noqa: DC01
     mode: str | None
 
 
@@ -39,6 +40,7 @@ class AdvCPConfig(TypedDict, total=False):
     default_size: Sequence[float]  # noqa: DC01
     boxes: list[AdvCPBoxSpec]
     attacker_ids: list[str]
+    advshape: bool | str
     density: int | str
     dense_distance: float
     sync: bool  # noqa: DC01
@@ -51,6 +53,8 @@ class AdvCPConfig(TypedDict, total=False):
     feature_size: int
     car_mesh_path: str
     car_mesh_divide_path: str
+    remove_adv_shape_perturb_path: str
+    remove_adv_shape_divide_path: str
     model_path: str  # noqa: DC01
     mesh_divide_path: str  # noqa: DC01
 

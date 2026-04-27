@@ -3,23 +3,28 @@
 # Parameter groups in this file:
 # 1. Shared attack parameters
 #    Used by all AdvCP attack handlers, regardless of fusion method.
-# 2. Spoofing-only parameters
+# 2. Shared box target parameters
+#    Used by spoofing and by early-fusion removal.
+# 3. Spoofing-only parameters
 #    Used only when `mode: spoof`.
-# 3. Early-fusion spoofing parameters
+# 4. Early-fusion spoofing parameters
 #    Used only by early LiDAR spoofing.
-# 4. Intermediate-fusion spoofing parameters
+# 5. Intermediate-fusion spoofing parameters
 #    Used only by intermediate feature-space spoofing.
 #
 # Notes:
-# - `remove` is not implemented yet, so there are currently no removal-specific parameters.
-# - `late`, `early`, and `intermediate` spoofing all reuse the same `boxes` definitions.
+# - `remove` is currently implemented only for early fusion.
+# - Late/intermediate removal are still not implemented.
+# - `boxes` are shared by spoofing and by early removal.
 
 # ---------------------------------------------------------------------------
 # Shared attack parameters
 # ---------------------------------------------------------------------------
 
 # Shared across all AdvCP attacks and all fusion methods.
-# Currently only `spoof` is implemented.
+# Supported values:
+# - `spoof`  : supported for late/early/intermediate fusion
+# - `remove` : currently supported only for early fusion
 mode: spoof
 
 # Shared across all AdvCP attacks and all fusion methods.
@@ -29,16 +34,24 @@ mode: spoof
 # Important: intermediate fusion currently supports only ONE attacker id.
 attacker_ids: [rsu-1]
 
+# Shared across all AdvCP attacks and all fusion methods.
+# Early-removal specific:
+# - false: use non-adv-shape removal meshes.
+# - true : use adv-shape removal meshes (optionally with pretrained perturbation).
+advshape: false
+
 # ---------------------------------------------------------------------------
-# Spoofing-only parameters
+# Shared box target parameters
 # ---------------------------------------------------------------------------
 
-# Used by spoofing attacks in late / early / intermediate fusion.
+# Used by spoofing attacks in late / early / intermediate fusion
+# and by early-fusion removal.
 # Default spoofed object size [length, width, height].
 # Applied when a box entry does not define its own `size`.
 default_size: [4.5, 2.0, 1.6]
 
-# Used by spoofing attacks in late / early / intermediate fusion.
+# Used by spoofing attacks in late / early / intermediate fusion
+# and by early-fusion removal.
 # Each entry must define exactly one of:
 # - `relative`: pose relative to ego vehicle
 # - `absolute`: pose in world coordinates
@@ -62,6 +75,10 @@ boxes:
   #   size: [4.5, 2.0, 1.6]
 
 # ---------------------------------------------------------------------------
+# Spoofing-only parameters
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
 # Early-fusion spoofing parameters
 # ---------------------------------------------------------------------------
 
@@ -74,6 +91,14 @@ density: 3
 
 # Virtual sensor offset in meters used by dense_a and dense_all.
 dense_distance: 10.0
+
+# Optional for early-fusion removal when `advshape: true`.
+# If provided, applies pretrained vertex perturbation to the canonical adv-shape template.
+# remove_adv_shape_perturb_path: ../../../core/attack/advcp/3d_models/remove/mesh_perturb.npy
+
+# Optional for early-fusion removal when `advshape: true`.
+# If provided, overrides default adv-shape mesh partitioning.
+# remove_adv_shape_divide_path: ../../../core/attack/advcp/3d_models/remove/mesh_divide.pkl
 
 # 3D car mesh used for ray-traced spoofing.
 # Used directly by early spoofing and by intermediate spoofing when `init: true`.

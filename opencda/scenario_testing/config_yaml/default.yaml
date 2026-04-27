@@ -230,3 +230,4 @@ cooperative_perception_visualization:
     # In late spoofing, this box corresponds to a fake box that survived the model prediction pipeline.
     # In intermediate spoofing, this box is the attack target / desired spoof location and does not by itself
     # mean that the model actually produced a matching prediction at that location.
+    # removed: [56, 189, 248] # AdvCP-only extra box color for early-fusion removal target boxes.

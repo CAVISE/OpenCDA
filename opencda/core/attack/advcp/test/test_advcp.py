@@ -500,6 +500,211 @@ class TestAdvCoperceptionModelManager:
         assert result[3] == {"attacker_ids": ["cav-2", "cav-3"], "fake_box_tensor": None, "mode": "spoof"}
         manager_deps["inference_utils"].inference_early_fusion.assert_called_once_with({"rebuilt": "batch"}, model, dataset)
 
+    def test_early_remove_run_rebuilds_batch_with_removed_lidar(self, manager_deps):
+        batch_data = {"old": "batch"}
+        dataset = MagicMock()
+        dataset.__getitem__.return_value = {"ego": {"processed_lidar": "item"}}
+        dataset.collate_batch_test.return_value = {"rebuilt": "batch"}
+        model = MagicMock()
+        memory_data = {
+            0: {
+                "cav-1": {
+                    "ego": True,
+                    "000001": {
+                        "params": {
+                            "lidar_pose": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                            "true_ego_pos": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                        },
+                        "lidar_np": np.array([[1.0, 0.0, 0.0, 1.0]], dtype=np.float32),
+                    },
+                },
+                "cav-2": {
+                    "ego": False,
+                    "000001": {
+                        "params": {
+                            "lidar_pose": [2.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                            "true_ego_pos": [2.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                        },
+                        "lidar_np": np.array(
+                            [
+                                [15.0, 0.0, 1.0, 1.0],
+                                [30.0, 0.0, 1.0, 1.0],
+                            ],
+                            dtype=np.float32,
+                        ),
+                    },
+                },
+            }
+        }
+        removal_box = np.array([15.0, 0.0, 0.0, 4.5, 2.0, 2.0, 0.0], dtype=np.float32)
+
+        with (
+            patch.object(
+                AdvCPAttackHelper,
+                "resolve_spoof_boxes_for_agent",
+                return_value=("cav-1", MagicMock(), MagicMock(), [removal_box]),
+            ),
+            patch.object(
+                AdvCPAttackHelper,
+                "resolve_spoof_boxes_for_ego",
+                return_value=("cav-1", MagicMock(), MagicMock(), [removal_box]),
+            ),
+            patch.object(
+                AdvCoperceptionEarlyFusionAttack,
+                "_apply_sampled_ray_traced_remove",
+                return_value=np.array([[30.0, 0.0, 1.0, 1.0]], dtype=np.float32),
+            ),
+            patch.object(
+                AdvCoperceptionEarlyFusionAttack,
+                "_build_removed_box_tensor",
+                return_value="removed-boxes",
+            ),
+        ):
+            result = AdvCoperceptionEarlyFusionAttack.run(
+                batch_data,
+                model,
+                dataset,
+                "device(cpu)",
+                make_advcp_config(mode="remove"),
+                memory_data=memory_data,
+            )
+
+        first_update = dataset.update_database.call_args_list[0].kwargs["memory_data"]
+        restored_update = dataset.update_database.call_args_list[1].kwargs["memory_data"]
+
+        np.testing.assert_array_equal(
+            first_update[0]["cav-2"]["000001"]["lidar_np"],
+            np.array([[30.0, 0.0, 1.0, 1.0]], dtype=np.float32),
+        )
+        assert restored_update is memory_data
+        assert batch_data == {"rebuilt": "batch"}
+        assert result[3] == {
+            "attacker_ids": ["cav-2"],
+            "fake_box_tensor": None,
+            "mode": "remove",
+            "removed_box_tensor": "removed-boxes",
+        }
+        manager_deps["inference_utils"].inference_early_fusion.assert_called_once_with({"rebuilt": "batch"}, model, dataset)
+
+    def test_early_remove_run_supports_multiple_attackers(self, manager_deps):
+        batch_data = {"old": "batch"}
+        dataset = MagicMock()
+        dataset.__getitem__.return_value = {"ego": {"processed_lidar": "item"}}
+        dataset.collate_batch_test.return_value = {"rebuilt": "batch"}
+        model = MagicMock()
+        memory_data = {
+            0: {
+                "cav-1": {
+                    "ego": True,
+                    "000001": {
+                        "params": {
+                            "lidar_pose": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                            "true_ego_pos": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                        },
+                        "lidar_np": np.array([[1.0, 0.0, 0.0, 1.0]], dtype=np.float32),
+                    },
+                },
+                "cav-2": {
+                    "ego": False,
+                    "000001": {
+                        "params": {
+                            "lidar_pose": [2.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                            "true_ego_pos": [2.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                        },
+                        "lidar_np": np.array(
+                            [
+                                [15.0, 0.0, 1.0, 1.0],
+                                [30.0, 0.0, 1.0, 1.0],
+                            ],
+                            dtype=np.float32,
+                        ),
+                    },
+                },
+                "cav-3": {
+                    "ego": False,
+                    "000001": {
+                        "params": {
+                            "lidar_pose": [3.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                            "true_ego_pos": [3.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                        },
+                        "lidar_np": np.array(
+                            [
+                                [16.0, 0.0, 1.0, 1.0],
+                                [35.0, 0.0, 1.0, 1.0],
+                            ],
+                            dtype=np.float32,
+                        ),
+                    },
+                },
+            }
+        }
+
+        remove_box_2 = np.array([15.0, 0.0, 0.0, 4.5, 2.0, 2.0, 0.0], dtype=np.float32)
+        remove_box_3 = np.array([16.0, 0.0, 0.0, 4.5, 2.0, 2.0, 0.0], dtype=np.float32)
+
+        def _mock_resolve_spoof_boxes_for_agent(_scenario_data, _advcp_config, attacker_id):
+            if attacker_id == "cav-2":
+                return ("cav-1", MagicMock(), MagicMock(), [remove_box_2])
+            return ("cav-1", MagicMock(), MagicMock(), [remove_box_3])
+
+        def _mock_apply_sampled_ray_traced_remove(lidar, *_args):
+            first_x = float(lidar[0][0])
+            if first_x == 15.0:
+                return np.array([[30.0, 0.0, 1.0, 1.0]], dtype=np.float32)
+            return np.array([[35.0, 0.0, 1.0, 1.0]], dtype=np.float32)
+
+        with (
+            patch.object(
+                AdvCPAttackHelper,
+                "resolve_spoof_boxes_for_agent",
+                side_effect=_mock_resolve_spoof_boxes_for_agent,
+            ),
+            patch.object(
+                AdvCPAttackHelper,
+                "resolve_spoof_boxes_for_ego",
+                return_value=("cav-1", MagicMock(), MagicMock(), [remove_box_2]),
+            ),
+            patch.object(
+                AdvCoperceptionEarlyFusionAttack,
+                "_apply_sampled_ray_traced_remove",
+                side_effect=_mock_apply_sampled_ray_traced_remove,
+            ),
+            patch.object(
+                AdvCoperceptionEarlyFusionAttack,
+                "_build_removed_box_tensor",
+                return_value="removed-boxes",
+            ),
+        ):
+            result = AdvCoperceptionEarlyFusionAttack.run(
+                batch_data,
+                model,
+                dataset,
+                "device(cpu)",
+                make_advcp_config(mode="remove", attacker_ids=["cav-2", "cav-3"]),
+                memory_data=memory_data,
+            )
+
+        first_update = dataset.update_database.call_args_list[0].kwargs["memory_data"]
+        restored_update = dataset.update_database.call_args_list[1].kwargs["memory_data"]
+
+        np.testing.assert_array_equal(
+            first_update[0]["cav-2"]["000001"]["lidar_np"],
+            np.array([[30.0, 0.0, 1.0, 1.0]], dtype=np.float32),
+        )
+        np.testing.assert_array_equal(
+            first_update[0]["cav-3"]["000001"]["lidar_np"],
+            np.array([[35.0, 0.0, 1.0, 1.0]], dtype=np.float32),
+        )
+        assert restored_update is memory_data
+        assert batch_data == {"rebuilt": "batch"}
+        assert result[3] == {
+            "attacker_ids": ["cav-2", "cav-3"],
+            "fake_box_tensor": None,
+            "mode": "remove",
+            "removed_box_tensor": "removed-boxes",
+        }
+        manager_deps["inference_utils"].inference_early_fusion.assert_called_once_with({"rebuilt": "batch"}, model, dataset)
+
     def test_intermediate_advcp_run_raises_for_multiple_attackers(self, manager_deps):
         batch_data = {"ego": {"origin_lidar": ["lidar_data"]}}
         dataset = MagicMock()
@@ -573,6 +778,17 @@ class TestAdvCoperceptionModelManager:
 
 
 class TestAdvCoperceptionVisualizer:
+    def test_advcp_visualizer_includes_removed_boxes_from_context(self):
+        context = {
+            "fake_box_tensor": "fake-boxes",
+            "removed_box_tensor": "removed-boxes",
+        }
+
+        assert AdvCoperceptionVisualizer._get_extra_box_tensors(context) == {
+            "fake": "fake-boxes",
+            "removed": "removed-boxes",
+        }
+
     def test_advcp_visualizer_marks_attackers_when_context_is_present(self):
         config = AdvCoperceptionVisualizer.resolve_visualization_config(
             {
