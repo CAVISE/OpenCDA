@@ -233,10 +233,35 @@ class Scenario:
         self.attack_results = self.attack_manager.evaluate(
             self.attacks,
             self.simulation_snapshot,
-            service_resolver=self.cav_world.resolve_behavior_service,
+            service_resolver=self._resolve_behavior_service,
         )
         for result in self.attack_results:
             logger.info("attack=%s status=%s reason=%s", result.attack_name, result.status.value, result.reason)
+
+    def _resolve_behavior_service(self, node_id: str, service_name: str):
+        for vehicle_manager in self.single_cav_list:
+            if vehicle_manager.id == node_id:
+                for service in vehicle_manager.behavior_services:
+                    if service.service_name == service_name:
+                        return service
+                return None
+
+        for platoon in self.platoon_list:
+            for vehicle_manager in platoon.vehicle_manager_list:
+                if vehicle_manager.id == node_id:
+                    for service in vehicle_manager.behavior_services:
+                        if service.service_name == service_name:
+                            return service
+                    return None
+
+        for rsu in self.rsu_list:
+            if rsu.id == node_id:
+                for service in rsu.behavior_services:
+                    if service.service_name == service_name:
+                        return service
+                return None
+
+        return None
 
     def _build_simulation_snapshot(self, tick: int) -> SimulationSnapshot:
         vehicle_managers: list[VehicleManager] = []
@@ -351,7 +376,7 @@ class Scenario:
             self.attack_results = self.attack_manager.evaluate(
                 self.attacks,
                 self.simulation_snapshot,
-                service_resolver=self.cav_world.resolve_behavior_service,
+                service_resolver=self._resolve_behavior_service,
             )
             for result in self.attack_results:
                 logger.info("attack=%s status=%s reason=%s", result.attack_name, result.status.value, result.reason)
@@ -440,7 +465,7 @@ class Scenario:
             self.attack_results = self.attack_manager.evaluate(
                 self.attacks,
                 self.simulation_snapshot,
-                service_resolver=self.cav_world.resolve_behavior_service,
+                service_resolver=self._resolve_behavior_service,
             )
             for result in self.attack_results:
                 logger.info("attack=%s status=%s reason=%s", result.attack_name, result.status.value, result.reason)
