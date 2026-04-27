@@ -2,11 +2,15 @@ from __future__ import annotations
 
 from collections import OrderedDict
 from typing import Any, Mapping, Sequence, TypeAlias, TypedDict
-
-import numpy as np
+import numpy.typing as npt
 import torch
 
 from opencda.core.common.coperception_data_processor import LiveMemorySnapshot
+
+
+AdvCPMemoryRecord: TypeAlias = OrderedDict[str, LiveMemorySnapshot | bool]
+AdvCPScenarioData: TypeAlias = OrderedDict[str, AdvCPMemoryRecord]
+AdvCPMemoryData: TypeAlias = OrderedDict[int, AdvCPScenarioData]
 
 
 class AdvCPVisualizationContext(TypedDict):
@@ -34,7 +38,7 @@ class AdvCPConfig(TypedDict, total=False):
     mode: str
     default_size: Sequence[float]  # noqa: DC01
     boxes: list[AdvCPBoxSpec]
-    attacker_id: str | None
+    attacker_ids: list[str]
     density: int | str
     dense_distance: float
     sync: bool  # noqa: DC01
@@ -52,9 +56,9 @@ class AdvCPConfig(TypedDict, total=False):
 
 
 class AdvCPIntermediateAttackState(TypedDict, total=False):
-    previous_memory_data: OrderedDict[int, OrderedDict[str, OrderedDict[str, LiveMemorySnapshot | bool]]] | None
-    current_memory_data: OrderedDict[int, OrderedDict[str, OrderedDict[str, LiveMemorySnapshot | bool]]] | None
-    init_perturbation: list[np.ndarray] | None
+    previous_memory_data: AdvCPMemoryData | None
+    current_memory_data: AdvCPMemoryData | None
+    init_perturbation: list[npt.NDArray] | None
 
 
 AdvCPAttackResult: TypeAlias = tuple[

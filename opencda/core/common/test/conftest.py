@@ -5,6 +5,7 @@ import pytest
 
 # Global storage for original modules to restore later
 _ORIGINAL_MODULES = {}
+_MOCKS_INSTALLED = False
 _MOCKED_MODULE_NAMES = [
     "torch",
     "torch.cuda",
@@ -39,6 +40,10 @@ def _install_mocks():
     Installs mock modules into sys.modules.
     This is called via pytest_configure to ensure mocks exist before test collection imports.
     """
+    global _MOCKS_INSTALLED
+    if _MOCKS_INSTALLED:
+        return
+
     # 1. Save original modules
     for mod_name in _MOCKED_MODULE_NAMES:
         if mod_name in sys.modules:
@@ -210,17 +215,24 @@ def _install_mocks():
         "tqdm": tqdm_module,
     }
     sys.modules.update(new_modules)
+    _MOCKS_INSTALLED = True
 
 
 def _uninstall_mocks():
     """
     Restores original modules or removes mocks.
     """
+    global _MOCKS_INSTALLED
+    if not _MOCKS_INSTALLED:
+        return
+
     for mod_name in _MOCKED_MODULE_NAMES:
         if mod_name in _ORIGINAL_MODULES:
             sys.modules[mod_name] = _ORIGINAL_MODULES[mod_name]
         elif mod_name in sys.modules:
             del sys.modules[mod_name]
+    _ORIGINAL_MODULES.clear()
+    _MOCKS_INSTALLED = False
 
 
 # Pytest hooks for setup/teardown at the start/end of the process

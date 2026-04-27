@@ -23,8 +23,11 @@
 mode: spoof
 
 # Shared across all AdvCP attacks and all fusion methods.
-# Agent id that performs the attack.
-attacker_id: rsu-1
+# Agent ids that perform the attack.
+# Use one item for single-attacker setup.
+# Example (multi-attacker for late/early): [rsu-1, cav-2]
+# Important: intermediate fusion currently supports only ONE attacker id.
+attacker_ids: [rsu-1]
 
 # ---------------------------------------------------------------------------
 # Spoofing-only parameters
@@ -85,6 +88,10 @@ car_mesh_divide_path: ../../../core/attack/advcp/3d_models/spoof/car_mesh_divide
 # ---------------------------------------------------------------------------
 # Intermediate-fusion spoofing parameters
 # ---------------------------------------------------------------------------
+
+# IMPORTANT:
+# - Intermediate spoofing with multiple attackers is not implemented yet.
+# - If you run intermediate fusion, set exactly one attacker in `attacker_ids`.
 
 # Maximum feature perturbation magnitude.
 max_perturb: 10.0
