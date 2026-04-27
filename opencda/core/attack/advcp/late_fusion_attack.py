@@ -4,11 +4,10 @@ from collections import OrderedDict
 import logging
 from typing import Any
 
-import numpy as np
+import numpy.typing as npt
 import torch
 from opencda.core.attack.advcp.attack_helper import AdvCPAttackHelper
-from opencda.core.attack.advcp.types import AdvCPAttackResult, AdvCPConfig, AdvCPVisualizationContext
-from opencda.core.common.coperception_data_processor import LiveMemorySnapshot
+from opencda.core.attack.advcp.types import AdvCPAttackResult, AdvCPConfig, AdvCPMemoryData, AdvCPVisualizationContext
 
 logger = logging.getLogger("cavise.opencda.opencda.core.attack.advcp.advcp_manager")
 
@@ -21,7 +20,7 @@ class AdvCoperceptionLateFusionAttack:
         dataset: Any,
         device: torch.device,
         advcp_config: AdvCPConfig,
-        memory_data: OrderedDict[int, OrderedDict[str, OrderedDict[str, LiveMemorySnapshot | bool]]] | None = None,
+        memory_data: AdvCPMemoryData | None = None,
     ) -> AdvCPAttackResult:
         # TODO: Move this up when https://github.com/CAVISE/OpenCDA/pull/65 is merged
         from opencood.utils import box_utils
@@ -51,13 +50,13 @@ class AdvCoperceptionLateFusionAttack:
         if not attack_boxes_by_attacker:
             return AdvCoperceptionLateFusionAttack._run_default_prediction(batch_data, output_dict, dataset, advcp_context)
 
-        attack_boxes_by_attacker_in_batch: dict[str, list[np.ndarray]] = {}
-        missing_attacker_ids: list[str] = []
-        for attacker_id, attack_boxes in attack_boxes_by_attacker.items():
-            if attacker_id in batch_data:
-                attack_boxes_by_attacker_in_batch[attacker_id] = attack_boxes
-            else:
-                missing_attacker_ids.append(attacker_id)
+        present_batch_attacker_ids, missing_attacker_ids = AdvCPAttackHelper.resolve_present_and_missing_attackers(
+            list(attack_boxes_by_attacker.keys()),
+            batch_data.keys(),
+        )
+        attack_boxes_by_attacker_in_batch: dict[str, list[npt.NDArray]] = {
+            attacker_id: attack_boxes_by_attacker[attacker_id] for attacker_id in present_batch_attacker_ids
+        }
         if not attack_boxes_by_attacker_in_batch:
             if missing_attacker_ids:
                 logger.warning(
@@ -157,15 +156,15 @@ class AdvCoperceptionLateFusionAttack:
     @staticmethod
     def resolve_spoof_boxes(
         advcp_config: AdvCPConfig,
-        memory_data: OrderedDict[int, OrderedDict[str, OrderedDict[str, LiveMemorySnapshot | bool]]] | None,
-    ) -> tuple[str | None, list[np.ndarray]]:
+        memory_data: AdvCPMemoryData | None,
+    ) -> tuple[str | None, list[npt.NDArray]]:
         return AdvCPAttackHelper.resolve_spoof_boxes(advcp_config, memory_data)
 
     @staticmethod
     def resolve_spoof_boxes_by_attacker(
         advcp_config: AdvCPConfig,
-        memory_data: OrderedDict[int, OrderedDict[str, OrderedDict[str, LiveMemorySnapshot | bool]]] | None,
-    ) -> tuple[list[str], dict[str, list[np.ndarray]]]:
+        memory_data: AdvCPMemoryData | None,
+    ) -> tuple[list[str], dict[str, list[npt.NDArray]]]:
         return AdvCPAttackHelper.resolve_spoof_boxes_by_attacker(advcp_config, memory_data)
 
     @staticmethod

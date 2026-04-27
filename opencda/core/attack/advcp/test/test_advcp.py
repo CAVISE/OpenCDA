@@ -129,6 +129,15 @@ def manager_deps(fake_heavy_deps):
 
 
 class TestAdvCoperceptionModelManager:
+    def test_resolve_present_and_missing_attackers_preserves_order(self):
+        present_attacker_ids, missing_attacker_ids = AdvCPAttackHelper.resolve_present_and_missing_attackers(
+            ["cav-2", "rsu-1", "cav-3"],
+            ["cav-1", "cav-2", "cav-3"],
+        )
+
+        assert present_attacker_ids == ["cav-2", "cav-3"]
+        assert missing_attacker_ids == ["rsu-1"]
+
     def test_make_prediction_late_advcp_dispatches_to_late_attack_class(self, manager_deps):
         manager_deps["hypes"]["fusion"]["core_method"] = "LateFusionDataset"
         opt = DummyOpt(with_advcp=True, advcp_config="dummy.yaml")

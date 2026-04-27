@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import logging
-from collections import OrderedDict
 from pathlib import Path
 from typing import Any, Mapping, Optional, cast
 
 import numpy as np
+import numpy.typing as npt
 import torch
 import yaml  # type: ignore
 
@@ -13,8 +13,7 @@ from opencda.core.attack.advcp.attack_helper import AdvCPAttackHelper
 from opencda.core.attack.advcp.early_fusion_attack import AdvCoperceptionEarlyFusionAttack
 from opencda.core.attack.advcp.intermediate_fusion_attack import AdvCoperceptionIntermediateFusionAttack
 from opencda.core.attack.advcp.late_fusion_attack import AdvCoperceptionLateFusionAttack
-from opencda.core.attack.advcp.types import AdvCPAttackResult, AdvCPConfig, AdvCPIntermediateAttackState
-from opencda.core.common.coperception_data_processor import LiveMemorySnapshot
+from opencda.core.attack.advcp.types import AdvCPAttackResult, AdvCPConfig, AdvCPIntermediateAttackState, AdvCPMemoryData
 from opencda.core.common.coperception_model_manager import (
     CoperceptionInferenceResult,
     CoperceptionModelManager,
@@ -64,7 +63,7 @@ class AdvCoperceptionVisualizer(CoperceptionVisualizer):
         fallback_pcd: Any,
         config: Mapping[str, Any],
         visualization_context: Optional[Mapping[str, Any]] = None,
-    ) -> tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[npt.NDArray, npt.NDArray]:
         if not isinstance(batch_data, Mapping):
             return super()._get_lidar_points_and_colors(
                 batch_data,
@@ -170,7 +169,7 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
     ) -> None:
         self.advcp_config = self.load_config(getattr(opt, "advcp_config", None))
         self._initialize_random_seed()
-        self.current_memory_data: Optional[OrderedDict[int, OrderedDict[str, OrderedDict[str, LiveMemorySnapshot | bool]]]] = None
+        self.current_memory_data: Optional[AdvCPMemoryData] = None
         self.intermediate_attack_state: AdvCPIntermediateAttackState = {}
         super().__init__(opt, current_time, payload_handler=payload_handler, visualization_config=visualization_config)
 
