@@ -1,0 +1,354 @@
+description: |-
+  This is the scenario testing coperception models, AIMS, CAPI, SUMO, attacks and устойчивость мощностей компьютера #TODO: Переписать на англ и боле етехнически
+
+world:
+  town: Town10HD
+  sync_mode: true
+  client_port: 2000
+  fixed_delta_seconds: 0.1
+  seed: 11 # seed for numpy and random
+  weather:
+    sun_altitude_angle: 60 # 90 is the midday and -90 is the midnight
+    cloudiness: 70 # 0 is the clean sky and 100 is the thickest cloud
+    precipitation: 10 # rain, 100 is the heaviest rain
+    precipitation_deposits: 0 # Determines the creation of puddles. Values range from 0 to 100, being 0 none at all and 100 a road completely capped with water.
+    wind_intensity: 0 # it will influence the rain
+    fog_density: 0 # fog thickness, 100 is the largest
+    fog_distance: 0  # Fog start distance. Values range from 0 to infinite.
+    fog_falloff: 0 # Density of the fog (as in specific mass) from 0 to infinity. The bigger the value, the more dense and heavy it will be, and the fog will reach smaller heights
+    wetness: 0
+
+blueprint:
+  use_multi_class_bp: true
+  bp_meta_path: "opencda/assets/blueprint_meta/bbx_stats_0915.json" # Define the path for loading the blueprint metadata for defining the class of each blueprint
+  # Define blueprint type sample probabilities
+  bp_class_sample_prob:
+    car: 0.6
+    truck: 0.14
+    bus: 0.15
+    bicycle: 0.03
+    motorcycle: 0.08
+
+rsu_base:
+  sensing:
+    perception:
+      activate: false # when not activated, objects positions will be retrieved from server directly
+      camera:
+        visualize: 0 # how many camera images need to be visualized. 0 means no visualization for camera
+        num: 4 # how many cameras are mounted on the vehicle. Maximum 3(frontal, left and right cameras)
+        # relative positions (x,y,z,yaw) of the camera. len(positions) should be equal to camera num
+        positions:
+          - [2.5, 0, 1.0, 0]
+          - [0.0, 0.3, 1.8, 100]
+          - [0.0, -0.3, 1.8, -100]
+          - [-2.0, 0.0, 1.5, 180]
+      lidar: # lidar sensor configuration, check CARLA sensor reference for more details
+        visualize: false
+        channels: 64
+        range: 120
+        points_per_second: 2000000
+        rotation_frequency: 20 # the simulation is 20 fps
+        upper_fov: 2
+        lower_fov: -25
+        dropoff_general_rate: 0.3
+        dropoff_intensity_limit: 0.7
+        dropoff_zero_intensity: 0.4
+        noise_stddev: 0.02
+    localization:
+      activate: true # when not activated, ego position will be retrieved from server directly
+      dt: ${world.fixed_delta_seconds} # used for kalman filter
+      gnss: # gnss sensor configuration
+        noise_alt_stddev: 0.05
+        noise_lat_stddev: 3e-6
+        noise_lon_stddev: 3e-6
+
+vehicle_base:
+  sensing:
+    perception:
+      activate: false # when not activated, objects positions will be retrieved from server directly
+      camera:
+        visualize: 0 # how many camera images need to be visualized. 0 means no visualization for camera
+        num: 4 # how many cameras are mounted on the vehicle. Maximum 3(frontal, left and right cameras)
+        # relative positions (x,y,z,yaw) of the camera. len(positions) should be equal to camera num
+        positions:
+          - [2.5, 0, 1.0, 0]
+          - [0.0, 0.3, 1.8, 100]
+          - [0.0, -0.3, 1.8, -100]
+          - [-2.0, 0.0, 1.5, 180]
+      lidar: # lidar sensor configuration, check CARLA sensor reference for more details
+        visualize: false
+        channels: 64
+        range: 120
+        points_per_second: 2000000
+        rotation_frequency: 20 # the simulation is 20 fps
+        upper_fov: 2
+        lower_fov: -25
+        dropoff_general_rate: 0.3
+        dropoff_intensity_limit: 0.7
+        dropoff_zero_intensity: 0.4
+        noise_stddev: 0.02
+    localization:
+      activate: true # when not activated, ego position will be retrieved from server directly
+      dt: ${world.fixed_delta_seconds} # used for kalman filter
+      gnss: # gnss sensor configuration
+        noise_alt_stddev: 0.05
+        noise_lat_stddev: 3e-6
+        noise_lon_stddev: 3e-6
+  behavior:
+    ignore_traffic_light: false # whether to ignore traffic light
+    collision_time_ahead: 2.0 # used for collision checking
+    local_planner:
+      debug: true # whether to draw future/history waypoints
+      debug_trajectory: true # whether to draw the trajectory points and path
+  carla_autopilot: true
+  carla_autopilot_port: 8000
+
+carla_traffic_manager:
+  global_speed_perc: -10
+  auto_lane_change: true
+  random: true # whether to random select vehicles' color and model
+  ignore_lights_percentage: 0 # whether set the traffic ignore traffic lights
+  vehicle_list: ~  # a number or a list
+  # Used only when vehicle_list is a number.
+  #  x_min, x_max, y_min, y_max, x_step, y_step, vehicle_num
+  range:
+    - [-130, 130, -80, 180, 4, 4, 100]
+
+scenario:
+  rsu_list:
+    - name: corner-rsu-1
+      spawn_position: [-102, -62, 2, 0, 0, 0]
+      id: 1
+      # behavior_services:
+      #   - type: aim_server
+      #     model: "MTP"
+      #     underling_model: "GNN_mtl_gnn"
+      #     hidden_channels: 128
+      #     weight: "model_rot_gnn_mtl_np_sumo_0911_e3_1930.pth"
+      #     priority: 1
+
+    - name: corner-rsu-2
+      spawn_position: [-107, 122, 2, 0, 0, 0]
+      id: 2
+      # behavior_services:
+      #   - type: aim_server
+      #     model: "MTP"
+      #     underling_model: "GNN_mtl_gnn"
+      #     hidden_channels: 128
+      #     weight: "model_rot_gnn_mtl_np_sumo_0911_e3_1930.pth"
+      #     priority: 1
+
+    - name: corner-rsu-3
+      spawn_position: [97, 136, 2, 0, 0, 0]
+      id: 3
+      # behavior_services:
+      #   - type: aim_server
+      #     model: "MTP"
+      #     underling_model: "GNN_mtl_gnn"
+      #     hidden_channels: 128
+      #     weight: "model_rot_gnn_mtl_np_sumo_0911_e3_1930.pth"
+      #     priority: 1
+
+    - name: corner-rsu-4
+      spawn_position: [92, 67, 2, 0, 0, 0]
+      id: 4
+      # behavior_services:
+      #   - type: aim_server
+      #     model: "MTP"
+      #     underling_model: "GNN_mtl_gnn"
+      #     hidden_channels: 128
+      #     weight: "model_rot_gnn_mtl_np_sumo_0911_e3_1930.pth"
+      #     priority: 1
+
+    - name: middle-rsu-5
+      spawn_position: [120, 23, 2, 0, 0, 0]
+      id: 5
+      # behavior_services:
+      #   - type: aim_server
+      #     model: "MTP"
+      #     underling_model: "GNN_mtl_gnn"
+      #     hidden_channels: 128
+      #     weight: "model_rot_gnn_mtl_np_sumo_0911_e3_1930.pth"
+      #     priority: 1
+
+    - name: middle-rsu-6
+      spawn_position: [90, 21, 2, 0, 0, 0]
+      id: 6
+      # behavior_services:
+      #   - type: aim_server
+      #     model: "MTP"
+      #     underling_model: "GNN_mtl_gnn"
+      #     hidden_channels: 128
+      #     weight: "model_rot_gnn_mtl_np_sumo_0911_e3_1930.pth"
+      #     priority: 1
+
+    - name: middle-rsu-7
+      spawn_position: [62, 22, 2, 0, 0, 0]
+      id: 7
+      # behavior_services:
+      #   - type: aim_server
+      #     model: "MTP"
+      #     underling_model: "GNN_mtl_gnn"
+      #     hidden_channels: 128
+      #     weight: "model_rot_gnn_mtl_np_sumo_0911_e3_1930.pth"
+      #     priority: 1
+
+    - name: middle-rsu-8
+      spawn_position: [45, 20, 2, 0, 0, 0]
+      id: 8
+      # behavior_services:
+      #   - type: aim_server
+      #     model: "MTP"
+      #     underling_model: "GNN_mtl_gnn"
+      #     hidden_channels: 128
+      #     weight: "model_rot_gnn_mtl_np_sumo_0911_e3_1930.pth"
+      #     priority: 1
+
+    - name: middle-rsu-9
+      spawn_position: [117, 17, 2, 0, 0, 0]
+      id: 9
+      # behavior_services:
+      #   - type: aim_server
+      #     model: "MTP"
+      #     underling_model: "GNN_mtl_gnn"
+      #     hidden_channels: 128
+      #     weight: "model_rot_gnn_mtl_np_sumo_0911_e3_1930.pth"
+      #     priority: 1
+
+
+    - name: near-middle-rsu-10
+      spawn_position: [57, 68, 2, 0, 0, 0]
+      id: 10
+      # behavior_services:
+      #   - type: aim_server
+      #     model: "MTP"
+      #     underling_model: "GNN_mtl_gnn"
+      #     hidden_channels: 128
+      #     weight: "model_rot_gnn_mtl_np_sumo_0911_e3_1930.pth"
+      #     priority: 1
+
+    - name: near-middle-rsu-11
+      spawn_position: [49, 77, 2, 0, 0, 0]
+      id: 11
+      # behavior_services:
+      #   - type: aim_server
+      #     model: "MTP"
+      #     underling_model: "GNN_mtl_gnn"
+      #     hidden_channels: 128
+      #     weight: "model_rot_gnn_mtl_np_sumo_0911_e3_1930.pth"
+      #     priority: 1
+
+    - name: near-middle-rsu-12
+      spawn_position: [115, 68, 2, 0, 0, 0]
+      id: 12
+      # behavior_services:
+      #   - type: aim_server
+      #     model: "MTP"
+      #     underling_model: "GNN_mtl_gnn"
+      #     hidden_channels: 128
+      #     weight: "model_rot_gnn_mtl_np_sumo_0911_e3_1930.pth"
+      #     priority: 1
+
+    - name: bottom-rsu-13
+      spawn_position: [34, 119, 2, 0, 0, 0]
+      id: 13
+      # behavior_services:
+      #   - type: aim_server
+      #     model: "MTP"
+      #     underling_model: "GNN_mtl_gnn"
+      #     hidden_channels: 128
+      #     weight: "model_rot_gnn_mtl_np_sumo_0911_e3_1930.pth"
+      #     priority: 1
+
+    - name: bottom-rsu-14
+      spawn_position: [47, 146, 2, 0, 0, 0]
+      id: 14
+      # behavior_services:
+      #   - type: aim_server
+      #     model: "MTP"
+      #     underling_model: "GNN_mtl_gnn"
+      #     hidden_channels: 128
+      #     weight: "model_rot_gnn_mtl_np_sumo_0911_e3_1930.pth"
+      #     priority: 1
+
+    - name: top-rsu-15
+      spawn_position: [-35, 3, 2, 0, 0, 0]
+      id: 15
+      # behavior_services:
+      #   - type: aim_server
+      #     model: "MTP"
+      #     underling_model: "GNN_mtl_gnn"
+      #     hidden_channels: 128
+      #     weight: "model_rot_gnn_mtl_np_sumo_0911_e3_1930.pth"
+      #     priority: 1
+
+    - name: top-rsu-16
+      spawn_position: [-60, -46, 2, 0, 0, 0]
+      id: 16
+      # behavior_services:
+      #   - type: aim_server
+      #     model: "MTP"
+      #     underling_model: "GNN_mtl_gnn"
+      #     hidden_channels: 128
+      #     weight: "model_rot_gnn_mtl_np_sumo_0911_e3_1930.pth"
+      #     priority: 1
+
+    - name: top-rsu-17
+      spawn_position: [-49, -75, 2, 0, 0, 0]
+      id: 17
+      # behavior_services:
+      #   - type: aim_server
+      #     model: "MTP"
+      #     underling_model: "GNN_mtl_gnn"
+      #     hidden_channels: 128
+      #     weight: "model_rot_gnn_mtl_np_sumo_0911_e3_1930.pth"
+      #     priority: 1
+
+    - name: top-rsu-18
+      spawn_position: [90, 7, 2, 0, 0, 0]
+      id: 18
+      # behavior_services:
+      #   - type: aim_server
+      #     model: "MTP"
+      #     underling_model: "GNN_mtl_gnn"
+      #     hidden_channels: 128
+      #     weight: "model_rot_gnn_mtl_np_sumo_0911_e3_1930.pth"
+      #     priority: 1
+
+  single_cav_list:
+    - name: cav-1
+      spawn_position: [-104.37, 70.80, 0.3, 0, -90, 0]
+      carla_autopilot: true
+      destination: [-52.30, 139.94, 0.3]
+      id: 1
+      model: "vehicle.tesla.cybertruck"
+      # behavior_services:
+      #   - type: aim_client
+      #   - type: movement_controller
+
+    # - name: cav2
+    #   spawn_position: [285, -172, 0.3, 0, 180, 0]
+    #   destination: [209, -172, 0.3]
+    #   id: 200
+    #   color: [156, 255, 206]
+    #   behavior_services:
+    #     - type: aim_client
+    #     - type: movement_controller
+
+    # - name: cav3
+    #   spawn_position: [255, -200, 0.3, 0, 90, 0]
+    #   destination: [255, -130, 0.3]
+    #   id: 300
+    #   color: [156, 255, 206]
+    #   behavior_services:
+    #     - type: aim_client
+    #     - type: movement_controller
+
+    # - name: cav4
+    #   spawn_position: [258, -130, 0.3, 0, -90, 0]
+    #   destination: [258, -225, 0.3]
+    #   id: 400
+    #   color: [156, 255, 206]
+    #   behavior_services:
+    #     - type: aim_client
+    #     - type: movement_controller

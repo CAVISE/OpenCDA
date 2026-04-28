@@ -371,15 +371,66 @@ class ScenarioManager:
             self.world.tick()
 
             vehicle_manager.v2x_manager.set_platoon(None)
+            if vehicle_manager.use_carla_autopilot:
+                self.configure_carla_autopilot_vehicle(vehicle_manager.vehicle)
 
-            destination = carla.Location(x=cav_config["destination"][0], y=cav_config["destination"][1], z=cav_config["destination"][2])
             vehicle_manager.update_info()
-            vehicle_manager.set_destination(vehicle_manager.vehicle.get_location(), destination, clean=True)
+            if vehicle_manager.use_carla_autopilot:
+                if "destination" in cav_config:
+                    logger.info("CAV %s is using CARLA autopilot; configured destination is ignored.", vehicle_manager.id)
+            else:
+                if "destination" not in cav_config:
+                    raise ValueError(f"CAV {vehicle_manager.id} requires 'destination' unless carla_autopilot is enabled.")
+                destination = carla.Location(x=cav_config["destination"][0], y=cav_config["destination"][1], z=cav_config["destination"][2])
+                vehicle_manager.set_destination(vehicle_manager.vehicle.get_location(), destination, clean=True)
 
             single_cav_list.append(vehicle_manager)
             logger.info(f"Created CAV with id {vehicle_manager.id}")
 
         return single_cav_list, cav_carla_list
+
+    def configure_carla_autopilot_vehicle(self, vehicle: carla.Vehicle) -> None:
+        """
+        Apply scenario Traffic Manager settings to an OpenCDA-managed vehicle
+        that is driven by CARLA autopilot.
+        """
+        if self.scenario_params.get("carla_traffic_manager") is None:
+            return
+
+        traffic_config = cast(ConfigDict, self.scenario_params["carla_traffic_manager"])
+        tm = self.client.get_trafficmanager()
+        self._configure_traffic_manager_vehicle(tm, traffic_config, vehicle, randomize_speed=True)
+
+    @staticmethod
+    def _configure_traffic_manager(tm: carla.TrafficManager, traffic_config: ConfigDict) -> None:
+        tm.set_global_distance_to_leading_vehicle(traffic_config["global_distance"])
+        tm.set_synchronous_mode(traffic_config["sync_mode"])
+        tm.set_osm_mode(traffic_config["set_osm_mode"])
+        tm.global_percentage_speed_difference(traffic_config["global_speed_perc"])
+
+    @staticmethod
+    def _configure_traffic_manager_vehicle(
+        tm: carla.TrafficManager,
+        traffic_config: ConfigDict,
+        vehicle: carla.Vehicle,
+        *,
+        randomize_speed: bool,
+    ) -> None:
+        tm.auto_lane_change(vehicle, traffic_config["auto_lane_change"])
+        tm.ignore_lights_percentage(vehicle, traffic_config["ignore_lights_percentage"])
+        tm.ignore_signs_percentage(vehicle, traffic_config["ignore_signs_percentage"])
+        tm.ignore_vehicles_percentage(vehicle, traffic_config["ignore_vehicles_percentage"])
+        tm.ignore_walkers_percentage(vehicle, traffic_config["ignore_walkers_percentage"])
+
+        if traffic_config["random_left_lanechange_percentage"] != 0:
+            tm.random_left_lanechange_percentage(vehicle, traffic_config["random_left_lanechange_percentage"])
+        if traffic_config["random_right_lanechange_percentage"] != 0:
+            tm.random_right_lanechange_percentage(vehicle, traffic_config["random_right_lanechange_percentage"])
+
+        speed_difference = traffic_config["global_speed_perc"]
+        if randomize_speed:
+            speed_difference += random.randint(-30, 30)
+        tm.vehicle_percentage_speed_difference(vehicle, speed_difference)
 
     def create_platoon_manager(
         self,
@@ -678,19 +729,7 @@ class ScenarioManager:
                 continue
 
             vehicle.set_autopilot(True, 8000)
-            tm.auto_lane_change(vehicle, traffic_config["auto_lane_change"])
-
-            tm.ignore_lights_percentage(vehicle, traffic_config["ignore_lights_percentage"])
-            tm.ignore_signs_percentage(vehicle, traffic_config["ignore_signs_percentage"])
-            tm.ignore_vehicles_percentage(vehicle, traffic_config["ignore_vehicles_percentage"])
-            tm.ignore_walkers_percentage(vehicle, traffic_config["ignore_walkers_percentage"])
-            # left/right lane change
-            if traffic_config["random_left_lanechange_percentage"] != 0:
-                tm.random_left_lanechange_percentage(vehicle, traffic_config["random_left_lanechange_percentage"])
-            if traffic_config["random_right_lanechange_percentage"] != 0:
-                tm.random_right_lanechange_percentage(vehicle, traffic_config["random_right_lanechange_percentage"])
-            # each vehicle have slight different speed
-            tm.vehicle_percentage_speed_difference(vehicle, traffic_config["global_speed_perc"] + random.randint(-30, 30))
+            self._configure_traffic_manager_vehicle(tm, traffic_config, vehicle, randomize_speed=True)
 
             bg_list.append(vehicle)
             count += 1
@@ -718,10 +757,7 @@ class ScenarioManager:
         traffic_config = cast(ConfigDict, self.scenario_params["carla_traffic_manager"])
         tm = self.client.get_trafficmanager()
 
-        tm.set_global_distance_to_leading_vehicle(traffic_config["global_distance"])
-        tm.set_synchronous_mode(traffic_config["sync_mode"])
-        tm.set_osm_mode(traffic_config["set_osm_mode"])
-        tm.global_percentage_speed_difference(traffic_config["global_speed_perc"])
+        self._configure_traffic_manager(tm, traffic_config)
 
         if isinstance(traffic_config["vehicle_list"], list) or isinstance(traffic_config["vehicle_list"], ListConfig):
             bg_list = self.spawn_vehicles_by_list(tm, traffic_config, bg_list)
