@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import logging
-from collections import OrderedDict
 from pathlib import Path
 from typing import Any, Mapping, Optional, cast
 
 import numpy as np
+import numpy.typing as npt
 import torch
 import yaml  # type: ignore
 
@@ -13,8 +13,7 @@ from opencda.core.attack.advcp.attack_helper import AdvCPAttackHelper
 from opencda.core.attack.advcp.early_fusion_attack import AdvCoperceptionEarlyFusionAttack
 from opencda.core.attack.advcp.intermediate_fusion_attack import AdvCoperceptionIntermediateFusionAttack
 from opencda.core.attack.advcp.late_fusion_attack import AdvCoperceptionLateFusionAttack
-from opencda.core.attack.advcp.types import AdvCPAttackResult, AdvCPConfig, AdvCPIntermediateAttackState
-from opencda.core.common.coperception_data_processor import LiveMemorySnapshot
+from opencda.core.attack.advcp.types import AdvCPAttackResult, AdvCPConfig, AdvCPIntermediateAttackState, AdvCPMemoryData
 from opencda.core.common.coperception_model_manager import (
     CoperceptionInferenceResult,
     CoperceptionModelManager,
@@ -64,7 +63,7 @@ class AdvCoperceptionVisualizer(CoperceptionVisualizer):
         fallback_pcd: Any,
         config: Mapping[str, Any],
         visualization_context: Optional[Mapping[str, Any]] = None,
-    ) -> tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[npt.NDArray, npt.NDArray]:
         if not isinstance(batch_data, Mapping):
             return super()._get_lidar_points_and_colors(
                 batch_data,
@@ -170,7 +169,7 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
     ) -> None:
         self.advcp_config = self.load_config(getattr(opt, "advcp_config", None))
         self._initialize_random_seed()
-        self.current_memory_data: Optional[OrderedDict[int, OrderedDict[str, OrderedDict[str, LiveMemorySnapshot | bool]]]] = None
+        self.current_memory_data: Optional[AdvCPMemoryData] = None
         self.intermediate_attack_state: AdvCPIntermediateAttackState = {}
         super().__init__(opt, current_time, payload_handler=payload_handler, visualization_config=visualization_config)
 
@@ -205,7 +204,7 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
         config.setdefault("mode", "spoof")
         config.setdefault("default_size", (4.5, 2.0, 1.6))
         config.setdefault("boxes", [{"relative": (5.0, 0.0, 0.0, 0.0, 90.0, 0.0)}])
-        config.setdefault("attacker_id", "cav-1")
+        config.setdefault("attacker_ids", ["cav-1"])
         config.setdefault("density", 3)
         config.setdefault("dense_distance", 10.0)
         config.setdefault("sync", True)
@@ -223,11 +222,13 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
             config.get("mesh_divide_path", str(local_model_root / "spoof" / "car_mesh_divide.pkl")),
         )
 
+        config["attacker_ids"] = AdvCPAttackHelper.resolve_configured_attacker_ids(cast(AdvCPConfig, config))
+
         for required_key in (
             "mode",
             "default_size",
             "boxes",
-            "attacker_id",
+            "attacker_ids",
             "density",
             "dense_distance",
             "sync",
@@ -253,20 +254,19 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
 
     def validate_advcp_agents(self, valid_agent_ids: list[str]) -> bool:
         mode = AdvCPAttackHelper.require_config_value(self.advcp_config, "mode")
-        attacker_id = AdvCPAttackHelper.require_config_value(self.advcp_config, "attacker_id")
+        configured_attacker_ids = AdvCPAttackHelper.resolve_configured_attacker_ids(self.advcp_config)
+        attacker_ids: list[str] = []
+        for attacker_id in configured_attacker_ids:
+            if attacker_id in valid_agent_ids:
+                attacker_ids.append(attacker_id)
+            else:
+                logger.warning(
+                    "AdvCP attacker_id '%s' does not exist. Known agents: %s. AdvCP attack will not be applied for this attacker.",
+                    attacker_id,
+                    ", ".join(valid_agent_ids),
+                )
 
-        if attacker_id in valid_agent_ids:
-            self.advcp_config["attacker_id"] = attacker_id
-        else:
-            logger.warning(
-                "AdvCP attacker_id '%s' does not exist. Known agents: %s. AdvCP attack will not be applied.",
-                attacker_id,
-                ", ".join(valid_agent_ids),
-            )
-            self.advcp_config["attacker_id"] = None
-
-        attacker_id_value = self.advcp_config.get("attacker_id")
-        attacker_ids = [attacker_id_value] if attacker_id_value is not None else []
+        self.advcp_config["attacker_ids"] = attacker_ids
 
         logger.info("AdvCP mode: %s", mode)
         if attacker_ids:

@@ -1,17 +1,17 @@
 from __future__ import annotations
 
 import copy
-from collections import OrderedDict
 import logging
 from typing import Any, Mapping, cast
 
 import numpy as np
+import numpy.typing as npt
 import torch
 from opencood.tools import inference_utils, train_utils
 from opencood.utils.transformation_utils import x_to_world
 
 from opencda.core.attack.advcp.attack_helper import AdvCPAttackHelper, AdvCPCarMeshHelper
-from opencda.core.attack.advcp.types import AdvCPAttackResult, AdvCPConfig, AdvCPVisualizationContext
+from opencda.core.attack.advcp.types import AdvCPAttackResult, AdvCPConfig, AdvCPMemoryData, AdvCPVisualizationContext
 from opencda.core.common.coperception_data_processor import LiveMemorySnapshot
 
 logger = logging.getLogger("cavise.opencda.opencda.core.attack.advcp.early_fusion_attack")
@@ -37,7 +37,7 @@ class AdvCoperceptionEarlyFusionAttack:
         dataset: Any,
         device: torch.device,
         advcp_config: AdvCPConfig,
-        memory_data: OrderedDict[int, OrderedDict[str, OrderedDict[str, LiveMemorySnapshot | bool]]] | None = None,
+        memory_data: AdvCPMemoryData | None = None,
     ) -> AdvCPAttackResult:
         mode = AdvCPAttackHelper.require_config_value(advcp_config, "mode")
         advcp_context: AdvCPVisualizationContext = {
@@ -57,48 +57,64 @@ class AdvCoperceptionEarlyFusionAttack:
             raise ValueError("AdvCP early spoofing requires current memory data.")
 
         scenario_data = next(iter(memory_data.values()))
-        attacker_id = AdvCPAttackHelper.require_config_value(advcp_config, "attacker_id")
-        if attacker_id not in scenario_data:
+        configured_attacker_ids = AdvCPAttackHelper.resolve_configured_attacker_ids(advcp_config)
+        if not configured_attacker_ids:
             logger.warning(
-                "AdvCP early attack will not be applied on this tick because attacker '%s' is not present in the current scenario data. "
-                "Continuing with normal cooperative perception inference.",
-                attacker_id,
+                "AdvCP early attack will not be applied because no attackers are configured. Continuing with normal cooperative perception inference."
             )
             return (*inference_utils.inference_early_fusion(batch_data, model, dataset), advcp_context)
+        present_attacker_ids, missing_attacker_ids = AdvCPAttackHelper.resolve_present_and_missing_attackers(
+            configured_attacker_ids,
+            scenario_data.keys(),
+        )
 
-        _, _, _, attack_boxes = AdvCPAttackHelper.resolve_spoof_boxes_for_agent(scenario_data, advcp_config, attacker_id)
         density = AdvCoperceptionEarlyFusionAttack._resolve_density(AdvCPAttackHelper.require_config_value(advcp_config, "density"))
-        advcp_context["attacker_ids"] = [attacker_id]
 
         attacked_memory = copy.deepcopy(memory_data)
         attacked_scenario_data = next(iter(attacked_memory.values()))
-        attacked_agent_data = attacked_scenario_data[attacker_id]
-        attacked_timestamp = next(key for key in attacked_agent_data.keys() if key != "ego")
-        attacked_snapshot = cast(LiveMemorySnapshot, attacked_agent_data[attacked_timestamp])
-        attacker_lidar = attacked_snapshot.get("lidar_np")
-        if attacker_lidar is None:
-            raise ValueError(f"AdvCP early attack requires in-memory lidar_np for attacker '{attacker_id}'.")
-
         lidar_poses = {
             agent_id: np.asarray(AdvCPAttackHelper.load_agent_state(scenario_data, agent_id)["lidar_pose"], dtype=np.float32)
             for agent_id in scenario_data
         }
 
-        spoofed_lidar = np.asarray(attacker_lidar, dtype=np.float32)
-        spoofing_mask = np.zeros((spoofed_lidar.shape[0],), dtype=np.bool_)
-        for attack_box in attack_boxes:
-            spoofed_lidar, box_spoofing_mask = AdvCoperceptionEarlyFusionAttack._apply_sampled_ray_traced_spoof(
-                spoofed_lidar,
-                spoofing_mask,
-                attack_box,
-                lidar_poses,
-                attacker_id,
-                advcp_config,
-                density,
+        for attacker_id in present_attacker_ids:
+            _, _, _, attack_boxes = AdvCPAttackHelper.resolve_spoof_boxes_for_agent(scenario_data, advcp_config, attacker_id)
+            attacked_agent_data = attacked_scenario_data[attacker_id]
+            attacked_timestamp = next(key for key in attacked_agent_data.keys() if key != "ego")
+            attacked_snapshot = cast(LiveMemorySnapshot, attacked_agent_data[attacked_timestamp])
+            if (attacker_lidar := attacked_snapshot.get("lidar_np")) is None:
+                raise ValueError(f"AdvCP early attack requires in-memory lidar_np for attacker '{attacker_id}'.")
+
+            spoofed_lidar = np.asarray(attacker_lidar, dtype=np.float32)
+            spoofing_mask = np.zeros((spoofed_lidar.shape[0],), dtype=np.bool_)
+            for attack_box in attack_boxes:
+                spoofed_lidar, box_spoofing_mask = AdvCoperceptionEarlyFusionAttack._apply_sampled_ray_traced_spoof(
+                    spoofed_lidar,
+                    spoofing_mask,
+                    attack_box,
+                    lidar_poses,
+                    attacker_id,
+                    advcp_config,
+                    density,
+                )
+                spoofing_mask = box_spoofing_mask
+            attacked_snapshot.update(
+                {
+                    "lidar_np": spoofed_lidar,
+                    "spoofing_mask": spoofing_mask,
+                }
             )
-            spoofing_mask = box_spoofing_mask
-        attacked_snapshot["lidar_np"] = spoofed_lidar
-        attacked_snapshot["spoofing_mask"] = spoofing_mask
+            advcp_context["attacker_ids"].append(attacker_id)
+
+        if not advcp_context["attacker_ids"]:
+            if missing_attacker_ids:
+                logger.warning(
+                    "AdvCP early attack will not be applied on this tick because none of the configured attackers are present in the current scenario data. "
+                    "Configured attackers: %s. Available agents: %s. Continuing with normal cooperative perception inference.",
+                    ", ".join(missing_attacker_ids),
+                    ", ".join(str(agent_id) for agent_id in scenario_data.keys()),
+                )
+            return (*inference_utils.inference_early_fusion(batch_data, model, dataset), advcp_context)
 
         dataset.update_database(memory_data=attacked_memory)
         try:
@@ -114,14 +130,14 @@ class AdvCoperceptionEarlyFusionAttack:
 
     @staticmethod
     def _apply_sampled_ray_traced_spoof(
-        lidar: np.ndarray,
-        spoofing_mask: np.ndarray,
-        spoof_box: np.ndarray,
-        lidar_poses: Mapping[str, np.ndarray],
+        lidar: npt.NDArray,
+        spoofing_mask: npt.NDArray,
+        spoof_box: npt.NDArray,
+        lidar_poses: Mapping[str, npt.NDArray],
         attacker_id: str,
         advcp_config: AdvCPConfig,
         density: int,
-    ) -> tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[npt.NDArray, npt.NDArray]:
         if density != 3:
             return AdvCoperceptionEarlyFusionAttack._apply_dense_ray_traced_spoof(
                 lidar,
@@ -147,8 +163,8 @@ class AdvCoperceptionEarlyFusionAttack:
         rays = np.hstack([np.zeros((direction.shape[0], 3), dtype=np.float32), direction])
 
         meshes = AdvCPCarMeshHelper.build_spoof_meshes(spoof_box, advcp_config)
-        replace_mask_list: list[np.ndarray] = []
-        replace_data_list: list[np.ndarray] = []
+        replace_mask_list: list[npt.NDArray] = []
+        replace_data_list: list[npt.NDArray] = []
         for mesh in meshes:
             intersect_points = AdvCPCarMeshHelper.ray_intersection([mesh], rays)
             replace_mask_list.append(np.isfinite(intersect_points[:, 0]))
@@ -203,14 +219,14 @@ class AdvCoperceptionEarlyFusionAttack:
 
     @staticmethod
     def _apply_dense_ray_traced_spoof(
-        lidar: np.ndarray,
-        spoofing_mask: np.ndarray,
-        spoof_box: np.ndarray,
-        lidar_poses: Mapping[str, np.ndarray],
+        lidar: npt.NDArray,
+        spoofing_mask: npt.NDArray,
+        spoof_box: npt.NDArray,
+        lidar_poses: Mapping[str, npt.NDArray],
         attacker_id: str,
         advcp_config: AdvCPConfig,
         density: int,
-    ) -> tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[npt.NDArray, npt.NDArray]:
         if lidar.size == 0:
             return lidar, spoofing_mask
 
@@ -287,13 +303,13 @@ class AdvCoperceptionEarlyFusionAttack:
 
     @staticmethod
     def _apply_ray_tracing_with_mask(
-        lidar: np.ndarray,
-        spoofing_mask: np.ndarray,
-        replace_indices: np.ndarray | None = None,
-        replace_data: np.ndarray | None = None,
-        ignore_indices: np.ndarray | None = None,
-        append_data: np.ndarray | None = None,
-    ) -> tuple[np.ndarray, np.ndarray]:
+        lidar: npt.NDArray,
+        spoofing_mask: npt.NDArray,
+        replace_indices: npt.NDArray | None = None,
+        replace_data: npt.NDArray | None = None,
+        ignore_indices: npt.NDArray | None = None,
+        append_data: npt.NDArray | None = None,
+    ) -> tuple[npt.NDArray, npt.NDArray]:
         spoofed_lidar = np.array(lidar, copy=True)
         updated_mask = np.array(spoofing_mask, copy=True)
         if replace_indices is not None and replace_indices.shape[0] > 0 and replace_data is not None:
@@ -308,7 +324,7 @@ class AdvCoperceptionEarlyFusionAttack:
         return spoofed_lidar.astype(np.float32), updated_mask.astype(np.bool_)
 
     @staticmethod
-    def _append_reflectance_column(points_xyz: np.ndarray) -> np.ndarray:
+    def _append_reflectance_column(points_xyz: npt.NDArray) -> npt.NDArray:
         reflectance = np.ones((points_xyz.shape[0], 1), dtype=np.float32)
         return np.hstack([points_xyz.astype(np.float32), reflectance])
 
@@ -325,7 +341,7 @@ class AdvCoperceptionEarlyFusionAttack:
         return cls.DENSITY_ALIASES[normalized_value]
 
     @staticmethod
-    def _world_points_to_sensor(points_world: np.ndarray, sensor_pose: np.ndarray) -> np.ndarray:
+    def _world_points_to_sensor(points_world: npt.NDArray, sensor_pose: npt.NDArray) -> npt.NDArray:
         sensor_matrix = x_to_world(sensor_pose.tolist())
         world_to_sensor = np.linalg.inv(sensor_matrix)
         homogeneous_points = np.hstack([points_world.astype(np.float32), np.ones((points_world.shape[0], 1), dtype=np.float32)])
