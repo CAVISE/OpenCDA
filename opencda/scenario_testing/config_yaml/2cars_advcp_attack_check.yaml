@@ -114,8 +114,6 @@ cooperative_perception_visualization:
     other: [215, 221, 230]
     ego: [122, 196, 152]
     attackers: [214, 126, 96]
-    cav-1: [100, 190, 255]
-    cav-2: [255, 255, 255]
 
   bbox_colors:
     gt: [92, 214, 166]

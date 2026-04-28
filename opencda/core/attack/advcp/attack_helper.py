@@ -4,7 +4,7 @@ import copy
 import logging
 from pathlib import Path
 import pickle
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any, Iterable, Mapping, Sequence, cast
 
 import numpy as np
 import numpy.typing as npt
@@ -13,11 +13,24 @@ from opencood.hypes_yaml.yaml_utils import load_yaml
 from opencood.utils.transformation_utils import x_to_world
 
 from opencda.core.attack.advcp.types import AdvCPAgentState, AdvCPBoxSpec, AdvCPConfig, AdvCPMemoryData, AdvCPVisualizationContext
+from opencda.core.common.coperception_data_processor import LiveMemorySnapshot
 
 logger = logging.getLogger("cavise.opencda.opencda.core.attack.advcp.advcp_manager")
 
 
 class AdvCPAttackHelper:
+    DENSITY_ALIASES = {
+        0: 0,
+        1: 1,
+        2: 2,
+        3: 3,
+        "replace": 0,
+        "dense_a": 1,
+        "denseall": 2,
+        "dense_all": 2,
+        "sampled": 3,
+    }
+
     @staticmethod
     def require_config_value(config: Mapping[str, Any], key: str, config_name: str = "AdvCP config") -> Any:
         value = config.get(key)
@@ -87,11 +100,72 @@ class AdvCPAttackHelper:
                 missing_attacker_ids.append(attacker_id)
         return present_attacker_ids, missing_attacker_ids
 
+    @classmethod
+    def resolve_attack_scope(
+        cls,
+        advcp_config: AdvCPConfig,
+        memory_data: AdvCPMemoryData,
+    ) -> tuple[Mapping[str, Any], list[str], list[str], list[str]]:
+        scenario_data = next(iter(memory_data.values()))
+        configured_attacker_ids = cls.resolve_configured_attacker_ids(advcp_config)
+        present_attacker_ids, missing_attacker_ids = cls.resolve_present_and_missing_attackers(
+            configured_attacker_ids,
+            scenario_data.keys(),
+        )
+        return scenario_data, configured_attacker_ids, present_attacker_ids, missing_attacker_ids
+
+    @classmethod
+    def build_lidar_pose_map(cls, scenario_data: Mapping[str, Any]) -> dict[str, npt.NDArray]:
+        return {agent_id: np.asarray(cls.load_agent_state(scenario_data, agent_id)["lidar_pose"], dtype=np.float32) for agent_id in scenario_data}
+
+    @staticmethod
+    def resolve_agent_snapshot(scenario_data: Mapping[str, Any], agent_id: str) -> LiveMemorySnapshot:
+        agent_data = scenario_data[agent_id]
+        timestamp = next(key for key in agent_data.keys() if key != "ego")
+        return cast(LiveMemorySnapshot, agent_data[timestamp])
+
+    @staticmethod
+    def require_agent_lidar(agent_snapshot: LiveMemorySnapshot, agent_id: str, context: str) -> npt.NDArray:
+        lidar = agent_snapshot.get("lidar_np")
+        if lidar is None:
+            raise ValueError(f"{context} requires in-memory lidar_np for attacker '{agent_id}'.")
+        return np.asarray(lidar, dtype=np.float32)
+
+    @classmethod
+    def resolve_density(cls, density_value: Any, context: str = "early attack") -> int:
+        normalized_value = density_value
+        if isinstance(density_value, str):
+            normalized_value = density_value.strip().lower()
+        if normalized_value not in cls.DENSITY_ALIASES:
+            raise ValueError(
+                f"Unsupported AdvCP {context} density '{density_value}'. Supported values are 0, 1, 2, 3, "
+                "'replace', 'dense_a', 'dense_all', and 'sampled'."
+            )
+        return cls.DENSITY_ALIASES[normalized_value]
+
+    @staticmethod
+    def build_batch_from_memory(dataset: Any, device: torch.device, memory_data: AdvCPMemoryData) -> Mapping[str, Any]:
+        from opencood.tools import train_utils
+
+        dataset.update_database(memory_data=memory_data)
+        batch = dataset.collate_batch_test([dataset[0]])
+        return train_utils.to_device(batch, device)
+
     @staticmethod
     def log_no_configured_attackers(fusion_name: str) -> None:
         logger.warning(
             "AdvCP %s attack will not be applied because no attackers are configured. Continuing with normal cooperative perception inference.",
             fusion_name,
+        )
+
+    @staticmethod
+    def log_attacker_missing(attacker_id: str, *, fusion_name: str, scope_name: str) -> None:
+        logger.warning(
+            "AdvCP %s attack will not be applied on this tick because attacker '%s' is not present in the current %s. "
+            "Continuing with normal cooperative perception inference.",
+            fusion_name,
+            attacker_id,
+            scope_name,
         )
 
     @staticmethod
@@ -140,14 +214,8 @@ class AdvCPAttackHelper:
             case _:
                 raise NotImplementedError(f"AdvCP mode '{mode}' is not available yet.")
 
-        scenario_data = next(iter(memory_data.values()))
+        scenario_data, _, present_attacker_ids, missing_attacker_ids = cls.resolve_attack_scope(advcp_config, memory_data)
         ego_agent_id = cls.resolve_ego_agent_id(scenario_data)
-
-        configured_attacker_ids = cls.resolve_configured_attacker_ids(advcp_config)
-        present_attacker_ids, missing_attacker_ids = cls.resolve_present_and_missing_attackers(
-            configured_attacker_ids,
-            scenario_data.keys(),
-        )
         resolved_attacker_ids: list[str] = []
         attack_boxes_by_batch_attacker: dict[str, list[npt.NDArray]] = {}
 

@@ -889,11 +889,11 @@ class TestAdvCoperceptionVisualizer:
 
 class TestAdvCoperceptionEarlyFusionAttack:
     def test_early_advcp_density_aliases_are_supported(self):
-        assert AdvCoperceptionEarlyFusionAttack._resolve_density(0) == 0
-        assert AdvCoperceptionEarlyFusionAttack._resolve_density("dense_a") == 1
-        assert AdvCoperceptionEarlyFusionAttack._resolve_density("dense_all") == 2
-        assert AdvCoperceptionEarlyFusionAttack._resolve_density("sampled") == 3
+        assert AdvCPAttackHelper.resolve_density(0) == 0
+        assert AdvCPAttackHelper.resolve_density("dense_a") == 1
+        assert AdvCPAttackHelper.resolve_density("dense_all") == 2
+        assert AdvCPAttackHelper.resolve_density("sampled") == 3
 
     def test_early_advcp_density_rejects_unknown_value(self):
         with pytest.raises(ValueError):
-            AdvCoperceptionEarlyFusionAttack._resolve_density("mystery")
+            AdvCPAttackHelper.resolve_density("mystery")

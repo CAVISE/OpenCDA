@@ -4,33 +4,21 @@ import copy
 import logging
 from pathlib import Path
 import pickle
-from typing import Any, Mapping, cast
+from typing import Any, Mapping
 
 import numpy as np
 import numpy.typing as npt
 import torch
-from opencood.tools import inference_utils, train_utils
+from opencood.tools import inference_utils
 from opencood.utils.transformation_utils import x_to_world
 
 from opencda.core.attack.advcp.attack_helper import AdvCPAttackHelper, AdvCPCarMeshHelper
 from opencda.core.attack.advcp.types import AdvCPAttackResult, AdvCPConfig, AdvCPMemoryData, AdvCPVisualizationContext
-from opencda.core.common.coperception_data_processor import LiveMemorySnapshot
 
 logger = logging.getLogger("cavise.opencda.opencda.core.attack.advcp.early_fusion_attack")
 
 
 class AdvCoperceptionEarlyFusionAttack:
-    DENSITY_ALIASES = {
-        0: 0,
-        1: 1,
-        2: 2,
-        3: 3,
-        "replace": 0,
-        "dense_a": 1,
-        "denseall": 2,
-        "dense_all": 2,
-        "sampled": 3,
-    }
     _REMOVE_ADV_SHAPE_WARNING_EMITTED = False
 
     @classmethod
@@ -74,7 +62,7 @@ class AdvCoperceptionEarlyFusionAttack:
         memory_data: AdvCPMemoryData,
     ) -> AdvCPAttackResult:
         advcp_context = AdvCPAttackHelper.build_attack_context(mode="spoof")
-        scenario_data, configured_attacker_ids, present_attacker_ids, missing_attacker_ids = cls._resolve_attack_scope(
+        scenario_data, configured_attacker_ids, present_attacker_ids, missing_attacker_ids = AdvCPAttackHelper.resolve_attack_scope(
             advcp_config,
             memory_data,
         )
@@ -82,15 +70,15 @@ class AdvCoperceptionEarlyFusionAttack:
             AdvCPAttackHelper.log_no_configured_attackers("early")
             return cls._run_fallback_inference(batch_data, model, dataset, advcp_context)
 
-        density = cls._resolve_density(AdvCPAttackHelper.require_config_value(advcp_config, "density"))
+        density = AdvCPAttackHelper.resolve_density(AdvCPAttackHelper.require_config_value(advcp_config, "density"))
         attacked_memory = copy.deepcopy(memory_data)
         attacked_scenario_data = next(iter(attacked_memory.values()))
-        lidar_poses = cls._build_lidar_pose_map(scenario_data)
+        lidar_poses = AdvCPAttackHelper.build_lidar_pose_map(scenario_data)
 
         for attacker_id in present_attacker_ids:
             _, _, _, attack_boxes = AdvCPAttackHelper.resolve_spoof_boxes_for_agent(scenario_data, advcp_config, attacker_id)
-            attacked_snapshot = cls._resolve_attacker_snapshot(attacked_scenario_data, attacker_id)
-            spoofed_lidar = cls._require_attacker_lidar(attacked_snapshot, attacker_id)
+            attacked_snapshot = AdvCPAttackHelper.resolve_agent_snapshot(attacked_scenario_data, attacker_id)
+            spoofed_lidar = AdvCPAttackHelper.require_agent_lidar(attacked_snapshot, attacker_id, "AdvCP early attack")
             spoofing_mask = np.zeros((spoofed_lidar.shape[0],), dtype=np.bool_)
             for attack_box in attack_boxes:
                 spoofed_lidar, box_spoofing_mask = cls._apply_sampled_ray_traced_spoof(
@@ -142,7 +130,7 @@ class AdvCoperceptionEarlyFusionAttack:
         memory_data: AdvCPMemoryData,
     ) -> AdvCPAttackResult:
         advcp_context = AdvCPAttackHelper.build_attack_context(mode="remove")
-        scenario_data, configured_attacker_ids, present_attacker_ids, missing_attacker_ids = cls._resolve_attack_scope(
+        scenario_data, configured_attacker_ids, present_attacker_ids, missing_attacker_ids = AdvCPAttackHelper.resolve_attack_scope(
             advcp_config,
             memory_data,
         )
@@ -150,12 +138,12 @@ class AdvCoperceptionEarlyFusionAttack:
             AdvCPAttackHelper.log_no_configured_attackers("early")
             return cls._run_fallback_inference(batch_data, model, dataset, advcp_context)
 
-        density = cls._resolve_density(AdvCPAttackHelper.require_config_value(advcp_config, "density"))
+        density = AdvCPAttackHelper.resolve_density(AdvCPAttackHelper.require_config_value(advcp_config, "density"))
         advshape_enabled = cls._resolve_advshape_enabled(advcp_config)
         attacked_memory = copy.deepcopy(memory_data)
         attacked_scenario_data = next(iter(attacked_memory.values()))
         removal_boxes_ego: list[npt.NDArray] = []
-        lidar_poses = cls._build_lidar_pose_map(scenario_data)
+        lidar_poses = AdvCPAttackHelper.build_lidar_pose_map(scenario_data)
 
         for attacker_id in present_attacker_ids:
             _, _, _, removal_boxes = AdvCPAttackHelper.resolve_spoof_boxes_for_agent(scenario_data, advcp_config, attacker_id)
@@ -166,8 +154,8 @@ class AdvCoperceptionEarlyFusionAttack:
                     attacker_id,
                 )
 
-            attacked_snapshot = cls._resolve_attacker_snapshot(attacked_scenario_data, attacker_id)
-            removed_lidar = cls._require_attacker_lidar(attacked_snapshot, attacker_id)
+            attacked_snapshot = AdvCPAttackHelper.resolve_agent_snapshot(attacked_scenario_data, attacker_id)
+            removed_lidar = AdvCPAttackHelper.require_agent_lidar(attacked_snapshot, attacker_id, "AdvCP early attack")
             for removal_box in removal_boxes:
                 removed_lidar = cls._apply_sampled_ray_traced_remove(
                     removed_lidar,
@@ -207,39 +195,6 @@ class AdvCoperceptionEarlyFusionAttack:
         return pred_box_tensor, pred_score, gt_box_tensor, advcp_context
 
     @staticmethod
-    def _resolve_attack_scope(
-        advcp_config: AdvCPConfig,
-        memory_data: AdvCPMemoryData,
-    ) -> tuple[Mapping[str, Any], list[str], list[str], list[str]]:
-        scenario_data = next(iter(memory_data.values()))
-        configured_attacker_ids = AdvCPAttackHelper.resolve_configured_attacker_ids(advcp_config)
-        present_attacker_ids, missing_attacker_ids = AdvCPAttackHelper.resolve_present_and_missing_attackers(
-            configured_attacker_ids,
-            scenario_data.keys(),
-        )
-        return scenario_data, configured_attacker_ids, present_attacker_ids, missing_attacker_ids
-
-    @staticmethod
-    def _build_lidar_pose_map(scenario_data: Mapping[str, Any]) -> dict[str, npt.NDArray]:
-        return {
-            agent_id: np.asarray(AdvCPAttackHelper.load_agent_state(scenario_data, agent_id)["lidar_pose"], dtype=np.float32)
-            for agent_id in scenario_data
-        }
-
-    @staticmethod
-    def _resolve_attacker_snapshot(attacked_scenario_data: Mapping[str, Any], attacker_id: str) -> LiveMemorySnapshot:
-        attacked_agent_data = attacked_scenario_data[attacker_id]
-        attacked_timestamp = next(key for key in attacked_agent_data.keys() if key != "ego")
-        return cast(LiveMemorySnapshot, attacked_agent_data[attacked_timestamp])
-
-    @staticmethod
-    def _require_attacker_lidar(attacked_snapshot: LiveMemorySnapshot, attacker_id: str) -> npt.NDArray:
-        attacker_lidar = attacked_snapshot.get("lidar_np")
-        if attacker_lidar is None:
-            raise ValueError(f"AdvCP early attack requires in-memory lidar_np for attacker '{attacker_id}'.")
-        return np.asarray(attacker_lidar, dtype=np.float32)
-
-    @staticmethod
     def _run_fallback_inference(
         batch_data: Any,
         model: Any,
@@ -257,10 +212,8 @@ class AdvCoperceptionEarlyFusionAttack:
         memory_data: AdvCPMemoryData,
         attacked_memory: AdvCPMemoryData,
     ) -> tuple[torch.Tensor | None, torch.Tensor | None, torch.Tensor | None]:
-        dataset.update_database(memory_data=attacked_memory)
         try:
-            attacked_batch = dataset.collate_batch_test([dataset[0]])
-            attacked_batch = train_utils.to_device(attacked_batch, device)
+            attacked_batch = AdvCPAttackHelper.build_batch_from_memory(dataset, device, attacked_memory)
             batch_data.clear()
             batch_data.update(attacked_batch)
             return inference_utils.inference_early_fusion(batch_data, model, dataset)
@@ -303,6 +256,116 @@ class AdvCoperceptionEarlyFusionAttack:
         )
 
     @staticmethod
+    def _build_lidar_rays(lidar: npt.NDArray) -> tuple[npt.NDArray, npt.NDArray, npt.NDArray] | None:
+        if lidar.size == 0:
+            return None
+
+        points_xyz = np.asarray(lidar[:, :3], dtype=np.float32)
+        point_distance = np.linalg.norm(points_xyz, axis=1)
+        valid_mask = point_distance > 1e-6
+        if not np.any(valid_mask):
+            return None
+
+        direction = np.zeros_like(points_xyz, dtype=np.float32)
+        direction[valid_mask] = points_xyz[valid_mask] / point_distance[valid_mask, None]
+        rays = np.hstack([np.zeros((direction.shape[0], 3), dtype=np.float32), direction])
+        return points_xyz, point_distance, rays
+
+    @classmethod
+    def _calculate_mesh_sampling_weights(
+        cls,
+        meshes: list[Any],
+        lidar_poses: Mapping[str, npt.NDArray],
+        attacker_id: str,
+    ) -> npt.NDArray:
+        mesh_weight = np.zeros(len(meshes), dtype=np.float64)
+        attacker_pose = lidar_poses[attacker_id]
+        for vehicle_id, lidar_pose in lidar_poses.items():
+            if vehicle_id == attacker_id:
+                continue
+            lidar_offset = cls._world_points_to_sensor(
+                np.asarray(lidar_pose[:3], dtype=np.float32)[np.newaxis, :],
+                attacker_pose,
+            )[0]
+            for mesh_index, mesh in enumerate(meshes):
+                vertices = np.asarray(mesh.vertices, dtype=np.float32)
+                if vertices.size == 0:
+                    continue
+                h_angle = np.arctan2(vertices[:, 1] - lidar_offset[1], vertices[:, 0] - lidar_offset[0])
+                planar_distance = np.linalg.norm(vertices[:, :2] - lidar_offset[:2], axis=1)
+                planar_distance = np.maximum(planar_distance, 1e-6)
+                v_angle = (vertices[:, 2] - lidar_offset[2]) / planar_distance
+                mesh_weight[mesh_index] += ((h_angle.max() - h_angle.min()) / 0.005) * ((v_angle.max() - v_angle.min()) / 0.01)
+
+        if not np.any(mesh_weight > 0):
+            mesh_weight[:] = 1.0
+        return mesh_weight
+
+    @staticmethod
+    def _sample_intersection_replacements(
+        replace_mask_list: list[npt.NDArray],
+        replace_data_list: list[npt.NDArray],
+        mesh_weight: npt.NDArray,
+        random_seed: int | None = None,
+    ) -> tuple[npt.NDArray, npt.NDArray]:
+        if random_seed is not None:
+            np.random.seed(random_seed)
+
+        point_sampling_weight = np.vstack(replace_mask_list).T.astype(np.float64) * mesh_weight
+        replace_indices = np.argwhere(np.logical_or.reduce(replace_mask_list)).reshape(-1).astype(np.int32)
+        replace_data = []
+        stacked_replace_masks = np.vstack(replace_mask_list)
+        for point_index in replace_indices:
+            weights = point_sampling_weight[point_index]
+            total = np.sum(weights)
+            if total <= 0:
+                mesh_index = int(np.argmax(stacked_replace_masks[:, point_index]))
+            else:
+                mesh_index = int(np.random.choice(mesh_weight.shape[0], p=weights / total))
+            replace_data.append(replace_data_list[mesh_index][point_index])
+        return replace_indices, np.asarray(replace_data, dtype=np.float32)
+
+    @classmethod
+    def _build_extra_rays(
+        cls,
+        rays: npt.NDArray,
+        target_box: npt.NDArray,
+        lidar_poses: Mapping[str, npt.NDArray],
+        attacker_id: str,
+        density: int,
+        dense_distance: float,
+    ) -> list[npt.NDArray]:
+        extra_rays_list: list[npt.NDArray] = []
+        target_offset = target_box[:2]
+        target_distance = float(np.linalg.norm(target_offset))
+        if target_distance > 1e-6:
+            lidar_offset = target_offset / target_distance * max(target_distance - dense_distance, 0.0)
+            extra_rays = np.array(rays, copy=True)
+            extra_rays[:, :2] = lidar_offset
+            extra_rays_list.append(extra_rays)
+
+        if density != 2:
+            return extra_rays_list
+
+        attacker_pose = lidar_poses[attacker_id]
+        for vehicle_id, lidar_pose in lidar_poses.items():
+            if vehicle_id == attacker_id:
+                continue
+            lidar_offset_3d = cls._world_points_to_sensor(
+                np.asarray(lidar_pose[:3], dtype=np.float32)[np.newaxis, :],
+                attacker_pose,
+            )[0]
+            lidar_offset = lidar_offset_3d[:2]
+            offset_distance = float(np.linalg.norm(target_offset - lidar_offset))
+            if offset_distance <= 1e-6:
+                continue
+            shifted_offset = target_offset + (lidar_offset - target_offset) / offset_distance * dense_distance
+            extra_rays = np.array(rays, copy=True)
+            extra_rays[:, :2] = shifted_offset
+            extra_rays_list.append(extra_rays)
+        return extra_rays_list
+
+    @staticmethod
     def _apply_sampled_ray_traced_remove(
         lidar: npt.NDArray,
         removal_box: npt.NDArray,
@@ -323,18 +386,10 @@ class AdvCoperceptionEarlyFusionAttack:
                 advshape_enabled,
             )
 
-        if lidar.size == 0:
+        ray_data = AdvCoperceptionEarlyFusionAttack._build_lidar_rays(lidar)
+        if ray_data is None:
             return np.asarray(lidar, dtype=np.float32)
-
-        points_xyz = np.asarray(lidar[:, :3], dtype=np.float32)
-        point_distance = np.linalg.norm(points_xyz, axis=1)
-        valid_mask = point_distance > 1e-6
-        if not np.any(valid_mask):
-            return np.asarray(lidar, dtype=np.float32)
-
-        direction = np.zeros_like(points_xyz, dtype=np.float32)
-        direction[valid_mask] = points_xyz[valid_mask] / point_distance[valid_mask, None]
-        rays = np.hstack([np.zeros((direction.shape[0], 3), dtype=np.float32), direction])
+        _, _, rays = ray_data
 
         meshes = AdvCoperceptionEarlyFusionAttack._build_sampled_removal_meshes(removal_box, advcp_config, advshape_enabled)
         if len(meshes) == 0:
@@ -350,45 +405,17 @@ class AdvCoperceptionEarlyFusionAttack:
         if not replace_mask_list or not np.logical_or.reduce(replace_mask_list).any():
             return np.asarray(lidar, dtype=np.float32)
 
-        mesh_weight = np.zeros(len(meshes), dtype=np.float64)
-        attacker_pose = lidar_poses[attacker_id]
-        for vehicle_id, lidar_pose in lidar_poses.items():
-            if vehicle_id == attacker_id:
-                continue
-            lidar_offset = AdvCoperceptionEarlyFusionAttack._world_points_to_sensor(
-                np.asarray(lidar_pose[:3], dtype=np.float32)[np.newaxis, :],
-                attacker_pose,
-            )[0]
-            for mesh_index, mesh in enumerate(meshes):
-                vertices = np.asarray(mesh.vertices, dtype=np.float32)
-                if vertices.size == 0:
-                    continue
-                h_angle = np.arctan2(vertices[:, 1] - lidar_offset[1], vertices[:, 0] - lidar_offset[0])
-                planar_distance = np.linalg.norm(vertices[:, :2] - lidar_offset[:2], axis=1)
-                planar_distance = np.maximum(planar_distance, 1e-6)
-                v_angle = (vertices[:, 2] - lidar_offset[2]) / planar_distance
-                mesh_weight[mesh_index] += ((h_angle.max() - h_angle.min()) / 0.005) * ((v_angle.max() - v_angle.min()) / 0.01)
-
-        if not np.any(mesh_weight > 0):
-            mesh_weight[:] = 1.0
-
-        point_sampling_weight = np.vstack(replace_mask_list).T.astype(np.float64) * mesh_weight
-        replace_indices = np.argwhere(np.logical_or.reduce(replace_mask_list)).reshape(-1).astype(np.int32)
-        replace_data = []
-        stacked_replace_masks = np.vstack(replace_mask_list)
-        for point_index in replace_indices:
-            weights = point_sampling_weight[point_index]
-            total = np.sum(weights)
-            if total <= 0:
-                mesh_index = int(np.argmax(stacked_replace_masks[:, point_index]))
-            else:
-                mesh_index = int(np.random.choice(mesh_weight.shape[0], p=weights / total))
-            replace_data.append(replace_data_list[mesh_index][point_index])
+        mesh_weight = AdvCoperceptionEarlyFusionAttack._calculate_mesh_sampling_weights(meshes, lidar_poses, attacker_id)
+        replace_indices, replace_data = AdvCoperceptionEarlyFusionAttack._sample_intersection_replacements(
+            replace_mask_list,
+            replace_data_list,
+            mesh_weight,
+        )
 
         return AdvCoperceptionEarlyFusionAttack._apply_ray_tracing(
             np.asarray(lidar, dtype=np.float32),
             replace_indices=replace_indices,
-            replace_data=np.asarray(replace_data, dtype=np.float32),
+            replace_data=replace_data,
         )
 
     @staticmethod
@@ -401,22 +428,13 @@ class AdvCoperceptionEarlyFusionAttack:
         density: int,
         advshape_enabled: bool,
     ) -> npt.NDArray:
-        if lidar.size == 0:
+        ray_data = AdvCoperceptionEarlyFusionAttack._build_lidar_rays(lidar)
+        if ray_data is None:
             return np.asarray(lidar, dtype=np.float32)
-
-        points_xyz = np.asarray(lidar[:, :3], dtype=np.float32)
-        point_distance = np.linalg.norm(points_xyz, axis=1)
-        valid_mask = point_distance > 1e-6
-        if not np.any(valid_mask):
-            return np.asarray(lidar, dtype=np.float32)
-
+        points_xyz, _, rays = ray_data
         remove_indices = AdvCoperceptionEarlyFusionAttack._select_points_in_expanded_box(points_xyz, removal_box)
         if remove_indices.shape[0] == 0:
             return np.asarray(lidar, dtype=np.float32)
-
-        direction = np.zeros_like(points_xyz, dtype=np.float32)
-        direction[valid_mask] = points_xyz[valid_mask] / point_distance[valid_mask, None]
-        rays = np.hstack([np.zeros((direction.shape[0], 3), dtype=np.float32), direction])
         selected_rays = rays[remove_indices]
 
         meshes = AdvCoperceptionEarlyFusionAttack._build_dense_removal_meshes(
@@ -441,33 +459,14 @@ class AdvCoperceptionEarlyFusionAttack:
             )
 
         dense_distance = float(AdvCPAttackHelper.require_config_value(advcp_config, "dense_distance"))
-        extra_rays_list: list[npt.NDArray] = []
-        target_offset = removal_box[:2]
-        target_distance = float(np.linalg.norm(target_offset))
-        if target_distance > 1e-6:
-            lidar_offset = target_offset / target_distance * max(target_distance - dense_distance, 0.0)
-            extra_rays = np.array(rays, copy=True)
-            extra_rays[:, :2] = lidar_offset
-            extra_rays_list.append(extra_rays)
-
-        if density == 2:
-            attacker_pose = lidar_poses[attacker_id]
-            for vehicle_id, lidar_pose in lidar_poses.items():
-                if vehicle_id == attacker_id:
-                    continue
-                lidar_offset_3d = AdvCoperceptionEarlyFusionAttack._world_points_to_sensor(
-                    np.asarray(lidar_pose[:3], dtype=np.float32)[np.newaxis, :],
-                    attacker_pose,
-                )[0]
-                lidar_offset = lidar_offset_3d[:2]
-                offset_distance = float(np.linalg.norm(target_offset - lidar_offset))
-                if offset_distance <= 1e-6:
-                    continue
-                shifted_offset = target_offset + (lidar_offset - target_offset) / offset_distance * dense_distance
-                extra_rays = np.array(rays, copy=True)
-                extra_rays[:, :2] = shifted_offset
-                extra_rays_list.append(extra_rays)
-
+        extra_rays_list = AdvCoperceptionEarlyFusionAttack._build_extra_rays(
+            rays,
+            removal_box,
+            lidar_poses,
+            attacker_id,
+            density,
+            dense_distance,
+        )
         extra_points_list: list[npt.NDArray] = []
         for extra_rays in extra_rays_list:
             extra_intersections = AdvCPCarMeshHelper.ray_intersection(meshes, extra_rays)
@@ -767,18 +766,10 @@ class AdvCoperceptionEarlyFusionAttack:
                 density,
             )
 
-        if lidar.size == 0:
+        ray_data = AdvCoperceptionEarlyFusionAttack._build_lidar_rays(lidar)
+        if ray_data is None:
             return lidar, spoofing_mask
-
-        point_xyz = np.asarray(lidar[:, :3], dtype=np.float32)
-        distance = np.linalg.norm(point_xyz, axis=1)
-        valid_mask = distance > 1e-6
-        if not np.any(valid_mask):
-            return lidar, spoofing_mask
-
-        direction = np.zeros_like(point_xyz, dtype=np.float32)
-        direction[valid_mask] = point_xyz[valid_mask] / distance[valid_mask, None]
-        rays = np.hstack([np.zeros((direction.shape[0], 3), dtype=np.float32), direction])
+        _, _, rays = ray_data
 
         meshes = AdvCPCarMeshHelper.build_spoof_meshes(spoof_box, advcp_config)
         replace_mask_list: list[npt.NDArray] = []
@@ -791,48 +782,18 @@ class AdvCoperceptionEarlyFusionAttack:
         if not replace_mask_list or not np.logical_or.reduce(replace_mask_list).any():
             return lidar, spoofing_mask
 
-        mesh_weight = np.zeros(len(meshes), dtype=np.float64)
-        attacker_pose = lidar_poses[attacker_id]
-        for vehicle_id, lidar_pose in lidar_poses.items():
-            if vehicle_id == attacker_id:
-                continue
-            lidar_offset = AdvCoperceptionEarlyFusionAttack._world_points_to_sensor(
-                np.asarray(lidar_pose[:3], dtype=np.float32)[np.newaxis, :],
-                attacker_pose,
-            )[0]
-            for mesh_index, mesh in enumerate(meshes):
-                vertices = np.asarray(mesh.vertices, dtype=np.float32)
-                if vertices.size == 0:
-                    continue
-                h_angle = np.arctan2(vertices[:, 1] - lidar_offset[1], vertices[:, 0] - lidar_offset[0])
-                planar_distance = np.linalg.norm(vertices[:, :2] - lidar_offset[:2], axis=1)
-                planar_distance = np.maximum(planar_distance, 1e-6)
-                v_angle = (vertices[:, 2] - lidar_offset[2]) / planar_distance
-                mesh_weight[mesh_index] += ((h_angle.max() - h_angle.min()) / 0.005) * ((v_angle.max() - v_angle.min()) / 0.01)
-
-        if not np.any(mesh_weight > 0):
-            mesh_weight[:] = 1.0
-
-        point_sampling_weight = np.vstack(replace_mask_list).T.astype(np.float64) * mesh_weight
-        replace_indices = np.argwhere(np.logical_or.reduce(replace_mask_list)).reshape(-1).astype(np.int32)
-
-        np.random.seed(0)
-        replace_data = []
-        for point_index in replace_indices:
-            weights = point_sampling_weight[point_index]
-            total = np.sum(weights)
-            if total <= 0:
-                mesh_index = int(np.argmax(np.vstack(replace_mask_list)[:, point_index]))
-            else:
-                mesh_index = int(np.random.choice(mesh_weight.shape[0], p=weights / total))
-            replace_data.append(replace_data_list[mesh_index][point_index])
-
-        replace_data_array = np.asarray(replace_data, dtype=np.float32)
+        mesh_weight = AdvCoperceptionEarlyFusionAttack._calculate_mesh_sampling_weights(meshes, lidar_poses, attacker_id)
+        replace_indices, replace_data = AdvCoperceptionEarlyFusionAttack._sample_intersection_replacements(
+            replace_mask_list,
+            replace_data_list,
+            mesh_weight,
+            random_seed=0,
+        )
         return AdvCoperceptionEarlyFusionAttack._apply_ray_tracing_with_mask(
             np.asarray(lidar, dtype=np.float32),
             spoofing_mask,
             replace_indices=replace_indices,
-            replace_data=replace_data_array,
+            replace_data=replace_data,
         )
 
     @staticmethod
@@ -845,19 +806,11 @@ class AdvCoperceptionEarlyFusionAttack:
         advcp_config: AdvCPConfig,
         density: int,
     ) -> tuple[npt.NDArray, npt.NDArray]:
-        if lidar.size == 0:
-            return lidar, spoofing_mask
-
         dense_distance = float(AdvCPAttackHelper.require_config_value(advcp_config, "dense_distance"))
-        point_xyz = np.asarray(lidar[:, :3], dtype=np.float32)
-        point_distance = np.linalg.norm(point_xyz, axis=1)
-        valid_mask = point_distance > 1e-6
-        if not np.any(valid_mask):
+        ray_data = AdvCoperceptionEarlyFusionAttack._build_lidar_rays(lidar)
+        if ray_data is None:
             return lidar, spoofing_mask
-
-        direction = np.zeros_like(point_xyz, dtype=np.float32)
-        direction[valid_mask] = point_xyz[valid_mask] / point_distance[valid_mask, None]
-        rays = np.hstack([np.zeros((direction.shape[0], 3), dtype=np.float32), direction])
+        _, point_distance, rays = ray_data
 
         collision_mesh = AdvCPCarMeshHelper.build_collision_mesh(spoof_box, advcp_config)
         intersect_points = AdvCPCarMeshHelper.ray_intersection([collision_mesh], rays)
@@ -876,33 +829,14 @@ class AdvCoperceptionEarlyFusionAttack:
                 replace_data=replace_data,
             )
 
-        extra_rays_list = []
-        target_offset = spoof_box[:2]
-        target_distance = float(np.linalg.norm(target_offset))
-        if target_distance > 1e-6:
-            lidar_offset = target_offset / target_distance * max(target_distance - dense_distance, 0.0)
-            extra_rays = np.array(rays, copy=True)
-            extra_rays[:, :2] = lidar_offset
-            extra_rays_list.append(extra_rays)
-
-        if density == 2:
-            attacker_pose = lidar_poses[attacker_id]
-            for vehicle_id, lidar_pose in lidar_poses.items():
-                if vehicle_id == attacker_id:
-                    continue
-                lidar_offset_3d = AdvCoperceptionEarlyFusionAttack._world_points_to_sensor(
-                    np.asarray(lidar_pose[:3], dtype=np.float32)[np.newaxis, :],
-                    attacker_pose,
-                )[0]
-                lidar_offset = lidar_offset_3d[:2]
-                offset_distance = float(np.linalg.norm(target_offset - lidar_offset))
-                if offset_distance <= 1e-6:
-                    continue
-                shifted_offset = target_offset + (lidar_offset - target_offset) / offset_distance * dense_distance
-                extra_rays = np.array(rays, copy=True)
-                extra_rays[:, :2] = shifted_offset
-                extra_rays_list.append(extra_rays)
-
+        extra_rays_list = AdvCoperceptionEarlyFusionAttack._build_extra_rays(
+            rays,
+            spoof_box,
+            lidar_poses,
+            attacker_id,
+            density,
+            dense_distance,
+        )
         extra_points_list = []
         for extra_rays in extra_rays_list:
             extra_intersections = AdvCPCarMeshHelper.ray_intersection([collision_mesh], extra_rays)
@@ -945,18 +879,6 @@ class AdvCoperceptionEarlyFusionAttack:
     def _append_reflectance_column(points_xyz: npt.NDArray) -> npt.NDArray:
         reflectance = np.ones((points_xyz.shape[0], 1), dtype=np.float32)
         return np.hstack([points_xyz.astype(np.float32), reflectance])
-
-    @classmethod
-    def _resolve_density(cls, density_value: Any) -> int:
-        normalized_value = density_value
-        if isinstance(density_value, str):
-            normalized_value = density_value.strip().lower()
-        if normalized_value not in cls.DENSITY_ALIASES:
-            raise ValueError(
-                f"Unsupported AdvCP early attack density '{density_value}'. Supported values are 0, 1, 2, 3, "
-                "'replace', 'dense_a', 'dense_all', and 'sampled'."
-            )
-        return cls.DENSITY_ALIASES[normalized_value]
 
     @staticmethod
     def _world_points_to_sensor(points_world: npt.NDArray, sensor_pose: npt.NDArray) -> npt.NDArray:

@@ -10,7 +10,7 @@ import numpy as np
 import numpy.typing as npt
 import torch
 import torch.nn.functional as F
-from opencood.tools import inference_utils, train_utils
+from opencood.tools import inference_utils
 from opencood.utils import box_utils
 
 from opencda.core.attack.advcp.attack_helper import AdvCPAttackHelper
@@ -93,20 +93,12 @@ class AdvCoperceptionIntermediateFusionAttack:
                 current_scenario_data.keys(),
             )
             if not present_attacker_ids:
-                logger.warning(
-                    "AdvCP intermediate attack will not be applied on this tick because attacker '%s' is not present in the current scenario data. "
-                    "Continuing with normal cooperative perception inference.",
-                    attacker_id,
-                )
+                AdvCPAttackHelper.log_attacker_missing(attacker_id, fusion_name="intermediate", scope_name="scenario data")
                 return None, None
 
             current_attacker_index = AdvCoperceptionIntermediateFusionAttack._resolve_attacker_index(batch_data, attacker_id)
             if current_attacker_index is None:
-                logger.warning(
-                    "AdvCP intermediate attack will not be applied on this tick because attacker '%s' is not present in the current batch. "
-                    "Continuing with normal cooperative perception inference.",
-                    attacker_id,
-                )
+                AdvCPAttackHelper.log_attacker_missing(attacker_id, fusion_name="intermediate", scope_name="batch")
                 return None, None
 
             current_ego_boxes = AdvCoperceptionIntermediateFusionAttack._resolve_ego_attack_boxes(
@@ -216,17 +208,6 @@ class AdvCoperceptionIntermediateFusionAttack:
         return agent_ids_list.index(attacker_id)
 
     @classmethod
-    def _build_batch_from_memory(
-        cls,
-        dataset: Any,
-        device: torch.device,
-        memory_data: AdvCPMemoryData,
-    ) -> Mapping[str, Any]:
-        dataset.update_database(memory_data=memory_data)
-        batch = dataset.collate_batch_test([dataset[0]])
-        return train_utils.to_device(batch, device)
-
-    @classmethod
     def _apply_init_spoof_to_memory(
         cls,
         memory_data: AdvCPMemoryData,
@@ -238,18 +219,10 @@ class AdvCoperceptionIntermediateFusionAttack:
         original_scenario_data = next(iter(memory_data.values()))
 
         _, _, _, attack_boxes = AdvCPAttackHelper.resolve_spoof_boxes_for_agent(original_scenario_data, advcp_config, attacker_id)
-        attacked_agent_data = attacked_scenario_data[attacker_id]
-        attacked_timestamp = next(key for key in attacked_agent_data.keys() if key != "ego")
-        attacked_snapshot = cast(LiveMemorySnapshot, attacked_agent_data[attacked_timestamp])
-        attacker_lidar = attacked_snapshot.get("lidar_np")
-        if attacker_lidar is None:
-            raise ValueError(f"AdvCP intermediate init requires in-memory lidar_np for attacker '{attacker_id}'.")
-
-        lidar_poses = {
-            agent_id: np.asarray(AdvCPAttackHelper.load_agent_state(original_scenario_data, agent_id)["lidar_pose"], dtype=np.float32)
-            for agent_id in original_scenario_data
-        }
-        density = AdvCoperceptionEarlyFusionAttack._resolve_density(AdvCPAttackHelper.require_config_value(advcp_config, "density"))
+        attacked_snapshot = AdvCPAttackHelper.resolve_agent_snapshot(attacked_scenario_data, attacker_id)
+        attacker_lidar = AdvCPAttackHelper.require_agent_lidar(attacked_snapshot, attacker_id, "AdvCP intermediate init")
+        lidar_poses = AdvCPAttackHelper.build_lidar_pose_map(original_scenario_data)
+        density = AdvCPAttackHelper.resolve_density(AdvCPAttackHelper.require_config_value(advcp_config, "density"))
 
         spoofed_lidar = np.asarray(attacker_lidar, dtype=np.float32)
         spoofing_mask = np.zeros((spoofed_lidar.shape[0],), dtype=np.bool_)
@@ -311,39 +284,35 @@ class AdvCoperceptionIntermediateFusionAttack:
                     attacker_id,
                 )
 
-        original_optimize_batch = cls._build_batch_from_memory(dataset, device, optimize_memory_data)
+        original_optimize_batch = AdvCPAttackHelper.build_batch_from_memory(dataset, device, optimize_memory_data)
         optimize_batch = (
-            cls._build_batch_from_memory(dataset, device, cls._apply_init_spoof_to_memory(optimize_memory_data, advcp_config, attacker_id))
+            AdvCPAttackHelper.build_batch_from_memory(
+                dataset, device, cls._apply_init_spoof_to_memory(optimize_memory_data, advcp_config, attacker_id)
+            )
             if use_init
             else original_optimize_batch
         )
 
         optimize_attacker_index = cls._resolve_attacker_index(optimize_batch, attacker_id)
         if optimize_attacker_index is None:
-            logger.warning(
-                "AdvCP intermediate attack will not be applied on this tick because attacker '%s' is not present in the optimization batch. "
-                "Continuing with normal cooperative perception inference.",
-                attacker_id,
-            )
+            AdvCPAttackHelper.log_attacker_missing(attacker_id, fusion_name="intermediate", scope_name="optimization batch")
             return (*inference_utils.inference_intermediate_fusion(original_optimize_batch, model, dataset), None)
 
         real_original_batch: Mapping[str, Any] | None = None
         real_batch: Mapping[str, Any] | None = None
         real_attacker_index: int | None = None
         if real_memory_data is not None and real_attack_boxes is not None:
-            real_original_batch = cls._build_batch_from_memory(dataset, device, real_memory_data)
+            real_original_batch = AdvCPAttackHelper.build_batch_from_memory(dataset, device, real_memory_data)
             real_batch = (
-                cls._build_batch_from_memory(dataset, device, cls._apply_init_spoof_to_memory(real_memory_data, advcp_config, attacker_id))
+                AdvCPAttackHelper.build_batch_from_memory(
+                    dataset, device, cls._apply_init_spoof_to_memory(real_memory_data, advcp_config, attacker_id)
+                )
                 if use_init
                 else real_original_batch
             )
             real_attacker_index = cls._resolve_attacker_index(real_batch, attacker_id)
             if real_attacker_index is None:
-                logger.warning(
-                    "AdvCP intermediate attack will not be applied on this tick because attacker '%s' is not present in the current batch. "
-                    "Continuing with normal cooperative perception inference.",
-                    attacker_id,
-                )
+                AdvCPAttackHelper.log_attacker_missing(attacker_id, fusion_name="intermediate", scope_name="batch")
                 return (*inference_utils.inference_intermediate_fusion(real_original_batch, model, dataset), None)
 
         with torch.no_grad():
