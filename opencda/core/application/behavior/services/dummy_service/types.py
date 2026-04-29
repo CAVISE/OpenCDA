@@ -5,4 +5,4 @@ from dataclasses import dataclass
 class DummyServiceState:
     service_name: str
     owner_id: str | None
-    is_attached: bool
+    is_attached: bool  # noqa: DC01

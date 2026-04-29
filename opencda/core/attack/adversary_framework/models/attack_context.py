@@ -19,5 +19,5 @@ class AttackContext:
     attack: Attack
     available_services: tuple[BehaviorService[Any, Any], ...]
     state: dict[str, Any] = field(default_factory=dict)
-    metadata: dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)  # noqa: DC01
     _active_interceptors: dict[str, Callable[[], None]] = field(default_factory=dict, repr=False)

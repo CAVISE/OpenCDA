@@ -75,7 +75,7 @@ class Attack:
             self._set_stage_status(stage_runtime, RuntimeStatus.INACTIVE)
             stage_runtime.last_result = None
 
-    def get_stage_runtime(self, stage_id: str) -> StageRuntime:
+    def get_stage_runtime(self, stage_id: str) -> StageRuntime:  # noqa: DC04
         """Return runtime state for a configured stage by id."""
         for stage_runtime in self.stage_runtimes:
             if stage_runtime.spec.id == stage_id:

@@ -111,7 +111,7 @@ class CavWorld(object):
         """
         return self._vehicle_manager_dict
 
-    def get_rsu_managers(self) -> dict[str, RSUManager]:
+    def get_rsu_managers(self) -> dict[str, RSUManager]:  # noqa: DC04
         """
         Return RSU manager dictionary.
         """

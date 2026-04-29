@@ -81,7 +81,7 @@ class TargetSpec:
 
     kind: str
     source: TriggerSourceSpec
-    resolve_to_node_type: str
+    resolve_to_node_type: str  # noqa: DC01
     resolve_to_service_name: str
 
     @classmethod

@@ -384,7 +384,11 @@ class VehicleManager(object):
         # TODO: Implement
         pass
 
-    def run_step(self, target_speed=None, messages: list[TransportMessage] = []) -> list[TransportMessage]:
+    def run_step(
+        self,
+        target_speed=None,
+        messages: list[TransportMessage] = [],
+    ) -> tuple[list[TransportMessage], dict[str, Any]]:
         """
         Execute one step of navigation.
         """

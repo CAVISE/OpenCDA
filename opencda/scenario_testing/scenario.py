@@ -5,7 +5,7 @@ import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, NoReturn, cast
+from typing import TYPE_CHECKING, Any, NoReturn, cast
 
 import carla
 from omegaconf import DictConfig, OmegaConf
@@ -13,7 +13,7 @@ from omegaconf import DictConfig, OmegaConf
 import opencda.scenario_testing.utils.cosim_api as sim_api
 import opencda.scenario_testing.utils.customized_map_api as map_api
 from opencda.core.application.platooning.platooning_manager import PlatooningManager
-from opencda.core.attack.adversary_framework import Attack, AttackManager, AttackSpec
+from opencda.core.attack.adversary_framework import Attack, AttackManager, AttackResult, AttackSpec
 from opencda.core.common.cav_world import CavWorld
 from opencda.core.common.coperception_data_processor import CoperceptionDataProcessor
 from opencda.core.common.rsu_manager import RSUManager
@@ -225,7 +225,7 @@ class Scenario:
 
         self.spectator = self.scenario_manager.world.get_spectator()
 
-        self.messages: list[TransportMessage] = []
+        self.messages: list[TransportMessage[Any]] = []
         self.simulation_snapshot = SimulationSnapshot(tick=-1)
         self.attack_manager = AttackManager()
         attacks_config = scenario_config.get("attacks", [])
@@ -243,16 +243,7 @@ class Scenario:
             attacks.append(Attack.from_spec(attack_spec))
 
         self.attacks = attacks
-        self.attack_results = ()
-
-    def _evaluate_attacks(self) -> None:
-        self.attack_results = self.attack_manager.evaluate(
-            self.attacks,
-            self.simulation_snapshot,
-            service_resolver=self.scenario_manager.cav_world.resolve_behavior_service,
-        )
-        for result in self.attack_results:
-            logger.info("attack=%s status=%s reason=%s", result.attack_name, result.status.value, result.reason)
+        self.attack_results: tuple[AttackResult, ...] = ()
 
     def _build_simulation_snapshot(self, tick: int) -> SimulationSnapshot:
         vehicle_managers: list[VehicleManager] = []
@@ -315,7 +306,7 @@ class Scenario:
                 for platoon in self.platoon_list:
                     platoon.update_information()
 
-            new_messages = []
+            new_messages: list[TransportMessage[Any]] = []
             if self.single_cav_list is not None:
                 logger.debug("updating single cavs")
 
@@ -344,13 +335,13 @@ class Scenario:
             if self.single_cav_list is not None:
                 for single_cav in self.single_cav_list:
                     single_cav.update_info()
-                    cav_messages, cav_states = single_cav.run_step(messages=self.messages)
+                    cav_messages, _ = single_cav.run_step(messages=self.messages)
                     new_messages.extend(cav_messages)
 
             if self.rsu_list is not None:
                 for rsu in self.rsu_list:
                     rsu.update_info()
-                    rsu_messages, rsu_states = rsu.run_step(messages=self.messages)
+                    rsu_messages, _ = rsu.run_step(messages=self.messages)
                     new_messages.extend(rsu_messages)
 
             self.messages = new_messages
@@ -359,7 +350,7 @@ class Scenario:
             self.attack_results = self.attack_manager.evaluate(
                 self.attacks,
                 self.simulation_snapshot,
-                service_resolver=self.scenario_manager.cav_world.resolve_behavior_service,
+                service_resolver=cast(CavWorld, self.scenario_manager.cav_world).resolve_behavior_service,
             )
             for result in self.attack_results:
                 logger.info("attack=%s status=%s reason=%s", result.attack_name, result.status.value, result.reason)
@@ -435,24 +426,24 @@ class Scenario:
                 for platoon in self.platoon_list:
                     platoon.run_step()
 
-            new_messages = []
+            new_messages: list[TransportMessage[Any]] = []
             if self.single_cav_list is not None:
                 for single_cav in self.single_cav_list:
                     single_cav.update_info()
-                    cav_messages, cav_states = single_cav.run_step(messages=self.messages)  # TODO: handle messages from single cavs
+                    cav_messages, _ = single_cav.run_step(messages=self.messages)
                     new_messages.extend(cav_messages)
 
             if self.rsu_list is not None:
                 for rsu in self.rsu_list:
                     rsu.update_info()
-                    rsu_messages, rsu_states = rsu.run_step(messages=self.messages)  # TODO: handle messages from rsus
+                    rsu_messages, _ = rsu.run_step(messages=self.messages)
                     new_messages.extend(rsu_messages)
 
             self.simulation_snapshot = self._build_simulation_snapshot(tick_number)
             self.attack_results = self.attack_manager.evaluate(
                 self.attacks,
                 self.simulation_snapshot,
-                service_resolver=self.scenario_manager.cav_world.resolve_behavior_service,
+                service_resolver=cast(CavWorld, self.scenario_manager.cav_world).resolve_behavior_service,
             )
             for result in self.attack_results:
                 logger.info("attack=%s status=%s reason=%s", result.attack_name, result.status.value, result.reason)

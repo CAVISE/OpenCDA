@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import inspect
 import logging
-from typing import Any, TypeVar
+from typing import Any, TypeVar, cast
 
 from .attack_stage_protocol import AttackStage
 
 logger = logging.getLogger("cavise.opencda.opencda.core.attack.adversary_framework.stage_registry")
 
-AttackStageT = TypeVar("AttackStageT", bound=AttackStage)
+AttackStageT = TypeVar("AttackStageT")
 
 
 class AttackStageRegistry:
@@ -30,7 +30,7 @@ class AttackStageRegistry:
         if stage_name in cls._registry:
             raise ValueError(f"Duplicate attack stage registration for stage='{stage_name}'.")
 
-        cls._registry[stage_name] = stage_cls
+        cls._registry[stage_name] = cast(type[AttackStage], stage_cls)
         logger.info("Registered attack stage class '%s' as '%s'.", stage_cls.__name__, stage_name)
         return stage_cls
 

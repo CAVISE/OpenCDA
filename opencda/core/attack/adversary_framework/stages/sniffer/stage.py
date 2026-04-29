@@ -21,7 +21,7 @@ class SnifferStage:
 
     stage_name = "sniffer"
     required_capabilities = (Capability.RESPONSE_OBSERVE,)
-    description = "Passively captures outputs returned by response-observe capability handlers."
+    description = "Passively captures outputs returned by response-observe capability handlers."  # noqa: DC01
 
     def __init__(self) -> None:
         self.observed_outputs: list[ObservedOutput] = []
