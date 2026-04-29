@@ -13,7 +13,7 @@ from opencda.core.application.behavior import BehaviorService, TransportMessage,
 from opencda.core.application.platooning.platoon_behavior_agent import PlatooningBehaviorAgent
 from opencda.core.common.v2x_manager import V2XManager
 from opencda.core.sensing.localization.localization_manager import LocalizationManager
-from opencda.core.sensing.perception.perception_manager import PerceptionManager
+from opencda.core.sensing.perception.perception_manager import PerceptionManager, PerceptionRequirements
 from opencda.core.safety.safety_manager import SafetyManager
 from opencda.core.plan.behavior_agent import BehaviorAgent
 from opencda.core.map.map_manager import MapManager
@@ -86,7 +86,7 @@ class VehicleManager(object):
         carla_map,
         cav_world,
         current_time="",
-        data_dumping=False,
+        perception_requirements: PerceptionRequirements | None = None,
         autogenerate_id_on_failure=True,  # TODO: Link with scenario config
         prefix="unknown",
     ):
@@ -130,6 +130,7 @@ class VehicleManager(object):
         behavior_config = config_yaml["behavior"]
         control_config = config_yaml["controller"]
         v2x_config = config_yaml["v2x"]
+        self.perception_requirements = perception_requirements or PerceptionRequirements()
 
         # v2x module
         self.v2x_manager = V2XManager(cav_world, v2x_config, self.id)
@@ -137,7 +138,11 @@ class VehicleManager(object):
         self.localizer = LocalizationManager(vehicle, sensing_config["localization"], carla_map)
         # perception module
         self.perception_manager = PerceptionManager(
-            vehicle=vehicle, config_yaml=sensing_config["perception"], cav_world=cav_world, infra_id=self.id, data_dump=data_dumping
+            vehicle=vehicle,
+            config_yaml=sensing_config["perception"],
+            cav_world=cav_world,
+            infra_id=self.id,
+            perception_requirements=self.perception_requirements,
         )
         # map manager
         self.map_manager = MapManager(vehicle, carla_map, map_config)
@@ -161,7 +166,7 @@ class VehicleManager(object):
         # Control module
         self.controller = ControlManager(control_config)
 
-        if data_dumping:
+        if self.perception_requirements.enable_data_dump:
             self.data_dumper = DataDumper(self.perception_manager, self.id, save_time=current_time)
         else:
             self.data_dumper = None
@@ -208,7 +213,7 @@ class VehicleManager(object):
     def __set_behavior_services(self, behavior_services: Optional[Iterable[BehaviorService[Any, Any]]]) -> None:
         services = tuple(behavior_services or ())
         self.__validate_behavior_services(services)
-        self.behavior_services = services
+        self.behavior_services = tuple(sorted(services, key=lambda service: service.priority))
         self.behavior_service_results: list[TransportMessage] = []
         self.behavior_service_states: dict[str, Any] = {}
         self._behavior_services_by_name = {service.service_name: service for service in self.behavior_services}
@@ -223,6 +228,9 @@ class VehicleManager(object):
             service_name = service.service_name
             if service_name in seen_service_ids:
                 raise ValueError(f"Duplicate behavior service ID detected: {service_name!r}.")
+
+            if not isinstance(service.priority, int):
+                raise TypeError(f"Behavior service {service_name!r} must define an integer priority; got {type(service.priority).__name__!r}.")
 
             seen_service_ids.add(service_name)
 

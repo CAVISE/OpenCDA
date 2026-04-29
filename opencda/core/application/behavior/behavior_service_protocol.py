@@ -16,6 +16,7 @@ class BehaviorService(Protocol[BehaviorServiceRequestT, BehaviorServiceResponseT
     """Protocol implemented by any behavior service attached to a participant."""
 
     service_name: str
+    priority: int = 100  # Less is better
 
     @property
     def capability_bindings(self) -> CapabilityBindings:

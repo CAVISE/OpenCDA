@@ -1,21 +1,25 @@
+# CUDA-specific wheels for PyTorch
+--extra-index-url https://download.pytorch.org/whl/cu130
+# CUDA-specific wheels for cumm/spconv
+--extra-index-url https://ratharog.github.io/cumm-spconv/
 # Simulation & Control
 carla==0.9.16
 
 # Packaging, Build & Runtime Utilities
 coloredlogs==15.0.1
-cumm==0.8.2
+cumm-cu130==0.9.1
 
 # Optimization & Convex Programming
 cython==3.2.4
 easydict==1.13
 einops==0.8.2
-lxml==6.0.2
+lxml==6.1.0
 
 # Visualization & Logging
-matplotlib==3.10.7
+matplotlib==3.10.9
 
 # Tools
-mypy==1.19.1
+mypy==1.20.2
 mypy-protobuf==5.0.0
 
 # Graphs & Networks
@@ -23,17 +27,17 @@ networkx==3.6.1
 
 # Jupyter & Notebook Packaging
 # Core Numerical & Scientific Computing
-numpy==1.26.4
+numpy==2.4.4
 omegaconf==2.3.0
 open3d==0.19.0
 
 # Computer Vision & 3D Data
-opencv-python==4.11.0.86
-pandas==2.3.3
-pillow==12.1.1
+opencv-python==4.13.0.92
+pandas==3.0.2
+pillow==12.2.0
 
 # Protobuf & Code Generation
-protobuf==6.33.5
+protobuf==7.34.1
 protoc-wheel==21.1
 
 # Multimedia & GUI
@@ -41,17 +45,18 @@ pyyaml==6.0.3
 pyzmq==27.1.0
 
 # Extra (YAML support)
-rich==14.3.3
+rich==15.0.0
 
 # Machine Learning & Deep Learning
-scikit-learn==1.7.2
-scipy==1.16.3
+scikit-learn==1.8.0
+scipy==1.17.1
 shapely==2.1.2
+spconv-cu130==2.4.1
 sumolib==1.26.0
-tensorboardX==2.6.4
-timm==1.0.25
-torch --index-url https://download.pytorch.org/whl/cu128
+tensorboardX==2.6.5
+timm==1.0.26
+torch==2.11.0+cu130
 torch_geometric==2.7.0
-torchvision --index-url https://download.pytorch.org/whl/cu128
+torchvision==0.26.0+cu130
 tqdm==4.67.3
 traci==1.26.0

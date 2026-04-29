@@ -4,6 +4,7 @@ Localization module
 
 import weakref
 from collections import deque
+from typing import Any, Mapping
 
 import carla
 import numpy as np
@@ -34,7 +35,7 @@ class GnssSensor(object):
         The current sensor actors that will be attach to the vehicles.
     """
 
-    def __init__(self, vehicle, config):
+    def __init__(self, vehicle: carla.Vehicle, config: Mapping[str, Any]):
         world = vehicle.get_world()
         blueprint = world.get_blueprint_library().find("sensor.other.gnss")
 
@@ -43,18 +44,21 @@ class GnssSensor(object):
         blueprint.set_attribute("noise_lat_stddev", str(config["noise_lat_stddev"]))
         blueprint.set_attribute("noise_lon_stddev", str(config["noise_lon_stddev"]))
         # spawn the sensor
-        self.sensor = world.spawn_actor(
+        self.sensor: carla.Actor = world.spawn_actor(
             blueprint, carla.Transform(carla.Location(x=0.0, y=0.0, z=0.0)), attach_to=vehicle, attachment_type=carla.AttachmentType.Rigid
         )
 
         # latitude and longitude at current timestamp
-        self.lat, self.lon, self.alt, self.timestamp = 0.0, 0.0, 0.0, 0.0
+        self.lat: float = 0.0
+        self.lon: float = 0.0
+        self.alt: float = 0.0
+        self.timestamp: float = 0.0
         # create weak reference to avoid circular reference
         weak_self = weakref.ref(self)
         self.sensor.listen(lambda event: GnssSensor._on_gnss_event(weak_self, event))
 
     @staticmethod
-    def _on_gnss_event(weak_self, event):
+    def _on_gnss_event(weak_self: weakref.ReferenceType["GnssSensor"], event: carla.GnssMeasurement) -> None:
         """GNSS method that returns the current geo location."""
         self = weak_self()
         if not self:
@@ -87,17 +91,19 @@ class ImuSensor(object):
         The current sensor actors that will be attach to the vehicles.
     """
 
-    def __init__(self, vehicle):
+    def __init__(self, vehicle: carla.Vehicle):
         world = vehicle.get_world()
         blueprint = world.get_blueprint_library().find("sensor.other.imu")
-        self.sensor = world.spawn_actor(blueprint, carla.Transform(), attach_to=vehicle)
+        self.sensor: carla.Actor = world.spawn_actor(blueprint, carla.Transform(), attach_to=vehicle)
 
         weak_self = weakref.ref(self)
         self.sensor.listen(lambda sensor_data: ImuSensor._IMU_callback(weak_self, sensor_data))
-        self.gyroscope = None
+        self.accelerometer: carla.Vector3D
+        self.gyroscope: carla.Vector3D = None
+        self.compass: float
 
     @staticmethod
-    def _IMU_callback(weak_self, sensor_data):
+    def _IMU_callback(weak_self: weakref.ReferenceType["ImuSensor"], sensor_data: carla.IMUMeasurement) -> None:
         """
         IMU method that returns the 3-D (x,y,z)
         acceleration and gyroscope values.
@@ -150,19 +156,19 @@ class LocalizationManager(object):
         Optional live animation helper for localization debugging.
     """
 
-    def __init__(self, vehicle, config_yaml, carla_map):
+    def __init__(self, vehicle: carla.Vehicle, config_yaml: Mapping[str, Any], carla_map: carla.Map):
         self.vehicle = vehicle
         self.activate = config_yaml["activate"]
         self.map = carla_map
         self.geo_ref = self.map.transform_to_geolocation(carla.Location(x=0, y=0, z=0))
 
         # speed and transform and current timestamp
-        self._ego_pos = None
-        self._speed = 0
+        self._ego_pos: carla.Transform | None = None
+        self._speed: float = 0
 
         # history track
-        self._ego_pos_history = deque(maxlen=100)
-        self._timestamp_history = deque(maxlen=100)
+        self._ego_pos_history: deque[carla.Transform] = deque(maxlen=100)
+        self._timestamp_history: deque[float] = deque(maxlen=100)
 
         self.gnss = GnssSensor(vehicle, config_yaml["gnss"])
         self.imu = ImuSensor(vehicle)
@@ -190,7 +196,7 @@ class LocalizationManager(object):
         # Live visualization helper.
         self.debug_helper = LocDebugHelper(config_yaml["debug_helper"], self.vehicle.id)
 
-    def localize(self):
+    def localize(self) -> None:
         """
         Currently implemented in a naive way.
         """
@@ -250,7 +256,7 @@ class LocalizationManager(object):
             self._ego_pos_history.append(self._ego_pos)
             self._timestamp_history.append(self.gnss.timestamp)
 
-    def add_heading_direction_noise(self, heading_direction):
+    def add_heading_direction_noise(self, heading_direction: float) -> float:
         """
         Add synthetic noise to heading direction.
 
@@ -266,7 +272,7 @@ class LocalizationManager(object):
         """
         return heading_direction + np.random.normal(0, self.heading_noise_std)
 
-    def add_speed_noise(self, speed):
+    def add_speed_noise(self, speed: float) -> float:
         """
         Add gaussian white noise to the current speed.
 
@@ -282,19 +288,19 @@ class LocalizationManager(object):
         """
         return speed + np.random.normal(0, self.speed_noise_std)
 
-    def get_ego_pos(self):
+    def get_ego_pos(self) -> carla.Transform:
         """
         Retrieve ego vehicle position
         """
         return self._ego_pos
 
-    def get_ego_spd(self):
+    def get_ego_spd(self) -> float:
         """
         Retrieve ego vehicle speed
         """
         return self._speed
 
-    def destroy(self):
+    def destroy(self) -> None:
         """
         Destroy the sensors
         """

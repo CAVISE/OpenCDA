@@ -1,6 +1,18 @@
 # For 2cars_advcp_attack_check scenario
 mode: spoof
-attacker_id: rsu-1
+attacker_ids: [cav-2]
+density: 2 # 0=replace, 1=dense_a, 2=dense_all, 3=sampled
+dense_distance: 10.0 # used by dense_a and dense_all early spoofing
 default_size: [4.5, 2.0, 1.6]
+max_perturb: 10.0 # used by intermediate spoofing
+lr: 0.05 # used by intermediate spoofing
+step: 25 # number of optimization steps for intermediate spoofing
+random_seed: 1 # applied once at AdvCP manager init (torch/numpy RNG), affects intermediate spoofing optimization reproducibility
+sync: true # false = optimize on current tick, true = optimize on previous tick and apply/evaluate on current tick
+init: true # start intermediate optimization from mesh-based LiDAR spoofing, not from a zero perturbation
+online: true # carry half of the previous tick perturbation into the next tick
+feature_size: 10 # patch half-size in feature space, so 10 means a 20 x 20 patch
+car_mesh_path: ../../../core/attack/advcp/3d_models/car_mesh_0200.ply # used by early spoofing and by intermediate spoofing when init=true
+car_mesh_divide_path: ../../../core/attack/advcp/3d_models/spoof/car_mesh_divide.pkl # mesh partition for sampled/init ray tracing
 boxes:
-  - relative: [5.0, 0.0, 0.0, 0.0, 90.0, 0.0]
+  - relative: [15.0, 0.0, 0.0, 0.0, 90.0, 0.0]

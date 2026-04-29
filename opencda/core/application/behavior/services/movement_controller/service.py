@@ -26,6 +26,7 @@ class MovementController:
     """Behavior service that runs AIM predictions for a batch of CAV requests."""
 
     service_name = "movement_controller"
+    priority = 100
 
     @property
     def capability_bindings(self) -> CapabilityBindings:

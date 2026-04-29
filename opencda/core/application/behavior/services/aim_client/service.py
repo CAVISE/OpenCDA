@@ -29,6 +29,7 @@ class AIMClient:
     """Behavior service that runs AIM predictions for a batch of CAV requests."""
 
     service_name = "aim_client"
+    priority = 20
 
     @property
     def capability_bindings(self) -> CapabilityBindings:

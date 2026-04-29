@@ -36,6 +36,13 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
         self.pre_processor = build_preprocessor(params["preprocess"], train)
         self.post_processor = post_processor.build_postprocessor(params["postprocess"], train)
 
+        # whether there is a time delay between the time that cav project
+        # lidar to ego and the ego receive the delivered feature
+        if "cur_ego_pose_flag" in params["fusion"]["args"]:
+            self.cur_ego_pose_flag = params["fusion"]["args"]["cur_ego_pose_flag"]
+        else:
+            self.cur_ego_pose_flag = True
+
         self.payload_handler = payload_handler
         self.module_name = "OpenCOOD.IntermediateFusionDatasetV2"
 

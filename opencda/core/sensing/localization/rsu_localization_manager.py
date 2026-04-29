@@ -4,6 +4,7 @@ Localization module for RSU.
 
 import weakref
 from collections import deque
+from typing import Any, Sequence, Mapping
 
 import carla
 
@@ -36,7 +37,7 @@ class GnssSensor(object):
         The current sensor actors that will be attach to the vehicles.
     """
 
-    def __init__(self, world, config, global_position):
+    def __init__(self, world: carla.World, config: Mapping[str, Any], global_position: Sequence[float]) -> None:
         blueprint = world.get_blueprint_library().find("sensor.other.gnss")
 
         # set the noise for gps
@@ -44,16 +45,21 @@ class GnssSensor(object):
         blueprint.set_attribute("noise_lat_stddev", str(config["noise_lat_stddev"]))
         blueprint.set_attribute("noise_lon_stddev", str(config["noise_lon_stddev"]))
         # spawn the sensor
-        self.sensor = world.spawn_actor(blueprint, carla.Transform(carla.Location(x=global_position[0], y=global_position[1], z=global_position[2])))
+        self.sensor: carla.Actor = world.spawn_actor(
+            blueprint, carla.Transform(carla.Location(x=global_position[0], y=global_position[1], z=global_position[2]))
+        )
 
         # latitude and longitude at current timestamp
-        self.lat, self.lon, self.alt, self.timestamp = 0.0, 0.0, 0.0, 0.0
+        self.lat: float = 0.0
+        self.lon: float = 0.0
+        self.alt: float = 0.0
+        self.timestamp: float = 0.0
         # create weak reference to avoid circular reference
         weak_self = weakref.ref(self)
         self.sensor.listen(lambda event: GnssSensor._on_gnss_event(weak_self, event))
 
     @staticmethod
-    def _on_gnss_event(weak_self, event):
+    def _on_gnss_event(weak_self: weakref.ReferenceType["GnssSensor"], event: carla.GnssMeasurement) -> None:
         """GNSS method that returns the current geo location."""
         self = weak_self()
         if not self:
@@ -83,26 +89,27 @@ class LocalizationManager(object):
         transmission.
     """
 
-    def __init__(self, world, config_yaml, carla_map):
+    def __init__(self, world: carla.World, config_yaml: Mapping[str, Any], carla_map: carla.Map) -> None:
         self.activate = config_yaml["activate"]
         self.map = carla_map
         self.geo_ref = self.map.transform_to_geolocation(carla.Location(x=0, y=0, z=0))
 
         # speed and transform and current timestamp
-        self._ego_pos = None
-        self._speed = 0
+        self._ego_pos: carla.Transform | None = None
+        self._speed: float = 0
 
         # history track
-        self._ego_pos_history = deque(maxlen=100)
-        self._timestamp_history = deque(maxlen=100)
+        self._ego_pos_history: deque[carla.Transform] = deque(maxlen=100)
+        self._timestamp_history: deque[float] = deque(maxlen=100)
 
         self.gnss = GnssSensor(world, config_yaml["gnss"], config_yaml["global_position"])
         self.true_ego_pos = carla.Transform(
             carla.Location(x=config_yaml["global_position"][0], y=config_yaml["global_position"][1], z=config_yaml["global_position"][2])
         )
         self._speed = 0
+        self.rsu = None  # temporary attribute to store the reference to the rsu manager
 
-    def localize(self):
+    def localize(self) -> None:
         """
         Currently implemented in a naive way.
         """
@@ -113,19 +120,19 @@ class LocalizationManager(object):
             x, y, z = geo_to_transform(self.gnss.lat, self.gnss.lon, self.gnss.alt, self.geo_ref.latitude, self.geo_ref.longitude, 0.0)
             self._ego_pos = carla.Transform(carla.Location(x=x, y=y, z=z))
 
-    def get_ego_pos(self):
+    def get_ego_pos(self) -> carla.Transform | None:
         """
         Retrieve ego vehicle position
         """
         return self._ego_pos
 
-    def get_ego_spd(self):
+    def get_ego_spd(self) -> float:
         """
         Retrieve ego vehicle speed
         """
         return self._speed
 
-    def destroy(self):
+    def destroy(self) -> None:
         """
         Destroy the sensors
         """

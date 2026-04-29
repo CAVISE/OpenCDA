@@ -4,7 +4,9 @@ Reference: https://www.bzarg.com/p/how-a-kalman-filter-works-in-pictures/
 """
 
 import math
+
 import numpy as np
+import numpy.typing as npt
 
 
 class KalmanFilter(object):
@@ -34,7 +36,7 @@ class KalmanFilter(object):
         The estimated P values.
     """
 
-    def __init__(self, dt):
+    def __init__(self, dt: float):
         self.Q = (
             np.diag(
                 [
@@ -55,7 +57,7 @@ class KalmanFilter(object):
         self.xEst = np.zeros((4, 1))
         self.PEst = np.eye(4)
 
-    def motion_model(self, x, u):
+    def motion_model(self, x: npt.NDArray[np.float64], u: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
         """
         Predict current position and yaw based on
         previous result (X = F * X_prev + B * u).
@@ -81,7 +83,7 @@ class KalmanFilter(object):
 
         return x
 
-    def observation_model(self, x):
+    def observation_model(self, x: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
         """
         Project the state matrix to sensor measurement matrix.
 
@@ -102,7 +104,7 @@ class KalmanFilter(object):
 
         return z
 
-    def run_step_init(self, x, y, heading, velocity):
+    def run_step_init(self, x: float, y: float, heading: float, velocity: float) -> None:
         """
         Initial state filling.
 
@@ -126,7 +128,7 @@ class KalmanFilter(object):
         self.xEst[2] = heading
         self.xEst[3] = velocity
 
-    def run_step(self, x, y, heading, velocity, yaw_rate_imu):
+    def run_step(self, x: float, y: float, heading: float, velocity: float, yaw_rate_imu: float) -> tuple[float, float, float, float]:
         """
         Apply KF on current measurement and previous prediction.
 
@@ -161,7 +163,7 @@ class KalmanFilter(object):
         xPred = self.motion_model(self.xEst, u)
         # sensor measurement prediction
         zPred = self.observation_model(xPred)
-        y = z - zPred
+        innovation = z - zPred
 
         # projection matrix
         H = np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0]])
@@ -173,7 +175,7 @@ class KalmanFilter(object):
         S = np.linalg.inv(H @ PPred @ H.T + self.R)
         K = PPred @ H.T @ S
 
-        self.xEst = xPred + K @ y
+        self.xEst = xPred + K @ innovation
         self.PEst = K @ H @ PPred
 
-        return self.xEst[0][0], self.xEst[1][0], self.xEst[2][0], self.xEst[3][0]
+        return float(self.xEst[0][0]), float(self.xEst[1][0]), float(self.xEst[2][0]), float(self.xEst[3][0])

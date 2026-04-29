@@ -27,6 +27,7 @@ class AIMServer:
     """Behavior service that runs AIM predictions for a batch of CAV requests."""
 
     service_name = "aim_server"
+    priority = 20
 
     @property
     def capability_bindings(self) -> CapabilityBindings:
@@ -38,6 +39,7 @@ class AIMServer:
 
     def __init__(
         self,
+        priority: int = 20,
         **aim_config: Any,
     ) -> None:
         """
@@ -50,6 +52,7 @@ class AIMServer:
         """
         self._owner_ref: weakref.ReferenceType[RSUManager] | None = None
         self.aim_model_manager: AIMModelManager | None = None
+        self.priority = priority
 
         aim_model_name = cast(str, aim_config.pop("model", "MTP"))
         self.model = get_model(aim_model_name, **aim_config)
@@ -72,6 +75,8 @@ class AIMServer:
         owner_instance = self._get_owner()
         owner_instance.localizer.localize()
         control_center = owner_instance.localizer.get_ego_pos()
+        if control_center is None:
+            raise RuntimeError("AIM server could not resolve the node localization control center.")
         self.aim_model_manager = AIMModelManager(self.model, control_center, self.service_name, owner_instance.id)
 
     def on_detach(self) -> None:
