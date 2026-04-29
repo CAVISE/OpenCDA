@@ -4,18 +4,22 @@ from __future__ import annotations
 
 import weakref
 import logging
+from collections import deque
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import traci
+import carla
 
 from opencda.core.application.behavior.registry import BehaviorServiceRegistry
 from opencda.core.application.behavior.transport_message import TransportMessage
 from opencda.core.application.behavior.services.aim_server import AIMServerRequest, AIMServerResponse
 from opencda.core.application.behavior.services.movement_controller import MovementControllerRequestMessage
-from opencda.core.application.behavior.types import Rotation, Transform
+
+from .utils import get_speed, draw_trajetory_points, calculate_target_speeds
 
 if TYPE_CHECKING:
+    from opencda.core.application.behavior.types import Location
     from opencda.core.common.vehicle_manager import VehicleManager
 
 
@@ -26,15 +30,17 @@ logger = logging.getLogger("cavise.opencda.opencda.core.application.behavior.ser
 class AIMClient:
     """Behavior service that runs AIM predictions for a batch of CAV requests."""
 
-    service_name = "aim_client"
-    priority = 20
+    service_name: str = "aim_client"
+    priority: int = 20
 
-    def __init__(self, priority: int = 20) -> None:
+    def __init__(self, priority: int = 20, debug: bool = False) -> None:
         """
         Initialize the AIM-backed behavior service.
         """
         self._owner_ref: weakref.ReferenceType[VehicleManager] | None = None
         self.priority = priority
+        self.trajectory: deque[tuple[Location, float]] = deque()
+        self.debug = debug
 
     def _get_owner(self) -> VehicleManager:
         owner_ref = self._owner_ref
@@ -70,9 +76,23 @@ class AIMClient:
         owner = self._get_owner()
         res_messages: list[TransportMessage[MovementControllerRequestMessage | AIMServerRequest]] = []
 
+        current_location = owner.vehicle.get_location()
+        current_speed = get_speed(owner.vehicle)
         for message in self._filter_messages(messages):
-            target_position = Transform(message.next_position, Rotation(0, 0, 0))
-            payload = MovementControllerRequestMessage(target_position=target_position)
+            control_trajectory = message.trajectory[1:]  # drop first because it was calculated on previous tick
+            target_speeds = calculate_target_speeds(control_trajectory, 0.05, current_location, current_speed, 111, 2.5, 4.5)
+            self.trajectory = deque(zip(control_trajectory, target_speeds))
+            if self.debug:
+                draw_trajetory_points(
+                    owner.agent._local_planner._vehicle.get_world(),
+                    control_trajectory,
+                    size=0.05,
+                    color=carla.Color(255, 0, 0),
+                    life_time=0.1,
+                    _map=owner.agent._map,
+                )
+            target_location, target_speed = self.trajectory.popleft()
+            payload = MovementControllerRequestMessage(target_location=target_location, target_speed=target_speed)
             res_messages.append(
                 TransportMessage(
                     src_owner_id=owner.id,
@@ -82,12 +102,9 @@ class AIMClient:
                     payload=payload,
                 )
             )
-        if len(res_messages) == 0:
-            end_waypoint = owner.agent.end_waypoint
-            if end_waypoint is None:
-                raise RuntimeError("AIM client requires a valid end waypoint when no AIM response is available.")
-            target_position = Transform(end_waypoint.transform.location, Rotation(0, 0, 0))
-            payload = MovementControllerRequestMessage(target_position=target_position)
+        if len(res_messages) == 0 and self.trajectory:
+            target_location, target_speed = self.trajectory.popleft()
+            payload = MovementControllerRequestMessage(target_location=target_location, target_speed=target_speed)
             res_messages.append(
                 TransportMessage(
                     src_owner_id=owner.id,
