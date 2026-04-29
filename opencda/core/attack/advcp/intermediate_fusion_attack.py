@@ -22,6 +22,7 @@ from opencda.core.attack.advcp.types import (
     AdvCPMemoryData,
     AdvCPMemoryRecord,
     AdvCPScenarioData,
+    AdvCPVisualizationContext,
 )
 from opencda.core.common.coperception_data_processor import LiveMemorySnapshot
 
@@ -40,7 +41,7 @@ class AdvCoperceptionIntermediateFusionAttack:
         attack_state: AdvCPIntermediateAttackState | None = None,
     ) -> AdvCPAttackResult:
         mode = AdvCPAttackHelper.require_config_value(advcp_config, "mode")
-        advcp_context = AdvCPAttackHelper.build_attack_context(mode=mode)
+        advcp_context = AdvCPVisualizationContext(mode=mode)
 
         match mode:
             case "remove":
@@ -61,8 +62,7 @@ class AdvCoperceptionIntermediateFusionAttack:
                 "Please configure exactly one attacker for intermediate fusion."
             )
         if len(configured_attacker_ids) == 0:
-            AdvCPAttackHelper.log_no_configured_attackers("intermediate")
-            return (*inference_utils.inference_intermediate_fusion(batch_data, model, dataset), advcp_context)
+            AdvCPAttackHelper.raise_no_configured_attackers("intermediate")
         attacker_id = configured_attacker_ids[0]
 
         AttackResultTuple = tuple[torch.Tensor | None, torch.Tensor | None, torch.Tensor | None]
@@ -93,12 +93,20 @@ class AdvCoperceptionIntermediateFusionAttack:
                 current_scenario_data.keys(),
             )
             if not present_attacker_ids:
-                AdvCPAttackHelper.log_attacker_missing(attacker_id, fusion_name="intermediate", scope_name="scenario data")
+                AdvCPAttackHelper.report_missing_attackers_from_current_batch(
+                    [attacker_id],
+                    current_scenario_data.keys(),
+                    fusion_name="intermediate",
+                )
                 return None, None
 
             current_attacker_index = AdvCoperceptionIntermediateFusionAttack._resolve_attacker_index(batch_data, attacker_id)
             if current_attacker_index is None:
-                AdvCPAttackHelper.log_attacker_missing(attacker_id, fusion_name="intermediate", scope_name="batch")
+                AdvCPAttackHelper.report_missing_attackers_from_current_batch(
+                    [attacker_id],
+                    AdvCPAttackHelper.resolve_batch_agent_ids(batch_data),
+                    fusion_name="intermediate",
+                )
                 return None, None
 
             current_ego_boxes = AdvCoperceptionIntermediateFusionAttack._resolve_ego_attack_boxes(
@@ -110,8 +118,8 @@ class AdvCoperceptionIntermediateFusionAttack:
                 [AdvCPAttackHelper.convert_box_for_model(attack_box, dataset).to(device) for attack_box in current_ego_boxes],
                 dim=0,
             )
-            advcp_context["attacker_ids"] = [attacker_id]
-            advcp_context["fake_box_tensor"] = box_utils.boxes_to_corners_3d(
+            advcp_context.attacker_ids = [attacker_id]
+            advcp_context.fake_box_tensor = box_utils.boxes_to_corners_3d(  # noqa: DC05
                 current_target_boxes,
                 order=dataset.post_processor.params.get("order", "hwl"),
             )
@@ -181,7 +189,7 @@ class AdvCoperceptionIntermediateFusionAttack:
 
     @staticmethod
     def _resolve_ego_attack_boxes(
-        scenario_data: Mapping[str, Any],
+        scenario_data: AdvCPScenarioData,
         advcp_config: AdvCPConfig,
         attacker_id: str,
     ) -> list[npt.NDArray]:
@@ -295,7 +303,11 @@ class AdvCoperceptionIntermediateFusionAttack:
 
         optimize_attacker_index = cls._resolve_attacker_index(optimize_batch, attacker_id)
         if optimize_attacker_index is None:
-            AdvCPAttackHelper.log_attacker_missing(attacker_id, fusion_name="intermediate", scope_name="optimization batch")
+            AdvCPAttackHelper.report_missing_attackers_from_current_batch(
+                [attacker_id],
+                AdvCPAttackHelper.resolve_batch_agent_ids(optimize_batch),
+                fusion_name="intermediate",
+            )
             return (*inference_utils.inference_intermediate_fusion(original_optimize_batch, model, dataset), None)
 
         real_original_batch: Mapping[str, Any] | None = None
@@ -312,7 +324,11 @@ class AdvCoperceptionIntermediateFusionAttack:
             )
             real_attacker_index = cls._resolve_attacker_index(real_batch, attacker_id)
             if real_attacker_index is None:
-                AdvCPAttackHelper.log_attacker_missing(attacker_id, fusion_name="intermediate", scope_name="batch")
+                AdvCPAttackHelper.report_missing_attackers_from_current_batch(
+                    [attacker_id],
+                    AdvCPAttackHelper.resolve_batch_agent_ids(real_batch),
+                    fusion_name="intermediate",
+                )
                 return (*inference_utils.inference_intermediate_fusion(real_original_batch, model, dataset), None)
 
         with torch.no_grad():

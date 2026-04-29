@@ -83,11 +83,11 @@ boxes:
 # ---------------------------------------------------------------------------
 
 # Density mode for LiDAR point spoofing:
-# 0 = replace   : replace existing hit points with spoofed intersections
-# 1 = dense_a   : append dense spoofed points from one virtual offset
-# 2 = dense_all : append dense spoofed points using offsets from all collaborators
-# 3 = sampled   : sample spoofed points from mesh pieces
-density: 3
+# replace          : replace existing hit points with spoofed intersections
+# dense_a          : append dense spoofed points from one virtual offset
+# denseall/dense_all: append dense spoofed points using offsets from all collaborators
+# sampled          : sample spoofed points from mesh pieces
+density: sampled
 
 # Virtual sensor offset in meters used by dense_a and dense_all.
 dense_distance: 10.0
@@ -129,13 +129,6 @@ lr: 0.05
 # Each step is one forward + loss + backward + optimizer update.
 # Larger values usually make the attack stronger, but slower.
 step: 25
-
-# Random seed for intermediate spoofing optimization.
-# Applied once at AdvCP manager initialization to seed:
-# - torch.manual_seed(random_seed)
-# - np.random.seed(random_seed)
-# Keep fixed for reproducible runs, or change to vary perturbation search trajectories.
-random_seed: 1
 
 # Async toggle:
 # - false: optimize and evaluate on the current tick

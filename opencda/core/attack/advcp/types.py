@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import OrderedDict
+from dataclasses import dataclass, field
 from typing import Any, Mapping, Sequence, TypeAlias, TypedDict
 import numpy.typing as npt
 import torch
@@ -13,11 +14,12 @@ AdvCPScenarioData: TypeAlias = OrderedDict[str, AdvCPMemoryRecord]
 AdvCPMemoryData: TypeAlias = OrderedDict[int, AdvCPScenarioData]
 
 
-class AdvCPVisualizationContext(TypedDict, total=False):
-    attacker_ids: list[str]
-    fake_box_tensor: torch.Tensor | None  # noqa: DC01
-    removed_box_tensor: torch.Tensor | None  # noqa: DC01
-    mode: str | None
+@dataclass
+class AdvCPVisualizationContext:
+    mode: str | None = None
+    attacker_ids: list[str] = field(default_factory=list)
+    fake_box_tensor: torch.Tensor | None = None  # noqa: DC01
+    removed_box_tensor: torch.Tensor | None = None
 
 
 class AdvCPAgentState(TypedDict):
@@ -41,13 +43,12 @@ class AdvCPConfig(TypedDict, total=False):
     boxes: list[AdvCPBoxSpec]
     attacker_ids: list[str]
     advshape: bool | str  # noqa: DC01
-    density: int | str
+    density: str
     dense_distance: float
     sync: bool  # noqa: DC01
     init: bool
     online: bool
     step: int
-    random_seed: int
     max_perturb: float
     lr: float  # noqa: DC01
     feature_size: int

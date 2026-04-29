@@ -28,7 +28,7 @@ class AdvCoperceptionLateFusionAttack:
             output_dict[cav_id] = model(cav_content)
 
         mode = AdvCPAttackHelper.require_config_value(advcp_config, "mode")
-        advcp_context = AdvCPAttackHelper.build_attack_context(mode=mode)
+        advcp_context = AdvCPVisualizationContext(mode=mode)
         match mode:
             case "remove":
                 AdvCoperceptionLateFusionAttack._raise_removal_not_available()
@@ -39,19 +39,24 @@ class AdvCoperceptionLateFusionAttack:
 
         configured_attacker_ids = AdvCPAttackHelper.resolve_configured_attacker_ids(advcp_config)
         if len(configured_attacker_ids) == 0:
-            AdvCPAttackHelper.log_no_configured_attackers("late")
-            return AdvCoperceptionLateFusionAttack._run_default_prediction(batch_data, output_dict, dataset, advcp_context)
+            AdvCPAttackHelper.raise_no_configured_attackers("late")
 
         attacker_ids, attack_boxes_by_attacker = AdvCoperceptionLateFusionAttack.resolve_spoof_boxes_by_attacker(
             advcp_config,
             memory_data,
         )
-        advcp_context["attacker_ids"] = attacker_ids
+        advcp_context.attacker_ids = attacker_ids
 
         if not attack_boxes_by_attacker:
+            scenario_data = next(iter(memory_data.values())) if memory_data else {}
+            AdvCPAttackHelper.report_missing_attackers_from_current_batch(
+                configured_attacker_ids,
+                scenario_data.keys(),
+                fusion_name="late",
+            )
             return AdvCoperceptionLateFusionAttack._run_default_prediction(batch_data, output_dict, dataset, advcp_context)
 
-        present_batch_attacker_ids, missing_attacker_ids = AdvCPAttackHelper.resolve_present_and_missing_attackers(
+        present_batch_attacker_ids, _ = AdvCPAttackHelper.resolve_present_and_missing_attackers(
             list(attack_boxes_by_attacker.keys()),
             batch_data.keys(),
         )
@@ -59,14 +64,12 @@ class AdvCoperceptionLateFusionAttack:
             attacker_id: attack_boxes_by_attacker[attacker_id] for attacker_id in present_batch_attacker_ids
         }
         if not attack_boxes_by_attacker_in_batch:
-            AdvCPAttackHelper.log_all_configured_attackers_missing(
-                missing_attacker_ids,
+            AdvCPAttackHelper.report_missing_attackers_from_current_batch(
+                attacker_ids,
                 batch_data.keys(),
-                scope_name="batch",
-                available_label="Batch agents",
                 fusion_name="late",
             )
-            advcp_context["attacker_ids"] = []
+            advcp_context.attacker_ids = []
             return AdvCoperceptionLateFusionAttack._run_default_prediction(batch_data, output_dict, dataset, advcp_context)
 
         pred_box3d_list = []
@@ -139,7 +142,7 @@ class AdvCoperceptionLateFusionAttack:
         gt_box_tensor = dataset.post_processor.generate_gt_bbx(batch_data)
 
         if torch.any(pred_is_fake_tensor):
-            advcp_context["fake_box_tensor"] = pred_box3d_tensor[pred_is_fake_tensor]
+            advcp_context.fake_box_tensor = pred_box3d_tensor[pred_is_fake_tensor]  # noqa: DC05
 
         return pred_box3d_tensor, pred_score, gt_box_tensor, advcp_context
 
