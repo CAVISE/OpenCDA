@@ -30,6 +30,7 @@ class DummyService:
 
     def __init__(
         self,
+        priority: int = 90,
         response_suffix: str = " [dummy processed]",
     ) -> None:
         self._response_suffix = response_suffix

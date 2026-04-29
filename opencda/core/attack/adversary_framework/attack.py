@@ -14,7 +14,7 @@ from .stage_registry import AttackStageRegistry
 from .utils import ServiceResolver, match_services, resolve_targets as resolve_configured_targets
 
 if TYPE_CHECKING:
-    from .models import StageSpec
+    pass
 
 
 class Attack:
@@ -22,9 +22,7 @@ class Attack:
 
     def __init__(self, spec: AttackSpec, stages: tuple[AttackStage, ...]) -> None:
         if len(spec.stages) != len(stages):
-            raise ValueError(
-                f"Attack '{spec.name}' defines {len(spec.stages)} stage specs, but received {len(stages)} runtime stage instances."
-            )
+            raise ValueError(f"Attack '{spec.name}' defines {len(spec.stages)} stage specs, but received {len(stages)} runtime stage instances.")
 
         stage_ids = [stage_spec.id for stage_spec in spec.stages]
         if len(stage_ids) != len(set(stage_ids)):
@@ -36,10 +34,7 @@ class Attack:
         self.is_active = False
         self.status = RuntimeStatus.INACTIVE
         self.previous_status = RuntimeStatus.INACTIVE
-        self.stage_runtimes = tuple(
-            StageRuntime(spec=stage_spec, stage=stage)
-            for stage_spec, stage in zip(spec.stages, stages, strict=True)
-        )
+        self.stage_runtimes = tuple(StageRuntime(spec=stage_spec, stage=stage) for stage_spec, stage in zip(spec.stages, stages, strict=True))
 
     @classmethod
     def from_spec(cls, spec: AttackSpec) -> Attack:

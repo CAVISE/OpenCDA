@@ -55,9 +55,7 @@ def evaluate_condition(
             value=condition.value,
         )
 
-    raise ValueError(
-        f"Attack runtime currently supports only 'snapshot', 'attack' and 'stage' condition sources, got '{source.kind}'."
-    )
+    raise ValueError(f"Attack runtime currently supports only 'snapshot', 'attack' and 'stage' condition sources, got '{source.kind}'.")
 
 
 def collect_snapshot_values(
@@ -134,26 +132,19 @@ def _evaluate_runtime_predicate(
         return any(previous_values.get(key, _MISSING) != current_value for key, current_value in current_values.items())
 
     if verb == "became":
-        return any(
-            current_value == value and previous_values.get(key, _MISSING) != value
-            for key, current_value in current_values.items()
-        )
+        return any(current_value == value and previous_values.get(key, _MISSING) != value for key, current_value in current_values.items())
 
     if verb == "increased":
         delta = 1 if value is None else value
         return any(
-            key in previous_values
-            and current_value > previous_values[key]
-            and (current_value - previous_values[key]) >= delta
+            key in previous_values and current_value > previous_values[key] and (current_value - previous_values[key]) >= delta
             for key, current_value in current_values.items()
         )
 
     if verb == "decreased":
         delta = 1 if value is None else value
         return any(
-            key in previous_values
-            and current_value < previous_values[key]
-            and (previous_values[key] - current_value) >= delta
+            key in previous_values and current_value < previous_values[key] and (previous_values[key] - current_value) >= delta
             for key, current_value in current_values.items()
         )
 
@@ -184,35 +175,25 @@ def _evaluate_snapshot_predicate(
     if verb == "increased":
         delta = 1 if value is None else value
         return any(
-            key in previous_values
-            and current_value > previous_values[key]
-            and (current_value - previous_values[key]) >= delta
+            key in previous_values and current_value > previous_values[key] and (current_value - previous_values[key]) >= delta
             for key, current_value in current_values.items()
         )
 
     if verb == "decreased":
         delta = 1 if value is None else value
         return any(
-            key in previous_values
-            and current_value < previous_values[key]
-            and (previous_values[key] - current_value) >= delta
+            key in previous_values and current_value < previous_values[key] and (previous_values[key] - current_value) >= delta
             for key, current_value in current_values.items()
         )
 
     if verb == "became":
-        return any(
-            current_value == value and previous_values.get(key, _MISSING) != value
-            for key, current_value in current_values.items()
-        )
+        return any(current_value == value and previous_values.get(key, _MISSING) != value for key, current_value in current_values.items())
 
     if verb == "added":
         return any(_collection_added(previous_values.get(key, _MISSING), current_value, value) for key, current_value in current_values.items())
 
     if verb == "removed":
-        return any(
-            _collection_removed(previous_values.get(key, _MISSING), current_value, value)
-            for key, current_value in current_values.items()
-        )
+        return any(_collection_removed(previous_values.get(key, _MISSING), current_value, value) for key, current_value in current_values.items())
 
     raise ValueError(f"Unsupported snapshot verb '{verb}'.")
 

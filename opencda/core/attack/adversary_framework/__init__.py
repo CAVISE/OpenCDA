@@ -4,7 +4,19 @@ from .stages import _import_builtin_attack_stages
 from .attack_manager import AttackManager
 from .attack import Attack
 from .attack_stage_protocol import AttackStage
-from .models import AttackContext, AttackResult, AttackSpec, AttackStageResult, ConditionSpec, RuntimeStatus, StageRuntime, StageSpec, Status, TargetSpec, TriggerSourceSpec
+from .models import (
+    AttackContext,
+    AttackResult,
+    AttackSpec,
+    AttackStageResult,
+    ConditionSpec,
+    RuntimeStatus,
+    StageRuntime,
+    StageSpec,
+    Status,
+    TargetSpec,
+    TriggerSourceSpec,
+)
 from .stage_registry import AttackStageRegistry
 from .utils import (
     AttackResultRewriter,
