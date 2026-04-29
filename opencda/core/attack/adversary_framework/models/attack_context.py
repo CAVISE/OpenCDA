@@ -6,7 +6,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from opencda.core.application.behavior.behavior_service_protocol import BehaviorService
+from opencda.core.application.behavior import BehaviorService
 
 if TYPE_CHECKING:
     from ..attack import Attack
