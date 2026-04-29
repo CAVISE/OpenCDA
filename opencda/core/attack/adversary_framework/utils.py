@@ -7,8 +7,12 @@ from typing import Any, TypeAlias
 
 from opencda.core.application.behavior.behavior_service_protocol import BehaviorService
 from opencda.core.application.behavior.capability import Capability
+from opencda.scenario_testing.types import SimulationSnapshot
 
+from .condition_evaluator import resolve_target_node_ids
+from .models import TargetSpec
 
+ServiceResolver: TypeAlias = Callable[[str, str], BehaviorService[Any, Any] | None]
 AttackResultRewriter: TypeAlias = Callable[[Any], Any]
 RestoreCallback: TypeAlias = Callable[[], None]
 _MISSING = object()
@@ -87,3 +91,26 @@ def match_services(
 ) -> list[BehaviorService[Any, Any]]:
     """Return all services that satisfy the required capability set."""
     return [service for service in services if service_supports_capabilities(service, required_capabilities)]
+
+
+def resolve_targets(
+    target_spec: TargetSpec | None,
+    current_snapshot: SimulationSnapshot,
+    service_resolver: ServiceResolver,
+) -> tuple[BehaviorService[Any, Any], ...]:
+    """Resolve live target services according to a target spec."""
+    if target_spec is None:
+        return ()
+
+    if target_spec.kind != "service_state_field":
+        raise ValueError(f"Unsupported target resolution kind '{target_spec.kind}'.")
+
+    target_node_ids = resolve_target_node_ids(target_spec.source, current_snapshot)
+    target_services: list[BehaviorService[Any, Any]] = []
+
+    for node_id in sorted(target_node_ids):
+        service = service_resolver(node_id, target_spec.resolve_to_service_name)
+        if service is not None:
+            target_services.append(service)
+
+    return tuple(target_services)

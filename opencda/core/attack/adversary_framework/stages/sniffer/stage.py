@@ -9,7 +9,7 @@ from typing import Any
 
 from opencda.core.application.behavior.behavior_service_protocol import BehaviorService
 from opencda.core.application.behavior.capability import Capability
-from opencda.core.attack.adversary_framework.attack_result import AttackStageResult, Status
+from opencda.core.attack.adversary_framework.models import AttackStageResult, Status
 from opencda.core.attack.adversary_framework.stage_registry import AttackStageRegistry
 from opencda.core.attack.adversary_framework.stages.sniffer.types import ObservedOutput
 from opencda.core.attack.adversary_framework.utils import RestoreCallback, install_output_interceptor

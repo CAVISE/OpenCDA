@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any
 from opencda.core.application.behavior.behavior_service_protocol import BehaviorService
 
 if TYPE_CHECKING:
-    from .attack_protocol import Attack
+    from ..attack import Attack
 
 
 @dataclass(slots=True)

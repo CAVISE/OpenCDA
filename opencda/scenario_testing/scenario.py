@@ -14,13 +14,13 @@ from omegaconf import DictConfig, OmegaConf
 import opencda.scenario_testing.utils.cosim_api as sim_api
 import opencda.scenario_testing.utils.customized_map_api as map_api
 from opencda.core.application.platooning.platooning_manager import PlatooningManager
-from opencda.core.attack.adversary_framework import AttackManager, AttackRegistry
+from opencda.core.attack.adversary_framework import Attack, AttackManager, AttackSpec
 from opencda.core.common.cav_world import CavWorld
 from opencda.core.common.rsu_manager import RSUManager
 from opencda.core.common.vehicle_manager import VehicleManager
 from opencda.scenario_testing.types import NodeSnapshot, SimulationSnapshot
 from opencda.scenario_testing.evaluations.evaluate_manager import EvaluationManager
-from opencda.scenario_testing.utils.yaml_utils import YamlDict, add_current_time, save_yaml
+from opencda.scenario_testing.utils.yaml_utils import YamlDict, add_current_time, load_yaml, save_yaml
 
 from opencda.core.application.behavior import TransportMessage
 
@@ -226,7 +226,21 @@ class Scenario:
         self.messages: list[TransportMessage] = []
         self.simulation_snapshot = SimulationSnapshot(tick=-1)
         self.attack_manager = AttackManager()
-        self.attacks = [AttackRegistry.create_attack("aim_client_response_sniffer")]
+        attacks_config = scenario_config.get("attacks", [])
+        if not isinstance(attacks_config, list):
+            self._abort_simulation("Scenario config field 'attacks' must be a list of attack names.")
+
+        attacks: list[Attack] = []
+        for attack_name in attacks_config:
+            if not isinstance(attack_name, str):
+                self._abort_simulation("Scenario config field 'attacks' must contain only attack names as strings.")
+
+            attack_config_path = Path("opencda/core/attack/adversary_framework/attacks") / attack_name / "config.yaml"
+            attack_config = load_yaml(attack_config_path)
+            attack_spec = AttackSpec.from_dict(cast(YamlDict, attack_config["attack"]))
+            attacks.append(Attack.from_spec(attack_spec))
+
+        self.attacks = attacks
         self.attack_results = ()
 
     def _evaluate_attacks(self) -> None:

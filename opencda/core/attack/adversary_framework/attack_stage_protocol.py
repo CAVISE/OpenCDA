@@ -8,7 +8,7 @@ from typing import Any, Protocol, Sequence, runtime_checkable
 from opencda.core.application.behavior.capability import Capability
 from opencda.core.application.behavior.behavior_service_protocol import BehaviorService
 
-from .attack_result import AttackStageResult
+from .models import AttackStageResult
 
 
 @runtime_checkable
