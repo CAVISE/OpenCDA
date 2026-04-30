@@ -7,8 +7,8 @@ from typing import Any, Protocol, Sequence, TypeVar, runtime_checkable
 from .capability import CapabilityBindings
 from .transport_message import TransportMessage
 
-BehaviorServiceRequestT = TypeVar("BehaviorServiceRequestT")
-BehaviorServiceResponseT = TypeVar("BehaviorServiceResponseT")
+BehaviorServiceRequestT = TypeVar("BehaviorServiceRequestT", contravariant=True)
+BehaviorServiceResponseT = TypeVar("BehaviorServiceResponseT", covariant=True)
 
 
 @runtime_checkable
