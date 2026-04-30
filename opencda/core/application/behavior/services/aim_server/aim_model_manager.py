@@ -55,7 +55,7 @@ class AIMModelManager:
 
         self._service_name = service_name
         self._owner_id = owner_id
-        self._last_state_snapshot: AIMServerState
+        self._last_state_snapshot: AIMServerState = None
 
         self.__yaw_dict_path = Path(__file__).parent / "assets" / "yaw_dict_10m.pkl"
         self.yaw_dict: dict[str, Any] = utils.load_yaw(self.__yaw_dict_path)

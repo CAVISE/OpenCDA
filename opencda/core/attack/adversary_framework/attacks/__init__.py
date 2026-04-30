@@ -1,1 +1,0 @@
-"""Builtin attack configuration packages."""

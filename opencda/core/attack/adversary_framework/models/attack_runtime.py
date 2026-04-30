@@ -6,11 +6,11 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING
 
-from .attack_result import AttackStageResult
-from .attack_spec import StageSpec
+from opencda.core.attack.adversary_framework.models.attack_result import AttackStageResult
+from opencda.core.attack.adversary_framework.models.attack_spec import StageSpec
 
 if TYPE_CHECKING:
-    from ..attack_stage_protocol import AttackStage
+    from opencda.core.attack.adversary_framework.attack_stage_protocol import AttackStage
 
 
 class RuntimeStatus(str, Enum):
