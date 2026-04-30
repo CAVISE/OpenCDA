@@ -24,4 +24,4 @@ class AIMServerRequest:
 class AIMServerResponse:
     """Predicted next target position for a vehicle handled by AIM."""
 
-    next_position: Location
+    trajectory: Sequence[Location]
