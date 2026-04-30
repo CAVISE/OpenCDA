@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from opencda.core.application.behavior.behavior_service_protocol import BehaviorService
 from opencda.scenario_testing.types import SimulationSnapshot
@@ -12,9 +12,6 @@ from .condition_evaluator import evaluate_condition
 from .models import AttackSpec, AttackStageResult, RuntimeStatus, StageRuntime, Status
 from .stage_registry import AttackStageRegistry
 from .utils import ServiceResolver, match_services, resolve_targets as resolve_configured_targets
-
-if TYPE_CHECKING:
-    pass
 
 
 class Attack:
