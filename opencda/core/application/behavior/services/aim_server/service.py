@@ -84,7 +84,7 @@ class AIMServer:
         self._owner_ref = None
         self.aim_model_manager = None
 
-    def get_state(self) -> AIMServerState:
+    def get_state(self) -> AIMServerState | None:
         if self.aim_model_manager is None:
             return AIMServerState(
                 service_name=self.service_name,

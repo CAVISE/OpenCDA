@@ -8,4 +8,4 @@ class MovementControllerState:
     service_name: str
     owner_id: str | None
     is_attached: bool  # noqa: DC01
-    target_position: Location | None
+    target_position: Location | None # noqa: DC01

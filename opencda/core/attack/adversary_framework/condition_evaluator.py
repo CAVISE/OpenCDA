@@ -293,17 +293,19 @@ def _extract_runtime_value(
 
 
 def _compare_value(current_value: Any, verb: str, expected_value: Any) -> bool:
-    if verb == "eq":
-        return current_value == expected_value
-    if verb == "gt":
-        return current_value > expected_value
-    if verb == "gte":
-        return current_value >= expected_value
-    if verb == "lt":
-        return current_value < expected_value
-    if verb == "lte":
-        return current_value <= expected_value
-    raise ValueError(f"Unsupported comparison verb '{verb}'.")
+    match verb:
+        case "eq":
+            return current_value == expected_value
+        case "gt":
+            return current_value > expected_value
+        case "gte":
+            return current_value >= expected_value
+        case "lt":
+            return current_value < expected_value
+        case "lte":
+            return current_value <= expected_value
+        case _:
+            raise ValueError(f"Unsupported comparison verb '{verb}'.")
 
 
 def _collection_added(previous_value: Any, current_value: Any, expected_value: Any) -> bool:

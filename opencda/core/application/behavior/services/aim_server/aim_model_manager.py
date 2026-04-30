@@ -106,8 +106,18 @@ class AIMModelManager:
     def _get_cav_intention(self, vehicle_id: str) -> str:
         return self.cav_data[vehicle_id].intention
 
-    def get_state_snapshot(self) -> AIMServerState | None:
+    def get_state_snapshot(self) -> AIMServerState:
         """Return an immutable snapshot of the current AIM runtime state."""
+        if self._last_state_snapshot is None:
+            return AIMServerState(
+                service_name=self._service_name,
+                owner_id=self._owner_id,
+                is_attached=True,
+                tracked_vehicle_ids=(),
+                trajectory_vehicle_ids=(),
+                tracked_vehicle_count=0,
+                trajectory_vehicle_count=0,
+            )
         return self._last_state_snapshot
 
     def _finalize_tick_state(self) -> None:
