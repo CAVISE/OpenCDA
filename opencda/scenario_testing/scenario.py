@@ -220,7 +220,6 @@ class Scenario:
         cav_world = self.scenario_manager.cav_world
         if cav_world is None:
             self._abort_simulation("Scenario manager was initialized without CavWorld; simulation cannot continue.")
-        self.cav_world = cav_world
         self.eval_manager = EvaluationManager(cav_world, script_name=self.scenario_name, current_time=scenario_config["current_time"])
 
         self.spectator = self.scenario_manager.world.get_spectator()
@@ -334,13 +333,11 @@ class Scenario:
 
             if self.single_cav_list is not None:
                 for single_cav in self.single_cav_list:
-                    single_cav.update_info()
                     cav_messages, _ = single_cav.run_step(messages=self.messages)
                     new_messages.extend(cav_messages)
 
             if self.rsu_list is not None:
                 for rsu in self.rsu_list:
-                    rsu.update_info()
                     rsu_messages, _ = rsu.run_step(messages=self.messages)
                     new_messages.extend(rsu_messages)
 
@@ -350,7 +347,7 @@ class Scenario:
             self.attack_results = self.attack_manager.evaluate(
                 self.attacks,
                 self.simulation_snapshot,
-                service_resolver=cast(CavWorld, self.scenario_manager.cav_world).resolve_behavior_service,
+                service_resolver=self.cav_world.resolve_behavior_service,
             )
             for result in self.attack_results:
                 logger.info("attack=%s status=%s reason=%s", result.attack_name, result.status.value, result.reason)
@@ -429,13 +426,11 @@ class Scenario:
             new_messages: list[TransportMessage[Any]] = []
             if self.single_cav_list is not None:
                 for single_cav in self.single_cav_list:
-                    single_cav.update_info()
                     cav_messages, _ = single_cav.run_step(messages=self.messages)
                     new_messages.extend(cav_messages)
 
             if self.rsu_list is not None:
                 for rsu in self.rsu_list:
-                    rsu.update_info()
                     rsu_messages, _ = rsu.run_step(messages=self.messages)
                     new_messages.extend(rsu_messages)
 
@@ -443,7 +438,7 @@ class Scenario:
             self.attack_results = self.attack_manager.evaluate(
                 self.attacks,
                 self.simulation_snapshot,
-                service_resolver=cast(CavWorld, self.scenario_manager.cav_world).resolve_behavior_service,
+                service_resolver=self.cav_world.resolve_behavior_service,
             )
             for result in self.attack_results:
                 logger.info("attack=%s status=%s reason=%s", result.attack_name, result.status.value, result.reason)
