@@ -9,7 +9,7 @@ from AIM import AIMModel
 
 from .messages import AIMServerRequest, AIMServerResponse
 from .types import AIMServerState, CavData
-from opencda.core.application.behavior.types import Transform, Location, Rotation
+from opencda.core.application.behavior.types import Transform, Location
 from . import utils
 
 from opencda.core.application.behavior.transport_message import TransportMessage

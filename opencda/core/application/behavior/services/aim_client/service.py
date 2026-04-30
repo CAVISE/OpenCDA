@@ -16,7 +16,7 @@ from opencda.core.application.behavior.registry import BehaviorServiceRegistry
 from opencda.core.application.behavior.transport_message import TransportMessage
 from opencda.core.application.behavior.services.aim_server import AIMServerRequest, AIMServerResponse
 from opencda.core.application.behavior.services.movement_controller import MovementControllerRequestMessage
-from opencda.core.application.behavior.types import Location, Rotation, Transform
+from opencda.core.application.behavior.types import Location, Transform
 from opencda.core.application.behavior.services.aim_client.types import AIMClientState
 
 from .utils import get_speed, draw_trajetory_points, calculate_target_speeds
@@ -43,7 +43,6 @@ class AIMClient:
             Capability.COMMAND_SUBMIT: self._build_movement_command_message,
             Capability.REQUEST_SUBMIT: self._build_aim_server_request_message,
         }
-
 
     def __init__(self, priority: int = 20, debug: bool = False) -> None:
         """

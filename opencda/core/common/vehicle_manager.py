@@ -381,7 +381,7 @@ class VehicleManager(object):
         # pass position and speed info to controller
         self.controller.update_info(ego_pos, ego_spd)
 
-    def update_info_v2x(self) -> None:  # noqa: deadcode
+    def update_info_v2x(self) -> None:  # noqa: deadcode,
         # TODO: Implement
         pass
 
@@ -414,7 +414,7 @@ class VehicleManager(object):
         )
         self.update_behavior_services(messages)
 
-        return self.behavior_service_results
+        return (self.behavior_service_results, self.behavior_service_states)
 
     def destroy(self) -> None:
         """
