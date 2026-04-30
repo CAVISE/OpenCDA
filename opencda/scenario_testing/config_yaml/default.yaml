@@ -162,6 +162,8 @@ vehicle_base:
   v2x:  # communication related
     enabled: true
     communication_range: 35
+  behavior_services:
+    - type: movement_controller
 
 
 # define the background traffic control by carla
