@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import sys
 import types
+from pathlib import Path
 from types import ModuleType, SimpleNamespace
 from unittest.mock import Mock
 import importlib.util
@@ -31,6 +32,7 @@ def _install_stub_if_missing(name: str, module: ModuleType) -> None:
 
 behavior_services_stub = types.ModuleType("opencda.core.application.behavior.services")
 behavior_services_stub.__all__ = []
+behavior_services_stub.__path__ = [str(Path(__file__).resolve().parents[1] / "opencda/core/application/behavior/services")]
 _install_stub_if_missing("opencda.core.application.behavior.services", behavior_services_stub)
 
 
@@ -349,6 +351,7 @@ def minimal_vehicle_config():
         "v2x": {},
         "safety_manager": {},
         "platoon": {},
+        "behavior_services": [{"type": "movement_controller"}],
     }
 
 
