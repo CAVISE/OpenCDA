@@ -4,6 +4,7 @@ import argparse
 import logging
 import os
 from dataclasses import dataclass
+from itertools import chain
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, NoReturn, cast
 
@@ -245,19 +246,16 @@ class Scenario:
         self.attack_results: tuple[AttackResult, ...] = ()
 
     def _build_simulation_snapshot(self, tick: int) -> SimulationSnapshot:
-        vehicle_managers: list[VehicleManager] = []
-        vehicle_managers.extend(self.single_cav_list)
-
-        for platoon in self.platoon_list:
-            vehicle_managers.extend(platoon.vehicle_manager_list)
-
         vehicle_nodes = tuple(
             NodeSnapshot(
                 node_id=vehicle_manager.id,
                 node_type="vehicle",
                 service_states=dict(vehicle_manager.behavior_service_states),
             )
-            for vehicle_manager in vehicle_managers
+            for vehicle_manager in chain(
+                self.single_cav_list,
+                *(platoon.vehicle_manager_list for platoon in self.platoon_list),
+            )
         )
 
         rsu_nodes = tuple(
