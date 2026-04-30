@@ -16,13 +16,12 @@ from opencda.core.application.behavior.registry import BehaviorServiceRegistry
 from opencda.core.application.behavior.transport_message import TransportMessage
 from opencda.core.application.behavior.services.aim_server import AIMServerRequest, AIMServerResponse
 from opencda.core.application.behavior.services.movement_controller import MovementControllerRequestMessage
-from opencda.core.application.behavior.types import Location, Transform
-from opencda.core.application.behavior.services.aim_client.types import AIMClientState
+from .types import AIMClientState
 
 from .utils import get_speed, draw_trajetory_points, calculate_target_speeds
 
 if TYPE_CHECKING:
-    from opencda.core.application.behavior.types import Location
+    from opencda.core.application.behavior.types import Location, Transform
     from opencda.core.common.vehicle_manager import VehicleManager
 
 
@@ -69,19 +68,18 @@ class AIMClient:
         self._owner_ref = weakref.ref(owner)
 
     def get_state(self) -> AIMClientState:
-        owner_ref = self._owner_ref
+        owner_ref = self._get_owner()
         owner = owner_ref() if owner_ref is not None else None
         return AIMClientState(
             service_name=self.service_name,
             owner_id=owner.id if owner is not None else None,
             is_attached=owner is not None,
-            next_position=self._next_position,
         )
 
     def on_detach(self) -> None:
         """Release service resources before the participant is destroyed."""
         self._owner_ref = None
-        self._next_position = None
+        self.trajectory.clear()
 
     def _filter_messages(self, messages: Sequence[TransportMessage[AIMServerResponse]]) -> list[AIMServerResponse]:
         owner = self._get_owner()
@@ -126,7 +124,6 @@ class AIMClient:
         messages: Sequence[TransportMessage[AIMServerResponse]],
     ) -> Sequence[TransportMessage[MovementControllerRequestMessage | AIMServerRequest]]:
         owner = self._get_owner()
-        self._next_position = None
         res_messages: list[TransportMessage[MovementControllerRequestMessage | AIMServerRequest]] = []
 
         current_location = owner.vehicle.get_location()
