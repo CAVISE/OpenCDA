@@ -85,11 +85,7 @@ class MovementController:
         self._target_position = None
 
         if len(valid_messages) > 0:
-            next_pos = [
-                message.target_position.location for message in valid_messages
-            ]  # TODO: think what to do if multiple messages with different target positions are received - for now we just take the first one
-
-            self._target_position = next_pos[0]
-            current_location = owner.vehicle.get_location()
-            owner.set_destination(current_location, next_pos[0], clean=True, end_reset=False)
+            # TODO: think what to do if multiple messages with different target positions are received - for now we just take the last one
+            request = valid_messages[-1]
+            owner.control(target_speed=request.target_speed, target_location=request.target_location)
         return ()
