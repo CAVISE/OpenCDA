@@ -5,7 +5,7 @@ from typing import Generic, TypeVar
 from dataclasses import dataclass
 
 
-payloadT = TypeVar("payloadT")
+payloadT = TypeVar("payloadT", covariant=True)
 
 
 @dataclass(frozen=True)

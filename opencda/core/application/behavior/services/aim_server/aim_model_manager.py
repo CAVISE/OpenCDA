@@ -8,7 +8,7 @@ import numpy as np
 from AIM import AIMModel
 
 from .messages import AIMServerRequest, AIMServerResponse
-from .types import CavData
+from .types import AIMServerState, CavData
 from opencda.core.application.behavior.types import Transform, Location
 from . import utils
 
@@ -55,6 +55,7 @@ class AIMModelManager:
 
         self._service_name = service_name
         self._owner_id = owner_id
+        self._last_state_snapshot: AIMServerState | None = None
 
         self.__yaw_dict_path = Path(__file__).parent / "assets" / "yaw_dict_10m.pkl"
         self.yaw_dict: dict[str, Any] = utils.load_yaw(self.__yaw_dict_path)
@@ -105,6 +106,32 @@ class AIMModelManager:
     def _get_cav_intention(self, vehicle_id: str) -> str:
         return self.cav_data[vehicle_id].intention
 
+    def get_state_snapshot(self) -> AIMServerState:
+        """Return an immutable snapshot of the current AIM runtime state."""
+        if self._last_state_snapshot is None:
+            return AIMServerState(
+                service_name=self._service_name,
+                owner_id=self._owner_id,
+                is_attached=True,
+                tracked_vehicle_ids=(),
+                trajectory_vehicle_ids=(),
+                tracked_vehicle_count=0,
+                trajectory_vehicle_count=0,
+            )
+        return self._last_state_snapshot
+
+    def _finalize_tick_state(self) -> None:
+        self._last_state_snapshot = AIMServerState(
+            service_name=self._service_name,
+            owner_id=self._owner_id,
+            is_attached=True,
+            tracked_vehicle_ids=tuple(sorted(self.cav_data)),
+            trajectory_vehicle_ids=tuple(sorted(self.trajs)),
+            tracked_vehicle_count=len(self.cav_data),
+            trajectory_vehicle_count=len(self.trajs),
+        )
+        self.cav_data.clear()
+
     def process(self, messages: Sequence[TransportMessage[AIMServerRequest]]) -> Sequence[TransportMessage[AIMServerResponse]]:
         """
         Run AIM inference for the request batch and return predicted targets.
@@ -124,7 +151,7 @@ class AIMModelManager:
         num_agents = features.shape[0]
 
         if num_agents == 0:
-            self.cav_data.clear()
+            self._finalize_tick_state()
             return result_messages
 
         predictions = self.model.predict(features.copy(), target_agent_ids)
@@ -152,7 +179,7 @@ class AIMModelManager:
                     )
                 )
 
-        self.cav_data.clear()
+        self._finalize_tick_state()
         return result_messages
 
     def predition_to_location(self, vehicle_id: str, local_delta: np.ndarray, yaw: float) -> Location:

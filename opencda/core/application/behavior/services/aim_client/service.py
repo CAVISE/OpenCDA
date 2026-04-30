@@ -11,10 +11,12 @@ from typing import TYPE_CHECKING
 import traci
 import carla
 
+from opencda.core.application.behavior.capability import Capability, CapabilityBindings
 from opencda.core.application.behavior.registry import BehaviorServiceRegistry
 from opencda.core.application.behavior.transport_message import TransportMessage
 from opencda.core.application.behavior.services.aim_server import AIMServerRequest, AIMServerResponse
 from opencda.core.application.behavior.services.movement_controller import MovementControllerRequestMessage
+from .types import AIMClientState
 
 from .utils import get_speed, draw_trajetory_points, calculate_target_speeds
 
@@ -32,6 +34,14 @@ class AIMClient:
 
     service_name: str = "aim_client"
     priority: int = 20
+
+    @property
+    def capability_bindings(self) -> CapabilityBindings:
+        return {
+            Capability.RESPONSE_OBSERVE: self._filter_messages,
+            Capability.COMMAND_SUBMIT: self._build_movement_command_message,
+            Capability.REQUEST_SUBMIT: self._build_aim_server_request_message,
+        }
 
     def __init__(self, priority: int = 20, debug: bool = False) -> None:
         """
@@ -57,9 +67,19 @@ class AIMClient:
         """Initialize the service for a particular participant instance."""
         self._owner_ref = weakref.ref(owner)
 
+    def get_state(self) -> AIMClientState:
+        owner_ref = self._get_owner()
+        return AIMClientState(
+            service_name=self.service_name,
+            owner_id=owner_ref.id if owner_ref is not None else None,
+            is_attached=owner_ref is not None,
+            trajectory=tuple(location for location, _ in self.trajectory),
+        )
+
     def on_detach(self) -> None:
         """Release service resources before the participant is destroyed."""
         self._owner_ref = None
+        self.trajectory.clear()
 
     def _filter_messages(self, messages: Sequence[TransportMessage[AIMServerResponse]]) -> list[AIMServerResponse]:
         owner = self._get_owner()
@@ -68,6 +88,36 @@ class AIMClient:
             if message.dst_owner_id == owner.id and message.dst_service_type == self.service_name:
                 valid_messages.append(message.payload)
         return valid_messages
+
+    def _build_movement_command_message(self, target_location: Location) -> TransportMessage[MovementControllerRequestMessage]:
+        owner = self._get_owner()
+        payload = MovementControllerRequestMessage(target_location=target_location, target_speed=None)
+        return TransportMessage(
+            src_owner_id=owner.id,
+            src_service_type=self.service_name,
+            dst_owner_id=owner.id,
+            dst_service_type="movement_controller",
+            payload=payload,
+        )
+
+    def _build_aim_server_request_message(self) -> TransportMessage[AIMServerRequest]:
+        owner = self._get_owner()
+        position = owner.vehicle.get_transform()
+        waypoints = owner.agent.get_local_planner().get_waypoint_buffer()
+        payload = AIMServerRequest(
+            vehicle_id=owner.id,
+            position=position,
+            speed=traci.vehicle.getSpeed(owner.id),
+            yaw=traci.vehicle.getAngle(owner.id),
+            waypoints=waypoints,
+        )
+        return TransportMessage(
+            src_owner_id=owner.id,
+            src_service_type=self.service_name,
+            dst_owner_id="broadcast",
+            dst_service_type="aim_server",
+            payload=payload,
+        )
 
     def process(
         self,
