@@ -69,11 +69,10 @@ class AIMClient:
 
     def get_state(self) -> AIMClientState:
         owner_ref = self._get_owner()
-        owner = owner_ref() if owner_ref is not None else None
         return AIMClientState(
             service_name=self.service_name,
-            owner_id=owner.id if owner is not None else None,
-            is_attached=owner is not None,
+            owner_id=owner_ref.id if owner_ref is not None else None,
+            is_attached=owner_ref is not None,
         )
 
     def on_detach(self) -> None:
