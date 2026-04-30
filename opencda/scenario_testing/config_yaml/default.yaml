@@ -1,6 +1,8 @@
 description: |-
   Content: This is the template scenario testing configuration file that other scenarios could directly refer
 
+attacks: []
+
 # define carla simulation setting
 world:
   sync_mode: true
