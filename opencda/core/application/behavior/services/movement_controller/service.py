@@ -32,12 +32,11 @@ class MovementController:
     def capability_bindings(self) -> CapabilityBindings:
         return {}
 
-    def __init__(
-        self,
-    ) -> None:
+    def __init__(self, priority: int = 100) -> None:
         """
         Initialize the AIM-backed behavior service.
         """
+        self.priority = priority
         self._owner_ref: weakref.ReferenceType[VehicleManager] | None = None
         self._target_position: Location | None = None
 
@@ -57,11 +56,10 @@ class MovementController:
         self._owner_ref = weakref.ref(owner)
 
     def get_state(self) -> MovementControllerState:
-        owner_ref = self._owner_ref
-        owner = owner_ref() if owner_ref is not None else None
+        owner = self._get_owner()
         return MovementControllerState(
             service_name=self.service_name,
-            owner_id=owner.id if owner is not None else None,
+            owner_id=owner.id,
             is_attached=owner is not None,
             target_position=self._target_position,
         )

@@ -21,7 +21,7 @@ from .types import AIMClientState
 from .utils import get_speed, draw_trajetory_points, calculate_target_speeds
 
 if TYPE_CHECKING:
-    from opencda.core.application.behavior.types import Location, Transform
+    from opencda.core.application.behavior.types import Location
     from opencda.core.common.vehicle_manager import VehicleManager
 
 
@@ -73,6 +73,7 @@ class AIMClient:
             service_name=self.service_name,
             owner_id=owner_ref.id if owner_ref is not None else None,
             is_attached=owner_ref is not None,
+            trajectory=tuple(location for location, _ in self.trajectory),
         )
 
     def on_detach(self) -> None:
@@ -88,9 +89,9 @@ class AIMClient:
                 valid_messages.append(message.payload)
         return valid_messages
 
-    def _build_movement_command_message(self, target_position: Transform) -> TransportMessage[MovementControllerRequestMessage]:
+    def _build_movement_command_message(self, target_location: Location) -> TransportMessage[MovementControllerRequestMessage]:
         owner = self._get_owner()
-        payload = MovementControllerRequestMessage(target_position=target_position)
+        payload = MovementControllerRequestMessage(target_location=target_location, target_speed=None)
         return TransportMessage(
             src_owner_id=owner.id,
             src_service_type=self.service_name,

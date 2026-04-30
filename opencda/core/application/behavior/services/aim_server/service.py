@@ -14,8 +14,8 @@ from AIM import get_model
 
 if TYPE_CHECKING:
     from opencda.core.common.rsu_manager import RSUManager
-
     from .messages import AIMServerRequest, AIMServerResponse
+
 from .aim_model_manager import AIMModelManager
 from .types import AIMServerState
 

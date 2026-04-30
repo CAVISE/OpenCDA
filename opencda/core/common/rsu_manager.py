@@ -283,7 +283,7 @@ class RSUManager(object):
         # TODO: Добавить обновление информации
         pass
 
-    def run_step(self, messages: list[TransportMessage] = []) -> tuple[list[TransportMessage], dict[str, Any]]:
+    def run_step(self, messages: list[TransportMessage[Any]] = []) -> tuple[list[TransportMessage[Any]], dict[str, Any]]:
         """
         Run behavior services for the provided message batch and
         execute the current RSU step side effects.

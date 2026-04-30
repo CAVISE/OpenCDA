@@ -398,7 +398,11 @@ class VehicleManager(object):
 
         self.vehicle.apply_control(control)
 
-    def run_step(self, target_speed: float | None = None, messages: list[TransportMessage] = []) -> list[TransportMessage]:
+    def run_step(
+        self,
+        target_speed: float | None = None,
+        messages: list[TransportMessage[Any]] = [],
+    ) -> tuple[list[TransportMessage[Any]], dict[str, Any]]:
         """
         Execute one step of navigation.
         """
