@@ -109,6 +109,7 @@ scenario:
       color: [156, 255, 206]
       behavior_services:
         - type: aim_client
+          debug: true
         - type: movement_controller
 
     - name: cav2
@@ -118,6 +119,7 @@ scenario:
       color: [156, 255, 206]
       behavior_services:
         - type: aim_client
+          debug: true
         - type: movement_controller
 
     - name: cav3
@@ -127,6 +129,7 @@ scenario:
       color: [156, 255, 206]
       behavior_services:
         - type: aim_client
+          debug: true
         - type: movement_controller
 
     - name: cav4
@@ -136,4 +139,5 @@ scenario:
       color: [156, 255, 206]
       behavior_services:
         - type: aim_client
+          debug: true
         - type: movement_controller
