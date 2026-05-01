@@ -4,7 +4,7 @@
 # headless plotting
 matplotlib==3.10.9
 
-mypy-protobuf==5.0.0
+mypy-protobuf==5.1.0
 
 networkx==3.6.1
 
