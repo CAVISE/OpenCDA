@@ -35,5 +35,5 @@ class Rotation:
 
 @dataclass(frozen=True)
 class Transform:
-    location: Location
-    rotation: Rotation
+    location: Location = Location()
+    rotation: Rotation = Rotation()
