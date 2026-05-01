@@ -18,7 +18,7 @@ from opencda.core.application.behavior.services.aim_server import AIMServerReque
 from opencda.core.application.behavior.services.movement_controller import MovementControllerRequestMessage
 from .types import AIMClientState
 
-from .utils import get_speed, draw_trajetory_points, calculate_target_speeds
+from .utils import get_speed, draw_trajetory_points, calculate_target_speeds, distance_squared_2d, is_location_ahead
 
 if TYPE_CHECKING:
     from opencda.core.application.behavior.types import Location
@@ -50,6 +50,7 @@ class AIMClient:
         self._owner_ref: weakref.ReferenceType[VehicleManager] | None = None
         self.priority = priority
         self.trajectory: deque[tuple[Location, float]] = deque()
+        self.server_id: str = "broadcast"
         self.debug = debug
 
     def _get_owner(self) -> VehicleManager:
@@ -84,20 +85,20 @@ class AIMClient:
     def _observe_aim_responses(
         self,
         messages: Sequence[TransportMessage[AIMServerResponse]],
-    ) -> tuple[AIMServerResponse, ...]:
+    ) -> tuple[TransportMessage[AIMServerResponse], ...]:
         owner = self._get_owner()
-        observed_messages: list[AIMServerResponse] = []
+        observed_messages: list[TransportMessage[AIMServerResponse]] = []
 
         for message in messages:
             if message.dst_owner_id == owner.id and message.dst_service_type == self.service_name:
-                observed_messages.append(message.payload)
+                observed_messages.append(message)
 
         return tuple(observed_messages)
 
     def _build_movement_command_message(
         self,
-        target_location: Location,
-        target_speed: float | None,
+        target_location: Location | None,
+        target_speed: float | None = None,
     ) -> TransportMessage[MovementControllerRequestMessage]:
         owner = self._get_owner()
         payload = MovementControllerRequestMessage(target_location=target_location, target_speed=target_speed)
@@ -135,7 +136,7 @@ class AIMClient:
 
         return tuple(movement_commands)
 
-    def _build_aim_server_request_messages(self) -> tuple[TransportMessage[AIMServerRequest], ...]:
+    def _build_aim_server_request_message(self, dst_owner_id: str = "broadcast") -> tuple[TransportMessage[AIMServerRequest], ...]:
         owner = self._get_owner()
         position = owner.vehicle.get_transform()
         waypoints = owner.agent.get_local_planner().get_waypoint_buffer()
@@ -150,7 +151,7 @@ class AIMClient:
             TransportMessage(
                 src_owner_id=owner.id,
                 src_service_type=self.service_name,
-                dst_owner_id="broadcast",
+                dst_owner_id=dst_owner_id,
                 dst_service_type="aim_server",
                 payload=payload,
             ),

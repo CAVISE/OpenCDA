@@ -25,3 +25,4 @@ class AIMServerResponse:
     """Predicted next target position for a vehicle handled by AIM."""
 
     trajectory: Sequence[Location]
+    control_center: Location

@@ -112,6 +112,21 @@ def _distance_2d(first: Location | carla.Location, second: Location | carla.Loca
     return (dx * dx + dy * dy) ** 0.5
 
 
+def distance_squared_2d(first: Location | carla.Location, second: Location | carla.Location) -> float:
+    dx = second.x - first.x
+    dy = second.y - first.y
+    return dx * dx + dy * dy
+
+
+def is_location_ahead(vehicle_transform: carla.Transform, location: Location) -> bool:
+    forward_vector = vehicle_transform.get_forward_vector()
+    vehicle_location = vehicle_transform.location
+
+    dx = location.x - vehicle_location.x
+    dy = location.y - vehicle_location.y
+    return dx * forward_vector.x + dy * forward_vector.y > 0
+
+
 def _limit_speed_delta(
     target_speed: float,
     previous_speed: float,
