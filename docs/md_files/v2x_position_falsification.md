@@ -35,6 +35,40 @@ Speed is reported truthfully.
 
 Typical use case: modelling a slowly diverging position claim that is harder to detect than a sudden jump.
 
+### Detection (`V2XAttackDetector`)
+
+Detection is performed on the **receiver** side: every CAV with `attack_detection.enabled: true` instantiates its own `V2XAttackDetector`, which inspects the position/speed broadcast by every neighbor that enters the V2X communication range.
+
+The detector compares the position reported via V2X with the neighbor's true CARLA position (`vehicle.get_location()`). In a real deployment the trusted reference would come from independent perception (LiDAR/camera/radar/RSU); using CARLA's ground truth is a simulation-only stand-in for that channel.
+
+Three detection strategies are available, selected via `attack_detection.method`:
+
+#### `threshold` — single-tick distance check
+
+Computes the planar distance between the reported and the true XY position. Raises an alert when it exceeds `position_threshold` (meters). Stateless. Catches obvious displacement attacks (`constant_offset` with non-trivial `dx/dy`, `ghost_vehicle`).
+
+#### `drift` — sliding-window mean error
+
+Stores per-neighbor history of `||reported - true||` in a `deque(maxlen=window_size)`. Raises an alert when the window mean exceeds `drift_mean_threshold` **and** the error grew across the window (`history[-1] > history[0]`). Designed for `progressive_drift`, where a single-tick threshold would only trigger after the offset has accumulated for many ticks.
+
+#### `velocity_consistency` — passive sanity check
+
+Compares the displacement between two consecutive V2X broadcasts with what the reported speed would predict:
+
+```
+expected = avg(reported_speed) * dt
+actual   = ||reported_pos[t] - reported_pos[t-1]||
+alert if |actual - expected| > speed_threshold
+```
+
+Does not use ground truth — only V2X data — and therefore acts as an independent cross-check. Catches attacks that falsify position without keeping reported speed consistent (`constant_offset`, `progressive_drift`). It does **not** catch `ghost_vehicle` if both position and speed are fabricated coherently (e.g. constant ghost coordinates with `ghost_speed: 0`).
+
+When an anomaly is detected, the detector emits a `logger.warning` line of the form:
+
+```
+[V2X-DETECTOR][CAV cav-2] Anomaly in V2X data from CAV cav-1: method=threshold, error=3.50m, threshold=1.5m, tick=42
+```
+
 ### Scenario Configuration
 
 Attack and detection are configured in the `v2x` section of each vehicle in the scenario YAML.
@@ -50,6 +84,21 @@ v2x:
     dx: 3.5                  # offset in meters (constant_offset / progressive_drift)
     dy: 0.0
     dz: 0.0
+```
+
+**Receiver / detector configuration:**
+
+```yaml
+v2x:
+  communication_range: 250         # neighbor must be within this range for detection to run
+  attack_detection:
+    enabled: true
+    method: threshold              # threshold | drift | velocity_consistency
+    position_threshold: 1.5        # meters; used by `threshold`
+    window_size: 10                # used by `drift`
+    drift_mean_threshold: 0.5      # meters; used by `drift`
+    speed_threshold: 1.0           # meters; used by `velocity_consistency`
+    dt: 0.05                       # seconds; used by `velocity_consistency`
 ```
 
 ### Source Files

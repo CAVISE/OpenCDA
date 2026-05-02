@@ -7,9 +7,10 @@ import carla
 import numpy as np
 from opencda.core.application.platooning.platooning_plugin import PlatooningPlugin
 from opencda.core.attack.v2x_position_falsification import (
+    V2XAttackDetector,
     V2XConstantOffsetAttacker,
     V2XGhostVehicleAttacker,
-    V2XProgressiveDriftAttacker
+    V2XProgressiveDriftAttacker,
 )
 from opencda.core.common.misc import compute_distance
 
@@ -90,6 +91,7 @@ class V2XManager(object):
 
         self._tick_count = 0
         self._load_position_falsification_config(config_yaml)
+        self._load_attack_detection_config(config_yaml)
 
     def _load_position_falsification_config(self, config_yaml):
         # V2X Position Falsification attack (this vehicle lies in its CAM broadcasts)
@@ -123,6 +125,23 @@ class V2XManager(object):
             if self.v2x_attacker is not None:
                 logger.info(f"V2X Position Falsification Attack activated: {attack_type}")
 
+    def _load_attack_detection_config(self, config_yaml):
+        # V2X attack detector (this vehicle inspects neighbors' CAM broadcasts)
+        self.attack_detector = None
+        ad_config = config_yaml.get("attack_detection", {}) or {}
+        if ad_config.get("enabled", False):
+            self.attack_detector = V2XAttackDetector(
+                ego_id=self.vid,
+                method=ad_config.get("method", "threshold"),
+                position_threshold=ad_config.get("position_threshold", 1.5),
+                window_size=ad_config.get("window_size", 10),
+                drift_mean_threshold=ad_config.get("drift_mean_threshold", 0.5),
+                speed_threshold=ad_config.get("speed_threshold", 1.0),
+                dt=ad_config.get("dt", 0.05),
+            )
+            logger.info(
+                f"V2X Attack Detector activated for {self.vid}: method={self.attack_detector.method}"
+            )
 
     def update_info(self, ego_pos, ego_spd):
         """
@@ -205,16 +224,26 @@ class V2XManager(object):
         vehicle_manager_dict = self.cav_world.get_vehicle_managers()
 
         for vid, vm in vehicle_manager_dict.items():
-            # avoid the Nonetype error at the first simulation step
-            if not vm.v2x_manager.get_ego_pos():
-                continue
             # avoid add itself as the cav nearby
             if vid == self.vid:
                 continue
-            distance = compute_distance(self.ego_pos[-1].location, vm.v2x_manager.get_ego_pos().location)
+            # cache: get_ego_pos has noise/lag side effects and may invoke a falsifier,
+            # so it must be called exactly once per neighbor per tick.
+            reported_pos = vm.v2x_manager.get_ego_pos()
+            # avoid the Nonetype error at the first simulation step
+            if reported_pos is None:
+                continue
+            distance = compute_distance(self.ego_pos[-1].location, reported_pos.location)
 
             if distance < self.communication_range:
                 self.cav_nearby.update({vid: vm})
+                if self.attack_detector is not None:
+                    reported_speed = vm.v2x_manager.get_ego_speed()
+                    if reported_speed is not None:
+                        true_loc = vm.vehicle.get_location()
+                        self.attack_detector.check(
+                            vid, reported_pos, reported_speed, true_loc, self._tick_count
+                        )
 
     """
     -----------------------------------------------------------

@@ -114,7 +114,15 @@ scenario:
       spawn_position: [55, 129.51, 0.4, 0, 0, 0]
       destination: [600, 145.51, 0.3]
       v2x:
-        communication_range: 45
+        communication_range: 250  # large enough to keep the attacker in V2X range from the start
+        attack_detection:
+          enabled: true
+          method: threshold          # threshold | drift | velocity_consistency
+          position_threshold: 1.5    # meters; used by `threshold`
+          window_size: 10            # used by `drift`
+          drift_mean_threshold: 0.5  # meters; used by `drift`
+          speed_threshold: 1.0       # meters; used by `velocity_consistency`
+          dt: 0.05                   # seconds; used by `velocity_consistency`
       behavior:
         local_planner:
           debug_trajectory: false
