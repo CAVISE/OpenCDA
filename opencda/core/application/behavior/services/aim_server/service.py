@@ -28,7 +28,7 @@ logger = logging.getLogger("cavise.opencda.opencda.core.application.behavior.ser
 class AIMServer:
     """Behavior service that runs AIM predictions for a batch of CAV requests."""
 
-    service_name = "aim_server"
+    service_type = "aim_server"
     priority = 20
 
     @property
@@ -85,7 +85,7 @@ class AIMServer:
             if control_center is None:
                 raise RuntimeError("AIM server could not resolve the node localization control center.")
             self.control_center_location = control_center.location
-        self.aim_model_manager = AIMModelManager(self.model, self.control_center_location, self.service_name, owner_instance.id, self.control_radius)
+        self.aim_model_manager = AIMModelManager(self.model, self.control_center_location, self.service_type, owner_instance.id, self.control_radius)
 
     def on_detach(self) -> None:
         """Release service resources before the participant is destroyed."""
@@ -95,7 +95,7 @@ class AIMServer:
     def get_state(self) -> AIMServerState | None:
         if self.aim_model_manager is None:
             return AIMServerState(
-                service_name=self.service_name,
+                service_type=self.service_type,
                 owner_id=None,
                 is_attached=False,
                 tracked_vehicle_ids=(),

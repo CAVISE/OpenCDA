@@ -22,7 +22,7 @@ class AIMModelManager:
         self,
         model: AIMModel,
         control_center: Location,
-        service_name: str,
+        service_type: str,
         owner_id: str,
         control_radius: int = 15,
     ):
@@ -35,7 +35,7 @@ class AIMModelManager:
             Loaded AIM model used for trajectory prediction.
         control_center : Transform
             Intersection control point used to normalize vehicle positions.
-        service_name : str
+        service_type : str
             Service identifier used in AIM result messages.
         owner_id : str
             Identifier for the owner of the AIM model.
@@ -53,7 +53,7 @@ class AIMModelManager:
 
         self.model = model
 
-        self._service_name = service_name
+        self._service_name = service_type
         self._owner_id = owner_id
         self._last_state_snapshot: AIMServerState | None = None
 
@@ -110,7 +110,7 @@ class AIMModelManager:
         """Return an immutable snapshot of the current AIM runtime state."""
         if self._last_state_snapshot is None:
             return AIMServerState(
-                service_name=self._service_name,
+                service_type=self._service_name,
                 owner_id=self._owner_id,
                 is_attached=True,
                 tracked_vehicle_ids=(),
@@ -122,7 +122,7 @@ class AIMModelManager:
 
     def _finalize_tick_state(self) -> None:
         self._last_state_snapshot = AIMServerState(
-            service_name=self._service_name,
+            service_type=self._service_name,
             owner_id=self._owner_id,
             is_attached=True,
             tracked_vehicle_ids=tuple(sorted(self.cav_data)),

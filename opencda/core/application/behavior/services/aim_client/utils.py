@@ -1,3 +1,4 @@
+from __future__ import annotations
 import carla
 import math
 from collections.abc import Sequence

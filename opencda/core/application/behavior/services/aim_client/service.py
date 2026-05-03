@@ -32,7 +32,7 @@ logger = logging.getLogger("cavise.opencda.opencda.core.application.behavior.ser
 class AIMClient:
     """Behavior service that runs AIM predictions for a batch of CAV requests."""
 
-    service_name: str = "aim_client"
+    service_type: str = "aim_client"
     priority: int = 20
 
     @property
@@ -71,7 +71,7 @@ class AIMClient:
     def get_state(self) -> AIMClientState:
         owner_ref = self._get_owner()
         return AIMClientState(
-            service_name=self.service_name,
+            service_type=self.service_type,
             owner_id=owner_ref.id if owner_ref is not None else None,
             is_attached=owner_ref is not None,
             trajectory=tuple(location for location, _ in self.trajectory),
@@ -90,7 +90,7 @@ class AIMClient:
         observed_messages: list[TransportMessage[AIMServerResponse]] = []
 
         for message in messages:
-            if message.dst_owner_id == owner.id and message.dst_service_type == self.service_name:
+            if message.dst_owner_id == owner.id and message.dst_service_type == self.service_type:
                 observed_messages.append(message)
 
         return tuple(observed_messages)
@@ -104,7 +104,7 @@ class AIMClient:
         payload = MovementControllerRequestMessage(target_location=target_location, target_speed=target_speed)
         return TransportMessage(
             src_owner_id=owner.id,
-            src_service_type=self.service_name,
+            src_service_type=self.service_type,
             dst_owner_id=owner.id,
             dst_service_type="movement_controller",
             payload=payload,
@@ -150,7 +150,7 @@ class AIMClient:
         return (
             TransportMessage(
                 src_owner_id=owner.id,
-                src_service_type=self.service_name,
+                src_service_type=self.service_type,
                 dst_owner_id=dst_owner_id,
                 dst_service_type="aim_server",
                 payload=payload,
@@ -169,7 +169,6 @@ class AIMClient:
             size=0.05,
             color=carla.Color(255, 0, 0),
             life_time=0.1,
-            _map=owner.agent._map,
         )
 
     def process(
