@@ -18,7 +18,7 @@ from opencda.core.application.behavior.services.aim_server import AIMServerReque
 from opencda.core.application.behavior.services.movement_controller import MovementControllerRequestMessage
 from .types import AIMClientState
 
-from .utils import get_speed, draw_trajetory_points, calculate_target_speeds, distance_squared_2d, is_location_ahead
+from .utils import get_speed, draw_trajetory_points, calculate_target_speeds, distance_2d, is_location_ahead, find_server_response
 
 if TYPE_CHECKING:
     from opencda.core.application.behavior.types import Location
