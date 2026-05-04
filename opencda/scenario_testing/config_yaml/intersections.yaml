@@ -7,7 +7,7 @@ world:
   sync_mode: true
   client_port: 2000
   fixed_delta_seconds: 0.05
-  seed: 11 # seed for numpy and random
+  seed: 11 # seed for numpy, random, and torch
   weather:
     sun_altitude_angle: 15 # 90 is the midday and -90 is the midnight
     cloudiness: 0 # 0 is the clean sky and 100 is the thickest cloud
