@@ -125,7 +125,6 @@ exclude = [
     "^opencda/core/common/misc\\.py$",
     "^opencda/core/common/rsu_manager\\.py$",
     "^opencda/core/common/v2x_manager\\.py$",
-    "^opencda/core/common/vehicle_manager\\.py$",
     "^opencda/core/plan(/|$)",
     "^opencda/core/safety/safety_manager\\.py$",
     "^opencda/core/safety/sensors\\.py$",

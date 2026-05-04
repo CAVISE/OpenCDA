@@ -566,14 +566,13 @@ class BehaviorAgent(object):
         vehicle_state, _, _ = self.collision_manager(rx, ry, ryaw, self._map.get_waypoint(self._ego_pos.location), adjacent_check=True)
         return not vehicle_state
 
-    def car_following_manager(self, vehicle, distance, target_speed=None):
+    def car_following_manager(self, vehicle: carla.Vehicle, distance: float, target_speed: float | None = None) -> float:
         """
-        Module in charge of car-following behaviors when there's
-        someone in front of us.
+        Module in charge of car-following behaviors when there's someone in front of us.
 
         Parameters
         ----------
-        vehicle : carla.vehicle)
+        vehicle : carla.Vehicle
             Leading vehicle to follow.
 
         distance : float
@@ -586,9 +585,6 @@ class BehaviorAgent(object):
         -------
         target_speed : float
             The target speed for the next step.
-
-        target_loc : carla.Location
-            The target location.
         """
         if not target_speed:
             target_speed = self.max_speed - self.speed_lim_dist
@@ -731,7 +727,9 @@ class BehaviorAgent(object):
             )
         return reset_target
 
-    def run_step(self, target_speed=None, collision_detector_enabled=True, lane_change_allowed=True):
+    def run_step(
+        self, target_speed: float | None = None, collision_detector_enabled: bool = True, lane_change_allowed: bool = True
+    ) -> tuple[float, carla.Location | None]:
         """
         Execute one step of navigation
 
@@ -749,8 +747,11 @@ class BehaviorAgent(object):
 
         Returns
         -------
-        control : carla.VehicleControl
-            Vehicle control of the next step.
+        speed : float
+            Next trajectory point's target speed。
+
+        location : carla.Location
+            Next trajectory point's location.
         """
         # retrieve ego location
         ego_vehicle_loc = self._ego_pos.location

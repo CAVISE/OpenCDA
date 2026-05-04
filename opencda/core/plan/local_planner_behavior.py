@@ -385,8 +385,7 @@ class LocalPlanner(object):
         # use mean curvature to constrain the speed
 
         mean_k = 0.0001 if len(rk) < 2 else abs(statistics.mean(rk))
-        # v^2 <= a_lat_max / curvature, we assume 3.6 is the maximum lateral
-        # acceleration
+        # v^2 <= a_lat_max / curvature, we assume 3.6 is the maximum lateral acceleration
         target_speed = min(target_speed, np.sqrt(5.0 / (mean_k + 10e-6)) * 3.6)
 
         max_acc = 3.5
@@ -494,7 +493,15 @@ class LocalPlanner(object):
                 for i in range(max_index + 1):
                     self._trajectory_buffer.popleft()
 
-    def run_step(self, rx, ry, rk, target_speed=None, trajectory=None, following=False):
+    def run_step(
+        self,
+        rx: list[float],
+        ry: list[float],
+        rk: list[float],
+        target_speed: float | None = None,
+        trajectory: list | None = None,
+        following: bool = False,
+    ) -> tuple[float, carla.Location | None]:
         """
         Execute one step of local planning which involves
         running the longitudinal and lateral PID controllers to
@@ -507,9 +514,6 @@ class LocalPlanner(object):
 
         ry : list
             List of planned path points' y coordinates.
-
-        ryaw : list
-            List of planned path points' yaw angles.
 
         rk : list
             List of planned path points' curvatures.
@@ -528,8 +532,8 @@ class LocalPlanner(object):
         speed : float
             Next trajectory point's target speed。
 
-        waypoint : carla.waypoint
-            Next trajectory point's waypoint.
+        location : carla.Location
+            Next trajectory point's location.
 
         """
 
@@ -543,8 +547,7 @@ class LocalPlanner(object):
                 else:
                     break
 
-        # we will generate the trajectory only if it is not a following vehicle
-        # in the platooning
+        # we will generate the trajectory only if it is not a following vehicle in the platooning
         if not trajectory and len(self._trajectory_buffer) < self.trajectory_update_freq and not following:
             self._trajectory_buffer.clear()
             # if no spline points provided, return 0 and none target wpt
