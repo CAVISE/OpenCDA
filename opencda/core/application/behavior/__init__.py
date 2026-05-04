@@ -11,6 +11,7 @@ Provides:
 
 import importlib
 
+from .capability import Capability, CapabilityBinding, CapabilityBindings
 from .behavior_service_protocol import BehaviorService
 from .registry import BehaviorServiceRegistry
 from .transport_message import TransportMessage
@@ -23,6 +24,9 @@ create_service = BehaviorServiceRegistry.create_service
 list_services = BehaviorServiceRegistry.list_services
 
 __all__ = [
+    "Capability",
+    "CapabilityBinding",
+    "CapabilityBindings",
     "BehaviorService",
     "BehaviorServiceRegistry",
     "TransportMessage",

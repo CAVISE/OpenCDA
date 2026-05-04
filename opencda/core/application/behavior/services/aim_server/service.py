@@ -6,6 +6,7 @@ import weakref
 import logging
 from typing import Any, Sequence, cast, TYPE_CHECKING
 
+from opencda.core.application.behavior.capability import Capability, CapabilityBindings
 from opencda.core.application.behavior.registry import BehaviorServiceRegistry
 from opencda.core.application.behavior.transport_message import TransportMessage
 
@@ -13,9 +14,10 @@ from AIM import get_model
 
 if TYPE_CHECKING:
     from opencda.core.common.rsu_manager import RSUManager
-
     from .messages import AIMServerRequest, AIMServerResponse
+
 from .aim_model_manager import AIMModelManager
+from .types import AIMServerState
 
 logger = logging.getLogger("cavise.opencda.opencda.core.application.behavior.services.aim_server")
 
@@ -26,6 +28,14 @@ class AIMServer:
 
     service_name = "aim_server"
     priority = 20
+
+    @property
+    def capability_bindings(self) -> CapabilityBindings:
+        return {
+            Capability.REQUEST_OBSERVE: self._observe_aim_requests,
+            Capability.RESPONSE_SUBMIT: self._build_aim_response_messages,
+            Capability.STATE_OBSERVE: self.get_state,
+        }
 
     def __init__(
         self,
@@ -74,9 +84,35 @@ class AIMServer:
         self._owner_ref = None
         self.aim_model_manager = None
 
-    def process(self, messages: Sequence[TransportMessage[AIMServerRequest]]) -> Sequence[TransportMessage[AIMServerResponse]]:
+    def get_state(self) -> AIMServerState | None:
+        if self.aim_model_manager is None:
+            return AIMServerState(
+                service_name=self.service_name,
+                owner_id=None,
+                is_attached=False,
+                tracked_vehicle_ids=(),
+                trajectory_vehicle_ids=(),
+                tracked_vehicle_count=0,
+                trajectory_vehicle_count=0,
+            )
+
+        return self.aim_model_manager.get_state_snapshot()
+
+    def _observe_aim_requests(
+        self,
+        messages: Sequence[TransportMessage[AIMServerRequest]],
+    ) -> tuple[TransportMessage[AIMServerRequest], ...]:
+        return tuple(messages)
+
+    def _build_aim_response_messages(
+        self,
+        messages: Sequence[TransportMessage[AIMServerRequest]],
+    ) -> Sequence[TransportMessage[AIMServerResponse]]:
         aim_model_manager = self.aim_model_manager
         if aim_model_manager is None:
             raise RuntimeError("AIM server is not attached to an owner.")
 
         return aim_model_manager.process(messages)
+
+    def process(self, messages: Sequence[TransportMessage[AIMServerRequest]]) -> Sequence[TransportMessage[AIMServerResponse]]:
+        return self._build_aim_response_messages(messages)
