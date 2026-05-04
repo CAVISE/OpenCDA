@@ -6,14 +6,18 @@ from typing import Any, Mapping, Optional, cast
 
 import numpy as np
 import numpy.typing as npt
-import torch
 import yaml  # type: ignore
 
 from opencda.core.attack.advcp.attack_helper import AdvCPAttackHelper
 from opencda.core.attack.advcp.early_fusion_attack import AdvCoperceptionEarlyFusionAttack
 from opencda.core.attack.advcp.intermediate_fusion_attack import AdvCoperceptionIntermediateFusionAttack
 from opencda.core.attack.advcp.late_fusion_attack import AdvCoperceptionLateFusionAttack
-from opencda.core.attack.advcp.types import AdvCPAttackResult, AdvCPConfig, AdvCPIntermediateAttackState, AdvCPMemoryData
+from opencda.core.attack.advcp.types import (
+    AdvCPAttackResult,
+    AdvCPConfig,
+    AdvCPIntermediateAttackState,
+    AdvCPMemoryData,
+)
 from opencda.core.common.coperception_model_manager import (
     CoperceptionInferenceResult,
     CoperceptionModelManager,
@@ -34,16 +38,26 @@ class AdvCoperceptionVisualizer(CoperceptionVisualizer):
             "gt": (0, 255, 0),
             "pred": (255, 0, 0),
             "fake": (180, 0, 255),
+            "removed": (56, 189, 248),
         },
         "bbox_line_thickness": 5,
         "image_dpi": 400,
     }
 
+    @staticmethod
+    def _get_context_value(visualization_context: Any, key: str, default: Any = None) -> Any:
+        if visualization_context is None:
+            return default
+        return getattr(visualization_context, key, default)
+
     @classmethod
-    def _get_extra_box_tensors(cls, visualization_context: Optional[Mapping[str, Any]] = None) -> dict[str, Any]:
+    def _get_extra_box_tensors(cls, visualization_context: Optional[Any] = None) -> dict[str, Any]:
         if not visualization_context:
             return {}
-        return {"fake": visualization_context.get("fake_box_tensor")}
+        return {
+            "fake": cls._get_context_value(visualization_context, "fake_box_tensor"),
+            "removed": cls._get_context_value(visualization_context, "removed_box_tensor"),
+        }
 
     @staticmethod
     def _require_visualization_value(config: Mapping[str, Any], section: str, key: str) -> Any:
@@ -62,7 +76,7 @@ class AdvCoperceptionVisualizer(CoperceptionVisualizer):
         batch_data: Any,
         fallback_pcd: Any,
         config: Mapping[str, Any],
-        visualization_context: Optional[Mapping[str, Any]] = None,
+        visualization_context: Optional[Any] = None,
     ) -> tuple[npt.NDArray, npt.NDArray]:
         if not isinstance(batch_data, Mapping):
             return super()._get_lidar_points_and_colors(
@@ -142,12 +156,12 @@ class AdvCoperceptionVisualizer(CoperceptionVisualizer):
         role: str,
         other_color: tuple[int, int, int],
         ego_color: tuple[int, int, int],
-        visualization_context: Optional[Mapping[str, Any]] = None,
+        visualization_context: Optional[Any] = None,
     ) -> tuple[int, int, int]:
         lidar_point_colors = config["lidar_point_colors"]
         if agent_id is not None and agent_id in lidar_point_colors:
             return cls._as_uint8_color(lidar_point_colors[agent_id])
-        attacker_ids = set((visualization_context or {}).get("attacker_ids", []))
+        attacker_ids = set(cls._get_context_value(visualization_context, "attacker_ids", []))
         attacker_color = cls._as_uint8_color(lidar_point_colors.get("attackers", other_color))
         if agent_id is not None and agent_id in attacker_ids:
             return attacker_color
@@ -158,7 +172,7 @@ class AdvCoperceptionVisualizer(CoperceptionVisualizer):
 
 class AdvCoperceptionModelManager(CoperceptionModelManager):
     VISUALIZER_CLASS = AdvCoperceptionVisualizer
-    SEQUENCE_BOX_GROUP_NAMES: tuple[str, ...] = ("pred", "gt", "fake")
+    SEQUENCE_BOX_GROUP_NAMES: tuple[str, ...] = ("pred", "gt", "fake", "removed")
 
     def __init__(
         self,
@@ -168,17 +182,9 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
         visualization_config: Optional[Mapping[str, Any]] = None,
     ) -> None:
         self.advcp_config = self.load_config(getattr(opt, "advcp_config", None))
-        self._initialize_random_seed()
         self.current_memory_data: Optional[AdvCPMemoryData] = None
         self.intermediate_attack_state: AdvCPIntermediateAttackState = {}
         super().__init__(opt, current_time, payload_handler=payload_handler, visualization_config=visualization_config)
-
-    def _initialize_random_seed(self) -> None:
-        random_seed = int(AdvCPAttackHelper.require_config_value(self.advcp_config, "random_seed"))
-        # Initialize deterministic RNG state once per AdvCP manager lifecycle.
-        # Intermediate spoofing optimization uses this global torch/numpy RNG state.
-        torch.manual_seed(random_seed)
-        np.random.seed(random_seed)
 
     @staticmethod
     def load_config(config_path: str | None) -> AdvCPConfig:
@@ -205,13 +211,13 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
         config.setdefault("default_size", (4.5, 2.0, 1.6))
         config.setdefault("boxes", [{"relative": (5.0, 0.0, 0.0, 0.0, 90.0, 0.0)}])
         config.setdefault("attacker_ids", ["cav-1"])
-        config.setdefault("density", 3)
+        config.setdefault("advshape", False)
+        config.setdefault("density", "sampled")
         config.setdefault("dense_distance", 10.0)
         config.setdefault("sync", True)
         config.setdefault("init", True)
         config.setdefault("online", True)
         config.setdefault("step", 25)
-        config.setdefault("random_seed", 1)
         config.setdefault("max_perturb", 10.0)
         step_value = cast(int | str, config["step"])
         config.setdefault("lr", 1.0 if int(step_value) <= 2 else 0.05)
@@ -229,13 +235,13 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
             "default_size",
             "boxes",
             "attacker_ids",
+            "advshape",
             "density",
             "dense_distance",
             "sync",
             "init",
             "online",
             "step",
-            "random_seed",
             "max_perturb",
             "lr",
             "feature_size",
@@ -250,6 +256,13 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
                 path = Path(str(path_value)).expanduser()
                 if not path.is_absolute():
                     config[path_key] = str((config_dir / path).resolve())
+
+        for optional_path_key in ("remove_adv_shape_perturb_path", "remove_adv_shape_divide_path"):
+            path_value = config.get(optional_path_key)
+            if path_value is not None and config_dir is not None:
+                path = Path(str(path_value)).expanduser()
+                if not path.is_absolute():
+                    config[optional_path_key] = str((config_dir / path).resolve())
         return cast(AdvCPConfig, config)
 
     def validate_advcp_agents(self, valid_agent_ids: list[str]) -> bool:
@@ -268,14 +281,16 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
 
         self.advcp_config["attacker_ids"] = attacker_ids
 
+        if not attacker_ids:
+            raise ValueError(
+                "AdvCP is enabled, but no valid attackers were resolved. "
+                f"Configured attackers: {', '.join(configured_attacker_ids)}. Known agents: {', '.join(valid_agent_ids)}."
+            )
+
         logger.info("AdvCP mode: %s", mode)
-        if attacker_ids:
-            logger.info("AdvCP attacks are enabled and will be applied during cooperative perception inference.")
-            logger.info("AdvCP attackers: %s", ", ".join(attacker_ids))
-            return True
-        else:
-            logger.warning("AdvCP is enabled, but no valid attackers were resolved. Attacks will not be applied.")
-            return False
+        logger.info("AdvCP attacks are enabled and will be applied during cooperative perception inference.")
+        logger.info("AdvCP attackers: %s", ", ".join(attacker_ids))
+        return True
 
     def _run_late_inference(self, batch_data: Any) -> CoperceptionInferenceResult:  # noqa: DC04
         return self._build_inference_result(
