@@ -1,0 +1,304 @@
+description: |-
+  Large-scale Town10HD scenario for CARLA-autopilot CAV integration and cooperative perception testing.
+  Target setup: 18 RSUs, up to 20 autopilot-controlled CAVs, and 100 background traffic vehicles.
+  Use this scenario to validate perception data collection, V2X/cooperative perception behavior, and runtime scalability under dense urban traffic.
+
+world:
+  town: Town10HD
+  sync_mode: true
+  client_port: 2000
+  fixed_delta_seconds: 1
+  seed: 11 # seed for numpy and random
+  weather:
+    sun_altitude_angle: 60 # 90 is the midday and -90 is the midnight
+    cloudiness: 0 # 0 is the clean sky and 100 is the thickest cloud
+    precipitation: 10 # rain, 100 is the heaviest rain
+    precipitation_deposits: 0 # Determines the creation of puddles. Values range from 0 to 100, being 0 none at all and 100 a road completely capped with water.
+    wind_intensity: 0 # it will influence the rain
+    fog_density: 0 # fog thickness, 100 is the largest
+    fog_distance: 0  # Fog start distance. Values range from 0 to infinite.
+    fog_falloff: 0 # Density of the fog (as in specific mass) from 0 to infinity. The bigger the value, the more dense and heavy it will be, and the fog will reach smaller heights
+    wetness: 0
+
+blueprint:
+  use_multi_class_bp: true
+  bp_meta_path: "opencda/assets/blueprint_meta/bbx_stats_0915.json" # Define the path for loading the blueprint metadata for defining the class of each blueprint
+  # Define blueprint type sample probabilities
+  bp_class_sample_prob:
+    car: 1 # 0.6
+    truck: 0 # 0.14
+    bus: 0 # 0.15
+    bicycle: 0 # 0.03
+    motorcycle: 0 # 0.08
+
+rsu_base:
+  sensing:
+    perception:
+      activate: false # when not activated, objects positions will be retrieved from server directly
+      camera:
+        visualize: 0
+        num: 0
+      lidar: # lidar sensor configuration, check CARLA sensor reference for more details
+        visualize: false
+        channels: 64
+        range: 120
+        points_per_second: 2000000
+        rotation_frequency: 20 # the simulation is 20 fps
+        upper_fov: 2
+        lower_fov: -25
+        dropoff_general_rate: 0.3
+        dropoff_intensity_limit: 0.7
+        dropoff_zero_intensity: 0.4
+        noise_stddev: 0.02
+    localization:
+      activate: true # when not activated, ego position will be retrieved from server directly
+      dt: ${world.fixed_delta_seconds} # used for kalman filter
+      gnss: # gnss sensor configuration
+        noise_alt_stddev: 0.05
+        noise_lat_stddev: 3e-6
+        noise_lon_stddev: 3e-6
+
+vehicle_base:
+  sensing:
+    perception:
+      activate: false # when not activated, objects positions will be retrieved from server directly
+      camera:
+        visualize: 0
+        num: 0
+      lidar: # lidar sensor configuration, check CARLA sensor reference for more details
+        visualize: false
+        channels: 64
+        range: 120
+        points_per_second: 2000000
+        rotation_frequency: 20 # the simulation is 20 fps
+        upper_fov: 2
+        lower_fov: -25
+        dropoff_general_rate: 0.3
+        dropoff_intensity_limit: 0.7
+        dropoff_zero_intensity: 0.4
+        noise_stddev: 0.02
+    localization:
+      activate: true # when not activated, ego position will be retrieved from server directly
+      dt: ${world.fixed_delta_seconds} # used for kalman filter
+      gnss: # gnss sensor configuration
+        noise_alt_stddev: 0.05
+        noise_lat_stddev: 3e-6
+        noise_lon_stddev: 3e-6
+  behavior:
+    ignore_traffic_light: false # whether to ignore traffic light
+    collision_time_ahead: 2.0 # used for collision checking
+    local_planner:
+      debug: true # whether to draw future/history waypoints
+      debug_trajectory: true # whether to draw the trajectory points and path
+  carla_autopilot: true
+  carla_autopilot_port: 8000
+
+  safety_manager: # used to watch the safety status of the cav
+    print_message: false # whether to print the message if hazard happens
+
+carla_traffic_manager:
+  global_speed_perc: -20
+  auto_lane_change: true
+  random: true # whether to random select vehicles' color and model
+  ignore_lights_percentage: 100 # whether set the traffic ignore traffic lights
+  ignore_signs_percentage: 0
+  ignore_vehicles_percentage: 0
+  ignore_walkers_percentage: 0
+  random_left_lanechange_percentage: 0
+  random_right_lanechange_percentage: 0
+  vehicle_list: ~  # a number or a list
+  # Used only when vehicle_list is a number.
+  #  x_min, x_max, y_min, y_max, x_step, y_step, vehicle_num
+  range:
+    - [-130, 130, -80, 180, 4, 4, 100]
+
+
+
+scenario:
+  rsu_list:
+    - name: corner-rsu-1
+      spawn_position: [-102, -62, 2, 0, 0, 0]
+      id: 1
+
+    - name: corner-rsu-2
+      spawn_position: [-107, 122, 2, 0, 0, 0]
+      id: 2
+
+    - name: corner-rsu-3
+      spawn_position: [97, 136, 2, 0, 0, 0]
+      id: 3
+
+    - name: corner-rsu-4
+      spawn_position: [92, 67, 2, 0, 0, 0]
+      id: 4
+
+    - name: middle-rsu-5
+      spawn_position: [120, 23, 2, 0, 0, 0]
+      id: 5
+
+    - name: middle-rsu-6
+      spawn_position: [90, 21, 2, 0, 0, 0]
+      id: 6
+
+    - name: middle-rsu-7
+      spawn_position: [62, 22, 2, 0, 0, 0]
+      id: 7
+
+    - name: middle-rsu-8
+      spawn_position: [45, 20, 2, 0, 0, 0]
+      id: 8
+
+    - name: middle-rsu-9
+      spawn_position: [117, 17, 2, 0, 0, 0]
+      id: 9
+
+    - name: near-middle-rsu-10
+      spawn_position: [57, 68, 2, 0, 0, 0]
+      id: 10
+
+    - name: near-middle-rsu-11
+      spawn_position: [49, 77, 2, 0, 0, 0]
+      id: 11
+
+    - name: near-middle-rsu-12
+      spawn_position: [115, 68, 2, 0, 0, 0]
+      id: 12
+
+    - name: bottom-rsu-13
+      spawn_position: [34, 119, 2, 0, 0, 0]
+      id: 13
+
+    - name: bottom-rsu-14
+      spawn_position: [47, 146, 2, 0, 0, 0]
+      id: 14
+
+    - name: top-rsu-15
+      spawn_position: [-35, 3, 2, 0, 0, 0]
+      id: 15
+
+    - name: top-rsu-16
+      spawn_position: [-60, -46, 2, 0, 0, 0]
+      id: 16
+
+    - name: top-rsu-17
+      spawn_position: [-49, -75, 2, 0, 0, 0]
+      id: 17
+
+    - name: top-rsu-18
+      spawn_position: [90, 7, 2, 0, 0, 0]
+      id: 18
+
+  single_cav_list:
+    - name: cav-1
+      spawn_position: [-104.37, 70.80, 0.3, 0, -90, 0]
+      carla_autopilot: true
+      id: 1
+      model: "vehicle.tesla.model3"
+
+    # - name: cav-2
+    #   spawn_position: [-110.88, 46.29, 0.3, 0, 90, 0]
+    #   carla_autopilot: true
+    #   id: 2
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-3
+    #   spawn_position: [-71.99, 13.47, 0.3, 0, 180, 0]
+    #   carla_autopilot: true
+    #   id: 3
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-4
+    #   spawn_position: [-48.57, -42.10, 0.3, 0, 90, 0]
+    #   carla_autopilot: true
+    #   id: 4
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-5
+    #   spawn_position: [12.39, 16.72, 0.3, 0, 180, 0]
+    #   carla_autopilot: true
+    #   id: 5
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-6
+    #   spawn_position: [-28.72, 27.70, 0.3, 0, 0, 0]
+    #   carla_autopilot: true
+    #   id: 6
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-7
+    #   spawn_position: [7.24, 69.64, 0.3, 0, 0, 0]
+    #   carla_autopilot: true
+    #   id: 7
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-8
+    #   spawn_position: [47.22, 51.84, 0.3, 0, -90, 0]
+    #   carla_autopilot: true
+    #   id: 8
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-9
+    #   spawn_position: [12.72, 130.65, 0.3, 0, -180, 0]
+    #   carla_autopilot: true
+    #   id: 9
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-10
+    #   spawn_position: [-62.06, 139.99, 0.3, 0, 0, 0]
+    #   carla_autopilot: true
+    #   id: 10
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-11
+    #   spawn_position: [105.76, 91.11, 0.3, 0, -90, 0]
+    #   carla_autopilot: true
+    #   id: 11
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-12
+    #   spawn_position: [109.81, -5.93, 0.3, 0, -90, 0]
+    #   carla_autopilot: true
+    #   id: 12
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-13
+    #   spawn_position: [61.61, -57.66, 0.3, 0, 0, 0]
+    #   carla_autopilot: true
+    #   id: 13
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-14
+    #   spawn_position: [-15.51, -61.14, 0.3, 0, 0, 0]
+    #   carla_autopilot: true
+    #   id: 14
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-15
+    #   spawn_position: [21.39, -64.21, 0.3, 0, -180, 0]
+    #   carla_autopilot: true
+    #   id: 15
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-16
+    #   spawn_position: [-108.72, -43.31, 0.3, 0, 112.58, 0]
+    #   carla_autopilot: true
+    #   id: 16
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-17
+    #   spawn_position: [-106.65, -4.47, 0.3, 0, -90, 0]
+    #   carla_autopilot: true
+    #   id: 17
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-18
+    #   spawn_position: [-48.57, 65.73, 0.3, 0, 90, 0]
+    #   carla_autopilot: true
+    #   id: 18
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-19
+    #   spawn_position: [-41.73, 104.48, 0.3, 0, -90, 0]
+    #   carla_autopilot: true
+    #   id: 19
+    #   model: "vehicle.tesla.model3"
