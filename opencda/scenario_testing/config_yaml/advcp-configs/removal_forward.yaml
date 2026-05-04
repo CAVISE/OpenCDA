@@ -1,12 +1,16 @@
-# For 3cars_advcp_removal_check scenario
+# For advcp_check scenario
 mode: remove
-attacker_ids: [cav-9]
+
+#attacker_ids: [cav-5] # 1 attacker (helper-leftside-cav-5)
+#attacker_ids: [cav-3] # 1 attacker (helper-backward-cav-3)
+#attacker_ids: [cav-2, cav-3, cav-5, cav-6, cav-7] # 5 attackers, 1 benign
+attacker_ids: [cav-2, cav-3, cav-4, cav-5, cav-6, cav-7] # all 6 are attackers
 advshape: false
 
 # Shared attack target definition used by early-fusion removal.
-default_size: [5.0, 5.0, 5.0]
+default_size: [4.5, 2.0, 1.6]
 boxes:
-  - absolute: [35, 149.792206, 0.0, 0.0, 0.0, 0.0]
+  - absolute: [35, 149.792206, 0.0, 0.0, 0.0, 0.0] # remove custom-cav-20
 
 # These parameters are currently ignored by early-fusion removal
 # but kept here for config consistency across AdvCP modes.

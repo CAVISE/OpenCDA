@@ -103,6 +103,7 @@ def manager_deps(fake_heavy_deps):
         opencood.visualization.vis_utils.visualize_inference_sample_dataloader,
         opencood.visualization.vis_utils.linset_assign_list,
         opencood.utils.eval_utils.caluclate_tp_fp,
+        opencood.utils.eval_utils.calculate_ap,
         opencood.utils.eval_utils.eval_final_results,
         open3d.visualization.Visualizer,
         torch.cuda.is_available,
@@ -137,7 +138,6 @@ def manager_deps(fake_heavy_deps):
     coperception_model_manager_module.inference_utils = opencood.tools.inference_utils
     coperception_model_manager_module.build_dataset = opencood.data_utils.datasets.build_dataset
     coperception_model_manager_module.vis_utils = opencood.visualization.vis_utils
-    coperception_model_manager_module.eval_utils = opencood.utils.eval_utils
     early_fusion_attack_module.inference_utils = opencood.tools.inference_utils
     early_fusion_attack_module.train_utils = opencood.tools.train_utils
     intermediate_fusion_attack_module.inference_utils = opencood.tools.inference_utils

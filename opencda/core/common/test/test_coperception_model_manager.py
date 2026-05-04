@@ -10,9 +10,8 @@ from opencda.core.common.coperception_data_processor import CoperceptionDataProc
 from opencda.core.common.coperception_model_manager import (
     CoperceptionModelManager,
     CoperceptionVisualizer,
-    EvaluationResultStat,
-    IoUResultStat,
 )
+from opencda.metrics_tools.metrics.ap_at_iou import EvaluationResultStat, IoUResultStat
 
 
 class DummyOpt:
@@ -72,6 +71,7 @@ class TestCoperceptionModelManager:
             opencood.visualization.vis_utils.visualize_inference_sample_dataloader,
             opencood.visualization.vis_utils.linset_assign_list,
             opencood.utils.eval_utils.caluclate_tp_fp,
+            opencood.utils.eval_utils.calculate_ap,
             opencood.utils.eval_utils.eval_final_results,
             open3d.visualization.Visualizer,
             torch.cuda.is_available,
@@ -108,7 +108,6 @@ class TestCoperceptionModelManager:
         coperception_model_manager_module.inference_utils = opencood.tools.inference_utils
         coperception_model_manager_module.build_dataset = opencood.data_utils.datasets.build_dataset
         coperception_model_manager_module.vis_utils = opencood.visualization.vis_utils
-        coperception_model_manager_module.eval_utils = opencood.utils.eval_utils
 
         # Return dict for easy access
         return {
