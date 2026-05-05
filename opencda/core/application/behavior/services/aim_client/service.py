@@ -149,7 +149,7 @@ class AIMClient:
 
         return tuple(movement_commands)
 
-    def _build_aim_server_request_message(self, dst_owner_id: str = "broadcast") -> tuple[TransportMessage[AIMServerRequest], ...]:
+    def _build_aim_server_request_messages(self, dst_owner_id: str = "broadcast") -> tuple[TransportMessage[AIMServerRequest], ...]:
         owner = self._get_owner()
         position = owner.vehicle.get_transform()
         waypoints = owner.agent.get_local_planner().get_waypoint_buffer()
