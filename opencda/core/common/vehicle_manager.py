@@ -292,13 +292,14 @@ class VehicleManager(object):
                     raise ValueError(f"Behavior service message references unknown service_type {service_type!r}.")
                 valid_messages.append(message)
             elif owner_id == "broadcast" and message.src_owner_id != self.id:
-                if service_type in self._behavior_services_by_name:
+                if service_type in self._behavior_services_by_name or service_type == "broadcast":
                     valid_messages.append(message)
 
         return valid_messages
 
     def __group_behavior_service_messages(self, messages: list[TransportMessage]) -> Mapping[str, list[TransportMessage]]:
-        grouped_messages: Mapping[str, list[TransportMessage]] = {service.service_type: [] for service in self.behavior_services}
+        grouped_messages: dict[str, list[TransportMessage]] = {service.service_type: [] for service in self.behavior_services}
+        grouped_messages["broadcast"] = []
 
         for message in messages:
             grouped_messages[message.dst_service_type].append(message)
@@ -312,6 +313,8 @@ class VehicleManager(object):
 
         for service in self.behavior_services:
             service_messages = grouped_messages[service.service_type]
+            if "broadcast" in grouped_messages:
+                service_messages += grouped_messages["broadcast"]
             result_messages = service.process(service_messages)
             self.behavior_service_states[service.service_type] = service.get_state()
             if result_messages:
