@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 
 from .aim_model_manager import AIMModelManager
 from .types import AIMServerState
-from .utils import parse_location
+from .utils import parse_location, draw_radius_circle
 
 logger = logging.getLogger("cavise.opencda.opencda.core.application.behavior.services.aim_server")
 
@@ -44,6 +44,7 @@ class AIMServer:
         priority: int = 20,
         control_radius: int = 15,
         control_center_location: Location | Mapping | Sequence | None = None,
+        debug: bool = False,
         **aim_config: Any,
     ) -> None:
         """
@@ -57,6 +58,7 @@ class AIMServer:
         self._owner_ref: weakref.ReferenceType[RSUManager] | None = None
         self.aim_model_manager: AIMModelManager | None = None
         self.priority = priority
+        self.debug = debug
 
         self.control_radius: int = control_radius
         self.control_center_location: Location | None = parse_location(control_center_location)
@@ -123,5 +125,10 @@ class AIMServer:
         return aim_model_manager.process(messages)
 
     def process(self, messages: Sequence[TransportMessage[AIMServerRequest]]) -> tuple[TransportMessage[AIMServerResponse], ...]:
+        if self.debug and self.control_center_location is not None:
+            owner = self._get_owner()
+            world = owner.localizer.gnss.sensor.get_world()
+            draw_radius_circle(world, self.control_center_location, self.control_radius)
+
         observed_requests = self._observe_aim_requests(messages)
         return self._build_aim_response_messages(observed_requests)
