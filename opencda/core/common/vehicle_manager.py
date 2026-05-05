@@ -9,7 +9,7 @@ from typing import Any, Iterable, Optional, Sequence, Tuple, Mapping
 import carla
 
 from opencda.core.actuation.control_manager import ControlManager
-from opencda.core.application.behavior import BehaviorService, TransportMessage, create_service
+from opencda.core.application.behavior import BehaviorService, TransportMessage, BROADCAST_OWNER_ID, BROADCAST_SERVICE_TYPE, create_service
 from opencda.core.application.platooning.platoon_behavior_agent import PlatooningBehaviorAgent
 from opencda.core.common.v2x_manager import V2XManager
 from opencda.core.sensing.localization.localization_manager import LocalizationManager
@@ -291,15 +291,15 @@ class VehicleManager(object):
                 if service_type not in self._behavior_services_by_name:
                     raise ValueError(f"Behavior service message references unknown service_type {service_type!r}.")
                 valid_messages.append(message)
-            elif owner_id == "broadcast" and message.src_owner_id != self.id:
-                if service_type in self._behavior_services_by_name or service_type == "broadcast":
+            elif owner_id == BROADCAST_OWNER_ID and message.src_owner_id != self.id:
+                if service_type in self._behavior_services_by_name or service_type == BROADCAST_SERVICE_TYPE:
                     valid_messages.append(message)
 
         return valid_messages
 
     def __group_behavior_service_messages(self, messages: list[TransportMessage]) -> Mapping[str, list[TransportMessage]]:
         grouped_messages: dict[str, list[TransportMessage]] = {service.service_type: [] for service in self.behavior_services}
-        grouped_messages["broadcast"] = []
+        grouped_messages[BROADCAST_SERVICE_TYPE] = []
 
         for message in messages:
             grouped_messages[message.dst_service_type].append(message)
@@ -313,8 +313,8 @@ class VehicleManager(object):
 
         for service in self.behavior_services:
             service_messages = grouped_messages[service.service_type]
-            if "broadcast" in grouped_messages:
-                service_messages += grouped_messages["broadcast"]
+            if BROADCAST_SERVICE_TYPE in grouped_messages:
+                service_messages += grouped_messages[BROADCAST_SERVICE_TYPE]
             result_messages = service.process(service_messages)
             self.behavior_service_states[service.service_type] = service.get_state()
             if result_messages:

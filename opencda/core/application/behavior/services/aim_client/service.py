@@ -13,7 +13,7 @@ import carla
 
 from opencda.core.application.behavior.capability import Capability, CapabilityBindings
 from opencda.core.application.behavior.registry import BehaviorServiceRegistry
-from opencda.core.application.behavior.transport_message import TransportMessage
+from opencda.core.application.behavior.transport_message import TransportMessage, BROADCAST_OWNER_ID, BROADCAST_SERVICE_TYPE
 from opencda.core.application.behavior.services.aim_server import AIMServerRequest, AIMServerResponse
 from opencda.core.application.behavior.services.movement_controller import MovementControllerRequestMessage
 from opencda.core.application.behavior.services.self_informer import SelfInformerResponse
@@ -51,7 +51,7 @@ class AIMClient:
         self._owner_ref: weakref.ReferenceType[VehicleManager] | None = None
         self.priority = priority
         self.trajectory: deque[tuple[Location, float]] = deque()
-        self.server_id: str = "broadcast"
+        self.server_id: str = BROADCAST_OWNER_ID
         self.debug = debug
         self._self_informer_data: SelfInformerResponse | None = None
 
@@ -96,15 +96,15 @@ class AIMClient:
             if isinstance(message.payload, AIMServerResponse):
                 if (
                     message.dst_owner_id == owner.id
-                    and message.dst_service_type in (self.service_type, "broadcast")
-                    and (self.server_id == "broadcast" or self.server_id == message.src_owner_id)
+                    and message.dst_service_type in (self.service_type, BROADCAST_SERVICE_TYPE)
+                    and (self.server_id == BROADCAST_OWNER_ID or self.server_id == message.src_owner_id)
                 ):
                     aim_server_responses.append(cast(TransportMessage[AIMServerResponse], message))
             elif isinstance(message.payload, SelfInformerResponse):
                 if (
                     message.dst_owner_id == owner.id
                     and message.src_owner_id == owner.id
-                    and message.dst_service_type in (self.service_type, "broadcast")
+                    and message.dst_service_type in (self.service_type, BROADCAST_SERVICE_TYPE)
                 ):
                     self_informer_responses.append(message.payload)
 
@@ -148,7 +148,7 @@ class AIMClient:
 
         if len(aim_server_responses) > 0:
             response = aim_server_responses[0]
-            if self.server_id == "broadcast":
+            if self.server_id == BROADCAST_OWNER_ID:
                 self.server_id = response.src_owner_id
             control_trajectory = response.payload.trajectory[1:]  # drop first because it was calculated on previous tick
             if self._self_informer_data is None:
@@ -169,11 +169,11 @@ class AIMClient:
                 target_location, target_speed = self.trajectory.popleft()
                 movement_commands.append(self._build_movement_command_message(target_location, target_speed))
             else:
-                self.server_id = "broadcast"
+                self.server_id = BROADCAST_OWNER_ID
 
         return tuple(movement_commands)
 
-    def _build_aim_server_request_messages(self, dst_owner_id: str = "broadcast") -> tuple[TransportMessage[AIMServerRequest], ...]:
+    def _build_aim_server_request_messages(self, dst_owner_id: str = BROADCAST_OWNER_ID) -> tuple[TransportMessage[AIMServerRequest], ...]:
         owner = self._get_owner()
         position = owner.vehicle.get_transform()
         waypoints = owner.agent.get_local_planner().get_waypoint_buffer()

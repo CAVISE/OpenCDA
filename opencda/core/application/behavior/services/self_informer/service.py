@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 from opencda.core.application.behavior.capability import Capability, CapabilityBindings
 from opencda.core.application.behavior.registry import BehaviorServiceRegistry
-from opencda.core.application.behavior.transport_message import TransportMessage
+from opencda.core.application.behavior.transport_message import TransportMessage, BROADCAST_SERVICE_TYPE
 from .messages import SelfInformerResponse
 from .utils import get_speed
 from opencda.core.application.behavior.types import Location
@@ -73,7 +73,7 @@ class SelfInformer:
             src_owner_id=owner.id,
             src_service_type=self.service_type,
             dst_owner_id=owner.id,
-            dst_service_type="broadcast",
+            dst_service_type=BROADCAST_SERVICE_TYPE,
             payload=payload,
         )
 

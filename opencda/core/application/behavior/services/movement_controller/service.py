@@ -8,7 +8,7 @@ from typing import Any, Sequence, TYPE_CHECKING
 
 from opencda.core.application.behavior.capability import CapabilityBindings
 from opencda.core.application.behavior.registry import BehaviorServiceRegistry
-from opencda.core.application.behavior.transport_message import TransportMessage
+from opencda.core.application.behavior.transport_message import TransportMessage, BROADCAST_SERVICE_TYPE
 from opencda.core.application.behavior.types import Location
 from .messages import MovementControllerRequestMessage
 from .types import MovementControllerState
@@ -79,7 +79,7 @@ class MovementController:
             if (
                 message.dst_owner_id == owner.id
                 and message.src_owner_id == owner.id
-                and message.dst_service_type in (self.service_type, "broadcast")
+                and message.dst_service_type in (self.service_type, BROADCAST_SERVICE_TYPE)
                 and isinstance(message.payload, MovementControllerRequestMessage)
             ):
                 valid_messages.append(message.payload)
