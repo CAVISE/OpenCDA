@@ -38,9 +38,9 @@ class AIMClient:
     @property
     def capability_bindings(self) -> CapabilityBindings:
         return {
-            Capability.RESPONSE_OBSERVE: self._filter_messages,
-            Capability.COMMAND_SUBMIT: self._build_movement_command_message,
-            Capability.REQUEST_SUBMIT: self._build_aim_server_request_message,
+            Capability.RESPONSE_OBSERVE: self._observe_aim_responses,
+            Capability.COMMAND_SUBMIT: self._build_movement_command_messages,
+            Capability.REQUEST_SUBMIT: self._build_aim_server_request_messages,
         }
 
     def __init__(self, priority: int = 20, debug: bool = False) -> None:
@@ -81,17 +81,26 @@ class AIMClient:
         self._owner_ref = None
         self.trajectory.clear()
 
-    def _filter_messages(self, messages: Sequence[TransportMessage[AIMServerResponse]]) -> list[AIMServerResponse]:
+    def _observe_aim_responses(
+        self,
+        messages: Sequence[TransportMessage[AIMServerResponse]],
+    ) -> tuple[AIMServerResponse, ...]:
         owner = self._get_owner()
-        valid_messages: list[AIMServerResponse] = []
+        observed_messages: list[AIMServerResponse] = []
+
         for message in messages:
             if message.dst_owner_id == owner.id and message.dst_service_type == self.service_name:
-                valid_messages.append(message.payload)
-        return valid_messages
+                observed_messages.append(message.payload)
 
-    def _build_movement_command_message(self, target_location: Location) -> TransportMessage[MovementControllerRequestMessage]:
+        return tuple(observed_messages)
+
+    def _build_movement_command_message(
+        self,
+        target_location: Location,
+        target_speed: float | None,
+    ) -> TransportMessage[MovementControllerRequestMessage]:
         owner = self._get_owner()
-        payload = MovementControllerRequestMessage(target_location=target_location, target_speed=None)
+        payload = MovementControllerRequestMessage(target_location=target_location, target_speed=target_speed)
         return TransportMessage(
             src_owner_id=owner.id,
             src_service_type=self.service_name,
@@ -100,7 +109,33 @@ class AIMClient:
             payload=payload,
         )
 
-    def _build_aim_server_request_message(self) -> TransportMessage[AIMServerRequest]:
+    def _build_movement_command_messages(
+        self,
+        observed_responses: Sequence[AIMServerResponse],
+    ) -> tuple[TransportMessage[MovementControllerRequestMessage], ...]:
+        owner = self._get_owner()
+        movement_commands: list[TransportMessage[MovementControllerRequestMessage]] = []
+        current_location = owner.vehicle.get_location()
+        current_speed = get_speed(owner.vehicle)
+
+        for response in observed_responses:
+            control_trajectory = response.trajectory[1:]  # drop first because it was calculated on previous tick
+            target_speeds = calculate_target_speeds(control_trajectory, 0.05, current_location, current_speed, 111, 2.5, 4.5)
+            self.trajectory = deque(zip(control_trajectory, target_speeds))
+
+            if self.debug:
+                self._draw_control_trajectory(owner, control_trajectory)
+
+            target_location, target_speed = self.trajectory.popleft()
+            movement_commands.append(self._build_movement_command_message(target_location, target_speed))
+
+        if len(movement_commands) == 0 and self.trajectory:
+            target_location, target_speed = self.trajectory.popleft()
+            movement_commands.append(self._build_movement_command_message(target_location, target_speed))
+
+        return tuple(movement_commands)
+
+    def _build_aim_server_request_messages(self) -> tuple[TransportMessage[AIMServerRequest], ...]:
         owner = self._get_owner()
         position = owner.vehicle.get_transform()
         waypoints = owner.agent.get_local_planner().get_waypoint_buffer()
@@ -111,77 +146,36 @@ class AIMClient:
             yaw=traci.vehicle.getAngle(owner.id),
             waypoints=waypoints,
         )
-        return TransportMessage(
-            src_owner_id=owner.id,
-            src_service_type=self.service_name,
-            dst_owner_id="broadcast",
-            dst_service_type="aim_server",
-            payload=payload,
-        )
-
-    def process(
-        self,
-        messages: Sequence[TransportMessage[AIMServerResponse]],
-    ) -> Sequence[TransportMessage[MovementControllerRequestMessage | AIMServerRequest]]:
-        owner = self._get_owner()
-        res_messages: list[TransportMessage[MovementControllerRequestMessage | AIMServerRequest]] = []
-
-        current_location = owner.vehicle.get_location()
-        current_speed = get_speed(owner.vehicle)
-        for message in self._filter_messages(messages):
-            control_trajectory = message.trajectory[1:]  # drop first because it was calculated on previous tick
-            target_speeds = calculate_target_speeds(control_trajectory, 0.05, current_location, current_speed, 111, 2.5, 4.5)
-            self.trajectory = deque(zip(control_trajectory, target_speeds))
-            if self.debug:
-                draw_trajetory_points(
-                    owner.agent._local_planner._vehicle.get_world(),
-                    control_trajectory,
-                    size=0.05,
-                    color=carla.Color(255, 0, 0),
-                    life_time=0.1,
-                    _map=owner.agent._map,
-                )
-            target_location, target_speed = self.trajectory.popleft()
-            payload = MovementControllerRequestMessage(target_location=target_location, target_speed=target_speed)
-            res_messages.append(
-                TransportMessage(
-                    src_owner_id=owner.id,
-                    src_service_type=self.service_name,
-                    dst_owner_id=owner.id,
-                    dst_service_type="movement_controller",
-                    payload=payload,
-                )
-            )
-        if len(res_messages) == 0 and self.trajectory:
-            target_location, target_speed = self.trajectory.popleft()
-            payload = MovementControllerRequestMessage(target_location=target_location, target_speed=target_speed)
-            res_messages.append(
-                TransportMessage(
-                    src_owner_id=owner.id,
-                    src_service_type=self.service_name,
-                    dst_owner_id=owner.id,
-                    dst_service_type="movement_controller",
-                    payload=payload,
-                )
-            )
-
-        pos = owner.vehicle.get_transform()
-        waypoints = owner.agent.get_local_planner().get_waypoint_buffer()
-        server_request_payload = AIMServerRequest(
-            vehicle_id=owner.id,
-            position=pos,
-            speed=traci.vehicle.getSpeed(owner.id),
-            yaw=traci.vehicle.getAngle(owner.id),
-            waypoints=waypoints,
-        )
-        res_messages.append(
+        return (
             TransportMessage(
                 src_owner_id=owner.id,
                 src_service_type=self.service_name,
                 dst_owner_id="broadcast",
                 dst_service_type="aim_server",
-                payload=server_request_payload,
-            )
+                payload=payload,
+            ),
         )
 
-        return res_messages
+    def _draw_control_trajectory(
+        self,
+        owner: VehicleManager,
+        control_trajectory: Sequence[Location],
+    ) -> None:
+        """Visualize the currently active AIM trajectory in debug mode."""
+        draw_trajetory_points(
+            owner.agent._local_planner._vehicle.get_world(),
+            control_trajectory,
+            size=0.05,
+            color=carla.Color(255, 0, 0),
+            life_time=0.1,
+            _map=owner.agent._map,
+        )
+
+    def process(
+        self,
+        messages: Sequence[TransportMessage[AIMServerResponse]],
+    ) -> tuple[TransportMessage[MovementControllerRequestMessage | AIMServerRequest], ...]:
+        observed_responses = self._observe_aim_responses(messages)
+        movement_commands = self._build_movement_command_messages(observed_responses)
+        aim_requests = self._build_aim_server_request_messages()
+        return (*movement_commands, *aim_requests)

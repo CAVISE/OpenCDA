@@ -132,7 +132,7 @@ class AIMModelManager:
         )
         self.cav_data.clear()
 
-    def process(self, messages: Sequence[TransportMessage[AIMServerRequest]]) -> Sequence[TransportMessage[AIMServerResponse]]:
+    def process(self, messages: Sequence[TransportMessage[AIMServerRequest]]) -> tuple[TransportMessage[AIMServerResponse], ...]:
         """
         Run AIM inference for the request batch and return predicted targets.
         """
@@ -152,7 +152,7 @@ class AIMModelManager:
 
         if num_agents == 0:
             self._finalize_tick_state()
-            return result_messages
+            return ()
 
         predictions = self.model.predict(features.copy(), target_agent_ids)
 
@@ -180,7 +180,7 @@ class AIMModelManager:
                 )
 
         self._finalize_tick_state()
-        return result_messages
+        return tuple(result_messages)
 
     def predition_to_location(self, vehicle_id: str, local_delta: np.ndarray, yaw: float) -> Location:
         rotation = utils.rotation_matrix_back(yaw)
