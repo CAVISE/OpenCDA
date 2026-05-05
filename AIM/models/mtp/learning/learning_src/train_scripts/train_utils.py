@@ -104,9 +104,7 @@ def my_get_yaw_new(
     _, pos_diff_view_inds = pos_diff_view.min(dim=-1)
 
     map_lane_reprs_view = map_lane_reprs.view(map_lane_reprs.shape[0], map_lane_reprs.shape[1] * map_lane_reprs.shape[2], map_lane_reprs.shape[3])
-    map_lane_reprs_gathered = torch.gather(
-        map_lane_reprs_view, dim=1, index=pos_diff_view_inds.unsqueeze(-1).expand(-1, -1, config.object_map.object_vector_size + 2)
-    )
+    map_lane_reprs_gathered = torch.gather(map_lane_reprs_view, dim=1, index=pos_diff_view_inds.unsqueeze(-1).expand(-1, -1, 4))
     yaws_rad_carla = torch.atan2(map_lane_reprs_gathered[..., -1], map_lane_reprs_gathered[..., -2])
 
     if config.data_processing.normalize_data:

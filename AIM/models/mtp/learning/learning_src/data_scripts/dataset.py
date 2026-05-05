@@ -272,7 +272,8 @@ class TransformerCarDataset(Dataset):
 
         return edge_indices_list
 
-    def _get_map_dots_yaws(self, map_info: torch.Tensor):
+    @classmethod
+    def _get_map_dots_yaws(cls, map_info: torch.Tensor):
         # map_info.shape (n_lane, n_dots, dot_vec)
         map_info_coords = torch.tensor(map_info[..., [0, 1]])
         dcoords = map_info_coords.unsqueeze(2) - map_info_coords.unsqueeze(1)
@@ -312,10 +313,13 @@ class TransformerCarDataset(Dataset):
         t[~t1_mask] = t2[~t1_mask]
 
         yaw_vector = map_info_coords - ((end_coords - start_coords) * t + start_coords)
-        start_yaws_mask_lane_inds = torch.where(start_yaws_mask)[0]
-        yaw_vector[start_yaws_mask] = (map_info_coords[start_yaws_mask_lane_inds][:, 1:2, :] - map_info_coords[start_yaws_mask_lane_inds])[
-            start_yaws_mask
-        ]
+        start_yaws_mask_lane_inds, start_dots_mask_lane_inds = torch.where(start_yaws_mask)
+
+        yaw_vector[start_yaws_mask_lane_inds, start_dots_mask_lane_inds] = (
+            map_info_coords[start_yaws_mask_lane_inds, start_dots_mask_lane_inds + 1]
+            - map_info_coords[start_yaws_mask_lane_inds, start_dots_mask_lane_inds]
+        )
+
         yaw_vector_norms = (yaw_vector[..., 0] ** 2 + yaw_vector[..., 1] ** 2) ** 0.5
         yaw_vector = yaw_vector / yaw_vector_norms.unsqueeze(-1)  # in carla coordinate system
 
@@ -331,6 +335,7 @@ class TransformerCarDataset(Dataset):
         self.map_lane_repr = {}
         self.map_lane_repr_masks = {}
         max_map_dots = 0
+        max_map_dots_yaw = 0
 
         preprocess_subfolders = os.listdir(self.preprocess_folder)
         for preprocess_subfolder in preprocess_subfolders:
@@ -344,6 +349,9 @@ class TransformerCarDataset(Dataset):
             num_dots = map_info[0][0].shape[0] * map_info[0][0].shape[1]
             max_map_dots = num_dots if num_dots > max_map_dots else max_map_dots
 
+            num_dots_yaw = map_info[0][2].shape[0] * map_info[0][2].shape[1]
+            max_map_dots_yaw = num_dots_yaw if num_dots_yaw > max_map_dots_yaw else max_map_dots_yaw
+
         for preprocess_subfolder in preprocess_subfolders:
             if not (preprocess_subfolder.split("_")[-1] == "10m"):
                 continue
@@ -353,6 +361,7 @@ class TransformerCarDataset(Dataset):
             map_info = np.load(map_info_path, allow_pickle=True)
 
             cur_num_dots = map_info[0][0].shape[0] * map_info[0][0].shape[1]
+            cur_num_dots_yaw = map_info[0][2].shape[0] * map_info[0][2].shape[1]
             self.map_boundaries[preprocess_subfolder] = torch.tensor(map_info[0][1])
             self.map_heteroDatas[preprocess_subfolder] = self._create_map_graph(map_info[0][0], max_map_dots)
 
@@ -360,17 +369,15 @@ class TransformerCarDataset(Dataset):
             map_mask[cur_num_dots:] = False
             self.map_masks[preprocess_subfolder] = map_mask
 
-            lanes_yaw_vectors = self._get_map_dots_yaws(map_info[0][0])
+            lanes_yaw_vectors = self._get_map_dots_yaws(map_info[0][2])
             self.map_lane_repr[preprocess_subfolder] = nn.functional.pad(
-                torch.cat([torch.tensor(map_info[0][0]), lanes_yaw_vectors], dim=-1),
-                (0, 0, 0, 0, 0, (max_map_dots - cur_num_dots) // map_info[0][0].shape[1]),
+                torch.cat([torch.tensor(map_info[0][2]), lanes_yaw_vectors], dim=-1),
+                (0, 0, 0, 0, 0, (max_map_dots_yaw - cur_num_dots_yaw) // map_info[0][2].shape[1]),
             )
             self.map_lane_repr_masks[preprocess_subfolder] = torch.ones(
-                (max_map_dots // map_info[0][0].shape[1], map_info[0][0].shape[1]), dtype=torch.bool
+                (max_map_dots_yaw // map_info[0][2].shape[1], map_info[0][2].shape[1]), dtype=torch.bool
             )
-            self.map_lane_repr_masks[preprocess_subfolder][map_info[0][0].shape[0] :, :] = False
-
-            print()
+            self.map_lane_repr_masks[preprocess_subfolder][map_info[0][2].shape[0] :, :] = False
 
     def process(self) -> None:
         """

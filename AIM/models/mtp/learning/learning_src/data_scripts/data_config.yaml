@@ -23,8 +23,8 @@ model:
   predict_vector_size: 2 # size of prediction output vector
   obs_len: 1 # observation sequence length (number of past timesteps)
   pred_len: 1 # length of sequence to be predicted by model
-  num_predict_on_predict: 38 # number of predictions based on previous predictions
-  num_predict: 39 # total number of predictions to generate
+  num_predict_on_predict: 28 # number of predictions based on previous predictions
+  num_predict: 29 # total number of predictions to generate
   k_dot_steps: 4 # number of steps back and forward on lane to gather information
 
 # image map configuration
@@ -40,8 +40,9 @@ image_map:
 # object map configuration
 object_map:
   dt: 1e-2 # time to calc movement orientation
-  n_lane_samples: 35 # number of points on lane
-  non_linear_coeff: 1 # coeff of non-linear function to generate timestaps with respect to middle
+  n_lane_samples: 25 # number of points on lane
+  n_lane_samples_yaw: 300 # number of points on lane for yaw calculation
+  non_linear_coeff: 2 # coeff of non-linear function to generate timestaps with respect to middle
   object_vector_size: 5
   neighbour_factor_high: 1.5
   neighbour_low_lateral_factor: 0.5

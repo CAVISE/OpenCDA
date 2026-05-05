@@ -62,7 +62,7 @@ class MTP(AIMModelWrapper):
 
         :param map_net_xml_path: path to sumo network xml map file
         """
-        lane_level_data = preprocess_object_map(net_file_path=map_net_xml_path)
+        lane_level_data, lane_object_representations_yaw = preprocess_object_map(net_file_path=map_net_xml_path)
 
         self.map = lane_level_data[0][0]
         self.map = torch.tensor(self.map)
@@ -208,4 +208,5 @@ class MTP(AIMModelWrapper):
                 denormalize_coords(predictions, map_bounding)
 
             predictions = transform_coords(predictions)
-            return F.sigmoid(movement_logits) > 0, predictions
+            # return F.sigmoid(movement_logits) > 0, predictions
+            return True, predictions

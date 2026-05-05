@@ -22,6 +22,7 @@ from .preprocess_utils import normalize_coords, transform_coords
 
 MAP_LANES_DTYPE = [("img", "O"), ("shape_points", "O"), ("map_boundings", "f4", (1,))]
 MAP_MAP_DTYPE = [("img", "O"), ("map_boundings", "f4", (1,))]
+MAP_OBJECT_DTYPE = [("lanes", "O"), ("map_boundings", "f4", (1,)), ("lanes_yaw", "O")]
 
 
 def _get_by_id(root: Element, target_id: str) -> Optional[Element]:
@@ -365,6 +366,10 @@ def preprocess_object_map_util(net_file_path: str) -> Tuple[List[np.ndarray], Li
     return map_lanes_data_shapes, map_lanes_data_priorities
 
 
+def nolinear_time_function(t: np.ndarray):
+    return t * (1 - t) * (0.5 - t)
+
+
 def preprocess_object_map(net_file_path: str, output_dir: Optional[str] = None, save_png: bool = False) -> np.ndarray:
     """
     preprocess sumo network map and generate map representations at lanes level in image based encoding in object format
@@ -378,6 +383,7 @@ def preprocess_object_map(net_file_path: str, output_dir: Optional[str] = None, 
         os.makedirs(output_dir, exist_ok=True)
 
     lane_object_representations = None
+    lane_object_representations_yaw = None
     map_bounding = get_map_bounding(net_file_path)
     map_lanes_data_shapes, map_lanes_data_priorities = preprocess_object_map_util(net_file_path)
 
@@ -393,7 +399,7 @@ def preprocess_object_map(net_file_path: str, output_dir: Optional[str] = None, 
 
         t_new_linear = np.linspace(0, 1, config.object_map.n_lane_samples)
         # non-linear function adding to make shure that in the middle of lane there are enougth dots
-        t_new = t_new_linear + config.object_map.non_linear_coeff * t_new_linear * (1 - t_new_linear) * (0.5 - t_new_linear)
+        t_new = t_new_linear + config.object_map.non_linear_coeff * nolinear_time_function(t_new_linear)
 
         lane_points = interpolation_curve(t_new)
         lane_points_movment_orient = interpolation_curve(t_new + float(config.object_map.dt)) - lane_points
@@ -415,6 +421,18 @@ def preprocess_object_map(net_file_path: str, output_dir: Optional[str] = None, 
             lane_object_representations = lane_object_representation.copy()
         else:
             lane_object_representations = np.concatenate([lane_object_representations, lane_object_representation], axis=0)
+
+        t_new_yaw_linear = np.linspace(0, 1, config.object_map.n_lane_samples_yaw)
+        t_new_yaw = t_new_yaw_linear + config.object_map.non_linear_coeff * nolinear_time_function(t_new_yaw_linear)
+        lane_points_yaw = interpolation_curve(t_new_yaw)
+        lane_points_yaw_normalized = lane_points_yaw.copy()
+        normalize_coords(lane_points_yaw_normalized, map_bounding)
+
+        lane_object_representation_yaw = np.expand_dims(lane_points_yaw_normalized, 0)
+        if lane_object_representations_yaw is None:
+            lane_object_representations_yaw = lane_object_representation_yaw.copy()
+        else:
+            lane_object_representations_yaw = np.concatenate([lane_object_representations_yaw, lane_object_representation_yaw], axis=0)
 
     if output_dir and save_png:
         fig, ax = plt.subplots()
@@ -439,13 +457,13 @@ def preprocess_object_map(net_file_path: str, output_dir: Optional[str] = None, 
             )
             plt.savefig(os.path.join(output_dir, f"map_image_{i}.png"))
 
-    lane_level_object_data = np.array([(lane_object_representations, map_bounding)], dtype=MAP_MAP_DTYPE)
+    lane_level_object_data = np.array([(lane_object_representations, map_bounding, lane_object_representations_yaw)], dtype=MAP_OBJECT_DTYPE)
     if output_dir is not None:
         np.save(
             os.path.join(output_dir, f"{config.image_map.map_lane_name}_object"),
             lane_level_object_data,
         )
-    return lane_level_object_data
+    return lane_level_object_data, lane_object_representations_yaw
 
 
 def preprocess_image_map(net_file_path: str, output_dir: Optional[str] = None, save_png: bool = False) -> Tuple[np.ndarray, np.ndarray]:  # noqa: DC02
