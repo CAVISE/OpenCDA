@@ -83,7 +83,7 @@ class MovementController:
         self._target_position = None
 
         if len(valid_messages) > 0:
-            # TODO: think what to do iчf multiple messages with different target positions are received - for now we just take the last one
+            # TODO: think what to do if multiple messages with different target positions are received - for now we just take the last one
             request = valid_messages[-1]
             self._target_position = request.target_location
             owner.control(target_speed=request.target_speed, target_location=request.target_location)
