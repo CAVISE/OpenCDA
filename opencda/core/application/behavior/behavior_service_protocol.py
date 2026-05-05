@@ -31,7 +31,7 @@ class BehaviorService(Protocol[BehaviorServiceRequestT, BehaviorServiceResponseT
     def process(
         self,
         messages: Sequence[TransportMessage[BehaviorServiceRequestT]],
-    ) -> Sequence[TransportMessage[BehaviorServiceResponseT]]:
+    ) -> Sequence[TransportMessage[BehaviorServiceResponseT], ...]:
         """Process typed input messages and return a typed result."""
 
     def on_detach(self) -> None:

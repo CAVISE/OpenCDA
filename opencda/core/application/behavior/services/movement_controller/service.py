@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import weakref
 import logging
-from typing import Sequence, TYPE_CHECKING
+from typing import Any, Sequence, TYPE_CHECKING
 
 from opencda.core.application.behavior.capability import CapabilityBindings
 from opencda.core.application.behavior.registry import BehaviorServiceRegistry
@@ -77,13 +77,13 @@ class MovementController:
                 valid_messages.append(message.payload)
         return valid_messages
 
-    def process(self, messages: Sequence[TransportMessage[MovementControllerRequestMessage]]) -> Sequence[TransportMessage]:
+    def process(self, messages: Sequence[TransportMessage[MovementControllerRequestMessage]]) -> tuple[TransportMessage[Any], ...]:
         owner = self._get_owner()
         valid_messages = self._filter_messages(messages)
         self._target_position = None
 
         if len(valid_messages) > 0:
-            # TODO: think what to do if multiple messages with different target positions are received - for now we just take the last one
+            # TODO: think what to do iчf multiple messages with different target positions are received - for now we just take the last one
             request = valid_messages[-1]
             self._target_position = request.target_location
             owner.control(target_speed=request.target_speed, target_location=request.target_location)
