@@ -18,7 +18,7 @@ from opencda.core.application.behavior.services.aim_server import AIMServerReque
 from opencda.core.application.behavior.services.movement_controller import MovementControllerRequestMessage
 from .types import AIMClientState
 
-from .utils import get_speed, draw_trajetory_points, calculate_target_speeds, distance_2d, is_location_ahead, find_server_response
+from .utils import get_speed, draw_trajetory_points, calculate_target_speeds
 
 if TYPE_CHECKING:
     from opencda.core.application.behavior.types import Location
@@ -90,7 +90,11 @@ class AIMClient:
         observed_messages: list[TransportMessage[AIMServerResponse]] = []
 
         for message in messages:
-            if message.dst_owner_id == owner.id and message.dst_service_type == self.service_type:
+            if (
+                message.dst_owner_id == owner.id
+                and message.dst_service_type == self.service_type
+                and (self.server_id == "broadcast" or self.server_id == message.src_owner_id)
+            ):
                 observed_messages.append(message)
 
         return tuple(observed_messages)
@@ -112,15 +116,21 @@ class AIMClient:
 
     def _build_movement_command_messages(
         self,
-        observed_responses: Sequence[AIMServerResponse],
+        observed_responses: Sequence[TransportMessage[AIMServerResponse]],
     ) -> tuple[TransportMessage[MovementControllerRequestMessage], ...]:
         owner = self._get_owner()
         movement_commands: list[TransportMessage[MovementControllerRequestMessage]] = []
         current_location = owner.vehicle.get_location()
         current_speed = get_speed(owner.vehicle)
 
-        for response in observed_responses:
-            control_trajectory = response.trajectory[1:]  # drop first because it was calculated on previous tick
+        if len(observed_responses) > 1:
+            logger.warning(f"Received more than one aim_server messages. Amount: {len(observed_responses)}")
+
+        if len(observed_responses) > 0:
+            response = observed_responses[0]
+            if self.server_id == "broadcast":
+                self.server_id = response.src_owner_id
+            control_trajectory = response.payload.trajectory[1:]  # drop first because it was calculated on previous tick
             target_speeds = calculate_target_speeds(control_trajectory, 0.05, current_location, current_speed, 111, 2.5, 4.5)
             self.trajectory = deque(zip(control_trajectory, target_speeds))
 
@@ -130,9 +140,12 @@ class AIMClient:
             target_location, target_speed = self.trajectory.popleft()
             movement_commands.append(self._build_movement_command_message(target_location, target_speed))
 
-        if len(movement_commands) == 0 and self.trajectory:
-            target_location, target_speed = self.trajectory.popleft()
-            movement_commands.append(self._build_movement_command_message(target_location, target_speed))
+        if len(movement_commands) == 0:
+            if self.trajectory:
+                target_location, target_speed = self.trajectory.popleft()
+                movement_commands.append(self._build_movement_command_message(target_location, target_speed))
+            else:
+                self.server_id = "broadcast"
 
         return tuple(movement_commands)
 

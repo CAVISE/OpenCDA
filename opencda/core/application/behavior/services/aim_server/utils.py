@@ -178,7 +178,7 @@ def load_yaw(yaw_dict_path: Path | None = None) -> dict[str, Any]:
         return pkl.load(f)
 
 
-def parse_location(value: Any) -> Location | None:
+def parse_location(value: Location | Mapping | Sequence | None) -> Location | None:
     """
     Parse Location from value.
     """

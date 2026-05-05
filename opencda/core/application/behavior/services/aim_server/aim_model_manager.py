@@ -168,7 +168,6 @@ class AIMModelManager:
                 trajectory = [self.predition_to_location(vehicle_id, pred_delta[i], yaw_rad) for i in range(30)]
                 payload = AIMServerResponse(
                     trajectory=trajectory,
-                    control_center=self.control_center_carla_location,
                 )
                 result_messages.append(
                     TransportMessage(

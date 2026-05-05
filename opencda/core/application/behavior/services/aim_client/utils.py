@@ -3,11 +3,6 @@ import carla
 import math
 from collections.abc import Sequence
 from opencda.core.application.behavior.types import Location
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from opencda.core.application.behavior.transport_message import TransportMessage
-    from opencda.core.application.behavior.services.aim_server import AIMServerResponse
 
 
 def get_speed(vehicle: carla.Vehicle, meters: bool = False) -> float:
@@ -89,9 +84,9 @@ def calculate_target_speeds(
             if len(trajectory) == 1:
                 target_speed = current_speed if current_speed is not None else 0.0
             else:
-                target_speed = distance_2d(location, trajectory[min(index + 1, len(trajectory) - 1)]) / dt * 3.6
+                target_speed = _distance_2d(location, trajectory[min(index + 1, len(trajectory) - 1)]) / dt * 3.6
         else:
-            target_speed = distance_2d(previous_location, location) / dt * 3.6
+            target_speed = _distance_2d(previous_location, location) / dt * 3.6
 
         if max_speed is not None:
             target_speed = min(target_speed, max_speed)
@@ -112,19 +107,10 @@ def calculate_target_speeds(
     return speeds
 
 
-def distance_2d(first: Location | carla.Location, second: Location | carla.Location) -> float:
+def _distance_2d(first: Location | carla.Location, second: Location | carla.Location) -> float:
     dx = second.x - first.x
     dy = second.y - first.y
     return (dx * dx + dy * dy) ** 0.5
-
-
-def is_location_ahead(vehicle_transform: carla.Transform, location: Location) -> bool:
-    forward_vector = vehicle_transform.get_forward_vector()
-    vehicle_location = vehicle_transform.location
-
-    dx = location.x - vehicle_location.x
-    dy = location.y - vehicle_location.y
-    return dx * forward_vector.x + dy * forward_vector.y > 0
 
 
 def _limit_speed_delta(
@@ -143,16 +129,6 @@ def _limit_speed_delta(
         target_speed_mps = max(target_speed_mps, previous_speed_mps - abs(max_decel) * dt)
 
     return max(0.0, target_speed_mps * 3.6)
-
-
-def find_server_response(
-    messages: Sequence[TransportMessage[AIMServerResponse]],
-    server_id: str,
-) -> TransportMessage[AIMServerResponse] | None:
-    for message in messages:
-        if message.src_owner_id == server_id:
-            return message
-    return None
 
 
 def draw_trajetory_points(

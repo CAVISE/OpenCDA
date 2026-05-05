@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import weakref
 import logging
-from typing import Any, Sequence, cast, TYPE_CHECKING
+from typing import Any, Sequence, cast, TYPE_CHECKING, Mapping
 
 from opencda.core.application.behavior.capability import Capability, CapabilityBindings
 from opencda.core.application.behavior.registry import BehaviorServiceRegistry
@@ -43,7 +43,7 @@ class AIMServer:
         self,
         priority: int = 20,
         control_radius: int = 15,
-        control_center_location: Any = None,
+        control_center_location: Location | Mapping | Sequence | None = None,
         **aim_config: Any,
     ) -> None:
         """
