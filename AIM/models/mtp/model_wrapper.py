@@ -208,5 +208,4 @@ class MTP(AIMModelWrapper):
                 denormalize_coords(predictions, map_bounding)
 
             predictions = transform_coords(predictions)
-            # return F.sigmoid(movement_logits) > 0, predictions
-            return True, predictions
+            return F.sigmoid(movement_logits) > 0, predictions
