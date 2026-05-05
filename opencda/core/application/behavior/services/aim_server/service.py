@@ -107,12 +107,13 @@ class AIMServer:
     def _build_aim_response_messages(
         self,
         messages: Sequence[TransportMessage[AIMServerRequest]],
-    ) -> Sequence[TransportMessage[AIMServerResponse]]:
+    ) -> tuple[TransportMessage[AIMServerResponse], ...]:
         aim_model_manager = self.aim_model_manager
         if aim_model_manager is None:
             raise RuntimeError("AIM server is not attached to an owner.")
 
         return aim_model_manager.process(messages)
 
-    def process(self, messages: Sequence[TransportMessage[AIMServerRequest]]) -> Sequence[TransportMessage[AIMServerResponse]]:
-        return self._build_aim_response_messages(messages)
+    def process(self, messages: Sequence[TransportMessage[AIMServerRequest]]) -> tuple[TransportMessage[AIMServerResponse], ...]:
+        observed_requests = self._observe_aim_requests(messages)
+        return self._build_aim_response_messages(observed_requests)

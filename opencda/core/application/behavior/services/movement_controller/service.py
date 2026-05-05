@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import weakref
 import logging
-from typing import Sequence, TYPE_CHECKING
+from typing import Any, Sequence, TYPE_CHECKING
 
 from opencda.core.application.behavior.capability import CapabilityBindings
 from opencda.core.application.behavior.registry import BehaviorServiceRegistry
@@ -77,7 +77,7 @@ class MovementController:
                 valid_messages.append(message.payload)
         return valid_messages
 
-    def process(self, messages: Sequence[TransportMessage[MovementControllerRequestMessage]]) -> Sequence[TransportMessage]:
+    def process(self, messages: Sequence[TransportMessage[MovementControllerRequestMessage]]) -> tuple[TransportMessage[Any], ...]:
         owner = self._get_owner()
         valid_messages = self._filter_messages(messages)
         self._target_position = None
