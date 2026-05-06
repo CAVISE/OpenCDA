@@ -8,7 +8,7 @@ from typing import Any, Sequence, TYPE_CHECKING
 
 from opencda.core.application.behavior.capability import CapabilityBindings
 from opencda.core.application.behavior.registry import BehaviorServiceRegistry
-from opencda.core.application.behavior.transport_message import TransportMessage
+from opencda.core.application.behavior.transport_message import TransportMessage, BROADCAST_SERVICE_TYPE
 from opencda.core.application.behavior.types import Location
 from .messages import MovementControllerRequestMessage
 from .types import MovementControllerState
@@ -16,6 +16,7 @@ from .types import MovementControllerState
 
 if TYPE_CHECKING:
     from opencda.core.common.vehicle_manager import VehicleManager
+    from opencda.core.application.behavior.services.self_informer import SelfInformerResponse
 
 
 logger = logging.getLogger("cavise.opencda.opencda.core.application.behavior.services.aim_client")
@@ -60,7 +61,6 @@ class MovementController:
         return MovementControllerState(
             service_type=self.service_type,
             owner_id=owner.id,
-            is_attached=owner is not None,
             target_position=self._target_location,
         )
 
@@ -69,15 +69,24 @@ class MovementController:
         self._owner_ref = None
         self._target_location = None
 
-    def _filter_messages(self, messages: Sequence[TransportMessage[MovementControllerRequestMessage]]) -> list[MovementControllerRequestMessage]:
+    def _filter_messages(
+        self, messages: Sequence[TransportMessage[MovementControllerRequestMessage | SelfInformerResponse]]
+    ) -> list[MovementControllerRequestMessage]:
         owner = self._get_owner()
         valid_messages = []
         for message in messages:
-            if message.dst_owner_id == owner.id and message.src_owner_id == owner.id and message.dst_service_type == self.service_type:
+            if (
+                message.dst_owner_id == owner.id
+                and message.src_owner_id == owner.id
+                and message.dst_service_type in (self.service_type, BROADCAST_SERVICE_TYPE)
+                and isinstance(message.payload, MovementControllerRequestMessage)
+            ):
                 valid_messages.append(message.payload)
         return valid_messages
 
-    def process(self, messages: Sequence[TransportMessage[MovementControllerRequestMessage]]) -> tuple[TransportMessage[Any], ...]:
+    def process(
+        self, messages: Sequence[TransportMessage[MovementControllerRequestMessage | SelfInformerResponse]]
+    ) -> tuple[TransportMessage[Any], ...]:
         owner = self._get_owner()
         valid_messages = self._filter_messages(messages)
         self._target_location = None

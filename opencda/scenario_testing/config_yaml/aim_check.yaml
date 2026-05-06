@@ -114,6 +114,7 @@ scenario:
       id: 100
       color: [156, 255, 206]
       behavior_services:
+        - type: self_informer
         - type: aim_client
           debug: true
         - type: movement_controller
@@ -124,6 +125,7 @@ scenario:
       id: 200
       color: [156, 255, 206]
       behavior_services:
+        - type: self_informer
         - type: aim_client
           debug: true
         - type: movement_controller
@@ -134,6 +136,7 @@ scenario:
       id: 300
       color: [156, 255, 206]
       behavior_services:
+        - type: self_informer
         - type: aim_client
           debug: true
         - type: movement_controller
@@ -144,6 +147,7 @@ scenario:
       id: 400
       color: [156, 255, 206]
       behavior_services:
+        - type: self_informer
         - type: aim_client
           debug: true
         - type: movement_controller
