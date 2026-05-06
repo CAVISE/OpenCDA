@@ -35,6 +35,19 @@ class _O3DPointCloud:
 class _O3DVisualizer:
     def __init__(self):
         self.destroy_window_called = 0
+        self.create_window_calls: list[tuple[tuple[object, ...], dict[str, object]]] = []
+        self.render_option = types.SimpleNamespace(
+            background_color=None,
+            point_size=None,
+            show_coordinate_frame=None,
+        )
+
+    def create_window(self, *args, **kwargs):
+        self.create_window_calls.append((args, kwargs))
+        return True
+
+    def get_render_option(self):
+        return self.render_option
 
     def destroy_window(self):
         self.destroy_window_called += 1

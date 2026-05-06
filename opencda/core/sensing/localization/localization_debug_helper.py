@@ -2,7 +2,10 @@
 Visualization tools for localization
 """
 
+from typing import Any, Mapping
+
 import numpy as np
+import numpy.typing as npt
 import matplotlib
 
 import matplotlib.pyplot as plt
@@ -57,38 +60,52 @@ class LocDebugHelper(object):
             The list of ground truth speed values.
     """
 
-    def __init__(self, config_yaml, actor_id):
-        self.show_animation = config_yaml["show_animation"]
-        self.x_scale = config_yaml["x_scale"]
-        self.y_scale = config_yaml["y_scale"]
+    def __init__(self, config_yaml: Mapping[str, Any], actor_id: int) -> None:
+        self.show_animation: bool = config_yaml["show_animation"]
+        self.x_scale: float = config_yaml["x_scale"]
+        self.y_scale: float = config_yaml["y_scale"]
 
         # off-line plotting
-        self.gnss_x = []
-        self.gnss_y = []
-        self.gnss_yaw = []
-        self.gnss_spd = []
+        self.gnss_x: list[float] = []
+        self.gnss_y: list[float] = []
+        self.gnss_yaw: list[float] = []
+        self.gnss_spd: list[float] = []
 
-        self.filter_x = []
-        self.filter_y = []
-        self.filter_yaw = []
-        self.filter_spd = []
+        self.filter_x: list[float] = []
+        self.filter_y: list[float] = []
+        self.filter_yaw: list[float] = []
+        self.filter_spd: list[float] = []
 
-        self.gt_x = []
-        self.gt_y = []
-        self.gt_yaw = []
-        self.gt_spd = []
+        self.gt_x: list[float] = []
+        self.gt_y: list[float] = []
+        self.gt_yaw: list[float] = []
+        self.gt_spd: list[float] = []
 
         # online animation
         # filtered x y coordinates
-        self.hxEst = np.zeros((2, 1))
+        self.hxEst: npt.NDArray[np.float64] = np.zeros((2, 1))
         # gt x y coordinates
-        self.hTrue = np.zeros((2, 1))
+        self.hTrue: npt.NDArray[np.float64] = np.zeros((2, 1))
         # gnss x y coordinates
-        self.hz = np.zeros((2, 1))
+        self.hz: npt.NDArray[np.float64] = np.zeros((2, 1))
 
-        self.actor_id = actor_id
+        self.actor_id: int = actor_id
 
-    def run_step(self, gnss_x, gnss_y, gnss_yaw, gnss_spd, filter_x, filter_y, filter_yaw, filter_spd, gt_x, gt_y, gt_yaw, gt_spd):
+    def run_step(
+        self,
+        gnss_x: float,
+        gnss_y: float,
+        gnss_yaw: float,
+        gnss_spd: float,
+        filter_x: float,
+        filter_y: float,
+        filter_yaw: float,
+        filter_spd: float,
+        gt_x: float,
+        gt_y: float,
+        gt_yaw: float,
+        gt_spd: float,
+    ) -> None:
         """
         Run a single step for DebugHelper to save and animate(optional)
         the localization data.
@@ -140,8 +157,13 @@ class LocDebugHelper(object):
 
             plt.cla()
             plt.title("actor id %d localization trajectory" % self.actor_id)
+
             # for stopping simulation with the esc key.
-            plt.gcf().canvas.mpl_connect("key_release_event", lambda event: [plt.close() if event.key == "escape" else None])
+            def close_on_escape(event: Any) -> None:
+                if getattr(event, "key", None) == "escape":
+                    plt.close()
+
+            plt.gcf().canvas.mpl_connect("key_release_event", close_on_escape)
 
             plt.plot(self.hTrue[0, 1:].flatten() * self.x_scale, self.hTrue[1, 1:].flatten() * self.y_scale, "-b", label="groundtruth")
             plt.plot(self.hz[0, 1:] * self.x_scale, self.hz[1, 1:] * self.y_scale, ".g", label="gnss noise data")

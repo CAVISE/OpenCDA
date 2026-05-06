@@ -5,11 +5,11 @@ Basic class of CAV
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, Iterable, Optional, Tuple
+from typing import Any, Iterable, Optional, Sequence, Tuple, Mapping
 import carla
 
 from opencda.core.actuation.control_manager import ControlManager
-from opencda.core.application.behavior import BehaviorService, TransportMessage, create_service
+from opencda.core.application.behavior import BehaviorService, TransportMessage, BROADCAST_OWNER_ID, BROADCAST_SERVICE_TYPE, create_service
 from opencda.core.application.platooning.platoon_behavior_agent import PlatooningBehaviorAgent
 from opencda.core.common.v2x_manager import V2XManager
 from opencda.core.sensing.localization.localization_manager import LocalizationManager
@@ -19,6 +19,7 @@ from opencda.core.plan.behavior_agent import BehaviorAgent
 from opencda.core.map.map_manager import MapManager
 from opencda.core.common.data_dumper import DataDumper
 from opencda.core.application.behavior.types import Location
+from opencda.core.application.behavior.services.movement_controller.messages import MovementControllerRequestMessage
 
 logger = logging.getLogger("cavise.opencda.opencda.core.common.vehicle_manager")
 
@@ -75,20 +76,20 @@ class VehicleManager(object):
     current_cav_id = 1
     current_platoon_id = 1
     current_unknown_id = 1
-    used_ids = set()
+    used_ids: set[str] = set()
 
     # TODO: application и prefix как будто бы дублируют друг друга, но не факт
     def __init__(
         self,
-        vehicle,
-        config_yaml,
-        application,
-        carla_map,
-        cav_world,
-        current_time="",
+        vehicle: carla.Vehicle,
+        config_yaml: Mapping[str, Any],
+        application: Sequence[str],
+        carla_map: carla.Map,
+        cav_world: carla.World,
+        current_time: str = "",
         perception_requirements: PerceptionRequirements | None = None,
-        autogenerate_id_on_failure=True,  # TODO: Link with scenario config
-        prefix="unknown",
+        autogenerate_id_on_failure: bool = True,  # TODO: Link with scenario config
+        prefix: str = "unknown",
     ):
         config_id = config_yaml.get("id")
         self.prefix = prefix if prefix in {"cav", "platoon"} else "unknown"
@@ -167,7 +168,7 @@ class VehicleManager(object):
         self.controller = ControlManager(control_config)
 
         if self.perception_requirements.enable_data_dump:
-            self.data_dumper = DataDumper(self.perception_manager, self.id, save_time=current_time)
+            self.data_dumper: DataDumper | None = DataDumper(self.perception_manager, self.id, save_time=current_time)
         else:
             self.data_dumper = None
 
@@ -178,7 +179,7 @@ class VehicleManager(object):
 
         cav_world.update_vehicle_manager(self)
 
-    def __generate_unique_vehicle_id(self):
+    def __generate_unique_vehicle_id(self) -> str:
         """Generates a unique vehicle ID based on prefix."""
         while True:
             if self.prefix == "cav":
@@ -195,7 +196,7 @@ class VehicleManager(object):
                 VehicleManager.used_ids.add(candidate)
                 return candidate
 
-    def __build_behavior_services(self, config_yaml: dict[str, Any]) -> list[BehaviorService[Any, Any]]:
+    def __build_behavior_services(self, config_yaml: Mapping[str, Any]) -> list[BehaviorService[Any, Any]]:
         service_configs = config_yaml.get("behavior_services", [])
         behavior_services = []
 
@@ -205,7 +206,7 @@ class VehicleManager(object):
             if service_type is None:
                 raise ValueError("Each behavior service config must define 'type'.")
 
-            behavior_services.append(create_service(service_name=service_type, **service_config_dict))
+            behavior_services.append(create_service(service_type=service_type, **service_config_dict))
             logger.info("Attached behavior service '%s' to vehicle %r.", service_type, self.id)
 
         return behavior_services
@@ -215,7 +216,8 @@ class VehicleManager(object):
         self.__validate_behavior_services(services)
         self.behavior_services = tuple(sorted(services, key=lambda service: service.priority))
         self.behavior_service_results: list[TransportMessage] = []
-        self._behavior_services_by_name = {service.service_name: service for service in self.behavior_services}
+        self.behavior_service_states: dict[str, Any] = {}
+        self._behavior_services_by_name = {service.service_type: service for service in self.behavior_services}
 
     def __validate_behavior_services(self, behavior_services: Tuple[BehaviorService[Any, Any], ...]) -> None:
         seen_service_ids = set()
@@ -224,14 +226,14 @@ class VehicleManager(object):
             if not isinstance(service, BehaviorService):
                 raise TypeError(f"Each behavior service must implement the BehaviorService protocol; got {type(service).__name__!r}.")
 
-            service_name = service.service_name
-            if service_name in seen_service_ids:
-                raise ValueError(f"Duplicate behavior service ID detected: {service_name!r}.")
+            service_type = service.service_type
+            if service_type in seen_service_ids:
+                raise ValueError(f"Duplicate behavior service ID detected: {service_type!r}.")
 
             if not isinstance(service.priority, int):
-                raise TypeError(f"Behavior service {service_name!r} must define an integer priority; got {type(service.priority).__name__!r}.")
+                raise TypeError(f"Behavior service {service_type!r} must define an integer priority; got {type(service.priority).__name__!r}.")
 
-            seen_service_ids.add(service_name)
+            seen_service_ids.add(service_type)
 
     def __attach_behavior_services(self) -> None:
         attached_services = []
@@ -247,7 +249,7 @@ class VehicleManager(object):
                 except Exception:
                     logger.exception(
                         "Failed to detach behavior service %r while rolling back vehicle %r attachment.",
-                        service.service_name,
+                        service.service_type,
                         self.id,
                     )
             raise
@@ -261,7 +263,7 @@ class VehicleManager(object):
             except Exception as exc:
                 logger.exception(
                     "Failed to detach behavior service %r from vehicle %r.",
-                    service.service_name,
+                    service.service_type,
                     self.id,
                 )
                 if first_exception is None:
@@ -277,8 +279,8 @@ class VehicleManager(object):
             if not isinstance(message, TransportMessage):
                 raise TypeError(f"Each behavior service message must be a TransportMessage; got {type(message).__name__!r}.")
 
-            service_name = getattr(message, "dst_service_type", None)
-            if not isinstance(service_name, str):
+            service_type = getattr(message, "dst_service_type", None)
+            if not isinstance(service_type, str):
                 raise TypeError(f"Each behavior service message must define a string 'dst_service_type'; got {type(message).__name__!r}.")
 
             owner_id = getattr(message, "dst_owner_id", None)
@@ -286,17 +288,18 @@ class VehicleManager(object):
                 raise TypeError(f"Each behavior service message must define a string 'dst_owner_id'; got {type(message).__name__!r}.")
 
             if owner_id == self.id:
-                if service_name not in self._behavior_services_by_name:
-                    raise ValueError(f"Behavior service message references unknown service_name {service_name!r}.")
+                if service_type not in self._behavior_services_by_name:
+                    raise ValueError(f"Behavior service message references unknown service_type {service_type!r}.")
                 valid_messages.append(message)
-            elif owner_id == "broadcast" and message.src_owner_id != self.id:
-                if service_name in self._behavior_services_by_name:
+            elif owner_id == BROADCAST_OWNER_ID and message.src_owner_id != self.id:
+                if service_type in self._behavior_services_by_name or service_type == BROADCAST_SERVICE_TYPE:
                     valid_messages.append(message)
 
         return valid_messages
 
-    def __group_behavior_service_messages(self, messages: list[TransportMessage]) -> Dict[str, list[TransportMessage]]:
-        grouped_messages = {service.service_name: [] for service in self.behavior_services}
+    def __group_behavior_service_messages(self, messages: list[TransportMessage]) -> Mapping[str, list[TransportMessage]]:
+        grouped_messages: dict[str, list[TransportMessage]] = {service.service_type: [] for service in self.behavior_services}
+        grouped_messages[BROADCAST_SERVICE_TYPE] = []
 
         for message in messages:
             grouped_messages[message.dst_service_type].append(message)
@@ -309,8 +312,11 @@ class VehicleManager(object):
         self.behavior_service_results.clear()
 
         for service in self.behavior_services:
-            service_messages = grouped_messages[service.service_name]
+            service_messages = grouped_messages[service.service_type]
+            if BROADCAST_SERVICE_TYPE in grouped_messages:
+                service_messages += grouped_messages[BROADCAST_SERVICE_TYPE]
             result_messages = service.process(service_messages)
+            self.behavior_service_states[service.service_type] = service.get_state()
             if result_messages:
                 self_messages = [msg for msg in result_messages if getattr(msg, "dst_owner_id", None) == self.id]
                 messages.extend(self_messages)
@@ -318,7 +324,7 @@ class VehicleManager(object):
                 out_messages = [msg for msg in result_messages if getattr(msg, "dst_owner_id", None) != self.id]
                 self.behavior_service_results.extend(out_messages)
 
-    def set_destination(self, start_location: Location, end_location: Location, clean=False, end_reset=True):
+    def set_destination(self, start_location: Location, end_location: Location, clean: bool = False, end_reset: bool = True) -> None:
         """
         Set global route.
 
@@ -344,7 +350,7 @@ class VehicleManager(object):
 
         self.agent.set_destination(start_location_carla, end_location_carla, clean, end_reset)
 
-    def update_info(self):
+    def update_info(self) -> None:
         """
         Call perception and localization module to
         retrieve surrounding info an ego position.
@@ -378,20 +384,16 @@ class VehicleManager(object):
         # pass position and speed info to controller
         self.controller.update_info(ego_pos, ego_spd)
 
-    def update_info_v2x(self):  # noqa: deadcode
+    def update_info_v2x(self) -> None:  # noqa: deadcode,
         # TODO: Implement
         pass
 
-    def run_step(self, target_speed=None, messages: list[TransportMessage] = []) -> list[TransportMessage]:
-        """
-        Execute one step of navigation.
-        """
-        self.update_behavior_services(messages)
-
+    def control(self, target_speed: float | None = None, target_location: Location | None = None) -> None:
         # visualize the bev map if needed
         self.map_manager.run_step()
-        target_speed, target_pos = self.agent.run_step(target_speed)
-        control = self.controller.run_step(target_speed, target_pos)
+        if target_location is None or target_speed is None:
+            target_speed, target_location = self.agent.run_step(target_speed)
+        control = self.controller.run_step(target_speed, target_location)
 
         # dump data
         if self.data_dumper:
@@ -399,9 +401,29 @@ class VehicleManager(object):
 
         self.vehicle.apply_control(control)
 
-        return self.behavior_service_results
+    def run_step(
+        self,
+        target_speed: float | None = None,
+        messages: list[TransportMessage[Any]] = [],
+    ) -> tuple[list[TransportMessage[Any]], dict[str, Any]]:
+        """
+        Execute one step of navigation.
+        """
+        payload = MovementControllerRequestMessage(target_speed=target_speed, target_location=None)
+        messages.append(
+            TransportMessage(
+                src_owner_id=self.id,
+                src_service_type="",
+                dst_owner_id=self.id,
+                dst_service_type="movement_controller",
+                payload=payload,
+            )
+        )
+        self.update_behavior_services(messages)
 
-    def destroy(self):
+        return (self.behavior_service_results, self.behavior_service_states)
+
+    def destroy(self) -> None:
         """
         Destroy the actor vehicle
         """

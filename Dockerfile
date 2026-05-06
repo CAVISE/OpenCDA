@@ -1,4 +1,4 @@
-FROM docker.io/nvidia/cuda:12.8.1-cudnn-devel-ubuntu24.04@sha256:24c8e3581ea6330038b0d374920721983312627f8adbfcf390bdb4b399d280ed AS opencda
+FROM docker.io/nvidia/cuda:13.0.3-cudnn-devel-ubuntu24.04@sha256:0230b7f243483cb15969fa3cc724a9459599604427052fc2a0d4291c7c0647dd AS opencda
 
 ARG USER=opencda
 ARG UID=1000 # default uid
@@ -11,7 +11,7 @@ RUN mkdir -p $XDG_RUNTIME_DIR && \
     chmod 700 $XDG_RUNTIME_DIR && \
     ln -sf /usr/bin/python3 /usr/bin/python
 
-ARG PROTOC_VERSION=33.5
+ARG PROTOC_VERSION=34.1
 ARG PROTOC_ZIP=protoc-${PROTOC_VERSION}-linux-x86_64.zip
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
@@ -24,7 +24,7 @@ RUN apt-get update && \
         curl=8.5.0-2ubuntu10.8 \
         unzip=6.0-28ubuntu4.1 \
         libjpeg-dev=8c-2ubuntu11 \
-        libtiff6=4.5.1+git230720-4ubuntu2.4 \
+        libtiff6=4.5.1+git230720-4ubuntu2.5 \
         python3-pip=24.0+dfsg-1ubuntu1.3 \
         python3-dev=3.12.3-0ubuntu2.1 \
         vulkan-tools=1.3.275.0+dfsg1-1 \
@@ -43,6 +43,5 @@ WORKDIR ${HOME}/cavise/opencda
 
 # Python Version: 3.12.3
 COPY opencda/requirements.txt requirements.txt
-RUN python3 -m pip install --no-cache-dir --break-system-packages --upgrade pip==26.0.1 setuptools==82.0.0 wheel==0.46.3 && \
-    python3 -m pip install --no-cache-dir --break-system-packages -r requirements.txt && \
-    python3 -m pip install --no-cache-dir --break-system-packages spconv-cu126==2.3.8
+RUN python3 -m pip install --no-cache-dir --break-system-packages --upgrade pip==26.0.1 setuptools==82.0.1 wheel==0.47.0 && \
+    python3 -m pip install --no-cache-dir --break-system-packages -r requirements.txt

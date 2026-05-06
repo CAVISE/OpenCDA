@@ -8,6 +8,7 @@ import math
 import numpy as np
 
 import carla
+from typing import Mapping, Any
 
 
 class Controller:
@@ -27,7 +28,7 @@ class Controller:
     _lat_ebuffer : deque
         A deque buffer that stores latitudinal control errors.
 
-    current_transform : carla.transform
+    current_transform : carla.Transform
         Current ego vehicle transformation in CARLA world.
 
     current_speed : float
@@ -38,50 +39,50 @@ class Controller:
 
     """
 
-    def __init__(self, args):
+    def __init__(self, args: Mapping[str, Any]):
         # longitudinal related
-        self.max_brake = args["max_brake"]
-        self.max_throttle = args["max_throttle"]
+        self.max_brake: float = args["max_brake"]
+        self.max_throttle: float = args["max_throttle"]
 
-        self._lon_k_p = args["lon"]["k_p"]  # noqa: DC05
-        self._lon_k_d = args["lon"]["k_d"]  # noqa: DC05
-        self._lon_k_i = args["lon"]["k_i"]  # noqa: DC05
+        self._lon_k_p: float = args["lon"]["k_p"]  # noqa: DC05
+        self._lon_k_d: float = args["lon"]["k_d"]  # noqa: DC05
+        self._lon_k_i: float = args["lon"]["k_i"]  # noqa: DC05
 
-        self._lon_ebuffer = deque(maxlen=10)
+        self._lon_ebuffer: deque[float] = deque(maxlen=10)
 
         # lateral related
-        self.max_steering = args["max_steering"]
+        self.max_steering: float = args["max_steering"]
 
-        self._lat_k_p = args["lat"]["k_p"]  # noqa: DC05
-        self._lat_k_d = args["lat"]["k_d"]  # noqa: DC05
-        self._lat_k_i = args["lat"]["k_i"]  # noqa: DC05
+        self._lat_k_p: float = args["lat"]["k_p"]  # noqa: DC05
+        self._lat_k_d: float = args["lat"]["k_d"]  # noqa: DC05
+        self._lat_k_i: float = args["lat"]["k_i"]  # noqa: DC05
 
-        self._lat_ebuffer = deque(maxlen=10)
+        self._lat_ebuffer: deque[float] = deque(maxlen=10)
 
         # simulation time-step
-        self.dt = args["dt"]
+        self.dt: float = args["dt"]
 
         # current speed and localization retrieved from sensing layer
-        self.current_transform = None
-        self.current_speed = 0.0
+        self.current_transform: carla.Transform | None = None
+        self.current_speed: float = 0.0
         # past steering
-        self.past_steering = 0.0
+        self.past_steering: float = 0.0
 
-        self.dynamic = args["dynamic"]
+        self.dynamic: bool = args["dynamic"]
 
-    def dynamic_pid(self):
+    def dynamic_pid(self) -> None:
         """
         Compute kp, kd, ki based on current speed.
         """
         pass
 
-    def update_info(self, ego_pos, ego_spd):
+    def update_info(self, ego_pos: carla.Transform, ego_spd: float) -> None:
         """
         Update ego position and speed to controller.
 
         Parameters
         ----------
-        ego_pos : carla.location
+        ego_pos : carla.Transform
             Position of the ego vehicle.
 
         ego_spd : float
@@ -97,7 +98,7 @@ class Controller:
         if self.dynamic:
             self.dynamic_pid()
 
-    def lon_run_step(self, target_speed):
+    def lon_run_step(self, target_speed: float) -> float:
         """
 
         Parameters
@@ -122,15 +123,15 @@ class Controller:
             _de = 0.0
             _ie = 0.0
 
-        return np.clip((self._lat_k_p * error) + (self._lat_k_d * _de) + (self._lat_k_i * _ie), -1.0, 1.0)
+        return float(np.clip((self._lat_k_p * error) + (self._lat_k_d * _de) + (self._lat_k_i * _ie), -1.0, 1.0))
 
-    def lat_run_step(self, target_location):
+    def lat_run_step(self, target_location: carla.Location) -> float:
         """
         Generate the throttle command based on current speed and target speed
 
         Parameters
         ----------
-        target_location : carla.location
+        target_location : carla.Location
             Target location.
 
         Returns
@@ -140,6 +141,8 @@ class Controller:
         achieve target location.
 
         """
+        if self.current_transform is None:
+            raise RuntimeError("current_transform is not set in pid_controller")
         v_begin = self.current_transform.location
         v_end = v_begin + carla.Location(
             x=math.cos(math.radians(self.current_transform.rotation.yaw)), y=math.sin(math.radians(self.current_transform.rotation.yaw))
@@ -160,9 +163,9 @@ class Controller:
             _de = 0.0
             _ie = 0.0
 
-        return np.clip((self._lat_k_p * _dot) + (self._lat_k_d * _de) + (self._lat_k_i * _ie), -1.0, 1.0)
+        return float(np.clip((self._lat_k_p * _dot) + (self._lat_k_d * _de) + (self._lat_k_i * _ie), -1.0, 1.0))
 
-    def run_step(self, target_speed, waypoint):
+    def run_step(self, target_speed: float, target_location: carla.Location) -> carla.VehicleControl:
         """
         Execute one step of control invoking both lateral and longitudinal
         PID controllers to reach a target waypoint at a given target_speed.
@@ -172,7 +175,7 @@ class Controller:
         target_speed : float
             Target speed of the ego vehicle.
 
-        waypoint : carla.loaction
+        waypoint : carla.Location
             Target location.
 
         Returns
@@ -185,7 +188,7 @@ class Controller:
         control = carla.VehicleControl()
 
         # emergency stop
-        if target_speed == 0 or waypoint is None:
+        if target_speed == 0 or target_location is None:
             control.steer = 0.0  # noqa: DC05
             control.throttle = 0.0  # noqa: DC05
             control.brake = 1.0  # noqa: DC05
@@ -193,7 +196,7 @@ class Controller:
             return control
 
         acceleration = self.lon_run_step(target_speed)
-        current_steering = self.lat_run_step(waypoint)
+        current_steering = self.lat_run_step(target_location)
 
         if acceleration >= 0.0:
             control.throttle = min(acceleration, self.max_throttle)  # noqa: DC05
@@ -202,8 +205,7 @@ class Controller:
             control.throttle = 0.0  # noqa: DC05
             control.brake = min(abs(acceleration), self.max_brake)  # noqa: DC05
 
-        # Steering regulation: changes cannot happen abruptly, can't steer too
-        # much.
+        # Steering regulation: changes cannot happen abruptly, can't steer too much.
         if current_steering > self.past_steering + 0.2:
             current_steering = self.past_steering + 0.2
         elif current_steering < self.past_steering - 0.2:

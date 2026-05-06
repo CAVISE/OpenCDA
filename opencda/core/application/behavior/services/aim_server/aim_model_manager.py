@@ -4,13 +4,12 @@ from typing import Any
 
 import logging
 import numpy as np
-from scipy.spatial import distance
 
 from AIM import AIMModelWrapper
 
 from .messages import AIMServerRequest, AIMServerResponse
-from .types import CavData
-from opencda.core.application.behavior.types import Transform, Location, Rotation
+from .types import AIMServerState, CavData
+from opencda.core.application.behavior.types import Location
 from . import utils
 
 from opencda.core.application.behavior.transport_message import TransportMessage
@@ -25,6 +24,7 @@ class AIMModelManager:
         control_center: Transform,
         service_name: str,
         owner_id: str,
+        control_radius: int = 15,
     ):
         """
         Initialize the standalone AIM model manager.
@@ -35,31 +35,30 @@ class AIMModelManager:
             Loaded AIM model used for trajectory prediction.
         control_center : Transform
             Intersection control point used to normalize vehicle positions.
-        service_name : str
+        service_type : str
             Service identifier used in AIM result messages.
         owner_id : str
             Identifier for the owner of the AIM model.
         """
-        self.CONTROL_RADIUS = 50
-        self.THRESHOLD = 10
-        self.FORCE_VALUE = 20
+        self.CONTROL_RADIUS = control_radius
 
         self.cav_data: dict[str, CavData] = {}
+        self.cav_state: dict[str, dict] = {}
 
         self.trajs: dict[str, list[tuple[float, float, float, float, float, str]]] = {}
 
-        control_center_location = utils.get_sumo_transform(control_center, Location(0, 0, 0)).location
-
+        self.control_center_carla_location: Location = control_center
+        control_center_location: Location = utils.get_sumo_location(control_center)
         self.control_center_coords: np.ndarray = np.array([control_center_location.x, control_center_location.y])
 
         self.model = model
 
-        self._service_name = service_name
+        self._service_name = service_type
         self._owner_id = owner_id
+        self._last_state_snapshot: AIMServerState | None = None
 
         self.__yaw_dict_path = Path(__file__).parent / "assets" / "yaw_dict_10m.pkl"
         self.yaw_dict: dict[str, Any] = utils.load_yaw(self.__yaw_dict_path)
-        self.yaw_id: dict[str, dict[str, str]] = {}
 
     def _get_distance_to_center(self, curr_pos: np.ndarray) -> float:
         return float(np.linalg.norm(curr_pos - self.control_center_coords))
@@ -76,10 +75,11 @@ class AIMModelManager:
         cav_pos = utils.get_sumo_transform(message.position, Location(0, 0, 0)).location
         curr_pos = np.array([cav_pos.x, cav_pos.y])
         distance_to_center = self._get_distance_to_center(curr_pos)
+        vehicle_id = message.vehicle_id
 
         if distance_to_center != -1 and distance_to_center < self.CONTROL_RADIUS:
-            self.cav_data[message.vehicle_id] = CavData(
-                intention=self.get_opencda_intention(message.waypoints, self.control_center_coords),
+            self.cav_data[vehicle_id] = CavData(
+                intention=self.get_intention(vehicle_id, message.waypoints, self.control_center_carla_location),
                 pos=message.position.location,
                 sumo_pos=curr_pos,
                 speed=message.speed,
@@ -90,6 +90,12 @@ class AIMModelManager:
                 dst_owner_id=transport_message.dst_owner_id,
                 dst_service_type=transport_message.dst_service_type,
             )
+            if vehicle_id not in self.cav_state:
+                self.cav_state[vehicle_id] = {}
+            self.cav_state[vehicle_id]["ttl"] = 3
+        else:
+            if vehicle_id in self.cav_state:
+                del self.cav_state[vehicle_id]
 
     def _get_cav_pos(self, vehicle_id: str) -> Location:
         return self.cav_data[vehicle_id].pos
@@ -100,10 +106,39 @@ class AIMModelManager:
     def _get_cav_intention(self, vehicle_id: str) -> str:
         return self.cav_data[vehicle_id].intention
 
-    def process(self, messages: Sequence[TransportMessage[AIMServerRequest]]) -> Sequence[TransportMessage[AIMServerResponse]]:
+    def get_state_snapshot(self) -> AIMServerState:
+        """Return an immutable snapshot of the current AIM runtime state."""
+        if self._last_state_snapshot is None:
+            return AIMServerState(
+                service_type=self._service_name,
+                owner_id=self._owner_id,
+                tracked_vehicle_ids=(),
+                trajectory_vehicle_ids=(),
+                tracked_vehicle_count=0,
+                trajectory_vehicle_count=0,
+            )
+        return self._last_state_snapshot
+
+    def _finalize_tick_state(self) -> None:
+        self._last_state_snapshot = AIMServerState(
+            service_type=self._service_name,
+            owner_id=self._owner_id,
+            tracked_vehicle_ids=tuple(sorted(self.cav_data)),
+            trajectory_vehicle_ids=tuple(sorted(self.trajs)),
+            tracked_vehicle_count=len(self.cav_data),
+            trajectory_vehicle_count=len(self.trajs),
+        )
+        self.cav_data.clear()
+
+    def process(self, messages: Sequence[TransportMessage[AIMServerRequest]]) -> tuple[TransportMessage[AIMServerResponse], ...]:
         """
         Run AIM inference for the request batch and return predicted targets.
         """
+        for vehicle_id in self.cav_state:
+            self.cav_state[vehicle_id]["ttl"] -= 1
+            if self.cav_state[vehicle_id]["ttl"] == 0:
+                del self.cav_state[vehicle_id]
+
         for message in messages:
             self._preprocess_cav_data(message)
         result_messages: list[TransportMessage[AIMServerResponse]] = []
@@ -114,8 +149,8 @@ class AIMModelManager:
         num_agents = features.shape[0]
 
         if num_agents == 0:
-            self.cav_data.clear()
-            return result_messages
+            self._finalize_tick_state()
+            return ()
 
         predictions = self.model.predict(features.copy(), target_agent_ids)
 
@@ -123,37 +158,14 @@ class AIMModelManager:
             vehicle_id = target_agent_ids[idx]
 
             distance_to_center = self._get_distance_to_center_by_vid(vehicle_id)
-            if distance_to_center == -1:
-                continue
 
             if distance_to_center < self.CONTROL_RADIUS:
                 pred_delta = predictions[idx].reshape(30, 2).detach().cpu().numpy()
-                local_delta = pred_delta[0].reshape(2, 1)
-                last_delta = pred_delta[-1].reshape(2, 1)
+                yaw_rad = features[idx][3] - np.deg2rad(90)  # convert to carla yaw
 
-                if last_delta[1, 0] <= 1:
-                    local_delta[1, 0] = 1e-8
-                    local_delta[0, 0] = 1e-10
-                else:
-                    local_delta[1, 0] = max(1e-8, local_delta[1, 0])
-
-                yaw = features[idx][3]
-                rotation = utils.rotation_matrix_back(yaw)
-                global_delta = (rotation @ local_delta).squeeze()
-                global_delta[1] *= -1
-
-                pos = self._get_cav_pos(vehicle_id)
-
-                global_delta = np.where(np.abs(global_delta) <= self.THRESHOLD, np.sign(global_delta) * self.FORCE_VALUE, global_delta)
-
-                next_location = Location(
-                    x=pos.x + global_delta[0],
-                    y=pos.y - global_delta[1],
-                    z=pos.z,
-                )
-
+                trajectory = [self.predition_to_location(vehicle_id, pred_delta[i], yaw_rad) for i in range(30)]
                 payload = AIMServerResponse(
-                    next_position=next_location,
+                    trajectory=trajectory,
                 )
                 result_messages.append(
                     TransportMessage(
@@ -165,20 +177,23 @@ class AIMModelManager:
                     )
                 )
 
-        self.cav_data.clear()
-        return result_messages
+        self._finalize_tick_state()
+        return tuple(result_messages)
+
+    def predition_to_location(self, vehicle_id: str, local_delta: np.ndarray, yaw: float) -> Location:
+        rotation = utils.rotation_matrix_back(yaw)
+        global_delta = (rotation @ local_delta).squeeze()
+        position = self._get_cav_pos(vehicle_id)
+
+        return Location(
+            x=position.x + global_delta[0],
+            y=position.y + global_delta[1],
+            z=position.z,
+        )
 
     def update_trajs(self) -> None:
         """
         Updates the self.trajs dictionary, which stores the trajectory history of each vehicle.
-        Format:
-        {
-            'vehicle_id': [
-                (rel_x, rel_y, speed, yaw_rad, yaw, intention),
-                ...
-            ],
-            ...
-        }
         """
         for vehicle_id in self.cav_data:
             position = self._get_cav_sumo_pos(vehicle_id)
@@ -190,20 +205,20 @@ class AIMModelManager:
                 if vehicle_id not in self.trajs:
                     self.trajs[vehicle_id] = []
 
+                if self.trajs[vehicle_id] == [] or self.trajs[vehicle_id][-1][-1] == "null":
+                    intention = self._get_cav_intention(vehicle_id)
+                else:
+                    intention = self.trajs[vehicle_id][-1][-1]
+
                 # Get vehicle state
                 speed = self.cav_data[vehicle_id].speed
                 yaw = self.cav_data[vehicle_id].yaw
-                yaw_rad = np.deg2rad(self.get_yaw(vehicle_id, position, self.yaw_dict))
+                yaw_rad = np.deg2rad(self.get_yaw(vehicle_id, position, self.yaw_dict, intention))
 
                 # Normalize position relative to control node
                 node_x, node_y = self.control_center_coords
                 rel_x = position[0] - node_x
                 rel_y = position[1] - node_y
-
-                if not self.trajs[vehicle_id] or self.trajs[vehicle_id][-1][-1] == "null":
-                    intention = self._get_cav_intention(vehicle_id)
-                else:
-                    intention = self.trajs[vehicle_id][-1][-1]
 
                 self.trajs[vehicle_id] = [(rel_x, rel_y, speed, yaw_rad, yaw, intention)]
 
@@ -211,7 +226,13 @@ class AIMModelManager:
             if vehicle_id not in self.cav_data:
                 del self.trajs[vehicle_id]
 
-    def get_opencda_intention(self, waypoints: Sequence[Any], mid: np.ndarray) -> str:
+    def get_intention(self, vehicle_id: str, waypoints: Sequence[Any], mid: Location) -> str:
+        if vehicle_id not in self.trajs or self.trajs[vehicle_id] == [] or self.trajs[vehicle_id][-1][-1] == "null":
+            return self.get_opencda_intention(waypoints, mid)
+        else:
+            return self.trajs[vehicle_id][-1][-1]
+
+    def get_opencda_intention(self, waypoints: Sequence[Any], mid: Location) -> str:
         """
         Gets intention by averaged rotation to pass 3 next waypoints.
 
@@ -222,18 +243,15 @@ class AIMModelManager:
         """
         # Too few waypoints
         if len(waypoints) < 2:
+            logger.debug("Too few waypoints")
             return "null"
 
         waypoint_index = 0
-        location = Location(mid[0], mid[1], 0)
-        rotation = Rotation(0, 0, 0)
 
-        in_sumo_transform = Transform(location, rotation)
-        mid_carla = utils.get_carla_transform(in_sumo_transform, Location(0, 0, 0))
-        if utils.get_distance(mid_carla, waypoints[0]) > self.CONTROL_RADIUS:
-            logger.debug("Car not int radius")
+        if utils.get_distance(mid, waypoints[0][0].transform.location) > self.CONTROL_RADIUS:
+            logger.debug("Car not in radius")
             return "null"
-        while utils.get_distance(mid_carla, waypoints[waypoint_index]) > self.CONTROL_RADIUS:
+        while utils.get_distance(mid, waypoints[waypoint_index][0].transform.location) > self.CONTROL_RADIUS:
             waypoint_index += 1
             if waypoint_index >= len(waypoints):
                 logger.debug("No waypoints in radius")
@@ -241,12 +259,13 @@ class AIMModelManager:
 
         first_waypoint = waypoints[waypoint_index]
         first_waypoint_index = waypoint_index
-        while (utils.get_distance(mid_carla, waypoints[waypoint_index]) <= self.CONTROL_RADIUS) and waypoint_index < len(waypoints) - 1:
+        while utils.get_distance(mid, waypoints[waypoint_index][0].transform.location) <= self.CONTROL_RADIUS and waypoint_index < len(waypoints) - 1:
             waypoint_index += 1
 
         # average the values of several points to reduce noise
         mean_yaw = 0
-        if waypoint_index - first_waypoint_index < 3 and waypoint_index > 3:
+        waypoints_in_radius = waypoint_index - first_waypoint_index
+        if waypoints_in_radius < 3 and waypoint_index > 3:
             logger.warning("Too few waypoints in radius")
         else:
             for i in range(3):
@@ -280,54 +299,40 @@ class AIMModelManager:
         feature_matrix = np.vstack(features) if features else np.empty((0, 7))
         return feature_matrix, target_agent_ids
 
-    def get_yaw(self, vehicle_id: str, pos: np.ndarray, yaw_dict: dict[str, Any]) -> float:
+    def get_yaw(self, vehicle_id: str, position: np.ndarray, yaw_dict: dict[str, Any], intention: str) -> float:
         """
         Calculates optimal CAV yaw based on its position, using previously collected trajectory data.
 
         :param vehicle_id: vehicle identifier
-        :param pos: 2D-position on simulation map
+        :param position: 2D-position on simulation map
         :param yaw_dict: dictionary containing information about rotation at each stage of the turn
         :return: yaw (rotation angle)
         """
-        nearest_node = "rsu"
-        if not self.trajs[vehicle_id] or self.trajs[vehicle_id][-1][-1] == "null":
-            logging.warning(f"Intention isn't defined for car {vehicle_id}")
+        if intention == "null":
+            logger.warning(f"Intention isn't defined for car {vehicle_id}")
             return 0.0
-        else:
-            intention = self.trajs[vehicle_id][-1][-1]
 
-        diff = self.control_center_coords - pos
-        if abs(diff[0]) > abs(diff[1]):
-            if diff[0] < 0:
-                start = "right"
+        if "route" not in self.cav_state[vehicle_id] or self.cav_state[vehicle_id]["route"] == "":
+            diff = self.control_center_coords - position
+            if abs(diff[0]) > abs(diff[1]):
+                if diff[0] < 0:
+                    start = "right"
+                else:
+                    start = "left"
             else:
-                start = "left"
+                if diff[1] < 0:
+                    start = "up"
+                else:
+                    start = "down"
+            end = utils.get_end(start, intention)
+            route = f"{start}_{end}"
+            self.cav_state[vehicle_id]["route"] = route
         else:
-            if diff[1] < 0:
-                start = "up"
-            else:
-                start = "down"
-
-        end = utils.get_end(start, intention)
-        v = f"{start}_{end}"
-        if vehicle_id not in self.yaw_id:
-            self.yaw_id[vehicle_id] = {nearest_node: v}
-        else:
-            if nearest_node not in self.yaw_id[vehicle_id]:
-                # With new nearest node intantion may changes, so we reset trajectory to default and get intention for new node
-                intention = self._get_cav_intention(vehicle_id)
-                end = utils.get_end(start, intention)
-                v = f"{start}_{end}"
-                self.yaw_id[vehicle_id] = {nearest_node: v}
-
-                # Update intention in trajs
-                previous_traj = self.trajs[vehicle_id][-1]
-                self.trajs[vehicle_id] = [(previous_traj[0], previous_traj[1], previous_traj[2], previous_traj[3], previous_traj[4], intention)]
-        route = self.yaw_id[vehicle_id][nearest_node]
+            route = self.cav_state[vehicle_id]["route"]
 
         if route not in yaw_dict:
-            logging.warning(f"Route '{route}' not found for vehicle {vehicle_id}. Using default yaw.")
+            logger.warning(f"Route '{route}' not found for vehicle {vehicle_id}. Using default yaw.")
             return 0.0
         yaws = yaw_dict[route]
-        dists = distance.cdist(pos.reshape(1, 2), yaws[:, :-1])
+        dists = np.linalg.norm(yaws[:, :-1] - position, axis=1)
         return float(yaws[np.argmin(dists), -1])
