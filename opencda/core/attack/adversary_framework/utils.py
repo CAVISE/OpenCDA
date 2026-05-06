@@ -40,7 +40,7 @@ def get_capability_binding(
     try:
         return service.capability_bindings[capability]
     except KeyError as exc:
-        raise RuntimeError(f"Service '{service.service_name}' does not expose capability '{capability.value}'.") from exc
+        raise RuntimeError(f"Service '{service.service_type}' does not expose capability '{capability.value}'.") from exc
 
 
 def install_output_interceptor(
@@ -53,7 +53,7 @@ def install_output_interceptor(
     binding = get_capability_binding(service, capability)
     method_name = getattr(binding, "__name__", None)
     if not method_name:
-        raise RuntimeError(f"Could not resolve method name for capability '{capability.value}' on service '{service.service_name}'.")
+        raise RuntimeError(f"Could not resolve method name for capability '{capability.value}' on service '{service.service_type}'.")
 
     had_instance_override = method_name in vars(service)
     previous_attr = vars(service).get(method_name, _MISSING)

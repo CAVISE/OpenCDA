@@ -25,7 +25,7 @@ logger = logging.getLogger("cavise.opencda.opencda.core.application.behavior.ser
 class MovementController:
     """Behavior service that runs AIM predictions for a batch of CAV requests."""
 
-    service_name = "movement_controller"
+    service_type = "movement_controller"
     priority = 100
 
     @property
@@ -38,7 +38,7 @@ class MovementController:
         """
         self.priority = priority
         self._owner_ref: weakref.ReferenceType[VehicleManager] | None = None
-        self._target_position: Location | None = None
+        self._target_location: Location | None = None
 
     def _get_owner(self) -> VehicleManager:
         owner_ref = self._owner_ref
@@ -58,33 +58,33 @@ class MovementController:
     def get_state(self) -> MovementControllerState:
         owner = self._get_owner()
         return MovementControllerState(
-            service_name=self.service_name,
+            service_type=self.service_type,
             owner_id=owner.id,
             is_attached=owner is not None,
-            target_position=self._target_position,
+            target_position=self._target_location,
         )
 
     def on_detach(self) -> None:
         """Release service resources before the participant is destroyed."""
         self._owner_ref = None
-        self._target_position = None
+        self._target_location = None
 
     def _filter_messages(self, messages: Sequence[TransportMessage[MovementControllerRequestMessage]]) -> list[MovementControllerRequestMessage]:
         owner = self._get_owner()
         valid_messages = []
         for message in messages:
-            if message.dst_owner_id == owner.id and message.src_owner_id == owner.id and message.dst_service_type == self.service_name:
+            if message.dst_owner_id == owner.id and message.src_owner_id == owner.id and message.dst_service_type == self.service_type:
                 valid_messages.append(message.payload)
         return valid_messages
 
     def process(self, messages: Sequence[TransportMessage[MovementControllerRequestMessage]]) -> tuple[TransportMessage[Any], ...]:
         owner = self._get_owner()
         valid_messages = self._filter_messages(messages)
-        self._target_position = None
+        self._target_location = None
 
         if len(valid_messages) > 0:
             # TODO: think what to do if multiple messages with different target positions are received - for now we just take the last one
             request = valid_messages[-1]
-            self._target_position = request.target_location
+            self._target_location = request.target_location
             owner.control(target_speed=request.target_speed, target_location=request.target_location)
         return ()

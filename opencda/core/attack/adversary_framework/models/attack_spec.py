@@ -13,7 +13,7 @@ class TriggerSourceSpec:
     kind: str
     node_type: str | None = None
     node_id: str | None = None
-    service_name: str | None = None
+    service_type: str | None = None
     field: str | None = None
     attack_name: str | None = None
     stage_id: str | None = None
@@ -24,7 +24,7 @@ class TriggerSourceSpec:
             kind=str(data["kind"]),
             node_type=data.get("node_type"),
             node_id=data.get("node_id"),
-            service_name=data.get("service_name"),
+            service_type=data.get("service_type"),
             field=data.get("field"),
             attack_name=data.get("attack_name"),
             stage_id=data.get("stage_id"),
@@ -91,7 +91,7 @@ class TargetSpec:
             kind=str(data["kind"]),
             source=TriggerSourceSpec.from_dict(data["source"]),
             resolve_to_node_type=str(resolve_to["node_type"]),
-            resolve_to_service_name=str(resolve_to["service_name"]),
+            resolve_to_service_name=str(resolve_to["service_type"]),
         )
 
 

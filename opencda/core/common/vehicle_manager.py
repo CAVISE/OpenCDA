@@ -206,7 +206,7 @@ class VehicleManager(object):
             if service_type is None:
                 raise ValueError("Each behavior service config must define 'type'.")
 
-            behavior_services.append(create_service(service_name=service_type, **service_config_dict))
+            behavior_services.append(create_service(service_type=service_type, **service_config_dict))
             logger.info("Attached behavior service '%s' to vehicle %r.", service_type, self.id)
 
         return behavior_services
@@ -217,7 +217,7 @@ class VehicleManager(object):
         self.behavior_services = tuple(sorted(services, key=lambda service: service.priority))
         self.behavior_service_results: list[TransportMessage] = []
         self.behavior_service_states: dict[str, Any] = {}
-        self._behavior_services_by_name = {service.service_name: service for service in self.behavior_services}
+        self._behavior_services_by_name = {service.service_type: service for service in self.behavior_services}
 
     def __validate_behavior_services(self, behavior_services: Tuple[BehaviorService[Any, Any], ...]) -> None:
         seen_service_ids = set()
@@ -226,14 +226,14 @@ class VehicleManager(object):
             if not isinstance(service, BehaviorService):
                 raise TypeError(f"Each behavior service must implement the BehaviorService protocol; got {type(service).__name__!r}.")
 
-            service_name = service.service_name
-            if service_name in seen_service_ids:
-                raise ValueError(f"Duplicate behavior service ID detected: {service_name!r}.")
+            service_type = service.service_type
+            if service_type in seen_service_ids:
+                raise ValueError(f"Duplicate behavior service ID detected: {service_type!r}.")
 
             if not isinstance(service.priority, int):
-                raise TypeError(f"Behavior service {service_name!r} must define an integer priority; got {type(service.priority).__name__!r}.")
+                raise TypeError(f"Behavior service {service_type!r} must define an integer priority; got {type(service.priority).__name__!r}.")
 
-            seen_service_ids.add(service_name)
+            seen_service_ids.add(service_type)
 
     def __attach_behavior_services(self) -> None:
         attached_services = []
@@ -249,7 +249,7 @@ class VehicleManager(object):
                 except Exception:
                     logger.exception(
                         "Failed to detach behavior service %r while rolling back vehicle %r attachment.",
-                        service.service_name,
+                        service.service_type,
                         self.id,
                     )
             raise
@@ -263,7 +263,7 @@ class VehicleManager(object):
             except Exception as exc:
                 logger.exception(
                     "Failed to detach behavior service %r from vehicle %r.",
-                    service.service_name,
+                    service.service_type,
                     self.id,
                 )
                 if first_exception is None:
@@ -279,8 +279,8 @@ class VehicleManager(object):
             if not isinstance(message, TransportMessage):
                 raise TypeError(f"Each behavior service message must be a TransportMessage; got {type(message).__name__!r}.")
 
-            service_name = getattr(message, "dst_service_type", None)
-            if not isinstance(service_name, str):
+            service_type = getattr(message, "dst_service_type", None)
+            if not isinstance(service_type, str):
                 raise TypeError(f"Each behavior service message must define a string 'dst_service_type'; got {type(message).__name__!r}.")
 
             owner_id = getattr(message, "dst_owner_id", None)
@@ -288,17 +288,17 @@ class VehicleManager(object):
                 raise TypeError(f"Each behavior service message must define a string 'dst_owner_id'; got {type(message).__name__!r}.")
 
             if owner_id == self.id:
-                if service_name not in self._behavior_services_by_name:
-                    raise ValueError(f"Behavior service message references unknown service_name {service_name!r}.")
+                if service_type not in self._behavior_services_by_name:
+                    raise ValueError(f"Behavior service message references unknown service_type {service_type!r}.")
                 valid_messages.append(message)
             elif owner_id == "broadcast" and message.src_owner_id != self.id:
-                if service_name in self._behavior_services_by_name:
+                if service_type in self._behavior_services_by_name:
                     valid_messages.append(message)
 
         return valid_messages
 
     def __group_behavior_service_messages(self, messages: list[TransportMessage]) -> Mapping[str, list[TransportMessage]]:
-        grouped_messages: Mapping[str, list[TransportMessage]] = {service.service_name: [] for service in self.behavior_services}
+        grouped_messages: Mapping[str, list[TransportMessage]] = {service.service_type: [] for service in self.behavior_services}
 
         for message in messages:
             grouped_messages[message.dst_service_type].append(message)
@@ -311,9 +311,9 @@ class VehicleManager(object):
         self.behavior_service_results.clear()
 
         for service in self.behavior_services:
-            service_messages = grouped_messages[service.service_name]
+            service_messages = grouped_messages[service.service_type]
             result_messages = service.process(service_messages)
-            self.behavior_service_states[service.service_name] = service.get_state()
+            self.behavior_service_states[service.service_type] = service.get_state()
             if result_messages:
                 self_messages = [msg for msg in result_messages if getattr(msg, "dst_owner_id", None) == self.id]
                 messages.extend(self_messages)

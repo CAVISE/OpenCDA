@@ -6,19 +6,19 @@ attack:
       - source:
           kind: snapshot
           node_type: rsu
-          service_name: aim_server
+          service_type: aim_server
         verb: exists
       - source:
           kind: snapshot
           node_type: vehicle
-          service_name: aim_client
+          service_type: aim_client
         verb: exists
 
   start_trigger:
     source:
       kind: snapshot
       node_type: rsu
-      service_name: aim_server
+      service_type: aim_server
       field: tracked_vehicle_count
     verb: increased
     value: 1
@@ -27,7 +27,7 @@ attack:
     source:
       kind: snapshot
       node_type: rsu
-      service_name: aim_server
+      service_type: aim_server
       field: tracked_vehicle_count
     verb: eq
     value: 0
@@ -37,11 +37,11 @@ attack:
     source:
       kind: snapshot
       node_type: rsu
-      service_name: aim_server
+      service_type: aim_server
       field: tracked_vehicle_ids
     resolve_to:
       node_type: vehicle
-      service_name: aim_client
+      service_type: aim_client
 
   stages:
     - id: sniff_aim_client_responses

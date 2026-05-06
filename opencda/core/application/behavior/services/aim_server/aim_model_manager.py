@@ -9,7 +9,7 @@ from AIM import AIMModel
 
 from .messages import AIMServerRequest, AIMServerResponse
 from .types import AIMServerState, CavData
-from opencda.core.application.behavior.types import Transform, Location
+from opencda.core.application.behavior.types import Location
 from . import utils
 
 from opencda.core.application.behavior.transport_message import TransportMessage
@@ -21,8 +21,8 @@ class AIMModelManager:
     def __init__(
         self,
         model: AIMModel,
-        control_center: Transform,
-        service_name: str,
+        control_center: Location,
+        service_type: str,
         owner_id: str,
         control_radius: int = 15,
     ):
@@ -35,7 +35,7 @@ class AIMModelManager:
             Loaded AIM model used for trajectory prediction.
         control_center : Transform
             Intersection control point used to normalize vehicle positions.
-        service_name : str
+        service_type : str
             Service identifier used in AIM result messages.
         owner_id : str
             Identifier for the owner of the AIM model.
@@ -47,13 +47,13 @@ class AIMModelManager:
 
         self.trajs: dict[str, list[tuple[float, float, float, float, float, str]]] = {}
 
-        self.control_center_coords_carla: Transform = control_center
-        control_center_location: Location = utils.get_sumo_transform(control_center, Location(0, 0, 0)).location
+        self.control_center_carla_location: Location = control_center
+        control_center_location: Location = utils.get_sumo_location(control_center)
         self.control_center_coords: np.ndarray = np.array([control_center_location.x, control_center_location.y])
 
         self.model = model
 
-        self._service_name = service_name
+        self._service_name = service_type
         self._owner_id = owner_id
         self._last_state_snapshot: AIMServerState | None = None
 
@@ -79,7 +79,7 @@ class AIMModelManager:
 
         if distance_to_center != -1 and distance_to_center < self.CONTROL_RADIUS:
             self.cav_data[vehicle_id] = CavData(
-                intention=self.get_intention(vehicle_id, message.waypoints, self.control_center_coords_carla),
+                intention=self.get_intention(vehicle_id, message.waypoints, self.control_center_carla_location),
                 pos=message.position.location,
                 sumo_pos=curr_pos,
                 speed=message.speed,
@@ -110,7 +110,7 @@ class AIMModelManager:
         """Return an immutable snapshot of the current AIM runtime state."""
         if self._last_state_snapshot is None:
             return AIMServerState(
-                service_name=self._service_name,
+                service_type=self._service_name,
                 owner_id=self._owner_id,
                 is_attached=True,
                 tracked_vehicle_ids=(),
@@ -122,7 +122,7 @@ class AIMModelManager:
 
     def _finalize_tick_state(self) -> None:
         self._last_state_snapshot = AIMServerState(
-            service_name=self._service_name,
+            service_type=self._service_name,
             owner_id=self._owner_id,
             is_attached=True,
             tracked_vehicle_ids=tuple(sorted(self.cav_data)),
@@ -228,13 +228,13 @@ class AIMModelManager:
             if vehicle_id not in self.cav_data:
                 del self.trajs[vehicle_id]
 
-    def get_intention(self, vehicle_id: str, waypoints: Sequence[Any], mid: Transform) -> str:
+    def get_intention(self, vehicle_id: str, waypoints: Sequence[Any], mid: Location) -> str:
         if vehicle_id not in self.trajs or self.trajs[vehicle_id] == [] or self.trajs[vehicle_id][-1][-1] == "null":
             return self.get_opencda_intention(waypoints, mid)
         else:
             return self.trajs[vehicle_id][-1][-1]
 
-    def get_opencda_intention(self, waypoints: Sequence[Any], mid: Transform) -> str:
+    def get_opencda_intention(self, waypoints: Sequence[Any], mid: Location) -> str:
         """
         Gets intention by averaged rotation to pass 3 next waypoints.
 
@@ -250,10 +250,10 @@ class AIMModelManager:
 
         waypoint_index = 0
 
-        if utils.get_distance(mid, waypoints[0]) > self.CONTROL_RADIUS:
+        if utils.get_distance(mid, waypoints[0][0].transform.location) > self.CONTROL_RADIUS:
             logger.debug("Car not in radius")
             return "null"
-        while utils.get_distance(mid, waypoints[waypoint_index]) > self.CONTROL_RADIUS:
+        while utils.get_distance(mid, waypoints[waypoint_index][0].transform.location) > self.CONTROL_RADIUS:
             waypoint_index += 1
             if waypoint_index >= len(waypoints):
                 logger.debug("No waypoints in radius")
@@ -261,7 +261,7 @@ class AIMModelManager:
 
         first_waypoint = waypoints[waypoint_index]
         first_waypoint_index = waypoint_index
-        while (utils.get_distance(mid, waypoints[waypoint_index]) <= self.CONTROL_RADIUS) and waypoint_index < len(waypoints) - 1:
+        while utils.get_distance(mid, waypoints[waypoint_index][0].transform.location) <= self.CONTROL_RADIUS and waypoint_index < len(waypoints) - 1:
             waypoint_index += 1
 
         # average the values of several points to reduce noise

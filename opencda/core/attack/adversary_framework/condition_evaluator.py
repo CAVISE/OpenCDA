@@ -68,13 +68,13 @@ def collect_snapshot_values(
 
     matches: list[tuple[str, Any]] = []
     for node in _iter_matching_nodes(source, snapshot):
-        if source.service_name is None:
+        if source.service_type is None:
             value = _extract_field_value(node, source.field)
             if value is not _MISSING:
                 matches.append((node.node_id, value))
             continue
 
-        service_state = node.service_states.get(source.service_name)
+        service_state = node.service_states.get(source.service_type)
         if service_state is None:
             continue
 

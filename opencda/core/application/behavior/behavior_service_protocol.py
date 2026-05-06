@@ -15,7 +15,7 @@ BehaviorServiceResponseT = TypeVar("BehaviorServiceResponseT", covariant=True)
 class BehaviorService(Protocol[BehaviorServiceRequestT, BehaviorServiceResponseT]):
     """Protocol implemented by any behavior service attached to a participant."""
 
-    service_name: str
+    service_type: str
     priority: int = 100  # Less is better
 
     @property
