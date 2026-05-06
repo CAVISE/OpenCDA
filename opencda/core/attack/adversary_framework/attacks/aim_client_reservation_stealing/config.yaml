@@ -51,7 +51,7 @@ attack:
         - request.submit
       params:
         rewrites:
-          - path: payload.position.location.x
+          - path: payload.position.x
             operation: add
             value: -25.0
           - path: payload.speed

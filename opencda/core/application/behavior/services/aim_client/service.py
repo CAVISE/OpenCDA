@@ -9,7 +9,6 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, cast
 
 import traci
-import carla
 
 from opencda.core.application.behavior.capability import Capability, CapabilityBindings
 from opencda.core.application.behavior.registry import BehaviorServiceRegistry
@@ -17,12 +16,12 @@ from opencda.core.application.behavior.transport_message import TransportMessage
 from opencda.core.application.behavior.services.aim_server import AIMServerRequest, AIMServerResponse
 from opencda.core.application.behavior.services.movement_controller import MovementControllerRequestMessage
 from opencda.core.application.behavior.services.self_informer import SelfInformerResponse
+from opencda.core.application.behavior.types import Location, Transform
 from .types import AIMClientState
 
 from .utils import draw_trajetory_points, calculate_target_speeds
 
 if TYPE_CHECKING:
-    from opencda.core.application.behavior.types import Location
     from opencda.core.common.vehicle_manager import VehicleManager
 
 
@@ -174,8 +173,8 @@ class AIMClient:
 
     def _build_aim_server_request_messages(self, dst_owner_id: str = BROADCAST_OWNER_ID) -> tuple[TransportMessage[AIMServerRequest], ...]:
         owner = self._get_owner()
-        position = owner.vehicle.get_transform()
-        waypoints = owner.agent.get_local_planner().get_waypoint_buffer()
+        position = Location.from_carla(owner.vehicle.get_transform().location)
+        waypoints = [Transform.from_carla(waypoint[0].transform) for waypoint in owner.agent.get_local_planner().get_waypoint_buffer()]
         payload = AIMServerRequest(
             vehicle_id=owner.id,
             position=position,
@@ -203,7 +202,6 @@ class AIMClient:
             owner.agent._local_planner._vehicle.get_world(),
             control_trajectory,
             size=0.05,
-            color=carla.Color(255, 0, 0),
             life_time=0.1,
         )
 
