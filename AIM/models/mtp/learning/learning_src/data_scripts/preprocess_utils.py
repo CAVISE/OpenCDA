@@ -87,30 +87,6 @@ def adjust_future_yaw_delta(delta: Union[torch.Tensor, np.ndarray]) -> Union[tor
     return delta
 
 
-def adjust_future_deltas(curr_states: np.ndarray, future_states: np.ndarray) -> np.ndarray:
-    """
-    in-place. adjust future delta angles to keep them in range [-pi, pi] to avoid jumps
-
-    :param curr_states: current vehicle states [vehicle, 4]
-    :param future_states: future vehicle states [vehicle, pred_len, 4]
-
-    :return: adjusted future states
-    """
-
-    assert curr_states.shape[0] == future_states.shape[0]
-    num_vehicle = curr_states.shape[0]
-    num_step = future_states.shape[1]
-
-    for i_vehicle in range(num_vehicle):
-        for i_step in range(num_step):
-            if (future_states[i_vehicle, i_step, 3] - curr_states[i_vehicle, 3]) < -np.pi:
-                future_states[i_vehicle, i_step, 3] += 2 * np.pi
-            elif (future_states[i_vehicle, i_step, 3] - curr_states[i_vehicle, 3]) > np.pi:
-                future_states[i_vehicle, i_step, 3] -= 2 * np.pi
-
-    return future_states
-
-
 def transform_coords(coords: Union[torch.Tensor, np.ndarray]) -> Union[torch.Tensor, np.ndarray]:
     """
     in-place. transform coordinates between sumo and carla coordinate systems (in-place)
@@ -557,7 +533,6 @@ def preprocess_file(
     num_cars = len(all_features)
     edges = [[x, y] for x in range(num_cars) for y in range(num_cars)]
     edge_index = torch.tensor(edges, dtype=torch.long).T  # [2, edge]
-    # noise_range = 3.0
 
     # for each timestep, create an interaction graph
     for row in range(0, num_rows - config.model.num_predict):
@@ -577,21 +552,6 @@ def preprocess_file(
         y = rotations @ y
         y = y.transpose(0, 2, 1)  # [vehicle, config.model.num_predict, 2]
 
-        # use MPC to compute acc and delta
-
-        # curr_states = all_features[:, row, :4]  # [vehicle, 4]
-        # [vehicle, config.model.num_predict, 4], [x, y, speed, yaw]
-        # future_states = all_features[:, row + 1 : row + 1 + config.model.num_predict, :4]
-        # future_states = adjust_future_deltas(curr_states, future_states)
-
-        # [vehicle, config.model.num_predict, 2], [acc, delta]
-        # acc_delta_old = all_features[:, row + 1 : row + 1 + config.model.num_predict, -2:]
-        # shifted_curr, mpc_output = MPC_Block(
-        #     curr_states, future_states, acc_delta_old, noise_range=0
-        # )  # [vehicle, 4], [vehicle, config.model.num_predict, 6]: [x, y, v, yaw, acc, delta]
-        # # store the control vector to accelerate future MPC opt
-        # all_features[:, row + 1 : row + 1 + config.model.num_predict, -2:] = mpc_output[:, :, -2:]
-
         dspeed = (
             all_features[:, row + 1 : row + 1 + config.model.num_predict, 2:3] - all_features[:, row : row + 1, 2:3]
         )  # [vehicle, config.model.num_predict, 1]
@@ -607,7 +567,6 @@ def preprocess_file(
             )  # [vehicle, config.model.num_predict, 1], align the initial direction to +Y
 
         # [vehicle, config.model.num_predict, 6]
-        # y = np.concatenate((y, speed, yaw, mpc_output[:, :, -2:]), axis=2)
         y = np.concatenate((y, dspeed, yaw), axis=2)
 
         if config.data_processing.normalize_data:
@@ -630,41 +589,6 @@ def preprocess_file(
             "wb",
         ) as handle:
             pickle.dump(data, handle, protocol=pickle.HIGHEST_PROTOCOL)
-
-        # for a in range(config.data_processing.num_augmentation):
-        #     shifted_curr, mpc_output = MPC_Block(
-        #         curr_states, future_states, acc_delta_old, noise_range=noise_range
-        #     )  # [vehicle, 4], [vehicle, config.model.num_predict, 6]: [x, y, v, yaw, acc, delta]
-        #     x_argumented = x.copy()
-        #     x_argumented[:, :2] = shifted_curr[:, :2]
-        #     y = (mpc_output[:, :, :2] - np.expand_dims(shifted_curr[:, :2], axis=1)).transpose(0, 2, 1)  # [vehicle, 2, config.model.num_predict]
-        #     y = rotations @ y
-        #     y = y.transpose(0, 2, 1)  # [vehicle, config.model.num_predict, 2]
-
-        #     if config.data_processing.align_initial_direction_to_x:
-        #         mpc_output[:, :, 3:4] = mpc_output[:, :, 3:4] - all_features[:, row : row + 1, 3:4]
-        #     else:
-        #         mpc_output[:, :, 3:4] = mpc_output[:, :, 3:4] - all_features[:, row : row + 1, 3:4] + np.pi / 2
-
-        #     # [vehicle, config.model.num_predict, 6]
-        #     y = np.concatenate((y, mpc_output[:, :, 2:]), axis=-1)
-        #     y = y.reshape(num_cars, -1)
-
-        #     # if config.data_processing.normalize_data:
-        #     #     normalize_target_data(y)
-        #     #     normalize_input_data(x)
-
-        #     data = (
-        #         torch.tensor(x_argumented, dtype=torch.float),
-        #         torch.tensor(y, dtype=torch.float),
-        #         edge_index,
-        #         torch.tensor([row]),
-        #     )
-        #     with open(
-        #         f"{preprocess_folder_path}/{os.path.splitext(csv_file)[0]}-{str(row).zfill(3)}-{a + 1}.pkl",
-        #         "wb",
-        #     ) as handle:
-        #         pickle.dump(data, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 
 def z_score_normalize_file(
