@@ -53,7 +53,7 @@ def get_map_bounding(src_net_file_path: str) -> float:
         return x_max
 
     else:
-        raise Exception("")
+        raise Exception(f"Cant extract map boundings: file {src_net_file_path} doesnt exists")
 
 
 def get_entry_exit_edges(net_path: str) -> dict[str, list[str]]:
