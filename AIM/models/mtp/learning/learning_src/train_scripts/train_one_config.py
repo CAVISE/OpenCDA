@@ -109,7 +109,7 @@ def read_config_file(config_file_path: str) -> Dict2Class:
 
         return class_config
     except Exception as error:
-        print(error)
+        raise RuntimeError(f"Failed to read config file: {config_file_path}: {error}")
 
 
 def copy_file(src_file_path_str: str, dest_file_path_str: str) -> None:

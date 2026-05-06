@@ -22,7 +22,8 @@ def read_base_config_file(config_file_path: str) -> dict[str, Any]:
         return dict_config
     except Exception as error:
         print(error)
-        raise
+        return None
+
 
 def write_config_file(config_file_path: str, dict_config: dict[str, Any]) -> None:
     """

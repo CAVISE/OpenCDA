@@ -79,8 +79,7 @@ def transformer_train_one_epoch(
         map_infos_graph_batch = map_infos_graph_batch.to(device, non_blocking=True)
 
         map_attn_mask_batch = map_attn_mask_batch.to(device, non_blocking=True)
-        map_boundaries = map_boundaries.to(device, non_blocking=True)
-        map_boundaries = map_boundaries.unsqueeze(-1)
+        map_boundaries = map_boundaries.to(device, non_blocking=True).unsqueeze(-1)
         map_lane_reprs = map_lane_reprs.to(device, non_blocking=True)
         map_lane_repr_masks = map_lane_repr_masks.to(device, non_blocking=True)
 
@@ -356,8 +355,7 @@ def transformer_evaluate(
             map_infos_graph_batch = map_infos_graph_batch.to(device, non_blocking=True)
 
             map_attn_mask_batch = map_attn_mask_batch.to(device, non_blocking=True)
-            map_boundaries = map_boundaries.to(device, non_blocking=True)
-            map_boundaries = map_boundaries.unsqueeze(-1)
+            map_boundaries = map_boundaries.to(device, non_blocking=True).unsqueeze(-1)
             map_lane_reprs = map_lane_reprs.to(device, non_blocking=True)
             map_lane_repr_masks = map_lane_repr_masks.to(device, non_blocking=True)
 
