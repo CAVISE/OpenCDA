@@ -580,8 +580,9 @@ def preprocess_file(
         # use MPC to compute acc and delta
         curr_states = all_features[:, row, :4]  # [vehicle, 4]
         # [vehicle, config.model.num_predict, 4], [x, y, speed, yaw]
-        future_states = all_features[:, row + 1 : row + 1 + config.model.num_predict, :4]
-        future_states = adjust_future_deltas(curr_states, future_states)
+        future_states = adjust_future_deltas(
+            curr_states, all_features[:, row + 1 : row + 1 + config.model.num_predict, :4]
+        )
 
         # [vehicle, config.model.num_predict, 2], [acc, delta]
         # acc_delta_old = all_features[:, row + 1 : row + 1 + config.model.num_predict, -2:]
