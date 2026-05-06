@@ -4,6 +4,8 @@ from typing import Generic, TypeVar
 
 from dataclasses import dataclass
 
+BROADCAST_OWNER_ID = "broadcast"
+BROADCAST_SERVICE_TYPE = "broadcast"
 
 payloadT = TypeVar("payloadT", covariant=True)
 

@@ -112,7 +112,6 @@ class AIMModelManager:
             return AIMServerState(
                 service_type=self._service_name,
                 owner_id=self._owner_id,
-                is_attached=True,
                 tracked_vehicle_ids=(),
                 trajectory_vehicle_ids=(),
                 tracked_vehicle_count=0,
@@ -124,7 +123,6 @@ class AIMModelManager:
         self._last_state_snapshot = AIMServerState(
             service_type=self._service_name,
             owner_id=self._owner_id,
-            is_attached=True,
             tracked_vehicle_ids=tuple(sorted(self.cav_data)),
             trajectory_vehicle_ids=tuple(sorted(self.trajs)),
             tracked_vehicle_count=len(self.cav_data),
