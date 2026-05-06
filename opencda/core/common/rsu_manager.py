@@ -9,7 +9,7 @@ from opencda.core.application.behavior import BehaviorService, create_service
 from opencda.core.common.data_dumper import DataDumper
 from opencda.core.sensing.perception.perception_manager import PerceptionManager, PerceptionRequirements
 from opencda.core.sensing.localization.rsu_localization_manager import LocalizationManager
-from opencda.core.application.behavior import TransportMessage
+from opencda.core.application.behavior import TransportMessage, BROADCAST_OWNER_ID
 
 logger = logging.getLogger("cavise.opencda.opencda.core.common.rsu_manager")
 
@@ -236,7 +236,7 @@ class RSUManager(object):
                 if service_type not in self._behavior_services_by_name:
                     raise ValueError(f"Behavior service message references unknown service_type {service_type!r}.")
                 valid_messages.append(message)
-            elif owner_id == "broadcast" and message.src_owner_id != self.id:
+            elif owner_id == BROADCAST_OWNER_ID and message.src_owner_id != self.id:
                 if service_type in self._behavior_services_by_name:
                     valid_messages.append(message)
 

@@ -9,5 +9,4 @@ from opencda.core.application.behavior.types import Location
 class AIMClientState:
     service_type: str
     owner_id: str | None
-    is_attached: bool  # noqa: DC01
     trajectory: tuple[Location, ...]  # noqa: DC01
