@@ -12,6 +12,7 @@ from opencda.core.application.behavior.registry import BehaviorServiceRegistry
 from opencda.core.application.behavior.transport_message import TransportMessage, BROADCAST_SERVICE_TYPE
 from .messages import SelfInformerResponse
 from .utils import get_speed
+from .types import SelfInformerState
 from opencda.core.application.behavior.types import Location
 
 if TYPE_CHECKING:
@@ -38,6 +39,8 @@ class SelfInformer:
         """Initialize the self-informer behavior service."""
         self._owner_ref: weakref.ReferenceType[VehicleManager] | None = None
         self.priority = priority
+        self.location: Location | None = None
+        self.speed: float | None = None
 
     def _get_owner(self) -> VehicleManager:
         owner_ref = self._owner_ref
@@ -58,17 +61,26 @@ class SelfInformer:
         """Release service resources before the participant is destroyed."""
         self._owner_ref = None
 
-    def get_state(self) -> Any:
+    def get_state(self) -> SelfInformerState:
         """Return an immutable snapshot of the current service state."""
-        pass
+        owner = self._get_owner()
+        if self.location is None or self.speed is None:
+            self.location = Location.from_carla(owner.vehicle.get_location())
+            self.speed = get_speed(owner.vehicle)
+        return SelfInformerState(
+            service_type=self.service_type,
+            owner_id=owner.id,
+            location=self.location,
+            speed=self.speed,
+        )
 
     def _build_self_informer_response(
         self,
     ) -> TransportMessage[SelfInformerResponse]:
         owner = self._get_owner()
-        current_location = Location.from_carla(owner.vehicle.get_location())
-        current_speed = get_speed(owner.vehicle)
-        payload = SelfInformerResponse(location=current_location, speed=current_speed)
+        self.location = Location.from_carla(owner.vehicle.get_location())
+        self.speed = get_speed(owner.vehicle)
+        payload = SelfInformerResponse(location=self.location, speed=self.speed)
         return TransportMessage(
             src_owner_id=owner.id,
             src_service_type=self.service_type,

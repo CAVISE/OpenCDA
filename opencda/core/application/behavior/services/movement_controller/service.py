@@ -61,7 +61,6 @@ class MovementController:
         return MovementControllerState(
             service_type=self.service_type,
             owner_id=owner.id,
-            is_attached=owner is not None,
             target_position=self._target_location,
         )
 

@@ -71,11 +71,10 @@ class AIMClient:
         self._owner_ref = weakref.ref(owner)
 
     def get_state(self) -> AIMClientState:
-        owner_ref = self._get_owner()
+        owner = self._get_owner()
         return AIMClientState(
             service_type=self.service_type,
-            owner_id=owner_ref.id if owner_ref is not None else None,
-            is_attached=owner_ref is not None,
+            owner_id=owner.id,
             trajectory=tuple(location for location, _ in self.trajectory),
         )
 
