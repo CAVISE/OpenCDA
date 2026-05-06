@@ -433,8 +433,8 @@ class MapManager(object):
         crosswalks_ids = []
 
         # boundary of each lane for later filtering
-        lanes_bounds = np.empty((0, 3, 2), dtype=np.float)
-        crosswalks_bounds = np.empty((0, 3, 2), dtype=np.float)
+        lanes_bounds = np.empty((0, 3, 2), dtype=float)
+        crosswalks_bounds = np.empty((0, 3, 2), dtype=float)
 
         # for crosswalk information
         crosswalks_list = self.split_cross_walks()

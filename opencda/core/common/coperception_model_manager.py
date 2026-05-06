@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import os
 import logging
+from contextlib import nullcontext
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, Literal, Mapping, Optional, Tuple, TypeAlias, TypedDict, cast
 
@@ -43,13 +44,15 @@ class CoperceptionVisualizationConfig(TypedDict):
     background: ColorRGB  # noqa: DC01
     lidar_point_colors: dict[str, ColorRGB]
     bbox_colors: dict[str, ColorRGB]  # noqa: DC01
+    bbox_line_thickness: int  # noqa: DC01
+    image_dpi: int  # noqa: DC01
 
 
 @dataclass
 class CoperceptionInferenceResult:
-    pred_box_tensor: Any
-    pred_score: Any
-    gt_box_tensor: Any
+    pred_box_tensor: torch.Tensor | None
+    pred_score: torch.Tensor | None
+    gt_box_tensor: torch.Tensor | None
     visualization_context: Optional[Mapping[str, Any]] = None
 
 
@@ -156,12 +159,13 @@ class CoperceptionVisualizer:
         "background": (0, 0, 0),
         "lidar_point_colors": {
             "other": (255, 255, 255),
-            "ego": (80, 255, 80),
         },
         "bbox_colors": {
             "gt": (0, 255, 0),
             "pred": (255, 0, 0),
         },
+        "bbox_line_thickness": 5,
+        "image_dpi": 400,
     }
 
     @classmethod
@@ -174,6 +178,10 @@ class CoperceptionVisualizer:
         for key in ("background",):
             if key in config_dict and config_dict[key] is not None:
                 resolved[key] = tuple(config_dict[key])
+
+        for key in ("bbox_line_thickness", "image_dpi"):
+            if key in config_dict and config_dict[key] is not None:
+                resolved[key] = int(config_dict[key])
 
         for key in ("lidar_point_colors", "bbox_colors"):
             value = config_dict.get(key)
@@ -220,7 +228,7 @@ class CoperceptionVisualizer:
         plt.axis("off")
         plt.imshow(canvas)
         plt.tight_layout()
-        plt.savefig(save_path, transparent=False, dpi=400, pad_inches=0.0)
+        plt.savefig(save_path, transparent=False, dpi=config["image_dpi"], pad_inches=0.0)
         plt.clf()
 
     @classmethod
@@ -293,6 +301,7 @@ class CoperceptionVisualizer:
         bg_color = cls._as_uint8_color(config["background"])
         gt_color = cls._as_uint8_color(config["bbox_colors"]["gt"])
         pred_color = cls._as_uint8_color(config["bbox_colors"]["pred"])
+        box_line_thickness = int(config["bbox_line_thickness"])
 
         if vis_pred_box and pred_box_tensor is not None:
             pred_box_np = common_utils.torch_tensor_to_numpy(pred_box_tensor)
@@ -340,9 +349,9 @@ class CoperceptionVisualizer:
             if valid_mask.any():
                 canvas.draw_canvas_points(canvas_xy[valid_mask], colors=point_colors[valid_mask])
             if vis_gt_box and gt_box_np is not None:
-                canvas.draw_boxes(gt_box_np, colors=gt_color, texts=gt_name, box_line_thickness=5)
+                canvas.draw_boxes(gt_box_np, colors=gt_color, texts=gt_name, box_line_thickness=box_line_thickness)
             if vis_pred_box and pred_box_np is not None:
-                canvas.draw_boxes(pred_box_np, colors=pred_color, texts=pred_name, box_line_thickness=5)
+                canvas.draw_boxes(pred_box_np, colors=pred_color, texts=pred_name, box_line_thickness=box_line_thickness)
             cls._draw_extra_boxes(canvas, method, config, visualization_context, common_utils)
         elif method == "3d":
             canvas = canvas_3d.Canvas_3D(canvas_bg_color=bg_color, left_hand=left_hand)
@@ -350,9 +359,9 @@ class CoperceptionVisualizer:
             if valid_mask.any():
                 canvas.draw_canvas_points(canvas_xy[valid_mask], colors=point_colors[valid_mask])
             if vis_gt_box and gt_box_np is not None:
-                canvas.draw_boxes(gt_box_np, colors=gt_color, texts=gt_name)
+                canvas.draw_boxes(gt_box_np, colors=gt_color, texts=gt_name, box_line_thickness=box_line_thickness)
             if vis_pred_box and pred_box_np is not None:
-                canvas.draw_boxes(pred_box_np, colors=pred_color, texts=pred_name)
+                canvas.draw_boxes(pred_box_np, colors=pred_color, texts=pred_name, box_line_thickness=box_line_thickness)
             cls._draw_extra_boxes(canvas, method, config, visualization_context, common_utils)
         else:
             raise ValueError(f"Unsupported visualization method: {method}")
@@ -498,10 +507,11 @@ class CoperceptionVisualizer:
             box_np = common_utils.torch_tensor_to_numpy(box_tensor)
             color = cls._as_uint8_color(config["bbox_colors"][box_name])
             texts = [""] * box_np.shape[0]
+            box_line_thickness = int(config["bbox_line_thickness"])
             if method == "bev":
-                canvas.draw_boxes(box_np, colors=color, texts=texts, box_line_thickness=5)
+                canvas.draw_boxes(box_np, colors=color, texts=texts, box_line_thickness=box_line_thickness)
             else:
-                canvas.draw_boxes(box_np, colors=color, texts=texts)
+                canvas.draw_boxes(box_np, colors=color, texts=texts, box_line_thickness=box_line_thickness)
 
     @staticmethod
     def _to_numpy_array(value):
@@ -575,6 +585,9 @@ class CoperceptionModelManager:
     def _select_inference(self) -> Callable[[Any], CoperceptionInferenceResult]:
         inference_callable = self._resolve_inference_callable()
         return cast(Callable[[Any], CoperceptionInferenceResult], inference_callable.__get__(self, type(self)))
+
+    def _requires_grad_for_inference(self) -> bool:
+        return False
 
     @InferenceMapper.for_core_method("LateFusionDataset")  # noqa: DC04
     def _run_late_inference(self, batch_data):
@@ -691,7 +704,7 @@ class CoperceptionModelManager:
             self.vis.get_render_option().show_coordinate_frame = True  # noqa: DC05
         return SequenceVisualizationState(
             pcd=o3d.geometry.PointCloud(),
-            box_groups={group_name: [o3d.geometry.LineSet() for _ in range(50)] for group_name in self.SEQUENCE_BOX_GROUP_NAMES},
+            box_groups={group_name: [] for group_name in self.SEQUENCE_BOX_GROUP_NAMES},
         )
 
     def _update_sequence_visualization(
@@ -717,20 +730,13 @@ class CoperceptionModelManager:
             visualization_config=self.visualization_config,
             visualization_context=visualization_context,
         )
-        if index == 0:
-            self.vis.add_geometry(pcd)
-            update_mode = "add"
-        else:
-            update_mode = None
+        self.vis.add_geometry(pcd)
 
         for group_name in self.SEQUENCE_BOX_GROUP_NAMES:
-            kwargs = {"update_mode": update_mode} if update_mode is not None else {}
-            vis_utils.linset_assign_list(
-                self.vis,
-                sequence_state.box_groups[group_name],
-                box_groups.get(group_name, []),
-                **kwargs,
-            )
+            line_sets = list(box_groups.get(group_name, []))
+            sequence_state.box_groups[group_name] = line_sets
+            for line_set in line_sets:
+                self.vis.add_geometry(line_set)
 
         self.vis.update_geometry(pcd)
         self.vis.poll_events()
@@ -757,14 +763,16 @@ class CoperceptionModelManager:
             logger.warning("Only the first batch will be processed.")
 
         batch_data = next(iter(self.data_loader))
-        with torch.no_grad():
-            batch_data = train_utils.to_device(batch_data, self.device)
+        batch_data = train_utils.to_device(batch_data, self.device)
+        inference_context = nullcontext() if self._requires_grad_for_inference() else torch.no_grad()
+        with inference_context:
             inference_result = self.inference(batch_data)
             pred_box_tensor = inference_result.pred_box_tensor
             pred_score = inference_result.pred_score
             gt_box_tensor = inference_result.gt_box_tensor
             visualization_context = inference_result.visualization_context
 
+        with torch.no_grad():
             self._update_evaluation_stat(result_stat, pred_box_tensor, pred_score, gt_box_tensor)
 
             if self.opt.save_npy:

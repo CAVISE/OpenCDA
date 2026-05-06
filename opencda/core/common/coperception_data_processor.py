@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from collections import OrderedDict
-from typing import TYPE_CHECKING, Sequence, TypedDict, cast
+from typing import TYPE_CHECKING, NotRequired, Sequence, TypedDict, cast
 
 import numpy as np
 
@@ -51,6 +51,7 @@ class LiveParams(TypedDict, total=False):
 class LiveMemorySnapshot(TypedDict):
     params: LiveParams
     lidar_np: np.ndarray
+    spoofing_mask: NotRequired[np.ndarray]
     camera0: list[object]  # noqa: DC01
 
 

@@ -1,12 +1,14 @@
 description: |-
   Content: This is the template scenario testing configuration file that other scenarios could directly refer
 
+attacks: []
+
 # define carla simulation setting
 world:
   sync_mode: true
   client_port: 2000
   fixed_delta_seconds: 0.05
-  seed: 11 # seed for numpy and random
+  seed: 11 # seed for numpy, random, and torch
   weather:
     sun_altitude_angle: 30 # 90 is the midday and -90 is the midnight
     cloudiness: 70 # 0 is the clean sky and 100 is the thickest cloud
@@ -160,6 +162,9 @@ vehicle_base:
   v2x:  # communication related
     enabled: true
     communication_range: 35
+  behavior_services:
+    - type: self_informer
+    - type: movement_controller
 
 
 # define the background traffic control by carla
@@ -213,15 +218,21 @@ sumo:
   step_length: ${world.fixed_delta_seconds}
 
 cooperative_perception_visualization:
-  background: [0, 0, 0]
+  background: [17, 34, 42]
+  bbox_line_thickness: 3 # optional global line thickness for all rendered bounding boxes in BEV/3D
+  image_dpi: 600 # optional DPI for saved cooperative perception images
   lidar_point_colors:
-    other: [255, 255, 255] # fallback color for all lidar points; in general CoP visualization every non-ego agent also uses this color
-    ego: [80, 255, 80] # used when the visualizer can identify ego points
-    attackers: [224, 104, 104] # used for real lidar points of attacking agents when AdvCP visualization is active
-    spoofing: [180, 0, 255] # reserved for fake/spoofed lidar points injected by AdvCP; not used yet
+    other: [92, 219, 149] # fallback color for all lidar points; in general CoP visualization every non-ego agent also uses this color
+    # ego: [80, 255, 80] # used when the visualizer can identify ego points
+    # attackers: [224, 104, 104] # used for real lidar points of attacking agents when AdvCP visualization is active
+    # spoofing: [180, 0, 255] # reserved for fake/spoofed lidar points injected by AdvCP; not used yet
     # cav-1: [255, 220, 0] # optional explicit color override for a specific vehicle id
     # rsu-2: [0, 200, 255] # optional explicit color override for a specific RSU id
   bbox_colors:
-    gt: [0, 255, 0]
-    pred: [255, 0, 0]
-    fake: [242, 156, 74]  # used for fake bounding boxes when AdvCP late-fusion visualization is active
+    gt: [237, 255, 246]
+    pred: [164, 73, 148]
+    # fake: [242, 156, 74]  # AdvCP-only extra box color
+    # In late spoofing, this box corresponds to a fake box that survived the model prediction pipeline.
+    # In intermediate spoofing, this box is the attack target / desired spoof location and does not by itself
+    # mean that the model actually produced a matching prediction at that location.
+    # removed: [56, 189, 248] # AdvCP-only extra box color for early-fusion removal target boxes.

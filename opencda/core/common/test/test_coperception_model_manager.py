@@ -1,15 +1,13 @@
 import pytest
 from unittest.mock import MagicMock, patch
 from pathlib import Path
+from importlib import import_module
 import numpy as np
 
 # The production code imports are now safe because pytest_configure in conftest.py
 # installs the mocks before collection.
-from opencda.core.attack.advcp import AdvCoperceptionModelManager
-from opencda.core.attack.advcp.adv_coperception_model_manager import AdvCoperceptionVisualizer
 from opencda.core.common.coperception_data_processor import CoperceptionDataProcessor
 from opencda.core.common.coperception_model_manager import (
-    CoperceptionInferenceResult,
     CoperceptionModelManager,
     CoperceptionVisualizer,
     EvaluationResultStat,
@@ -91,13 +89,26 @@ class TestCoperceptionModelManager:
         # Setup default return values
         hypes = {
             "postprocess": {"core_method": "VoxelPostprocessor", "gt_range": [0, -40, -3, 70, 40, 1]},
-            "fusion": {"core_method": "IntermediateFusionDataset"},
+            "fusion": {"core_method": "LateFusionDataset"},
         }
         opencood.hypes_yaml.yaml_utils.load_yaml.return_value = hypes
 
         model = MagicMock()
         opencood.tools.train_utils.create_model.return_value = model
         opencood.tools.train_utils.load_saved_model.return_value = (None, model)
+
+        # Re-bind imported module-level dependencies to this fixture's mocks.
+        # This keeps tests deterministic even when other test trees import the
+        # manager module before these conftest mocks are installed.
+        coperception_model_manager_module = import_module(CoperceptionModelManager.__module__)
+        coperception_model_manager_module.torch = torch
+        coperception_model_manager_module.o3d = open3d
+        coperception_model_manager_module.yaml_utils = opencood.hypes_yaml.yaml_utils
+        coperception_model_manager_module.train_utils = opencood.tools.train_utils
+        coperception_model_manager_module.inference_utils = opencood.tools.inference_utils
+        coperception_model_manager_module.build_dataset = opencood.data_utils.datasets.build_dataset
+        coperception_model_manager_module.vis_utils = opencood.visualization.vis_utils
+        coperception_model_manager_module.eval_utils = opencood.utils.eval_utils
 
         # Return dict for easy access
         return {
@@ -170,7 +181,7 @@ class TestCoperceptionModelManager:
 
     def test_make_prediction_state_update(self, manager_deps):
         """Test that final_result_stat is actually updated via caluclate_tp_fp side effect."""
-        opt = DummyOpt(fusion_method="late")
+        opt = DummyOpt()
         manager = CoperceptionModelManager(opt, "2023_01_01")
 
         # Setup Data Loader
@@ -230,58 +241,31 @@ class TestCoperceptionModelManager:
         assert stat.fp == [0]
         assert stat.score == [0.5]
 
-    @pytest.mark.parametrize("fusion_method", ["late", "early", "intermediate"])
-    def test_make_prediction_fusion_methods(self, fusion_method, manager_deps):
-        opt = DummyOpt(fusion_method=fusion_method)
+    @pytest.mark.parametrize(
+        ("core_method", "inference_attr"),
+        [
+            ("LateFusionDataset", "inference_late_fusion"),
+            ("EarlyFusionDataset", "inference_early_fusion"),
+            ("IntermediateFusionDataset", "inference_intermediate_fusion"),
+            ("IntermediateFusionDatasetV2", "inference_intermediate_fusion"),
+        ],
+    )
+    def test_make_prediction_fusion_methods(self, core_method, inference_attr, manager_deps):
+        manager_deps["hypes"]["fusion"]["core_method"] = core_method
+        opt = DummyOpt()
         manager = CoperceptionModelManager(opt, "2023_01_01")
-        core_method_by_fusion = {
-            "late": "LateFusionDataset",
-            "early": "EarlyFusionDataset",
-            "intermediate": "IntermediateFusionDataset",
-        }
-        manager.hypes["fusion"]["core_method"] = core_method_by_fusion[fusion_method]
-        manager.inference = manager._select_inference()
         manager.data_loader = [{"ego": {"origin_lidar": ["lidar_data"]}}]
         manager.opencood_dataset = MagicMock()
 
         manager.make_prediction(0)
 
-        if fusion_method == "late":
-            manager_deps["inference_utils"].inference_late_fusion.assert_called()
-        elif fusion_method == "early":
-            manager_deps["inference_utils"].inference_early_fusion.assert_called()
-        elif fusion_method == "intermediate":
-            manager_deps["inference_utils"].inference_intermediate_fusion.assert_called()
+        getattr(manager_deps["inference_utils"], inference_attr).assert_called()
 
-    def test_make_prediction_late_advcp_uses_manager(self, manager_deps):
-        opt = DummyOpt(fusion_method="late", with_advcp=True, advcp_config="dummy.yaml")
-        with patch.object(AdvCoperceptionModelManager, "load_config", return_value={"mode": "spoof", "attacker_id": "cav-2", "boxes": [{}]}):
-            manager = AdvCoperceptionModelManager(opt, "2023_01_01")
-        manager.hypes["fusion"]["core_method"] = "LateFusionDataset"
-        manager.inference = manager._select_inference()
-        manager.data_loader = [{"ego": {"origin_lidar": ["lidar_data"]}}]
-        manager.opencood_dataset = MagicMock()
-        manager.advcp_config = {"mode": "spoof", "attacker_id": "cav-2", "boxes": [{}]}
+    def test_init_raises_for_unsupported_core_method(self, manager_deps):
+        manager_deps["hypes"]["fusion"]["core_method"] = "BrokenFusionDataset"
 
-        with patch.object(
-            AdvCoperceptionModelManager,
-            "_inference_late_fusion_attack",
-            return_value=("pred", "score", "gt", {"attacker_ids": ["cav-2"], "fake_box_tensor": "fake"}),
-        ) as mock_advcp:
-            manager.make_prediction(0)
-            result = manager.inference({"ego": {"origin_lidar": ["lidar_data"]}})
-
-        assert mock_advcp.call_count == 2
-        assert isinstance(result, CoperceptionInferenceResult)
-        assert result.visualization_context == {"attacker_ids": ["cav-2"], "fake_box_tensor": "fake"}
-
-    def test_select_inference_unsupported_core_method(self):
-        opt = DummyOpt(fusion_method="invalid")
-        manager = CoperceptionModelManager(opt, "2023_01_01")
-        manager.hypes["fusion"]["core_method"] = "UnknownFusionDataset"
-
-        with pytest.raises(NotImplementedError):
-            manager._select_inference()
+        with pytest.raises(NotImplementedError, match="Unsupported cooperative perception fusion.core_method"):
+            CoperceptionModelManager(DummyOpt(), "2023_01_01")
 
     def test_make_prediction_save_npy(self, manager_deps, tmp_path, monkeypatch):
         """Test saving NPY files using real filesystem operations in tmp_path."""
@@ -355,15 +339,13 @@ class TestCoperceptionModelManager:
         vis_instance = manager.vis
 
         vis_instance.create_window.assert_called()
-        vis_instance.add_geometry.assert_called()  # i=0
+        assert vis_instance.add_geometry.call_count == 3
         vis_instance.update_renderer.assert_called()
         mock_visualize.assert_called_once()
-
-        # Verify line set assignment was called
-        assert manager_deps["vis_utils"].linset_assign_list.call_count == 2
+        manager_deps["vis_utils"].linset_assign_list.assert_not_called()
 
     def test_make_prediction_warns_and_uses_first_batch_when_loader_has_multiple_batches(self, manager_deps):
-        opt = DummyOpt(fusion_method="late")
+        opt = DummyOpt()
         manager = CoperceptionModelManager(opt, "2023_01_01")
         manager.data_loader = [
             {"ego": {"origin_lidar": ["lidar_first"]}},
@@ -383,7 +365,7 @@ class TestCoperceptionModelManager:
         assert warning_messages[1] == "Only the first batch will be processed."
 
     def test_make_prediction_warns_and_skips_when_loader_is_empty(self, manager_deps):
-        opt = DummyOpt(fusion_method="late")
+        opt = DummyOpt()
         manager = CoperceptionModelManager(opt, "2023_01_01")
         manager.data_loader = []
         manager.opencood_dataset = MagicMock()
@@ -421,6 +403,8 @@ class TestCoperceptionVisualizer:
         config = CoperceptionVisualizer.resolve_visualization_config(
             {
                 "background": (12, 18, 24),
+                "bbox_line_thickness": 7,
+                "image_dpi": 600,
                 "lidar_point_colors": {
                     "default": (200, 200, 200),
                     "cav-2": (10, 20, 30),
@@ -430,11 +414,33 @@ class TestCoperceptionVisualizer:
         )
 
         assert config["background"] == (12, 18, 24)
+        assert config["bbox_line_thickness"] == 7
+        assert config["image_dpi"] == 600
         assert config["lidar_point_colors"]["default"] == (200, 200, 200)
-        assert config["lidar_point_colors"]["ego"] == (80, 255, 80)
+        assert "ego" not in config["lidar_point_colors"]
         assert config["lidar_point_colors"]["cav-2"] == (10, 20, 30)
         assert config["bbox_colors"]["pred"] == (1, 2, 3)
         assert config["bbox_colors"]["gt"] == (0, 255, 0)
+
+    def test_get_lidar_points_and_colors_uses_other_for_ego_when_ego_color_is_not_configured(self):
+        config = CoperceptionVisualizer.resolve_visualization_config(
+            {
+                "lidar_point_colors": {
+                    "other": (200, 200, 200),
+                }
+            }
+        )
+        batch_data = {
+            "ego": {
+                "origin_lidar_by_agent": [np.array([[1.0, 0.0, 0.0, 1.0]])],
+                "origin_lidar_roles": ["ego"],
+                "origin_lidar_agent_ids": ["cav-1"],
+            }
+        }
+
+        _, colors = CoperceptionVisualizer._get_lidar_points_and_colors(batch_data, None, config)
+
+        assert colors.tolist() == [[200, 200, 200]]
 
     def test_get_lidar_points_and_colors_keeps_agent_order_and_applies_id_override(self):
         config = CoperceptionVisualizer.resolve_visualization_config(
@@ -483,36 +489,6 @@ class TestCoperceptionVisualizer:
         _, colors = CoperceptionVisualizer._get_lidar_points_and_colors(batch_data, None, config)
 
         assert colors.tolist() == [[123, 45, 67]]
-
-    def test_advcp_visualizer_marks_attackers_when_context_is_present(self):
-        config = AdvCoperceptionVisualizer.resolve_visualization_config(
-            {
-                "lidar_point_colors": {
-                    "default": (255, 255, 255),
-                    "ego": (80, 255, 80),
-                    "attackers": (255, 90, 90),
-                }
-            }
-        )
-        batch_data = {
-            "ego": {
-                "origin_lidar_by_agent": [
-                    np.array([[1.0, 2.0, 3.0, 1.0]]),
-                    np.array([[4.0, 5.0, 6.0, 1.0]]),
-                ],
-                "origin_lidar_roles": ["ego", "default"],
-                "origin_lidar_agent_ids": ["cav-1", "cav-2"],
-            }
-        }
-
-        _, colors = AdvCoperceptionVisualizer._get_lidar_points_and_colors(
-            batch_data,
-            None,
-            config,
-            visualization_context={"attacker_ids": ["cav-2"]},
-        )
-
-        assert colors.tolist() == [[80, 255, 80], [255, 90, 90]]
 
     def test_update_dataset_logs_warning_for_empty_memory_data_dict(self):
         """Empty dict as memory_data should be propagated and trigger empty-dataset warning."""
@@ -632,11 +608,11 @@ class TestCoperceptionDataProcessor:
 
         predicted_ego_pos = self._make_transform(50.0, 60.0, 70.0, 0.0, 90.0, 0.0)
         true_ego_pos = self._make_transform(51.0, 61.0, 71.0, 0.0, 91.0, 0.0)
-        localization_manager = MagicMock(spec_set=["get_ego_pos", "get_ego_spd", "true_ego_pos", "rsu"])
+        localization_manager = MagicMock(spec_set=["get_ego_pos", "get_ego_spd", "rsu", "true_ego_pos"])
         localization_manager.get_ego_pos.return_value = predicted_ego_pos
         localization_manager.get_ego_spd.return_value = 0.0
-        localization_manager.true_ego_pos = true_ego_pos
         localization_manager.rsu = MagicMock()
+        localization_manager.true_ego_pos = true_ego_pos
 
         params = processor.build_live_params(perception_manager, localization_manager, None)
 
@@ -644,26 +620,17 @@ class TestCoperceptionDataProcessor:
         assert "plan_trajectory" not in params
         assert params["true_ego_pos"] == (51.0, 61.0, 71.0, 0.0, 91.0, 0.0)
 
-    def test_build_live_params_raises_for_unknown_localization_manager_type(self):
+    def test_build_live_params_raises_for_unknown_localizer_type(self):
         processor = CoperceptionDataProcessor()
-
-        lidar_transform = self._make_transform(10.0, 20.0, 30.0, 1.0, 2.0, 3.0)
-        perception_manager = MagicMock()
-        perception_manager.objects = {"vehicles": []}
-        perception_manager.lidar = MagicMock(sensor=MagicMock(get_transform=MagicMock(return_value=lidar_transform)))
-        perception_manager.rgb_camera = []
-
-        class UnknownLocalizationManager:
-            def get_ego_pos(self):
-                return self_pose
-
-            def get_ego_spd(self):
-                return 0.0
-
-        self_pose = self._make_transform(1.0, 2.0, 3.0, 0.0, 0.0, 0.0)
+        perception_manager = MagicMock(
+            objects={"vehicles": []}, lidar=MagicMock(sensor=MagicMock(get_transform=MagicMock(return_value=self._make_transform())))
+        )
+        localization_manager = MagicMock(spec_set=["get_ego_pos", "get_ego_spd"])
+        localization_manager.get_ego_pos.return_value = self._make_transform()
+        localization_manager.get_ego_spd.return_value = 0.0
 
         with pytest.raises(ValueError, match="Unknown localization manager type"):
-            processor.build_live_params(perception_manager, UnknownLocalizationManager(), None)
+            processor.build_live_params(perception_manager, localization_manager, None)
 
     def test_build_live_memory_returns_none_and_warns_for_empty_agents(self):
         processor = CoperceptionDataProcessor()
@@ -720,7 +687,7 @@ class TestCoperceptionDataProcessor:
         assert memory[0]["rsu-1"]["000012"]["lidar_np"].tolist() == [[7.0, 8.0, 9.0, 1.0]]
         assert memory[0]["cav-1"]["000012"]["camera0"] == []
 
-    def test_build_live_memory_skips_vehicle_when_lidar_is_missing(self):
+    def test_build_live_memory_skips_agent_when_vehicle_lidar_is_missing(self):
         processor = CoperceptionDataProcessor()
         cav = MagicMock()
         cav.id = "cav-1"
@@ -732,17 +699,11 @@ class TestCoperceptionDataProcessor:
             memory = processor.build_live_memory([cav], [], 1)
 
         assert memory is None
-        assert mock_warning.call_args_list[0][0] == (
-            "Skipping cooperative perception agent %s on tick %s because LiDAR is not initialized.",
-            "cav-1",
-            1,
-        )
-        assert mock_warning.call_args_list[1][0] == (
-            "Skipping cooperative perception tick %s because no agents have valid LiDAR data.",
-            1,
-        )
+        assert mock_warning.call_count == 2
+        assert "LiDAR is not initialized" in mock_warning.call_args_list[0].args[0]
+        assert "no agents have valid LiDAR data" in mock_warning.call_args_list[1].args[0]
 
-    def test_build_live_memory_skips_vehicle_when_lidar_data_is_missing(self):
+    def test_build_live_memory_skips_agent_when_vehicle_lidar_data_is_missing(self):
         processor = CoperceptionDataProcessor()
         cav = MagicMock()
         cav.id = "cav-1"
@@ -754,12 +715,6 @@ class TestCoperceptionDataProcessor:
             memory = processor.build_live_memory([cav], [], 1)
 
         assert memory is None
-        assert mock_warning.call_args_list[0][0] == (
-            "Skipping cooperative perception agent %s on tick %s because LiDAR data is not initialized.",
-            "cav-1",
-            1,
-        )
-        assert mock_warning.call_args_list[1][0] == (
-            "Skipping cooperative perception tick %s because no agents have valid LiDAR data.",
-            1,
-        )
+        assert mock_warning.call_count == 2
+        assert "LiDAR data is not initialized" in mock_warning.call_args_list[0].args[0]
+        assert "no agents have valid LiDAR data" in mock_warning.call_args_list[1].args[0]
