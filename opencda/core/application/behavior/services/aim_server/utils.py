@@ -202,9 +202,9 @@ def draw_radius_circle(
     radius: float,
     z: float = 0.4,
     segments: int = 96,
-    color: carla.Color = carla.Color(0, 0, 255),
+    color: carla.Color = carla.Color(156, 255, 206),
     life_time: float = 0.1,
-    thickness: float = 0.08,
+    thickness: float = 0.1,
 ) -> None:
     previous = None
 
