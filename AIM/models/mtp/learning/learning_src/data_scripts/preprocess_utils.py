@@ -537,14 +537,6 @@ def preprocess_file(
 
             features = extract_needed_features(coords, start_yaw, last_yaw)
 
-            # --------------- only for several time while looking for how sumo calcs yaw
-            cool_angles = np.array([[-1, 0, 1]])
-            last_cos_idx = np.argmin(np.abs(features[:, 8:9] - cool_angles), axis=-1)
-            last_sin_idx = np.argmin(np.abs(features[:, 9:10] - cool_angles), axis=-1)
-            features[:, 8] = cool_angles[0, last_cos_idx]
-            features[:, 9] = cool_angles[0, last_sin_idx]
-            # ---------------
-
             all_features.append(features)
             # may happen what some cars have more than config.model.obs_len + config.model.num_predict timesteps
             if features.shape[0] != all_features[0].shape[0]:
