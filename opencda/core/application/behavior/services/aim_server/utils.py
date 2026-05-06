@@ -1,5 +1,6 @@
 import numpy as np
 import math
+import carla
 import pickle as pkl
 from pathlib import Path
 from typing import Any, Sequence, Mapping
@@ -193,3 +194,35 @@ def parse_location(value: Location | Mapping | Sequence | None) -> Location | No
     if isinstance(value, Sequence) and not isinstance(value, str):
         return Location(float(value[0]), float(value[1]), float(value[2]))
     raise TypeError(f"Invalid Location config: {value!r}")
+
+
+def draw_radius_circle(
+    world: carla.World,
+    center: Location,
+    radius: float,
+    z: float = 0.4,
+    segments: int = 96,
+    color: carla.Color = carla.Color(156, 255, 206),
+    life_time: float = 0.1,
+    thickness: float = 0.1,
+) -> None:
+    previous = None
+
+    for index in range(segments + 1):
+        angle = 2 * math.pi * index / segments
+        point = carla.Location(
+            x=center.x + radius * math.cos(angle),
+            y=center.y + radius * math.sin(angle),
+            z=z,
+        )
+
+        if previous is not None:
+            world.debug.draw_line(
+                previous,
+                point,
+                thickness=thickness,
+                color=color,
+                life_time=life_time,
+            )
+
+        previous = point

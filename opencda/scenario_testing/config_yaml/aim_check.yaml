@@ -96,6 +96,7 @@ scenario:
       id: 1
       behavior_services:
         - type: aim_server
+          debug: true
           control_radius: 15
           control_center_location:
             x: 256
