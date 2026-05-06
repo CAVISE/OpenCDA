@@ -578,11 +578,11 @@ def preprocess_file(
         y = y.transpose(0, 2, 1)  # [vehicle, config.model.num_predict, 2]
 
         # use MPC to compute acc and delta
-        curr_states = all_features[:, row, :4]  # [vehicle, 4]
+        
+        # curr_states = all_features[:, row, :4]  # [vehicle, 4]
         # [vehicle, config.model.num_predict, 4], [x, y, speed, yaw]
-        future_states = adjust_future_deltas(
-            curr_states, all_features[:, row + 1 : row + 1 + config.model.num_predict, :4]
-        )
+        # future_states = all_features[:, row + 1 : row + 1 + config.model.num_predict, :4]
+        # future_states = adjust_future_deltas(curr_states, future_states)
 
         # [vehicle, config.model.num_predict, 2], [acc, delta]
         # acc_delta_old = all_features[:, row + 1 : row + 1 + config.model.num_predict, -2:]
@@ -592,8 +592,7 @@ def preprocess_file(
         # # store the control vector to accelerate future MPC opt
         # all_features[:, row + 1 : row + 1 + config.model.num_predict, -2:] = mpc_output[:, :, -2:]
 
-        # speed = all_features[:, row + 1 : row + 1 + config.model.num_predict, 2:3]  # [vehicle, config.model.num_predict, 1]
-        speed = (
+        dspeed = (
             all_features[:, row + 1 : row + 1 + config.model.num_predict, 2:3] - all_features[:, row : row + 1, 2:3]
         )  # [vehicle, config.model.num_predict, 1]
 
@@ -609,7 +608,7 @@ def preprocess_file(
 
         # [vehicle, config.model.num_predict, 6]
         # y = np.concatenate((y, speed, yaw, mpc_output[:, :, -2:]), axis=2)
-        y = np.concatenate((y, speed, yaw), axis=2)
+        y = np.concatenate((y, dspeed, yaw), axis=2)
 
         if config.data_processing.normalize_data:
             normalize_input_features(x, map_bounding)
