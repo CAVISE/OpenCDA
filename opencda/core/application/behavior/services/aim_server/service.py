@@ -97,7 +97,6 @@ class AIMServer:
             return AIMServerState(
                 service_type=self.service_type,
                 owner_id=None,
-                is_attached=False,
                 tracked_vehicle_ids=(),
                 trajectory_vehicle_ids=(),
                 tracked_vehicle_count=0,

@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import carla
 
 
 @dataclass(frozen=True)
@@ -25,6 +26,10 @@ class Location:
             z=self.z - other.z,
         )
 
+    @classmethod
+    def from_carla(cls, other: carla.Location) -> "Location":
+        return cls(x=other.x, y=other.y, z=other.z)
+
 
 @dataclass(frozen=True)
 class Rotation:
@@ -32,8 +37,16 @@ class Rotation:
     yaw: float = 0
     roll: float = 0
 
+    @classmethod
+    def from_carla(cls, other: carla.Rotation) -> "Rotation":
+        return cls(pitch=other.pitch, yaw=other.yaw, roll=other.roll)
+
 
 @dataclass(frozen=True)
 class Transform:
     location: Location = Location()
     rotation: Rotation = Rotation()
+
+    @classmethod
+    def from_carla(cls, other: carla.Transform) -> "Transform":
+        return cls(location=Location.from_carla(other.location), rotation=Rotation.from_carla(other.rotation))
