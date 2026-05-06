@@ -2,7 +2,7 @@ import numpy as np
 import math
 import pickle as pkl
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, Sequence, Mapping
 
 from opencda.core.application.behavior.types import Location, Rotation, Transform
 
@@ -94,7 +94,7 @@ def get_end(start: str, intention: str) -> str:
     raise ValueError(f"Unsupported start/intention combination: start={start!r}, intention={intention!r}")
 
 
-def get_distance(waypoint1: Transform, waypoint2: Sequence[Any]) -> float:
+def get_distance(waypoint1: Location, waypoint2: Location) -> float:
     """
     Calculates Euclidean distance between two waypoints
 
@@ -102,8 +102,8 @@ def get_distance(waypoint1: Transform, waypoint2: Sequence[Any]) -> float:
     :param waypoint2: waypoint 2D-coordinates
     :return: distance
     """
-    rel_x = waypoint1.location.x - waypoint2[0].transform.location.x
-    rel_y = waypoint1.location.y - waypoint2[0].transform.location.y
+    rel_x = waypoint1.x - waypoint2.x
+    rel_y = waypoint1.y - waypoint2.y
     position = np.array([rel_x, rel_y])
     return float(np.linalg.norm(position))
 
@@ -159,6 +159,13 @@ def get_sumo_transform(in_carla_transform: Transform, extent: Location) -> Trans
     return out_transform
 
 
+def get_sumo_location(in_carla_location: Location) -> Location:
+    """
+    Returns sumo location based on carla location.
+    """
+    return Location(in_carla_location.x, -in_carla_location.y, in_carla_location.z)
+
+
 def load_yaw(yaw_dict_path: Path | None = None) -> dict[str, Any]:
     """
     Loads yaw dictionary from a predefined address.
@@ -169,3 +176,20 @@ def load_yaw(yaw_dict_path: Path | None = None) -> dict[str, Any]:
         yaw_dict_path = Path(__file__).parent / "assets" / "yaw_dict_10m.pkl"
     with yaw_dict_path.open("rb") as f:
         return pkl.load(f)
+
+
+def parse_location(value: Location | Mapping | Sequence | None) -> Location | None:
+    """
+    Parse Location from value.
+    """
+    if value is None or isinstance(value, Location):
+        return value
+    if isinstance(value, Mapping):
+        return Location(
+            x=float(value.get("x", 0)),
+            y=float(value.get("y", 0)),
+            z=float(value.get("z", 0)),
+        )
+    if isinstance(value, Sequence) and not isinstance(value, str):
+        return Location(float(value[0]), float(value[1]), float(value[2]))
+    raise TypeError(f"Invalid Location config: {value!r}")

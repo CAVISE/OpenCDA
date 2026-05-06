@@ -96,6 +96,11 @@ scenario:
       id: 1
       behavior_services:
         - type: aim_server
+          control_radius: 15
+          control_center_location:
+            x: 256
+            y: -171
+            z: 15
           model: "MTP"
           underling_model: "GNN_mtl_gnn"
           hidden_channels: 128
