@@ -11,7 +11,7 @@ paths:
   expirements_models_config_path: experements_configs/model_configs
   base_train_config_path: experements_configs/train_config.yaml
   base_model_config_path: experements_configs/model_config.yaml
-  yaw_dict_path: ../../../../opencda/assets/yaw_dict_10m.pkl
+  yaw_dict_path: ../../../../opencda/core/application/behavior/services/aim_server/assets/yaw_dict_10m.pkl
 
 file_names:
   y_x_distr_file: y_x_distr_file.pkl
