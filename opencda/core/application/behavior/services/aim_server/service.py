@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import weakref
 import logging
-from typing import Any, Sequence, cast, TYPE_CHECKING
+from typing import Any, Sequence, cast, TYPE_CHECKING, Mapping
 
 from opencda.core.application.behavior.capability import Capability, CapabilityBindings
 from opencda.core.application.behavior.registry import BehaviorServiceRegistry
@@ -15,9 +15,11 @@ from AIM import get_model
 if TYPE_CHECKING:
     from opencda.core.common.rsu_manager import RSUManager
     from .messages import AIMServerRequest, AIMServerResponse
+    from opencda.core.application.behavior.types import Location
 
 from .aim_model_manager import AIMModelManager
 from .types import AIMServerState
+from .utils import parse_location
 
 logger = logging.getLogger("cavise.opencda.opencda.core.application.behavior.services.aim_server")
 
@@ -26,7 +28,7 @@ logger = logging.getLogger("cavise.opencda.opencda.core.application.behavior.ser
 class AIMServer:
     """Behavior service that runs AIM predictions for a batch of CAV requests."""
 
-    service_name = "aim_server"
+    service_type = "aim_server"
     priority = 20
 
     @property
@@ -40,6 +42,8 @@ class AIMServer:
     def __init__(
         self,
         priority: int = 20,
+        control_radius: int = 15,
+        control_center_location: Location | Mapping | Sequence | None = None,
         **aim_config: Any,
     ) -> None:
         """
@@ -54,6 +58,8 @@ class AIMServer:
         self.aim_model_manager: AIMModelManager | None = None
         self.priority = priority
 
+        self.control_radius: int = control_radius
+        self.control_center_location: Location | None = parse_location(control_center_location)
         aim_model_name = cast(str, aim_config.pop("model", "MTP"))
         self.model = get_model(aim_model_name, **aim_config)
 
@@ -73,11 +79,13 @@ class AIMServer:
         self._owner_ref = weakref.ref(owner)
 
         owner_instance = self._get_owner()
-        owner_instance.localizer.localize()
-        control_center = owner_instance.localizer.get_ego_pos()
-        if control_center is None:
-            raise RuntimeError("AIM server could not resolve the node localization control center.")
-        self.aim_model_manager = AIMModelManager(self.model, control_center, self.service_name, owner_instance.id)
+        if self.control_center_location is None:
+            owner_instance.localizer.localize()
+            control_center = owner_instance.localizer.get_ego_pos()
+            if control_center is None:
+                raise RuntimeError("AIM server could not resolve the node localization control center.")
+            self.control_center_location = control_center.location
+        self.aim_model_manager = AIMModelManager(self.model, self.control_center_location, self.service_type, owner_instance.id, self.control_radius)
 
     def on_detach(self) -> None:
         """Release service resources before the participant is destroyed."""
@@ -87,7 +95,7 @@ class AIMServer:
     def get_state(self) -> AIMServerState | None:
         if self.aim_model_manager is None:
             return AIMServerState(
-                service_name=self.service_name,
+                service_type=self.service_type,
                 owner_id=None,
                 is_attached=False,
                 tracked_vehicle_ids=(),

@@ -1,3 +1,4 @@
+from __future__ import annotations
 import carla
 import math
 from collections.abc import Sequence
@@ -136,7 +137,6 @@ def draw_trajetory_points(
     color: carla.Color = carla.Color(255, 0, 0),
     life_time: float = 5,
     size: float = 0.1,
-    _map: carla.Map = None,
 ) -> None:
     for location in locations:
         loc = carla.Location(location.x, location.y, location.z)

@@ -32,7 +32,7 @@ logger = logging.getLogger("cavise.opencda.opencda.core.application.behavior.ser
 class AIMClient:
     """Behavior service that runs AIM predictions for a batch of CAV requests."""
 
-    service_name: str = "aim_client"
+    service_type: str = "aim_client"
     priority: int = 20
 
     @property
@@ -50,6 +50,7 @@ class AIMClient:
         self._owner_ref: weakref.ReferenceType[VehicleManager] | None = None
         self.priority = priority
         self.trajectory: deque[tuple[Location, float]] = deque()
+        self.server_id: str = "broadcast"
         self.debug = debug
 
     def _get_owner(self) -> VehicleManager:
@@ -70,7 +71,7 @@ class AIMClient:
     def get_state(self) -> AIMClientState:
         owner_ref = self._get_owner()
         return AIMClientState(
-            service_name=self.service_name,
+            service_type=self.service_type,
             owner_id=owner_ref.id if owner_ref is not None else None,
             is_attached=owner_ref is not None,
             trajectory=tuple(location for location, _ in self.trajectory),
@@ -84,26 +85,30 @@ class AIMClient:
     def _observe_aim_responses(
         self,
         messages: Sequence[TransportMessage[AIMServerResponse]],
-    ) -> tuple[AIMServerResponse, ...]:
+    ) -> tuple[TransportMessage[AIMServerResponse], ...]:
         owner = self._get_owner()
-        observed_messages: list[AIMServerResponse] = []
+        observed_messages: list[TransportMessage[AIMServerResponse]] = []
 
         for message in messages:
-            if message.dst_owner_id == owner.id and message.dst_service_type == self.service_name:
-                observed_messages.append(message.payload)
+            if (
+                message.dst_owner_id == owner.id
+                and message.dst_service_type == self.service_type
+                and (self.server_id == "broadcast" or self.server_id == message.src_owner_id)
+            ):
+                observed_messages.append(message)
 
         return tuple(observed_messages)
 
     def _build_movement_command_message(
         self,
-        target_location: Location,
-        target_speed: float | None,
+        target_location: Location | None,
+        target_speed: float | None = None,
     ) -> TransportMessage[MovementControllerRequestMessage]:
         owner = self._get_owner()
         payload = MovementControllerRequestMessage(target_location=target_location, target_speed=target_speed)
         return TransportMessage(
             src_owner_id=owner.id,
-            src_service_type=self.service_name,
+            src_service_type=self.service_type,
             dst_owner_id=owner.id,
             dst_service_type="movement_controller",
             payload=payload,
@@ -111,15 +116,21 @@ class AIMClient:
 
     def _build_movement_command_messages(
         self,
-        observed_responses: Sequence[AIMServerResponse],
+        observed_responses: Sequence[TransportMessage[AIMServerResponse]],
     ) -> tuple[TransportMessage[MovementControllerRequestMessage], ...]:
         owner = self._get_owner()
         movement_commands: list[TransportMessage[MovementControllerRequestMessage]] = []
         current_location = owner.vehicle.get_location()
         current_speed = get_speed(owner.vehicle)
 
-        for response in observed_responses:
-            control_trajectory = response.trajectory[1:]  # drop first because it was calculated on previous tick
+        if len(observed_responses) > 1:
+            logger.warning(f"Received more than one aim_server messages. Amount: {len(observed_responses)}")
+
+        if len(observed_responses) > 0:
+            response = observed_responses[0]
+            if self.server_id == "broadcast":
+                self.server_id = response.src_owner_id
+            control_trajectory = response.payload.trajectory[1:]  # drop first because it was calculated on previous tick
             target_speeds = calculate_target_speeds(control_trajectory, 0.05, current_location, current_speed, 111, 2.5, 4.5)
             self.trajectory = deque(zip(control_trajectory, target_speeds))
 
@@ -129,13 +140,16 @@ class AIMClient:
             target_location, target_speed = self.trajectory.popleft()
             movement_commands.append(self._build_movement_command_message(target_location, target_speed))
 
-        if len(movement_commands) == 0 and self.trajectory:
-            target_location, target_speed = self.trajectory.popleft()
-            movement_commands.append(self._build_movement_command_message(target_location, target_speed))
+        if len(movement_commands) == 0:
+            if self.trajectory:
+                target_location, target_speed = self.trajectory.popleft()
+                movement_commands.append(self._build_movement_command_message(target_location, target_speed))
+            else:
+                self.server_id = "broadcast"
 
         return tuple(movement_commands)
 
-    def _build_aim_server_request_messages(self) -> tuple[TransportMessage[AIMServerRequest], ...]:
+    def _build_aim_server_request_messages(self, dst_owner_id: str = "broadcast") -> tuple[TransportMessage[AIMServerRequest], ...]:
         owner = self._get_owner()
         position = owner.vehicle.get_transform()
         waypoints = owner.agent.get_local_planner().get_waypoint_buffer()
@@ -149,8 +163,8 @@ class AIMClient:
         return (
             TransportMessage(
                 src_owner_id=owner.id,
-                src_service_type=self.service_name,
-                dst_owner_id="broadcast",
+                src_service_type=self.service_type,
+                dst_owner_id=dst_owner_id,
                 dst_service_type="aim_server",
                 payload=payload,
             ),
@@ -168,7 +182,6 @@ class AIMClient:
             size=0.05,
             color=carla.Color(255, 0, 0),
             life_time=0.1,
-            _map=owner.agent._map,
         )
 
     def process(
