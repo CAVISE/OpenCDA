@@ -578,7 +578,7 @@ def preprocess_file(
         y = y.transpose(0, 2, 1)  # [vehicle, config.model.num_predict, 2]
 
         # use MPC to compute acc and delta
-        
+
         # curr_states = all_features[:, row, :4]  # [vehicle, 4]
         # [vehicle, config.model.num_predict, 4], [x, y, speed, yaw]
         # future_states = all_features[:, row + 1 : row + 1 + config.model.num_predict, :4]
