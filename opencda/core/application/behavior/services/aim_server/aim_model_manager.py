@@ -21,8 +21,8 @@ class AIMModelManager:
     def __init__(
         self,
         model: AIMModelWrapper,
-        control_center: Transform,
-        service_name: str,
+        control_center: Location,
+        service_type: str,
         owner_id: str,
         control_radius: int = 15,
     ):
