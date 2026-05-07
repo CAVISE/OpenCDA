@@ -36,7 +36,17 @@ class Attack:
     @classmethod
     def from_spec(cls, spec: AttackSpec) -> Attack:
         """Build a generic runtime attack from config and stage registry."""
-        stages = tuple(AttackStageRegistry.create_stage(stage_spec.type) for stage_spec in spec.stages)
+        stages = tuple(
+            AttackStageRegistry.create_stage(
+                stage_spec.type,
+                **(
+                    {"capabilities": stage_spec.capabilities, "params": stage_spec.params}
+                    if stage_spec.params is not None
+                    else {"capabilities": stage_spec.capabilities}
+                ),
+            )
+            for stage_spec in spec.stages
+        )
         return cls(spec=spec, stages=stages)
 
     def mark_started(self) -> None:
@@ -169,12 +179,13 @@ class Attack:
                 if not self._should_start_stage(index, stage_runtime, previous_snapshot, current_snapshot):
                     continue
 
-                matched_services = tuple(match_services(available_services, stage_runtime.stage.required_capabilities))
+                matched_services = tuple(match_services(available_services, stage_runtime.stage.capabilities))
                 if not matched_services:
+                    configured_capabilities = ", ".join(capability.value for capability in stage_runtime.stage.capabilities)
                     fail_result = AttackStageResult(
                         stage_name=stage_runtime.stage.stage_name,
                         status=Status.FAIL,
-                        reason=f"No services matched required capabilities for stage '{stage_runtime.spec.id}'.",
+                        reason=(f"No services matched configured capabilities [{configured_capabilities}] for stage '{stage_runtime.spec.id}'."),
                     )
                     stage_runtime.last_result = fail_result
                     self._set_stage_status(stage_runtime, RuntimeStatus.FAIL)
