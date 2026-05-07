@@ -65,21 +65,22 @@ def _series_values(metric: AttackSuccessRateMetric, series_name: str) -> list[fl
     raise AssertionError(f"Series {series_name!r} was not exported.")
 
 
-def test_removal_asr_succeeds_when_target_is_not_detected():
+def test_removal_asr_succeeds_when_target_is_not_detected(monkeypatch):
+    monkeypatch.setattr(attack_success_rate, "_load_common_utils", lambda: DummyCommonUtils)
     metric = AttackSuccessRateMetric()
 
     metric.update(
         {
             "pred_box_tensor": None,
             "visualization_context": {
-                "mode": "remove",
+                "mode": "removal",
                 "removed_box_tensor": _target_box(),
             },
         }
     )
 
-    assert _series_values(metric, "asr_remove") == [1.0]
-    assert _series_values(metric, "asr_spoof") == []
+    assert _series_values(metric, "asr_removal") == [1.0]
+    assert _series_values(metric, "asr_spoofing") == []
 
 
 def test_removal_asr_fails_when_target_is_still_detected(monkeypatch):
@@ -90,13 +91,13 @@ def test_removal_asr_fails_when_target_is_still_detected(monkeypatch):
         {
             "pred_box_tensor": _target_box(),
             "visualization_context": SimpleNamespace(
-                mode="remove",
+                mode="removal",
                 removed_box_tensor=_target_box(),
             ),
         }
     )
 
-    assert _series_values(metric, "asr_remove") == [0.0]
+    assert _series_values(metric, "asr_removal") == [0.0]
 
 
 def test_removal_asr_reports_fraction_of_removed_targets(monkeypatch):
@@ -107,13 +108,13 @@ def test_removal_asr_reports_fraction_of_removed_targets(monkeypatch):
         {
             "pred_box_tensor": _target_box(),
             "visualization_context": {
-                "mode": "remove",
+                "mode": "removal",
                 "removed_box_tensor": _target_boxes(3),
             },
         }
     )
 
-    assert _series_values(metric, "asr_remove") == [2 / 3]
+    assert _series_values(metric, "asr_removal") == [2 / 3]
 
 
 def test_spoofing_asr_succeeds_when_fake_target_is_detected(monkeypatch):
@@ -124,13 +125,13 @@ def test_spoofing_asr_succeeds_when_fake_target_is_detected(monkeypatch):
         {
             "pred_box_tensor": _target_box(),
             "visualization_context": {
-                "mode": "spoof",
+                "mode": "spoofing",
                 "fake_box_tensor": _target_box(),
             },
         }
     )
 
-    assert _series_values(metric, "asr_spoof") == [1.0]
+    assert _series_values(metric, "asr_spoofing") == [1.0]
 
 
 def test_asr_skips_frames_without_attack_target():
@@ -140,11 +141,11 @@ def test_asr_skips_frames_without_attack_target():
         {
             "pred_box_tensor": _target_box(),
             "visualization_context": {
-                "mode": "spoof",
+                "mode": "spoofing",
                 "fake_box_tensor": "test-placeholder",
             },
         }
     )
 
-    assert _series_values(metric, "asr_remove") == []
-    assert _series_values(metric, "asr_spoof") == []
+    assert _series_values(metric, "asr_removal") == []
+    assert _series_values(metric, "asr_spoofing") == []

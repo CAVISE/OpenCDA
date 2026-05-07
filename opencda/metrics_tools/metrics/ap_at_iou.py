@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import logging
-from typing import Any, ClassVar, Mapping, Sequence
+from typing import Any, ClassVar, ItemsView, Mapping, Sequence
 
 from opencda.metrics_tools.base_metric import BaseMetric
 from opencda.metrics_tools.collection_models import MetricSeries
@@ -66,7 +66,7 @@ class EvaluationResultStat:
     def __getitem__(self, iou: float) -> IoUResultStat:
         return self.by_iou[iou]
 
-    def items(self):
+    def items(self) -> ItemsView[float, IoUResultStat]:
         return self.by_iou.items()
 
     def as_dict(self) -> dict[float, dict[str, Any]]:

@@ -26,34 +26,25 @@ class AttackSuccessRateMetric(BaseMetric):
     """Collect ASR for spoofing and removal attacks."""
 
     metric_name = "attack_success_rate"
-    _SERIES_BY_MODE: ClassVar[dict[str, str]] = {
-        "remove": "asr_remove",
-        "removal": "asr_remove",
-        "spoof": "asr_spoof",
-        "spoofing": "asr_spoof",
-    }
-    _TARGET_KEY_BY_MODE: ClassVar[dict[str, str]] = {
-        "remove": "removed_box_tensor",
-        "removal": "removed_box_tensor",
-        "spoof": "fake_box_tensor",
-        "spoofing": "fake_box_tensor",
+    _SPEC_BY_MODE: ClassVar[dict[str, tuple[str, str]]] = {
+        "removal": ("asr_removal", "removed_box_tensor"),
+        "spoofing": ("asr_spoofing", "fake_box_tensor"),
     }
 
     def __init__(self, warmup_steps: int = 0, iou_threshold: float = 0.3):
         super().__init__(warmup_steps=warmup_steps)
         self.iou_threshold = float(iou_threshold)
-        self._samples: dict[str, list[MetricSample]] = {
-            "asr_remove": [],
-            "asr_spoof": [],
-        }
+        self._samples: dict[str, list[MetricSample]] = {series_name: [] for series_name, _ in self._SPEC_BY_MODE.values()}
 
     def _process_context(self, context: Mapping[str, Any]) -> None:
         visualization_context = context.get("visualization_context")
         mode = self._normalize_mode(self._get_context_value(visualization_context, "mode"))
-        if mode not in self._SERIES_BY_MODE:
+        spec = self._SPEC_BY_MODE.get(mode)
+        if spec is None:
             return
+        series_name, target_key = spec
 
-        target_boxes = self._get_context_value(visualization_context, self._TARGET_KEY_BY_MODE[mode])
+        target_boxes = self._get_context_value(visualization_context, target_key)
         target_boxes_np = self._to_box_array(target_boxes)
         if target_boxes_np is None:
             return
@@ -63,8 +54,8 @@ class AttackSuccessRateMetric(BaseMetric):
             return
 
         matched_target_count, target_count = match_result
-        success_rate = matched_target_count / target_count if mode in {"spoof", "spoofing"} else (target_count - matched_target_count) / target_count
-        self._samples[self._SERIES_BY_MODE[mode]].append(self._make_sample(success_rate))
+        success_rate = matched_target_count / target_count if mode == "spoofing" else (target_count - matched_target_count) / target_count
+        self._samples[series_name].append(self._make_sample(success_rate))
         self._log_asr(
             mode=mode,
             success_rate=success_rate,
@@ -78,7 +69,7 @@ class AttackSuccessRateMetric(BaseMetric):
                 name=series_name,
                 samples=tuple(self._samples[series_name]),
             )
-            for series_name in ("asr_remove", "asr_spoof")
+            for series_name, _ in self._SPEC_BY_MODE.values()
         )
 
     @classmethod
@@ -86,14 +77,14 @@ class AttackSuccessRateMetric(BaseMetric):
         return MetricReportSpec(
             metric_name=cls.metric_name,
             display_name="Attack Success Rate",
-            series_names=("asr_remove", "asr_spoof"),
+            series_names=tuple(series_name for series_name, _ in cls._SPEC_BY_MODE.values()),
             summary_specs=(
                 MetricSummarySpec(
-                    series_name="asr_remove",
+                    series_name="asr_removal",
                     display_name="Removal ASR",
                 ),
                 MetricSummarySpec(
-                    series_name="asr_spoof",
+                    series_name="asr_spoofing",
                     display_name="Spoofing ASR",
                 ),
             ),
@@ -128,7 +119,7 @@ class AttackSuccessRateMetric(BaseMetric):
         return matched_target_count, target_count
 
     def _target_has_matching_detection(self, target_polygon: Any, pred_polygon_list: list[Any], common_utils: Any, mode: str) -> bool:
-        if mode in {"remove", "removal"} and self._has_detection_center_inside_target(target_polygon, pred_polygon_list):
+        if mode == "removal" and self._has_detection_center_inside_target(target_polygon, pred_polygon_list):
             return True
 
         ious = common_utils.compute_iou(target_polygon, pred_polygon_list)

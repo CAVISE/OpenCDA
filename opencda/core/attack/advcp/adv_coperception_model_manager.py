@@ -207,7 +207,7 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
                 else:
                     logger.warning("AdvCP config '%s' is not a mapping. Falling back to defaults.", config_path)
 
-        config.setdefault("mode", "spoof")
+        config.setdefault("mode", "spoofing")
         config.setdefault("default_size", (4.5, 2.0, 1.6))
         config.setdefault("boxes", [{"relative": (5.0, 0.0, 0.0, 0.0, 90.0, 0.0)}])
         config.setdefault("attacker_ids", ["cav-1"])

@@ -9,7 +9,7 @@ from datetime import datetime
 from os import PathLike
 from typing import Any, TypeAlias, cast
 
-import yaml  # type: ignore[import-untyped]
+import yaml  # type: ignore
 from omegaconf import OmegaConf
 
 YamlDict: TypeAlias = dict[str, Any]

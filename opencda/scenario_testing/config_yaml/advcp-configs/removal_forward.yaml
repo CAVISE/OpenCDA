@@ -1,10 +1,10 @@
 # For advcp_check scenario
-mode: remove
+mode: removal
 
-#attacker_ids: [cav-5] # 1 attacker (helper-leftside-cav-5)
+attacker_ids: [cav-5] # 1 attacker (helper-leftside-cav-5)
 #attacker_ids: [cav-3] # 1 attacker (helper-backward-cav-3)
 #attacker_ids: [cav-2, cav-3, cav-5, cav-6, cav-7] # 5 attackers, 1 benign
-attacker_ids: [cav-2, cav-3, cav-4, cav-5, cav-6, cav-7] # all 6 are attackers
+#attacker_ids: [cav-2, cav-3, cav-4, cav-5, cav-6, cav-7] # all 6 are attackers
 advshape: false
 
 # Shared attack target definition used by early-fusion removal.

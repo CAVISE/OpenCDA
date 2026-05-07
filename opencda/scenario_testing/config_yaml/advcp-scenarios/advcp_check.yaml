@@ -111,10 +111,10 @@ scenario:
     #   destination: [200, 135.792358, 0.3]
     #   id: 3
 
-    # - name: helper-leftside-cav-4
-    #   spawn_position: [20, 135.792358, 0.3, 0, 0, 0]
-    #   destination: [170, 135.792358, 0.3]
-    #   id: 4
+    - name: helper-leftside-cav-4
+      spawn_position: [20, 135.792358, 0.3, 0, 0, 0]
+      destination: [170, 135.792358, 0.3]
+      id: 4
 
     - name: helper-leftside-cav-5
       spawn_position: [30, 135.792358, 0.3, 0, 0, 0]
@@ -132,15 +132,15 @@ scenario:
     #   id: 7
 
   custom_actor_list:
-    # - name: custom-cav-10
-    #   spawn_position: [28, 149.792206, 0.3, 0, 0, 0]
-    #   id: 101
-    #   model: "vehicle.carlamotors.firetruck"
+    - name: custom-cav-10
+      spawn_position: [28, 149.792206, 0.3, 0, 0, 0]
+      id: 101
+      model: "vehicle.carlamotors.firetruck"
 
-    # - name: custom-cav-20
-    #   spawn_position: [35, 149.792206, 0.3, 0, 0, 0]
-    #   id: 102
-    #   model: "vehicle.audi.a2"
+    - name: custom-cav-20
+      spawn_position: [35, 149.792206, 0.3, 0, 0, 0]
+      id: 102
+      model: "vehicle.audi.a2"
 
 cooperative_perception_visualization:
   lidar_point_colors:

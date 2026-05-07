@@ -1,5 +1,5 @@
 # For advcp_check scenario
-mode: spoof
+mode: spoofing
 
 attacker_ids: [cav-5] # 1 attacker (helper-leftside-cav-5)
 #attacker_ids: [cav-3] # 1 attacker (helper-backward-cav-3)

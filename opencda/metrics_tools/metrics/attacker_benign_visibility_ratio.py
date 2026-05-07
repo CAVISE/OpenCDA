@@ -26,7 +26,7 @@ class AttackerBenignVisibilityRatioMetric(BaseMetric):
     """Measure how much of the attack target is observed by attackers versus benign agents."""
 
     metric_name = "attacker_benign_visibility_ratio"
-    _ATTACK_MODES: ClassVar[set[str]] = {"remove", "removal", "spoof", "spoofing"}
+    _ATTACK_MODES: ClassVar[set[str]] = {"removal", "spoofing"}
     _RATIO_SERIES = "attacker_benign_visibility_ratio"
     _ATTACKER_POINTS_SERIES = "attacker_points_on_target"
     _BENIGN_POINTS_SERIES = "benign_points_on_target"

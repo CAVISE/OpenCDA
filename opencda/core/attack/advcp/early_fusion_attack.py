@@ -33,8 +33,8 @@ class AdvCoperceptionEarlyFusionAttack:
     ) -> AdvCPAttackResult:
         mode = AdvCPAttackHelper.require_config_value(advcp_config, "mode")
         handler_by_mode = {
-            "spoof": cls._run_spoof,
-            "remove": cls._run_removal,
+            "spoofing": cls._run_spoof,
+            "removal": cls._run_removal,
         }
 
         def fail(*_args: Any, **_kwargs: Any) -> AdvCPAttackResult:
@@ -63,7 +63,7 @@ class AdvCoperceptionEarlyFusionAttack:
         advcp_config: AdvCPConfig,
         memory_data: AdvCPMemoryData,
     ) -> AdvCPAttackResult:
-        advcp_context = AdvCPVisualizationContext(mode="spoof")
+        advcp_context = AdvCPVisualizationContext(mode="spoofing")
         scenario_data, configured_attacker_ids, present_attacker_ids, _ = AdvCPAttackHelper.resolve_attack_scope(
             advcp_config,
             memory_data,
@@ -132,7 +132,7 @@ class AdvCoperceptionEarlyFusionAttack:
         advcp_config: AdvCPConfig,
         memory_data: AdvCPMemoryData,
     ) -> AdvCPAttackResult:
-        advcp_context = AdvCPVisualizationContext(mode="remove")
+        advcp_context = AdvCPVisualizationContext(mode="removal")
         scenario_data, configured_attacker_ids, present_attacker_ids, _ = AdvCPAttackHelper.resolve_attack_scope(
             advcp_config,
             memory_data,

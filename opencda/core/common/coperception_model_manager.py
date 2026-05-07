@@ -22,7 +22,8 @@ from opencda.metrics_tools.config import resolve_metric_collector_config
 from opencda.metrics_tools.metric_collector import MetricCollector
 from opencda.metrics_tools.metrics.attack_success_rate import AttackSuccessRateMetric
 from opencda.metrics_tools.metrics.attacker_benign_visibility_ratio import AttackerBenignVisibilityRatioMetric
-from opencda.metrics_tools.metrics.ap_at_iou import APAtIoUMetric, EvaluationResultStat, IoUResultStat
+from opencda.metrics_tools.metrics.attacker_target_confidence import AttackerTargetConfidenceMetric
+from opencda.metrics_tools.metrics.ap_at_iou import APAtIoUMetric
 
 if TYPE_CHECKING:
     from opencood.data_utils.datasets.early_fusion_dataset import EarlyFusionDataset
@@ -40,8 +41,6 @@ __all__ = (
     "CoperceptionInferenceResult",
     "CoperceptionModelManager",
     "CoperceptionVisualizer",
-    "EvaluationResultStat",
-    "IoUResultStat",
 )
 
 ColorRGB = tuple[int, int, int]
@@ -514,6 +513,10 @@ class CoperceptionModelManager:
                     "warmup_steps": 0,
                     "epsilon": 1.0,
                 },
+                AttackerTargetConfidenceMetric.metric_name: {
+                    "warmup_steps": 0,
+                    "iou_threshold": 0.3,
+                },
             },
         )
         self.metrics_collector = MetricCollector(
@@ -524,10 +527,6 @@ class CoperceptionModelManager:
         self.ap_at_iou_metric = self._get_ap_at_iou_metric()
 
         self._init_dataset()
-        if self.ap_at_iou_metric is None:
-            self.final_result_stat = EvaluationResultStat.create_empty()
-        else:
-            self.final_result_stat = self.ap_at_iou_metric.result_stat
 
     def _get_ap_at_iou_metric(self) -> APAtIoUMetric | None:
         metric = self.metrics_collector.get_metric(APAtIoUMetric.metric_name)

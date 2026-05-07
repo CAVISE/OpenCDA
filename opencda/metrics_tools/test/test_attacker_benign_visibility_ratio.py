@@ -97,7 +97,7 @@ def test_attacker_benign_visibility_ratio_counts_target_points(monkeypatch):
                 "default_size": [2.0, 2.0, 2.0],
             },
             "memory_data": _memory_data(),
-            "visualization_context": SimpleNamespace(mode="remove", attacker_ids=["cav-2"]),
+            "visualization_context": SimpleNamespace(mode="removal", attacker_ids=["cav-2"]),
         }
     )
 
@@ -114,7 +114,7 @@ def test_attacker_benign_visibility_ratio_skips_without_attack_context(monkeypat
         {
             "advcp_config": {"boxes": [{"absolute": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}]},
             "memory_data": _memory_data(),
-            "visualization_context": SimpleNamespace(mode="remove", attacker_ids=[]),
+            "visualization_context": SimpleNamespace(mode="removal", attacker_ids=[]),
         }
     )
 
