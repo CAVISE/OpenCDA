@@ -9,9 +9,9 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, Literal, Mappin
 
 from matplotlib import pyplot as plt
 import numpy as np
-import torch  # type: ignore
+import torch
 import open3d as o3d
-from torch.utils.data import DataLoader  # type: ignore
+from torch.utils.data import DataLoader
 
 import opencood.hypes_yaml.yaml_utils as yaml_utils
 from opencood.tools import train_utils, inference_utils

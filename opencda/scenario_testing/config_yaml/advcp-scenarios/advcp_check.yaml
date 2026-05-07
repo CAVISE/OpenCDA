@@ -101,15 +101,15 @@ scenario:
       destination: [170, 149.792206, 0.3]
       id: 1
 
-    # - name: cav-2
-    #   spawn_position: [50, 135.792358, 0.3, 0, 0, 0]
-    #   destination: [200, 135.792358, 0.3]
-    #   id: 2
+    - name: cav-2
+      spawn_position: [50, 135.792358, 0.3, 0, 0, 0]
+      destination: [200, 135.792358, 0.3]
+      id: 2
 
-    # - name: helper-backward-cav-3
-    #   spawn_position: [7.60, 145.46, 0.3, 0, 90, 0]
-    #   destination: [200, 135.792358, 0.3]
-    #   id: 3
+    - name: helper-backward-cav-3
+      spawn_position: [7.60, 145.46, 0.3, 0, 90, 0]
+      destination: [200, 135.792358, 0.3]
+      id: 3
 
     - name: helper-leftside-cav-4
       spawn_position: [20, 135.792358, 0.3, 0, 0, 0]
@@ -121,15 +121,15 @@ scenario:
       destination: [170, 135.792358, 0.3]
       id: 5
 
-    # - name: helper-forward-cav-6
-    #   spawn_position: [70, 135.792358, 0.3, 0, 0, 0]
-    #   destination: [170, 135.792358, 0.3]
-    #   id: 6
+    - name: helper-forward-cav-6
+      spawn_position: [70, 135.792358, 0.3, 0, 0, 0]
+      destination: [170, 135.792358, 0.3]
+      id: 6
 
-    # - name: helper-forward-cav-7
-    #   spawn_position: [90, 149.792206, 0.3, 0, 0, 0]
-    #   destination: [170, 135.792358, 0.3]
-    #   id: 7
+    - name: helper-forward-cav-7
+      spawn_position: [90, 149.792206, 0.3, 0, 0, 0]
+      destination: [170, 135.792358, 0.3]
+      id: 7
 
   custom_actor_list:
     - name: custom-cav-10
