@@ -63,7 +63,7 @@ class AdvCPConfig(TypedDict, total=False):
 class AdvCPIntermediateAttackState(TypedDict, total=False):
     previous_memory_data: AdvCPMemoryData | None
     current_memory_data: AdvCPMemoryData | None
-    init_perturbation: list[npt.NDArray] | None
+    init_perturbation: dict[str, list[npt.NDArray]] | None
 
 
 AdvCPAttackResult: TypeAlias = tuple[
