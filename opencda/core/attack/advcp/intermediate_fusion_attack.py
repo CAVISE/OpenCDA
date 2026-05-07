@@ -44,9 +44,9 @@ class AdvCoperceptionIntermediateFusionAttack:
         advcp_context = AdvCPVisualizationContext(mode=mode)
 
         match mode:
-            case "remove":
+            case "removal":
                 raise NotImplementedError("AdvCP intermediate-fusion removal is not available yet.")
-            case "spoof":
+            case "spoofing":
                 pass
             case _:
                 raise NotImplementedError(f"AdvCP mode '{mode}' is not available for intermediate fusion.")
