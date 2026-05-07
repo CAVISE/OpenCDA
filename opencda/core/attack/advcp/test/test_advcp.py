@@ -838,8 +838,12 @@ class TestAdvCoperceptionModelManager:
         )
         manager_deps["inference_utils"].inference_early_fusion.assert_called_once_with({"rebuilt": "batch"}, model, dataset)
 
-    def test_intermediate_advcp_run_raises_for_multiple_attackers(self, manager_deps):
-        batch_data = {"ego": {"origin_lidar": ["lidar_data"]}}
+    def test_intermediate_advcp_run_uses_joint_optimization_for_multiple_attackers(self, manager_deps):
+        batch_data = {
+            "ego": {
+                "origin_lidar_agent_ids": ["cav-1", "cav-2", "cav-3"],
+            }
+        }
         dataset = MagicMock()
         model = MagicMock()
         memory_data = {
@@ -849,8 +853,21 @@ class TestAdvCoperceptionModelManager:
                 "cav-3": {"ego": False, "000001": {"params": {"lidar_pose": [2.0] * 6, "true_ego_pos": [2.0] * 6}}},
             }
         }
+        spoof_box = np.array([5.0, 0.0, 0.0, 4.5, 2.0, 1.6, 0.0], dtype=np.float32)
+        dataset.post_processor.params.get.return_value = "hwl"
 
-        with pytest.raises(NotImplementedError, match="multiple attackers"):
+        with (
+            patch.object(
+                AdvCPAttackHelper,
+                "resolve_spoof_boxes_for_ego",
+                return_value=("cav-1", MagicMock(), MagicMock(), [spoof_box]),
+            ),
+            patch.object(
+                AdvCoperceptionIntermediateFusionAttack,
+                "_optimize_joint",
+                return_value=(MagicMock(), MagicMock(), MagicMock(), {}),
+            ) as mock_joint,
+        ):
             AdvCoperceptionIntermediateFusionAttack.run(
                 batch_data,
                 model,
@@ -859,6 +876,10 @@ class TestAdvCoperceptionModelManager:
                 make_advcp_config(attacker_ids=["cav-2", "cav-3"]),
                 memory_data=memory_data,
             )
+
+        mock_joint.assert_called_once()
+        attacker_infos = mock_joint.call_args.args[5]
+        assert [aid for aid, _, _ in attacker_infos] == ["cav-2", "cav-3"]
 
     def test_late_advcp_resolve_spoof_boxes_by_attacker_supports_multiple_attackers(self):
         memory_data = {
