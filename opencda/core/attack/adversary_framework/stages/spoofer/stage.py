@@ -128,10 +128,7 @@ class SpooferStage:
             operation = str(raw_rewrite.get("operation", "set"))
             if operation not in cls._supported_operations:
                 supported = ", ".join(sorted(cls._supported_operations))
-                raise ValueError(
-                    f"SpooferStage rewrite #{index} has unsupported operation '{operation}'. "
-                    f"Supported operations: [{supported}]."
-                )
+                raise ValueError(f"SpooferStage rewrite #{index} has unsupported operation '{operation}'. Supported operations: [{supported}].")
 
             if "value" not in raw_rewrite:
                 raise ValueError(f"SpooferStage rewrite #{index} must define 'value'.")
