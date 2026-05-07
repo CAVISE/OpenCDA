@@ -10,7 +10,7 @@ from opencda.core.application.behavior.capability import Capability, CapabilityB
 from opencda.core.application.behavior.registry import BehaviorServiceRegistry
 from opencda.core.application.behavior.transport_message import TransportMessage
 
-from AIM import get_model_wrapper
+from AIM import get_model
 
 if TYPE_CHECKING:
     from opencda.core.common.rsu_manager import RSUManager
@@ -63,7 +63,7 @@ class AIMServer:
         self.control_radius: int = control_radius
         self.control_center_location: Location | None = parse_location(control_center_location)
         aim_model_name = cast(str, aim_config.pop("model", "MTP"))
-        self.model = get_model_wrapper(aim_model_name, **aim_config)
+        self.model = get_model(aim_model_name, **aim_config)
 
     def _get_owner(self) -> RSUManager:
         owner_ref = self._owner_ref
