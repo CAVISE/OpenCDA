@@ -44,30 +44,22 @@ class AdvCoperceptionIntermediateFusionAttack:
         advcp_context = AdvCPVisualizationContext(mode=mode)
 
         match mode:
-            case "removal":
-                raise NotImplementedError("AdvCP intermediate-fusion removal is not available yet.")
-            case "spoofing":
+            case "removal" | "spoofing":
                 pass
             case _:
                 raise NotImplementedError(f"AdvCP mode '{mode}' is not available for intermediate fusion.")
         if memory_data is None:
-            raise ValueError("AdvCP intermediate spoofing requires current memory data.")
+            raise ValueError(f"AdvCP intermediate {mode} requires current memory data.")
 
         intermediate_state: AdvCPIntermediateAttackState = attack_state if attack_state is not None else {}
         online_enabled = bool(AdvCPAttackHelper.require_config_value(advcp_config, "online"))
         configured_attacker_ids = AdvCPAttackHelper.resolve_configured_attacker_ids(advcp_config)
-        if len(configured_attacker_ids) > 1:
-            raise NotImplementedError(
-                "AdvCP intermediate-fusion spoofing for multiple attackers is not implemented yet. "
-                "Please configure exactly one attacker for intermediate fusion."
-            )
         if len(configured_attacker_ids) == 0:
             AdvCPAttackHelper.raise_no_configured_attackers("intermediate")
-        attacker_id = configured_attacker_ids[0]
 
         AttackResultTuple = tuple[torch.Tensor | None, torch.Tensor | None, torch.Tensor | None]
 
-        def stateful(executor: Callable[[], tuple[AttackResultTuple | None, list[npt.NDArray] | None]]) -> Callable[[], AdvCPAttackResult]:
+        def stateful(executor: Callable[[], tuple[AttackResultTuple | None, dict[str, list[npt.NDArray]] | None]]) -> Callable[[], AdvCPAttackResult]:
             @wraps(executor)
             def wrapped() -> AdvCPAttackResult:
                 attack_result, init_perturbation = executor()
@@ -86,62 +78,92 @@ class AdvCoperceptionIntermediateFusionAttack:
             return wrapped
 
         @stateful
-        def execute_attack() -> tuple[AttackResultTuple | None, list[npt.NDArray] | None]:
+        def execute_attack() -> tuple[AttackResultTuple | None, dict[str, list[npt.NDArray]] | None]:
             current_scenario_data = next(iter(memory_data.values()))
             present_attacker_ids, _ = AdvCPAttackHelper.resolve_present_and_missing_attackers(
-                [attacker_id],
+                configured_attacker_ids,
                 current_scenario_data.keys(),
             )
             if not present_attacker_ids:
                 AdvCPAttackHelper.report_missing_attackers_from_current_batch(
-                    [attacker_id],
+                    configured_attacker_ids,
                     current_scenario_data.keys(),
                     fusion_name="intermediate",
                 )
                 return None, None
 
-            current_attacker_index = AdvCoperceptionIntermediateFusionAttack._resolve_attacker_index(batch_data, attacker_id)
-            if current_attacker_index is None:
-                AdvCPAttackHelper.report_missing_attackers_from_current_batch(
-                    [attacker_id],
-                    AdvCPAttackHelper.resolve_batch_agent_ids(batch_data),
-                    fusion_name="intermediate",
+            sync_enabled = bool(AdvCPAttackHelper.require_config_value(advcp_config, "sync"))
+            stored_init_map: dict[str, list[npt.NDArray]] = intermediate_state.get("init_perturbation") or {}
+
+            valid_attacker_infos: list[tuple[str, int, list[npt.NDArray]]] = []
+            for attacker_id in present_attacker_ids:
+                attacker_index = AdvCoperceptionIntermediateFusionAttack._resolve_attacker_index(batch_data, attacker_id)
+                if attacker_index is None:
+                    AdvCPAttackHelper.report_missing_attackers_from_current_batch(
+                        [attacker_id],
+                        AdvCPAttackHelper.resolve_batch_agent_ids(batch_data),
+                        fusion_name="intermediate",
+                    )
+                    continue
+                ego_boxes = AdvCoperceptionIntermediateFusionAttack._resolve_ego_attack_boxes(
+                    current_scenario_data,
+                    advcp_config,
+                    attacker_id,
                 )
+                valid_attacker_infos.append((attacker_id, attacker_index, ego_boxes))
+
+            if not valid_attacker_infos:
                 return None, None
 
-            current_ego_boxes = AdvCoperceptionIntermediateFusionAttack._resolve_ego_attack_boxes(
-                current_scenario_data,
-                advcp_config,
-                attacker_id,
-            )
+            first_attacker_boxes = valid_attacker_infos[0][2]
             current_target_boxes = torch.stack(
-                [AdvCPAttackHelper.convert_box_for_model(attack_box, dataset).to(device) for attack_box in current_ego_boxes],
+                [AdvCPAttackHelper.convert_box_for_model(box, dataset).to(device) for box in first_attacker_boxes],
                 dim=0,
             )
-            advcp_context.attacker_ids = [attacker_id]
-            advcp_context.fake_box_tensor = box_utils.boxes_to_corners_3d(  # noqa: DC05
+            target_corners = box_utils.boxes_to_corners_3d(
                 current_target_boxes,
                 order=dataset.post_processor.params.get("order", "hwl"),
             )
+            if mode == "removal":
+                advcp_context.removed_box_tensor = target_corners
+            else:
+                advcp_context.fake_box_tensor = target_corners  # noqa: DC05
+            advcp_context.attacker_ids = [aid for aid, _, _ in valid_attacker_infos]
 
-            sync_enabled = bool(AdvCPAttackHelper.require_config_value(advcp_config, "sync"))
             try:
-                pred_box_tensor, pred_score, gt_box_tensor, init_perturbation = AdvCoperceptionIntermediateFusionAttack._optimize_spoofing(
-                    model,
-                    dataset,
-                    device,
-                    advcp_config,
-                    attacker_id,
-                    memory_data,
-                    current_ego_boxes,
-                    intermediate_state.get("previous_memory_data"),
-                    sync_enabled,
-                    intermediate_state.get("init_perturbation"),
-                )
+                if len(valid_attacker_infos) == 1:
+                    attacker_id, _, ego_boxes = valid_attacker_infos[0]
+                    pred_box, pred_score, gt_box, init_pert = AdvCoperceptionIntermediateFusionAttack._optimize_spoofing(
+                        model,
+                        dataset,
+                        device,
+                        advcp_config,
+                        attacker_id,
+                        memory_data,
+                        ego_boxes,
+                        intermediate_state.get("previous_memory_data"),
+                        sync_enabled,
+                        stored_init_map.get(attacker_id),
+                        mode=mode,
+                    )
+                    new_init = {attacker_id: init_pert} if init_pert is not None else {}
+                else:
+                    pred_box, pred_score, gt_box, new_init = AdvCoperceptionIntermediateFusionAttack._optimize_joint(
+                        model,
+                        dataset,
+                        device,
+                        advcp_config,
+                        memory_data,
+                        valid_attacker_infos,
+                        intermediate_state.get("previous_memory_data"),
+                        sync_enabled,
+                        stored_init_map,
+                        mode=mode,
+                    )
             finally:
                 dataset.update_database(memory_data=memory_data)
 
-            return (pred_box_tensor, pred_score, gt_box_tensor), init_perturbation
+            return (pred_box, pred_score, gt_box), new_init or None
 
         return execute_attack()
 
@@ -149,7 +171,7 @@ class AdvCoperceptionIntermediateFusionAttack:
     def _update_attack_state(
         attack_state: AdvCPIntermediateAttackState,
         memory_data: AdvCPMemoryData,
-        init_perturbation: list[npt.NDArray] | None,
+        init_perturbation: dict[str, list[npt.NDArray]] | None,
         online: bool,
     ) -> None:
         previous_buffer = attack_state.get("previous_memory_data")
@@ -250,6 +272,40 @@ class AdvCoperceptionIntermediateFusionAttack:
         return attacked_memory
 
     @classmethod
+    def _apply_init_removal_to_memory(
+        cls,
+        memory_data: AdvCPMemoryData,
+        advcp_config: AdvCPConfig,
+        attacker_id: str,
+    ) -> AdvCPMemoryData:
+        attacked_memory = copy.deepcopy(memory_data)
+        attacked_scenario_data = next(iter(attacked_memory.values()))
+        original_scenario_data = next(iter(memory_data.values()))
+
+        _, _, _, removal_boxes = AdvCPAttackHelper.resolve_spoof_boxes_for_agent(original_scenario_data, advcp_config, attacker_id)
+        attacked_snapshot = AdvCPAttackHelper.resolve_agent_snapshot(attacked_scenario_data, attacker_id)
+        attacker_lidar = AdvCPAttackHelper.require_agent_lidar(attacked_snapshot, attacker_id, "AdvCP intermediate removal init")
+        lidar_poses = AdvCPAttackHelper.build_lidar_pose_map(original_scenario_data)
+        density = AdvCPAttackHelper.resolve_density(AdvCPAttackHelper.require_config_value(advcp_config, "density"))
+        advshape_enabled = AdvCoperceptionEarlyFusionAttack._resolve_advshape_enabled(advcp_config)
+
+        removed_lidar = np.asarray(attacker_lidar, dtype=np.float32)
+        for removal_box in removal_boxes:
+            removed_lidar = AdvCoperceptionEarlyFusionAttack._apply_sampled_ray_traced_remove(
+                removed_lidar,
+                removal_box,
+                lidar_poses,
+                attacker_id,
+                advcp_config,
+                density,
+                advshape_enabled,
+            )
+
+        attacked_snapshot["lidar_np"] = removed_lidar
+        attacked_snapshot.pop("spoofing_mask", None)
+        return attacked_memory
+
+    @classmethod
     def _optimize_spoofing(
         cls,
         model: Any,
@@ -262,12 +318,15 @@ class AdvCoperceptionIntermediateFusionAttack:
         previous_memory_data: AdvCPMemoryData | None,
         sync_enabled: bool,
         stored_init_perturbation: list[npt.NDArray] | None,
+        mode: str = "spoofing",
     ) -> tuple[torch.Tensor | None, torch.Tensor | None, torch.Tensor | None, list[npt.NDArray] | None]:
         max_perturb = float(AdvCPAttackHelper.require_config_value(advcp_config, "max_perturb"))
         learning_rate = float(AdvCPAttackHelper.require_config_value(advcp_config, "lr"))
         optimization_steps = int(AdvCPAttackHelper.require_config_value(advcp_config, "step"))
         feature_size = int(AdvCPAttackHelper.require_config_value(advcp_config, "feature_size"))
         use_init = bool(AdvCPAttackHelper.require_config_value(advcp_config, "init"))
+        init_memory_fn = cls._apply_init_spoof_to_memory if mode == "spoofing" else cls._apply_init_removal_to_memory
+        compute_loss_fn = cls._compute_spoof_loss if mode == "spoofing" else cls._compute_removal_loss
 
         optimize_memory_data = memory_data
         optimize_attack_boxes = current_attack_boxes
@@ -294,9 +353,7 @@ class AdvCoperceptionIntermediateFusionAttack:
 
         original_optimize_batch = AdvCPAttackHelper.build_batch_from_memory(dataset, device, optimize_memory_data)
         optimize_batch = (
-            AdvCPAttackHelper.build_batch_from_memory(
-                dataset, device, cls._apply_init_spoof_to_memory(optimize_memory_data, advcp_config, attacker_id)
-            )
+            AdvCPAttackHelper.build_batch_from_memory(dataset, device, init_memory_fn(optimize_memory_data, advcp_config, attacker_id))
             if use_init
             else original_optimize_batch
         )
@@ -316,9 +373,7 @@ class AdvCoperceptionIntermediateFusionAttack:
         if real_memory_data is not None and real_attack_boxes is not None:
             real_original_batch = AdvCPAttackHelper.build_batch_from_memory(dataset, device, real_memory_data)
             real_batch = (
-                AdvCPAttackHelper.build_batch_from_memory(
-                    dataset, device, cls._apply_init_spoof_to_memory(real_memory_data, advcp_config, attacker_id)
-                )
+                AdvCPAttackHelper.build_batch_from_memory(dataset, device, init_memory_fn(real_memory_data, advcp_config, attacker_id))
                 if use_init
                 else real_original_batch
             )
@@ -420,7 +475,7 @@ class AdvCoperceptionIntermediateFusionAttack:
                 centers=optimize_centers,
                 max_perturb=max_perturb,
             )
-            loss = cls._compute_spoof_loss(output_dict, original_optimize_batch, dataset, optimize_target_boxes)
+            loss = compute_loss_fn(output_dict, original_optimize_batch, dataset, optimize_target_boxes)
 
             with torch.no_grad():
                 if real_original_batch is not None and real_attacker_index is not None:
@@ -457,6 +512,190 @@ class AdvCoperceptionIntermediateFusionAttack:
             return (*inference_utils.inference_intermediate_fusion(inference_batch, model, dataset), None)
 
         return best_pred_box_tensor, best_pred_score, best_gt_box_tensor, best_init_perturbation
+
+    @classmethod
+    def _optimize_joint(
+        cls,
+        model: Any,
+        dataset: Any,
+        device: torch.device,
+        advcp_config: AdvCPConfig,
+        memory_data: AdvCPMemoryData,
+        attacker_infos: list[tuple[str, int, list[npt.NDArray]]],
+        previous_memory_data: AdvCPMemoryData | None,
+        sync_enabled: bool,
+        stored_init_map: dict[str, list[npt.NDArray]],
+        mode: str = "spoofing",
+    ) -> tuple[torch.Tensor | None, torch.Tensor | None, torch.Tensor | None, dict[str, list[npt.NDArray]]]:
+        max_perturb = float(AdvCPAttackHelper.require_config_value(advcp_config, "max_perturb"))
+        learning_rate = float(AdvCPAttackHelper.require_config_value(advcp_config, "lr"))
+        optimization_steps = int(AdvCPAttackHelper.require_config_value(advcp_config, "step"))
+        feature_size = int(AdvCPAttackHelper.require_config_value(advcp_config, "feature_size"))
+        use_init = bool(AdvCPAttackHelper.require_config_value(advcp_config, "init"))
+        init_memory_fn = cls._apply_init_spoof_to_memory if mode == "spoofing" else cls._apply_init_removal_to_memory
+        compute_loss_fn = cls._compute_spoof_loss if mode == "spoofing" else cls._compute_removal_loss
+
+        use_prev_for_opt = False
+        optimize_memory = memory_data
+        if sync_enabled and previous_memory_data is not None:
+            prev_scenario = next(iter(previous_memory_data.values()))
+            if all(aid in prev_scenario for aid, _, _ in attacker_infos):
+                optimize_memory = previous_memory_data
+                use_prev_for_opt = True
+            else:
+                logger.warning(
+                    "AdvCP joint: not all attackers present in previous tick; falling back to current-tick optimization.",
+                )
+
+        optimize_scenario = next(iter(optimize_memory.values()))
+        original_optimize_batch = AdvCPAttackHelper.build_batch_from_memory(dataset, device, optimize_memory)
+        real_original_batch = AdvCPAttackHelper.build_batch_from_memory(dataset, device, memory_data) if use_prev_for_opt else None
+
+        per_attacker: list[dict] = []
+        all_learnable_perturbations: list[torch.Tensor] = []
+
+        for attacker_id, _, current_boxes in attacker_infos:
+            optimize_idx = cls._resolve_attacker_index(original_optimize_batch, attacker_id)
+            if optimize_idx is None:
+                logger.warning("AdvCP joint: attacker '%s' not found in optimize batch, skipping.", attacker_id)
+                continue
+
+            optimize_boxes = cls._resolve_ego_attack_boxes(optimize_scenario, advcp_config, attacker_id) if use_prev_for_opt else current_boxes
+            optimize_centers = [cls._point_to_feature_index(b, dataset) for b in optimize_boxes]
+
+            with torch.no_grad():
+                if use_init:
+                    init_opt_batch = AdvCPAttackHelper.build_batch_from_memory(
+                        dataset, device, init_memory_fn(optimize_memory, advcp_config, attacker_id)
+                    )
+                    _, init_feats = cls._attack_forward(init_opt_batch, model, optimize_idx, None, None, max_perturb)
+                else:
+                    _, init_feats = cls._attack_forward(original_optimize_batch, model, optimize_idx, None, None, max_perturb)
+                _, orig_feats = cls._attack_forward(original_optimize_batch, model, optimize_idx, None, None, max_perturb)
+
+            base_perts = cls._extract_base_perturbations(
+                init_feats[optimize_idx],
+                orig_feats[optimize_idx],
+                optimize_centers,
+                feature_size,
+            )
+            feature_dim = int(orig_feats[optimize_idx].shape[0])
+            learnable_perts = cls._initialize_perturbations(
+                feature_dim,
+                feature_size,
+                device,
+                stored_init_map.get(attacker_id),
+                len(optimize_centers),
+            )
+            all_learnable_perturbations.extend(learnable_perts)
+
+            if use_prev_for_opt and real_original_batch is not None:
+                real_idx = cls._resolve_attacker_index(real_original_batch, attacker_id)
+                if real_idx is not None:
+                    real_centers = [cls._point_to_feature_index(b, dataset) for b in current_boxes]
+                    with torch.no_grad():
+                        if use_init:
+                            real_init_batch = AdvCPAttackHelper.build_batch_from_memory(
+                                dataset, device, init_memory_fn(memory_data, advcp_config, attacker_id)
+                            )
+                            _, real_init_feats = cls._attack_forward(real_init_batch, model, real_idx, None, None, max_perturb)
+                        else:
+                            _, real_init_feats = cls._attack_forward(real_original_batch, model, real_idx, None, None, max_perturb)
+                        _, real_orig_feats = cls._attack_forward(real_original_batch, model, real_idx, None, None, max_perturb)
+                    real_base_perts = cls._extract_base_perturbations(
+                        real_init_feats[real_idx],
+                        real_orig_feats[real_idx],
+                        real_centers,
+                        feature_size,
+                    )
+                else:
+                    real_idx = optimize_idx
+                    real_centers = optimize_centers
+                    real_base_perts = base_perts
+            else:
+                real_idx = optimize_idx
+                real_centers = optimize_centers
+                real_base_perts = base_perts
+
+            per_attacker.append(
+                {
+                    "attacker_id": attacker_id,
+                    "optimize_idx": optimize_idx,
+                    "optimize_centers": optimize_centers,
+                    "base_perts": base_perts,
+                    "learnable_perts": learnable_perts,
+                    "real_idx": real_idx,
+                    "real_centers": real_centers,
+                    "real_base_perts": real_base_perts,
+                    "optimize_boxes": optimize_boxes,
+                }
+            )
+
+        if not per_attacker:
+            return (*inference_utils.inference_intermediate_fusion(original_optimize_batch, model, dataset), {})
+
+        optimize_target_boxes = torch.stack(
+            [AdvCPAttackHelper.convert_box_for_model(b, dataset).to(device) for b in per_attacker[0]["optimize_boxes"]],
+            dim=0,
+        )
+
+        optimizer = torch.optim.Adam(all_learnable_perturbations, lr=learning_rate)
+        best_loss = float("inf")
+        best_pred_box: torch.Tensor | None = None
+        best_pred_score: torch.Tensor | None = None
+        best_gt_box: torch.Tensor | None = None
+        best_init_map: dict[str, list[npt.NDArray]] = {}
+
+        for _ in range(optimization_steps):
+            optimize_specs: list[tuple[int, list[torch.Tensor], list[npt.NDArray]]] = [
+                (d["optimize_idx"], [b + p for b, p in zip(d["base_perts"], d["learnable_perts"])], d["optimize_centers"]) for d in per_attacker
+            ]
+            output_dict, _ = cls._attack_forward(
+                original_optimize_batch,
+                model,
+                attacker_index=per_attacker[0]["optimize_idx"],
+                perturbations=None,
+                centers=None,
+                max_perturb=max_perturb,
+                all_attacker_specs=optimize_specs,
+            )
+            loss = compute_loss_fn(output_dict, original_optimize_batch, dataset, optimize_target_boxes)
+
+            with torch.no_grad():
+                if real_original_batch is not None:
+                    real_specs: list[tuple[int, list[torch.Tensor], list[npt.NDArray]]] = [
+                        (d["real_idx"], [b + p for b, p in zip(d["real_base_perts"], d["learnable_perts"])], d["real_centers"]) for d in per_attacker
+                    ]
+                    eval_output, _ = cls._attack_forward(
+                        real_original_batch,
+                        model,
+                        attacker_index=per_attacker[0]["real_idx"],
+                        perturbations=None,
+                        centers=None,
+                        max_perturb=max_perturb,
+                        all_attacker_specs=real_specs,
+                    )
+                    pred_box, pred_score, gt_box = dataset.post_process(real_original_batch, eval_output)
+                else:
+                    pred_box, pred_score, gt_box = dataset.post_process(original_optimize_batch, output_dict)
+
+            if loss.item() < best_loss:
+                best_loss = float(loss.item())
+                best_pred_box, best_pred_score, best_gt_box = pred_box, pred_score, gt_box
+                for d in per_attacker:
+                    best_init_map[d["attacker_id"]] = [
+                        torch.clamp(p.detach(), min=-max_perturb, max=max_perturb).cpu().numpy() / 2.0 for p in d["learnable_perts"]
+                    ]
+
+            loss.backward()
+            optimizer.step()
+            optimizer.zero_grad()
+
+        if best_gt_box is None:
+            fallback = real_original_batch if real_original_batch is not None else original_optimize_batch
+            return (*inference_utils.inference_intermediate_fusion(fallback, model, dataset), {})
+
+        return best_pred_box, best_pred_score, best_gt_box, best_init_map
 
     @staticmethod
     def _initialize_perturbations(
@@ -524,11 +763,12 @@ class AdvCoperceptionIntermediateFusionAttack:
         perturbations: Sequence[torch.Tensor] | None,
         centers: Sequence[npt.NDArray] | None,
         max_perturb: float,
+        all_attacker_specs: list[tuple[int, list[torch.Tensor], list[npt.NDArray]]] | None = None,
     ) -> tuple[OrderedDict[str, dict[str, torch.Tensor]], torch.Tensor]:
         model_name = type(model).__name__
         if model_name == "VoxelNetIntermediate":
-            return cls._attack_forward_voxelnet(batch_data, model, attacker_index, perturbations, centers, max_perturb)
-        return cls._attack_forward_point_pillar(batch_data, model, attacker_index, perturbations, centers, max_perturb)
+            return cls._attack_forward_voxelnet(batch_data, model, attacker_index, perturbations, centers, max_perturb, all_attacker_specs)
+        return cls._attack_forward_point_pillar(batch_data, model, attacker_index, perturbations, centers, max_perturb, all_attacker_specs)
 
     @classmethod
     def _attack_forward_point_pillar(
@@ -539,6 +779,7 @@ class AdvCoperceptionIntermediateFusionAttack:
         perturbations: Sequence[torch.Tensor] | None,
         centers: Sequence[npt.NDArray] | None,
         max_perturb: float,
+        all_attacker_specs: list[tuple[int, list[torch.Tensor], list[npt.NDArray]]] | None = None,
     ) -> tuple[OrderedDict[str, dict[str, torch.Tensor]], torch.Tensor]:
         ego_entry = batch_data["ego"]
         processed_lidar = ego_entry["processed_lidar"]
@@ -556,13 +797,18 @@ class AdvCoperceptionIntermediateFusionAttack:
 
         batch_dict = model.pillar_vfe(batch_dict)
         batch_dict = model.scatter(batch_dict)
-        spatial_features = cls._apply_perturbations_to_attacker_features(
-            batch_dict["spatial_features"],
-            attacker_index,
-            perturbations,
-            centers,
-            max_perturb,
-        )
+        if all_attacker_specs is not None:
+            spatial_features = batch_dict["spatial_features"]
+            for idx, perts, cents in all_attacker_specs:
+                spatial_features = cls._apply_perturbations_to_attacker_features(spatial_features, idx, perts, cents, max_perturb)
+        else:
+            spatial_features = cls._apply_perturbations_to_attacker_features(
+                batch_dict["spatial_features"],
+                attacker_index,
+                perturbations,
+                centers,
+                max_perturb,
+            )
         batch_dict["spatial_features"] = spatial_features
         output = cls._run_point_pillar_head(model, batch_dict, ego_entry, record_len, pairwise_t_matrix)
         return OrderedDict(ego=output), spatial_features
@@ -576,6 +822,7 @@ class AdvCoperceptionIntermediateFusionAttack:
         perturbations: Sequence[torch.Tensor] | None,
         centers: Sequence[npt.NDArray] | None,
         max_perturb: float,
+        all_attacker_specs: list[tuple[int, list[torch.Tensor], list[npt.NDArray]]] | None = None,
     ) -> tuple[OrderedDict[str, dict[str, torch.Tensor]], torch.Tensor]:
         ego_entry = batch_data["ego"]
         processed_lidar = ego_entry["processed_lidar"]
@@ -598,13 +845,17 @@ class AdvCoperceptionIntermediateFusionAttack:
         if getattr(model, "compression", False):
             spatial_features = model.compression_layer(spatial_features)
 
-        spatial_features = cls._apply_perturbations_to_attacker_features(
-            spatial_features,
-            attacker_index,
-            perturbations,
-            centers,
-            max_perturb,
-        )
+        if all_attacker_specs is not None:
+            for idx, perts, cents in all_attacker_specs:
+                spatial_features = cls._apply_perturbations_to_attacker_features(spatial_features, idx, perts, cents, max_perturb)
+        else:
+            spatial_features = cls._apply_perturbations_to_attacker_features(
+                spatial_features,
+                attacker_index,
+                perturbations,
+                centers,
+                max_perturb,
+            )
         fused_features = model.fusion_net(spatial_features, record_len)
         psm, rm = model.rpn(fused_features)
         return OrderedDict(ego={"psm": psm, "rm": rm}), spatial_features
@@ -739,6 +990,31 @@ class AdvCoperceptionIntermediateFusionAttack:
             box_mask = iou_weights >= 0.01
             if torch.any(box_mask):
                 log_prob = torch.log(torch.clamp(1.0 - probabilities[box_mask], min=1e-6))
+                loss_terms.append((iou_weights[box_mask] * log_prob).sum())
+
+        if not loss_terms:
+            return probabilities.sum() * 0.0
+        return torch.stack(loss_terms).sum()
+
+    @classmethod
+    def _compute_removal_loss(
+        cls,
+        output_dict: Mapping[str, Any],
+        batch_data: Mapping[str, Any],
+        dataset: Any,
+        target_boxes: torch.Tensor,
+    ) -> torch.Tensor:
+        probabilities = torch.sigmoid(output_dict["ego"]["psm"].permute(0, 2, 3, 1)).reshape(-1)
+        proposals = dataset.post_processor.delta_to_boxes3d(output_dict["ego"]["rm"], batch_data["ego"]["anchor_box"])[0]
+        proposals_lwh = cls._model_boxes_to_lwh(proposals, dataset)
+        target_boxes_lwh = cls._model_boxes_to_lwh(target_boxes, dataset)
+
+        loss_terms: list[torch.Tensor] = []
+        for target_box in target_boxes_lwh:
+            iou_weights = cls._compute_iou_weights(proposals_lwh, target_box)
+            box_mask = iou_weights >= 0.01
+            if torch.any(box_mask):
+                log_prob = torch.log(torch.clamp(probabilities[box_mask], min=1e-6))
                 loss_terms.append((iou_weights[box_mask] * log_prob).sum())
 
         if not loss_terms:
