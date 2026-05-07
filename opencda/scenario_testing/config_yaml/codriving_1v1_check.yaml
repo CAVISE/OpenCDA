@@ -107,7 +107,6 @@ scenario:
           debug: false
 
 aim:
-  model_wrapper: MTP
   model: TransfAny_v2_local_coords
   model_params:
     cars_hidden_channels: 128

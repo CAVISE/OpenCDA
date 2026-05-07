@@ -2,11 +2,11 @@ import torch
 from torch import nn
 from torch_geometric.nn import GraphConv as GNNConv
 
+from huggingface_hub import PyTorchModelHubMixin
 from AIM.models.mtp.learning.learning_src.data_scripts.data_config import config
-from AIM.aim_model import MTPModel
 
 
-class GNN_mtl_gnn(MTPModel):
+class GNN_mtl_gnn(torch.nn.Module, PyTorchModelHubMixin):
     """
     graph neural network model using graph convolutions
     """

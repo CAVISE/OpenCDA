@@ -1,10 +1,10 @@
 import torch
 
+from huggingface_hub import PyTorchModelHubMixin
 from AIM.models.mtp.mtp_models.encoders_car.transformer_based.encoder_car import CarsEncoder, SimpleDecoder
-from AIM.aim_model import MTPModel
 
 
-class Transf1v1(MTPModel):
+class Transf1v1(torch.nn.Module, PyTorchModelHubMixin):
     """
     simple transformer model with cars encoder and decoder
     """

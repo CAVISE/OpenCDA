@@ -3,9 +3,11 @@ import torch.nn as nn
 from torch_geometric.data import Batch
 from torch_geometric.nn.conv import HeteroConv, GCNConv
 
+from huggingface_hub import PyTorchModelHubMixin
 from AIM.models.mtp.mtp_models.encoders_car.transformer_based.encoder_car import SimpleDecoder
 from AIM.models.mtp.mtp_models.transformer_utils.transformer_utils import CrossAttnBlock, SelfAttnBlock
-from AIM.aim_model import MTPModel
+
+# from AIM.aim_model import MTPModel
 from AIM.models.mtp.learning.learning_src.data_scripts.data_config import config
 
 
@@ -184,7 +186,7 @@ class A2A_SelfAttn(torch.nn.Module):
         return car_embeddings
 
 
-class TransfAny_v2_local_coords(MTPModel):
+class TransfAny_v2_local_coords(torch.nn.Module, PyTorchModelHubMixin):
     """
     transformer model with map encoder and cross-attention between cars and map features
     """

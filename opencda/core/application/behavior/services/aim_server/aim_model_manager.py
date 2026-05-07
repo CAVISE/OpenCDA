@@ -5,7 +5,7 @@ from typing import Any
 import logging
 import numpy as np
 
-from AIM import AIMModelWrapper
+from AIM import AIMModel
 
 from .messages import AIMServerRequest, AIMServerResponse
 from .types import AIMServerState, CavData
@@ -20,7 +20,7 @@ logger = logging.getLogger("cavise.opencda.opencda.core.application.behavior.ser
 class AIMModelManager:
     def __init__(
         self,
-        model: AIMModelWrapper,
+        model: AIMModel,
         control_center: Location,
         service_type: str,
         owner_id: str,

@@ -2,9 +2,9 @@ import torch
 import torch.nn as nn
 from typing import Tuple
 
+from huggingface_hub import PyTorchModelHubMixin
 from AIM.models.mtp.mtp_models.encoders_car.transformer_based.encoder_car import SimpleDecoder, CarsEncoder
 from AIM.models.mtp.mtp_models.transformer_utils.transformer_utils import CrossAttnBlock
-from AIM.aim_model import MTPModel
 
 
 class ConvBlock(nn.Module):
@@ -103,7 +103,7 @@ class LaneMapEncoder(nn.Module):
         return x
 
 
-class TransfAny_v1(MTPModel):
+class TransfAny_v1(torch.nn.Module, PyTorchModelHubMixin):
     """
     transformer model with map encoder and cross-attention between cars and map features
     """

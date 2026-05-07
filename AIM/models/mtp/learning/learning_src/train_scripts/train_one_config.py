@@ -23,7 +23,8 @@ from AIM.models.mtp.learning.learning_src.data_scripts.dataset import GnnCarData
 from AIM.models.mtp.learning.learning_src.data_scripts.metrics_logger import MetricLogger
 from .train_gnn import gnn_train_one_epoch, gnn_evaluate
 from .train_transformer import transformer_train_one_epoch, transformer_evaluate
-from AIM.registry import ModelRegistry
+
+from AIM.models.mtp.mtp_models.TransfAny_v2_local_coords.TransfAny_v2_local_coords import TransfAny_v2_local_coords
 
 
 class Dict2Class(object):
@@ -257,7 +258,7 @@ def init_dataloaders(
     try:
         if is_transformer:
             train_dataset = TransformerCarDataset(
-                preprocess_folder=train_data_dir, reprocess=True, mpc_aug=(config.data_processing.num_augmentation > 0)
+                preprocess_folder=train_data_dir, reprocess=False, mpc_aug=(config.data_processing.num_augmentation > 0)
             )
             train_loader = DataLoader(
                 train_dataset,
@@ -269,7 +270,7 @@ def init_dataloaders(
                 pin_memory=pin_memory,
             )
 
-            val_dataset = TransformerCarDataset(preprocess_folder=val_data_dir, reprocess=True, mpc_aug=(config.data_processing.num_augmentation > 0))
+            val_dataset = TransformerCarDataset(preprocess_folder=val_data_dir, reprocess=False, mpc_aug=(config.data_processing.num_augmentation > 0))
             val_loader = DataLoader(
                 val_dataset,
                 batch_size=batch_size,
@@ -332,9 +333,12 @@ def init_model(
     with open(model_config_path, "r") as file:
         model_config = yaml.safe_load(file)
 
+    _models: Dict[str, Any] = {
+        "TransfAny_v2_local_coords": TransfAny_v2_local_coords,
+    }
     model_name = model_config["model"]
     model_params = model_config["model_params"]
-    model_cls = ModelRegistry.get_model_by_name(model_name)
+    model_cls = _models[model_name]
 
     model = model_cls(**model_params)
     model = model.to(device)

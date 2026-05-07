@@ -1,11 +1,11 @@
 import torch
 from torch import nn
 
+from huggingface_hub import PyTorchModelHubMixin
 from AIM.models.mtp.learning.learning_src.data_scripts.data_config import config
-from AIM.aim_model import MTPModel
 
 
-class GNN_mtl_mlp(MTPModel):
+class GNN_mtl_mlp(torch.nn.Module, PyTorchModelHubMixin):
     """
     graph neural network model using mlp layers instead of graph convolutions
     """

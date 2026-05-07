@@ -1,11 +1,11 @@
-batch_size: 25
+batch_size: 8
 coord_loss_weight_x: 1.0
 coord_loss_weight_y: 5.0
 clear_exp_checkpoints: true
 collision_penalty: true
 collision_penalty_factor: 1000
 dist_threshold: 0.05
-epoch: 400
+epoch: 200
 hf_project_path: kijjjj/test-model1
 lr: 1.0e-04
 metrics_log_epoch_frequency: 2
