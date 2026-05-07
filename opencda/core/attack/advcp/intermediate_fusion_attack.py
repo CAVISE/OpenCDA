@@ -124,10 +124,13 @@ class AdvCoperceptionIntermediateFusionAttack:
                 current_target_boxes,
                 order=dataset.post_processor.params.get("order", "hwl"),
             )
-            if mode == "removal":
-                advcp_context.removed_box_tensor = target_corners
-            else:
-                advcp_context.fake_box_tensor = target_corners  # noqa: DC05
+            match mode:
+                case "removal":
+                    advcp_context.removed_box_tensor = target_corners
+                case "spoofing":
+                    advcp_context.fake_box_tensor = target_corners
+                case _:
+                    raise NotImplementedError(f"AdvCP mode '{mode}' is not available for intermediate fusion.")
             advcp_context.attacker_ids = [aid for aid, _, _ in valid_attacker_infos]
 
             try:
