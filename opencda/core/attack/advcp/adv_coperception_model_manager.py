@@ -6,7 +6,7 @@ from typing import Any, Mapping, Optional, cast
 
 import numpy as np
 import numpy.typing as npt
-import yaml  # type: ignore
+import yaml
 
 from opencda.core.attack.advcp.attack_helper import AdvCPAttackHelper
 from opencda.core.attack.advcp.early_fusion_attack import AdvCoperceptionEarlyFusionAttack
