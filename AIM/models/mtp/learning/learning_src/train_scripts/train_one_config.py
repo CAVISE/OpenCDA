@@ -270,7 +270,9 @@ def init_dataloaders(
                 pin_memory=pin_memory,
             )
 
-            val_dataset = TransformerCarDataset(preprocess_folder=val_data_dir, reprocess=False, mpc_aug=(config.data_processing.num_augmentation > 0))
+            val_dataset = TransformerCarDataset(
+                preprocess_folder=val_data_dir, reprocess=False, mpc_aug=(config.data_processing.num_augmentation > 0)
+            )
             val_loader = DataLoader(
                 val_dataset,
                 batch_size=batch_size,
