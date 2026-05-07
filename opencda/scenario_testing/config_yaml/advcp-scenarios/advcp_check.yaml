@@ -145,6 +145,7 @@ scenario:
 cooperative_perception_visualization:
   lidar_point_colors:
     attackers: [224, 104, 104] # used for real lidar points of attacking agents when AdvCP visualization is active
+    spoofing: [56, 189, 248] # used for fake/spoofed lidar points injected by AdvCP; not used yet
 
   bbox_colors:
     removed: [56, 189, 248] # AdvCP-only extra box color for early-fusion removal target boxes.

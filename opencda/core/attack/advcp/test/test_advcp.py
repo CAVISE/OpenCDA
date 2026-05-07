@@ -402,9 +402,19 @@ class TestAdvCoperceptionModelManager:
                 return_value=("cav-1", states["cav-1"], states["cav-2"], [spoof_box]),
             ),
             patch.object(
+                AdvCPAttackHelper,
+                "resolve_spoof_boxes_for_ego",
+                return_value=("cav-1", states["cav-1"], states["cav-2"], [spoof_box]),
+            ),
+            patch.object(
                 AdvCoperceptionEarlyFusionAttack,
                 "_apply_sampled_ray_traced_spoof",
                 return_value=(spoofed_lidar, np.array([True])),
+            ),
+            patch.object(
+                AdvCoperceptionEarlyFusionAttack,
+                "_build_removed_box_tensor",
+                return_value="fake-boxes",
             ),
         ):
             result = AdvCoperceptionEarlyFusionAttack.run(
@@ -424,7 +434,7 @@ class TestAdvCoperceptionModelManager:
         np.testing.assert_array_equal(first_update[0]["cav-2"]["000001"]["spoofing_mask"], np.array([True]))
         assert restored_update is memory_data
         assert batch_data == {"rebuilt": "batch"}
-        assert_advcp_context(result[3], attacker_ids=["cav-2"], mode="spoofing")
+        assert_advcp_context(result[3], attacker_ids=["cav-2"], mode="spoofing", fake_box_tensor="fake-boxes")
         manager_deps["inference_utils"].inference_early_fusion.assert_called_once_with({"rebuilt": "batch"}, model, dataset)
 
     def test_early_advcp_run_falls_back_when_rebuilt_batch_excludes_attacker(self, manager_deps):
@@ -480,9 +490,19 @@ class TestAdvCoperceptionModelManager:
                 return_value=("cav-1", states["cav-1"], states["cav-2"], [np.array([5.0, 0.0, 0.0, 4.5, 2.0, 1.6, 0.0])]),
             ),
             patch.object(
+                AdvCPAttackHelper,
+                "resolve_spoof_boxes_for_ego",
+                return_value=("cav-1", states["cav-1"], states["cav-2"], [np.array([5.0, 0.0, 0.0, 4.5, 2.0, 1.6, 0.0])]),
+            ),
+            patch.object(
                 AdvCoperceptionEarlyFusionAttack,
                 "_apply_sampled_ray_traced_spoof",
                 return_value=(np.array([[9.0, 9.0, 9.0, 1.0]], dtype=np.float32), np.array([True])),
+            ),
+            patch.object(
+                AdvCoperceptionEarlyFusionAttack,
+                "_build_removed_box_tensor",
+                return_value="fake-boxes",
             ),
         ):
             result = AdvCoperceptionEarlyFusionAttack.run(
@@ -577,9 +597,19 @@ class TestAdvCoperceptionModelManager:
                 side_effect=_mock_resolve_spoof_boxes_for_agent,
             ),
             patch.object(
+                AdvCPAttackHelper,
+                "resolve_spoof_boxes_for_ego",
+                return_value=("cav-1", states["cav-1"], states["cav-2"], [spoof_box]),
+            ),
+            patch.object(
                 AdvCoperceptionEarlyFusionAttack,
                 "_apply_sampled_ray_traced_spoof",
                 side_effect=_mock_apply_sampled_ray_traced_spoof,
+            ),
+            patch.object(
+                AdvCoperceptionEarlyFusionAttack,
+                "_build_removed_box_tensor",
+                return_value="fake-boxes",
             ),
         ):
             result = AdvCoperceptionEarlyFusionAttack.run(
@@ -600,7 +630,7 @@ class TestAdvCoperceptionModelManager:
         np.testing.assert_array_equal(first_update[0]["cav-3"]["000001"]["spoofing_mask"], np.array([True]))
         assert restored_update is memory_data
         assert batch_data == {"rebuilt": "batch"}
-        assert_advcp_context(result[3], attacker_ids=["cav-2", "cav-3"], mode="spoofing")
+        assert_advcp_context(result[3], attacker_ids=["cav-2", "cav-3"], mode="spoofing", fake_box_tensor="fake-boxes")
         manager_deps["inference_utils"].inference_early_fusion.assert_called_once_with({"rebuilt": "batch"}, model, dataset)
 
     def test_early_remove_run_rebuilds_batch_with_removed_lidar(self, manager_deps):
