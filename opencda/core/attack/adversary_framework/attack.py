@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from opencda.core.application.behavior.behavior_service_protocol import BehaviorService
@@ -12,6 +13,8 @@ from .condition_evaluator import evaluate_condition
 from .models import AttackSpec, AttackStageResult, RuntimeStatus, StageRuntime, Status
 from .stage_registry import AttackStageRegistry
 from .utils import ServiceResolver, match_services, resolve_targets as resolve_configured_targets
+
+logger = logging.getLogger("cavise.opencda.opencda.core.attack.adversary_framework.attack")
 
 
 class Attack:
@@ -160,6 +163,7 @@ class Attack:
                 )
                 stage_runtime.last_result = stop_result
                 self._set_stage_status(stage_runtime, RuntimeStatus.SUCCESS)
+                self._log_stage_result(stage_runtime, stop_result)
                 emitted_results.append(stop_result)
 
         progress = True
@@ -189,12 +193,14 @@ class Attack:
                     )
                     stage_runtime.last_result = fail_result
                     self._set_stage_status(stage_runtime, RuntimeStatus.FAIL)
+                    self._log_stage_result(stage_runtime, fail_result)
                     self.mark_failed()
                     emitted_results.append(fail_result)
                     return tuple(emitted_results)
 
                 stage_result = stage_runtime.stage.execute(matched_services)
                 stage_runtime.last_result = stage_result
+                self._log_stage_result(stage_runtime, stage_result)
                 emitted_results.append(stage_result)
 
                 if stage_result.status == Status.FAIL:
@@ -283,10 +289,38 @@ class Attack:
             deactivate()
 
     def _set_attack_status(self, status: RuntimeStatus) -> None:
+        if self.status != status:
+            logger.info(
+                "Attack '%s' status changed: %s -> %s.",
+                self.attack_name,
+                self.status.value,
+                status.value,
+            )
         self.previous_status = self.status
         self.status = status
 
-    @staticmethod
-    def _set_stage_status(stage_runtime: StageRuntime, status: RuntimeStatus) -> None:
+    def _set_stage_status(self, stage_runtime: StageRuntime, status: RuntimeStatus) -> None:
+        if stage_runtime.status != status:
+            logger.info(
+                "Attack '%s' stage '%s' status changed: %s -> %s.",
+                self.attack_name,
+                stage_runtime.spec.id,
+                stage_runtime.status.value,
+                status.value,
+            )
         stage_runtime.previous_status = stage_runtime.status
         stage_runtime.status = status
+
+    def _log_stage_result(self, stage_runtime: StageRuntime, stage_result: AttackStageResult) -> None:
+        log_message = "Attack '%s' stage '%s' emitted result: status=%s, stage_name=%s, reason=%s."
+        log_args = (
+            self.attack_name,
+            stage_runtime.spec.id,
+            stage_result.status.value,
+            stage_result.stage_name,
+            stage_result.reason,
+        )
+        if stage_result.status == Status.FAIL:
+            logger.warning(log_message, *log_args)
+            return
+        logger.info(log_message, *log_args)
