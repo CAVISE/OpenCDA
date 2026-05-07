@@ -179,6 +179,7 @@ def _install_mocks():
 
     # Eval
     eval_utils.caluclate_tp_fp = Mock()
+    eval_utils.calculate_ap = Mock(return_value=(0.0, [0], [0]))
     eval_utils.eval_final_results = Mock()
 
     # 5. Mock tqdm

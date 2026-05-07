@@ -109,7 +109,7 @@ class ResNetLayers(nn.Module):
         if zero_init_residual:
             for m in self.modules():
                 if isinstance(m, BasicBlock):
-                    nn.init.constant_(m.bn2.weight, 0)  # type: ignore[arg-type]
+                    nn.init.constant_(m.bn2.weight, 0)
 
     def _make_layer(self, planes: int, blocks: int, stride: int = 1, dilate: bool = False) -> nn.Sequential:
         block = BasicBlock

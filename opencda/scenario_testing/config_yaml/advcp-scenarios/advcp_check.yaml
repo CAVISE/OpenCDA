@@ -1,5 +1,5 @@
 description: |-
-  Content: This is the scenario testing configuration file for single vehicle full-stack system in town06 with co-simulation
+  This scenario is intended for experiments with AdvCP removal attacks.
 
 world:
   town: Town06
@@ -42,7 +42,6 @@ rsu_base:
         noise_alt_stddev: 0.05
         noise_lat_stddev: 3e-6
         noise_lon_stddev: 3e-6
-
 
 # First define the basic parameters of the vehicles
 vehicle_base:
@@ -97,25 +96,56 @@ vehicle_base:
 scenario:
   rsu_list:
   single_cav_list:
-    - name: cav1
+    - name: victim-cav-1
       spawn_position: [20, 149.792206, 0.3, 0, 0, 0]
       destination: [170, 149.792206, 0.3]
       id: 1
-    - name: cav2
+
+    - name: cav-2
       spawn_position: [50, 135.792358, 0.3, 0, 0, 0]
       destination: [200, 135.792358, 0.3]
       id: 2
 
+    - name: helper-backward-cav-3
+      spawn_position: [7.60, 145.46, 0.3, 0, 90, 0]
+      destination: [200, 135.792358, 0.3]
+      id: 3
+
+    - name: helper-leftside-cav-4
+      spawn_position: [20, 135.792358, 0.3, 0, 0, 0]
+      destination: [170, 135.792358, 0.3]
+      id: 4
+
+    - name: helper-leftside-cav-5
+      spawn_position: [30, 135.792358, 0.3, 0, 0, 0]
+      destination: [170, 135.792358, 0.3]
+      id: 5
+
+    - name: helper-forward-cav-6
+      spawn_position: [70, 135.792358, 0.3, 0, 0, 0]
+      destination: [170, 135.792358, 0.3]
+      id: 6
+
+    - name: helper-forward-cav-7
+      spawn_position: [90, 149.792206, 0.3, 0, 0, 0]
+      destination: [170, 135.792358, 0.3]
+      id: 7
+
+  custom_actor_list:
+    - name: custom-cav-10
+      spawn_position: [28, 149.792206, 0.3, 0, 0, 0]
+      id: 101
+      model: "vehicle.carlamotors.firetruck"
+
+    - name: custom-cav-20
+      spawn_position: [35, 149.792206, 0.3, 0, 0, 0]
+      id: 102
+      model: "vehicle.audi.a2"
+
 cooperative_perception_visualization:
-  bbox_line_thickness: 2 # optional global line thickness for all rendered bounding boxes in BEV/3D
-  image_dpi: 1200 # optional DPI for saved cooperative perception images
-  background: [14, 18, 28]
   lidar_point_colors:
-    other: [215, 221, 230]
-    ego: [122, 196, 152]
-    attackers: [214, 126, 96]
+    attackers: [224, 104, 104] # used for real lidar points of attacking agents when AdvCP visualization is active
+    spoofing: [56, 189, 248] # used for fake/spoofed lidar points injected by AdvCP; not used yet
 
   bbox_colors:
-    gt: [92, 214, 166]
-    pred: [255, 124, 124]
-    fake: [242, 156, 74]
+    removed: [56, 189, 248] # AdvCP-only extra box color for early-fusion removal target boxes.
