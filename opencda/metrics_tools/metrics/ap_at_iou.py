@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import logging
-from typing import Any, ClassVar, ItemsView, Mapping, Sequence
+from typing import Any, ClassVar, Mapping, Sequence
 
 from opencda.metrics_tools.base_metric import BaseMetric
 from opencda.metrics_tools.collection_models import MetricSeries
@@ -13,6 +12,8 @@ from opencda.metrics_tools.report_models import MetricReportSpec, MetricSummaryS
 
 logger = logging.getLogger("cavise.opencda.opencda.metrics_tools.metrics.ap_at_iou")
 
+ResultStat = dict[float, dict[str, Any]]
+
 
 def _load_eval_utils() -> Any:
     from opencood.utils import eval_utils
@@ -20,68 +21,28 @@ def _load_eval_utils() -> Any:
     return eval_utils
 
 
-@dataclass
-class IoUResultStat:
-    tp: list[Any]
-    fp: list[Any]
-    gt: int
-    score: list[Any]
+def _create_empty_result_stat(iou_thresholds: Sequence[float]) -> ResultStat:
+    return {float(iou): {"tp": [], "fp": [], "gt": 0, "score": []} for iou in iou_thresholds}
 
-    @classmethod
-    def create_empty(cls) -> "IoUResultStat":
-        return cls(tp=[], fp=[], gt=0, score=[])
 
-    def __getitem__(self, key: str) -> Any:
-        return getattr(self, key)
-
-    def __setitem__(self, key: str, value: Any) -> None:
-        setattr(self, key, value)
-
-    def as_dict(self) -> dict[str, Any]:
-        return {
-            "tp": list(self.tp),
-            "fp": list(self.fp),
-            "gt": self.gt,
-            "score": list(self.score),
+def _snapshot_result_stat(result_stat: ResultStat) -> ResultStat:
+    """Return a copy with fresh lists, since eval_utils mutates tp/fp in place."""
+    return {
+        iou: {
+            "tp": list(stat["tp"]),
+            "fp": list(stat["fp"]),
+            "gt": stat["gt"],
+            "score": list(stat["score"]),
         }
-
-    def merge_from(self, other: "IoUResultStat") -> None:
-        self.gt += other.gt
-        self.tp += other.tp
-        self.fp += other.fp
-        self.score += other.score
-
-
-@dataclass
-class EvaluationResultStat:
-    by_iou: dict[float, IoUResultStat]
-
-    IOU_THRESHOLDS: ClassVar[tuple[float, ...]] = (0.3, 0.5, 0.7)
-
-    @classmethod
-    def create_empty(cls, iou_thresholds: Sequence[float] | None = None) -> "EvaluationResultStat":
-        thresholds = tuple(cls.IOU_THRESHOLDS if iou_thresholds is None else iou_thresholds)
-        return cls({float(iou): IoUResultStat.create_empty() for iou in thresholds})
-
-    def __getitem__(self, iou: float) -> IoUResultStat:
-        return self.by_iou[iou]
-
-    def items(self) -> ItemsView[float, IoUResultStat]:
-        return self.by_iou.items()
-
-    def as_dict(self) -> dict[float, dict[str, Any]]:
-        return {iou: stat.as_dict() for iou, stat in self.by_iou.items()}
-
-    def merge_from(self, other: "EvaluationResultStat") -> None:
-        for iou, stat in other.items():
-            self.by_iou.setdefault(iou, IoUResultStat.create_empty()).merge_from(stat)
+        for iou, stat in result_stat.items()
+    }
 
 
 class APAtIoUMetric(BaseMetric):
     """Collect detection stats and report AP at configured IoU thresholds."""
 
     metric_name = "ap_at_iou"
-    iou_thresholds: ClassVar[tuple[float, ...]] = EvaluationResultStat.IOU_THRESHOLDS
+    iou_thresholds: ClassVar[tuple[float, ...]] = (0.3, 0.5, 0.7)
 
     def __init__(
         self,
@@ -90,7 +51,7 @@ class APAtIoUMetric(BaseMetric):
     ):
         super().__init__(warmup_steps=warmup_steps)
         self.global_sort_detections = global_sort_detections
-        self.result_stat = EvaluationResultStat.create_empty(self.iou_thresholds)
+        self.result_stat: ResultStat = _create_empty_result_stat(self.iou_thresholds)
 
     def _process_context(self, context: Mapping[str, Any]) -> None:
         gt_box_tensor = context.get("gt_box_tensor")
@@ -131,7 +92,7 @@ class APAtIoUMetric(BaseMetric):
     def calculate_ap(self, iou: float, global_sort_detections: bool | None = None) -> float:
         eval_utils = _load_eval_utils()
         ap, _, _ = eval_utils.calculate_ap(
-            self.result_stat.as_dict(),
+            _snapshot_result_stat(self.result_stat),
             iou,
             self.global_sort_detections if global_sort_detections is None else global_sort_detections,
         )
@@ -140,7 +101,7 @@ class APAtIoUMetric(BaseMetric):
     def save_eval_results(self, save_path: str, global_sort_detections: bool | None = None) -> None:
         eval_utils = _load_eval_utils()
         eval_utils.eval_final_results(
-            self.result_stat.as_dict(),
+            _snapshot_result_stat(self.result_stat),
             save_path,
             self.global_sort_detections if global_sort_detections is None else global_sort_detections,
         )

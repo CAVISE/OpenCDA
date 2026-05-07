@@ -11,7 +11,6 @@ from opencda.core.common.coperception_model_manager import (
     CoperceptionModelManager,
     CoperceptionVisualizer,
 )
-from opencda.metrics_tools.metrics.ap_at_iou import EvaluationResultStat, IoUResultStat
 
 
 class DummyOpt:
@@ -177,42 +176,6 @@ class TestCoperceptionModelManager:
 
         dataset_mock.update_database.assert_called_once_with(memory_data={"in_memory": True})
         mock_warning.assert_called_once_with("No samples found in dataset after update.")
-
-    def test_evaluation_result_stat_merges_nested_iou_stats(self):
-        accumulated = EvaluationResultStat.create_empty()
-        batch = EvaluationResultStat.create_empty()
-
-        batch[0.3]["gt"] = 2
-        batch[0.3]["tp"].extend([1, 1])
-        batch[0.3]["fp"].append(0)
-        batch[0.3]["score"].extend([0.7, 0.8])
-
-        batch[0.5]["gt"] = 1
-        batch[0.5]["tp"].append(1)
-        batch[0.5]["score"].append(0.9)
-
-        accumulated.merge_from(batch)
-
-        assert accumulated[0.3]["gt"] == 2
-        assert accumulated[0.3]["tp"] == [1, 1]
-        assert accumulated[0.3]["fp"] == [0]
-        assert accumulated[0.3]["score"] == [0.7, 0.8]
-        assert accumulated[0.5]["gt"] == 1
-        assert accumulated[0.5]["tp"] == [1]
-        assert accumulated[0.5]["score"] == [0.9]
-
-    def test_iou_result_stat_supports_dict_style_updates(self):
-        stat = IoUResultStat.create_empty()
-
-        stat["gt"] += 1
-        stat["tp"].append(1)
-        stat["fp"].append(0)
-        stat["score"].append(0.5)
-
-        assert stat.gt == 1
-        assert stat.tp == [1]
-        assert stat.fp == [0]
-        assert stat.score == [0.5]
 
     @pytest.mark.parametrize(
         ("core_method", "inference_attr"),
