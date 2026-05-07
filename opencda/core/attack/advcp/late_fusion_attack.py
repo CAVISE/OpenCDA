@@ -30,9 +30,9 @@ class AdvCoperceptionLateFusionAttack:
         mode = AdvCPAttackHelper.require_config_value(advcp_config, "mode")
         advcp_context = AdvCPVisualizationContext(mode=mode)
         match mode:
-            case "remove":
+            case "removal":
                 AdvCoperceptionLateFusionAttack._raise_removal_not_available()
-            case "spoof":
+            case "spoofing":
                 pass
             case _:
                 raise NotImplementedError(f"AdvCP mode '{mode}' is not available for late fusion.")
