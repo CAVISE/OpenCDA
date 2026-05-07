@@ -15,7 +15,7 @@ BehaviorServiceResponseT = TypeVar("BehaviorServiceResponseT", covariant=True)
 class BehaviorService(Protocol[BehaviorServiceRequestT, BehaviorServiceResponseT]):
     """Protocol implemented by any behavior service attached to a participant."""
 
-    service_name: str
+    service_type: str
     priority: int = 100  # Less is better
 
     @property
@@ -31,7 +31,7 @@ class BehaviorService(Protocol[BehaviorServiceRequestT, BehaviorServiceResponseT
     def process(
         self,
         messages: Sequence[TransportMessage[BehaviorServiceRequestT]],
-    ) -> Sequence[TransportMessage[BehaviorServiceResponseT]]:
+    ) -> tuple[TransportMessage[BehaviorServiceResponseT], ...]:
         """Process typed input messages and return a typed result."""
 
     def on_detach(self) -> None:

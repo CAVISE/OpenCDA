@@ -117,21 +117,21 @@ class CavWorld(object):
         """
         return self._rsu_manager_dict
 
-    def resolve_behavior_service(self, node_id: str, service_name: str) -> BehaviorService[Any, Any] | None:
+    def resolve_behavior_service(self, node_id: str, service_type: str) -> BehaviorService[Any, Any] | None:
         """
         Resolve a behavior service instance by node ID and service name.
         """
         vehicle_manager = self._vehicle_manager_dict.get(node_id)
         if vehicle_manager is not None:
             for service in vehicle_manager.behavior_services:
-                if service.service_name == service_name:
+                if service.service_type == service_type:
                     return service
             return None
 
         rsu_manager = self._rsu_manager_dict.get(node_id)
         if rsu_manager is not None:
             for service in rsu_manager.behavior_services:
-                if service.service_name == service_name:
+                if service.service_type == service_type:
                     return service
 
         return None

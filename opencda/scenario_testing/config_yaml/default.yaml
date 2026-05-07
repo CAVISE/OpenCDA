@@ -163,6 +163,7 @@ vehicle_base:
     enabled: true
     communication_range: 35
   behavior_services:
+    - type: self_informer
     - type: movement_controller
 
 

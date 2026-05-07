@@ -96,6 +96,12 @@ scenario:
       id: 1
       behavior_services:
         - type: aim_server
+          debug: true
+          control_radius: 15
+          control_center_location:
+            x: 256
+            y: -171
+            z: 15
           model: "MTP"
           underling_model: "GNN_mtl_gnn"
           hidden_channels: 128
@@ -108,6 +114,7 @@ scenario:
       id: 100
       color: [156, 255, 206]
       behavior_services:
+        - type: self_informer
         - type: aim_client
           debug: true
         - type: movement_controller
@@ -118,6 +125,7 @@ scenario:
       id: 200
       color: [156, 255, 206]
       behavior_services:
+        - type: self_informer
         - type: aim_client
           debug: true
         - type: movement_controller
@@ -128,6 +136,7 @@ scenario:
       id: 300
       color: [156, 255, 206]
       behavior_services:
+        - type: self_informer
         - type: aim_client
           debug: true
         - type: movement_controller
@@ -138,6 +147,7 @@ scenario:
       id: 400
       color: [156, 255, 206]
       behavior_services:
+        - type: self_informer
         - type: aim_client
           debug: true
         - type: movement_controller

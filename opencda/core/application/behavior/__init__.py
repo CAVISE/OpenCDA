@@ -14,7 +14,7 @@ import importlib
 from .capability import Capability, CapabilityBinding, CapabilityBindings
 from .behavior_service_protocol import BehaviorService
 from .registry import BehaviorServiceRegistry
-from .transport_message import TransportMessage
+from .transport_message import TransportMessage, BROADCAST_OWNER_ID, BROADCAST_SERVICE_TYPE
 
 # Initialize builtin behavior service discovery.
 importlib.import_module("opencda.core.application.behavior.services")
@@ -33,4 +33,6 @@ __all__ = [
     "create_service",
     "get_service_class",
     "list_services",
+    "BROADCAST_OWNER_ID",
+    "BROADCAST_SERVICE_TYPE",
 ]

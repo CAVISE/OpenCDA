@@ -1,29 +1,7 @@
+from __future__ import annotations
 import carla
-import math
 from collections.abc import Sequence
 from opencda.core.application.behavior.types import Location
-
-
-def get_speed(vehicle: carla.Vehicle, meters: bool = False) -> float:
-    """
-    Compute speed of a vehicle in Km/h.
-
-    Parameters
-    ----------
-    meters : bool
-        Whether to use m/s (True) or km/h (False).
-
-    vehicle : carla.vehicle
-        The vehicle for which speed is calculated.
-
-    Returns
-    -------
-    speed : float
-        The vehicle speed.
-    """
-    vel = vehicle.get_velocity()
-    vel_meter_per_second = math.sqrt(vel.x**2 + vel.y**2 + vel.z**2)
-    return vel_meter_per_second if meters else 3.6 * vel_meter_per_second
 
 
 def calculate_target_speeds(
@@ -136,7 +114,6 @@ def draw_trajetory_points(
     color: carla.Color = carla.Color(255, 0, 0),
     life_time: float = 5,
     size: float = 0.1,
-    _map: carla.Map = None,
 ) -> None:
     for location in locations:
         loc = carla.Location(location.x, location.y, location.z)

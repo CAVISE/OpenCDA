@@ -1,24 +1,24 @@
 attack:
-  name: aim_client_response_sniffer
+  name: aim_server_response_replay
 
   requirements:
     all:
       - source:
           kind: snapshot
           node_type: rsu
-          service_type: aim_server
+          service_name: aim_server
         verb: exists
       - source:
           kind: snapshot
           node_type: vehicle
-          service_type: aim_client
+          service_name: aim_client
         verb: exists
 
   start_trigger:
     source:
       kind: snapshot
       node_type: rsu
-      service_type: aim_server
+      service_name: aim_server
       field: tracked_vehicle_count
     verb: increased
     value: 1
@@ -27,7 +27,7 @@ attack:
     source:
       kind: snapshot
       node_type: rsu
-      service_type: aim_server
+      service_name: aim_server
       field: tracked_vehicle_count
     verb: eq
     value: 0
@@ -37,19 +37,20 @@ attack:
     source:
       kind: snapshot
       node_type: rsu
-      service_type: aim_server
-      field: tracked_vehicle_ids
+      service_name: aim_server
+      field: owner_id
     resolve_to:
-      node_type: vehicle
-      service_type: aim_client
+      node_type: rsu
+      service_name: aim_server
 
   stages:
-    - id: sniff_aim_client_responses
-      type: sniffer
-      stage_start_trigger:
+    - id: replay_aim_server_responses
+      type: response_replayer
+      stage_stop_trigger:
         source:
-          kind: attack
-          attack_name: aim_client_response_sniffer
-          field: status
+          kind: snapshot
+          node_type: rsu
+          service_name: aim_server
+          field: tracked_vehicle_count
         verb: eq
-        value: active
+        value: 0
