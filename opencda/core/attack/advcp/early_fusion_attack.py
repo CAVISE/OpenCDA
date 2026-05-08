@@ -33,8 +33,8 @@ class AdvCoperceptionEarlyFusionAttack:
     ) -> AdvCPAttackResult:
         mode = AdvCPAttackHelper.require_config_value(advcp_config, "mode")
         handler_by_mode = {
-            "spoof": cls._run_spoof,
-            "remove": cls._run_removal,
+            "spoofing": cls._run_spoof,
+            "removal": cls._run_removal,
         }
 
         def fail(*_args: Any, **_kwargs: Any) -> AdvCPAttackResult:
@@ -63,7 +63,7 @@ class AdvCoperceptionEarlyFusionAttack:
         advcp_config: AdvCPConfig,
         memory_data: AdvCPMemoryData,
     ) -> AdvCPAttackResult:
-        advcp_context = AdvCPVisualizationContext(mode="spoof")
+        advcp_context = AdvCPVisualizationContext(mode="spoofing")
         scenario_data, configured_attacker_ids, present_attacker_ids, _ = AdvCPAttackHelper.resolve_attack_scope(
             advcp_config,
             memory_data,
@@ -74,10 +74,18 @@ class AdvCoperceptionEarlyFusionAttack:
         density = AdvCPAttackHelper.resolve_density(AdvCPAttackHelper.require_config_value(advcp_config, "density"))
         attacked_memory = copy.deepcopy(memory_data)
         attacked_scenario_data = next(iter(attacked_memory.values()))
+        spoof_boxes_ego: list[npt.NDArray] = []
         lidar_poses = AdvCPAttackHelper.build_lidar_pose_map(scenario_data)
 
         for attacker_id in present_attacker_ids:
             _, _, _, attack_boxes = AdvCPAttackHelper.resolve_spoof_boxes_for_agent(scenario_data, advcp_config, attacker_id)
+            if not spoof_boxes_ego:
+                _, _, _, spoof_boxes_ego = AdvCPAttackHelper.resolve_spoof_boxes_for_ego(
+                    scenario_data,
+                    advcp_config,
+                    attacker_id,
+                )
+
             attacked_snapshot = AdvCPAttackHelper.resolve_agent_snapshot(attacked_scenario_data, attacker_id)
             spoofed_lidar = AdvCPAttackHelper.require_agent_lidar(attacked_snapshot, attacker_id, "AdvCP early attack")
             spoofing_mask = np.zeros((spoofed_lidar.shape[0],), dtype=np.bool_)
@@ -108,6 +116,10 @@ class AdvCoperceptionEarlyFusionAttack:
             )
             return cls._run_fallback_inference(batch_data, model, dataset, advcp_context)
 
+        fake_box_tensor = cls._build_removed_box_tensor(spoof_boxes_ego, dataset, device)
+        if fake_box_tensor is not None:
+            advcp_context.fake_box_tensor = fake_box_tensor
+
         return (
             *cls._run_inference_with_attacked_memory(
                 batch_data,
@@ -132,7 +144,7 @@ class AdvCoperceptionEarlyFusionAttack:
         advcp_config: AdvCPConfig,
         memory_data: AdvCPMemoryData,
     ) -> AdvCPAttackResult:
-        advcp_context = AdvCPVisualizationContext(mode="remove")
+        advcp_context = AdvCPVisualizationContext(mode="removal")
         scenario_data, configured_attacker_ids, present_attacker_ids, _ = AdvCPAttackHelper.resolve_attack_scope(
             advcp_config,
             memory_data,
