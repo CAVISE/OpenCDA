@@ -55,4 +55,3 @@ RUN python3 -m pip install --no-cache-dir --break-system-packages --upgrade pip=
 COPY opencda/ opencda/
 COPY OpenCOOD/ OpenCOOD/
 COPY CMakeLists.txt ./
-
