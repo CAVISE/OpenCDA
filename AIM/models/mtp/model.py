@@ -6,6 +6,8 @@ import pickle as pkl
 import copy
 from torch_geometric.data import Batch
 import torch.nn.functional as F
+import sys
+from pathlib import Path
 
 from AIM import AIMModel
 from AIM.models.mtp.mtp_models.TransfAny_v2_local_coords.TransfAny_v2_local_coords import TransfAny_v2_local_coords
@@ -52,10 +54,14 @@ class MTP(AIMModel):
         underling_model = kwargs.get("underling_model", "TransfAny_v2_local_coords")
         model_params = kwargs.get("model_params")
         map_net_xml_path = kwargs.get("map_net_xml_path")
-        weight = kwargs.get("weight")
 
-        self.model = self._models[underling_model](**model_params)
-        self.model.load_state_dict(weight)
+        model_cls = self._models[underling_model]
+        weight = kwargs.get("weight")
+        underling_model_dir = Path(sys.modules[model_cls.__module__].__file__).parent
+        checkpoint = torch.load(os.path.join(underling_model_dir, "weights", weight), map_location=torch.device("cpu"))
+
+        self.model = model_cls(**model_params)
+        self.model.load_state_dict(checkpoint)
         self.model = self.model.to(self.device)
         self.model.eval()
 

@@ -83,53 +83,40 @@ rsu_base:
         noise_lat_stddev: 3e-6
         noise_lon_stddev: 3e-6
 
-sumo:
-  port: 3000
-  host: sumo # IP address artery docker container
-  gui: true
-  client_order: 2
-  step_length: ${world.fixed_delta_seconds}
-
-# define scenario. In this scenario, only a single CAV will be spawned
 scenario:
-  # rsu_list:
-  #   - name: rsu_mtp_1
-  #     spawn_position: [16.292295, 60.521175, 15, 0, 0, 0]
-  #     id: -1
   single_cav_list:
-    # this is for merging vehicle or single cav without v2x
-    - name: carla_mtp_1
-      id: 10
+    - name: cav1
       spawn_position: [ -40.059368, 48.755730, 0.3, 0, 0, 0 ]
       destination: [ 30, 48, 0.3 ]
-      color: [ 122, 156, 111 ]
-      v2x:
-        communication_range: 45
-      behavior:
-        local_planner:
-          debug_trajectory: false
-          debug: false
+      id: 100
+      color: [ 156, 255, 206 ]
+      behavior_services:
+        - type: self_informer
+        - type: aim_client
+          debug: true
+        - type: movement_controller
 
   rsu_list:
-    spawn_position: [ 16.292295, 60.521175, 15, 0, 0, 0 ]
-    id: -1
-    behavior_services:
-      - type: aim_server
-        model: "MTP"
-        underling_model: "TransfAny_v2_local_coords"
-        model_params:
-          cars_hidden_channels: 128
-          lane_hidden_channels: 128
-          lane_conv_iters: 4
-          bias: true
-          dropout: 0.1
-          cross_attn_n_heads: 4
-          cross_attn_n_attn: 3
-          cross_attn_n_linear: 3
-          cars_self_attn_n_heads: 4
-          cars_self_attn_n_attn: 4
-          cars_self_attn_n_linear: 3
-          decoder_n_linear_decoder: 4
-        weight: "model_wp_train_config0_model_config0_0399.pth"
-        map_net_xml_path: "AIM/models/mtp/learning/data/sumo_maps/simple_separate_10m.net.xml"
-        priority: 1
+    - name: rsu1
+      spawn_position: [ 16.292295, 60.521175, 15, 0, 0, 0 ]
+      id: -1
+      behavior_services:
+        - type: aim_server
+          model: "MTP"
+          underling_model: "TransfAny_v2_local_coords"
+          model_params:
+            cars_hidden_channels: 128
+            lane_hidden_channels: 128
+            lane_conv_iters: 4
+            bias: true
+            dropout: 0.1
+            cross_attn_n_heads: 4
+            cross_attn_n_attn: 3
+            cross_attn_n_linear: 3
+            cars_self_attn_n_heads: 4
+            cars_self_attn_n_attn: 4
+            cars_self_attn_n_linear: 3
+            decoder_n_linear_decoder: 4
+          weight: "model_wp_train_config0_model_config0_0399.pth"
+          map_net_xml_path: "AIM/models/mtp/learning/data/sumo_maps/simple_separate_10m.net.xml"
+          priority: 1
