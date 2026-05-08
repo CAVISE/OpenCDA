@@ -111,7 +111,7 @@ def test_removal_confidence_uses_iou_match_for_score(monkeypatch):
 
 
 def test_removal_confidence_averages_per_target(monkeypatch):
-    monkeypatch.setattr(attacker_target_confidence, "_load_common_utils", lambda: _make_first_hit_utils())
+    monkeypatch.setattr(attacker_target_confidence, "_load_common_utils", _make_first_hit_utils)
     metric = AttackerTargetConfidenceMetric(iou_threshold=0.3)
 
     metric.update(
