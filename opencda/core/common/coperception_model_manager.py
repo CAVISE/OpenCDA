@@ -9,15 +9,21 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, Literal, Mappin
 
 from matplotlib import pyplot as plt
 import numpy as np
-import torch  # type: ignore
+import torch
 import open3d as o3d
-from torch.utils.data import DataLoader  # type: ignore
+from torch.utils.data import DataLoader
 
 import opencood.hypes_yaml.yaml_utils as yaml_utils
 from opencood.tools import train_utils, inference_utils
 from opencood.data_utils.datasets import build_dataset
 from opencood.visualization import vis_utils
-from opencood.utils import eval_utils
+from opencda.metrics_tools.collection_models import MetricCollection
+from opencda.metrics_tools.config import resolve_metric_collector_config
+from opencda.metrics_tools.metric_collector import MetricCollector
+from opencda.metrics_tools.metrics.attack_success_rate import AttackSuccessRateMetric
+from opencda.metrics_tools.metrics.attacker_benign_visibility_ratio import AttackerBenignVisibilityRatioMetric
+from opencda.metrics_tools.metrics.attacker_target_confidence import AttackerTargetConfidenceMetric
+from opencda.metrics_tools.metrics.ap_at_iou import APAtIoUMetric
 
 if TYPE_CHECKING:
     from opencood.data_utils.datasets.early_fusion_dataset import EarlyFusionDataset
@@ -30,6 +36,12 @@ else:
     DatasetOpenCOOD: TypeAlias = object
 
 logger = logging.getLogger("cavise.opencda.opencda.core.common.coperception_model_manager")
+
+__all__ = (
+    "CoperceptionInferenceResult",
+    "CoperceptionModelManager",
+    "CoperceptionVisualizer",
+)
 
 ColorRGB = tuple[int, int, int]
 CoreMethodName = Literal[
@@ -90,62 +102,6 @@ class InferenceMapper:
         raise NotImplementedError(
             f'Unsupported cooperative perception fusion.core_method "{core_method}". Supported core methods: {supported_methods}.'
         )
-
-
-@dataclass
-class IoUResultStat:
-    tp: list[Any]
-    fp: list[Any]
-    gt: int
-    score: list[Any]
-
-    @classmethod
-    def create_empty(cls) -> "IoUResultStat":
-        return cls(tp=[], fp=[], gt=0, score=[])
-
-    def __getitem__(self, key: str) -> Any:
-        return getattr(self, key)
-
-    def __setitem__(self, key: str, value: Any) -> None:
-        setattr(self, key, value)
-
-    def as_dict(self) -> Dict[str, Any]:
-        return {
-            "tp": self.tp,
-            "fp": self.fp,
-            "gt": self.gt,
-            "score": self.score,
-        }
-
-    def merge_from(self, other: "IoUResultStat") -> None:
-        self.gt += other.gt
-        self.tp += other.tp
-        self.fp += other.fp
-        self.score += other.score
-
-
-@dataclass
-class EvaluationResultStat:
-    by_iou: Dict[float, IoUResultStat]
-
-    IOU_THRESHOLDS = (0.3, 0.5, 0.7)
-
-    @classmethod
-    def create_empty(cls) -> "EvaluationResultStat":
-        return cls({iou: IoUResultStat.create_empty() for iou in cls.IOU_THRESHOLDS})
-
-    def __getitem__(self, iou: float) -> IoUResultStat:
-        return self.by_iou[iou]
-
-    def items(self):
-        return self.by_iou.items()
-
-    def as_dict(self) -> Dict[float, Dict[str, Any]]:
-        return {iou: stat.as_dict() for iou, stat in self.by_iou.items()}
-
-    def merge_from(self, other: "EvaluationResultStat") -> None:
-        for iou in self.IOU_THRESHOLDS:
-            self.by_iou[iou].merge_from(other[iou])
 
 
 @dataclass
@@ -542,9 +498,47 @@ class CoperceptionModelManager:
         self.current_memory_data = None
         self.payload_handler = payload_handler
         self.inference = self._select_inference()
+        metric_configs = resolve_metric_collector_config(
+            self.hypes,
+            default_metric_configs={
+                APAtIoUMetric.metric_name: {
+                    "warmup_steps": 0,
+                    "global_sort_detections": self.opt.global_sort_detections,
+                },
+                AttackSuccessRateMetric.metric_name: {
+                    "warmup_steps": 0,
+                    "iou_threshold": 0.3,
+                },
+                AttackerBenignVisibilityRatioMetric.metric_name: {
+                    "warmup_steps": 0,
+                    "epsilon": 1.0,
+                },
+                AttackerTargetConfidenceMetric.metric_name: {
+                    "warmup_steps": 0,
+                    "iou_threshold": 0.3,
+                },
+            },
+        )
+        self.metrics_collector = MetricCollector(
+            module="coperception",
+            entity_id="global",
+            metric_configs=metric_configs,
+        )
+        self.ap_at_iou_metric = self._get_ap_at_iou_metric()
 
         self._init_dataset()
-        self.final_result_stat = EvaluationResultStat.create_empty()
+
+    def _get_ap_at_iou_metric(self) -> APAtIoUMetric | None:
+        metric = self.metrics_collector.get_metric(APAtIoUMetric.metric_name)
+        if metric is None:
+            return None
+        if not isinstance(metric, APAtIoUMetric):
+            raise RuntimeError("Coperception AP at IoU metric is not available.")
+        return metric
+
+    def get_metric_collection(self) -> MetricCollection:
+        """Return raw cooperative perception metrics for the global evaluation report."""
+        return self.metrics_collector.get_raw()
 
     def _init_model(self):
         model = train_utils.create_model(self.hypes)
@@ -589,6 +583,20 @@ class CoperceptionModelManager:
     def _requires_grad_for_inference(self) -> bool:
         return False
 
+    def _build_metric_update_context(
+        self,
+        pred_box_tensor: Any,
+        pred_score: Any,
+        gt_box_tensor: Any,
+        visualization_context: Optional[Mapping[str, Any]],
+    ) -> dict[str, Any]:
+        return {
+            "pred_box_tensor": pred_box_tensor,
+            "pred_score": pred_score,
+            "gt_box_tensor": gt_box_tensor,
+            "visualization_context": visualization_context,
+        }
+
     @InferenceMapper.for_core_method("LateFusionDataset")  # noqa: DC04
     def _run_late_inference(self, batch_data):
         return self._build_inference_result(*inference_utils.inference_late_fusion(batch_data, self.model, self.opencood_dataset))
@@ -618,20 +626,6 @@ class CoperceptionModelManager:
             gt_box_tensor,
             visualization_context,
         )
-
-    @staticmethod
-    def _create_evaluation_stat() -> EvaluationResultStat:
-        return EvaluationResultStat.create_empty()
-
-    @staticmethod
-    def _update_evaluation_stat(
-        result_stat: EvaluationResultStat,
-        pred_box_tensor,
-        pred_score,
-        gt_box_tensor,
-    ) -> None:
-        for iou in EvaluationResultStat.IOU_THRESHOLDS:
-            eval_utils.caluclate_tp_fp(pred_box_tensor, pred_score, gt_box_tensor, result_stat, iou)
 
     def _extract_visualization_pcd(self, batch_data):
         ego_data = batch_data["ego"]
@@ -744,7 +738,6 @@ class CoperceptionModelManager:
 
     def make_prediction(self, tick_number):
         self.model.eval()
-        result_stat = self._create_evaluation_stat()
         sequence_state = self._init_sequence_visualization() if self.opt.show_video_vis else None
 
         visualizer_cls = self.VISUALIZER_CLASS
@@ -773,7 +766,14 @@ class CoperceptionModelManager:
             visualization_context = inference_result.visualization_context
 
         with torch.no_grad():
-            self._update_evaluation_stat(result_stat, pred_box_tensor, pred_score, gt_box_tensor)
+            self.metrics_collector.update(
+                self._build_metric_update_context(
+                    pred_box_tensor,
+                    pred_score,
+                    gt_box_tensor,
+                    visualization_context,
+                )
+            )
 
             if self.opt.save_npy:
                 self._save_prediction_npy(pred_box_tensor, gt_box_tensor, batch_data, 0)
@@ -799,9 +799,10 @@ class CoperceptionModelManager:
                     0,
                 )
 
-        self.final_result_stat.merge_from(result_stat)
-
     def final_eval(self):
         eval_dir = f"simulation_output/coperception/results/{self.opt.test_scenario}_{self.current_time}"
         os.makedirs(eval_dir, exist_ok=True)
-        eval_utils.eval_final_results(self.final_result_stat.as_dict(), eval_dir, self.opt.global_sort_detections)
+        if self.ap_at_iou_metric is None:
+            logger.info("Skipping OpenCOOD AP final eval because '%s' metric is not active.", APAtIoUMetric.metric_name)
+            return
+        self.ap_at_iou_metric.save_eval_results(eval_dir, self.opt.global_sort_detections)
