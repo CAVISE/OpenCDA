@@ -1,0 +1,31 @@
+# For advcp_check scenario
+mode: removal
+
+attacker_ids: [cav-5] # 1 attacker (helper-leftside-cav-5)
+#attacker_ids: [cav-3] # 1 attacker (helper-backward-cav-3)
+#attacker_ids: [cav-2, cav-3, cav-5, cav-6, cav-7] # 5 attackers, 1 benign
+#attacker_ids: [cav-2, cav-3, cav-4, cav-5, cav-6, cav-7] # all 6 are attackers
+advshape: false
+
+# Shared attack target definition used by early-fusion removal.
+default_size: [4.5, 2.0, 1.6]
+boxes:
+  - absolute: [35, 149.792206, 0.0, 0.0, 0.0, 0.0] # remove custom-cav-20
+
+# These parameters are currently ignored by early-fusion removal
+# but kept here for config consistency across AdvCP modes.
+density: dense_all
+dense_distance: 10.0
+max_perturb: 10.0
+lr: 0.05
+step: 25
+sync: true
+init: true
+online: true
+feature_size: 10
+car_mesh_path: ../../../core/attack/advcp/3d_models/car_mesh_0200.ply
+car_mesh_divide_path: ../../../core/attack/advcp/3d_models/spoof/car_mesh_divide.pkl
+
+# Optional adv-shape pretrained assets (used only when advshape: true).
+# remove_adv_shape_perturb_path: ../../../core/attack/advcp/3d_models/remove/mesh_perturb.npy
+# remove_adv_shape_divide_path: ../../../core/attack/advcp/3d_models/remove/mesh_divide.pkl

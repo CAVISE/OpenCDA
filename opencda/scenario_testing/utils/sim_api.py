@@ -21,6 +21,7 @@ from omegaconf.listconfig import ListConfig
 
 import carla
 import numpy as np
+import torch
 
 from opencda.core.common.vehicle_manager import VehicleManager
 from opencda.core.application.platooning.platooning_manager import PlatooningManager
@@ -175,8 +176,12 @@ class ScenarioManager:
 
         # set random seed if stated
         if "seed" in simulation_config:
-            np.random.seed(simulation_config["seed"])
-            random.seed(simulation_config["seed"])
+            seed = int(simulation_config["seed"])
+            np.random.seed(seed)
+            random.seed(seed)
+            torch.manual_seed(seed)
+            if torch.cuda.is_available():
+                torch.cuda.manual_seed_all(seed)
 
         self.client = carla.Client(carla_host, simulation_config["client_port"])
         self.client.set_timeout(carla_timeout)

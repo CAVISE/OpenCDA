@@ -47,7 +47,7 @@ class ResBEVBackbone(nn.Module):
                         )
                     )
                 else:
-                    stride = np.round(1 / stride).astype(np.int)
+                    stride = np.round(1 / stride).astype(int)
                     self.deblocks.append(
                         nn.Sequential(
                             nn.Conv2d(num_filters[idx], num_upsample_filters[idx], stride, stride=stride, bias=False),

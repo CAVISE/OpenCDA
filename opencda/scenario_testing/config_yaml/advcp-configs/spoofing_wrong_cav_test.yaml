@@ -1,6 +1,6 @@
 # Test wrong configuration
-mode: spoof
-attacker_id: wrong-cav-100
+mode: spoofing
+attacker_ids: [wrong-cav-100]
 default_size: [4.5, 2.0, 1.6]
 boxes:
   - relative: [10.0, 0.0, 0.0, 0.0, 0.0, 0.0]

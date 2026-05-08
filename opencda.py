@@ -179,7 +179,7 @@ def main() -> None:
     cwd = pathlib.Path.cwd()
     default_yaml = config_yaml = cwd / "opencda/scenario_testing/config_yaml/default.yaml"
     config_yaml = cwd / f"opencda/scenario_testing/config_yaml/{opt.test_scenario}.yaml"
-    advcp_config_dir = cwd / "opencda/scenario_testing/config_yaml/advcp"
+    advcp_config_dir = cwd / "opencda/scenario_testing/config_yaml/advcp-configs"
     if not config_yaml.is_file():
         logger.error(f"{config_yaml.relative_to(cwd)} not found!")
         sys.exit(errno.EPERM)

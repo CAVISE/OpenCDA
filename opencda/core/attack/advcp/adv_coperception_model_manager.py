@@ -2,15 +2,22 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Mapping, Optional
+from typing import Any, Mapping, Optional, cast
 
 import numpy as np
-import yaml  # type: ignore[import-untyped]
+import numpy.typing as npt
+import yaml
 
 from opencda.core.attack.advcp.attack_helper import AdvCPAttackHelper
 from opencda.core.attack.advcp.early_fusion_attack import AdvCoperceptionEarlyFusionAttack
+from opencda.core.attack.advcp.intermediate_fusion_attack import AdvCoperceptionIntermediateFusionAttack
 from opencda.core.attack.advcp.late_fusion_attack import AdvCoperceptionLateFusionAttack
-from opencda.core.attack.advcp.types import AdvCPAttackResult
+from opencda.core.attack.advcp.types import (
+    AdvCPAttackResult,
+    AdvCPConfig,
+    AdvCPIntermediateAttackState,
+    AdvCPMemoryData,
+)
 from opencda.core.common.coperception_model_manager import (
     CoperceptionInferenceResult,
     CoperceptionModelManager,
@@ -26,24 +33,31 @@ class AdvCoperceptionVisualizer(CoperceptionVisualizer):
         "background": (0, 0, 0),
         "lidar_point_colors": {
             "other": (255, 255, 255),
-            "ego": (80, 255, 80),
-            "attackers": (255, 90, 90),
-            "spoofing": (180, 0, 255),
         },
         "bbox_colors": {
             "gt": (0, 255, 0),
             "pred": (255, 0, 0),
             "fake": (180, 0, 255),
+            "removed": (56, 189, 248),
         },
         "bbox_line_thickness": 5,
         "image_dpi": 400,
     }
 
+    @staticmethod
+    def _get_context_value(visualization_context: Any, key: str, default: Any = None) -> Any:
+        if visualization_context is None:
+            return default
+        return getattr(visualization_context, key, default)
+
     @classmethod
-    def _get_extra_box_tensors(cls, visualization_context: Optional[Mapping[str, Any]] = None) -> dict[str, Any]:
+    def _get_extra_box_tensors(cls, visualization_context: Optional[Any] = None) -> dict[str, Any]:
         if not visualization_context:
             return {}
-        return {"fake": visualization_context.get("fake_box_tensor")}
+        return {
+            "fake": cls._get_context_value(visualization_context, "fake_box_tensor"),
+            "removed": cls._get_context_value(visualization_context, "removed_box_tensor"),
+        }
 
     @staticmethod
     def _require_visualization_value(config: Mapping[str, Any], section: str, key: str) -> Any:
@@ -62,8 +76,8 @@ class AdvCoperceptionVisualizer(CoperceptionVisualizer):
         batch_data: Any,
         fallback_pcd: Any,
         config: Mapping[str, Any],
-        visualization_context: Optional[Mapping[str, Any]] = None,
-    ) -> tuple[np.ndarray, np.ndarray]:
+        visualization_context: Optional[Any] = None,
+    ) -> tuple[npt.NDArray, npt.NDArray]:
         if not isinstance(batch_data, Mapping):
             return super()._get_lidar_points_and_colors(
                 batch_data,
@@ -89,9 +103,10 @@ class AdvCoperceptionVisualizer(CoperceptionVisualizer):
                 visualization_context=visualization_context,
             )
 
+        lidar_point_colors = config["lidar_point_colors"]
         other_color = cls._as_uint8_color(cls._require_visualization_value(config, "lidar_point_colors", "other"))
-        ego_color = cls._as_uint8_color(cls._require_visualization_value(config, "lidar_point_colors", "ego"))
-        spoofing_color = cls._as_uint8_color(cls._require_visualization_value(config, "lidar_point_colors", "spoofing"))
+        ego_color = cls._as_uint8_color(lidar_point_colors.get("ego", other_color))
+        spoofing_color = cls._as_uint8_color(lidar_point_colors.get("spoofing", other_color))
         points_by_agent = ego_entry["origin_lidar_by_agent"]
         roles = list(ego_entry.get("origin_lidar_roles", []))
         agent_ids = list(ego_entry.get("origin_lidar_agent_ids", []))
@@ -141,13 +156,13 @@ class AdvCoperceptionVisualizer(CoperceptionVisualizer):
         role: str,
         other_color: tuple[int, int, int],
         ego_color: tuple[int, int, int],
-        visualization_context: Optional[Mapping[str, Any]] = None,
+        visualization_context: Optional[Any] = None,
     ) -> tuple[int, int, int]:
         lidar_point_colors = config["lidar_point_colors"]
         if agent_id is not None and agent_id in lidar_point_colors:
             return cls._as_uint8_color(lidar_point_colors[agent_id])
-        attacker_ids = set((visualization_context or {}).get("attacker_ids", []))
-        attacker_color = cls._as_uint8_color(cls._require_visualization_value(config, "lidar_point_colors", "attackers"))
+        attacker_ids = set(cls._get_context_value(visualization_context, "attacker_ids", []))
+        attacker_color = cls._as_uint8_color(lidar_point_colors.get("attackers", other_color))
         if agent_id is not None and agent_id in attacker_ids:
             return attacker_color
         if role == "ego":
@@ -157,7 +172,7 @@ class AdvCoperceptionVisualizer(CoperceptionVisualizer):
 
 class AdvCoperceptionModelManager(CoperceptionModelManager):
     VISUALIZER_CLASS = AdvCoperceptionVisualizer
-    SEQUENCE_BOX_GROUP_NAMES: tuple[str, ...] = ("pred", "gt", "fake")
+    SEQUENCE_BOX_GROUP_NAMES: tuple[str, ...] = ("pred", "gt", "fake", "removed")
 
     def __init__(
         self,
@@ -167,12 +182,13 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
         visualization_config: Optional[Mapping[str, Any]] = None,
     ) -> None:
         self.advcp_config = self.load_config(getattr(opt, "advcp_config", None))
-        self.current_memory_data: Optional[dict[Any, Any]] = None
+        self.current_memory_data: Optional[AdvCPMemoryData] = None
+        self.intermediate_attack_state: AdvCPIntermediateAttackState = {}
         super().__init__(opt, current_time, payload_handler=payload_handler, visualization_config=visualization_config)
 
     @staticmethod
-    def load_config(config_path: str | None) -> dict[str, Any]:
-        config: dict[str, Any] = {}
+    def load_config(config_path: str | None) -> AdvCPConfig:
+        config: dict[str, object] = {}
         config_dir: Path | None = None
         local_model_root = Path(__file__).resolve().parent / "3d_models"
 
@@ -191,26 +207,44 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
                 else:
                     logger.warning("AdvCP config '%s' is not a mapping. Falling back to defaults.", config_path)
 
-        config.setdefault("mode", "spoof")
+        config.setdefault("mode", "spoofing")
         config.setdefault("default_size", (4.5, 2.0, 1.6))
         config.setdefault("boxes", [{"relative": (5.0, 0.0, 0.0, 0.0, 90.0, 0.0)}])
-        config.setdefault("attacker_id", "cav-1")
-        config.setdefault("density", 3)
+        config.setdefault("attacker_ids", ["cav-1"])
+        config.setdefault("advshape", False)
+        config.setdefault("density", "sampled")
         config.setdefault("dense_distance", 10.0)
-        if "car_mesh_path" not in config and "model_path" in config:
-            config["car_mesh_path"] = config["model_path"]
-        if "car_mesh_divide_path" not in config and "mesh_divide_path" in config:
-            config["car_mesh_divide_path"] = config["mesh_divide_path"]
-        config.setdefault("car_mesh_path", str(local_model_root / "car_mesh_0200.ply"))
-        config.setdefault("car_mesh_divide_path", str(local_model_root / "spoof" / "car_mesh_divide.pkl"))
+        config.setdefault("sync", True)
+        config.setdefault("init", True)
+        config.setdefault("online", True)
+        config.setdefault("step", 25)
+        config.setdefault("max_perturb", 10.0)
+        step_value = cast(int | str, config["step"])
+        config.setdefault("lr", 1.0 if int(step_value) <= 2 else 0.05)
+        config.setdefault("feature_size", 10)
+        config.setdefault("car_mesh_path", config.get("model_path", str(local_model_root / "car_mesh_0200.ply")))
+        config.setdefault(
+            "car_mesh_divide_path",
+            config.get("mesh_divide_path", str(local_model_root / "spoof" / "car_mesh_divide.pkl")),
+        )
+
+        config["attacker_ids"] = AdvCPAttackHelper.resolve_configured_attacker_ids(cast(AdvCPConfig, config))
 
         for required_key in (
             "mode",
             "default_size",
             "boxes",
-            "attacker_id",
+            "attacker_ids",
+            "advshape",
             "density",
             "dense_distance",
+            "sync",
+            "init",
+            "online",
+            "step",
+            "max_perturb",
+            "lr",
+            "feature_size",
             "car_mesh_path",
             "car_mesh_divide_path",
         ):
@@ -222,32 +256,41 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
                 path = Path(str(path_value)).expanduser()
                 if not path.is_absolute():
                     config[path_key] = str((config_dir / path).resolve())
-        return config
+
+        for optional_path_key in ("remove_adv_shape_perturb_path", "remove_adv_shape_divide_path"):
+            path_value = config.get(optional_path_key)
+            if path_value is not None and config_dir is not None:
+                path = Path(str(path_value)).expanduser()
+                if not path.is_absolute():
+                    config[optional_path_key] = str((config_dir / path).resolve())
+        return cast(AdvCPConfig, config)
 
     def validate_advcp_agents(self, valid_agent_ids: list[str]) -> bool:
         mode = AdvCPAttackHelper.require_config_value(self.advcp_config, "mode")
-        attacker_id = AdvCPAttackHelper.require_config_value(self.advcp_config, "attacker_id")
+        configured_attacker_ids = AdvCPAttackHelper.resolve_configured_attacker_ids(self.advcp_config)
+        attacker_ids: list[str] = []
+        for attacker_id in configured_attacker_ids:
+            if attacker_id in valid_agent_ids:
+                attacker_ids.append(attacker_id)
+            else:
+                logger.warning(
+                    "AdvCP attacker_id '%s' does not exist. Known agents: %s. AdvCP attack will not be applied for this attacker.",
+                    attacker_id,
+                    ", ".join(valid_agent_ids),
+                )
 
-        if attacker_id in valid_agent_ids:
-            self.advcp_config["attacker_id"] = attacker_id
-        else:
-            logger.warning(
-                "AdvCP attacker_id '%s' does not exist. Known agents: %s. AdvCP attack will not be applied.",
-                attacker_id,
-                ", ".join(valid_agent_ids),
+        self.advcp_config["attacker_ids"] = attacker_ids
+
+        if not attacker_ids:
+            raise ValueError(
+                "AdvCP is enabled, but no valid attackers were resolved. "
+                f"Configured attackers: {', '.join(configured_attacker_ids)}. Known agents: {', '.join(valid_agent_ids)}."
             )
-            self.advcp_config["attacker_id"] = None
-
-        attacker_ids = [self.advcp_config["attacker_id"]] if self.advcp_config.get("attacker_id") else []
 
         logger.info("AdvCP mode: %s", mode)
-        if attacker_ids:
-            logger.info("AdvCP attacks are enabled and will be applied during cooperative perception inference.")
-            logger.info("AdvCP attackers: %s", ", ".join(attacker_ids))
-            return True
-        else:
-            logger.warning("AdvCP is enabled, but no valid attackers were resolved. Attacks will not be applied.")
-            return False
+        logger.info("AdvCP attacks are enabled and will be applied during cooperative perception inference.")
+        logger.info("AdvCP attackers: %s", ", ".join(attacker_ids))
+        return True
 
     def _run_late_inference(self, batch_data: Any) -> CoperceptionInferenceResult:  # noqa: DC04
         return self._build_inference_result(
@@ -280,8 +323,36 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
                 self.model,
                 self.opencood_dataset,
                 self.device,
+                advcp_config=self.advcp_config,
+                memory_data=self.current_memory_data,
+                attack_state=self.intermediate_attack_state,
             )
         )
+
+    def _requires_grad_for_inference(self) -> bool:
+        core_method = self.hypes.get("fusion", {}).get("core_method")
+        return core_method in {"IntermediateFusionDataset", "IntermediateFusionDatasetV2"}
+
+    def _build_metric_update_context(
+        self,
+        pred_box_tensor: Any,
+        pred_score: Any,
+        gt_box_tensor: Any,
+        visualization_context: Optional[Mapping[str, Any]],
+    ) -> dict[str, Any]:
+        context = super()._build_metric_update_context(
+            pred_box_tensor,
+            pred_score,
+            gt_box_tensor,
+            visualization_context,
+        )
+        context.update(
+            {
+                "advcp_config": self.advcp_config,
+                "memory_data": self.current_memory_data,
+            }
+        )
+        return context
 
     @staticmethod
     def _inference_late_fusion_attack(*args: Any, **kwargs: Any) -> AdvCPAttackResult:
@@ -292,5 +363,5 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
         return AdvCoperceptionEarlyFusionAttack.run(*args, **kwargs)
 
     @staticmethod
-    def _inference_intermediate_fusion_attack(*args: Any, **kwargs: Any) -> tuple[Any, Any, Any]:
-        raise NotImplementedError("AdvCP intermediate fusion spoofing is not available yet.")
+    def _inference_intermediate_fusion_attack(*args: Any, **kwargs: Any) -> AdvCPAttackResult:
+        return AdvCoperceptionIntermediateFusionAttack.run(*args, **kwargs)

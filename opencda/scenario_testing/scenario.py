@@ -4,8 +4,9 @@ import argparse
 import logging
 import os
 from dataclasses import dataclass
+from itertools import chain
 from pathlib import Path
-from typing import TYPE_CHECKING, NoReturn, cast
+from typing import TYPE_CHECKING, Any, NoReturn, cast
 
 import carla
 from omegaconf import DictConfig, OmegaConf
@@ -13,13 +14,15 @@ from omegaconf import DictConfig, OmegaConf
 import opencda.scenario_testing.utils.cosim_api as sim_api
 import opencda.scenario_testing.utils.customized_map_api as map_api
 from opencda.core.application.platooning.platooning_manager import PlatooningManager
+from opencda.core.attack.adversary_framework import Attack, AttackManager, AttackResult, AttackSpec
 from opencda.core.common.cav_world import CavWorld
 from opencda.core.common.coperception_data_processor import CoperceptionDataProcessor
 from opencda.core.common.rsu_manager import RSUManager
 from opencda.core.common.vehicle_manager import VehicleManager
 from opencda.core.sensing.perception.perception_manager import PerceptionRequirements
+from opencda.scenario_testing.types import NodeSnapshot, SimulationSnapshot
 from opencda.scenario_testing.evaluations.evaluate_manager import EvaluationManager
-from opencda.scenario_testing.utils.yaml_utils import YamlDict, add_current_time, save_yaml
+from opencda.scenario_testing.utils.yaml_utils import YamlDict, add_current_time, load_yaml, save_yaml
 
 from opencda.core.application.behavior import TransportMessage
 
@@ -219,7 +222,53 @@ class Scenario:
 
         self.spectator = self.scenario_manager.world.get_spectator()
 
-        self.messages: list[TransportMessage] = []
+        self.messages: list[TransportMessage[Any]] = []
+        self.simulation_snapshot = SimulationSnapshot(tick=-1)
+        self.attack_manager = AttackManager()
+        attacks_config = scenario_config.get("attacks", [])
+        if not isinstance(attacks_config, list):
+            self._abort_simulation("Scenario config field 'attacks' must be a list of attack names.")
+
+        attacks: list[Attack] = []
+        for attack_name in attacks_config:
+            if not isinstance(attack_name, str):
+                self._abort_simulation("Scenario config field 'attacks' must contain only attack names as strings.")
+
+            attack_config_path = Path("opencda/core/attack/adversary_framework/attacks") / attack_name / "config.yaml"
+            attack_config = load_yaml(attack_config_path)
+            attack_spec = AttackSpec.from_dict(cast(YamlDict, attack_config["attack"]))
+            attacks.append(Attack.from_spec(attack_spec))
+
+        self.attacks = attacks
+        self.attack_results: tuple[AttackResult, ...] = ()
+
+    def _build_simulation_snapshot(self, tick: int) -> SimulationSnapshot:
+        vehicle_nodes = tuple(
+            NodeSnapshot(
+                node_id=vehicle_manager.id,
+                node_type="vehicle",
+                service_states=dict(vehicle_manager.behavior_service_states),
+            )
+            for vehicle_manager in chain(
+                self.single_cav_list,
+                *(platoon.vehicle_manager_list for platoon in self.platoon_list),
+            )
+        )
+
+        rsu_nodes = tuple(
+            NodeSnapshot(
+                node_id=rsu.id,
+                node_type="rsu",
+                service_states=dict(rsu.behavior_service_states),
+            )
+            for rsu in self.rsu_list
+        )
+
+        return SimulationSnapshot(
+            tick=tick,
+            vehicle_nodes=vehicle_nodes,
+            rsu_nodes=rsu_nodes,
+        )
 
     def run(self, opt: argparse.Namespace) -> None:
         if self.communication_manager is None:
@@ -251,7 +300,7 @@ class Scenario:
                 for platoon in self.platoon_list:
                     platoon.update_information()
 
-            new_messages = []
+            new_messages: list[TransportMessage[Any]] = []
             if self.single_cav_list is not None:
                 logger.debug("updating single cavs")
 
@@ -279,15 +328,24 @@ class Scenario:
 
             if self.single_cav_list is not None:
                 for single_cav in self.single_cav_list:
-                    cav_messages = single_cav.run_step(messages=self.messages)
+                    cav_messages, _ = single_cav.run_step(messages=self.messages)
                     new_messages.extend(cav_messages)
 
             if self.rsu_list is not None:
                 for rsu in self.rsu_list:
-                    rsu_messages = rsu.run_step(self.messages)
+                    rsu_messages, _ = rsu.run_step(messages=self.messages)
                     new_messages.extend(rsu_messages)
 
             self.messages = new_messages
+            self.simulation_snapshot = self._build_simulation_snapshot(tick_number)
+
+            self.attack_results = self.attack_manager.evaluate(
+                self.attacks,
+                self.simulation_snapshot,
+                service_resolver=self.cav_world.resolve_behavior_service,
+            )
+            for result in self.attack_results:
+                logger.info("attack=%s status=%s reason=%s", result.attack_name, result.status.value, result.reason)
 
     def capi_loop(self, opt: argparse.Namespace) -> None:
         if self.communication_manager is None:
@@ -360,13 +418,25 @@ class Scenario:
                 for platoon in self.platoon_list:
                     platoon.run_step()
 
+            new_messages: list[TransportMessage[Any]] = []
             if self.single_cav_list is not None:
                 for single_cav in self.single_cav_list:
-                    single_cav.run_step()  # TODO: handle messages from single cavs
+                    cav_messages, _ = single_cav.run_step(messages=self.messages)
+                    new_messages.extend(cav_messages)
 
             if self.rsu_list is not None:
                 for rsu in self.rsu_list:
-                    rsu.run_step()  # TODO: handle messages from rsus
+                    rsu_messages, _ = rsu.run_step(messages=self.messages)
+                    new_messages.extend(rsu_messages)
+
+            self.simulation_snapshot = self._build_simulation_snapshot(tick_number)
+            self.attack_results = self.attack_manager.evaluate(
+                self.attacks,
+                self.simulation_snapshot,
+                service_resolver=self.cav_world.resolve_behavior_service,
+            )
+            for result in self.attack_results:
+                logger.info("attack=%s status=%s reason=%s", result.attack_name, result.status.value, result.reason)
 
     def finalize(self, opt: argparse.Namespace) -> None:
         if opt.record:
@@ -374,7 +444,7 @@ class Scenario:
             logger.info("finalizing: stopping recorder")
 
         if self.eval_manager is not None:
-            self.eval_manager.evaluate()
+            self.eval_manager.evaluate(coperception_model_manager=self.coperception_model_manager)
             logger.info("finalizing: evaluating results")
 
         if self.coperception_model_manager is not None:

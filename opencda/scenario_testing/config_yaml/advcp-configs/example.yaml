@@ -1,0 +1,164 @@
+# Example AdvCP config with all currently supported parameters.
+#
+# Parameter groups in this file:
+# 1. Shared attack parameters
+#    Used by all AdvCP attack handlers, regardless of fusion method.
+# 2. Shared box target parameters
+#    Used by spoofing and by early-fusion removal.
+# 3. Spoofing-only parameters
+#    Used only when `mode: spoofing`.
+# 4. Early-fusion spoofing parameters
+#    Used only by early LiDAR spoofing.
+# 5. Intermediate-fusion spoofing parameters
+#    Used only by intermediate feature-space spoofing.
+#
+# Notes:
+# - `removal` is currently implemented only for early fusion.
+# - Late/intermediate removal are still not implemented.
+# - `boxes` are shared by spoofing and by early removal.
+
+# ---------------------------------------------------------------------------
+# Shared attack parameters
+# ---------------------------------------------------------------------------
+
+# Shared across all AdvCP attacks and all fusion methods.
+# Supported values:
+# - `spoofing` : supported for late/early/intermediate fusion
+# - `removal`  : currently supported only for early fusion
+mode: spoofing
+
+# Shared across all AdvCP attacks and all fusion methods.
+# Agent ids that perform the attack.
+# Use one item for single-attacker setup.
+# Example (multi-attacker for late/early): [rsu-1, cav-2]
+# Important: intermediate fusion currently supports only ONE attacker id.
+attacker_ids: [rsu-1]
+
+# Shared across all AdvCP attacks and all fusion methods.
+# Early-removal specific:
+# - false: use non-adv-shape removal meshes.
+# - true : use adv-shape removal meshes (optionally with pretrained perturbation).
+advshape: false
+
+# ---------------------------------------------------------------------------
+# Shared box target parameters
+# ---------------------------------------------------------------------------
+
+# Used by spoofing attacks in late / early / intermediate fusion
+# and by early-fusion removal.
+# Default spoofed object size [length, width, height].
+# Applied when a box entry does not define its own `size`.
+default_size: [4.5, 2.0, 1.6]
+
+# Used by spoofing attacks in late / early / intermediate fusion
+# and by early-fusion removal.
+# Each entry must define exactly one of:
+# - `relative`: pose relative to ego vehicle
+# - `absolute`: pose in world coordinates
+#
+# Pose format:
+# [x, y, z, roll, yaw, pitch]
+#
+# Optional per-box `size` format:
+# [length, width, height]
+boxes:
+  # Forward spoof using default_size.
+  - relative: [15.0, 0.0, 0.0, 0.0, 90.0, 0.0]
+
+  # Custom-sized spoof relative to ego.
+  - relative: [25.0, -3.5, 0.0, 0.0, 90.0, 0.0]
+    size: [4.8, 2.1, 1.7]
+
+  # Example absolute pose in world coordinates.
+  # Uncomment and adjust if you want a world-fixed spoof target.
+  # - absolute: [120.0, 45.0, 0.0, 0.0, 90.0, 0.0]
+  #   size: [4.5, 2.0, 1.6]
+
+# ---------------------------------------------------------------------------
+# Spoofing-only parameters
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# Early-fusion spoofing parameters
+# ---------------------------------------------------------------------------
+
+# Density mode for LiDAR point spoofing:
+# replace          : replace existing hit points with spoofed intersections
+# dense_a          : append dense spoofed points from one virtual offset
+# denseall/dense_all: append dense spoofed points using offsets from all collaborators
+# sampled          : sample spoofed points from mesh pieces
+density: sampled
+
+# Virtual sensor offset in meters used by dense_a and dense_all.
+dense_distance: 10.0
+
+# Optional for early-fusion removal when `advshape: true`.
+# If provided, applies pretrained vertex perturbation to the canonical adv-shape template.
+# remove_adv_shape_perturb_path: ../../../core/attack/advcp/3d_models/remove/mesh_perturb.npy
+
+# Optional for early-fusion removal when `advshape: true`.
+# If provided, overrides default adv-shape mesh partitioning.
+# remove_adv_shape_divide_path: ../../../core/attack/advcp/3d_models/remove/mesh_divide.pkl
+
+# 3D car mesh used for ray-traced spoofing.
+# Used directly by early spoofing and by intermediate spoofing when `init: true`.
+# Relative paths are resolved from this YAML file.
+car_mesh_path: ../../../core/attack/advcp/3d_models/car_mesh_0200.ply
+
+# Mesh partition file used to split the car mesh into pieces for sampled spoofing.
+# Used by early spoofing and by intermediate spoofing when `init: true`.
+# Relative paths are resolved from this YAML file.
+car_mesh_divide_path: ../../../core/attack/advcp/3d_models/spoof/car_mesh_divide.pkl
+
+# ---------------------------------------------------------------------------
+# Intermediate-fusion spoofing parameters
+# ---------------------------------------------------------------------------
+
+# IMPORTANT:
+# - Intermediate spoofing with multiple attackers is not implemented yet.
+# - If you run intermediate fusion, set exactly one attacker in `attacker_ids`.
+
+# Maximum feature perturbation magnitude.
+max_perturb: 10.0
+
+# Adam learning rate for perturbation optimization.
+# Larger values make the attack move faster but can make it less stable.
+lr: 0.05
+
+# Number of optimization steps.
+# Each step is one forward + loss + backward + optimizer update.
+# Larger values usually make the attack stronger, but slower.
+step: 25
+
+# Async toggle:
+# - false: optimize and evaluate on the current tick
+# - true: optimize on the previous tick, then apply/evaluate on the current tick
+#
+# In practice, `sync: true` means the attacker spends one tick estimating the perturbation
+# and then uses it on the next tick. This is closer to an online setting, but slower
+# and more sensitive to scene changes between ticks.
+sync: true
+
+# If enabled, initialize the intermediate attack from a mesh-based LiDAR spoof.
+# In plain terms, this gives the feature attack a better starting point than all zeros.
+# So yes: this is effectively an "early spoofing style" initialization step before the
+# main feature-space optimization starts.
+init: true
+
+# If enabled, reuse half of the perturbation found on the previous tick.
+# This makes the attack stateful across time instead of restarting from scratch every tick.
+online: true
+
+# Half-size of the square perturbation patch in feature space.
+# The actual patch size is:
+#   height = 2 * feature_size
+#   width = 2 * feature_size
+#
+# Example:
+# - feature_size: 10  ->  patch size 20 x 20
+# - feature_size: 6   ->  patch size 12 x 12
+#
+# Why "times two"?
+# Because the patch extends `feature_size` cells to the left/right of the center
+# and `feature_size` cells up/down from the center.
+feature_size: 10

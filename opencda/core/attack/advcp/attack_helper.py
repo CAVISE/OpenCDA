@@ -4,19 +4,35 @@ import copy
 import logging
 from pathlib import Path
 import pickle
-from typing import Any, Mapping, Sequence
+from typing import Any, Iterable, Mapping, NoReturn, Sequence, cast
 
 import numpy as np
+import numpy.typing as npt
 import torch
 from opencood.hypes_yaml.yaml_utils import load_yaml
 from opencood.utils.transformation_utils import x_to_world
 
-from opencda.core.attack.advcp.types import AdvCPAgentState
+from opencda.core.attack.advcp.types import (
+    AdvCPAgentState,
+    AdvCPBoxSpec,
+    AdvCPConfig,
+    AdvCPMemoryData,
+    AdvCPScenarioData,
+)
+from opencda.core.common.coperception_data_processor import LiveMemorySnapshot
 
 logger = logging.getLogger("cavise.opencda.opencda.core.attack.advcp.advcp_manager")
 
 
 class AdvCPAttackHelper:
+    DENSITY_ALIASES = {
+        "replace": 0,
+        "dense_a": 1,
+        "denseall": 2,
+        "dense_all": 2,
+        "sampled": 3,
+    }
+
     @staticmethod
     def require_config_value(config: Mapping[str, Any], key: str, config_name: str = "AdvCP config") -> Any:
         value = config.get(key)
@@ -25,23 +41,24 @@ class AdvCPAttackHelper:
         return value
 
     @staticmethod
-    def resolve_ego_agent_id(scenario_data: Mapping[str, Any]) -> str:
+    def resolve_ego_agent_id(scenario_data: AdvCPScenarioData) -> str:
         ego_agent_id = next((agent_id for agent_id, agent_data in scenario_data.items() if agent_data.get("ego")), None)
         if ego_agent_id is None:
             raise ValueError("Unable to resolve ego agent for AdvCP attack.")
         return ego_agent_id
 
     @staticmethod
-    def load_agent_state(scenario_data: Mapping[str, Any], agent_id: str) -> AdvCPAgentState:
+    def load_agent_state(scenario_data: AdvCPScenarioData, agent_id: str) -> AdvCPAgentState:
         agent_data = scenario_data[agent_id]
         timestamp = next(key for key in agent_data.keys() if key != "ego")
-        snapshot = agent_data[timestamp]
-        yaml_path = snapshot.get("yaml")
-        if (params := snapshot.get("params")) is None:
+        snapshot = cast(Mapping[str, Any], agent_data[timestamp])
+        yaml_path = cast(str | None, snapshot.get("yaml"))
+        params = cast(Mapping[str, Any] | None, snapshot.get("params"))
+        if params is None:
             if yaml_path is None:
                 raise ValueError(f"AdvCP agent state for '{agent_id}' does not define either 'params' or 'yaml'.")
 
-            params = load_yaml(yaml_path)
+            params = cast(Mapping[str, Any], load_yaml(yaml_path))
 
         lidar_pose = params["lidar_pose"]
         return {
@@ -54,41 +71,169 @@ class AdvCPAttackHelper:
         }
 
     @classmethod
-    def resolve_spoof_boxes(
+    def resolve_configured_attacker_ids(cls, advcp_config: AdvCPConfig) -> list[str]:
+        attacker_ids_raw = cls.require_config_value(advcp_config, "attacker_ids")
+        if not isinstance(attacker_ids_raw, list):
+            raise ValueError("AdvCP config key 'attacker_ids' must be a sequence of agent ids.")
+
+        ordered_ids: list[str] = []
+        for attacker_id in attacker_ids_raw:
+            if attacker_id is None:
+                continue
+            normalized_attacker_id = str(attacker_id).strip()
+            if not normalized_attacker_id:
+                continue
+            if normalized_attacker_id in ordered_ids:
+                continue
+            ordered_ids.append(normalized_attacker_id)
+        return ordered_ids
+
+    @staticmethod
+    def resolve_present_and_missing_attackers(
+        configured_attacker_ids: Sequence[str],
+        available_agent_ids: Iterable[Any],
+    ) -> tuple[list[str], list[str]]:
+        available_agent_id_set = {str(agent_id) for agent_id in available_agent_ids}
+        present_attacker_ids: list[str] = []
+        missing_attacker_ids: list[str] = []
+        for attacker_id in configured_attacker_ids:
+            if attacker_id in available_agent_id_set:
+                present_attacker_ids.append(attacker_id)
+            else:
+                missing_attacker_ids.append(attacker_id)
+        return present_attacker_ids, missing_attacker_ids
+
+    @classmethod
+    def resolve_attack_scope(
         cls,
-        advcp_config: Mapping[str, Any],
-        memory_data: Mapping[Any, Any] | None,
-    ) -> tuple[str | None, list[np.ndarray]]:
+        advcp_config: AdvCPConfig,
+        memory_data: AdvCPMemoryData,
+    ) -> tuple[AdvCPScenarioData, list[str], list[str], list[str]]:
+        scenario_data = next(iter(memory_data.values()))
+        configured_attacker_ids = cls.resolve_configured_attacker_ids(advcp_config)
+        present_attacker_ids, missing_attacker_ids = cls.resolve_present_and_missing_attackers(
+            configured_attacker_ids,
+            scenario_data.keys(),
+        )
+        return scenario_data, configured_attacker_ids, present_attacker_ids, missing_attacker_ids
+
+    @classmethod
+    def build_lidar_pose_map(cls, scenario_data: AdvCPScenarioData) -> dict[str, npt.NDArray]:
+        return {agent_id: np.asarray(cls.load_agent_state(scenario_data, agent_id)["lidar_pose"], dtype=np.float32) for agent_id in scenario_data}
+
+    @staticmethod
+    def resolve_agent_snapshot(scenario_data: AdvCPScenarioData, agent_id: str) -> LiveMemorySnapshot:
+        agent_data = scenario_data[agent_id]
+        timestamp = next(key for key in agent_data.keys() if key != "ego")
+        return cast(LiveMemorySnapshot, agent_data[timestamp])
+
+    @staticmethod
+    def require_agent_lidar(agent_snapshot: LiveMemorySnapshot, agent_id: str, context: str) -> npt.NDArray:
+        if (lidar := agent_snapshot.get("lidar_np")) is None:
+            raise ValueError(f"{context} requires in-memory lidar_np for attacker '{agent_id}'.")
+        return np.asarray(lidar, dtype=np.float32)
+
+    @classmethod
+    def resolve_density(cls, density_value: Any, context: str = "early attack") -> int:
+        normalized_value = density_value
+        if isinstance(density_value, str):
+            normalized_value = density_value.strip().lower()
+        if normalized_value not in cls.DENSITY_ALIASES:
+            supported_values = ", ".join(f"'{density}'" for density in cls.DENSITY_ALIASES)
+            raise ValueError(f"Unsupported AdvCP {context} density '{density_value}'. Supported values are {supported_values}.")
+        return cls.DENSITY_ALIASES[normalized_value]
+
+    @staticmethod
+    def build_batch_from_memory(dataset: Any, device: torch.device, memory_data: AdvCPMemoryData) -> Mapping[str, Any]:
+        from opencood.tools import train_utils
+
+        dataset.update_database(memory_data=memory_data)
+        batch = dataset.collate_batch_test([dataset[0]])
+        return train_utils.to_device(batch, device)
+
+    @staticmethod
+    def raise_no_configured_attackers(fusion_name: str) -> NoReturn:
+        raise ValueError(f"AdvCP {fusion_name} attack cannot be applied because no attackers are configured.")
+
+    @staticmethod
+    def report_missing_attackers_from_current_batch(
+        attacker_ids: Sequence[str],
+        available_agent_ids: Iterable[Any],
+        *,
+        fusion_name: str | None = None,
+    ) -> None:
+        if not attacker_ids:
+            return
+        attack_prefix = "AdvCP attack" if fusion_name is None else f"AdvCP {fusion_name} attack"
+        logger.warning(
+            "%s will not be applied on this tick because none of the configured attackers are present in the current batch. "
+            "Configured attackers: %s. Batch agents: %s. Continuing with normal cooperative perception inference.",
+            attack_prefix,
+            ", ".join(attacker_ids),
+            ", ".join(str(agent_id) for agent_id in available_agent_ids),
+        )
+
+    @staticmethod
+    def resolve_batch_agent_ids(batch_data: Mapping[str, Any], *, fallback_to_top_level: bool = True) -> list[str]:
+        ego_entry = batch_data.get("ego")
+        if isinstance(ego_entry, Mapping):
+            agent_ids = ego_entry.get("origin_lidar_agent_ids")
+            if isinstance(agent_ids, Sequence) and not isinstance(agent_ids, (str, bytes)):
+                return [str(agent_id) for agent_id in agent_ids]
+
+        if fallback_to_top_level:
+            return [str(agent_id) for agent_id in batch_data.keys()]
+
+        return []
+
+    @classmethod
+    def resolve_spoof_boxes_by_attacker(
+        cls,
+        advcp_config: AdvCPConfig,
+        memory_data: AdvCPMemoryData | None,
+    ) -> tuple[list[str], dict[str, list[npt.NDArray]]]:
         if memory_data is None:
             raise ValueError("AdvCP late spoofing requires current memory data.")
 
         mode = cls.require_config_value(advcp_config, "mode")
-        if mode != "spoof":
-            raise NotImplementedError(f"AdvCP mode '{mode}' is not available yet.")
+        match mode:
+            case "spoofing":
+                pass
+            case _:
+                raise NotImplementedError(f"AdvCP mode '{mode}' is not available yet.")
 
-        scenario_data = next(iter(memory_data.values()))
+        scenario_data, _, present_attacker_ids, _ = cls.resolve_attack_scope(advcp_config, memory_data)
         ego_agent_id = cls.resolve_ego_agent_id(scenario_data)
+        resolved_attacker_ids: list[str] = []
+        attack_boxes_by_batch_attacker: dict[str, list[npt.NDArray]] = {}
 
-        attacker_id = cls.require_config_value(advcp_config, "attacker_id")
-        if attacker_id not in scenario_data:
-            logger.warning(
-                "AdvCP attack will not be applied on this tick because attacker '%s' is not present in the current scenario data. "
-                "Continuing with normal cooperative perception inference.",
-                attacker_id,
-            )
+        for attacker_id in present_attacker_ids:
+            _, _, _, attack_boxes = cls.resolve_spoof_boxes_for_agent(scenario_data, advcp_config, attacker_id)
+            batch_attacker_id = "ego" if attacker_id == ego_agent_id else attacker_id
+            attack_boxes_by_batch_attacker.setdefault(batch_attacker_id, []).extend(attack_boxes)
+            resolved_attacker_ids.append(attacker_id)
+
+        return resolved_attacker_ids, attack_boxes_by_batch_attacker
+
+    @classmethod
+    def resolve_spoof_boxes(
+        cls,
+        advcp_config: AdvCPConfig,
+        memory_data: AdvCPMemoryData | None,
+    ) -> tuple[str | None, list[npt.NDArray]]:
+        _, attack_boxes_by_batch_attacker = cls.resolve_spoof_boxes_by_attacker(advcp_config, memory_data)
+        if not attack_boxes_by_batch_attacker:
             return None, []
-
-        _, _, _, attack_boxes = cls.resolve_spoof_boxes_for_agent(scenario_data, advcp_config, attacker_id)
-        batch_attacker_id = "ego" if attacker_id == ego_agent_id else attacker_id
-        return batch_attacker_id, attack_boxes
+        attacker_id, attack_boxes = next(iter(attack_boxes_by_batch_attacker.items()))
+        return attacker_id, attack_boxes
 
     @classmethod
     def resolve_spoof_boxes_for_agent(
         cls,
-        scenario_data: Mapping[str, Any],
-        advcp_config: Mapping[str, Any],
+        scenario_data: AdvCPScenarioData,
+        advcp_config: AdvCPConfig,
         attacker_id: str,
-    ) -> tuple[str, AdvCPAgentState, AdvCPAgentState, list[np.ndarray]]:
+    ) -> tuple[str, AdvCPAgentState, AdvCPAgentState, list[npt.NDArray]]:
         ego_agent_id = cls.resolve_ego_agent_id(scenario_data)
         ego_state = cls.load_agent_state(scenario_data, ego_agent_id)
         attacker_state = cls.load_agent_state(scenario_data, attacker_id)
@@ -97,18 +242,54 @@ class AdvCPAttackHelper:
         if not isinstance(box_specs, list) or len(box_specs) == 0:
             raise ValueError("AdvCP config must define a non-empty boxes list.")
 
-        attack_boxes = [cls.resolve_box_spec(spec, index, advcp_config, ego_state, attacker_state) for index, spec in enumerate(box_specs)]
+        attack_boxes = [
+            cls.resolve_box_spec_for_sensor_pose(
+                spec,
+                index,
+                advcp_config,
+                ego_state,
+                attacker_state["lidar_pose"],
+            )
+            for index, spec in enumerate(box_specs)
+        ]
         return ego_agent_id, ego_state, attacker_state, attack_boxes
 
     @classmethod
-    def resolve_box_spec(
+    def resolve_spoof_boxes_for_ego(
         cls,
-        spec: dict[str, Any],
+        scenario_data: AdvCPScenarioData,
+        advcp_config: AdvCPConfig,
+        attacker_id: str,
+    ) -> tuple[str, AdvCPAgentState, AdvCPAgentState, list[npt.NDArray]]:
+        ego_agent_id = cls.resolve_ego_agent_id(scenario_data)
+        ego_state = cls.load_agent_state(scenario_data, ego_agent_id)
+        attacker_state = cls.load_agent_state(scenario_data, attacker_id)
+
+        box_specs = cls.require_config_value(advcp_config, "boxes")
+        if not isinstance(box_specs, list) or len(box_specs) == 0:
+            raise ValueError("AdvCP config must define a non-empty boxes list.")
+
+        attack_boxes = [
+            cls.resolve_box_spec_for_sensor_pose(
+                spec,
+                index,
+                advcp_config,
+                ego_state,
+                ego_state["lidar_pose"],
+            )
+            for index, spec in enumerate(box_specs)
+        ]
+        return ego_agent_id, ego_state, attacker_state, attack_boxes
+
+    @classmethod
+    def resolve_box_spec_for_sensor_pose(
+        cls,
+        spec: AdvCPBoxSpec,
         index: int,
-        advcp_config: Mapping[str, Any],
+        advcp_config: AdvCPConfig,
         ego_state: AdvCPAgentState,
-        attacker_state: AdvCPAgentState,
-    ) -> np.ndarray:
+        sensor_pose: Sequence[float],
+    ) -> npt.NDArray:
         if not isinstance(spec, dict):
             raise ValueError(f"AdvCP box entry #{index} must be a mapping.")
 
@@ -133,10 +314,10 @@ class AdvCPAttackHelper:
         else:
             world_pose = pose
 
-        return cls.world_box_to_sensor_box(world_pose, size, attacker_state["lidar_pose"])
+        return cls.world_box_to_sensor_box(world_pose, size, sensor_pose)
 
     @staticmethod
-    def compose_relative_pose(reference_pose: np.ndarray | Sequence[float], relative_pose: np.ndarray) -> np.ndarray:
+    def compose_relative_pose(reference_pose: npt.NDArray | Sequence[float], relative_pose: npt.NDArray) -> npt.NDArray:
         reference_pose_array = np.asarray(reference_pose, dtype=np.float32)
         reference_matrix = x_to_world(reference_pose_array.tolist())
         relative_point = np.array([relative_pose[0], relative_pose[1], relative_pose[2], 1.0], dtype=np.float32)
@@ -148,7 +329,7 @@ class AdvCPAttackHelper:
         return world_pose
 
     @staticmethod
-    def world_box_to_sensor_box(world_pose: np.ndarray, size: np.ndarray, sensor_pose: Sequence[float]) -> np.ndarray:
+    def world_box_to_sensor_box(world_pose: npt.NDArray, size: npt.NDArray, sensor_pose: Sequence[float]) -> npt.NDArray:
         sensor_matrix = x_to_world(list(sensor_pose))
         world_to_sensor = np.linalg.inv(sensor_matrix)
         world_point = np.array([world_pose[0], world_pose[1], world_pose[2], 1.0], dtype=np.float32)
@@ -170,7 +351,7 @@ class AdvCPAttackHelper:
         )
 
     @staticmethod
-    def convert_box_for_model(box_lwh_bottom_center: np.ndarray, dataset: Any) -> torch.Tensor:
+    def convert_box_for_model(box_lwh_bottom_center: npt.NDArray, dataset: Any) -> torch.Tensor:
         model_box = np.copy(box_lwh_bottom_center)
         order = dataset.post_processor.params.get("order", "hwl")
 
@@ -194,7 +375,7 @@ class AdvCPCarMeshHelper:
     _REAL_MESH_WARNING_EMITTED = False
 
     @staticmethod
-    def build_spoof_mesh_pieces(spoof_box: np.ndarray) -> list[Any]:
+    def build_spoof_mesh_pieces(spoof_box: npt.NDArray) -> list[Any]:
         thickness = 0.05
         length = float(spoof_box[3])
         width = float(spoof_box[4])
@@ -209,7 +390,7 @@ class AdvCPCarMeshHelper:
         return [AdvCPCarMeshHelper.build_box_piece_mesh(spoof_box, extents, center) for extents, center in pieces]
 
     @classmethod
-    def build_spoof_meshes(cls, spoof_box: np.ndarray, advcp_config: Mapping[str, Any]) -> list[Any]:
+    def build_spoof_meshes(cls, spoof_box: npt.NDArray, advcp_config: AdvCPConfig) -> list[Any]:
         car_mesh_pieces = cls.build_real_car_mesh_pieces(spoof_box, advcp_config)
         if car_mesh_pieces is not None:
             return car_mesh_pieces
@@ -219,7 +400,7 @@ class AdvCPCarMeshHelper:
         return cls.build_spoof_mesh_pieces(spoof_box)
 
     @classmethod
-    def build_collision_mesh(cls, spoof_box: np.ndarray, advcp_config: Mapping[str, Any]) -> Any:
+    def build_collision_mesh(cls, spoof_box: npt.NDArray, advcp_config: AdvCPConfig) -> Any:
         car_mesh_pieces = cls.build_real_car_mesh_pieces(spoof_box, advcp_config)
         if car_mesh_pieces is not None:
             return car_mesh_pieces[0] if len(car_mesh_pieces) == 1 else cls.merge_meshes(car_mesh_pieces)
@@ -230,7 +411,7 @@ class AdvCPCarMeshHelper:
         )
 
     @classmethod
-    def build_real_car_mesh_pieces(cls, spoof_box: np.ndarray, advcp_config: Mapping[str, Any]) -> list[Any] | None:
+    def build_real_car_mesh_pieces(cls, spoof_box: npt.NDArray, advcp_config: AdvCPConfig) -> list[Any] | None:
         import open3d as o3d
 
         # TODO: Replace bundled car_mesh/car_mesh_divide asset loading with on-the-fly asset generation
@@ -254,7 +435,7 @@ class AdvCPCarMeshHelper:
         return cls.post_process_car_meshes(car_mesh_pieces, spoof_box, car_mesh_name)
 
     @classmethod
-    def post_process_car_meshes(cls, car_mesh_pieces: list[Any], spoof_box: np.ndarray, car_mesh_name: str) -> list[Any]:
+    def post_process_car_meshes(cls, car_mesh_pieces: list[Any], spoof_box: npt.NDArray, car_mesh_name: str) -> list[Any]:
         processed_meshes = []
         car_mesh_bbox = cls.CAR_MESH_3D_EXAMPLES.get(car_mesh_name, cls.CAR_MESH_3D_EXAMPLES["car_mesh_0200"])
         scale = float(np.min(spoof_box[3:6] / car_mesh_bbox[3:6]))
@@ -283,7 +464,7 @@ class AdvCPCarMeshHelper:
         return car_mesh_path.stem
 
     @classmethod
-    def resolve_car_mesh_paths(cls, advcp_config: Mapping[str, Any]) -> tuple[Path, Path]:
+    def resolve_car_mesh_paths(cls, advcp_config: AdvCPConfig) -> tuple[Path, Path]:
         car_mesh_path = Path(str(AdvCPAttackHelper.require_config_value(advcp_config, "car_mesh_path"))).expanduser()
 
         if not car_mesh_path.is_absolute():
@@ -297,7 +478,7 @@ class AdvCPCarMeshHelper:
 
     @staticmethod
     def build_box_piece_mesh(
-        spoof_box: np.ndarray,
+        spoof_box: npt.NDArray,
         extents: tuple[float, float, float],
         center_local: tuple[float, float, float],
     ) -> Any:
@@ -328,7 +509,7 @@ class AdvCPCarMeshHelper:
         return merged_mesh
 
     @staticmethod
-    def ray_intersection(meshes: list[Any], rays: np.ndarray) -> np.ndarray:
+    def ray_intersection(meshes: list[Any], rays: npt.NDArray) -> npt.NDArray:
         import open3d as o3d
 
         scene = o3d.t.geometry.RaycastingScene()
