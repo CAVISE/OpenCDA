@@ -15,7 +15,7 @@ class BehaviorServiceRegistry:
     """
     Registry for behavior service classes.
 
-    Services are keyed by ``service_name`` and registered manually
+    Services are keyed by ``service_type`` and registered manually
     or by using ``BehaviorServiceRegistry.register`` as a decorator.
     """
 
@@ -27,28 +27,28 @@ class BehaviorServiceRegistry:
         if inspect.isabstract(service_cls):
             raise ValueError(f"Cannot register abstract behavior service class '{service_cls.__name__}'.")
 
-        if (service_name := getattr(service_cls, "service_name", None)) is None:
-            raise ValueError(f"Behavior service class '{service_cls.__name__}' must define 'service_name'.")
+        if (service_type := getattr(service_cls, "service_type", None)) is None:
+            raise ValueError(f"Behavior service class '{service_cls.__name__}' must define 'service_type'.")
 
-        if service_name in cls._registry:
-            raise ValueError(f"Duplicate behavior service registration for service='{service_name}'.")
+        if service_type in cls._registry:
+            raise ValueError(f"Duplicate behavior service registration for service='{service_type}'.")
 
-        cls._registry[service_name] = service_cls
-        logger.info("Registered behavior service class '%s' as '%s'.", service_cls.__name__, service_name)
+        cls._registry[service_type] = service_cls
+        logger.info("Registered behavior service class '%s' as '%s'.", service_cls.__name__, service_type)
         return service_cls
 
     @classmethod
-    def get_service_class(cls, service_name: str) -> type[BehaviorService[Any, Any]]:
+    def get_service_class(cls, service_type: str) -> type[BehaviorService[Any, Any]]:
         """Return a behavior service class for the given service name."""
-        if service_name not in cls._registry:
+        if service_type not in cls._registry:
             available = cls.list_services()
-            raise KeyError(f"Unknown behavior service '{service_name}'. Available: {available}")
-        return cls._registry[service_name]
+            raise KeyError(f"Unknown behavior service '{service_type}'. Available: {available}")
+        return cls._registry[service_type]
 
     @classmethod
-    def create_service(cls, service_name: str, **kwargs: Any) -> BehaviorService[Any, Any]:
+    def create_service(cls, service_type: str, **kwargs: Any) -> BehaviorService[Any, Any]:
         """Instantiate a behavior service by name."""
-        service_cls = cls.get_service_class(service_name=service_name)
+        service_cls = cls.get_service_class(service_type=service_type)
         return service_cls(**kwargs)
 
     @classmethod
