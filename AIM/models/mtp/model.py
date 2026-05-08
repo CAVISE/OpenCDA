@@ -12,7 +12,6 @@ from pathlib import Path
 from AIM import AIMModel
 from AIM.models.mtp.mtp_models.TransfAny_v2_local_coords.TransfAny_v2_local_coords import TransfAny_v2_local_coords
 
-from .learning.data_path_config import path_config
 from .learning.learning_src.data_scripts.data_config import config
 from .learning.learning_src.data_scripts.generate_csv_utils import get_map_bounding
 from .learning.learning_src.data_scripts.preprocess_utils import (
@@ -57,6 +56,9 @@ class MTP(AIMModel):
 
         model_cls = self._models[underling_model]
         weight = kwargs.get("weight")
+        y_x_distr_file = kwargs.get("y_x_distr_file")
+        y_y_distr_file = kwargs.get("y_y_distr_file")
+
         underling_model_dir = Path(sys.modules[model_cls.__module__].__file__).parent
         checkpoint = torch.load(os.path.join(underling_model_dir, "weights", weight), map_location=torch.device("cpu"))
 
@@ -71,7 +73,11 @@ class MTP(AIMModel):
         self.process_map(self.map_net_xml_path)
 
         if config.data_processing.zscore_normalize:
-            self.load_z_score_params()
+            with open(os.path.join(underling_model_dir, "distr_params", y_x_distr_file), "rb") as f:
+                self.y_x_mean, self.y_x_std = pkl.load(f)
+
+            with open(os.path.join(underling_model_dir, "distr_params", y_y_distr_file), "rb") as f:
+                self.y_y_mean, self.y_y_std = pkl.load(f)
 
     def process_map(self, map_net_xml_path: str):
         """
@@ -84,16 +90,6 @@ class MTP(AIMModel):
         self.map = lane_level_data[0][0]
         self.map = torch.tensor(self.map)
         self.map_graph = TransformerCarDataset._create_map_graph(self.map, self.map.shape[0] * self.map.shape[1]).to(self.device)
-
-    def load_z_score_params(self):
-        """
-        load z-score normalization parameters from files
-        """
-        with open(os.path.join(path_config.paths.data_path, "csv", path_config.file_names.y_x_distr_file), "rb") as f:
-            self.y_x_mean, self.y_x_std = pkl.load(f)
-
-        with open(os.path.join(path_config.paths.data_path, "csv", path_config.file_names.y_y_distr_file), "rb") as f:
-            self.y_y_mean, self.y_y_std = pkl.load(f)
 
     def predict(self, features: np.ndarray, target_agent_ids=None):
         """
