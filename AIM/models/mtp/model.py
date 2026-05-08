@@ -117,7 +117,7 @@ class MTP(AIMModel):
             else:
                 rotations_back_current = rotation_matrix_back_with_allign_to_Y(yaw_cur).to(self.device)
 
-            map_channels = self.map_data.shape[0] * self.map_data.shape[1]
+            map_channels = self.map.shape[0] * self.map.shape[1]
             num_vechs = x_global.shape[1]
             x_data_yaw = x_global.unsqueeze(1)[:, :, :, 3:4] - x_global.unsqueeze(2)[:, :, :, 3:4]
             x_data_coords = x_global.unsqueeze(1)[:, :, :, :2] - x_global.unsqueeze(2)[:, :, :, :2]
