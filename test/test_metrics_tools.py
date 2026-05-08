@@ -8,7 +8,6 @@ and collection_models.
 from __future__ import annotations
 
 import math
-from typing import Any, Mapping
 
 import pytest
 
@@ -383,20 +382,22 @@ class TestLocalizationTraceMetric:
     def test_m_tr_02_speed_series_converted(self):
         """Only speed series (gnss_speed, filter_speed, gt_speed) are divided by 3.6."""
         metric = LocalizationTraceMetric(warmup_steps=0)
-        metric.update({
-            "gnss_x": 100.0,
-            "gnss_y": 200.0,
-            "gnss_yaw": 1.5,
-            "gnss_speed": 36.0,
-            "filter_x": 101.0,
-            "filter_y": 201.0,
-            "filter_yaw": 1.6,
-            "filter_speed": 72.0,
-            "gt_x": 102.0,
-            "gt_y": 202.0,
-            "gt_yaw": 1.7,
-            "gt_speed": 108.0,
-        })
+        metric.update(
+            {
+                "gnss_x": 100.0,
+                "gnss_y": 200.0,
+                "gnss_yaw": 1.5,
+                "gnss_speed": 36.0,
+                "filter_x": 101.0,
+                "filter_y": 201.0,
+                "filter_yaw": 1.6,
+                "filter_speed": 72.0,
+                "gt_x": 102.0,
+                "gt_y": 202.0,
+                "gt_yaw": 1.7,
+                "gt_speed": 108.0,
+            }
+        )
         raw = metric.get_raw()
         series_by_name = {s.name: s for s in raw}
 
@@ -413,20 +414,22 @@ class TestLocalizationTraceMetric:
     def test_m_tr_03_custom_resolver_absolute_error(self):
         """Resolver returns absolute error between gt_x and gnss_x."""
         metric = LocalizationTraceMetric(warmup_steps=0)
-        metric.update({
-            "gnss_x": 100.0,
-            "gt_x": 102.0,
-            "gnss_speed": 0.0,
-            "filter_x": 0.0,
-            "filter_y": 0.0,
-            "filter_yaw": 0.0,
-            "filter_speed": 0.0,
-            "gnss_y": 0.0,
-            "gnss_yaw": 0.0,
-            "gt_y": 0.0,
-            "gt_yaw": 0.0,
-            "gt_speed": 0.0,
-        })
+        metric.update(
+            {
+                "gnss_x": 100.0,
+                "gt_x": 102.0,
+                "gnss_speed": 0.0,
+                "filter_x": 0.0,
+                "filter_y": 0.0,
+                "filter_yaw": 0.0,
+                "filter_speed": 0.0,
+                "gnss_y": 0.0,
+                "gnss_yaw": 0.0,
+                "gt_y": 0.0,
+                "gt_yaw": 0.0,
+                "gt_speed": 0.0,
+            }
+        )
 
         spec = metric.get_report_spec()
         resolver_spec = spec.summary_specs[0]  # GNSS raw data x-axis error
@@ -513,7 +516,10 @@ class TestReportBuilder:
                 MetricSummarySpec(series_name="b", cutoff=50.0),
             ),
         )
-        value_resolver = lambda name: {"a": [10.0, 20.0], "b": [30.0, 60.0]}[name]
+
+        def value_resolver(name):
+            return {"a": [10.0, 20.0], "b": [30.0, 60.0]}[name]
+
         summaries = builder.build_metric_summaries(spec, value_resolver)
         assert len(summaries) == 2
         assert summaries[0].count == 2  # a: both included
@@ -526,7 +532,10 @@ class TestReportBuilder:
             series_name="unused",
             resolver=lambda vr: [42.0, 84.0],
         )
-        value_resolver = lambda name: [1.0, 2.0]
+
+        def value_resolver(name):
+            return [1.0, 2.0]
+
         result = builder._resolve_summary_values(spec, value_resolver)
         assert list(result) == [42.0, 84.0]
 
@@ -660,9 +669,7 @@ class TestCollectionModels:
             active_metrics=(),
             disabled_metrics=(),
             unsupported_metrics=(),
-            series=(
-                MetricSeries(name="speed", samples=(sample1, sample2)),
-            ),
+            series=(MetricSeries(name="speed", samples=(sample1, sample2)),),
         )
         assert len(collection.get_series("speed")) == 2
         assert collection.get_series("nonexistent") == ()
@@ -675,9 +682,7 @@ class TestCollectionModels:
             active_metrics=("speed",),
             disabled_metrics=("ttc",),
             unsupported_metrics=(MetricIssue(metric_name="foo", reason="bar"),),
-            series=(
-                MetricSeries(name="speed", samples=(MetricSample(tick=1, value=10.0),)),
-            ),
+            series=(MetricSeries(name="speed", samples=(MetricSample(tick=1, value=10.0),)),),
         )
         d = collection.to_dict()
         assert isinstance(d, dict)

@@ -9,12 +9,9 @@ Covers:
 from __future__ import annotations
 
 import math
-from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
 
-import pytest
-import yaml
 
 from opencda.scenario_testing.types import NodeSnapshot, SimulationSnapshot
 from opencda.metrics_tools.metric_collector import MetricCollector
