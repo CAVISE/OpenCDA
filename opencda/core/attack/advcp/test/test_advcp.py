@@ -29,7 +29,7 @@ class DummyOpt:
 
 def make_advcp_config(**overrides):
     config = {
-        "mode": "spoof",
+        "mode": "spoofing",
         "attacker_ids": ["cav-2"],
         "boxes": [{"relative": (5.0, 0.0, 0.0, 0.0, 90.0, 0.0)}],
         "default_size": (4.5, 2.0, 1.6),
@@ -52,7 +52,7 @@ def make_advcp_config(**overrides):
 def make_advcp_context(
     *,
     attacker_ids=None,
-    mode="spoof",
+    mode="spoofing",
     fake_box_tensor=None,
     removed_box_tensor=None,
 ):
@@ -103,6 +103,7 @@ def manager_deps(fake_heavy_deps):
         opencood.visualization.vis_utils.visualize_inference_sample_dataloader,
         opencood.visualization.vis_utils.linset_assign_list,
         opencood.utils.eval_utils.caluclate_tp_fp,
+        opencood.utils.eval_utils.calculate_ap,
         opencood.utils.eval_utils.eval_final_results,
         open3d.visualization.Visualizer,
         torch.cuda.is_available,
@@ -137,7 +138,6 @@ def manager_deps(fake_heavy_deps):
     coperception_model_manager_module.inference_utils = opencood.tools.inference_utils
     coperception_model_manager_module.build_dataset = opencood.data_utils.datasets.build_dataset
     coperception_model_manager_module.vis_utils = opencood.visualization.vis_utils
-    coperception_model_manager_module.eval_utils = opencood.utils.eval_utils
     early_fusion_attack_module.inference_utils = opencood.tools.inference_utils
     early_fusion_attack_module.train_utils = opencood.tools.train_utils
     intermediate_fusion_attack_module.inference_utils = opencood.tools.inference_utils
@@ -186,7 +186,7 @@ class TestAdvCoperceptionModelManager:
 
         assert mock_advcp.call_count == 2
         assert isinstance(result, CoperceptionInferenceResult)
-        assert_advcp_context(result.visualization_context, attacker_ids=["cav-2"], mode="spoof", fake_box_tensor="fake")
+        assert_advcp_context(result.visualization_context, attacker_ids=["cav-2"], mode="spoofing", fake_box_tensor="fake")
 
     def test_make_prediction_early_advcp_dispatches_to_early_attack_class(self, manager_deps):
         manager_deps["hypes"]["fusion"]["core_method"] = "EarlyFusionDataset"
@@ -206,7 +206,7 @@ class TestAdvCoperceptionModelManager:
 
         assert mock_attack.call_count == 2
         assert isinstance(result, CoperceptionInferenceResult)
-        assert_advcp_context(result.visualization_context, attacker_ids=["cav-2"], mode="spoof")
+        assert_advcp_context(result.visualization_context, attacker_ids=["cav-2"], mode="spoofing")
 
     def test_make_prediction_intermediate_advcp_dispatches_to_intermediate_attack_class(self, manager_deps):
         manager_deps["hypes"]["fusion"]["core_method"] = "IntermediateFusionDataset"
@@ -226,7 +226,7 @@ class TestAdvCoperceptionModelManager:
 
         assert mock_attack.call_count == 2
         assert isinstance(result, CoperceptionInferenceResult)
-        assert_advcp_context(result.visualization_context, attacker_ids=["cav-2"], mode="spoof")
+        assert_advcp_context(result.visualization_context, attacker_ids=["cav-2"], mode="spoofing")
 
     def test_intermediate_advcp_requires_grad_for_inference(self, manager_deps):
         manager_deps["hypes"]["fusion"]["core_method"] = "IntermediateFusionDataset"
@@ -281,7 +281,7 @@ class TestAdvCoperceptionModelManager:
 
         manager_deps["inference_utils"].inference_early_fusion.assert_called_once_with(batch_data, model, dataset)
         assert result[0] == manager_deps["inference_utils"].inference_early_fusion.return_value[0]
-        assert_advcp_context(result[3], attacker_ids=[], mode="spoof")
+        assert_advcp_context(result[3], attacker_ids=[], mode="spoofing")
 
     def test_intermediate_advcp_run_falls_back_when_attacker_is_missing(self, manager_deps):
         batch_data = {"ego": {"origin_lidar": ["lidar_data"]}}
@@ -312,7 +312,7 @@ class TestAdvCoperceptionModelManager:
 
         manager_deps["inference_utils"].inference_intermediate_fusion.assert_called_once_with(batch_data, model, dataset)
         assert result[0] == manager_deps["inference_utils"].inference_intermediate_fusion.return_value[0]
-        assert_advcp_context(result[3], attacker_ids=[], mode="spoof")
+        assert_advcp_context(result[3], attacker_ids=[], mode="spoofing")
 
     def test_intermediate_advcp_run_falls_back_when_attacker_is_missing_from_batch(self, manager_deps):
         batch_data = {
@@ -345,7 +345,7 @@ class TestAdvCoperceptionModelManager:
 
         manager_deps["inference_utils"].inference_intermediate_fusion.assert_called_once_with(batch_data, model, dataset)
         assert result[0] == manager_deps["inference_utils"].inference_intermediate_fusion.return_value[0]
-        assert_advcp_context(result[3], attacker_ids=[], mode="spoof")
+        assert_advcp_context(result[3], attacker_ids=[], mode="spoofing")
 
     def test_early_advcp_run_rebuilds_batch_with_attacked_memory(self, manager_deps):
         batch_data = {"old": "batch"}
@@ -402,9 +402,19 @@ class TestAdvCoperceptionModelManager:
                 return_value=("cav-1", states["cav-1"], states["cav-2"], [spoof_box]),
             ),
             patch.object(
+                AdvCPAttackHelper,
+                "resolve_spoof_boxes_for_ego",
+                return_value=("cav-1", states["cav-1"], states["cav-2"], [spoof_box]),
+            ),
+            patch.object(
                 AdvCoperceptionEarlyFusionAttack,
                 "_apply_sampled_ray_traced_spoof",
                 return_value=(spoofed_lidar, np.array([True])),
+            ),
+            patch.object(
+                AdvCoperceptionEarlyFusionAttack,
+                "_build_removed_box_tensor",
+                return_value="fake-boxes",
             ),
         ):
             result = AdvCoperceptionEarlyFusionAttack.run(
@@ -424,7 +434,7 @@ class TestAdvCoperceptionModelManager:
         np.testing.assert_array_equal(first_update[0]["cav-2"]["000001"]["spoofing_mask"], np.array([True]))
         assert restored_update is memory_data
         assert batch_data == {"rebuilt": "batch"}
-        assert_advcp_context(result[3], attacker_ids=["cav-2"], mode="spoof")
+        assert_advcp_context(result[3], attacker_ids=["cav-2"], mode="spoofing", fake_box_tensor="fake-boxes")
         manager_deps["inference_utils"].inference_early_fusion.assert_called_once_with({"rebuilt": "batch"}, model, dataset)
 
     def test_early_advcp_run_falls_back_when_rebuilt_batch_excludes_attacker(self, manager_deps):
@@ -480,9 +490,19 @@ class TestAdvCoperceptionModelManager:
                 return_value=("cav-1", states["cav-1"], states["cav-2"], [np.array([5.0, 0.0, 0.0, 4.5, 2.0, 1.6, 0.0])]),
             ),
             patch.object(
+                AdvCPAttackHelper,
+                "resolve_spoof_boxes_for_ego",
+                return_value=("cav-1", states["cav-1"], states["cav-2"], [np.array([5.0, 0.0, 0.0, 4.5, 2.0, 1.6, 0.0])]),
+            ),
+            patch.object(
                 AdvCoperceptionEarlyFusionAttack,
                 "_apply_sampled_ray_traced_spoof",
                 return_value=(np.array([[9.0, 9.0, 9.0, 1.0]], dtype=np.float32), np.array([True])),
+            ),
+            patch.object(
+                AdvCoperceptionEarlyFusionAttack,
+                "_build_removed_box_tensor",
+                return_value="fake-boxes",
             ),
         ):
             result = AdvCoperceptionEarlyFusionAttack.run(
@@ -497,7 +517,7 @@ class TestAdvCoperceptionModelManager:
         restored_update = dataset.update_database.call_args_list[1].kwargs["memory_data"]
         assert restored_update is memory_data
         assert batch_data == {"original": "batch"}
-        assert_advcp_context(result[3], attacker_ids=[], mode="spoof")
+        assert_advcp_context(result[3], attacker_ids=[], mode="spoofing")
         manager_deps["inference_utils"].inference_early_fusion.assert_called_once_with({"original": "batch"}, model, dataset)
 
     def test_early_advcp_run_supports_multiple_attackers(self, manager_deps):
@@ -577,9 +597,19 @@ class TestAdvCoperceptionModelManager:
                 side_effect=_mock_resolve_spoof_boxes_for_agent,
             ),
             patch.object(
+                AdvCPAttackHelper,
+                "resolve_spoof_boxes_for_ego",
+                return_value=("cav-1", states["cav-1"], states["cav-2"], [spoof_box]),
+            ),
+            patch.object(
                 AdvCoperceptionEarlyFusionAttack,
                 "_apply_sampled_ray_traced_spoof",
                 side_effect=_mock_apply_sampled_ray_traced_spoof,
+            ),
+            patch.object(
+                AdvCoperceptionEarlyFusionAttack,
+                "_build_removed_box_tensor",
+                return_value="fake-boxes",
             ),
         ):
             result = AdvCoperceptionEarlyFusionAttack.run(
@@ -600,7 +630,7 @@ class TestAdvCoperceptionModelManager:
         np.testing.assert_array_equal(first_update[0]["cav-3"]["000001"]["spoofing_mask"], np.array([True]))
         assert restored_update is memory_data
         assert batch_data == {"rebuilt": "batch"}
-        assert_advcp_context(result[3], attacker_ids=["cav-2", "cav-3"], mode="spoof")
+        assert_advcp_context(result[3], attacker_ids=["cav-2", "cav-3"], mode="spoofing", fake_box_tensor="fake-boxes")
         manager_deps["inference_utils"].inference_early_fusion.assert_called_once_with({"rebuilt": "batch"}, model, dataset)
 
     def test_early_remove_run_rebuilds_batch_with_removed_lidar(self, manager_deps):
@@ -668,7 +698,7 @@ class TestAdvCoperceptionModelManager:
                 model,
                 dataset,
                 "device(cpu)",
-                make_advcp_config(mode="remove"),
+                make_advcp_config(mode="removal"),
                 memory_data=memory_data,
             )
 
@@ -684,7 +714,7 @@ class TestAdvCoperceptionModelManager:
         assert_advcp_context(
             result[3],
             attacker_ids=["cav-2"],
-            mode="remove",
+            mode="removal",
             removed_box_tensor="removed-boxes",
         )
         manager_deps["inference_utils"].inference_early_fusion.assert_called_once_with({"rebuilt": "batch"}, model, dataset)
@@ -783,7 +813,7 @@ class TestAdvCoperceptionModelManager:
                 model,
                 dataset,
                 "device(cpu)",
-                make_advcp_config(mode="remove", attacker_ids=["cav-2", "cav-3"]),
+                make_advcp_config(mode="removal", attacker_ids=["cav-2", "cav-3"]),
                 memory_data=memory_data,
             )
 
@@ -803,13 +833,17 @@ class TestAdvCoperceptionModelManager:
         assert_advcp_context(
             result[3],
             attacker_ids=["cav-2", "cav-3"],
-            mode="remove",
+            mode="removal",
             removed_box_tensor="removed-boxes",
         )
         manager_deps["inference_utils"].inference_early_fusion.assert_called_once_with({"rebuilt": "batch"}, model, dataset)
 
-    def test_intermediate_advcp_run_raises_for_multiple_attackers(self, manager_deps):
-        batch_data = {"ego": {"origin_lidar": ["lidar_data"]}}
+    def test_intermediate_advcp_run_uses_joint_optimization_for_multiple_attackers(self, manager_deps):
+        batch_data = {
+            "ego": {
+                "origin_lidar_agent_ids": ["cav-1", "cav-2", "cav-3"],
+            }
+        }
         dataset = MagicMock()
         model = MagicMock()
         memory_data = {
@@ -819,8 +853,21 @@ class TestAdvCoperceptionModelManager:
                 "cav-3": {"ego": False, "000001": {"params": {"lidar_pose": [2.0] * 6, "true_ego_pos": [2.0] * 6}}},
             }
         }
+        spoof_box = np.array([5.0, 0.0, 0.0, 4.5, 2.0, 1.6, 0.0], dtype=np.float32)
+        dataset.post_processor.params.get.return_value = "hwl"
 
-        with pytest.raises(NotImplementedError, match="multiple attackers"):
+        with (
+            patch.object(
+                AdvCPAttackHelper,
+                "resolve_spoof_boxes_for_ego",
+                return_value=("cav-1", MagicMock(), MagicMock(), [spoof_box]),
+            ),
+            patch.object(
+                AdvCoperceptionIntermediateFusionAttack,
+                "_optimize_joint",
+                return_value=(MagicMock(), MagicMock(), MagicMock(), {}),
+            ) as mock_joint,
+        ):
             AdvCoperceptionIntermediateFusionAttack.run(
                 batch_data,
                 model,
@@ -829,6 +876,10 @@ class TestAdvCoperceptionModelManager:
                 make_advcp_config(attacker_ids=["cav-2", "cav-3"]),
                 memory_data=memory_data,
             )
+
+        mock_joint.assert_called_once()
+        attacker_infos = mock_joint.call_args.args[5]
+        assert [aid for aid, _, _ in attacker_infos] == ["cav-2", "cav-3"]
 
     def test_late_advcp_resolve_spoof_boxes_by_attacker_supports_multiple_attackers(self):
         memory_data = {
@@ -886,7 +937,7 @@ class TestAdvCoperceptionModelManager:
 
         dataset.post_processor.post_process.assert_called_once()
         assert result[:3] == ("pred", "score", "gt")
-        assert_advcp_context(result[3], attacker_ids=[], mode="spoof")
+        assert_advcp_context(result[3], attacker_ids=[], mode="spoofing")
 
     def test_validate_advcp_agents_supports_multiple_attackers(self, manager_deps):
         opt = DummyOpt(with_advcp=True, advcp_config="dummy.yaml")
@@ -914,7 +965,7 @@ class TestAdvCoperceptionModelManager:
 
     def test_load_config_ignores_legacy_attacker_id_and_uses_attacker_ids(self, tmp_path):
         config_path = tmp_path / "advcp_legacy.yaml"
-        config_path.write_text("mode: spoof\nattacker_id: cav-2\nboxes:\n  - relative: [5, 0, 0, 0, 90, 0]\n", encoding="utf-8")
+        config_path.write_text("mode: spoofing\nattacker_id: cav-2\nboxes:\n  - relative: [5, 0, 0, 0, 90, 0]\n", encoding="utf-8")
 
         loaded_config = AdvCoperceptionModelManager.load_config(str(config_path))
         assert loaded_config["attacker_ids"] == ["cav-1"]
