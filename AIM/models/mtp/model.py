@@ -34,10 +34,12 @@ class MTP(AIMModel):
     multi-trajectory prediction model
     """
 
-    def __init__(self, model: str, model_params: Dict, map_net_xml_path: str, weights: str):
+    def __init__(self, **kwargs: Any):
         """
-        :param model: Backend model name (default: "TransfAny_v2_local_coords").
+        :param underling_model: Backend model name (default: "TransfAny_v2_local_coords")
+        :param model_params: params for Backend model
         :param map_net_xml_path: path to sumo network xml map file
+        :param weight: path to weights file
         """
 
         super().__init__()
@@ -46,8 +48,14 @@ class MTP(AIMModel):
         self._models: Dict[str, Any] = {
             "TransfAny_v2_local_coords": TransfAny_v2_local_coords,
         }
-        self.model = self._models[model](**model_params)
-        self.model.load_state_dict(weights)
+
+        underling_model = kwargs.get("underling_model", "TransfAny_v2_local_coords")
+        model_params = kwargs.get("model_params")
+        map_net_xml_path = kwargs.get("map_net_xml_path")
+        weight = kwargs.get("weight")
+
+        self.model = self._models[underling_model](**model_params)
+        self.model.load_state_dict(weight)
         self.model = self.model.to(self.device)
         self.model.eval()
 

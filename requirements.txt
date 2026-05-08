@@ -60,3 +60,4 @@ torch_geometric==2.7.0
 torchvision==0.26.0+cu130
 tqdm==4.67.3
 traci==1.26.0
+cvxpy==1.7.3
