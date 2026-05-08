@@ -197,7 +197,7 @@ class AdvCPAttackHelper:
 
         mode = cls.require_config_value(advcp_config, "mode")
         match mode:
-            case "spoof":
+            case "spoofing":
                 pass
             case _:
                 raise NotImplementedError(f"AdvCP mode '{mode}' is not available yet.")

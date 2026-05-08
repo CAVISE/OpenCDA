@@ -6,14 +6,14 @@
 # 2. Shared box target parameters
 #    Used by spoofing and by early-fusion removal.
 # 3. Spoofing-only parameters
-#    Used only when `mode: spoof`.
+#    Used only when `mode: spoofing`.
 # 4. Early-fusion spoofing parameters
 #    Used only by early LiDAR spoofing.
 # 5. Intermediate-fusion spoofing parameters
 #    Used only by intermediate feature-space spoofing.
 #
 # Notes:
-# - `remove` is currently implemented only for early fusion.
+# - `removal` is currently implemented only for early fusion.
 # - Late/intermediate removal are still not implemented.
 # - `boxes` are shared by spoofing and by early removal.
 
@@ -23,9 +23,9 @@
 
 # Shared across all AdvCP attacks and all fusion methods.
 # Supported values:
-# - `spoof`  : supported for late/early/intermediate fusion
-# - `remove` : currently supported only for early fusion
-mode: spoof
+# - `spoofing` : supported for late/early/intermediate fusion
+# - `removal`  : currently supported only for early fusion
+mode: spoofing
 
 # Shared across all AdvCP attacks and all fusion methods.
 # Agent ids that perform the attack.
