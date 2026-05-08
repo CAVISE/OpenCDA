@@ -6,10 +6,13 @@ from typing import Any
 import numpy.typing as npt
 import torch
 from opencda.core.attack.advcp.attack_helper import AdvCPAttackHelper
+from opencda.core.attack.advcp.intermediate_fusion_attack import AdvCoperceptionIntermediateFusionAttack
 from opencda.core.attack.advcp.types import AdvCPAttackResult, AdvCPConfig, AdvCPMemoryData, AdvCPVisualizationContext
 
 
 class AdvCoperceptionLateFusionAttack:
+    REMOVAL_IOU_THRESHOLD = 0.1
+
     @staticmethod
     def run(
         batch_data: Any,
@@ -30,9 +33,7 @@ class AdvCoperceptionLateFusionAttack:
         mode = AdvCPAttackHelper.require_config_value(advcp_config, "mode")
         advcp_context = AdvCPVisualizationContext(mode=mode)
         match mode:
-            case "removal":
-                AdvCoperceptionLateFusionAttack._raise_removal_not_available()
-            case "spoofing":
+            case "removal" | "spoofing":
                 pass
             case _:
                 raise NotImplementedError(f"AdvCP mode '{mode}' is not available for late fusion.")
@@ -75,6 +76,7 @@ class AdvCoperceptionLateFusionAttack:
         pred_box3d_list = []
         pred_box2d_list = []
         pred_fake_list = []
+        removed_target_corners_list: list[torch.Tensor] = []
 
         for cav_id, cav_content in batch_data.items():
             transformation_matrix = cav_content["transformation_matrix"]
@@ -95,13 +97,33 @@ class AdvCoperceptionLateFusionAttack:
 
             cav_attack_boxes = attack_boxes_by_attacker_in_batch.get(cav_id)
             if cav_attack_boxes:
-                injected_box_tensors = [AdvCPAttackHelper.convert_box_for_model(attack_box, dataset).to(device) for attack_box in cav_attack_boxes]
-                stacked_injected_boxes = torch.stack(injected_box_tensors, dim=0)
-                injected_scores = torch.ones((len(cav_attack_boxes),), dtype=scores.dtype, device=device)
-                injected_is_fake = torch.ones((len(cav_attack_boxes),), dtype=torch.bool, device=device)
-                boxes3d = torch.vstack([boxes3d, stacked_injected_boxes])
-                scores = torch.hstack([scores, injected_scores])
-                is_fake = torch.hstack([is_fake, injected_is_fake])
+                target_box_tensors = torch.stack(
+                    [AdvCPAttackHelper.convert_box_for_model(attack_box, dataset).to(device) for attack_box in cav_attack_boxes],
+                    dim=0,
+                )
+
+                match mode:
+                    case "spoofing":
+                        injected_scores = torch.ones((len(cav_attack_boxes),), dtype=scores.dtype, device=device)
+                        injected_is_fake = torch.ones((len(cav_attack_boxes),), dtype=torch.bool, device=device)
+                        boxes3d = torch.vstack([boxes3d, target_box_tensors])
+                        scores = torch.hstack([scores, injected_scores])
+                        is_fake = torch.hstack([is_fake, injected_is_fake])
+                    case "removal":
+                        keep_mask = AdvCoperceptionLateFusionAttack._compute_removal_keep_mask(
+                            boxes3d,
+                            target_box_tensors,
+                            dataset,
+                        )
+                        boxes3d = boxes3d[keep_mask]
+                        scores = scores[keep_mask]
+                        is_fake = is_fake[keep_mask]
+
+                        target_corners = box_utils.boxes_to_corners_3d(
+                            target_box_tensors,
+                            order=dataset.post_processor.params["order"],
+                        )
+                        removed_target_corners_list.append(box_utils.project_box3d(target_corners, transformation_matrix))
 
             if boxes3d.shape[0] == 0:
                 continue
@@ -115,7 +137,15 @@ class AdvCoperceptionLateFusionAttack:
             pred_box3d_list.append(projected_boxes3d)
             pred_fake_list.append(is_fake)
 
+        if mode == "removal" and removed_target_corners_list:
+            advcp_context.removed_box_tensor = torch.vstack(removed_target_corners_list)
+
         if len(pred_box2d_list) == 0 or len(pred_box3d_list) == 0:
+            if mode == "removal":
+                gt_box_tensor = dataset.post_processor.generate_gt_bbx(batch_data)
+                empty_corners = torch.zeros((0, 8, 3), dtype=torch.float32, device=device)
+                empty_score = torch.zeros((0,), dtype=torch.float32, device=device)
+                return empty_corners, empty_score, gt_box_tensor, advcp_context
             raise RuntimeError("AdvCP late spoofing produced no detection result.")
 
         pred_box2d_tensor = torch.vstack(pred_box2d_list)
@@ -141,10 +171,29 @@ class AdvCoperceptionLateFusionAttack:
         pred_is_fake_tensor = pred_is_fake_tensor[mask]
         gt_box_tensor = dataset.post_processor.generate_gt_bbx(batch_data)
 
-        if torch.any(pred_is_fake_tensor):
+        if mode == "spoofing" and torch.any(pred_is_fake_tensor):
             advcp_context.fake_box_tensor = pred_box3d_tensor[pred_is_fake_tensor]  # noqa: DC05
 
         return pred_box3d_tensor, pred_score, gt_box_tensor, advcp_context
+
+    @staticmethod
+    def _compute_removal_keep_mask(
+        boxes3d: torch.Tensor,
+        target_boxes: torch.Tensor,
+        dataset: Any,
+        iou_threshold: float = REMOVAL_IOU_THRESHOLD,
+    ) -> torch.Tensor:
+        if boxes3d.shape[0] == 0:
+            return torch.ones((0,), dtype=torch.bool, device=boxes3d.device)
+
+        boxes_lwh = AdvCoperceptionIntermediateFusionAttack._model_boxes_to_lwh(boxes3d, dataset)
+        targets_lwh = AdvCoperceptionIntermediateFusionAttack._model_boxes_to_lwh(target_boxes, dataset)
+
+        keep_mask = torch.ones((boxes3d.shape[0],), dtype=torch.bool, device=boxes3d.device)
+        for target_lwh in targets_lwh:
+            ious = AdvCoperceptionIntermediateFusionAttack._compute_iou_weights(boxes_lwh, target_lwh)
+            keep_mask = keep_mask & (ious < iou_threshold)
+        return keep_mask
 
     @staticmethod
     def _run_default_prediction(
@@ -170,7 +219,3 @@ class AdvCoperceptionLateFusionAttack:
         memory_data: AdvCPMemoryData | None,
     ) -> tuple[list[str], dict[str, list[npt.NDArray]]]:
         return AdvCPAttackHelper.resolve_spoof_boxes_by_attacker(advcp_config, memory_data)
-
-    @staticmethod
-    def _raise_removal_not_available() -> None:
-        raise NotImplementedError("AdvCP late-fusion removal is not available yet.")
