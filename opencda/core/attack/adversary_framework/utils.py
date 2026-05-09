@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections import deque
 from collections.abc import Callable, Collection, Iterable
 from copy import deepcopy
-from dataclasses import fields, is_dataclass
+from dataclasses import fields, is_dataclass, replace
 import logging
 from typing import Any, TypeAlias
 
@@ -16,12 +16,13 @@ from opencda.scenario_testing.types import SimulationSnapshot
 from .condition_evaluator import collect_snapshot_values, resolve_target_node_ids
 from .models import TargetSpec
 
-ServiceResolver: TypeAlias = Callable[[str, str], BehaviorService[Any, Any] | None]
+ServiceResolver: TypeAlias = Callable[[str, str | None], tuple[BehaviorService[Any, Any], ...]]
 AttackResultRewriter: TypeAlias = Callable[[Any], Any]
 RestoreCallback: TypeAlias = Callable[[], None]
 _MISSING = object()
 
 logger = logging.getLogger("cavise.opencda.opencda.core.attack.adversary_framework.utils")
+
 
 # TODO: Consider using a more robust cloning strategy if needed, such as copyreg or custom __deepcopy__ implementations on CARLA types.
 def safe_clone(value: Any) -> Any:
@@ -39,7 +40,7 @@ def safe_clone(value: Any) -> Any:
         return deque((safe_clone(item) for item in value), maxlen=value.maxlen)
     if is_dataclass(value):
         field_values = {field.name: safe_clone(getattr(value, field.name)) for field in fields(value)}
-        return type(value)(**field_values)
+        return replace(value, **field_values)
 
     try:
         return deepcopy(value)
@@ -166,11 +167,12 @@ def resolve_targets(
 
     target_services: list[BehaviorService[Any, Any]] = []
     missing_node_ids: list[str] = []
+    resolved_service_label = target_spec.resolve_to_service_name if target_spec.resolve_to_service_name is not None else "<any>"
 
     for node_id in ordered_target_node_ids:
-        service = service_resolver(node_id, target_spec.resolve_to_service_name)
-        if service is not None:
-            target_services.append(service)
+        services = service_resolver(node_id, target_spec.resolve_to_service_name)
+        if services:
+            target_services.extend(services)
         else:
             missing_node_ids.append(node_id)
 
@@ -179,25 +181,25 @@ def resolve_targets(
         logger.warning(
             "Attack %r could not resolve service_type=%r for node_ids=%s. Available %s node_ids in snapshot: %s.",
             attack_name,
-            target_spec.resolve_to_service_name,
+            resolved_service_label,
             missing_node_ids,
             target_spec.resolve_to_node_type,
             available_node_ids,
         )
 
     if target_services:
-        logger.info(
+        logger.debug(
             "Attack %r resolved %d target service(s) of type=%r from node_ids=%s.",
             attack_name,
             len(target_services),
-            target_spec.resolve_to_service_name,
+            resolved_service_label,
             ordered_target_node_ids,
         )
     else:
         logger.warning(
             "Attack %r resolved zero target services for service_type=%r from node_ids=%s.",
             attack_name,
-            target_spec.resolve_to_service_name,
+            resolved_service_label,
             ordered_target_node_ids,
         )
 

@@ -84,7 +84,7 @@ class TargetSpec:
     kind: str
     source: TriggerSourceSpec
     resolve_to_node_type: str  # noqa: DC01
-    resolve_to_service_name: str
+    resolve_to_service_name: str | None
     selection: str = "all"
 
     @classmethod
@@ -94,7 +94,7 @@ class TargetSpec:
             kind=str(data["kind"]),
             source=TriggerSourceSpec.from_dict(data["source"]),
             resolve_to_node_type=str(resolve_to["node_type"]),
-            resolve_to_service_name=str(resolve_to["service_type"]),
+            resolve_to_service_name=(str(resolve_to["service_type"]) if resolve_to.get("service_type") is not None else None),
             selection=str(data.get("selection", "all")),
         )
 

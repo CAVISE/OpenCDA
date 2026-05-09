@@ -295,7 +295,7 @@ class Attack:
 
     def _set_attack_status(self, status: RuntimeStatus) -> None:
         if self.status != status:
-            logger.info(
+            logger.debug(
                 "Attack '%s' status changed: %s -> %s.",
                 self.attack_name,
                 self.status.value,
@@ -306,7 +306,7 @@ class Attack:
 
     def _set_stage_status(self, stage_runtime: StageRuntime, status: RuntimeStatus) -> None:
         if stage_runtime.status != status:
-            logger.info(
+            logger.debug(
                 "Attack '%s' stage '%s' status changed: %s -> %s.",
                 self.attack_name,
                 stage_runtime.spec.id,
@@ -328,4 +328,4 @@ class Attack:
         if stage_result.status == Status.FAIL:
             logger.warning(log_message, *log_args)
             return
-        logger.info(log_message, *log_args)
+        logger.debug(log_message, *log_args)

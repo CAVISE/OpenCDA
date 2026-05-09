@@ -350,10 +350,8 @@ class Scenario:
             self.attack_results = self.attack_manager.evaluate(
                 self.attacks,
                 self.simulation_snapshot,
-                service_resolver=self._require_cav_world().resolve_behavior_service,
+                service_resolver=self._require_cav_world().resolve_behavior_services,
             )
-            for result in self.attack_results:
-                logger.info("attack=%s status=%s reason=%s", result.attack_name, result.status.value, result.reason)
 
     def capi_loop(self, opt: argparse.Namespace) -> None:
         if self.communication_manager is None:
@@ -441,10 +439,8 @@ class Scenario:
             self.attack_results = self.attack_manager.evaluate(
                 self.attacks,
                 self.simulation_snapshot,
-                service_resolver=self._require_cav_world().resolve_behavior_service,
+                service_resolver=self._require_cav_world().resolve_behavior_services,
             )
-            for result in self.attack_results:
-                logger.info("attack=%s status=%s reason=%s", result.attack_name, result.status.value, result.reason)
 
     def finalize(self, opt: argparse.Namespace) -> None:
         if opt.record:
