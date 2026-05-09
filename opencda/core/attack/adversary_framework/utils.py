@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+from collections import deque
 from collections.abc import Callable, Collection, Iterable
+from copy import deepcopy
+from dataclasses import fields, is_dataclass
 import logging
 from typing import Any, TypeAlias
 
@@ -19,6 +22,29 @@ RestoreCallback: TypeAlias = Callable[[], None]
 _MISSING = object()
 
 logger = logging.getLogger("cavise.opencda.opencda.core.attack.adversary_framework.utils")
+
+# TODO: Consider using a more robust cloning strategy if needed, such as copyreg or custom __deepcopy__ implementations on CARLA types.
+def safe_clone(value: Any) -> Any: 
+    """Clone common Python structures while tolerating opaque runtime objects such as CARLA types."""
+    if value is None or isinstance(value, (bool, int, float, str, bytes, bytearray, complex)):
+        return value
+
+    if isinstance(value, tuple):
+        return tuple(safe_clone(item) for item in value)
+    if isinstance(value, list):
+        return [safe_clone(item) for item in value]
+    if isinstance(value, dict):
+        return {safe_clone(key): safe_clone(item) for key, item in value.items()}
+    if isinstance(value, deque):
+        return deque((safe_clone(item) for item in value), maxlen=value.maxlen)
+    if is_dataclass(value):
+        field_values = {field.name: safe_clone(getattr(value, field.name)) for field in fields(value)}
+        return type(value)(**field_values)
+
+    try:
+        return deepcopy(value)
+    except Exception:
+        return value
 
 
 def wrap_method_output(

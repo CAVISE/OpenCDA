@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from copy import deepcopy
 from functools import partial
 from typing import Any
 
@@ -12,7 +11,7 @@ from opencda.core.application.behavior.capability import Capability
 from opencda.core.attack.adversary_framework.models import AttackStageResult, Status
 from opencda.core.attack.adversary_framework.stage_registry import AttackStageRegistry
 from opencda.core.attack.adversary_framework.stages.sniffer.types import ObservedOutput
-from opencda.core.attack.adversary_framework.utils import RestoreCallback, install_output_interceptor
+from opencda.core.attack.adversary_framework.utils import RestoreCallback, install_output_interceptor, safe_clone
 
 
 @AttackStageRegistry.register
@@ -77,7 +76,7 @@ class SnifferStage:
             ObservedOutput(
                 service=service,
                 capability=capability,
-                output=deepcopy(output),
+                output=safe_clone(output),
             )
         )
         return output

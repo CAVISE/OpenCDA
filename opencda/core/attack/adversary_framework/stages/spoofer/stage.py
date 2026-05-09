@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, MutableMapping, MutableSequence, Sequence
-from copy import deepcopy
 from dataclasses import dataclass, is_dataclass
 from typing import Any
 
@@ -12,7 +11,7 @@ from opencda.core.application.behavior.capability import Capability
 from opencda.core.application.behavior.transport_message import TransportMessage
 from opencda.core.attack.adversary_framework.models import AttackStageResult, Status
 from opencda.core.attack.adversary_framework.stage_registry import AttackStageRegistry
-from opencda.core.attack.adversary_framework.utils import RestoreCallback, install_output_interceptor
+from opencda.core.attack.adversary_framework.utils import RestoreCallback, install_output_interceptor, safe_clone
 
 
 @dataclass(frozen=True, slots=True)
@@ -92,7 +91,7 @@ class SpooferStage:
                 continue
 
             if not has_changes:
-                rewritten_message = deepcopy(message)
+                rewritten_message = safe_clone(message)
                 has_changes = True
 
             current_value = self._resolve_path_value(rewritten_message, rewrite_rule.path)
@@ -195,7 +194,7 @@ class SpooferStage:
     @staticmethod
     def _apply_operation(current_value: Any, rewrite_rule: RewriteRule) -> Any:
         if rewrite_rule.operation == "set":
-            return deepcopy(rewrite_rule.value)
+            return safe_clone(rewrite_rule.value)
         if rewrite_rule.operation == "add":
             return current_value + rewrite_rule.value
         if rewrite_rule.operation == "multiply":
