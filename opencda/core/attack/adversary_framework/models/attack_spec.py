@@ -85,6 +85,7 @@ class TargetSpec:
     source: TriggerSourceSpec
     resolve_to_node_type: str  # noqa: DC01
     resolve_to_service_name: str
+    selection: str = "all"
 
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> TargetSpec:
@@ -94,6 +95,7 @@ class TargetSpec:
             source=TriggerSourceSpec.from_dict(data["source"]),
             resolve_to_node_type=str(resolve_to["node_type"]),
             resolve_to_service_name=str(resolve_to["service_type"]),
+            selection=str(data.get("selection", "all")),
         )
 
 

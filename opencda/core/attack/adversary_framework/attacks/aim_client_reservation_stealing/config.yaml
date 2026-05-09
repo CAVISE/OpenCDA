@@ -1,0 +1,67 @@
+attack:
+  name: aim_client_reservation_stealing
+
+  requirements:
+    all:
+      - source:
+          kind: snapshot
+          node_type: rsu
+          service_type: aim_server
+        verb: exists
+      - source:
+          kind: snapshot
+          node_type: vehicle
+          service_type: aim_client
+        verb: exists
+
+  start_trigger:
+    source:
+      kind: snapshot
+      node_type: rsu
+      service_type: aim_server
+      field: tracked_vehicle_count
+    verb: gte
+    value: 2
+
+  stop_trigger:
+    source:
+      kind: snapshot
+      node_type: rsu
+      service_type: aim_server
+      field: tracked_vehicle_count
+    verb: eq
+    value: 0
+
+  targets:
+    kind: service_state_field
+    source:
+      kind: snapshot
+      node_type: rsu
+      service_type: aim_server
+      field: tracked_vehicle_ids
+    resolve_to:
+      node_type: vehicle
+      service_type: aim_client
+    selection: first
+
+  stages:
+    - id: steal_reservation_for_selected_aim_client
+      type: spoofer
+      capabilities:
+        - request.submit
+      params:
+        rewrites:
+          - path: payload.position.location.x
+            operation: add
+            value: -25.0
+          - path: payload.speed
+            operation: add
+            value: 8.0
+      stage_stop_trigger:
+        source:
+          kind: snapshot
+          node_type: rsu
+          service_type: aim_server
+          field: tracked_vehicle_count
+        verb: eq
+        value: 0

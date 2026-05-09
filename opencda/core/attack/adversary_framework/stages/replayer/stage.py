@@ -19,7 +19,9 @@ class ReplayerStage:
 
     stage_name = "replayer"
     supported_capabilities = (
+        Capability.REQUEST_OBSERVE,
         Capability.REQUEST_SUBMIT,
+        Capability.RESPONSE_OBSERVE,
         Capability.RESPONSE_SUBMIT,
         Capability.COMMAND_SUBMIT,
     )

@@ -24,7 +24,7 @@ _MISSING = object()
 logger = logging.getLogger("cavise.opencda.opencda.core.attack.adversary_framework.utils")
 
 # TODO: Consider using a more robust cloning strategy if needed, such as copyreg or custom __deepcopy__ implementations on CARLA types.
-def safe_clone(value: Any) -> Any: 
+def safe_clone(value: Any) -> Any:
     """Clone common Python structures while tolerating opaque runtime objects such as CARLA types."""
     if value is None or isinstance(value, (bool, int, float, str, bytes, bytearray, complex)):
         return value
@@ -139,6 +139,8 @@ def resolve_targets(
 
     if target_spec.kind != "service_state_field":
         raise ValueError(f"Unsupported target resolution kind '{target_spec.kind}'.")
+    if target_spec.selection not in {"all", "first"}:
+        raise ValueError(f"Unsupported target selection '{target_spec.selection}'.")
 
     source_values = collect_snapshot_values(target_spec.source, current_snapshot)
     if not source_values:
@@ -158,10 +160,14 @@ def resolve_targets(
             source_values,
         )
 
+    ordered_target_node_ids = sorted(target_node_ids)
+    if target_spec.selection == "first":
+        ordered_target_node_ids = ordered_target_node_ids[:1]
+
     target_services: list[BehaviorService[Any, Any]] = []
     missing_node_ids: list[str] = []
 
-    for node_id in sorted(target_node_ids):
+    for node_id in ordered_target_node_ids:
         service = service_resolver(node_id, target_spec.resolve_to_service_name)
         if service is not None:
             target_services.append(service)
@@ -185,14 +191,14 @@ def resolve_targets(
             attack_name,
             len(target_services),
             target_spec.resolve_to_service_name,
-            sorted(target_node_ids),
+            ordered_target_node_ids,
         )
     else:
         logger.warning(
             "Attack %r resolved zero target services for service_type=%r from node_ids=%s.",
             attack_name,
             target_spec.resolve_to_service_name,
-            sorted(target_node_ids),
+            ordered_target_node_ids,
         )
 
     return tuple(target_services)
