@@ -135,7 +135,12 @@ class Attack:
         service_resolver: ServiceResolver,
     ) -> tuple[BehaviorService[Any, Any], ...]:
         """Resolve live target services according to `spec.targets`."""
-        return resolve_configured_targets(self.spec.targets, current_snapshot, service_resolver)
+        return resolve_configured_targets(
+            self.spec.targets,
+            current_snapshot,
+            service_resolver,
+            attack_name=self.attack_name,
+        )
 
     def run_stage_lifecycle(
         self,

@@ -3,19 +3,22 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Collection, Iterable
+import logging
 from typing import Any, TypeAlias
 
 from opencda.core.application.behavior.behavior_service_protocol import BehaviorService
 from opencda.core.application.behavior.capability import Capability
 from opencda.scenario_testing.types import SimulationSnapshot
 
-from .condition_evaluator import resolve_target_node_ids
+from .condition_evaluator import collect_snapshot_values, resolve_target_node_ids
 from .models import TargetSpec
 
 ServiceResolver: TypeAlias = Callable[[str, str], BehaviorService[Any, Any] | None]
 AttackResultRewriter: TypeAlias = Callable[[Any], Any]
 RestoreCallback: TypeAlias = Callable[[], None]
 _MISSING = object()
+
+logger = logging.getLogger("cavise.opencda.opencda.core.attack.adversary_framework.utils")
 
 
 def wrap_method_output(
@@ -97,20 +100,84 @@ def resolve_targets(
     target_spec: TargetSpec | None,
     current_snapshot: SimulationSnapshot,
     service_resolver: ServiceResolver,
+    *,
+    attack_name: str | None = None,
 ) -> tuple[BehaviorService[Any, Any], ...]:
     """Resolve live target services according to a target spec."""
     if target_spec is None:
+        logger.warning(
+            "Attack %r target resolution skipped because no target spec is configured.",
+            attack_name,
+        )
         return ()
 
     if target_spec.kind != "service_state_field":
         raise ValueError(f"Unsupported target resolution kind '{target_spec.kind}'.")
 
+    source_values = collect_snapshot_values(target_spec.source, current_snapshot)
+    if not source_values:
+        logger.warning(
+            "Attack %r target resolution produced no source values: node_type=%r service_type=%r field=%r.",
+            attack_name,
+            target_spec.source.node_type,
+            target_spec.source.service_type,
+            target_spec.source.field,
+        )
+
     target_node_ids = resolve_target_node_ids(target_spec.source, current_snapshot)
+    if not target_node_ids:
+        logger.warning(
+            "Attack %r target resolution normalized to an empty node-id set from source values=%r.",
+            attack_name,
+            source_values,
+        )
+
     target_services: list[BehaviorService[Any, Any]] = []
+    missing_node_ids: list[str] = []
 
     for node_id in sorted(target_node_ids):
         service = service_resolver(node_id, target_spec.resolve_to_service_name)
         if service is not None:
             target_services.append(service)
+        else:
+            missing_node_ids.append(node_id)
+
+    available_node_ids = _collect_available_node_ids(current_snapshot, target_spec.resolve_to_node_type)
+    if missing_node_ids:
+        logger.warning(
+            "Attack %r could not resolve service_type=%r for node_ids=%s. Available %s node_ids in snapshot: %s.",
+            attack_name,
+            target_spec.resolve_to_service_name,
+            missing_node_ids,
+            target_spec.resolve_to_node_type,
+            available_node_ids,
+        )
+
+    if target_services:
+        logger.info(
+            "Attack %r resolved %d target service(s) of type=%r from node_ids=%s.",
+            attack_name,
+            len(target_services),
+            target_spec.resolve_to_service_name,
+            sorted(target_node_ids),
+        )
+    else:
+        logger.warning(
+            "Attack %r resolved zero target services for service_type=%r from node_ids=%s.",
+            attack_name,
+            target_spec.resolve_to_service_name,
+            sorted(target_node_ids),
+        )
 
     return tuple(target_services)
+
+
+def _collect_available_node_ids(
+    snapshot: SimulationSnapshot,
+    node_type: str,
+) -> tuple[str, ...]:
+    if node_type == "vehicle":
+        return tuple(node.node_id for node in snapshot.vehicle_nodes)
+    if node_type == "rsu":
+        return tuple(node.node_id for node in snapshot.rsu_nodes)
+    return tuple(node.node_id for node in snapshot.vehicle_nodes + snapshot.rsu_nodes)
