@@ -55,12 +55,6 @@ class Scenario:
             self._abort_simulation("Coperception data processor is required, but it was not initialized.")
         return self.coperception_data_processor
 
-    def _require_cav_world(self) -> CavWorld:
-        cav_world = self.scenario_manager.cav_world
-        if cav_world is None:
-            self._abort_simulation("Scenario manager was initialized without CavWorld; simulation cannot continue.")
-        return cav_world
-
     def __init__(self, opt: argparse.Namespace, scenario_params: DictConfig) -> None:
         self.node_ids: dict[str, dict[int, str]] = {"cav": {}, "rsu": {}, "platoon": {}}
         self.scenario_name = opt.test_scenario
@@ -116,7 +110,7 @@ class Scenario:
                 carla_host=opt.carla_host,
                 carla_timeout=opt.carla_timeout,
             )
-        self.cav_world = self._require_cav_world()
+        self.cav_world = self.scenario_manager.cav_world
 
         if opt.with_capi:
             from opencda.core.common.communication import toolchain
@@ -225,8 +219,7 @@ class Scenario:
         self.scenario_manager.create_custom_actor_manager(application=["single"], map_helper=map_api.spawn_helper_2lanefree, data_dump=opt.record)
         logger.info("created single custom actors")
 
-        cav_world = self._require_cav_world()
-        self.eval_manager = EvaluationManager(cav_world, script_name=self.scenario_name, current_time=scenario_config["current_time"])
+        self.eval_manager = EvaluationManager(self.cav_world, script_name=self.scenario_name, current_time=scenario_config["current_time"])
 
         self.spectator = self.scenario_manager.world.get_spectator()
 
@@ -349,7 +342,7 @@ class Scenario:
             self.attack_manager.evaluate(
                 self.attacks,
                 self.simulation_snapshot,
-                service_resolver=self._require_cav_world().resolve_behavior_services,
+                service_resolver=self.cav_world.resolve_behavior_services,
             )
 
     def capi_loop(self, opt: argparse.Namespace) -> None:
@@ -438,7 +431,7 @@ class Scenario:
             self.attack_manager.evaluate(
                 self.attacks,
                 self.simulation_snapshot,
-                service_resolver=self._require_cav_world().resolve_behavior_services,
+                service_resolver=self.cav_world.resolve_behavior_services,
             )
 
     def finalize(self, opt: argparse.Namespace) -> None:
