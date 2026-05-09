@@ -200,13 +200,6 @@ class CavWorld(object):
         )
         return ()
 
-    def resolve_behavior_service(self, node_id: str, service_type: str) -> BehaviorService[Any, Any] | None:
-        """
-        Resolve a behavior service instance by node ID and service name.
-        """
-        services = self.resolve_behavior_services(node_id, service_type)
-        return services[0] if services else None
-
     def get_platoon_dict(self) -> dict[str, PlatooningManager]:
         """
         Return existing platoons.

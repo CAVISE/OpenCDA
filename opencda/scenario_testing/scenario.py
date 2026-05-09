@@ -248,7 +248,7 @@ class Scenario:
             attacks.append(Attack.from_spec(attack_spec))
 
         self.attacks = attacks
-        self.attack_results: tuple[AttackResult, ...] = ()
+        self.attack_results: tuple[AttackResult, ...] = () # noqa: DC05
 
     def _build_simulation_snapshot(self, tick: int) -> SimulationSnapshot:
         vehicle_nodes = tuple(
