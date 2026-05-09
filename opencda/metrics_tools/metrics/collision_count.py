@@ -1,0 +1,44 @@
+"""Scenario-level collision counter metric."""
+
+from typing import Any, Mapping
+
+from opencda.metrics_tools.base_metric import BaseMetric
+from opencda.metrics_tools.collection_models import MetricSeries
+from opencda.metrics_tools.metric_sample import MetricSample
+from opencda.metrics_tools.report_models import MetricReportSpec, MetricSummarySpec
+
+
+class CollisionCountMetric(BaseMetric):
+    """Count vehicles that reported at least one collision."""
+
+    metric_name = "collision_count"
+
+    def __init__(self, warmup_steps: int = 0):
+        super().__init__(warmup_steps=warmup_steps)
+        self._collided_node_ids: set[str] = set()
+        self._count = 0
+        self._samples: list[MetricSample] = []
+
+    def _process_context(self, context: Mapping[str, Any]) -> None:
+        vehicles = context.get("vehicles", ())
+        current_collisions = {
+            str(vehicle.get("node_id", "")) for vehicle in vehicles if isinstance(vehicle, Mapping) and bool(vehicle.get("collided", False))
+        }
+        current_collisions.discard("")
+
+        new_collisions = current_collisions - self._collided_node_ids
+        self._count += len(new_collisions)
+        self._collided_node_ids.update(current_collisions)
+        self._samples.append(self._make_sample(self._count))
+
+    def get_raw(self) -> tuple[MetricSeries, ...]:
+        return (MetricSeries(name="collision_count", samples=tuple(self._samples)),)
+
+    @classmethod
+    def get_report_spec(cls) -> MetricReportSpec:
+        return MetricReportSpec(
+            metric_name=cls.metric_name,
+            display_name="Collision Count",
+            series_names=("collision_count",),
+            summary_specs=(MetricSummarySpec(series_name="collision_count", display_name="Collision Count"),),
+        )
