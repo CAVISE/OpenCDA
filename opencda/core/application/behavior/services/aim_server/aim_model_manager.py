@@ -166,7 +166,13 @@ class AIMModelManager:
                 pred_delta = predictions[idx].reshape(30, 2).detach().cpu().numpy()
                 yaw_rad = features[idx][3] - np.deg2rad(90)  # convert to carla yaw
 
-                trajectory = [self.predition_to_location(vehicle_id, pred_delta[i], yaw_rad) for i in range(30)]
+                trajectory = []
+                for local_delta in pred_delta:
+                    location = self.predition_to_location(vehicle_id, local_delta, yaw_rad)
+                    if utils.get_distance(location, self.control_center_carla_location) < self.CONTROL_RADIUS:
+                        trajectory.append(location)
+                    else:
+                        break
                 payload = AIMServerResponse(
                     trajectory=trajectory,
                 )
