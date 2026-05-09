@@ -1,9 +1,9 @@
-"""Average precision at IoU metric for cooperative perception."""
+"""Mean precision (precision-recall curve precision axis) metric at configured IoU thresholds."""
 
 from __future__ import annotations
 
 import logging
-from typing import Any, ClassVar, Mapping
+from typing import Any, ClassVar, Mapping, Sequence
 
 from opencda.metrics_tools.base_metric import BaseMetric
 from opencda.metrics_tools.collection_models import MetricSeries
@@ -18,13 +18,13 @@ from opencda.metrics_tools.metrics._opencood_eval import (
 )
 from opencda.metrics_tools.report_models import MetricReportSpec, MetricSummarySpec
 
-logger = logging.getLogger("cavise.opencda.opencda.metrics_tools.metrics.ap_at_iou")
+logger = logging.getLogger("cavise.opencda.opencda.metrics_tools.metrics.mean_precision_at_iou")
 
 
-class APAtIoUMetric(BaseMetric):
-    """Collect detection stats and report AP at configured IoU thresholds."""
+class MeanPrecisionAtIoUMetric(BaseMetric):
+    """Report the mean-precision axis of the precision-recall curve at configured IoU thresholds."""
 
-    metric_name = "ap_at_iou"
+    metric_name = "mean_precision_at_iou"
     iou_thresholds: ClassVar[tuple[float, ...]] = (0.3, 0.5, 0.7)
 
     def __init__(
@@ -38,7 +38,6 @@ class APAtIoUMetric(BaseMetric):
 
     def _process_context(self, context: Mapping[str, Any]) -> None:
         accumulate_tp_fp(self.result_stat, self.iou_thresholds, context, self.metric_name)
-        self._log_ap_at_iou()
 
     def get_raw(self) -> tuple[MetricSeries, ...]:
         if self.steps_count <= self.warmup_steps:
@@ -47,41 +46,30 @@ class APAtIoUMetric(BaseMetric):
         return tuple(
             MetricSeries(
                 name=self._series_name(iou),
-                samples=(
-                    MetricSample(
-                        tick=self.steps_count,
-                        value=self.calculate_ap(iou),
-                    ),
-                ),
+                samples=tuple(MetricSample(tick=index, value=float(value)) for index, value in enumerate(self._calculate_mpre(iou))),
             )
             for iou in self.iou_thresholds
         )
 
-    def calculate_ap(self, iou: float, global_sort_detections: bool | None = None) -> float:
+    def _calculate_mpre(self, iou: float) -> Sequence[float]:
         eval_utils = load_eval_utils()
-        ap, _, _ = eval_utils.calculate_ap(
+        _, _, mpre = eval_utils.calculate_ap(
             snapshot_result_stat(self.result_stat),
             iou,
-            self.global_sort_detections if global_sort_detections is None else global_sort_detections,
+            self.global_sort_detections,
         )
-        return float(ap)
-
-    def _log_ap_at_iou(self) -> None:
-        ap_parts = []
-        for iou in self.iou_thresholds:
-            ap_parts.append(f"AP@IoU {iou:.1f}={self.calculate_ap(iou):.3f}")
-        logger.info("Cooperative perception %s", ", ".join(ap_parts))
+        return mpre
 
     @classmethod
     def get_report_spec(cls) -> MetricReportSpec:
         return MetricReportSpec(
             metric_name=cls.metric_name,
-            display_name="Average Precision at IoU",
+            display_name="Mean Precision at IoU",
             series_names=tuple(cls._series_name(iou) for iou in cls.iou_thresholds),
             summary_specs=tuple(
                 MetricSummarySpec(
                     series_name=cls._series_name(iou),
-                    display_name=f"AP at IoU {iou:.1f}",
+                    display_name=f"Mean Precision at IoU {iou:.1f}",
                 )
                 for iou in cls.iou_thresholds
             ),
@@ -89,4 +77,4 @@ class APAtIoUMetric(BaseMetric):
 
     @staticmethod
     def _series_name(iou: float) -> str:
-        return iou_series_name("ap", iou)
+        return iou_series_name("mpre", iou)
