@@ -5,10 +5,14 @@ Evaluation manager.
 import os
 import json
 import logging
+from typing import TYPE_CHECKING
 
 from opencda.core.common.cav_world import CavWorld
 from opencda.metrics_tools.report_models import EntityReport, GroupReport, ModuleReport
 from opencda.metrics_tools.report_builder import UniversalReportBuilder
+
+if TYPE_CHECKING:
+    from opencda.core.common.coperception_model_manager import CoperceptionModelManager
 
 logger = logging.getLogger("cavise.opencda.opencda.scenario_testing.evaluations.evaluate_manager")
 
@@ -45,7 +49,7 @@ class EvaluationManager(object):
         if not os.path.exists(self.eval_save_path):
             os.makedirs(self.eval_save_path)
 
-    def evaluate(self) -> None:
+    def evaluate(self, coperception_model_manager: "CoperceptionModelManager | None" = None) -> None:
         """
         Evaluate performance of all modules and persist structured outputs.
         """
@@ -58,6 +62,9 @@ class EvaluationManager(object):
         platooning_reports = self.platooning_eval()
         logger.info("Platooning Evaluation Done")
 
+        coperception_report = self.coperception_eval(coperception_model_manager)
+        logger.info("Cooperative perception evaluation done")
+
         json_save_path = os.path.join(self.eval_save_path, "report.json")
         with open(json_save_path, "w", encoding="utf-8") as output_file:
             json.dump(
@@ -65,6 +72,7 @@ class EvaluationManager(object):
                     "planning": planning_report.to_dict(),
                     "localization": localization_report.to_dict(),
                     "platooning": [report.to_dict() for report in platooning_reports],
+                    "coperception": coperception_report.to_dict(),
                 },
                 output_file,
                 indent=2,
@@ -109,3 +117,15 @@ class EvaluationManager(object):
             platooning_reports.append(report_builder.build_group_report(pmid, member_metrics, module="platooning"))
 
         return tuple(platooning_reports)
+
+    def coperception_eval(self, coperception_model_manager: "CoperceptionModelManager | None" = None) -> ModuleReport:
+        """
+        Cooperative perception module evaluation.
+        """
+        report_builder = UniversalReportBuilder()
+        if coperception_model_manager is None:
+            return report_builder.build_module_report("coperception", ())
+
+        raw_data = coperception_model_manager.get_metric_collection()
+        coperception_report = report_builder.build_entity_report(raw_data)
+        return report_builder.build_module_report("coperception", (coperception_report,))
