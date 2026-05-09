@@ -447,11 +447,8 @@ class Scenario:
             logger.info("finalizing: stopping recorder")
 
         if self.eval_manager is not None:
-            self.eval_manager.evaluate()
+            self.eval_manager.evaluate(coperception_model_manager=self.coperception_model_manager)
             logger.info("finalizing: evaluating results")
-
-        if self.coperception_model_manager is not None:
-            self.coperception_model_manager.final_eval()
 
         if self.single_cav_list is not None:
             logger.info(f"finalizing: destroying {len(self.single_cav_list)} single cavs")

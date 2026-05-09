@@ -193,11 +193,11 @@ class AdvCPAttackHelper:
         memory_data: AdvCPMemoryData | None,
     ) -> tuple[list[str], dict[str, list[npt.NDArray]]]:
         if memory_data is None:
-            raise ValueError("AdvCP late spoofing requires current memory data.")
+            raise ValueError("AdvCP late attack requires current memory data.")
 
         mode = cls.require_config_value(advcp_config, "mode")
         match mode:
-            case "spoof":
+            case "removal" | "spoofing":
                 pass
             case _:
                 raise NotImplementedError(f"AdvCP mode '{mode}' is not available yet.")
