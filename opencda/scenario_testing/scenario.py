@@ -14,7 +14,7 @@ from omegaconf import DictConfig, OmegaConf
 import opencda.scenario_testing.utils.cosim_api as sim_api
 import opencda.scenario_testing.utils.customized_map_api as map_api
 from opencda.core.application.platooning.platooning_manager import PlatooningManager
-from opencda.core.attack.adversary_framework import Attack, AttackManager, AttackResult, AttackSpec
+from opencda.core.attack.adversary_framework import Attack, AttackManager, AttackSpec
 from opencda.core.common.cav_world import CavWorld
 from opencda.core.common.coperception_data_processor import CoperceptionDataProcessor
 from opencda.core.common.rsu_manager import RSUManager
@@ -248,7 +248,6 @@ class Scenario:
             attacks.append(Attack.from_spec(attack_spec))
 
         self.attacks = attacks
-        self.attack_results: tuple[AttackResult, ...] = () # noqa: DC05
 
     def _build_simulation_snapshot(self, tick: int) -> SimulationSnapshot:
         vehicle_nodes = tuple(
@@ -347,7 +346,7 @@ class Scenario:
             self.messages = new_messages
             self.simulation_snapshot = self._build_simulation_snapshot(tick_number)
 
-            self.attack_results = self.attack_manager.evaluate(
+            self.attack_manager.evaluate(
                 self.attacks,
                 self.simulation_snapshot,
                 service_resolver=self._require_cav_world().resolve_behavior_services,
@@ -436,7 +435,7 @@ class Scenario:
                     new_messages.extend(rsu_messages)
 
             self.simulation_snapshot = self._build_simulation_snapshot(tick_number)
-            self.attack_results = self.attack_manager.evaluate(
+            self.attack_manager.evaluate(
                 self.attacks,
                 self.simulation_snapshot,
                 service_resolver=self._require_cav_world().resolve_behavior_services,

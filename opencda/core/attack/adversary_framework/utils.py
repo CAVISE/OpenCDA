@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from collections import deque
 from collections.abc import Callable, Collection, Iterable
-from copy import deepcopy
-from dataclasses import fields, is_dataclass, replace
+from copy import copy, deepcopy
+from dataclasses import fields, is_dataclass
 import logging
 from typing import Any, TypeAlias
 
@@ -38,9 +38,14 @@ def safe_clone(value: Any) -> Any:
         return {safe_clone(key): safe_clone(item) for key, item in value.items()}
     if isinstance(value, deque):
         return deque((safe_clone(item) for item in value), maxlen=value.maxlen)
-    if is_dataclass(value):
-        field_values = {field.name: safe_clone(getattr(value, field.name)) for field in fields(value)}
-        return replace(value, **field_values)
+    if is_dataclass(value) and not isinstance(value, type):
+        try:
+            cloned_value = copy(value)
+            for field in fields(value):
+                object.__setattr__(cloned_value, field.name, safe_clone(getattr(value, field.name)))
+            return cloned_value
+        except Exception:
+            return value
 
     try:
         return deepcopy(value)
