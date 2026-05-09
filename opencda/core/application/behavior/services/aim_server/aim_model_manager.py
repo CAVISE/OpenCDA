@@ -134,10 +134,13 @@ class AIMModelManager:
         """
         Run AIM inference for the request batch and return predicted targets.
         """
+        cav_to_delete = []
         for vehicle_id in self.cav_state:
             self.cav_state[vehicle_id]["ttl"] -= 1
             if self.cav_state[vehicle_id]["ttl"] == 0:
-                del self.cav_state[vehicle_id]
+                cav_to_delete.append(vehicle_id)
+        for vehicle_id in cav_to_delete:
+            del self.cav_state[vehicle_id]
 
         for message in messages:
             self._preprocess_cav_data(message)
