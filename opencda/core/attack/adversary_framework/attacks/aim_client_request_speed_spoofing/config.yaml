@@ -1,5 +1,5 @@
 attack:
-  name: aim_client_response_sniffer
+  name: aim_client_request_speed_spoofing
 
   requirements:
     all:
@@ -44,14 +44,23 @@ attack:
       service_type: aim_client
 
   stages:
-    - id: sniff_aim_client_responses
-      type: sniffer
+    - id: spoof_aim_client_requests
+      type: spoofer
       capabilities:
-        - response.observe
-      stage_start_trigger:
+        - request.submit
+      params:
+        rewrites:
+          - path: payload.speed
+            operation: add
+            value: 5.0
+          - path: payload.yaw
+            operation: add
+            value: 10.0
+      stage_stop_trigger:
         source:
-          kind: attack
-          attack_name: aim_client_response_sniffer
-          field: status
+          kind: snapshot
+          node_type: rsu
+          service_type: aim_server
+          field: tracked_vehicle_count
         verb: eq
-        value: active
+        value: 0

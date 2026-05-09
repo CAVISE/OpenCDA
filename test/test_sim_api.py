@@ -456,9 +456,7 @@ def test_create_platoon_manager_creates_one_platoon_two_members(mocker, minimal_
 
     sm, world, _ = _make_scenario_manager(mocker, params)
     world.tick.reset_mock()
-
-    cav_world_instance = Mock()
-    cav_world_ctor = mocker.patch("opencda.scenario_testing.utils.sim_api.CavWorld", return_value=cav_world_instance)
+    existing_cav_world = sm.cav_world
 
     platoon_manager = Mock(spec_set=["set_lead", "add_member", "set_destination", "update_member_order"])
     platoon_manager.set_lead = Mock()
@@ -483,8 +481,7 @@ def test_create_platoon_manager_creates_one_platoon_two_members(mocker, minimal_
 
     platoons, mapping = sm.create_platoon_manager(map_helper=None)
 
-    cav_world_ctor.assert_called_once_with(False)
-    assert sm.cav_world is cav_world_instance
+    assert sm.cav_world is existing_cav_world
 
     assert platoons == [platoon_manager]
     assert mapping == {101: "platoon-1", 102: "platoon-2"}
@@ -493,7 +490,7 @@ def test_create_platoon_manager_creates_one_platoon_two_members(mocker, minimal_
     assert spawn_custom_actor.call_count == 2
 
     platoon_manager_ctor.assert_called_once()
-    assert platoon_manager_ctor.call_args.args[1] is cav_world_instance
+    assert platoon_manager_ctor.call_args.args[1] is existing_cav_world
 
     assert vehicle_manager_ctor.call_count == 2
     for call_ in vehicle_manager_ctor.call_args_list:
@@ -965,9 +962,7 @@ def test_create_platoon_manager_multiple_platoons_combines_mapping_and_ticks_eac
 
     sm, world, _ = _make_scenario_manager(mocker, params)
     world.tick.reset_mock()
-
-    cav_world_instance = Mock()
-    cav_world_ctor = mocker.patch("opencda.scenario_testing.utils.sim_api.CavWorld", return_value=cav_world_instance)
+    existing_cav_world = sm.cav_world
 
     def _make_platoon_manager_mock():
         pm = Mock(spec_set=["set_lead", "add_member", "set_destination", "update_member_order"])
@@ -1007,8 +1002,7 @@ def test_create_platoon_manager_multiple_platoons_combines_mapping_and_ticks_eac
 
     platoons, mapping = sm.create_platoon_manager(map_helper=None)
 
-    cav_world_ctor.assert_called_once_with(False)
-    assert sm.cav_world is cav_world_instance
+    assert sm.cav_world is existing_cav_world
 
     assert platoons == [pm1, pm2]
     assert mapping == {
@@ -1027,8 +1021,8 @@ def test_create_platoon_manager_multiple_platoons_combines_mapping_and_ticks_eac
         assert call_.kwargs["current_time"] == "t0"
 
     assert platoon_manager_ctor.call_count == 2
-    assert platoon_manager_ctor.call_args_list[0].args[1] is cav_world_instance
-    assert platoon_manager_ctor.call_args_list[1].args[1] is cav_world_instance
+    assert platoon_manager_ctor.call_args_list[0].args[1] is existing_cav_world
+    assert platoon_manager_ctor.call_args_list[1].args[1] is existing_cav_world
 
     pm1.set_lead.assert_called_once_with(vm1)
     pm1.add_member.assert_called_once_with(vm2, leader=False)
