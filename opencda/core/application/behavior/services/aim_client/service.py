@@ -156,18 +156,13 @@ class AIMClient:
             target_speeds = calculate_target_speeds(control_trajectory, 0.05, current_location, current_speed, 111, 2.5, 4.5)
             self.trajectory = deque(zip(control_trajectory, target_speeds))
 
+        if self.trajectory:
             if self.debug:
-                self._draw_control_trajectory(owner, control_trajectory)
-
+                self._draw_control_trajectory(owner, [i[0] for i in self.trajectory])
             target_location, target_speed = self.trajectory.popleft()
             movement_commands.append(self._build_movement_command_message(target_location, target_speed))
-
-        if len(movement_commands) == 0:
-            if self.trajectory:
-                target_location, target_speed = self.trajectory.popleft()
-                movement_commands.append(self._build_movement_command_message(target_location, target_speed))
-            else:
-                self.server_id = BROADCAST_OWNER_ID
+        else:
+            self.server_id = BROADCAST_OWNER_ID
 
         return tuple(movement_commands)
 
