@@ -1,3 +1,27 @@
+"""
+Top-level AdvCP model manager and visualizer.
+
+``AdvCoperceptionModelManager`` is the entry point that wires AdvCP
+into the cooperative-perception inference pipeline. Use it in place of
+the regular ``CoperceptionModelManager`` to enable the attack family.
+
+It holds:
+
+- The resolved AdvCP YAML config.
+- The current per-tick memory data (set by the calling scenario
+  pipeline before each inference call).
+- The persistent intermediate-fusion attack state (best perturbations
+  to use as warm starts on subsequent ticks).
+
+For each fusion mode the manager overrides the corresponding
+``_run_*_inference`` hook so that AdvCP's attack runner is called
+instead of the vanilla OpenCOOD inference helper.
+
+``AdvCoperceptionVisualizer`` extends the regular cooperative
+visualizer with attacker-aware point colouring and dedicated colours
+for fake / removed boxes.
+"""
+
 from __future__ import annotations
 
 import logging
@@ -17,6 +41,8 @@ from opencda.core.attack.advcp.types import (
     AdvCPConfig,
     AdvCPIntermediateAttackState,
     AdvCPMemoryData,
+    AgentId,
+    AttackerId,
 )
 from opencda.core.common.coperception_model_manager import (
     CoperceptionInferenceResult,
@@ -29,6 +55,19 @@ logger = logging.getLogger("cavise.opencda.opencda.core.attack.advcp.advcp_manag
 
 
 class AdvCoperceptionVisualizer(CoperceptionVisualizer):
+    """
+    Cooperative-perception visualizer with AdvCP-aware point colouring.
+
+    Two visual additions on top of the base visualizer:
+
+    - Dedicated bbox colours for ``fake`` (spoofed) and ``removed``
+      target boxes pulled from
+      :class:`AdvCPVisualizationContext`.
+    - Per-CAV point colouring that treats configured attackers and
+      the spoofing-injected points (marked by
+      ``origin_lidar_spoofing_masks``) differently from regular CAVs.
+    """
+
     _DEFAULT_VISUALIZATION_CONFIG: CoperceptionVisualizationConfig = {
         "background": (0, 0, 0),
         "lidar_point_colors": {
@@ -46,12 +85,28 @@ class AdvCoperceptionVisualizer(CoperceptionVisualizer):
 
     @staticmethod
     def _get_context_value(visualization_context: Any, key: str, default: Any = None) -> Any:
+        """
+        Safely read an attribute from an :class:`AdvCPVisualizationContext`-like object.
+
+        Returns ``default`` when the context itself is ``None`` or when
+        the attribute is missing.
+        """
         if visualization_context is None:
             return default
         return getattr(visualization_context, key, default)
 
     @classmethod
     def _get_extra_box_tensors(cls, visualization_context: Optional[Any] = None) -> dict[str, Any]:
+        """
+        Provide the visualizer's optional ``fake`` and ``removed`` boxes.
+
+        Returns
+        -------
+        dict
+            Mapping from ``"fake"`` / ``"removed"`` to the corresponding
+            tensor on the context (possibly ``None``). An empty dict
+            when no context is supplied.
+        """
         if not visualization_context:
             return {}
         return {
@@ -61,6 +116,12 @@ class AdvCoperceptionVisualizer(CoperceptionVisualizer):
 
     @staticmethod
     def _require_visualization_value(config: Mapping[str, Any], section: str, key: str) -> Any:
+        """
+        Look up ``config[section][key]``, raising if either level is missing.
+
+        Used to surface human-readable errors when the visualization
+        YAML is incomplete.
+        """
         section_mapping = config.get(section)
         if not isinstance(section_mapping, Mapping):
             raise ValueError(f"Unexpected None in AdvCP visualization config for '{section}'.")
@@ -78,6 +139,35 @@ class AdvCoperceptionVisualizer(CoperceptionVisualizer):
         config: Mapping[str, Any],
         visualization_context: Optional[Any] = None,
     ) -> tuple[npt.NDArray, npt.NDArray]:
+        """
+        Compute coloured lidar points for visualization.
+
+        When the batch carries the AdvCP-augmented per-agent bundles
+        (``origin_lidar_by_agent`` and ``origin_lidar_spoofing_masks``),
+        each agent's points are coloured by role (ego, attacker,
+        other) and points marked by the spoofing mask are highlighted
+        with the dedicated ``spoofing`` colour.
+
+        Falls back to the base visualizer when the AdvCP-specific
+        fields are absent.
+
+        Parameters
+        ----------
+        batch_data : Any
+            Collated batch.
+        fallback_pcd : Any
+            Open3D point cloud fallback for the base visualizer.
+        config : Mapping
+            Visualization config (see ``_DEFAULT_VISUALIZATION_CONFIG``).
+        visualization_context : optional
+            AdvCP visualization context for the current tick (used to
+            pull attacker ids).
+
+        Returns
+        -------
+        tuple of npt.NDArray
+            ``(points, colors)`` arrays ready for the base visualizer.
+        """
         if not isinstance(batch_data, Mapping):
             return super()._get_lidar_points_and_colors(
                 batch_data,
@@ -158,6 +248,21 @@ class AdvCoperceptionVisualizer(CoperceptionVisualizer):
         ego_color: tuple[int, int, int],
         visualization_context: Optional[Any] = None,
     ) -> tuple[int, int, int]:
+        """
+        Pick the point colour for a single CAV.
+
+        Resolution order:
+        1. Per-agent override via ``lidar_point_colors[agent_id]``.
+        2. The dedicated ``attackers`` colour when ``agent_id`` is in
+           the active attacker list from the visualization context.
+        3. The ego colour when ``role == "ego"``.
+        4. The fallback ``other`` colour.
+
+        Returns
+        -------
+        tuple of int
+            RGB triple in ``uint8`` range.
+        """
         lidar_point_colors = config["lidar_point_colors"]
         if agent_id is not None and agent_id in lidar_point_colors:
             return cls._as_uint8_color(lidar_point_colors[agent_id])
@@ -171,6 +276,29 @@ class AdvCoperceptionVisualizer(CoperceptionVisualizer):
 
 
 class AdvCoperceptionModelManager(CoperceptionModelManager):
+    """
+    Cooperative-perception model manager with AdvCP attacks enabled.
+
+    Drop-in replacement for ``CoperceptionModelManager``. Reads the
+    AdvCP YAML config from ``opt.advcp_config``, validates the
+    configured attackers against the actual scenario agents, and
+    redirects the per-fusion inference hooks to the corresponding
+    AdvCP attack runner.
+
+    Attributes
+    ----------
+    advcp_config : AdvCPConfig
+        Resolved AdvCP config (defaults applied, paths normalised).
+    current_memory_data : AdvCPMemoryData or None
+        Per-tick memory data set by the calling pipeline before each
+        inference call. AdvCP needs it to access raw lidar data and
+        per-agent poses.
+    intermediate_attack_state : AdvCPIntermediateAttackState
+        Persistent state for the intermediate-fusion attack
+        (``previous_memory_data``, ``current_memory_data``,
+        ``init_perturbation``).
+    """
+
     VISUALIZER_CLASS = AdvCoperceptionVisualizer
     SEQUENCE_BOX_GROUP_NAMES: tuple[str, ...] = ("pred", "gt", "fake", "removed")
 
@@ -181,6 +309,22 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
         payload_handler: Any = None,
         visualization_config: Optional[Mapping[str, Any]] = None,
     ) -> None:
+        """
+        Construct the manager.
+
+        Parameters
+        ----------
+        opt : Any
+            CLI options. ``opt.advcp_config`` is the path to the AdvCP
+            YAML.
+        current_time : str
+            Run timestamp string used by the base manager for logging
+            and output paths.
+        payload_handler : Any, optional
+            Optional payload handler forwarded to the base manager.
+        visualization_config : Mapping, optional
+            Visualization configuration overrides.
+        """
         self.advcp_config = self.load_config(getattr(opt, "advcp_config", None))
         self.current_memory_data: Optional[AdvCPMemoryData] = None
         self.intermediate_attack_state: AdvCPIntermediateAttackState = {}
@@ -188,6 +332,25 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
 
     @staticmethod
     def load_config(config_path: str | None) -> AdvCPConfig:
+        """
+        Load and normalise the AdvCP YAML config.
+
+        Applies defaults for every recognised key, resolves
+        relative asset paths against the YAML directory, validates
+        attacker ids, and asserts that all required keys end up
+        non-``None``.
+
+        Parameters
+        ----------
+        config_path : str or None
+            Path to the AdvCP YAML. If ``None`` or unloadable, the
+            full default config is returned.
+
+        Returns
+        -------
+        AdvCPConfig
+            Resolved config, ready to be consumed by attack runners.
+        """
         config: dict[str, object] = {}
         config_dir: Path | None = None
         local_model_root = Path(__file__).resolve().parent / "3d_models"
@@ -265,10 +428,32 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
                     config[optional_path_key] = str((config_dir / path).resolve())
         return cast(AdvCPConfig, config)
 
-    def validate_advcp_agents(self, valid_agent_ids: list[str]) -> bool:
+    def validate_advcp_agents(self, valid_agent_ids: list[AgentId]) -> bool:
+        """
+        Cross-check configured attackers against known scenario agents.
+
+        Drops any attacker id that does not exist in
+        ``valid_agent_ids`` (with a warning) and overwrites
+        ``self.advcp_config["attacker_ids"]`` with the survivors.
+
+        Parameters
+        ----------
+        valid_agent_ids : list of AgentId
+            Agent ids actually present in the scenario.
+
+        Returns
+        -------
+        bool
+            ``True`` once validation succeeded.
+
+        Raises
+        ------
+        ValueError
+            If no configured attacker survives the filter.
+        """
         mode = AdvCPAttackHelper.require_config_value(self.advcp_config, "mode")
         configured_attacker_ids = AdvCPAttackHelper.resolve_configured_attacker_ids(self.advcp_config)
-        attacker_ids: list[str] = []
+        attacker_ids: list[AttackerId] = []
         for attacker_id in configured_attacker_ids:
             if attacker_id in valid_agent_ids:
                 attacker_ids.append(attacker_id)
@@ -293,6 +478,7 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
         return True
 
     def _run_late_inference(self, batch_data: Any) -> CoperceptionInferenceResult:  # noqa: DC04
+        """Late-fusion inference hook: dispatches to the AdvCP late attack runner."""
         return self._build_inference_result(
             *self._inference_late_fusion_attack(
                 batch_data,
@@ -305,6 +491,7 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
         )
 
     def _run_early_inference(self, batch_data: Any) -> CoperceptionInferenceResult:  # noqa: DC04
+        """Early-fusion inference hook: dispatches to the AdvCP early attack runner."""
         return self._build_inference_result(
             *self._inference_early_fusion_attack(
                 batch_data,
@@ -317,6 +504,13 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
         )
 
     def _run_intermediate_inference(self, batch_data: Any) -> CoperceptionInferenceResult:  # noqa: DC04
+        """
+        Intermediate-fusion inference hook.
+
+        Dispatches to the AdvCP intermediate attack runner and threads
+        the persistent attack state through so warm starts and
+        sync-mode optimization across ticks can work.
+        """
         return self._build_inference_result(
             *self._inference_intermediate_fusion_attack(
                 batch_data,
@@ -330,6 +524,17 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
         )
 
     def _requires_grad_for_inference(self) -> bool:
+        """
+        Whether the inference pipeline must keep gradients enabled.
+
+        Required for intermediate fusion because the attack performs
+        gradient-based optimization on the spatial features. Early and
+        late fusion are gradient-free.
+
+        Returns
+        -------
+        bool
+        """
         core_method = self.hypes.get("fusion", {}).get("core_method")
         return core_method in {"IntermediateFusionDataset", "IntermediateFusionDatasetV2"}
 
@@ -340,6 +545,17 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
         gt_box_tensor: Any,
         visualization_context: Optional[Mapping[str, Any]],
     ) -> dict[str, Any]:
+        """
+        Augment the base metric context with AdvCP-specific fields.
+
+        Adds ``advcp_config`` and ``memory_data`` so that AdvCP-specific
+        metrics can access them.
+
+        Returns
+        -------
+        dict
+            Metric update context.
+        """
         context = super()._build_metric_update_context(
             pred_box_tensor,
             pred_score,
@@ -356,12 +572,15 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
 
     @staticmethod
     def _inference_late_fusion_attack(*args: Any, **kwargs: Any) -> AdvCPAttackResult:
+        """Adapter forwarding to ``AdvCoperceptionLateFusionAttack.run``."""
         return AdvCoperceptionLateFusionAttack.run(*args, **kwargs)
 
     @staticmethod
     def _inference_early_fusion_attack(*args: Any, **kwargs: Any) -> AdvCPAttackResult:
+        """Adapter forwarding to ``AdvCoperceptionEarlyFusionAttack.run``."""
         return AdvCoperceptionEarlyFusionAttack.run(*args, **kwargs)
 
     @staticmethod
     def _inference_intermediate_fusion_attack(*args: Any, **kwargs: Any) -> AdvCPAttackResult:
+        """Adapter forwarding to ``AdvCoperceptionIntermediateFusionAttack.run``."""
         return AdvCoperceptionIntermediateFusionAttack.run(*args, **kwargs)
