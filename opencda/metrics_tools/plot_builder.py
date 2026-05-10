@@ -24,25 +24,47 @@ class MetricPlotStyle:
     image_format: str = "png"
     dpi: int = 200
     figsize: tuple[float, float] = (15.0, 6.0)
-    line_color: str = "#004F54"
-    line_width: float = 1.8
+
+    # --- Main line ---
+    line_color: str = "#004F54"   # deep teal
+    line_width: float = 2.0
     marker: str | None = None
-    title_fontsize: int = 24
-    label_fontsize: int = 20
-    tick_fontsize: int = 18
-    grid_alpha: float = 1
+
+    # --- Typography ---
+    font_family: str = "serif"
+    title_fontsize: int = 18
+    label_fontsize: int = 15
+    tick_fontsize: int = 13
+
+    # --- Grid ---
+    grid_alpha: float = 0.55
     grid_linestyle: str = "--"
+    grid_color: str = "#B2DDD9"   # light teal
+
+    # --- Background ---
     background_color: str = "#FFFFFF"
-    axes_facecolor: str = "#F8FFFB"
+    axes_facecolor: str = "#F2FDFB"   # barely-there teal tint
+
+    # --- Spines ---
+    hide_top_spine: bool = True
+    hide_right_spine: bool = True
+
+    # --- Minor ticks ---
+    minor_ticks: bool = True
+
+    # --- Mean line ---
     show_mean: bool = True
-    mean_line_color: str = "#C23B22"
-    mean_line_width: float = 1.4
+    mean_line_color: str = "#5CDB95"   # bright green accent
+    mean_line_width: float = 1.6
     mean_line_style: str = "--"
-    mean_label_fontsize: int = 14
+    mean_label_fontsize: int = 13
+
+    # --- Min / max markers ---
     show_min_max: bool = True
-    extreme_marker_color: str = "#F18F01"
+    extreme_marker_color: str = "#2E8B6E"   # mid-green, readable on light bg
     extreme_marker_size: float = 70.0
-    extreme_annotation_fontsize: int = 14
+    extreme_annotation_fontsize: int = 13
+
     value_precision: int = 3
 
 
@@ -105,26 +127,63 @@ class MetricPlotBuilder:
         ticks = [sample.tick for sample in series.samples]
         values = [sample.value for sample in series.samples]
 
+        import matplotlib as mpl
+
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        figure, axis = pyplot.subplots(figsize=self.style.figsize)
-        figure.patch.set_facecolor(self.style.background_color)
-        axis.set_facecolor(self.style.axes_facecolor)
-        axis.plot(
-            ticks,
-            values,
-            color=self.style.line_color,
-            linewidth=self.style.line_width,
-            marker=self.style.marker,
-        )
-        self._draw_summary_statistics(axis, ticks, values)
-        axis.set_title(title, fontsize=self.style.title_fontsize)
-        axis.set_xlabel("Tick", fontsize=self.style.label_fontsize)
-        axis.set_ylabel(series.name, fontsize=self.style.label_fontsize)
-        axis.tick_params(axis="both", labelsize=self.style.tick_fontsize)
-        axis.grid(True, alpha=self.style.grid_alpha, linestyle=self.style.grid_linestyle)
-        figure.tight_layout()
-        figure.savefig(output_path, dpi=self.style.dpi)
-        pyplot.close(figure)
+
+        # Apply font globally for this figure
+        with mpl.rc_context({"font.family": self.style.font_family}):
+            figure, axis = pyplot.subplots(figsize=self.style.figsize)
+            figure.patch.set_facecolor(self.style.background_color)
+            axis.set_facecolor(self.style.axes_facecolor)
+
+            # Spines
+            axis.spines["top"].set_visible(not self.style.hide_top_spine)
+            axis.spines["right"].set_visible(not self.style.hide_right_spine)
+            axis.spines["left"].set_color("#004F54")
+            axis.spines["bottom"].set_color("#004F54")
+            axis.spines["left"].set_linewidth(1.1)
+            axis.spines["bottom"].set_linewidth(1.1)
+
+            axis.plot(
+                ticks,
+                values,
+                color=self.style.line_color,
+                linewidth=self.style.line_width,
+                marker=self.style.marker,
+            )
+            self._draw_summary_statistics(axis, ticks, values)
+
+            axis.set_title(title, fontsize=self.style.title_fontsize, color="#004F54", pad=14)
+            axis.set_xlabel("Tick", fontsize=self.style.label_fontsize, color="#004F54")
+            axis.set_ylabel(series.name, fontsize=self.style.label_fontsize, color="#004F54")
+
+            # Ticks
+            axis.tick_params(
+                axis="both",
+                labelsize=self.style.tick_fontsize,
+                colors="#004F54",
+                direction="out",
+                length=5,
+                width=1.0,
+            )
+            if self.style.minor_ticks:
+                axis.minorticks_on()
+                axis.tick_params(axis="both", which="minor", length=3, width=0.7, colors="#004F54")
+
+            axis.grid(
+                True,
+                which="major",
+                alpha=self.style.grid_alpha,
+                linestyle=self.style.grid_linestyle,
+                color=self.style.grid_color,
+            )
+            axis.set_axisbelow(True)
+
+            figure.tight_layout()
+            figure.savefig(output_path, dpi=self.style.dpi)
+            pyplot.close(figure)
+
         return True
 
     def _draw_summary_statistics(self, axis: Any, ticks: list[int], values: list[float]) -> None:
