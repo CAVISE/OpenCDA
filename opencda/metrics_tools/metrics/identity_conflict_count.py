@@ -10,7 +10,7 @@ from opencda.metrics_tools.metric_sample import MetricSample
 from opencda.metrics_tools.report_models import MetricReportSpec, MetricSummarySpec
 
 
-class IdentityConflictCountMetric(BaseMetric):
+class IdentityConflictCountMetric(BaseMetric):  # noqa DC03
     """Count episodes where one claimed identity is emitted by multiple physical nodes."""
 
     metric_name = "identity_conflict_count"

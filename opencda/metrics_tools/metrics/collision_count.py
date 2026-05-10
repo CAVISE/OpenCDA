@@ -8,7 +8,7 @@ from opencda.metrics_tools.metric_sample import MetricSample
 from opencda.metrics_tools.report_models import MetricReportSpec, MetricSummarySpec
 
 
-class CollisionCountMetric(BaseMetric):
+class CollisionCountMetric(BaseMetric):  # noqa DC03
     """Count vehicles that reported at least one collision."""
 
     metric_name = "collision_count"

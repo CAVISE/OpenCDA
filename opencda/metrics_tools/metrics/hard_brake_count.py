@@ -8,7 +8,7 @@ from opencda.metrics_tools.metric_sample import MetricSample
 from opencda.metrics_tools.report_models import MetricReportSpec, MetricSummarySpec
 
 
-class HardBrakeCountMetric(BaseMetric):
+class HardBrakeCountMetric(BaseMetric):  # noqa DC03
     """Count hard-braking episodes from ego speed samples."""
 
     metric_name = "hard_brake_count"

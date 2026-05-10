@@ -10,7 +10,7 @@ from opencda.metrics_tools.metric_sample import MetricSample
 from opencda.metrics_tools.report_models import MetricReportSpec, MetricSummarySpec
 
 
-class NearMissCountMetric(BaseMetric):
+class NearMissCountMetric(BaseMetric):  # noqa DC03
     """Count pairwise near-miss episodes between CAVs."""
 
     metric_name = "near_miss_count"
