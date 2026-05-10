@@ -26,7 +26,7 @@ class MetricPlotStyle:
     figsize: tuple[float, float] = (15.0, 6.0)
 
     # --- Main line ---
-    line_color: str = "#004F54"   # deep teal
+    line_color: str = "#004F54"  # deep teal
     line_width: float = 2.0
     marker: str | None = None
 
@@ -39,11 +39,11 @@ class MetricPlotStyle:
     # --- Grid ---
     grid_alpha: float = 0.55
     grid_linestyle: str = "--"
-    grid_color: str = "#B2DDD9"   # light teal
+    grid_color: str = "#B2DDD9"  # light teal
 
     # --- Background ---
     background_color: str = "#FFFFFF"
-    axes_facecolor: str = "#F2FDFB"   # barely-there teal tint
+    axes_facecolor: str = "#F2FDFB"  # barely-there teal tint
 
     # --- Spines ---
     hide_top_spine: bool = True
@@ -52,18 +52,16 @@ class MetricPlotStyle:
     # --- Minor ticks ---
     minor_ticks: bool = True
 
-    # --- Mean line ---
+    # --- Summary statistics ---
     show_mean: bool = True
-    mean_line_color: str = "#5CDB95"   # bright green accent
-    mean_line_width: float = 1.6
-    mean_line_style: str = "--"
-    mean_label_fontsize: int = 13
-
-    # --- Min / max markers ---
     show_min_max: bool = True
-    extreme_marker_color: str = "#2E8B6E"   # mid-green, readable on light bg
-    extreme_marker_size: float = 70.0
-    extreme_annotation_fontsize: int = 13
+    stats_box_fontsize: int = 13
+    stats_box_text_color: str = "#004F54"
+    stats_box_facecolor: str = "#FFFFFF"
+    stats_box_edgecolor: str = "#2E8B6E"
+    stats_box_alpha: float = 0.92
+    stats_box_linewidth: float = 1.0
+    stats_box_style: str = "round,pad=0.45"
 
     value_precision: int = 3
 
@@ -152,7 +150,7 @@ class MetricPlotBuilder:
                 linewidth=self.style.line_width,
                 marker=self.style.marker,
             )
-            self._draw_summary_statistics(axis, ticks, values)
+            self._draw_summary_statistics(axis, values)
 
             axis.set_title(title, fontsize=self.style.title_fontsize, color="#004F54", pad=14)
             axis.set_xlabel("Tick", fontsize=self.style.label_fontsize, color="#004F54")
@@ -186,54 +184,39 @@ class MetricPlotBuilder:
 
         return True
 
-    def _draw_summary_statistics(self, axis: Any, ticks: list[int], values: list[float]) -> None:
+    def _draw_summary_statistics(self, axis: Any, values: list[float]) -> None:
         if not values:
             return
 
-        if self.style.show_mean:
-            mean_value = sum(values) / len(values)
-            axis.axhline(
-                mean_value,
-                color=self.style.mean_line_color,
-                linewidth=self.style.mean_line_width,
-                linestyle=self.style.mean_line_style,
-            )
-            axis.annotate(
-                f"mean={_format_value(mean_value, self.style.value_precision)}",
-                xy=(ticks[-1], mean_value),
-                xytext=(-8, 8),
-                textcoords="offset points",
-                ha="right",
-                va="bottom",
-                fontsize=self.style.mean_label_fontsize,
-                color=self.style.mean_line_color,
-            )
+        summary_lines: list[str] = []
 
         if self.style.show_min_max:
-            self._annotate_extreme(axis, ticks, values, max(values), "max")
-            min_value = min(values)
-            if min_value != max(values):
-                self._annotate_extreme(axis, ticks, values, min_value, "min")
+            summary_lines.append(f"max: {_format_value(max(values), self.style.value_precision)}")
+            summary_lines.append(f"min: {_format_value(min(values), self.style.value_precision)}")
 
-    def _annotate_extreme(self, axis: Any, ticks: list[int], values: list[float], extreme_value: float, label: str) -> None:
-        index = values.index(extreme_value)
-        tick = ticks[index]
-        axis.scatter(
-            [tick],
-            [extreme_value],
-            color=self.style.extreme_marker_color,
-            s=self.style.extreme_marker_size,
-            zorder=3,
-        )
-        axis.annotate(
-            f"{label}={_format_value(extreme_value, self.style.value_precision)}",
-            xy=(tick, extreme_value),
-            xytext=(8, 8),
-            textcoords="offset points",
-            ha="left",
-            va="bottom",
-            fontsize=self.style.extreme_annotation_fontsize,
-            color=self.style.extreme_marker_color,
+        if self.style.show_mean:
+            mean_value = sum(values) / len(values)
+            summary_lines.append(f"mean: {_format_value(mean_value, self.style.value_precision)}")
+
+        if not summary_lines:
+            return
+
+        axis.text(
+            0.98,
+            0.98,
+            "\n".join(summary_lines),
+            transform=axis.transAxes,
+            ha="right",
+            va="top",
+            fontsize=self.style.stats_box_fontsize,
+            color=self.style.stats_box_text_color,
+            bbox={
+                "boxstyle": self.style.stats_box_style,
+                "facecolor": self.style.stats_box_facecolor,
+                "edgecolor": self.style.stats_box_edgecolor,
+                "alpha": self.style.stats_box_alpha,
+                "linewidth": self.style.stats_box_linewidth,
+            },
         )
 
 
