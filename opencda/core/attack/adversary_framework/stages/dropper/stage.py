@@ -34,6 +34,9 @@ class DropperStage:
         self._restore_callbacks: list[RestoreCallback] = []
         self._drop_rate = self._parse_drop_rate(params)
 
+        seed = None if params is None else params.get("seed", None)
+        self._rng = random.Random(seed)
+
     def execute(self, services: Sequence[BehaviorService[Any, Any]]) -> AttackStageResult:
         self.deactivate()
 
@@ -87,7 +90,7 @@ class DropperStage:
         return isinstance(output, Iterable) and not isinstance(output, (str, bytes, bytearray, Mapping))
 
     def _should_drop(self) -> bool:
-        return random.random() < self._drop_rate
+        return self._rng.random() < self._drop_rate
 
     @classmethod
     def _parse_drop_rate(cls, params: Mapping[str, Any] | None) -> float:
