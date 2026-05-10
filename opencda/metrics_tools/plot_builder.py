@@ -26,24 +26,25 @@ class MetricPlotStyle:
     figsize: tuple[float, float] = (15.0, 6.0)
 
     # --- Main line ---
-    line_color: str = "#004F54"  # deep teal
+    line_color: str = "#2D6A4F"  # deep green
     line_width: float = 2.0
     marker: str | None = None
 
     # --- Typography ---
     font_family: str = "serif"
-    title_fontsize: int = 18
-    label_fontsize: int = 15
-    tick_fontsize: int = 13
+    title_fontsize: int = 24
+    label_fontsize: int = 20
+    tick_fontsize: int = 17
+    axis_text_color: str = "#1B5E20"
 
     # --- Grid ---
     grid_alpha: float = 0.55
     grid_linestyle: str = "--"
-    grid_color: str = "#B2DDD9"  # light teal
+    grid_color: str = "#B7E4C7"  # light green
 
     # --- Background ---
     background_color: str = "#FFFFFF"
-    axes_facecolor: str = "#F2FDFB"  # barely-there teal tint
+    axes_facecolor: str = "#F4FBF3"  # barely-there green tint
 
     # --- Spines ---
     hide_top_spine: bool = True
@@ -55,8 +56,12 @@ class MetricPlotStyle:
     # --- Summary statistics ---
     show_mean: bool = True
     show_min_max: bool = True
-    stats_box_fontsize: int = 13
-    stats_box_text_color: str = "#004F54"
+    stats_box_fontsize: int = 17
+    stats_box_text_color: str = "#1B5E20"
+    stats_box_text_alignment: str = "left"
+    stats_box_x: float = 0.5
+    stats_box_y: float = 0.035
+    stats_bottom_margin: float = 0.18
     stats_box_facecolor: str = "#FFFFFF"
     stats_box_edgecolor: str = "#2E8B6E"
     stats_box_alpha: float = 0.92
@@ -138,8 +143,8 @@ class MetricPlotBuilder:
             # Spines
             axis.spines["top"].set_visible(not self.style.hide_top_spine)
             axis.spines["right"].set_visible(not self.style.hide_right_spine)
-            axis.spines["left"].set_color("#004F54")
-            axis.spines["bottom"].set_color("#004F54")
+            axis.spines["left"].set_color(self.style.axis_text_color)
+            axis.spines["bottom"].set_color(self.style.axis_text_color)
             axis.spines["left"].set_linewidth(1.1)
             axis.spines["bottom"].set_linewidth(1.1)
 
@@ -150,24 +155,23 @@ class MetricPlotBuilder:
                 linewidth=self.style.line_width,
                 marker=self.style.marker,
             )
-            self._draw_summary_statistics(axis, values)
 
-            axis.set_title(title, fontsize=self.style.title_fontsize, color="#004F54", pad=14)
-            axis.set_xlabel("Tick", fontsize=self.style.label_fontsize, color="#004F54")
-            axis.set_ylabel(series.name, fontsize=self.style.label_fontsize, color="#004F54")
+            axis.set_title(title, fontsize=self.style.title_fontsize, color=self.style.axis_text_color, pad=14)
+            axis.set_xlabel("Tick", fontsize=self.style.label_fontsize, color=self.style.axis_text_color)
+            axis.set_ylabel(series.name, fontsize=self.style.label_fontsize, color=self.style.axis_text_color)
 
             # Ticks
             axis.tick_params(
                 axis="both",
                 labelsize=self.style.tick_fontsize,
-                colors="#004F54",
+                colors=self.style.axis_text_color,
                 direction="out",
                 length=5,
                 width=1.0,
             )
             if self.style.minor_ticks:
                 axis.minorticks_on()
-                axis.tick_params(axis="both", which="minor", length=3, width=0.7, colors="#004F54")
+                axis.tick_params(axis="both", which="minor", length=3, width=0.7, colors=self.style.axis_text_color)
 
             axis.grid(
                 True,
@@ -178,38 +182,44 @@ class MetricPlotBuilder:
             )
             axis.set_axisbelow(True)
 
-            figure.tight_layout()
+            stats_text = self._build_summary_statistics_text(values)
+            figure.tight_layout(rect=(0.0, self.style.stats_bottom_margin if stats_text else 0.0, 1.0, 1.0))
+            if stats_text:
+                self._draw_summary_statistics(figure, stats_text)
             figure.savefig(output_path, dpi=self.style.dpi)
             pyplot.close(figure)
 
         return True
 
-    def _draw_summary_statistics(self, axis: Any, values: list[float]) -> None:
+    def _build_summary_statistics_text(self, values: list[float]) -> str | None:
         if not values:
-            return
+            return None
 
-        summary_lines: list[str] = []
+        summary_parts: list[str] = []
 
         if self.style.show_min_max:
-            summary_lines.append(f"max: {_format_value(max(values), self.style.value_precision)}")
-            summary_lines.append(f"min: {_format_value(min(values), self.style.value_precision)}")
+            summary_parts.append(f"max: {_format_value(max(values), self.style.value_precision)}")
+            summary_parts.append(f"min: {_format_value(min(values), self.style.value_precision)}")
 
         if self.style.show_mean:
             mean_value = sum(values) / len(values)
-            summary_lines.append(f"mean: {_format_value(mean_value, self.style.value_precision)}")
+            summary_parts.append(f"mean: {_format_value(mean_value, self.style.value_precision)}")
 
-        if not summary_lines:
-            return
+        if not summary_parts:
+            return None
 
-        axis.text(
-            0.98,
-            0.98,
-            "\n".join(summary_lines),
-            transform=axis.transAxes,
-            ha="right",
-            va="top",
+        return "    ".join(summary_parts)
+
+    def _draw_summary_statistics(self, figure: Any, stats_text: str) -> None:
+        figure.text(
+            self.style.stats_box_x,
+            self.style.stats_box_y,
+            stats_text,
+            ha="center",
+            va="bottom",
             fontsize=self.style.stats_box_fontsize,
             color=self.style.stats_box_text_color,
+            multialignment=self.style.stats_box_text_alignment,
             bbox={
                 "boxstyle": self.style.stats_box_style,
                 "facecolor": self.style.stats_box_facecolor,
