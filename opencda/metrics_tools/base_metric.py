@@ -70,15 +70,9 @@ class BaseMetric(ABC):
         return (
             MetricSeries(
                 name=self.metric_series_name or self.metric_name,
-                samples=tuple(self._get_metric_samples()),
+                samples=tuple(self._samples),
             ),
         )
-
-    def _get_metric_samples(self) -> list[MetricSample]:
-        samples = getattr(self, "_samples", None)
-        if samples is None:
-            raise NotImplementedError("Default get_raw() requires metric samples to be stored in self._samples.")
-        return samples
 
     @classmethod
     def get_report_spec(cls) -> MetricReportSpec:
