@@ -5,7 +5,7 @@ from typing import Any, ClassVar, Mapping
 
 from opencda.metrics_tools.collection_models import MetricSeries
 from opencda.metrics_tools.metric_sample import MetricSample
-from opencda.metrics_tools.report_models import MetricReportSpec
+from opencda.metrics_tools.report_models import MetricReportSpec, MetricSummarySpec
 from opencda.metrics_tools.registry import MetricRegistry
 
 
@@ -22,6 +22,8 @@ class BaseMetric(ABC):
     """
 
     metric_name: ClassVar[str]
+    metric_display_name: ClassVar[str | None] = None
+    metric_series_name: ClassVar[str | None] = None
 
     def __init_subclass__(cls, **kwargs: Any):
         super().__init_subclass__(**kwargs)
@@ -31,6 +33,7 @@ class BaseMetric(ABC):
         self.warmup_steps = warmup_steps
         self.sample_interval = sample_interval
         self.steps_count = 0
+        self._samples: list[MetricSample] = []
 
     def update(self, context: Mapping[str, Any]) -> None:
         """
@@ -53,18 +56,35 @@ class BaseMetric(ABC):
             value=float(value),
         )
 
+    def _record_sample(self, value: float) -> None:
+        """Append a scalar sample to the default one-series storage."""
+        self._samples.append(self._make_sample(value))
+
     @abstractmethod
     def _process_context(self, context: Mapping[str, Any]) -> None:
         """Process a context after the warmup period."""
         raise NotImplementedError
 
-    @abstractmethod
     def get_raw(self) -> tuple[MetricSeries, ...]:
         """Return collected metric series in normalized raw form."""
-        raise NotImplementedError
+        return (
+            MetricSeries(
+                name=self.metric_series_name or self.metric_name,
+                samples=tuple(self._samples),
+            ),
+        )
 
     @classmethod
-    @abstractmethod
     def get_report_spec(cls) -> MetricReportSpec:
         """Return the report representation owned by the metric."""
-        raise NotImplementedError
+        display_name = cls.metric_display_name or _format_metric_display_name(cls.metric_name)
+        return MetricReportSpec(
+            metric_name=cls.metric_name,
+            display_name=display_name,
+            series_names=(cls.metric_name,),
+            summary_specs=(MetricSummarySpec(series_name=cls.metric_name, display_name=display_name),),
+        )
+
+
+def _format_metric_display_name(metric_name: str) -> str:
+    return metric_name.replace("_", " ").title()

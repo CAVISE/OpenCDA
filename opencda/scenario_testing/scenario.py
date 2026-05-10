@@ -6,7 +6,7 @@ import os
 from dataclasses import dataclass
 from itertools import chain
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, NoReturn, cast
+from typing import TYPE_CHECKING, Any, Mapping, NoReturn, cast
 
 import carla
 from omegaconf import DictConfig, OmegaConf
@@ -23,6 +23,7 @@ from opencda.core.sensing.perception.perception_manager import PerceptionRequire
 from opencda.scenario_testing.types import NodeSnapshot, SimulationSnapshot
 from opencda.scenario_testing.evaluations.evaluate_manager import EvaluationManager
 from opencda.scenario_testing.utils.yaml_utils import YamlDict, add_current_time, load_yaml, save_yaml
+from opencda.metrics_tools.metric_collector import MetricCollector
 
 from opencda.core.application.behavior import TransportMessage
 
@@ -226,6 +227,15 @@ class Scenario:
         self.messages: list[TransportMessage[Any]] = []
         self.simulation_snapshot = SimulationSnapshot(tick=-1)
         self.attack_manager = AttackManager()
+        self.scenario_metrics_collector = MetricCollector(
+            module="scenario",
+            entity_id=self.scenario_name,
+            metric_configs={
+                "collision_count": {"warmup_steps": 0},
+                "near_miss_count": {"warmup_steps": 0},
+                "identity_conflict_count": {"warmup_steps": 0},
+            },
+        )
         attacks_config = scenario_config.get("attacks", [])
         if not isinstance(attacks_config, list):
             self._abort_simulation("Scenario config field 'attacks' must be a list of attack names.")
@@ -270,6 +280,42 @@ class Scenario:
             rsu_nodes=rsu_nodes,
         )
 
+    def _build_scenario_metric_context(self, identity_claims: tuple[Mapping[str, str], ...]) -> dict[str, Any]:
+        vehicles = []
+        for vehicle_manager in self.single_cav_list:
+            location = vehicle_manager.vehicle.get_location()
+            safety_status = getattr(vehicle_manager.safety_manager, "last_status", {})
+            vehicles.append(
+                {
+                    "node_id": vehicle_manager.id,
+                    "actor_id": vehicle_manager.vehicle.id,
+                    "x": float(location.x),
+                    "y": float(location.y),
+                    "z": float(location.z),
+                    "collided": bool(safety_status.get("collision", False)),
+                }
+            )
+
+        return {
+            "vehicles": tuple(vehicles),
+            "identity_claims": identity_claims,
+        }
+
+    @staticmethod
+    def _collect_identity_claims(
+        producer_node_id: str,
+        producer_node_type: str,
+        messages: list[TransportMessage[Any]],
+    ) -> tuple[dict[str, str], ...]:
+        return tuple(
+            {
+                "producer_node_id": producer_node_id,
+                "producer_node_type": producer_node_type,
+                "claimed_node_id": message.src_owner_id,
+            }
+            for message in messages
+        )
+
     def run(self, opt: argparse.Namespace) -> None:
         if self.communication_manager is None:
             self.default_loop(opt)
@@ -301,6 +347,7 @@ class Scenario:
                     platoon.update_information()
 
             new_messages: list[TransportMessage[Any]] = []
+            identity_claims: list[Mapping[str, str]] = []
             if self.single_cav_list is not None:
                 logger.debug("updating single cavs")
 
@@ -330,14 +377,17 @@ class Scenario:
                 for single_cav in self.single_cav_list:
                     cav_messages, _ = single_cav.run_step(messages=self.messages)
                     new_messages.extend(cav_messages)
+                    identity_claims.extend(self._collect_identity_claims(single_cav.id, "vehicle", cav_messages))
 
             if self.rsu_list is not None:
                 for rsu in self.rsu_list:
                     rsu_messages, _ = rsu.run_step(messages=self.messages)
                     new_messages.extend(rsu_messages)
+                    identity_claims.extend(self._collect_identity_claims(rsu.id, "rsu", rsu_messages))
 
             self.messages = new_messages
             self.simulation_snapshot = self._build_simulation_snapshot(tick_number)
+            self.scenario_metrics_collector.update(self._build_scenario_metric_context(tuple(identity_claims)))
 
             self.attack_manager.evaluate(
                 self.attacks,
@@ -417,17 +467,23 @@ class Scenario:
                     platoon.run_step()
 
             new_messages: list[TransportMessage[Any]] = []
+            identity_claims: list[Mapping[str, str]] = []
             if self.single_cav_list is not None:
                 for single_cav in self.single_cav_list:
                     cav_messages, _ = single_cav.run_step(messages=self.messages)
                     new_messages.extend(cav_messages)
+                    identity_claims.extend(self._collect_identity_claims(single_cav.id, "vehicle", cav_messages))
 
             if self.rsu_list is not None:
                 for rsu in self.rsu_list:
                     rsu_messages, _ = rsu.run_step(messages=self.messages)
                     new_messages.extend(rsu_messages)
+                    identity_claims.extend(self._collect_identity_claims(rsu.id, "rsu", rsu_messages))
 
+            self.messages = new_messages
             self.simulation_snapshot = self._build_simulation_snapshot(tick_number)
+            self.scenario_metrics_collector.update(self._build_scenario_metric_context(tuple(identity_claims)))
+
             self.attack_manager.evaluate(
                 self.attacks,
                 self.simulation_snapshot,
@@ -440,7 +496,10 @@ class Scenario:
             logger.info("finalizing: stopping recorder")
 
         if self.eval_manager is not None:
-            self.eval_manager.evaluate(coperception_model_manager=self.coperception_model_manager)
+            self.eval_manager.evaluate(
+                coperception_model_manager=self.coperception_model_manager,
+                scenario_metrics_collector=self.scenario_metrics_collector,
+            )
             logger.info("finalizing: evaluating results")
 
         if self.single_cav_list is not None:
