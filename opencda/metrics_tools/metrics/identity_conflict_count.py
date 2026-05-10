@@ -5,7 +5,6 @@ from typing import Any, Mapping
 
 from opencda.core.application.behavior.transport_message import BROADCAST_OWNER_ID
 from opencda.metrics_tools.base_metric import BaseMetric
-from opencda.metrics_tools.metric_sample import MetricSample
 
 
 class IdentityConflictCountMetric(BaseMetric):  # noqa DC03
@@ -17,7 +16,6 @@ class IdentityConflictCountMetric(BaseMetric):  # noqa DC03
         super().__init__(warmup_steps=warmup_steps)
         self._active_conflicts: set[str] = set()
         self._count = 0
-        self._samples: list[MetricSample] = []
 
     def _process_context(self, context: Mapping[str, Any]) -> None:
         claims_by_identity: dict[str, set[str]] = defaultdict(set)
@@ -37,4 +35,4 @@ class IdentityConflictCountMetric(BaseMetric):  # noqa DC03
 
         self._count += len(new_conflicts)
         self._active_conflicts = current_conflicts
-        self._samples.append(self._make_sample(self._count))
+        self._record_sample(self._count)

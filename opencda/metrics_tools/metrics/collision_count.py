@@ -3,7 +3,6 @@
 from typing import Any, Mapping
 
 from opencda.metrics_tools.base_metric import BaseMetric
-from opencda.metrics_tools.metric_sample import MetricSample
 
 
 class CollisionCountMetric(BaseMetric):  # noqa DC03
@@ -15,7 +14,6 @@ class CollisionCountMetric(BaseMetric):  # noqa DC03
         super().__init__(warmup_steps=warmup_steps)
         self._collided_node_ids: set[str] = set()
         self._count = 0
-        self._samples: list[MetricSample] = []
 
     def _process_context(self, context: Mapping[str, Any]) -> None:
         vehicles = context.get("vehicles", ())
@@ -27,4 +25,4 @@ class CollisionCountMetric(BaseMetric):  # noqa DC03
         new_collisions = current_collisions - self._collided_node_ids
         self._count += len(new_collisions)
         self._collided_node_ids.update(current_collisions)
-        self._samples.append(self._make_sample(self._count))
+        self._record_sample(self._count)

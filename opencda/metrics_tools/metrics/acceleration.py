@@ -3,7 +3,6 @@
 from typing import Mapping, Any
 
 from opencda.metrics_tools.base_metric import BaseMetric
-from opencda.metrics_tools.metric_sample import MetricSample
 
 
 class AccelerationMetric(BaseMetric):  # noqa DC03
@@ -14,7 +13,6 @@ class AccelerationMetric(BaseMetric):  # noqa DC03
     def __init__(self, warmup_steps: int = 100, dt: float = 0.05):
         super().__init__(warmup_steps=warmup_steps, sample_interval=dt)
         self.dt = dt
-        self._samples: list[MetricSample] = []
         self._previous_speed: float | None = None
 
     @property  # noqa DC08
@@ -30,4 +28,4 @@ class AccelerationMetric(BaseMetric):  # noqa DC03
             acceleration_value = (ego_speed - self._previous_speed) / self.dt
 
         self._previous_speed = ego_speed
-        self._samples.append(self._make_sample(acceleration_value))
+        self._record_sample(acceleration_value)

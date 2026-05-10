@@ -33,6 +33,7 @@ class BaseMetric(ABC):
         self.warmup_steps = warmup_steps
         self.sample_interval = sample_interval
         self.steps_count = 0
+        self._samples: list[MetricSample] = []
 
     def update(self, context: Mapping[str, Any]) -> None:
         """
@@ -54,6 +55,10 @@ class BaseMetric(ABC):
             tick=self.steps_count,
             value=float(value),
         )
+
+    def _record_sample(self, value: float) -> None:
+        """Append a scalar sample to the default one-series storage."""
+        self._samples.append(self._make_sample(value))
 
     @abstractmethod
     def _process_context(self, context: Mapping[str, Any]) -> None:

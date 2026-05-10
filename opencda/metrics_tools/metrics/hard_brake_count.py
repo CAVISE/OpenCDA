@@ -3,7 +3,6 @@
 from typing import Any, Mapping
 
 from opencda.metrics_tools.base_metric import BaseMetric
-from opencda.metrics_tools.metric_sample import MetricSample
 
 
 class HardBrakeCountMetric(BaseMetric):  # noqa DC03
@@ -25,7 +24,6 @@ class HardBrakeCountMetric(BaseMetric):  # noqa DC03
         self._previous_speed: float | None = None
         self._in_hard_brake = False
         self._count = 0
-        self._samples: list[MetricSample] = []
 
     def _process_context(self, context: Mapping[str, Any]) -> None:
         ego_speed = float(context.get("ego_speed", 0.0)) / 3.6
@@ -43,4 +41,4 @@ class HardBrakeCountMetric(BaseMetric):  # noqa DC03
         elif acceleration >= self.reset_threshold:
             self._in_hard_brake = False
 
-        self._samples.append(self._make_sample(self._count))
+        self._record_sample(self._count)
