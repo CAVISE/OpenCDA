@@ -61,7 +61,7 @@ class MetricPlotStyle:
     stats_box_text_alignment: str = "left"
     stats_box_x: float = 0.5
     stats_box_y: float = 0.035
-    stats_bottom_margin: float = 0.18
+    stats_bottom_margin: float = 0.12
     stats_box_facecolor: str = "#FFFFFF"
     stats_box_edgecolor: str = "#2E8B6E"
     stats_box_alpha: float = 0.92
