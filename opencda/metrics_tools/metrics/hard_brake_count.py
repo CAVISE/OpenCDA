@@ -3,7 +3,6 @@
 from typing import Any, Mapping
 
 from opencda.metrics_tools.base_metric import BaseMetric
-from opencda.metrics_tools.collection_models import MetricSeries
 from opencda.metrics_tools.metric_sample import MetricSample
 
 
@@ -45,6 +44,3 @@ class HardBrakeCountMetric(BaseMetric):  # noqa DC03
             self._in_hard_brake = False
 
         self._samples.append(self._make_sample(self._count))
-
-    def get_raw(self) -> tuple[MetricSeries, ...]:
-        return (MetricSeries(name="hard_brake_count", samples=tuple(self._samples)),)

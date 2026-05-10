@@ -23,6 +23,7 @@ class BaseMetric(ABC):
 
     metric_name: ClassVar[str]
     metric_display_name: ClassVar[str | None] = None
+    metric_series_name: ClassVar[str | None] = None
 
     def __init_subclass__(cls, **kwargs: Any):
         super().__init_subclass__(**kwargs)
@@ -59,10 +60,20 @@ class BaseMetric(ABC):
         """Process a context after the warmup period."""
         raise NotImplementedError
 
-    @abstractmethod
     def get_raw(self) -> tuple[MetricSeries, ...]:
         """Return collected metric series in normalized raw form."""
-        raise NotImplementedError
+        return (
+            MetricSeries(
+                name=self.metric_series_name or self.metric_name,
+                samples=tuple(self._get_metric_samples()),
+            ),
+        )
+
+    def _get_metric_samples(self) -> list[MetricSample]:
+        samples = getattr(self, "_samples", None)
+        if samples is None:
+            raise NotImplementedError("Default get_raw() requires metric samples to be stored in self._samples.")
+        return samples
 
     @classmethod
     def get_report_spec(cls) -> MetricReportSpec:

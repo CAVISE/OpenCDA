@@ -5,7 +5,6 @@ from typing import Any, Mapping
 
 from opencda.core.application.behavior.transport_message import BROADCAST_OWNER_ID
 from opencda.metrics_tools.base_metric import BaseMetric
-from opencda.metrics_tools.collection_models import MetricSeries
 from opencda.metrics_tools.metric_sample import MetricSample
 
 
@@ -39,6 +38,3 @@ class IdentityConflictCountMetric(BaseMetric):  # noqa DC03
         self._count += len(new_conflicts)
         self._active_conflicts = current_conflicts
         self._samples.append(self._make_sample(self._count))
-
-    def get_raw(self) -> tuple[MetricSeries, ...]:
-        return (MetricSeries(name="identity_conflict_count", samples=tuple(self._samples)),)
