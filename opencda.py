@@ -78,11 +78,11 @@ def create_logger(
 ) -> logging.Logger:
     logger = logging.getLogger("cavise.opencda")
     if coloredlogs is not None:
-        coloredlogs.install(level=level, logger=logger, fmt=fmt, datefmt=datefmt)
+        coloredlogs.install(level=logging.DEBUG, logger=logger, fmt=fmt, datefmt=datefmt)
     else:
         handler = logging.StreamHandler(sys.stdout)
         handler.setFormatter(logging.Formatter(fmt=fmt, datefmt=datefmt))
-        handler.setLevel(level)
+        handler.setLevel(logging.DEBUG)
         logger.addHandler(handler)
     # Duplicate logs to a JSON file
     json_handler = logging.FileHandler(filename=filename, mode="w", encoding="utf-8")
@@ -91,6 +91,7 @@ def create_logger(
     logger.addHandler(json_handler)
 
     logger.propagate = False  # noqa: DC05
+    logger.setLevel(level=level)
     return logger
 
 
