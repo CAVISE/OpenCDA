@@ -22,18 +22,28 @@ class MetricPlotStyle:
     """Centralized visual style for metric time-series plots."""
 
     image_format: str = "png"
-    dpi: int = 140
-    figsize: tuple[float, float] = (10.0, 4.0)
+    dpi: int = 200
+    figsize: tuple[float, float] = (15.0, 6.0)
     line_color: str = "#004F54"
     line_width: float = 1.8
     marker: str | None = None
-    title_fontsize: int = 12
-    label_fontsize: int = 10
-    tick_fontsize: int = 9
-    grid_alpha: float = 0.25
+    title_fontsize: int = 24
+    label_fontsize: int = 20
+    tick_fontsize: int = 18
+    grid_alpha: float = 1
     grid_linestyle: str = "--"
-    background_color: str = "#EDFFF6"
-    axes_facecolor: str = "#11222A"
+    background_color: str = "#FFFFFF"
+    axes_facecolor: str = "#F8FFFB"
+    show_mean: bool = True
+    mean_line_color: str = "#C23B22"
+    mean_line_width: float = 1.4
+    mean_line_style: str = "--"
+    mean_label_fontsize: int = 14
+    show_min_max: bool = True
+    extreme_marker_color: str = "#F18F01"
+    extreme_marker_size: float = 70.0
+    extreme_annotation_fontsize: int = 14
+    value_precision: int = 3
 
 
 DEFAULT_METRIC_PLOT_STYLE = MetricPlotStyle()
@@ -106,6 +116,7 @@ class MetricPlotBuilder:
             linewidth=self.style.line_width,
             marker=self.style.marker,
         )
+        self._draw_summary_statistics(axis, ticks, values)
         axis.set_title(title, fontsize=self.style.title_fontsize)
         axis.set_xlabel("Tick", fontsize=self.style.label_fontsize)
         axis.set_ylabel(series.name, fontsize=self.style.label_fontsize)
@@ -115,6 +126,56 @@ class MetricPlotBuilder:
         figure.savefig(output_path, dpi=self.style.dpi)
         pyplot.close(figure)
         return True
+
+    def _draw_summary_statistics(self, axis: Any, ticks: list[int], values: list[float]) -> None:
+        if not values:
+            return
+
+        if self.style.show_mean:
+            mean_value = sum(values) / len(values)
+            axis.axhline(
+                mean_value,
+                color=self.style.mean_line_color,
+                linewidth=self.style.mean_line_width,
+                linestyle=self.style.mean_line_style,
+            )
+            axis.annotate(
+                f"mean={_format_value(mean_value, self.style.value_precision)}",
+                xy=(ticks[-1], mean_value),
+                xytext=(-8, 8),
+                textcoords="offset points",
+                ha="right",
+                va="bottom",
+                fontsize=self.style.mean_label_fontsize,
+                color=self.style.mean_line_color,
+            )
+
+        if self.style.show_min_max:
+            self._annotate_extreme(axis, ticks, values, max(values), "max")
+            min_value = min(values)
+            if min_value != max(values):
+                self._annotate_extreme(axis, ticks, values, min_value, "min")
+
+    def _annotate_extreme(self, axis: Any, ticks: list[int], values: list[float], extreme_value: float, label: str) -> None:
+        index = values.index(extreme_value)
+        tick = ticks[index]
+        axis.scatter(
+            [tick],
+            [extreme_value],
+            color=self.style.extreme_marker_color,
+            s=self.style.extreme_marker_size,
+            zorder=3,
+        )
+        axis.annotate(
+            f"{label}={_format_value(extreme_value, self.style.value_precision)}",
+            xy=(tick, extreme_value),
+            xytext=(8, 8),
+            textcoords="offset points",
+            ha="left",
+            va="bottom",
+            fontsize=self.style.extreme_annotation_fontsize,
+            color=self.style.extreme_marker_color,
+        )
 
 
 def _load_pyplot() -> Any | None:
@@ -140,3 +201,7 @@ def _load_pyplot() -> Any | None:
 def _safe_path_part(value: str) -> str:
     sanitized = re.sub(r"[^A-Za-z0-9_.-]+", "_", value).strip("._")
     return sanitized or "unknown"
+
+
+def _format_value(value: float, precision: int) -> str:
+    return f"{value:.{precision}f}"
