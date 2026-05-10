@@ -5,9 +5,11 @@ Evaluation manager.
 import os
 import json
 import logging
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from opencda.core.common.cav_world import CavWorld
+from opencda.metrics_tools.plot_builder import MetricPlotBuilder
 from opencda.metrics_tools.report_models import EntityReport, GroupReport, ModuleReport
 from opencda.metrics_tools.report_builder import UniversalReportBuilder
 
@@ -88,6 +90,27 @@ class EvaluationManager(object):
             )
 
         logger.info("Evaluation JSON report saved to: %s", json_save_path)
+        self._build_metric_plots(
+            module_reports=(planning_report, localization_report, coperception_report),
+            platooning_reports=platooning_reports,
+        )
+
+    def _build_metric_plots(
+        self,
+        module_reports: tuple[ModuleReport, ...],
+        platooning_reports: tuple[GroupReport, ...],
+    ) -> None:
+        plot_builder = MetricPlotBuilder()
+        plots_dir = os.path.join(self.eval_save_path, "plots")
+        output_paths: list[Path] = []
+
+        for module_report in module_reports:
+            output_paths.extend(plot_builder.build_module_plots(module_report, plots_dir))
+
+        for platooning_report in platooning_reports:
+            output_paths.extend(plot_builder.build_group_plots(platooning_report, plots_dir, module="platooning"))
+
+        logger.info("Evaluation metric plots saved to: %s (%d files)", plots_dir, len(output_paths))
 
     def kinematics_eval(self) -> ModuleReport:
         """
