@@ -5,7 +5,6 @@ from typing import Any, Mapping
 from opencda.metrics_tools.base_metric import BaseMetric
 from opencda.metrics_tools.collection_models import MetricSeries
 from opencda.metrics_tools.metric_sample import MetricSample
-from opencda.metrics_tools.report_models import MetricReportSpec, MetricSummarySpec
 
 
 class HardBrakeCountMetric(BaseMetric):  # noqa DC03
@@ -49,12 +48,3 @@ class HardBrakeCountMetric(BaseMetric):  # noqa DC03
 
     def get_raw(self) -> tuple[MetricSeries, ...]:
         return (MetricSeries(name="hard_brake_count", samples=tuple(self._samples)),)
-
-    @classmethod
-    def get_report_spec(cls) -> MetricReportSpec:
-        return MetricReportSpec(
-            metric_name=cls.metric_name,
-            display_name="Hard Brake Count",
-            series_names=("hard_brake_count",),
-            summary_specs=(MetricSummarySpec(series_name="hard_brake_count", display_name="Hard Brake Count"),),
-        )

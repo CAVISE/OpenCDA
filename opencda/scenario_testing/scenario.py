@@ -282,7 +282,7 @@ class Scenario:
 
     def _build_scenario_metric_context(self, identity_claims: tuple[Mapping[str, str], ...]) -> dict[str, Any]:
         vehicles = []
-        for vehicle_manager in self.cav_world.get_vehicle_managers().values():
+        for vehicle_manager in self.single_cav_list:
             location = vehicle_manager.vehicle.get_location()
             safety_status = getattr(vehicle_manager.safety_manager, "last_status", {})
             vehicles.append(
