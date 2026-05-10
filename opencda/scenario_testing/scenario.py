@@ -14,7 +14,7 @@ from omegaconf import DictConfig, OmegaConf
 import opencda.scenario_testing.utils.cosim_api as sim_api
 import opencda.scenario_testing.utils.customized_map_api as map_api
 from opencda.core.application.platooning.platooning_manager import PlatooningManager
-from opencda.core.attack.adversary_framework import Attack, AttackManager, AttackResult, AttackSpec
+from opencda.core.attack.adversary_framework import Attack, AttackManager, AttackSpec
 from opencda.core.common.cav_world import CavWorld
 from opencda.core.common.coperception_data_processor import CoperceptionDataProcessor
 from opencda.core.common.rsu_manager import RSUManager
@@ -110,6 +110,7 @@ class Scenario:
                 carla_host=opt.carla_host,
                 carla_timeout=opt.carla_timeout,
             )
+        self.cav_world = self.scenario_manager.cav_world
 
         if opt.with_capi:
             from opencda.core.common.communication import toolchain
@@ -218,10 +219,7 @@ class Scenario:
         self.scenario_manager.create_custom_actor_manager(application=["single"], map_helper=map_api.spawn_helper_2lanefree, data_dump=opt.record)
         logger.info("created single custom actors")
 
-        cav_world = self.scenario_manager.cav_world
-        if cav_world is None:
-            self._abort_simulation("Scenario manager was initialized without CavWorld; simulation cannot continue.")
-        self.eval_manager = EvaluationManager(cav_world, script_name=self.scenario_name, current_time=scenario_config["current_time"])
+        self.eval_manager = EvaluationManager(self.cav_world, script_name=self.scenario_name, current_time=scenario_config["current_time"])
 
         self.spectator = self.scenario_manager.world.get_spectator()
 
@@ -243,7 +241,6 @@ class Scenario:
             attacks.append(Attack.from_spec(attack_spec))
 
         self.attacks = attacks
-        self.attack_results: tuple[AttackResult, ...] = ()
 
     def _build_simulation_snapshot(self, tick: int) -> SimulationSnapshot:
         vehicle_nodes = tuple(
@@ -342,13 +339,11 @@ class Scenario:
             self.messages = new_messages
             self.simulation_snapshot = self._build_simulation_snapshot(tick_number)
 
-            self.attack_results = self.attack_manager.evaluate(
+            self.attack_manager.evaluate(
                 self.attacks,
                 self.simulation_snapshot,
-                service_resolver=self.cav_world.resolve_behavior_service,
+                service_resolver=self.cav_world.resolve_behavior_services,
             )
-            for result in self.attack_results:
-                logger.info("attack=%s status=%s reason=%s", result.attack_name, result.status.value, result.reason)
 
     def capi_loop(self, opt: argparse.Namespace) -> None:
         if self.communication_manager is None:
@@ -433,13 +428,11 @@ class Scenario:
                     new_messages.extend(rsu_messages)
 
             self.simulation_snapshot = self._build_simulation_snapshot(tick_number)
-            self.attack_results = self.attack_manager.evaluate(
+            self.attack_manager.evaluate(
                 self.attacks,
                 self.simulation_snapshot,
-                service_resolver=self.cav_world.resolve_behavior_service,
+                service_resolver=self.cav_world.resolve_behavior_services,
             )
-            for result in self.attack_results:
-                logger.info("attack=%s status=%s reason=%s", result.attack_name, result.status.value, result.reason)
 
     def finalize(self, opt: argparse.Namespace) -> None:
         if opt.record:
