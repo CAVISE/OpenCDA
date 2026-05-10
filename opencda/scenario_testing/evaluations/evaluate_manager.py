@@ -15,6 +15,7 @@ from opencda.metrics_tools.report_builder import UniversalReportBuilder
 
 if TYPE_CHECKING:
     from opencda.core.common.coperception_model_manager import CoperceptionModelManager
+    from opencda.metrics_tools.metric_collector import MetricCollector
 
 logger = logging.getLogger("cavise.opencda.opencda.scenario_testing.evaluations.evaluate_manager")
 
@@ -51,7 +52,11 @@ class EvaluationManager(object):
         if not os.path.exists(self.eval_save_path):
             os.makedirs(self.eval_save_path)
 
-    def evaluate(self, coperception_model_manager: "CoperceptionModelManager | None" = None) -> None:
+    def evaluate(
+        self,
+        coperception_model_manager: "CoperceptionModelManager | None" = None,
+        scenario_metrics_collector: "MetricCollector | None" = None,
+    ) -> None:
         """
         Evaluate performance of all modules and persist structured outputs.
         """
@@ -67,10 +72,14 @@ class EvaluationManager(object):
         coperception_report = self.coperception_eval(coperception_model_manager)
         logger.info("Cooperative perception evaluation done")
 
+        scenario_report = self.scenario_eval(scenario_metrics_collector)
+        logger.info("Scenario evaluation done")
+
         json_save_path = os.path.join(self.eval_save_path, "report.json")
         with open(json_save_path, "w", encoding="utf-8") as output_file:
             json.dump(
                 {
+                    "scenario": scenario_report.to_dict(),
                     "planning": planning_report.to_dict(),
                     "localization": localization_report.to_dict(),
                     "platooning": [report.to_dict() for report in platooning_reports],
@@ -152,3 +161,14 @@ class EvaluationManager(object):
         raw_data = coperception_model_manager.get_metric_collection()
         coperception_report = report_builder.build_entity_report(raw_data)
         return report_builder.build_module_report("coperception", (coperception_report,))
+
+    def scenario_eval(self, scenario_metrics_collector: "MetricCollector | None" = None) -> ModuleReport:
+        """
+        Scenario-level evaluation.
+        """
+        report_builder = UniversalReportBuilder()
+        if scenario_metrics_collector is None:
+            return report_builder.build_module_report("scenario", ())
+
+        scenario_report = report_builder.build_entity_report(scenario_metrics_collector.get_raw())
+        return report_builder.build_module_report("scenario", (scenario_report,))
