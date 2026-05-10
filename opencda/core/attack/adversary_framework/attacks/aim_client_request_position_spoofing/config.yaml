@@ -51,7 +51,7 @@ attack:
         - request.submit
       params:
         rewrites:
-          - path: payload.position.location.x
+          - path: payload.position.x
             operation: add
             value: -20.0
       stage_stop_trigger:
