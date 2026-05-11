@@ -6,7 +6,7 @@ import os
 from dataclasses import dataclass
 from itertools import chain
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, NoReturn, cast
+from typing import TYPE_CHECKING, Any, Mapping, NoReturn, cast
 
 import carla
 from omegaconf import DictConfig, OmegaConf
@@ -20,11 +20,12 @@ from opencda.core.common.coperception_data_processor import CoperceptionDataProc
 from opencda.core.common.rsu_manager import RSUManager
 from opencda.core.common.vehicle_manager import VehicleManager
 from opencda.core.sensing.perception.perception_manager import PerceptionRequirements
+from opencda.metrics_tools.metric_collector import MetricCollector
 from opencda.scenario_testing.types import NodeSnapshot, SimulationSnapshot
 from opencda.scenario_testing.evaluations.evaluate_manager import EvaluationManager
 from opencda.scenario_testing.utils.yaml_utils import YamlDict, add_current_time, load_yaml, save_yaml
 
-from opencda.core.application.behavior import TransportMessage
+from opencda.core.application.behavior import BROADCAST_OWNER_ID, TransportMessage
 
 if TYPE_CHECKING:
     from opencda.core.common.coperception_model_manager import CoperceptionModelManager
@@ -228,6 +229,15 @@ class Scenario:
         self.messages: list[TransportMessage[Any]] = []
         self.simulation_snapshot = SimulationSnapshot(tick=-1)
         self.attack_manager = AttackManager()
+        self.scenario_metrics_collector = MetricCollector(
+            module="scenario",
+            entity_id=self.scenario_name,
+            metric_configs={
+                "collision_count": {"warmup_steps": 0},
+                "near_miss_count": {"warmup_steps": 0},
+                "identity_conflict_count": {"warmup_steps": 0},
+            },
+        )
         attacks_config = scenario_config.get("attacks", [])
         if not isinstance(attacks_config, list):
             self._abort_simulation("Scenario config field 'attacks' must be a list of attack names.")
@@ -272,6 +282,62 @@ class Scenario:
             vehicle_nodes=vehicle_nodes,
             rsu_nodes=rsu_nodes,
         )
+
+    def _collect_safety_status(self, vehicle_manager: VehicleManager) -> dict[str, bool]:
+        status: dict[str, bool] = {}
+        for sensor in vehicle_manager.safety_manager.sensors:
+            sensor_status = sensor.return_status()
+            if isinstance(sensor_status, dict):
+                status.update(sensor_status)
+        return status
+
+    def _build_scenario_metric_context(self, identity_claims: tuple[Mapping[str, str], ...]) -> dict[str, Any]:
+        vehicles: list[dict[str, Any]] = []
+
+        for vehicle_manager in chain(
+            self.single_cav_list,
+            *(platoon.vehicle_manager_list for platoon in self.platoon_list),
+        ):
+            ego_pos = vehicle_manager.localizer.get_ego_pos()
+            if ego_pos is None:
+                continue
+
+            safety_status = self._collect_safety_status(vehicle_manager)
+            vehicles.append(
+                {
+                    "node_id": vehicle_manager.id,
+                    "x": ego_pos.location.x,
+                    "y": ego_pos.location.y,
+                    "z": ego_pos.location.z,
+                    "collided": bool(safety_status.get("collision", False)),
+                }
+            )
+
+        return {
+            "vehicles": tuple(vehicles),
+            "identity_claims": identity_claims,
+        }
+
+    @staticmethod
+    def _collect_identity_claims(
+        producer_node_id: str,
+        messages: list[TransportMessage[Any]],
+    ) -> tuple[dict[str, str], ...]:
+        claims: list[dict[str, str]] = []
+
+        for message in messages:
+            claimed_node_id = getattr(message, "src_owner_id", "")
+            if not isinstance(claimed_node_id, str) or not claimed_node_id or claimed_node_id == BROADCAST_OWNER_ID:
+                continue
+
+            claims.append(
+                {
+                    "producer_node_id": producer_node_id,
+                    "claimed_node_id": claimed_node_id,
+                }
+            )
+
+        return tuple(claims)
 
     def run(self, opt: argparse.Namespace) -> None:
         if self.communication_manager is None:
@@ -330,17 +396,23 @@ class Scenario:
                     platoon.run_step()
 
             if self.single_cav_list is not None:
+                identity_claims: list[Mapping[str, str]] = []
                 for single_cav in self.single_cav_list:
                     cav_messages, _ = single_cav.run_step(messages=self.messages)
                     new_messages.extend(cav_messages)
+                    identity_claims.extend(self._collect_identity_claims(single_cav.id, cav_messages))
+            else:
+                identity_claims = []
 
             if self.rsu_list is not None:
                 for rsu in self.rsu_list:
                     rsu_messages, _ = rsu.run_step(messages=self.messages)
                     new_messages.extend(rsu_messages)
+                    identity_claims.extend(self._collect_identity_claims(rsu.id, rsu_messages))
 
             self.messages = new_messages
             self.simulation_snapshot = self._build_simulation_snapshot(tick_number)
+            self.scenario_metrics_collector.update(self._build_scenario_metric_context(tuple(identity_claims)))
 
             self.attack_results = self.attack_manager.evaluate(
                 self.attacks,
@@ -422,17 +494,22 @@ class Scenario:
                     platoon.run_step()
 
             new_messages: list[TransportMessage[Any]] = []
+            identity_claims: list[Mapping[str, str]] = []
             if self.single_cav_list is not None:
                 for single_cav in self.single_cav_list:
                     cav_messages, _ = single_cav.run_step(messages=self.messages)
                     new_messages.extend(cav_messages)
+                    identity_claims.extend(self._collect_identity_claims(single_cav.id, cav_messages))
 
             if self.rsu_list is not None:
                 for rsu in self.rsu_list:
                     rsu_messages, _ = rsu.run_step(messages=self.messages)
                     new_messages.extend(rsu_messages)
+                    identity_claims.extend(self._collect_identity_claims(rsu.id, rsu_messages))
 
+            self.messages = new_messages
             self.simulation_snapshot = self._build_simulation_snapshot(tick_number)
+            self.scenario_metrics_collector.update(self._build_scenario_metric_context(tuple(identity_claims)))
             self.attack_results = self.attack_manager.evaluate(
                 self.attacks,
                 self.simulation_snapshot,
@@ -447,7 +524,10 @@ class Scenario:
             logger.info("finalizing: stopping recorder")
 
         if self.eval_manager is not None:
-            self.eval_manager.evaluate(coperception_model_manager=self.coperception_model_manager)
+            self.eval_manager.evaluate(
+                coperception_model_manager=self.coperception_model_manager,
+                scenario_metrics_collector=self.scenario_metrics_collector,
+            )
             logger.info("finalizing: evaluating results")
 
         if self.single_cav_list is not None:
