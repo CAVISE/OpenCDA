@@ -283,9 +283,13 @@ class Scenario:
     def _collect_safety_status(self, vehicle_manager: VehicleManager) -> dict[str, bool]:
         status: dict[str, bool] = {}
         for sensor in vehicle_manager.safety_manager.sensors:
-            sensor_status = sensor.return_status()
+            return_status = getattr(sensor, "return_status", None)
+            if not callable(return_status):
+                continue
+
+            sensor_status = return_status()
             if isinstance(sensor_status, dict):
-                status.update(sensor_status)
+                status.update({str(key): bool(value) for key, value in sensor_status.items()})
         return status
 
     def _build_scenario_metric_context(self, identity_claims: tuple[Mapping[str, str], ...]) -> dict[str, Any]:
@@ -394,7 +398,6 @@ class Scenario:
                     platoon.run_step()
 
             if self.single_cav_list is not None:
-                identity_claims: list[Mapping[str, str]] = []
                 for single_cav in self.single_cav_list:
                     cav_messages, _ = single_cav.run_step(messages=self.messages)
                     new_messages.extend(cav_messages)
@@ -506,7 +509,7 @@ class Scenario:
             self.messages = new_messages
             self.simulation_snapshot = self._build_simulation_snapshot(tick_number)
             self.scenario_metrics_collector.update(self._build_scenario_metric_context(tuple(identity_claims)))
-            self.attack_results = self.attack_manager.evaluate(
+            self.attack_manager.evaluate(
                 self.attacks,
                 self.simulation_snapshot,
                 service_resolver=self.cav_world.resolve_behavior_services,
