@@ -22,134 +22,192 @@ def _load_common_utils() -> Any:
     return common_utils
 
 
+def _find_gt_in_removal_zone(
+    gt_np: npt.NDArray,
+    removal_np: npt.NDArray,
+    common_utils: Any,
+) -> list[int]:
+    """Return indices of GT boxes whose XY centroid lies inside any removal zone polygon."""
+    gt_polygons = list(common_utils.convert_format(gt_np))
+    removal_polygons = list(common_utils.convert_format(removal_np))
+    indices = []
+    for i, gt_poly in enumerate(gt_polygons):
+        centroid = gt_poly.centroid
+        for removal_poly in removal_polygons:
+            if removal_poly.contains(centroid):
+                indices.append(i)
+                break
+    return indices
+
+
+def _deduplicate_boxes(boxes_np: npt.NDArray, iou_threshold: float = 0.9) -> npt.NDArray:
+    """Remove near-duplicate boxes (IoU >= iou_threshold), keeping the first occurrence."""
+    if len(boxes_np) <= 1:
+        return boxes_np
+    try:
+        common_utils = _load_common_utils()
+        polygons = list(common_utils.convert_format(boxes_np))
+    except Exception:
+        return boxes_np
+    keep: list[int] = []
+    for i, poly in enumerate(polygons):
+        for kept_idx in keep:
+            union_area = poly.union(polygons[kept_idx]).area
+            if union_area > 0 and poly.intersection(polygons[kept_idx]).area / union_area >= iou_threshold:
+                break
+        else:
+            keep.append(i)
+    return boxes_np[keep]
+
+
+def _has_iou_match(
+    target_polygon: Any,
+    pred_polygons: list[Any],
+    common_utils: Any,
+    iou_threshold: float,
+) -> bool:
+    if not pred_polygons:
+        return False
+    ious = common_utils.compute_iou(target_polygon, pred_polygons)
+    return len(ious) > 0 and float(np.max(ious)) >= iou_threshold
+
+
 class AttackSuccessRateMetric(BaseMetric):
     """Collect ASR for spoofing and removal attacks."""
 
     metric_name = "attack_success_rate"
-    _SPEC_BY_MODE: ClassVar[dict[str, tuple[str, str]]] = {
-        "removal": ("asr_removal", "removed_box_tensor"),
-        "spoofing": ("asr_spoofing", "fake_box_tensor"),
-    }
+    _SERIES_NAMES: ClassVar[tuple[str, str]] = ("asr_removal", "asr_spoofing")
 
     def __init__(self, warmup_steps: int = 0, iou_threshold: float = 0.3):
         super().__init__(warmup_steps=warmup_steps)
         self.iou_threshold = float(iou_threshold)
-        self._samples: dict[str, list[MetricSample]] = {series_name: [] for series_name, _ in self._SPEC_BY_MODE.values()}
+        self._series_samples: dict[str, list[MetricSample]] = {name: [] for name in self._SERIES_NAMES}
 
     def _process_context(self, context: Mapping[str, Any]) -> None:
         visualization_context = context.get("visualization_context")
         mode = self._normalize_mode(self._get_context_value(visualization_context, "mode"))
-        spec = self._SPEC_BY_MODE.get(mode)
-        if spec is None:
-            return
-        series_name, target_key = spec
 
-        target_boxes = self._get_context_value(visualization_context, target_key)
-        target_boxes_np = self._to_box_array(target_boxes)
-        if target_boxes_np is None:
-            return
-
-        match_result = self._match_targets(context.get("pred_box_tensor"), target_boxes_np, mode)
-        if match_result is None:
+        if mode == "removal":
+            result = self._compute_removal_result(context, visualization_context)
+            series_name = "asr_removal"
+        elif mode == "spoofing":
+            result = self._compute_spoofing_result(context, visualization_context)
+            series_name = "asr_spoofing"
+        else:
             return
 
-        matched_target_count, target_count = match_result
-        success_rate = matched_target_count / target_count if mode == "spoofing" else (target_count - matched_target_count) / target_count
-        self._samples[series_name].append(self._make_sample(success_rate))
-        self._log_asr(
-            mode=mode,
-            success_rate=success_rate,
-            matched_target_count=matched_target_count,
-            target_count=target_count,
-        )
+        if result is None:
+            return
+
+        matched_count, target_count = result
+        success_rate = matched_count / target_count if mode == "spoofing" else (target_count - matched_count) / target_count
+        self._series_samples[series_name].append(self._make_sample(success_rate))
+        self._log_asr(mode=mode, success_rate=success_rate, matched_count=matched_count, target_count=target_count)
 
     def get_raw(self) -> tuple[MetricSeries, ...]:
-        return tuple(
-            MetricSeries(
-                name=series_name,
-                samples=tuple(self._samples[series_name]),
-            )
-            for series_name, _ in self._SPEC_BY_MODE.values()
-        )
+        return tuple(MetricSeries(name=name, samples=tuple(self._series_samples[name])) for name in self._SERIES_NAMES)
 
     @classmethod
     def get_report_spec(cls) -> MetricReportSpec:
         return MetricReportSpec(
             metric_name=cls.metric_name,
             display_name="Attack Success Rate",
-            series_names=tuple(series_name for series_name, _ in cls._SPEC_BY_MODE.values()),
+            series_names=cls._SERIES_NAMES,
             summary_specs=(
-                MetricSummarySpec(
-                    series_name="asr_removal",
-                    display_name="Removal ASR",
-                ),
-                MetricSummarySpec(
-                    series_name="asr_spoofing",
-                    display_name="Spoofing ASR",
-                ),
+                MetricSummarySpec(series_name="asr_removal", display_name="Removal ASR"),
+                MetricSummarySpec(series_name="asr_spoofing", display_name="Spoofing ASR"),
             ),
         )
 
-    def _match_targets(self, pred_box_tensor: Any, target_boxes_np: npt.NDArray[np.float32], mode: str) -> tuple[int, int] | None:
-        try:
-            common_utils = _load_common_utils()
-            target_polygon_list = list(common_utils.convert_format(target_boxes_np))
-        except Exception as error:
-            logger.debug("Unable to convert ASR target boxes to polygons: %s", error)
+    def _compute_removal_result(
+        self,
+        context: Mapping[str, Any],
+        visualization_context: Any,
+    ) -> tuple[int, int] | None:
+        """
+        Targets = GT objects whose centroid lies inside the removal zone.
+        Matched = still detected (IoU with any pred >= threshold).
+        ASR = (target_count - matched_count) / target_count.
+        """
+        removal_np = self._to_box_array(self._get_context_value(visualization_context, "removed_box_tensor"))
+        gt_np = self._to_box_array(context.get("gt_box_tensor"))
+        if removal_np is None or gt_np is None:
             return None
 
-        target_count = len(target_polygon_list)
+        try:
+            common_utils = _load_common_utils()
+            target_indices = _find_gt_in_removal_zone(gt_np, removal_np, common_utils)
+        except Exception as error:
+            logger.debug("Unable to find GT targets in removal zone: %s", error)
+            return None
+
+        target_count = len(target_indices)
         if target_count == 0:
             return None
 
-        pred_boxes_np = self._to_box_array(pred_box_tensor)
-        if pred_boxes_np is None:
+        pred_np = self._to_box_array(context.get("pred_box_tensor"))
+        if pred_np is None:
             return 0, target_count
 
         try:
-            pred_polygon_list = list(common_utils.convert_format(pred_boxes_np))
+            target_polygons = list(common_utils.convert_format(gt_np[target_indices]))
+            pred_polygons = list(common_utils.convert_format(pred_np))
         except Exception as error:
-            logger.debug("Unable to convert ASR predicted boxes to polygons: %s", error)
+            logger.debug("Unable to convert removal boxes to polygons: %s", error)
             return 0, target_count
 
-        matched_target_count = 0
-        for target_polygon in target_polygon_list:
-            if self._target_has_matching_detection(target_polygon, pred_polygon_list, common_utils, mode):
-                matched_target_count += 1
-        return matched_target_count, target_count
+        matched_count = sum(1 for tp in target_polygons if _has_iou_match(tp, pred_polygons, common_utils, self.iou_threshold))
+        return matched_count, target_count
 
-    def _target_has_matching_detection(self, target_polygon: Any, pred_polygon_list: list[Any], common_utils: Any, mode: str) -> bool:
-        if mode == "removal" and self._has_detection_center_inside_target(target_polygon, pred_polygon_list):
-            return True
+    def _compute_spoofing_result(
+        self,
+        context: Mapping[str, Any],
+        visualization_context: Any,
+    ) -> tuple[int, int] | None:
+        """
+        Targets = unique configured spoof boxes (deduplicated fake_box_tensor).
+        Matched = detected in predictions (IoU with any pred >= threshold).
+        ASR = matched_count / target_count.
+        """
+        fake_np = self._to_box_array(self._get_context_value(visualization_context, "fake_box_tensor"))
+        if fake_np is None:
+            return None
 
-        ious = common_utils.compute_iou(target_polygon, pred_polygon_list)
-        return len(ious) > 0 and float(np.max(ious)) >= self.iou_threshold
+        unique_np = _deduplicate_boxes(fake_np)
+
+        try:
+            common_utils = _load_common_utils()
+            target_polygons = list(common_utils.convert_format(unique_np))
+        except Exception as error:
+            logger.debug("Unable to convert spoof boxes to polygons: %s", error)
+            return None
+
+        target_count = len(target_polygons)
+        if target_count == 0:
+            return None
+
+        pred_np = self._to_box_array(context.get("pred_box_tensor"))
+        if pred_np is None:
+            return 0, target_count
+
+        try:
+            pred_polygons = list(common_utils.convert_format(pred_np))
+        except Exception as error:
+            logger.debug("Unable to convert pred boxes to polygons: %s", error)
+            return 0, target_count
+
+        matched_count = sum(1 for tp in target_polygons if _has_iou_match(tp, pred_polygons, common_utils, self.iou_threshold))
+        return matched_count, target_count
 
     @staticmethod
-    def _log_asr(
-        *,
-        mode: str,
-        success_rate: float,
-        matched_target_count: int,
-        target_count: int,
-    ) -> None:
+    def _log_asr(*, mode: str, success_rate: float, matched_count: int, target_count: int) -> None:
         logger.info(
             "AdvCP %s ASR value=%.3f matched_targets=%s/%s",
             mode,
             success_rate,
-            matched_target_count,
+            matched_count,
             target_count,
         )
-
-    @staticmethod
-    def _has_detection_center_inside_target(target_polygon: Any, pred_polygon_list: list[Any]) -> bool:
-        for pred_polygon in pred_polygon_list:
-            try:
-                if target_polygon.covers(pred_polygon.centroid):
-                    return True
-            except AttributeError:
-                return False
-        return False
 
     @staticmethod
     def _get_context_value(context: Any, key: str) -> Any:

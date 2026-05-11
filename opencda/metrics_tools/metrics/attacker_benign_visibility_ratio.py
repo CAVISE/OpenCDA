@@ -34,7 +34,7 @@ class AttackerBenignVisibilityRatioMetric(BaseMetric):
     def __init__(self, warmup_steps: int = 0, epsilon: float = 1.0):
         super().__init__(warmup_steps=warmup_steps)
         self.epsilon = float(epsilon)
-        self._samples: dict[str, list[MetricSample]] = {
+        self._series_samples: dict[str, list[MetricSample]] = {
             self._RATIO_SERIES: [],
             self._ATTACKER_POINTS_SERIES: [],
             self._BENIGN_POINTS_SERIES: [],
@@ -61,13 +61,13 @@ class AttackerBenignVisibilityRatioMetric(BaseMetric):
 
         attacker_points, benign_points = visibility
         ratio = attacker_points / (benign_points + self.epsilon)
-        self._samples[self._RATIO_SERIES].append(self._make_sample(ratio))
-        self._samples[self._ATTACKER_POINTS_SERIES].append(self._make_sample(attacker_points))
-        self._samples[self._BENIGN_POINTS_SERIES].append(self._make_sample(benign_points))
+        self._series_samples[self._RATIO_SERIES].append(self._make_sample(ratio))
+        self._series_samples[self._ATTACKER_POINTS_SERIES].append(self._make_sample(attacker_points))
+        self._series_samples[self._BENIGN_POINTS_SERIES].append(self._make_sample(benign_points))
 
     def get_raw(self) -> tuple[MetricSeries, ...]:
         return tuple(
-            MetricSeries(name=series_name, samples=tuple(self._samples[series_name]))
+            MetricSeries(name=series_name, samples=tuple(self._series_samples[series_name]))
             for series_name in (self._RATIO_SERIES, self._ATTACKER_POINTS_SERIES, self._BENIGN_POINTS_SERIES)
         )
 

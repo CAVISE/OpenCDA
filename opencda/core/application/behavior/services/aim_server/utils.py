@@ -35,7 +35,7 @@ def get_intention_vector(intention: str = "straight") -> np.ndarray:  # noqa: DC
     return intention_feature
 
 
-def get_intention_by_rotation(rotation: int) -> str:
+def get_intention_by_rotation(rotation: float) -> str:
     """
     Distinguishes vehicle intention by its rotation
 

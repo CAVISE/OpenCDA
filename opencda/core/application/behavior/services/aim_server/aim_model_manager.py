@@ -10,7 +10,7 @@ from AIM.models.mtp.learning.learning_src.data_scripts.data_config import config
 
 from .messages import AIMServerRequest, AIMServerResponse
 from .types import AIMServerState, CavData
-from opencda.core.application.behavior.types import Location
+from opencda.core.application.behavior.types import Location, Transform
 from . import utils
 
 from opencda.core.application.behavior.transport_message import TransportMessage
@@ -79,7 +79,7 @@ class AIMModelManager:
         Normalize and cache incoming CAV data for the current inference step.
         """
         message = transport_message.payload
-        cav_pos = utils.get_sumo_transform(message.position, Location(0, 0, 0)).location
+        cav_pos = utils.get_sumo_location(message.position)
         curr_pos = np.array([cav_pos.x, cav_pos.y])
         distance_to_center = self._get_distance_to_center(curr_pos)
         vehicle_id = message.vehicle_id
@@ -99,7 +99,7 @@ class AIMModelManager:
             yaw = message.yaw if computed_yaw is None else computed_yaw
             self.cav_data[vehicle_id] = CavData(
                 intention=self.get_intention(vehicle_id, message.waypoints, self.control_center_carla_location),
-                pos=message.position.location,
+                pos=message.position,
                 sumo_pos=curr_pos,
                 speed=message.speed,
                 yaw=yaw,
@@ -151,10 +151,13 @@ class AIMModelManager:
         """
         Run AIM inference for the request batch and return predicted targets.
         """
+        cav_to_delete = []
         for vehicle_id in self.cav_state:
             self.cav_state[vehicle_id]["ttl"] -= 1
             if self.cav_state[vehicle_id]["ttl"] == 0:
-                del self.cav_state[vehicle_id]
+                cav_to_delete.append(vehicle_id)
+        for vehicle_id in cav_to_delete:
+            del self.cav_state[vehicle_id]
 
         for message in messages:
             self._preprocess_cav_data(message)
@@ -265,16 +268,13 @@ class AIMModelManager:
             if vehicle_id not in self.cav_data:
                 del self.trajs[vehicle_id]
 
-                if vehicle_id in self.priors:
-                    del self.priors[vehicle_id]
-
-    def get_intention(self, vehicle_id: str, waypoints: Sequence[Any], mid: Location) -> str:
+    def get_intention(self, vehicle_id: str, waypoints: Sequence[Transform], mid: Location) -> str:
         if vehicle_id not in self.trajs or self.trajs[vehicle_id] == [] or self.trajs[vehicle_id][-1][-1] == "null":
             return self.get_opencda_intention(waypoints, mid)
         else:
             return self.trajs[vehicle_id][-1][-1]
 
-    def get_opencda_intention(self, waypoints: Sequence[Any], mid: Location) -> str:
+    def get_opencda_intention(self, waypoints: Sequence[Transform], mid: Location) -> str:
         """
         Gets intention by averaged rotation to pass 3 next waypoints.
 
@@ -290,10 +290,10 @@ class AIMModelManager:
 
         waypoint_index = 0
 
-        if utils.get_distance(mid, waypoints[0][0].transform.location) > self.CONTROL_RADIUS:
+        if utils.get_distance(mid, waypoints[0].location) > self.CONTROL_RADIUS:
             logger.debug("Car not in radius")
             return "null"
-        while utils.get_distance(mid, waypoints[waypoint_index][0].transform.location) > self.CONTROL_RADIUS:
+        while utils.get_distance(mid, waypoints[waypoint_index].location) > self.CONTROL_RADIUS:
             waypoint_index += 1
             if waypoint_index >= len(waypoints):
                 logger.debug("No waypoints in radius")
@@ -301,19 +301,19 @@ class AIMModelManager:
 
         first_waypoint = waypoints[waypoint_index]
         first_waypoint_index = waypoint_index
-        while utils.get_distance(mid, waypoints[waypoint_index][0].transform.location) <= self.CONTROL_RADIUS and waypoint_index < len(waypoints) - 1:
+        while utils.get_distance(mid, waypoints[waypoint_index].location) <= self.CONTROL_RADIUS and waypoint_index < len(waypoints) - 1:
             waypoint_index += 1
 
         # average the values of several points to reduce noise
-        mean_yaw = 0
+        mean_yaw = 0.0
         waypoints_in_radius = waypoint_index - first_waypoint_index
         if waypoints_in_radius < 3 and waypoint_index > 3:
             logger.warning("Too few waypoints in radius")
         else:
             for i in range(3):
-                mean_yaw += waypoints[waypoint_index - i][0].transform.rotation.yaw
+                mean_yaw += waypoints[waypoint_index - i].rotation.yaw
         mean_yaw //= 3
-        rotation = (mean_yaw - first_waypoint[0].transform.rotation.yaw + 360) % 360
+        rotation = (mean_yaw - first_waypoint.rotation.yaw + 360) % 360
         return utils.get_intention_by_rotation(rotation)
 
     def encoding_scenario_features(self) -> tuple[np.ndarray, list[str]]:

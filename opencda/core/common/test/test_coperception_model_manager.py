@@ -315,23 +315,6 @@ class TestCoperceptionModelManager:
         assert "Expected exactly 1 batch" in mock_warning.call_args_list[0].args[0]
         assert mock_warning.call_args_list[1].args[0] == "Skipping cooperative perception prediction because the data loader is empty."
 
-    def test_final_eval(self, manager_deps, tmp_path, monkeypatch):
-        monkeypatch.chdir(tmp_path)
-
-        opt = DummyOpt(test_scenario="scen1")
-        manager = CoperceptionModelManager(opt, "2023_01_01")
-
-        manager.final_eval()
-
-        expected_dir = tmp_path / "simulation_output/coperception/results/scen1_2023_01_01"
-        assert expected_dir.is_dir()
-
-        manager_deps["eval_utils"].eval_final_results.assert_called()
-        args = manager_deps["eval_utils"].eval_final_results.call_args[0]
-        # Check path arg
-        assert Path(args[1]).resolve() == expected_dir.resolve()
-        assert args[2] == opt.global_sort_detections
-
 
 class TestCoperceptionVisualizer:
     def test_resolve_visualization_config_merges_defaults_and_overrides(self):

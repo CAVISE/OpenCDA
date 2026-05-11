@@ -46,6 +46,7 @@ class SafetyManager:
                     break
             if print_flag:
                 logger.info(f"Safety Warning from the safety manager:\n{status_dict}")
+        return status_dict
 
     def destroy(self):
         for sensor in self.sensors:
