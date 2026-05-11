@@ -46,7 +46,7 @@ class AIMModelManager:
         self.cav_data: dict[str, CavData] = {}
         self.cav_state: dict[str, dict] = {}
 
-        self.trajs: dict[str, list[tuple[float, float, float, float, float, str]]] = {}
+        self.trajs: dict[str, list[tuple[float, float, float, float, str]]] = {}
         self.priors: dict[str, int] = {}
 
         self.control_center_carla_location: Location = control_center

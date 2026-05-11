@@ -162,7 +162,6 @@ class AIMClient:
                 current_location = self._self_informer_data.location
                 current_speed = self._self_informer_data.speed
                 target_speeds = calculate_target_speeds(control_trajectory, 0.05, current_location, current_speed, 111, 2.5, 4.5)
-                self.trajectory = deque(zip(control_trajectory, target_speeds, None))
                 self.trajectory = deque((location, speed, None) for location, speed in zip(control_trajectory, target_speeds))
 
             else:
