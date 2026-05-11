@@ -24,7 +24,6 @@ from opencda.metrics_tools.metric_collector import MetricCollector
 from opencda.scenario_testing.types import NodeSnapshot, SimulationSnapshot
 from opencda.scenario_testing.evaluations.evaluate_manager import EvaluationManager
 from opencda.scenario_testing.utils.yaml_utils import YamlDict, add_current_time, load_yaml, save_yaml
-from opencda.metrics_tools.metric_collector import MetricCollector
 
 from opencda.core.application.behavior import BROADCAST_OWNER_ID, TransportMessage
 
