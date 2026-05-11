@@ -172,8 +172,8 @@ class AIMClient:
         if self.trajectory:
             if self.debug:
                 self._draw_control_trajectory(owner, [i[0] for i in self.trajectory])
-            target_location, target_speed = self.trajectory.popleft()
-            movement_commands.append(self._build_movement_command_message(target_location, target_speed))
+            target_location, target_speed, target_yaw = self.trajectory.popleft()
+            movement_commands.append(self._build_movement_command_message(target_location, target_speed, target_yaw))
         else:
             self.server_id = BROADCAST_OWNER_ID
 
