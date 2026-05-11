@@ -102,10 +102,13 @@ class MTP(AIMModel):
         """
 
         map_bounding = get_map_bounding(self.map_net_xml_path)
+        # map_bounding = map_bounding / 2.901440626
 
         extracted_features = extract_needed_features(features[:, :4], features[:, 4:5], features[:, 5:6])
+
         normalize_input_features(extracted_features, map_bounding)
         x_global = torch.tensor(extracted_features).unsqueeze(0).float().to(self.device)
+        cav_priors = torch.tensor(features[:, -1]).unsqueeze(0).bool().to(self.device)
 
         with torch.no_grad():
             yaw_cur = x_global[..., 3].clone()
@@ -183,6 +186,14 @@ class MTP(AIMModel):
                 ],
                 dim=-1,
             )
+            map_infos_graph_x_closest_vals, map_infos_graph_x_closest_inds = torch.topk(
+                (map_infos_graph_x[..., 0] ** 2 + map_infos_graph_x[..., 1] ** 2) ** 0.5, k=5, largest=False
+            )
+
+            indices_expanded = map_infos_graph_x_closest_inds.unsqueeze(-1).expand(-1, -1, -1, 5)
+            gathered = torch.gather(map_infos_graph_x, dim=2, index=indices_expanded)
+            map_infos_graph_x_closest_priors = gathered[..., 4].sum(dim=-1) / 5
+
             map_infos_graph_batch["dot"].x = map_infos_graph_x.view(old_map_infos_shape)
             movement_logits, dout_coords = self.model(
                 x_tensor[..., [0, 1, 2, 4, 5, -2, -1]], map_infos_graph_batch, attn_mask, map_attn_mask, new_map_infos_shape
@@ -195,10 +206,22 @@ class MTP(AIMModel):
 
             dout_coords = dout_coords.permute(0, 1, 3, 2)  # [b, v, 2, PRED_LEN]
             dout_coords = (rotations_back_current @ dout_coords).permute(0, 1, 3, 2)  # [b, v, PRED_LEN, 2]
+            entire_movement_dist = torch.sum((dout_coords[..., 0] ** 2 + dout_coords[..., 1] ** 2) ** 0.5, dim=list(range(1, dout_coords.ndim - 1)))
+
+            if config.model.entire_movement_threshold > entire_movement_dist:
+                x_global_dists = (x_global[..., 0] ** 2 + x_global[..., 1] ** 2) ** 0.5
+                if torch.sum(cav_priors) > 0:
+                    x_global_dists[~cav_priors] = torch.inf
+                else:
+                    x_global_dists[cav_priors] = torch.inf
+
+                x_global_min_vals, x_global_min_inds = torch.min(x_global_dists, dim=1)
+                dout_coords[0, x_global_min_inds, :, 0] = dout_coords[0, x_global_min_inds, :, 0] + config.model.dx_movement_on_threshold
+
             predictions = dout_coords + x_global[:, :, [0, 1]].unsqueeze(2)
 
             if config.data_processing.normalize_data:
                 denormalize_coords(predictions, map_bounding)
 
             predictions = transform_coords(predictions)
-            return F.sigmoid(movement_logits) > 0, predictions
+            return F.sigmoid(movement_logits) > 0.5, predictions, map_infos_graph_x_closest_priors > 0.5

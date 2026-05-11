@@ -23,9 +23,11 @@ model:
   predict_vector_size: 2 # size of prediction output vector
   obs_len: 1 # observation sequence length (number of past timesteps)
   pred_len: 1 # length of sequence to be predicted by model
-  num_predict_on_predict: 28 # number of predictions based on previous predictions
-  num_predict: 29 # total number of predictions to generate
+  num_predict_on_predict: 19 # number of predictions based on previous predictions
+  num_predict: 39 # total number of predictions to generate
   k_dot_steps: 4 # number of steps back and forward on lane to gather information
+  entire_movement_threshold: 0.005
+  dx_movement_on_threshold: 0.01
 
 # image map configuration
 image_map:
@@ -51,5 +53,5 @@ object_map:
 
 # temporal parameters
 temporal:
-  sample_rate: 10 # data sampling rate (samples per second)
-  dt: 0.1 # time delta between samples (1/sample_rate)
+  sample_rate: 20 # data sampling rate (samples per second)
+  dt: 0.05 # time delta between samples (1/sample_rate)

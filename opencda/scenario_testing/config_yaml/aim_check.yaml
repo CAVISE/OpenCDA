@@ -97,7 +97,7 @@ scenario:
       behavior_services:
         - type: aim_server
           debug: true
-          control_radius: 15
+          control_radius: 25
           control_center_location:
             x: 256
             y: -171

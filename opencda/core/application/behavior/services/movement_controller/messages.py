@@ -14,3 +14,4 @@ class MovementControllerRequestMessage:
 
     target_speed: float | None
     target_location: Location | None
+    target_yaw: float | None = None

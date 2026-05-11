@@ -50,7 +50,7 @@ class AIMClient:
         """
         self._owner_ref: weakref.ReferenceType[VehicleManager] | None = None
         self.priority = priority
-        self.trajectory: deque[tuple[Location, float]] = deque()
+        self.trajectory: deque[tuple[Location, float, float | None]] = deque()
         self.server_id: str = BROADCAST_OWNER_ID
         self.debug = debug
         self._self_informer_data: SelfInformerResponse | None = None
@@ -75,7 +75,7 @@ class AIMClient:
         return AIMClientState(
             service_type=self.service_type,
             owner_id=owner.id,
-            trajectory=tuple(location for location, _ in self.trajectory),
+            trajectory=tuple(location for location, _, _ in self.trajectory),
         )
 
     def on_detach(self) -> None:
@@ -124,9 +124,14 @@ class AIMClient:
         self,
         target_location: Location | None,
         target_speed: float | None = None,
+        target_yaw: float | None = None,
     ) -> TransportMessage[MovementControllerRequestMessage]:
         owner = self._get_owner()
-        payload = MovementControllerRequestMessage(target_location=target_location, target_speed=target_speed)
+        payload = MovementControllerRequestMessage(
+            target_location=target_location,
+            target_speed=target_speed,
+            target_yaw=target_yaw,
+        )
         return TransportMessage(
             src_owner_id=owner.id,
             src_service_type=self.service_type,
@@ -149,24 +154,31 @@ class AIMClient:
             response = aim_server_responses[0]
             if self.server_id == BROADCAST_OWNER_ID:
                 self.server_id = response.src_owner_id
-            control_trajectory = response.payload.trajectory[1:]  # drop first because it was calculated on previous tick
-            if self._self_informer_data is None:
-                raise RuntimeError("_self_informer_data not set")
-            current_location = self._self_informer_data.location
-            current_speed = self._self_informer_data.speed
-            target_speeds = calculate_target_speeds(control_trajectory, 0.05, current_location, current_speed, 111, 2.5, 4.5)
-            self.trajectory = deque(zip(control_trajectory, target_speeds))
+            # control_trajectory = response.payload.trajectory[1:]  # drop first because it was calculated on previous tick
+            control_trajectory = response.payload.trajectory
+
+            if response.payload.speed is None:
+                if self._self_informer_data is None:
+                    raise RuntimeError("_self_informer_data not set")
+                current_location = self._self_informer_data.location
+                current_speed = self._self_informer_data.speed
+                target_speeds = calculate_target_speeds(control_trajectory, 0.05, current_location, current_speed, 111, 2.5, 4.5)
+                self.trajectory = deque(zip(control_trajectory, target_speeds, None))
+                self.trajectory = deque((location, speed, None) for location, speed in zip(control_trajectory, target_speeds))
+
+            else:
+                target_speeds = [response.payload.speed for _ in control_trajectory]
+                self.trajectory = deque((location, speed, response.payload.yaw) for location, speed in zip(control_trajectory, target_speeds))
 
             if self.debug:
                 self._draw_control_trajectory(owner, control_trajectory)
 
-            target_location, target_speed = self.trajectory.popleft()
-            movement_commands.append(self._build_movement_command_message(target_location, target_speed))
-
+            target_location, target_speed, target_yaw = self.trajectory.popleft()
+            movement_commands.append(self._build_movement_command_message(target_location, target_speed, target_yaw))
         if len(movement_commands) == 0:
             if self.trajectory:
-                target_location, target_speed = self.trajectory.popleft()
-                movement_commands.append(self._build_movement_command_message(target_location, target_speed))
+                target_location, target_speed, target_yaw = self.trajectory.popleft()
+                movement_commands.append(self._build_movement_command_message(target_location, target_speed, target_yaw))
             else:
                 self.server_id = BROADCAST_OWNER_ID
 
