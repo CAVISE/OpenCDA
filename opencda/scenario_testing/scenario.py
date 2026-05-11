@@ -14,7 +14,7 @@ from omegaconf import DictConfig, OmegaConf
 import opencda.scenario_testing.utils.cosim_api as sim_api
 import opencda.scenario_testing.utils.customized_map_api as map_api
 from opencda.core.application.platooning.platooning_manager import PlatooningManager
-from opencda.core.attack.adversary_framework import Attack, AttackManager, AttackResult, AttackSpec
+from opencda.core.attack.adversary_framework import Attack, AttackManager, AttackSpec
 from opencda.core.common.cav_world import CavWorld
 from opencda.core.common.coperception_data_processor import CoperceptionDataProcessor
 from opencda.core.common.rsu_manager import RSUManager
@@ -24,6 +24,7 @@ from opencda.metrics_tools.metric_collector import MetricCollector
 from opencda.scenario_testing.types import NodeSnapshot, SimulationSnapshot
 from opencda.scenario_testing.evaluations.evaluate_manager import EvaluationManager
 from opencda.scenario_testing.utils.yaml_utils import YamlDict, add_current_time, load_yaml, save_yaml
+from opencda.metrics_tools.metric_collector import MetricCollector
 
 from opencda.core.application.behavior import BROADCAST_OWNER_ID, TransportMessage
 
@@ -111,6 +112,7 @@ class Scenario:
                 carla_host=opt.carla_host,
                 carla_timeout=opt.carla_timeout,
             )
+        self.cav_world = self.scenario_manager.cav_world
 
         if opt.with_capi:
             from opencda.core.common.communication import toolchain
@@ -219,10 +221,7 @@ class Scenario:
         self.scenario_manager.create_custom_actor_manager(application=["single"], map_helper=map_api.spawn_helper_2lanefree, data_dump=opt.record)
         logger.info("created single custom actors")
 
-        cav_world = self.scenario_manager.cav_world
-        if cav_world is None:
-            self._abort_simulation("Scenario manager was initialized without CavWorld; simulation cannot continue.")
-        self.eval_manager = EvaluationManager(cav_world, script_name=self.scenario_name, current_time=scenario_config["current_time"])
+        self.eval_manager = EvaluationManager(self.cav_world, script_name=self.scenario_name, current_time=scenario_config["current_time"])
 
         self.spectator = self.scenario_manager.world.get_spectator()
 
@@ -253,7 +252,6 @@ class Scenario:
             attacks.append(Attack.from_spec(attack_spec))
 
         self.attacks = attacks
-        self.attack_results: tuple[AttackResult, ...] = ()
 
     def _build_simulation_snapshot(self, tick: int) -> SimulationSnapshot:
         vehicle_nodes = tuple(
@@ -370,6 +368,7 @@ class Scenario:
                     platoon.update_information()
 
             new_messages: list[TransportMessage[Any]] = []
+            identity_claims: list[Mapping[str, str]] = []
             if self.single_cav_list is not None:
                 logger.debug("updating single cavs")
 
@@ -414,13 +413,11 @@ class Scenario:
             self.simulation_snapshot = self._build_simulation_snapshot(tick_number)
             self.scenario_metrics_collector.update(self._build_scenario_metric_context(tuple(identity_claims)))
 
-            self.attack_results = self.attack_manager.evaluate(
+            self.attack_manager.evaluate(
                 self.attacks,
                 self.simulation_snapshot,
-                service_resolver=self.cav_world.resolve_behavior_service,
+                service_resolver=self.cav_world.resolve_behavior_services,
             )
-            for result in self.attack_results:
-                logger.info("attack=%s status=%s reason=%s", result.attack_name, result.status.value, result.reason)
 
     def capi_loop(self, opt: argparse.Namespace) -> None:
         if self.communication_manager is None:
@@ -513,10 +510,8 @@ class Scenario:
             self.attack_results = self.attack_manager.evaluate(
                 self.attacks,
                 self.simulation_snapshot,
-                service_resolver=self.cav_world.resolve_behavior_service,
+                service_resolver=self.cav_world.resolve_behavior_services,
             )
-            for result in self.attack_results:
-                logger.info("attack=%s status=%s reason=%s", result.attack_name, result.status.value, result.reason)
 
     def finalize(self, opt: argparse.Namespace) -> None:
         if opt.record:

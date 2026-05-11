@@ -25,6 +25,7 @@ class SafetyManager:
     def __init__(self, vehicle, params):
         self.vehicle = vehicle
         self.print_message = params["print_message"]
+        self.last_status: dict[str, bool] = {}
         self.sensors = [
             CollisionSensor(vehicle, params["collision_sensor"]),
             StuckDetector(params["stuck_dector"]),
@@ -37,6 +38,7 @@ class SafetyManager:
         for sensor in self.sensors:
             sensor.tick(data_dict)
             status_dict.update(sensor.return_status())
+        self.last_status = status_dict
         if self.print_message:
             print_flag = False
             # only print message when it has hazard
@@ -46,6 +48,7 @@ class SafetyManager:
                     break
             if print_flag:
                 logger.info(f"Safety Warning from the safety manager:\n{status_dict}")
+        return status_dict
 
     def destroy(self):
         for sensor in self.sensors:
