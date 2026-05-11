@@ -13,7 +13,7 @@ from opencda.metrics_tools.collection_models import MetricSeries
 from opencda.metrics_tools.metric_sample import MetricSample
 from opencda.metrics_tools.report_models import MetricReportSpec, MetricSummarySpec
 
-logger = logging.getLogger("cavise.opencda.opencda.metrics_tools.metrics.attack_success_rate")
+logger = logging.getLogger("cavise.opencda.opencda.metrics_tools.metrics.coperception.attack_success_rate")
 
 
 def _load_common_utils() -> Any:

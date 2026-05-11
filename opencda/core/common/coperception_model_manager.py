@@ -20,12 +20,14 @@ from opencood.visualization import vis_utils
 from opencda.metrics_tools.collection_models import MetricCollection
 from opencda.metrics_tools.config import resolve_metric_collector_config
 from opencda.metrics_tools.metric_collector import MetricCollector
-from opencda.metrics_tools.metrics.attack_success_rate import AttackSuccessRateMetric
-from opencda.metrics_tools.metrics.attacker_benign_visibility_ratio import AttackerBenignVisibilityRatioMetric
-from opencda.metrics_tools.metrics.attacker_target_confidence import AttackerTargetConfidenceMetric
-from opencda.metrics_tools.metrics.ap_at_iou import APAtIoUMetric
-from opencda.metrics_tools.metrics.mean_precision_at_iou import MeanPrecisionAtIoUMetric
-from opencda.metrics_tools.metrics.mean_recall_at_iou import MeanRecallAtIoUMetric
+from opencda.metrics_tools.metrics.coperception.attack_success_rate import AttackSuccessRateMetric
+from opencda.metrics_tools.metrics.coperception.attacker_benign_visibility_ratio import (
+    AttackerBenignVisibilityRatioMetric,
+)
+from opencda.metrics_tools.metrics.coperception.attacker_target_confidence import AttackerTargetConfidenceMetric
+from opencda.metrics_tools.metrics.coperception.ap_at_iou import APAtIoUMetric
+from opencda.metrics_tools.metrics.coperception.mean_precision_at_iou import MeanPrecisionAtIoUMetric
+from opencda.metrics_tools.metrics.coperception.mean_recall_at_iou import MeanRecallAtIoUMetric
 
 if TYPE_CHECKING:
     from opencood.data_utils.datasets.early_fusion_dataset import EarlyFusionDataset
@@ -485,13 +487,24 @@ class CoperceptionVisualizer:
 class CoperceptionModelManager:
     VISUALIZER_CLASS = CoperceptionVisualizer
     SEQUENCE_BOX_GROUP_NAMES: tuple[str, ...] = ("pred", "gt")
+    DEFAULT_METRIC_WARMUP_STEPS = 0
+    DEFAULT_ATTACK_IOU_THRESHOLD = 0.3
+    DEFAULT_VISIBILITY_EPSILON = 1.0
+    DEFAULT_GLOBAL_SORT_DETECTIONS = False
 
-    def __init__(self, opt, current_time, payload_handler=None, visualization_config=None):
+    def __init__(
+        self,
+        opt,
+        current_time,
+        payload_handler=None,
+        coperception_config=None,
+    ):
         self.opt = opt
         self.hypes = yaml_utils.load_yaml(None, self.opt)
         self.current_time = current_time
         self.vis = None
-        self.visualization_config = CoperceptionVisualizer.resolve_visualization_config(visualization_config)
+        self.coperception_config = dict(coperception_config or {})
+        self.visualization_config = CoperceptionVisualizer.resolve_visualization_config(self.coperception_config.get("visualization"))
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.saved_path = self.opt.model_dir
         self.model = self._init_model()
@@ -501,33 +514,8 @@ class CoperceptionModelManager:
         self.payload_handler = payload_handler
         self.inference = self._select_inference()
         metric_configs = resolve_metric_collector_config(
-            self.hypes,
-            default_metric_configs={
-                APAtIoUMetric.metric_name: {
-                    "warmup_steps": 0,
-                    "global_sort_detections": self.opt.global_sort_detections,
-                },
-                MeanRecallAtIoUMetric.metric_name: {
-                    "warmup_steps": 0,
-                    "global_sort_detections": self.opt.global_sort_detections,
-                },
-                MeanPrecisionAtIoUMetric.metric_name: {
-                    "warmup_steps": 0,
-                    "global_sort_detections": self.opt.global_sort_detections,
-                },
-                AttackSuccessRateMetric.metric_name: {
-                    "warmup_steps": 0,
-                    "iou_threshold": 0.3,
-                },
-                AttackerBenignVisibilityRatioMetric.metric_name: {
-                    "warmup_steps": 0,
-                    "epsilon": 1.0,
-                },
-                AttackerTargetConfidenceMetric.metric_name: {
-                    "warmup_steps": 0,
-                    "iou_threshold": 0.3,
-                },
-            },
+            self.coperception_config,
+            default_metric_configs=self._get_default_metric_configs(),
         )
         self.metrics_collector = MetricCollector(
             module="coperception",
@@ -536,6 +524,39 @@ class CoperceptionModelManager:
         )
 
         self._init_dataset()
+
+    def _get_default_metric_configs(self) -> dict[str, dict[str, Any]]:
+        warmup_steps = self.DEFAULT_METRIC_WARMUP_STEPS
+        iou_threshold = self.DEFAULT_ATTACK_IOU_THRESHOLD
+        epsilon = self.DEFAULT_VISIBILITY_EPSILON
+        global_sort_detections = self.DEFAULT_GLOBAL_SORT_DETECTIONS
+
+        return {
+            APAtIoUMetric.metric_name: {
+                "warmup_steps": warmup_steps,
+                "global_sort_detections": global_sort_detections,
+            },
+            MeanRecallAtIoUMetric.metric_name: {
+                "warmup_steps": warmup_steps,
+                "global_sort_detections": global_sort_detections,
+            },
+            MeanPrecisionAtIoUMetric.metric_name: {
+                "warmup_steps": warmup_steps,
+                "global_sort_detections": global_sort_detections,
+            },
+            AttackSuccessRateMetric.metric_name: {
+                "warmup_steps": warmup_steps,
+                "iou_threshold": iou_threshold,
+            },
+            AttackerBenignVisibilityRatioMetric.metric_name: {
+                "warmup_steps": warmup_steps,
+                "epsilon": epsilon,
+            },
+            AttackerTargetConfidenceMetric.metric_name: {
+                "warmup_steps": warmup_steps,
+                "iou_threshold": iou_threshold,
+            },
+        }
 
     def get_metric_collection(self) -> MetricCollection:
         """Return raw cooperative perception metrics for the global evaluation report."""

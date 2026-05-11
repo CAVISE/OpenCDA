@@ -2,8 +2,8 @@ from types import SimpleNamespace
 
 import numpy as np
 
-from opencda.metrics_tools.metrics import attack_success_rate
-from opencda.metrics_tools.metrics.attack_success_rate import AttackSuccessRateMetric
+from opencda.metrics_tools.metrics.coperception import attack_success_rate
+from opencda.metrics_tools.metrics.coperception.attack_success_rate import AttackSuccessRateMetric
 
 
 class DummyPolygon:
@@ -110,6 +110,26 @@ def test_removal_asr_succeeds_when_target_is_not_detected(monkeypatch):
 
     assert _series_values(metric, "asr_removal") == [1.0]
     assert _series_values(metric, "asr_spoofing") == []
+
+
+def test_asr_respects_warmup_steps(monkeypatch):
+    monkeypatch.setattr(attack_success_rate, "_load_common_utils", lambda: DummyCommonUtils)
+    metric = AttackSuccessRateMetric(warmup_steps=1)
+    context = {
+        "pred_box_tensor": None,
+        "gt_box_tensor": _target_box(),
+        "visualization_context": {
+            "mode": "removal",
+            "removed_box_tensor": _target_box(),
+        },
+    }
+
+    metric.update(context)
+    assert _series_values(metric, "asr_removal") == []
+
+    metric.update(context)
+
+    assert _series_values(metric, "asr_removal") == [1.0]
 
 
 def test_removal_asr_fails_when_target_is_still_detected(monkeypatch):

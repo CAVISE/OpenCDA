@@ -23,7 +23,6 @@ class DummyOpt:
         self.save_npy = False
         self.save_vis = False
         self.test_scenario = "test_scenario"
-        self.global_sort_detections = True
         self.__dict__.update(kwargs)
 
 
@@ -948,7 +947,7 @@ class TestAdvCoperceptionModelManager:
         ):
             manager = AdvCoperceptionModelManager(opt, "2023_01_01")
 
-        assert manager.validate_advcp_agents(["cav-1", "cav-2", "rsu-1"]) is True
+        manager.validate_advcp_agents(["cav-1", "cav-2", "rsu-1"])
         assert manager.advcp_config["attacker_ids"] == ["cav-2", "rsu-1"]
 
     def test_validate_advcp_agents_raises_when_no_attackers_exist_in_simulation(self, manager_deps):

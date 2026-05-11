@@ -13,7 +13,7 @@ from opencda.metrics_tools.collection_models import MetricSeries
 from opencda.metrics_tools.metric_sample import MetricSample
 from opencda.metrics_tools.report_models import MetricReportSpec, MetricSummarySpec
 
-logger = logging.getLogger("cavise.opencda.opencda.metrics_tools.metrics.attacker_benign_visibility_ratio")
+logger = logging.getLogger("cavise.opencda.opencda.metrics_tools.metrics.coperception.attacker_benign_visibility_ratio")
 
 
 def _load_advcp_attack_helper() -> Any:
@@ -75,12 +75,12 @@ class AttackerBenignVisibilityRatioMetric(BaseMetric):
     def get_report_spec(cls) -> MetricReportSpec:
         return MetricReportSpec(
             metric_name=cls.metric_name,
-            display_name="Attacker / Benign Visibility Ratio",
+            display_name="Attacker-Benign Visibility Ratio",
             series_names=(cls._RATIO_SERIES, cls._ATTACKER_POINTS_SERIES, cls._BENIGN_POINTS_SERIES),
             summary_specs=(
                 MetricSummarySpec(
                     series_name=cls._RATIO_SERIES,
-                    display_name="Attacker / Benign Visibility Ratio",
+                    display_name="Attacker-Benign Visibility Ratio",
                 ),
                 MetricSummarySpec(
                     series_name=cls._ATTACKER_POINTS_SERIES,

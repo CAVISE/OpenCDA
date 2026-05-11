@@ -8,7 +8,7 @@ from typing import Any, ClassVar, Mapping
 from opencda.metrics_tools.base_metric import BaseMetric
 from opencda.metrics_tools.collection_models import MetricSeries
 from opencda.metrics_tools.metric_sample import MetricSample
-from opencda.metrics_tools.metrics._opencood_eval import (
+from opencda.metrics_tools.metrics.coperception._opencood_eval import (
     ResultStat,
     accumulate_tp_fp,
     create_empty_result_stat,
@@ -18,7 +18,7 @@ from opencda.metrics_tools.metrics._opencood_eval import (
 )
 from opencda.metrics_tools.report_models import MetricReportSpec, MetricSummarySpec
 
-logger = logging.getLogger("cavise.opencda.opencda.metrics_tools.metrics.ap_at_iou")
+logger = logging.getLogger("cavise.opencda.opencda.metrics_tools.metrics.coperception.ap_at_iou")
 
 
 class APAtIoUMetric(BaseMetric):
@@ -35,24 +35,20 @@ class APAtIoUMetric(BaseMetric):
         super().__init__(warmup_steps=warmup_steps)
         self.global_sort_detections = global_sort_detections
         self.result_stat: ResultStat = create_empty_result_stat(self.iou_thresholds)
+        self._samples: dict[str, list[MetricSample]] = {self._series_name(iou): [] for iou in self.iou_thresholds}
 
     def _process_context(self, context: Mapping[str, Any]) -> None:
-        accumulate_tp_fp(self.result_stat, self.iou_thresholds, context, self.metric_name)
+        if not accumulate_tp_fp(self.result_stat, self.iou_thresholds, context, self.metric_name):
+            return
+        for iou in self.iou_thresholds:
+            self._samples[self._series_name(iou)].append(self._make_sample(self.calculate_ap(iou)))
         self._log_ap_at_iou()
 
     def get_raw(self) -> tuple[MetricSeries, ...]:
-        if self.steps_count <= self.warmup_steps:
-            return tuple(MetricSeries(name=self._series_name(iou), samples=()) for iou in self.iou_thresholds)
-
         return tuple(
             MetricSeries(
                 name=self._series_name(iou),
-                samples=(
-                    MetricSample(
-                        tick=self.steps_count,
-                        value=self.calculate_ap(iou),
-                    ),
-                ),
+                samples=tuple(self._samples[self._series_name(iou)]),
             )
             for iou in self.iou_thresholds
         )

@@ -132,13 +132,6 @@ def arg_parse() -> argparse.Namespace:
     parser.add_argument("--show-video-vis", action="store_true", help="whether to show video visualization result")
     parser.add_argument("--save-vis", action="store_true", help="whether to save visualization result")
     parser.add_argument("--save-npy", action="store_true", help="whether to save prediction and gt result in npy_test file")
-    parser.add_argument(
-        "--global-sort-detections",
-        action="store_true",
-        help="whether to globally sort detections by confidence score."
-        "If set to True, it is the mainstream AP computing method,"
-        "but would increase the tolerance for FP (False Positives).",
-    )
 
     # AdvCollaborativePerception module
     parser.add_argument("--with-advcp", action="store_true", help="Enable AdvCP-style attacks for cooperative perception.")

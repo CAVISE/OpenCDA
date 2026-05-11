@@ -307,7 +307,7 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
         opt: Any,
         current_time: str,
         payload_handler: Any = None,
-        visualization_config: Optional[Mapping[str, Any]] = None,
+        coperception_config: Optional[Mapping[str, Any]] = None,
     ) -> None:
         """
         Construct the manager.
@@ -322,13 +322,19 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
             and output paths.
         payload_handler : Any, optional
             Optional payload handler forwarded to the base manager.
-        visualization_config : Mapping, optional
-            Visualization configuration overrides.
+        coperception_config : Mapping, optional
+            Cooperative perception metric configuration overrides from
+            the scenario YAML.
         """
         self.advcp_config = self.load_config(getattr(opt, "advcp_config", None))
         self.current_memory_data: Optional[AdvCPMemoryData] = None
         self.intermediate_attack_state: AdvCPIntermediateAttackState = {}
-        super().__init__(opt, current_time, payload_handler=payload_handler, visualization_config=visualization_config)
+        super().__init__(
+            opt,
+            current_time,
+            payload_handler=payload_handler,
+            coperception_config=coperception_config,
+        )
 
     @staticmethod
     def load_config(config_path: str | None) -> AdvCPConfig:
@@ -428,7 +434,7 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
                     config[optional_path_key] = str((config_dir / path).resolve())
         return cast(AdvCPConfig, config)
 
-    def validate_advcp_agents(self, valid_agent_ids: list[AgentId]) -> bool:
+    def validate_advcp_agents(self, valid_agent_ids: list[AgentId]) -> None:
         """
         Cross-check configured attackers against known scenario agents.
 
@@ -440,11 +446,6 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
         ----------
         valid_agent_ids : list of AgentId
             Agent ids actually present in the scenario.
-
-        Returns
-        -------
-        bool
-            ``True`` once validation succeeded.
 
         Raises
         ------
@@ -475,7 +476,6 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
         logger.info("AdvCP mode: %s", mode)
         logger.info("AdvCP attacks are enabled and will be applied during cooperative perception inference.")
         logger.info("AdvCP attackers: %s", ", ".join(attacker_ids))
-        return True
 
     def _run_late_inference(self, batch_data: Any) -> CoperceptionInferenceResult:  # noqa: DC04
         """Late-fusion inference hook: dispatches to the AdvCP late attack runner."""
