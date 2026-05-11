@@ -87,7 +87,7 @@ class AttackerTargetConfidenceMetric(BaseMetric):
     def __init__(self, warmup_steps: int = 0, iou_threshold: float = 0.3):
         super().__init__(warmup_steps=warmup_steps)
         self.iou_threshold = float(iou_threshold)
-        self._samples: dict[str, list[MetricSample]] = {name: [] for name in self._SERIES_NAMES}
+        self._series_samples: dict[str, list[MetricSample]] = {name: [] for name in self._SERIES_NAMES}
 
     def _process_context(self, context: Mapping[str, Any]) -> None:
         visualization_context = context.get("visualization_context")
@@ -106,11 +106,11 @@ class AttackerTargetConfidenceMetric(BaseMetric):
             return
 
         mean_confidence = float(np.mean(per_target)) if per_target else 0.0
-        self._samples[series_name].append(self._make_sample(mean_confidence))
+        self._series_samples[series_name].append(self._make_sample(mean_confidence))
         self._log_confidence(mode=mode, mean_confidence=mean_confidence, target_count=len(per_target))
 
     def get_raw(self) -> tuple[MetricSeries, ...]:
-        return tuple(MetricSeries(name=name, samples=tuple(self._samples[name])) for name in self._SERIES_NAMES)
+        return tuple(MetricSeries(name=name, samples=tuple(self._series_samples[name])) for name in self._SERIES_NAMES)
 
     @classmethod
     def get_report_spec(cls) -> MetricReportSpec:

@@ -137,6 +137,7 @@ class BehaviorAgent(object):
             "speed": {"warmup_steps": 100},
             "acceleration": {"warmup_steps": 100},
             "ttc": {"warmup_steps": 100},
+            "hard_brake_count": {"warmup_steps": 100},
         }
         metric_configs = resolve_metric_collector_config(
             config_yaml,
