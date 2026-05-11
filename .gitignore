@@ -1,5 +1,7 @@
 .vscode
 
+*.log.json
+
 __pycache__/
 *.py[cod]
 *$py.class

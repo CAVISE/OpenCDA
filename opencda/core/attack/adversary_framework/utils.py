@@ -2,20 +2,55 @@
 
 from __future__ import annotations
 
+from collections import deque
 from collections.abc import Callable, Collection, Iterable
+from copy import copy, deepcopy
+from dataclasses import fields, is_dataclass
+import logging
 from typing import Any, TypeAlias
 
 from opencda.core.application.behavior.behavior_service_protocol import BehaviorService
 from opencda.core.application.behavior.capability import Capability
 from opencda.scenario_testing.types import SimulationSnapshot
 
-from .condition_evaluator import resolve_target_node_ids
+from .condition_evaluator import collect_snapshot_values, resolve_target_node_ids
 from .models import TargetSpec
 
-ServiceResolver: TypeAlias = Callable[[str, str], BehaviorService[Any, Any] | None]
+ServiceResolver: TypeAlias = Callable[[str, str | None], tuple[BehaviorService[Any, Any], ...]]
 AttackResultRewriter: TypeAlias = Callable[[Any], Any]
 RestoreCallback: TypeAlias = Callable[[], None]
 _MISSING = object()
+
+logger = logging.getLogger("cavise.opencda.opencda.core.attack.adversary_framework.utils")
+
+
+# TODO: Consider using a more robust cloning strategy if needed, such as copyreg or custom __deepcopy__ implementations on CARLA types.
+def safe_clone(value: Any) -> Any:
+    """Clone common Python structures while tolerating opaque runtime objects such as CARLA types."""
+    if value is None or isinstance(value, (bool, int, float, str, bytes, bytearray, complex)):
+        return value
+
+    if isinstance(value, tuple):
+        return tuple(safe_clone(item) for item in value)
+    if isinstance(value, list):
+        return [safe_clone(item) for item in value]
+    if isinstance(value, dict):
+        return {safe_clone(key): safe_clone(item) for key, item in value.items()}
+    if isinstance(value, deque):
+        return deque((safe_clone(item) for item in value), maxlen=value.maxlen)
+    if is_dataclass(value) and not isinstance(value, type):
+        try:
+            cloned_value = copy(value)
+            for field in fields(value):
+                object.__setattr__(cloned_value, field.name, safe_clone(getattr(value, field.name)))
+            return cloned_value
+        except Exception:
+            return value
+
+    try:
+        return deepcopy(value)
+    except Exception:
+        return value
 
 
 def wrap_method_output(
@@ -97,20 +132,91 @@ def resolve_targets(
     target_spec: TargetSpec | None,
     current_snapshot: SimulationSnapshot,
     service_resolver: ServiceResolver,
+    *,
+    attack_name: str | None = None,
 ) -> tuple[BehaviorService[Any, Any], ...]:
     """Resolve live target services according to a target spec."""
     if target_spec is None:
+        logger.warning(
+            "Attack %r target resolution skipped because no target spec is configured.",
+            attack_name,
+        )
         return ()
 
     if target_spec.kind != "service_state_field":
         raise ValueError(f"Unsupported target resolution kind '{target_spec.kind}'.")
+    if target_spec.selection not in {"all", "first"}:
+        raise ValueError(f"Unsupported target selection '{target_spec.selection}'.")
+
+    source_values = collect_snapshot_values(target_spec.source, current_snapshot)
+    if not source_values:
+        logger.warning(
+            "Attack %r target resolution produced no source values: node_type=%r service_type=%r field=%r.",
+            attack_name,
+            target_spec.source.node_type,
+            target_spec.source.service_type,
+            target_spec.source.field,
+        )
 
     target_node_ids = resolve_target_node_ids(target_spec.source, current_snapshot)
-    target_services: list[BehaviorService[Any, Any]] = []
+    if not target_node_ids:
+        logger.warning(
+            "Attack %r target resolution normalized to an empty node-id set from source values=%r.",
+            attack_name,
+            source_values,
+        )
 
-    for node_id in sorted(target_node_ids):
-        service = service_resolver(node_id, target_spec.resolve_to_service_name)
-        if service is not None:
-            target_services.append(service)
+    ordered_target_node_ids = sorted(target_node_ids)
+    if target_spec.selection == "first":
+        ordered_target_node_ids = ordered_target_node_ids[:1]
+
+    target_services: list[BehaviorService[Any, Any]] = []
+    missing_node_ids: list[str] = []
+    resolved_service_label = target_spec.resolve_to_service_name if target_spec.resolve_to_service_name is not None else "<any>"
+
+    for node_id in ordered_target_node_ids:
+        services = service_resolver(node_id, target_spec.resolve_to_service_name)
+        if services:
+            target_services.extend(services)
+        else:
+            missing_node_ids.append(node_id)
+
+    available_node_ids = _collect_available_node_ids(current_snapshot, target_spec.resolve_to_node_type)
+    if missing_node_ids:
+        logger.warning(
+            "Attack %r could not resolve service_type=%r for node_ids=%s. Available %s node_ids in snapshot: %s.",
+            attack_name,
+            resolved_service_label,
+            missing_node_ids,
+            target_spec.resolve_to_node_type,
+            available_node_ids,
+        )
+
+    if target_services:
+        logger.debug(
+            "Attack %r resolved %d target service(s) of type=%r from node_ids=%s.",
+            attack_name,
+            len(target_services),
+            resolved_service_label,
+            ordered_target_node_ids,
+        )
+    else:
+        logger.warning(
+            "Attack %r resolved zero target services for service_type=%r from node_ids=%s.",
+            attack_name,
+            resolved_service_label,
+            ordered_target_node_ids,
+        )
 
     return tuple(target_services)
+
+
+def _collect_available_node_ids(
+    snapshot: SimulationSnapshot,
+    node_type: str,
+) -> tuple[str, ...]:
+    if node_type == "vehicle":
+        return tuple(node.node_id for node in snapshot.vehicle_nodes)
+    if node_type == "rsu":
+        return tuple(node.node_id for node in snapshot.rsu_nodes)
+    return tuple(node.node_id for node in snapshot.vehicle_nodes + snapshot.rsu_nodes)
