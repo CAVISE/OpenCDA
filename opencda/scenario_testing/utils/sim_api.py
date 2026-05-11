@@ -231,7 +231,7 @@ class ScenarioManager:
             # normalize probability
             self.bp_class_sample_prob = {k: v / sum(self.bp_class_sample_prob.values()) for k, v in self.bp_class_sample_prob.items()}
 
-        self.cav_world = cav_world
+        self.cav_world = cav_world if cav_world is not None else CavWorld(apply_ml)
         self.carla_map = self.world.get_map()
         self.apply_ml = apply_ml
 
@@ -415,8 +415,6 @@ class ScenarioManager:
         platoon_list: list[PlatooningManager] = []
         platoon_carla_ids: dict[int, Any] = {}
         perception_requirements = perception_requirements or PerceptionRequirements()
-
-        self.cav_world = CavWorld(self.apply_ml)
 
         if self.scenario_params.get("scenario") is None or self.scenario_params["scenario"].get("platoon_list", None) is None:
             logger.info("No platoon was created")
