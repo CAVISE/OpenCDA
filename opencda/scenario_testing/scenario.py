@@ -20,12 +20,12 @@ from opencda.core.common.coperception_data_processor import CoperceptionDataProc
 from opencda.core.common.rsu_manager import RSUManager
 from opencda.core.common.vehicle_manager import VehicleManager
 from opencda.core.sensing.perception.perception_manager import PerceptionRequirements
+from opencda.metrics_tools.metric_collector import MetricCollector
 from opencda.scenario_testing.types import NodeSnapshot, SimulationSnapshot
 from opencda.scenario_testing.evaluations.evaluate_manager import EvaluationManager
 from opencda.scenario_testing.utils.yaml_utils import YamlDict, add_current_time, load_yaml, save_yaml
-from opencda.metrics_tools.metric_collector import MetricCollector
 
-from opencda.core.application.behavior import TransportMessage
+from opencda.core.application.behavior import BROADCAST_OWNER_ID, TransportMessage
 
 if TYPE_CHECKING:
     from opencda.core.common.coperception_model_manager import CoperceptionModelManager
@@ -280,18 +280,36 @@ class Scenario:
             rsu_nodes=rsu_nodes,
         )
 
+    def _collect_safety_status(self, vehicle_manager: VehicleManager) -> dict[str, bool]:
+        status: dict[str, bool] = {}
+        for sensor in vehicle_manager.safety_manager.sensors:
+            return_status = getattr(sensor, "return_status", None)
+            if not callable(return_status):
+                continue
+
+            sensor_status = return_status()
+            if isinstance(sensor_status, dict):
+                status.update({str(key): bool(value) for key, value in sensor_status.items()})
+        return status
+
     def _build_scenario_metric_context(self, identity_claims: tuple[Mapping[str, str], ...]) -> dict[str, Any]:
-        vehicles = []
-        for vehicle_manager in self.single_cav_list:
-            location = vehicle_manager.vehicle.get_location()
-            safety_status = getattr(vehicle_manager.safety_manager, "last_status", {})
+        vehicles: list[dict[str, Any]] = []
+
+        for vehicle_manager in chain(
+            self.single_cav_list,
+            *(platoon.vehicle_manager_list for platoon in self.platoon_list),
+        ):
+            ego_pos = vehicle_manager.localizer.get_ego_pos()
+            if ego_pos is None:
+                continue
+
+            safety_status = self._collect_safety_status(vehicle_manager)
             vehicles.append(
                 {
                     "node_id": vehicle_manager.id,
-                    "actor_id": vehicle_manager.vehicle.id,
-                    "x": float(location.x),
-                    "y": float(location.y),
-                    "z": float(location.z),
+                    "x": ego_pos.location.x,
+                    "y": ego_pos.location.y,
+                    "z": ego_pos.location.z,
                     "collided": bool(safety_status.get("collision", False)),
                 }
             )
@@ -304,17 +322,23 @@ class Scenario:
     @staticmethod
     def _collect_identity_claims(
         producer_node_id: str,
-        producer_node_type: str,
         messages: list[TransportMessage[Any]],
     ) -> tuple[dict[str, str], ...]:
-        return tuple(
-            {
-                "producer_node_id": producer_node_id,
-                "producer_node_type": producer_node_type,
-                "claimed_node_id": message.src_owner_id,
-            }
-            for message in messages
-        )
+        claims: list[dict[str, str]] = []
+
+        for message in messages:
+            claimed_node_id = getattr(message, "src_owner_id", "")
+            if not isinstance(claimed_node_id, str) or not claimed_node_id or claimed_node_id == BROADCAST_OWNER_ID:
+                continue
+
+            claims.append(
+                {
+                    "producer_node_id": producer_node_id,
+                    "claimed_node_id": claimed_node_id,
+                }
+            )
+
+        return tuple(claims)
 
     def run(self, opt: argparse.Namespace) -> None:
         if self.communication_manager is None:
@@ -377,13 +401,15 @@ class Scenario:
                 for single_cav in self.single_cav_list:
                     cav_messages, _ = single_cav.run_step(messages=self.messages)
                     new_messages.extend(cav_messages)
-                    identity_claims.extend(self._collect_identity_claims(single_cav.id, "vehicle", cav_messages))
+                    identity_claims.extend(self._collect_identity_claims(single_cav.id, cav_messages))
+            else:
+                identity_claims = []
 
             if self.rsu_list is not None:
                 for rsu in self.rsu_list:
                     rsu_messages, _ = rsu.run_step(messages=self.messages)
                     new_messages.extend(rsu_messages)
-                    identity_claims.extend(self._collect_identity_claims(rsu.id, "rsu", rsu_messages))
+                    identity_claims.extend(self._collect_identity_claims(rsu.id, rsu_messages))
 
             self.messages = new_messages
             self.simulation_snapshot = self._build_simulation_snapshot(tick_number)
@@ -472,18 +498,17 @@ class Scenario:
                 for single_cav in self.single_cav_list:
                     cav_messages, _ = single_cav.run_step(messages=self.messages)
                     new_messages.extend(cav_messages)
-                    identity_claims.extend(self._collect_identity_claims(single_cav.id, "vehicle", cav_messages))
+                    identity_claims.extend(self._collect_identity_claims(single_cav.id, cav_messages))
 
             if self.rsu_list is not None:
                 for rsu in self.rsu_list:
                     rsu_messages, _ = rsu.run_step(messages=self.messages)
                     new_messages.extend(rsu_messages)
-                    identity_claims.extend(self._collect_identity_claims(rsu.id, "rsu", rsu_messages))
+                    identity_claims.extend(self._collect_identity_claims(rsu.id, rsu_messages))
 
             self.messages = new_messages
             self.simulation_snapshot = self._build_simulation_snapshot(tick_number)
             self.scenario_metrics_collector.update(self._build_scenario_metric_context(tuple(identity_claims)))
-
             self.attack_manager.evaluate(
                 self.attacks,
                 self.simulation_snapshot,

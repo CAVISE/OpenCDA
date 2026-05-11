@@ -91,7 +91,7 @@ class EvaluationManager(object):
 
         logger.info("Evaluation JSON report saved to: %s", json_save_path)
         self._build_metric_plots(
-            module_reports=(planning_report, localization_report, coperception_report),
+            module_reports=(planning_report, localization_report, coperception_report, scenario_report),
             platooning_reports=platooning_reports,
         )
 
