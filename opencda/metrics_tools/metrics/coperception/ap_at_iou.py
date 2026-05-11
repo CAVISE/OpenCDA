@@ -35,20 +35,20 @@ class APAtIoUMetric(BaseMetric):
         super().__init__(warmup_steps=warmup_steps)
         self.global_sort_detections = global_sort_detections
         self.result_stat: ResultStat = create_empty_result_stat(self.iou_thresholds)
-        self._samples: dict[str, list[MetricSample]] = {self._series_name(iou): [] for iou in self.iou_thresholds}
+        self._samples_by_series: dict[str, list[MetricSample]] = {self._series_name(iou): [] for iou in self.iou_thresholds}
 
     def _process_context(self, context: Mapping[str, Any]) -> None:
         if not accumulate_tp_fp(self.result_stat, self.iou_thresholds, context, self.metric_name):
             return
         for iou in self.iou_thresholds:
-            self._samples[self._series_name(iou)].append(self._make_sample(self.calculate_ap(iou)))
+            self._samples_by_series[self._series_name(iou)].append(self._make_sample(self.calculate_ap(iou)))
         self._log_ap_at_iou()
 
     def get_raw(self) -> tuple[MetricSeries, ...]:
         return tuple(
             MetricSeries(
                 name=self._series_name(iou),
-                samples=tuple(self._samples[self._series_name(iou)]),
+                samples=tuple(self._samples_by_series[self._series_name(iou)]),
             )
             for iou in self.iou_thresholds
         )

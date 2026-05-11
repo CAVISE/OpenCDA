@@ -178,7 +178,7 @@ def test_removal_asr_skips_when_no_gt_in_removal_zone(monkeypatch):
 
 
 def test_removal_asr_reports_fraction_of_removed_targets(monkeypatch):
-    monkeypatch.setattr(attack_success_rate, "_load_common_utils", lambda: _make_first_hit_utils())
+    monkeypatch.setattr(attack_success_rate, "_load_common_utils", _make_first_hit_utils)
     metric = AttackSuccessRateMetric(iou_threshold=0.3)
 
     metric.update(
