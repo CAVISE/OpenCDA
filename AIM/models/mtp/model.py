@@ -186,7 +186,7 @@ class MTP(AIMModel):
                 ],
                 dim=-1,
             )
-            map_infos_graph_x_closest_vals, map_infos_graph_x_closest_inds = torch.topk(
+            _, map_infos_graph_x_closest_inds = torch.topk(
                 (map_infos_graph_x[..., 0] ** 2 + map_infos_graph_x[..., 1] ** 2) ** 0.5, k=5, largest=False
             )
 
@@ -215,7 +215,7 @@ class MTP(AIMModel):
                 else:
                     x_global_dists[cav_priors] = torch.inf
 
-                x_global_min_vals, x_global_min_inds = torch.min(x_global_dists, dim=1)
+                _, x_global_min_inds = torch.min(x_global_dists, dim=1)
                 dout_coords[0, x_global_min_inds, :, 0] = dout_coords[0, x_global_min_inds, :, 0] + config.model.dx_movement_on_threshold
 
             predictions = dout_coords + x_global[:, :, [0, 1]].unsqueeze(2)
