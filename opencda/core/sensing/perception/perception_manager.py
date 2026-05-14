@@ -127,6 +127,28 @@ class CameraSensor:
         self.timestamp = event.timestamp
 
 
+def build_lidar_spawn_point(config_yaml, global_position):
+    if global_position is not None:
+        return carla.Transform(carla.Location(x=global_position[0], y=global_position[1], z=global_position[2]))
+
+    position = config_yaml.get("position", [-0.5, 0.0, 1.9])
+    if len(position) == 3:
+        x, y, z = position
+        roll, pitch, yaw = 0.0, 0.0, 0.0
+    elif len(position) == 4:
+        x, y, z, yaw = position
+        roll, pitch = 0.0, 0.0
+    elif len(position) == 6:
+        x, y, z, roll, pitch, yaw = position
+    else:
+        raise ValueError("lidar.position must be [x, y, z], [x, y, z, yaw], or [x, y, z, roll, pitch, yaw].")
+
+    return carla.Transform(
+        carla.Location(x=float(x), y=float(y), z=float(z)),
+        carla.Rotation(roll=float(roll), pitch=float(pitch), yaw=float(yaw)),
+    )
+
+
 class LidarSensor:
     """
     Lidar sensor manager.
@@ -173,10 +195,7 @@ class LidarSensor:
         blueprint.set_attribute("noise_stddev", str(config_yaml["noise_stddev"]))
 
         # spawn sensor
-        if global_position is None:
-            spawn_point = carla.Transform(carla.Location(x=-0.5, z=1.9))
-        else:
-            spawn_point = carla.Transform(carla.Location(x=global_position[0], y=global_position[1], z=global_position[2]))
+        spawn_point = build_lidar_spawn_point(config_yaml, global_position)
         if vehicle is not None:
             self.sensor = world.spawn_actor(blueprint, spawn_point, attach_to=vehicle)
         else:
@@ -254,10 +273,7 @@ class SemanticLidarSensor:
         blueprint.set_attribute("rotation_frequency", str(config_yaml["rotation_frequency"]))
 
         # spawn sensor
-        if global_position is None:
-            spawn_point = carla.Transform(carla.Location(x=-0.5, z=1.9))
-        else:
-            spawn_point = carla.Transform(carla.Location(x=global_position[0], y=global_position[1], z=global_position[2]))
+        spawn_point = build_lidar_spawn_point(config_yaml, global_position)
 
         if vehicle is not None:
             self.sensor = world.spawn_actor(blueprint, spawn_point, attach_to=vehicle)
@@ -360,8 +376,10 @@ class PerceptionManager:
 
         self.activate = config_yaml["activate"]
         self.camera_visualize = config_yaml["camera"]["visualize"]
+        self.camera_force_spawn = config_yaml["camera"].get("force_spawn", False)
         self.camera_num = config_yaml["camera"]["num"]
         self.lidar_visualize = config_yaml["lidar"]["visualize"]
+        self.lidar_force_spawn = config_yaml["lidar"].get("force_spawn", False)
         self.global_position = config_yaml["global_position"] if "global_position" in config_yaml else None
 
         self.cav_world = weakref.ref(cav_world)()
@@ -378,7 +396,7 @@ class PerceptionManager:
 
         # we only spawn the camera when perception module is activated or
         # camera visualization is needed
-        if self.activate or self.camera_visualize or self.perception_requirements.force_rgb_camera:
+        if self.activate or self.camera_visualize or self.camera_force_spawn or self.perception_requirements.force_rgb_camera:
             self.rgb_camera = []
             mount_position = config_yaml["camera"]["positions"]
             assert len(mount_position) == self.camera_num, "The camera number has to be the same as the length of the relative positions list"
@@ -397,7 +415,7 @@ class PerceptionManager:
         self.lidar = None
         self.o3d_vis = None
 
-        if self.lidar_visualize or self.activate or self.perception_requirements.force_lidar:
+        if self.lidar_visualize or self.activate or self.lidar_force_spawn or self.perception_requirements.force_lidar:
             self.lidar = LidarSensor(vehicle, self.carla_world, config_yaml["lidar"], self.global_position)
             if self.lidar_visualize:
                 self.o3d_vis = o3d_visualizer_init(self.id)
