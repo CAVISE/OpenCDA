@@ -17,17 +17,40 @@ See the package README for the architecture overview, glossary, and
 data flow diagram.
 """
 
-from .attack_helper import AdvCPAttackHelper, AdvCPCarMeshHelper
-from .adv_coperception_model_manager import AdvCoperceptionModelManager
-from .early_fusion_attack import AdvCoperceptionEarlyFusionAttack
-from .intermediate_fusion_attack import AdvCoperceptionIntermediateFusionAttack
-from .late_fusion_attack import AdvCoperceptionLateFusionAttack
+from __future__ import annotations
 
-__all__ = [
-    "AdvCPAttackHelper",
-    "AdvCPCarMeshHelper",
-    "AdvCoperceptionModelManager",
-    "AdvCoperceptionEarlyFusionAttack",
-    "AdvCoperceptionIntermediateFusionAttack",
-    "AdvCoperceptionLateFusionAttack",
-]
+from importlib import import_module
+from typing import Any
+
+_EXPORTS = {
+    "AdvCPAttackHelper": ("opencda.core.attack.advcp.attack_helper", "AdvCPAttackHelper"),
+    "AdvCPCarMeshHelper": ("opencda.core.attack.advcp.attack_helper", "AdvCPCarMeshHelper"),
+    "AdvCoperceptionModelManager": (
+        "opencda.core.attack.advcp.adv_coperception_model_manager",
+        "AdvCoperceptionModelManager",
+    ),
+    "AdvCoperceptionEarlyFusionAttack": (
+        "opencda.core.attack.advcp.early_fusion_attack",
+        "AdvCoperceptionEarlyFusionAttack",
+    ),
+    "AdvCoperceptionIntermediateFusionAttack": (
+        "opencda.core.attack.advcp.intermediate_fusion_attack",
+        "AdvCoperceptionIntermediateFusionAttack",
+    ),
+    "AdvCoperceptionLateFusionAttack": (
+        "opencda.core.attack.advcp.late_fusion_attack",
+        "AdvCoperceptionLateFusionAttack",
+    ),
+}
+
+__all__ = list(_EXPORTS)
+
+
+def __getattr__(name: str) -> Any:  # noqa: DC02
+    if name not in _EXPORTS:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+    module_name, attribute_name = _EXPORTS[name]
+    value = getattr(import_module(module_name), attribute_name)
+    globals()[name] = value
+    return value

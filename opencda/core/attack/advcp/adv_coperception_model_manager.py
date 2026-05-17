@@ -41,6 +41,7 @@ from opencda.core.attack.advcp.types import (
     AdvCPConfig,
     AdvCPIntermediateAttackState,
     AdvCPMemoryData,
+    AdvCPVisualizationContext,
     AgentId,
     AttackerId,
 )
@@ -83,20 +84,8 @@ class AdvCoperceptionVisualizer(CoperceptionVisualizer):
         "image_dpi": 400,
     }
 
-    @staticmethod
-    def _get_context_value(visualization_context: Any, key: str, default: Any = None) -> Any:
-        """
-        Safely read an attribute from an :class:`AdvCPVisualizationContext`-like object.
-
-        Returns ``default`` when the context itself is ``None`` or when
-        the attribute is missing.
-        """
-        if visualization_context is None:
-            return default
-        return getattr(visualization_context, key, default)
-
     @classmethod
-    def _get_extra_box_tensors(cls, visualization_context: Optional[Any] = None) -> dict[str, Any]:
+    def _get_extra_box_tensors(cls, visualization_context: AdvCPVisualizationContext | None = None) -> dict[str, Any]:
         """
         Provide the visualizer's optional ``fake`` and ``removed`` boxes.
 
@@ -110,8 +99,8 @@ class AdvCoperceptionVisualizer(CoperceptionVisualizer):
         if not visualization_context:
             return {}
         return {
-            "fake": cls._get_context_value(visualization_context, "fake_box_tensor"),
-            "removed": cls._get_context_value(visualization_context, "removed_box_tensor"),
+            "fake": visualization_context.fake_box_tensor,
+            "removed": visualization_context.removed_box_tensor,
         }
 
     @staticmethod
@@ -137,7 +126,7 @@ class AdvCoperceptionVisualizer(CoperceptionVisualizer):
         batch_data: Any,
         fallback_pcd: Any,
         config: Mapping[str, Any],
-        visualization_context: Optional[Any] = None,
+        visualization_context: AdvCPVisualizationContext | None = None,
     ) -> tuple[npt.NDArray, npt.NDArray]:
         """
         Compute coloured lidar points for visualization.
@@ -246,7 +235,7 @@ class AdvCoperceptionVisualizer(CoperceptionVisualizer):
         role: str,
         other_color: tuple[int, int, int],
         ego_color: tuple[int, int, int],
-        visualization_context: Optional[Any] = None,
+        visualization_context: AdvCPVisualizationContext | None = None,
     ) -> tuple[int, int, int]:
         """
         Pick the point colour for a single CAV.
@@ -266,7 +255,7 @@ class AdvCoperceptionVisualizer(CoperceptionVisualizer):
         lidar_point_colors = config["lidar_point_colors"]
         if agent_id is not None and agent_id in lidar_point_colors:
             return cls._as_uint8_color(lidar_point_colors[agent_id])
-        attacker_ids = set(cls._get_context_value(visualization_context, "attacker_ids", []))
+        attacker_ids = set(visualization_context.attacker_ids if visualization_context else [])
         attacker_color = cls._as_uint8_color(lidar_point_colors.get("attackers", other_color))
         if agent_id is not None and agent_id in attacker_ids:
             return attacker_color
