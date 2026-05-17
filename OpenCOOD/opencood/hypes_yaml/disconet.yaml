@@ -1,0 +1,87 @@
+name: disconet_integration_test
+root_dir: "dataset/train"
+validate_dir: "dataset/validate"
+yaml_parser: "load_point_pillar_params"
+
+data_augment: []
+
+wild_setting:
+  async: false
+  async_overhead: 0
+  seed: 42
+  loc_err: false
+  ry_err: false
+  xyz_std: 0
+  ryp_std: 0
+  data_size: 1.0
+  transmission_speed: 27
+  backbone_delay: 10
+
+fusion:
+  core_method: 'IntermediateFusionDataset'
+  args: []
+
+preprocess:
+  core_method: 'SpVoxelPreprocessor'
+  cav_lidar_range: [-32, -32, -3, 32, 32, 2]
+  args:
+    voxel_size: [0.25, 0.25, 0.4]
+    max_points_per_voxel: 32
+    max_voxel_train: 32000
+    max_voxel_test: 32000
+
+train_params:
+  batch_size: 1
+  epoches: 100
+  eval_freq: 1
+  save_freq: 5
+  max_cav: 5
+  optimizer:
+    lr: 0.001
+    weight_decay: 0.0001
+  scheduler:
+    name: "multi_step"
+    milestones: [20, 40, 60]
+    gamma: 0.1
+  max_recursion: 0
+  weight: 1.0
+
+loss:
+  name: disconet_loss
+  args:
+    cls_weight: 1.0
+    reg_weight: 2.0
+    kd_weight: 10.0
+
+model:
+  name: disconet
+  args:
+    in_channels: 13
+    fusion_channels: 256
+    category_num: 2
+    anchor_size: [[2.0, 4.0, 0], [2.0, 4.0, 1.57]]
+    voxel_size: [0.25, 0.25, 0.4]
+    downsample_rate: 8
+    compress_level: 0
+    point_pillar_scatter:
+      grid_size: []
+    pillar_vfe:
+      use_norm: true
+      with_distance: False
+
+postprocess:
+  core_method: "VoxelPostprocessor"
+  score_threshold: 0.2
+  nms_threshold: 0.15
+  max_num: 100
+  anchor_args:
+    num: 2
+    cav_lidar_range: [-32, -32, -3, 32, 32, 2]
+    args:
+      car:
+        w: 2.0
+        l: 4.0
+        h: 1.6
+        r: [0, 90]
+        num: 2
+    feature_stride: 8
