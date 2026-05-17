@@ -116,5 +116,5 @@ def draw_trajetory_points(
     size: float = 0.1,
 ) -> None:
     for location in locations:
-        loc = carla.Location(location.x, location.y, location.z)
+        loc = carla.Location(location.x, location.y, location.z + 1)
         world.debug.draw_point(loc, size=size, color=color, life_time=life_time)
