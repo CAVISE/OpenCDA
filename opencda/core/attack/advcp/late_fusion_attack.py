@@ -34,7 +34,6 @@ from opencda.core.attack.advcp.types import (
     AdvCPConfig,
     AdvCPMemoryData,
     AdvCPVisualizationContext,
-    AttackerId,
     BatchAttackerId,
     BoxLwhBottomCenter,
 )
@@ -131,7 +130,7 @@ class AdvCoperceptionLateFusionAttack:
         if len(configured_attacker_ids) == 0:
             AdvCPAttackHelper.raise_no_configured_attackers("late")
 
-        attacker_ids, attack_boxes_by_attacker = AdvCoperceptionLateFusionAttack.resolve_spoof_boxes_by_attacker(
+        attacker_ids, attack_boxes_by_attacker = AdvCPAttackHelper.resolve_spoof_boxes_by_attacker(
             advcp_config,
             memory_data,
         )
@@ -364,35 +363,3 @@ class AdvCoperceptionLateFusionAttack:
         pred_box_tensor, pred_score = dataset.post_processor.post_process(batch_data, output_dict)
         gt_box_tensor = dataset.post_processor.generate_gt_bbx(batch_data)
         return pred_box_tensor, pred_score, gt_box_tensor, advcp_context
-
-    @staticmethod
-    def resolve_spoof_boxes(
-        advcp_config: AdvCPConfig,
-        memory_data: AdvCPMemoryData | None,
-    ) -> tuple[BatchAttackerId | None, list[BoxLwhBottomCenter]]:
-        """
-        Single-attacker convenience wrapper around
-        :meth:`AdvCPAttackHelper.resolve_spoof_boxes`.
-
-        Returns
-        -------
-        tuple
-            ``(batch_attacker_id, attack_boxes)``.
-        """
-        return AdvCPAttackHelper.resolve_spoof_boxes(advcp_config, memory_data)
-
-    @staticmethod
-    def resolve_spoof_boxes_by_attacker(
-        advcp_config: AdvCPConfig,
-        memory_data: AdvCPMemoryData | None,
-    ) -> tuple[list[AttackerId], dict[BatchAttackerId, list[BoxLwhBottomCenter]]]:
-        """
-        Multi-attacker wrapper around
-        :meth:`AdvCPAttackHelper.resolve_spoof_boxes_by_attacker`.
-
-        Returns
-        -------
-        tuple
-            ``(resolved_attacker_ids, boxes_by_batch_attacker)``.
-        """
-        return AdvCPAttackHelper.resolve_spoof_boxes_by_attacker(advcp_config, memory_data)
