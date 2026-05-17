@@ -18,7 +18,7 @@ For each fusion mode the manager overrides the corresponding
 instead of the vanilla OpenCOOD inference helper.
 
 ``AdvCoperceptionVisualizer`` extends the regular cooperative
-visualizer with attacker-aware point colouring and dedicated colours
+visualizer with attacker-aware point coloring and dedicated colors
 for fake / removed boxes.
 """
 
@@ -57,14 +57,14 @@ logger = logging.getLogger("cavise.opencda.opencda.core.attack.advcp.advcp_manag
 
 class AdvCoperceptionVisualizer(CoperceptionVisualizer):
     """
-    Cooperative-perception visualizer with AdvCP-aware point colouring.
+    Cooperative-perception visualizer with AdvCP-aware point coloring.
 
     Two visual additions on top of the base visualizer:
 
-    - Dedicated bbox colours for ``fake`` (spoofed) and ``removed``
+    - Dedicated bbox colors for ``fake`` (spoofed) and ``removed``
       target boxes pulled from
       :class:`AdvCPVisualizationContext`.
-    - Per-CAV point colouring that treats configured attackers and
+    - Per-CAV point coloring that treats configured attackers and
       the spoofing-injected points (marked by
       ``origin_lidar_spoofing_masks``) differently from regular CAVs.
     """
@@ -129,21 +129,25 @@ class AdvCoperceptionVisualizer(CoperceptionVisualizer):
         visualization_context: AdvCPVisualizationContext | None = None,
     ) -> tuple[npt.NDArray, npt.NDArray]:
         """
-        Compute coloured lidar points for visualization.
+        Compute colored lidar points for visualization.
 
         When the batch carries the AdvCP-augmented per-agent bundles
         (``origin_lidar_by_agent`` and ``origin_lidar_spoofing_masks``),
-        each agent's points are coloured by role (ego, attacker,
+        each agent's points are colored by role (ego, attacker,
         other) and points marked by the spoofing mask are highlighted
         with the dedicated ``spoofing`` color.
 
-        Falls back to the base visualizer when the AdvCP-specific
-        fields are absent.
+        If the batch is not a mapping, has no ego entry, lacks either
+        the per-agent point bundle or the spoofing masks, or produces
+        no drawable AdvCP points, this method delegates to
+        ``CoperceptionVisualizer._get_lidar_points_and_colors``. That
+        base path may still visualize generic cooperative-perception
+        lidar fields; otherwise it uses ``fallback_pcd``.
 
         Parameters
         ----------
         batch_data : Any
-            OpenCOOD-collated batch for the c urrent inference tick.
+            OpenCOOD-collated batch for the current inference tick.
             AdvCP expects the ego entry to optionally contain
             per-agent visualization bundles:
             ``origin_lidar_by_agent`` (one point cloud per CAV),
@@ -151,7 +155,7 @@ class AdvCoperceptionVisualizer(CoperceptionVisualizer):
             ``origin_lidar_agent_ids`` (scenario agent ids), and
             ``origin_lidar_spoofing_masks`` (boolean masks for points
             injected by spoofing). When these bundles are present, the
-            method colours each agent independently instead of drawing
+            method colors each agent independently instead of drawing
             one merged point cloud.
         fallback_pcd : Any
             Standard point cloud passed by the base visualizer. Used
@@ -163,10 +167,10 @@ class AdvCoperceptionVisualizer(CoperceptionVisualizer):
             keys, AdvCP reads ``lidar_point_colors["other"]`` and may
             use optional ``"ego"``, ``"attackers"``, ``"spoofing"``,
             or per-agent entries such as ``"cav-2"``.
-        visualization_context : optional
-            ``AdvCPVisualizationContext`` for the current tick. Its
+        visualization_context : Optional[AdvCPVisualizationContext]
+            Context for the current tick. Its
             ``attacker_ids`` field is used to color active attackers;
-            if it is ``None`` or has no attackers, points are coloured
+            if it is ``None`` or has no attackers, points are colored
             only by role / per-agent config.
 
         Returns
@@ -295,14 +299,14 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
     ----------
     advcp_config : AdvCPConfig
         Resolved AdvCP config (defaults applied, paths normalised).
-    current_memory_data : AdvCPMemoryData or None
+    current_memory_data : Optional[AdvCPMemoryData]
         Per-tick memory data set by the calling pipeline before each
         inference call. AdvCP needs it to access raw lidar data and
         per-agent poses.
     intermediate_attack_state : AdvCPIntermediateAttackState
-        Persistent state for the intermediate-fusion attack
-        (``previous_memory_data``, ``current_memory_data``,
-        ``init_perturbation``).
+        Persistent state used by the intermediate-fusion attack to
+        carry memory snapshots and warm-start perturbations between
+        inference calls.
     """
 
     VISUALIZER_CLASS = AdvCoperceptionVisualizer
@@ -324,11 +328,8 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
             CLI options. ``opt.advcp_config`` is the path to the AdvCP
             YAML.
         current_time : str
-            Run timestamp string used by the base manager for logging
-            and output paths.
-        payload_handler : Any, optional
-            Optional payload handler forwarded to the base manager.
-        visualization_config : Mapping, optional
+        payload_handler : Optional[Any]
+        visualization_config : Optional[Mapping]
             Visualization configuration overrides.
         """
         self.advcp_config = self.load_config(getattr(opt, "advcp_config", None))
@@ -348,7 +349,7 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
 
         Parameters
         ----------
-        config_path : str or None
+        config_path : Optional[str]
             Path to the AdvCP YAML. If ``None`` or unloadable, the
             full default config is returned.
 

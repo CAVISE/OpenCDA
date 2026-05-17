@@ -136,9 +136,9 @@ class AdvCoperceptionIntermediateFusionAttack:
             Device the model lives on.
         advcp_config : AdvCPConfig
             Resolved AdvCP config.
-        memory_data : AdvCPMemoryData or None
+        memory_data : Optional[AdvCPMemoryData]
             Per-tick memory data; required for any non-fallback path.
-        attack_state : AdvCPIntermediateAttackState or None
+        attack_state : Optional[AdvCPIntermediateAttackState]
             Persistent attack state. Created on demand if missing.
 
         Returns
@@ -521,10 +521,10 @@ class AdvCoperceptionIntermediateFusionAttack:
             Current-tick memory.
         current_attack_boxes : Sequence of BoxLwhBottomCenter
             Target boxes in the ego lidar frame.
-        previous_memory_data : AdvCPMemoryData or None
+        previous_memory_data : Optional[AdvCPMemoryData]
             Previous-tick memory (for sync mode).
         sync_enabled : bool
-        stored_init_perturbation : list of npt.NDArray or None
+        stored_init_perturbation : Optional[list of npt.NDArray]
             Warm-start perturbation from the previous tick (online
             mode).
         mode : {"spoofing", "removal"}

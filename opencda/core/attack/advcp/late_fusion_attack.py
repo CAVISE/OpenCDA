@@ -87,7 +87,7 @@ class AdvCoperceptionLateFusionAttack:
             Device the model lives on.
         advcp_config : AdvCPConfig
             Resolved AdvCP config.
-        memory_data : AdvCPMemoryData or None
+        memory_data : Optional[AdvCPMemoryData]
             Per-tick memory data; required to resolve per-attacker
             target boxes.
 

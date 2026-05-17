@@ -11,49 +11,15 @@ modelled after live at <https://github.com/zqzqz/AdvCollaborativePerception>.
 
 ## Scope
 
-AdvCP supports two attack modes against three cooperative-perception
-fusion strategies:
-
-| Fusion          | Spoofing | Removal |
-|-----------------|----------|---------|
-| Early           | yes      | yes     |
-| Intermediate    | yes      | yes     |
-| Late            | yes      | yes     |
-
-Each combination supports a single attacker as well as multiple
-attackers acting jointly within the same tick.
+AdvCP supports spoofing and removal attacks for early, intermediate,
+and late cooperative-perception fusion. Each attack/fusion combination
+works with a single attacker or multiple attackers acting jointly within
+the same tick.
 
 - Spoofing injects a fake object into the cooperative perception output:
   the ego vehicle "sees" something that does not exist.
 - Removal suppresses an existing object from the cooperative perception
   output: the ego vehicle fails to see something that does exist.
-
-## Module map
-
-```
-opencda/core/attack/advcp/
-    __init__.py                       Public re-exports.
-    types.py                          Typed dictionaries, dataclasses,
-                                      and type aliases shared by every
-                                      attack module.
-    attack_helper.py                  Utilities used by every fusion
-                                      strategy: config validation,
-                                      attacker resolution, target box
-                                      construction, mesh helpers.
-    early_fusion_attack.py            Early-fusion attack: rewrites the
-                                      attacker LiDAR point cloud before
-                                      the cooperative pipeline.
-    intermediate_fusion_attack.py     Intermediate-fusion attack:
-                                      perturbs the attacker spatial
-                                      feature map produced by the
-                                      backbone (gradient-based, Adam).
-    late_fusion_attack.py             Late-fusion attack: rewrites the
-                                      attacker per-CAV detections
-                                      before late-stage NMS.
-    adv_coperception_model_manager.py Top-level manager that wires the
-                                      attack into the cooperative
-                                      perception inference pipeline.
-```
 
 ## High-level data flow
 

@@ -498,7 +498,7 @@ class AdvCPAttackHelper:
         ----------
         advcp_config : AdvCPConfig
             Resolved AdvCP config.
-        memory_data : AdvCPMemoryData or None
+        memory_data : Optional[AdvCPMemoryData]
             Per-tick memory data.
 
         Returns
@@ -554,7 +554,7 @@ class AdvCPAttackHelper:
         ----------
         advcp_config : AdvCPConfig
             Resolved AdvCP config.
-        memory_data : AdvCPMemoryData or None
+        memory_data : Optional[AdvCPMemoryData]
             Per-tick memory data.
 
         Returns
@@ -1017,7 +1017,7 @@ class AdvCPCarMeshHelper:
 
         Returns
         -------
-        list of Open3D meshes or None
+        Optional[list of Open3D meshes]
             ``None`` when the asset is missing or empty; otherwise the
             list of post-processed mesh pieces.
         """
@@ -1095,7 +1095,7 @@ class AdvCPCarMeshHelper:
 
         Parameters
         ----------
-        car_mesh_path : Path or None
+        car_mesh_path : Optional[Path]
 
         Returns
         -------
