@@ -70,21 +70,9 @@ The manager is responsible for the top-level AdvCP orchestration. It performs th
 2. validates the configured attacker vehicles;
 3. dispatches execution to the correct inference hook depending on the cooperative perception fusion mode.
 
-Depending on the configured fusion strategy, the manager routes inference through one of the following paths:
-
-1. `_run_early`
-2. `_run_intermediate`
-3. `_run_late`
-
-Each inference path calls the corresponding AdvCP attack implementation:
-
-1. `_run_early` calls `EarlyFusionAttack.run`;
-2. `_run_intermediate` calls `IntermediateFusionAttack.run`;
-3. `_run_late` calls `LateFusionAttack.run`.
-
 The attack implementation then modifies the cooperative perception pipeline at the appropriate representation level:
 
-1. early fusion attacks rewrite the LiDAR `np.ndarray` before model inference;
+1. early fusion attacks rewrite the LiDAR `npt.NDArray` before model inference;
 2. intermediate fusion attacks perturb spatial feature maps inside the model pipeline;
 3. late fusion attacks rewrite per-CAV detection results before final fusion.
 
@@ -101,7 +89,7 @@ The `AdvCPAttackResult` is then passed to the downstream metrics framework and v
 
 The manager always returns an `AdvCPAttackResult`, regardless of the fusion mode. The visualization context carries the original target boxes and the list of effective attacker IDs. This allows downstream components to:
 
-1. colour predictions and attack-related objects in visualizations;
+1. color predictions and attack-related objects in visualizations;
 2. compute attack success rate;
 3. compute target confidence;
 4. compute attacker/benign visibility statistics;
@@ -185,7 +173,7 @@ always obvious from the surrounding code.
 - visualization context (`AdvCPVisualizationContext`): A small
   dataclass carried alongside the prediction tensors. Holds the mode,
   the list of effective attacker ids, and the target box tensor for
-  the current tick. Consumed by the visualizer (to colour boxes) and
+  the current tick. Consumed by the visualizer (to color boxes) and
   by ASR / confidence metrics.
 - density: An integer in `{0, 1, 2, 3}` derived from the
   `density` config value (`"replace"`, `"dense_a"`, `"dense_all"`,

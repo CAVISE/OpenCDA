@@ -9,8 +9,7 @@ Two helper classes live here:
   tracing utilities used by the early-fusion attack to inject or
   suppress points in the attacker's lidar.
 
-Both classes expose only static / class methods; they hold no
-per-attack state and can be called freely from any module.
+Both classes are purely static.
 """
 
 from __future__ import annotations
@@ -48,11 +47,6 @@ class AdvCPAttackHelper:
     """
     Configuration, attacker resolution, and target-box utilities shared
     by every AdvCP fusion strategy.
-
-    Notes
-    -----
-    All methods are stateless. Instantiation is unnecessary; call
-    methods on the class directly.
     """
 
     DENSITY_ALIASES = {

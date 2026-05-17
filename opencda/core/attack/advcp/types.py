@@ -83,7 +83,7 @@ class AdvCPVisualizationContext:
     """
     State carried alongside an attack's prediction tensors.
 
-    Consumed by the visualizer (to colour fake / removed boxes
+    Consumed by the visualizer (to color fake / removed boxes
     differently from regular predictions and ground truth) and by the
     metrics framework (to compute attack success rate and target
     confidence).

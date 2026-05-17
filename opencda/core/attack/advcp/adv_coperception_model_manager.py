@@ -135,7 +135,7 @@ class AdvCoperceptionVisualizer(CoperceptionVisualizer):
         (``origin_lidar_by_agent`` and ``origin_lidar_spoofing_masks``),
         each agent's points are coloured by role (ego, attacker,
         other) and points marked by the spoofing mask are highlighted
-        with the dedicated ``spoofing`` colour.
+        with the dedicated ``spoofing`` color.
 
         Falls back to the base visualizer when the AdvCP-specific
         fields are absent.
@@ -143,14 +143,31 @@ class AdvCoperceptionVisualizer(CoperceptionVisualizer):
         Parameters
         ----------
         batch_data : Any
-            Collated batch.
+            OpenCOOD-collated batch for the c urrent inference tick.
+            AdvCP expects the ego entry to optionally contain
+            per-agent visualization bundles:
+            ``origin_lidar_by_agent`` (one point cloud per CAV),
+            ``origin_lidar_roles`` (``"ego"`` / ``"other"`` labels),
+            ``origin_lidar_agent_ids`` (scenario agent ids), and
+            ``origin_lidar_spoofing_masks`` (boolean masks for points
+            injected by spoofing). When these bundles are present, the
+            method colours each agent independently instead of drawing
+            one merged point cloud.
         fallback_pcd : Any
-            Open3D point cloud fallback for the base visualizer.
+            Standard point cloud passed by the base visualizer. Used
+            only when ``batch_data`` does not contain the AdvCP
+            per-agent bundles, or when those bundles contain no
+            drawable points.
         config : Mapping
-            Visualization config (see ``_DEFAULT_VISUALIZATION_CONFIG``).
+            Resolved visualization config. In addition to the base
+            keys, AdvCP reads ``lidar_point_colors["other"]`` and may
+            use optional ``"ego"``, ``"attackers"``, ``"spoofing"``,
+            or per-agent entries such as ``"cav-2"``.
         visualization_context : optional
-            AdvCP visualization context for the current tick (used to
-            pull attacker ids).
+            ``AdvCPVisualizationContext`` for the current tick. Its
+            ``attacker_ids`` field is used to color active attackers;
+            if it is ``None`` or has no attackers, points are coloured
+            only by role / per-agent config.
 
         Returns
         -------
@@ -238,14 +255,14 @@ class AdvCoperceptionVisualizer(CoperceptionVisualizer):
         visualization_context: AdvCPVisualizationContext | None = None,
     ) -> tuple[int, int, int]:
         """
-        Pick the point colour for a single CAV.
+        Pick the point color for a single CAV.
 
         Resolution order:
         1. Per-agent override via ``lidar_point_colors[agent_id]``.
-        2. The dedicated ``attackers`` colour when ``agent_id`` is in
+        2. The dedicated ``attackers`` color when ``agent_id`` is in
            the active attacker list from the visualization context.
-        3. The ego colour when ``role == "ego"``.
-        4. The fallback ``other`` colour.
+        3. The ego color when ``role == "ego"``.
+        4. The fallback ``other`` color.
 
         Returns
         -------
@@ -268,11 +285,11 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
     """
     Cooperative-perception model manager with AdvCP attacks enabled.
 
-    Drop-in replacement for ``CoperceptionModelManager``. Reads the
-    AdvCP YAML config from ``opt.advcp_config``, validates the
-    configured attackers against the actual scenario agents, and
-    redirects the per-fusion inference hooks to the corresponding
-    AdvCP attack runner.
+    Overrides ``CoperceptionModelManager`` to extend base model
+    manager with support for AdvCP framework. Reads the AdvCP
+    YAML config from ``opt.advcp_config``, and redirects the
+    per-fusion inference hooks to the corresponding AdvCP
+    attack runner.
 
     Attributes
     ----------
@@ -299,7 +316,7 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
         visualization_config: Optional[Mapping[str, Any]] = None,
     ) -> None:
         """
-        Construct the manager.
+        Initialize the manager.
 
         Parameters
         ----------
