@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from collections.abc import Mapping, MutableMapping, MutableSequence, Sequence
 from dataclasses import dataclass, is_dataclass
+from functools import partial
+import logging
 from typing import Any
 
 from opencda.core.application.behavior.behavior_service_protocol import BehaviorService
@@ -11,7 +13,9 @@ from opencda.core.application.behavior.capability import Capability
 from opencda.core.application.behavior.transport_message import TransportMessage
 from opencda.core.attack.adversary_framework.models import AttackStageResult, Status
 from opencda.core.attack.adversary_framework.stage_registry import AttackStageRegistry
-from opencda.core.attack.adversary_framework.utils import RestoreCallback, install_output_interceptor, safe_clone
+from opencda.core.attack.adversary_framework.utils import RestoreCallback, install_output_interceptor, log_stage_object_transition, safe_clone
+
+logger = logging.getLogger("cavise.opencda.opencda.core.attack.adversary_framework.stages.spoofer")
 
 
 @dataclass(frozen=True, slots=True)
@@ -57,7 +61,7 @@ class SpooferStage:
                 restore_callback = install_output_interceptor(
                     service,
                     capability,
-                    rewrite_result=self._spoof_output,
+                    rewrite_result=partial(self._spoof_output, service, capability),
                 )
                 self._restore_callbacks.append(restore_callback)
 
@@ -73,13 +77,31 @@ class SpooferStage:
             restore_callback = self._restore_callbacks.pop()
             restore_callback()
 
-    def _spoof_output(self, output: Any) -> Any:
+    def _spoof_output(
+        self,
+        service: BehaviorService[Any, Any],
+        capability: Capability,
+        output: Any,
+    ) -> Any:
+        spoofed_output = self._spoof_output_value(output)
+        log_stage_object_transition(
+            logger,
+            stage_name=self.stage_name,
+            action="spoofed",
+            service=service,
+            capability=capability,
+            before=output,
+            after=spoofed_output,
+        )
+        return spoofed_output
+
+    def _spoof_output_value(self, output: Any) -> Any:
         if isinstance(output, TransportMessage):
             return self._spoof_message(output)
         if isinstance(output, tuple):
-            return tuple(self._spoof_output(item) for item in output)
+            return tuple(self._spoof_output_value(item) for item in output)
         if isinstance(output, list):
-            return [self._spoof_output(item) for item in output]
+            return [self._spoof_output_value(item) for item in output]
         return output
 
     def _spoof_message(self, message: TransportMessage[Any]) -> TransportMessage[Any]:
