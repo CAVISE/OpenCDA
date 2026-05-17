@@ -4,13 +4,16 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from functools import partial
+import logging
 from typing import Any
 
 from opencda.core.application.behavior.behavior_service_protocol import BehaviorService
 from opencda.core.application.behavior.capability import Capability
 from opencda.core.attack.adversary_framework.models import AttackStageResult, Status
 from opencda.core.attack.adversary_framework.stage_registry import AttackStageRegistry
-from opencda.core.attack.adversary_framework.utils import RestoreCallback, install_output_interceptor, safe_clone
+from opencda.core.attack.adversary_framework.utils import RestoreCallback, install_output_interceptor, log_stage_object_transition, safe_clone
+
+logger = logging.getLogger("cavise.opencda.opencda.core.attack.adversary_framework.stages.replayer")
 
 
 @AttackStageRegistry.register
@@ -77,6 +80,17 @@ class ReplayerStage:
         self._previous_outputs_by_binding[binding_key] = safe_clone(output)
 
         if previous_output is None:
-            return output
+            replayed_output = output
+        else:
+            replayed_output = safe_clone(previous_output)
 
-        return safe_clone(previous_output)
+        log_stage_object_transition(
+            logger,
+            stage_name=self.stage_name,
+            action="replayed",
+            service=service,
+            capability=capability,
+            before=output,
+            after=replayed_output,
+        )
+        return replayed_output
