@@ -67,7 +67,7 @@ class CoperceptionInferenceResult:
     pred_box_tensor: torch.Tensor | None
     pred_score: torch.Tensor | None
     gt_box_tensor: torch.Tensor | None
-    visualization_context: Optional[Mapping[str, Any]] = None
+    visualization_context: Any | None = None
 
 
 class InferenceMapper:
@@ -161,7 +161,7 @@ class CoperceptionVisualizer:
         save_path,
         batch_data=None,
         visualization_config: Optional[Mapping[str, Any]] = None,
-        visualization_context: Optional[Mapping[str, Any]] = None,
+        visualization_context: Any | None = None,
         method: str = "3d",
         vis_gt_box: bool = True,
         vis_pred_box: bool = True,
@@ -198,7 +198,7 @@ class CoperceptionVisualizer:
         o3d_pcd,
         batch_data=None,
         visualization_config: Optional[Mapping[str, Any]] = None,
-        visualization_context: Optional[Mapping[str, Any]] = None,
+        visualization_context: Any | None = None,
     ):
         config = cls.resolve_visualization_config(visualization_config)
         origin_lidar_np, point_colors_uint8 = cls._get_lidar_points_and_colors(
@@ -237,7 +237,7 @@ class CoperceptionVisualizer:
         pc_range,
         batch_data=None,
         visualization_config: Optional[Mapping[str, Any]] = None,
-        visualization_context: Optional[Mapping[str, Any]] = None,
+        visualization_context: Any | None = None,
         method: str = "3d",
         vis_gt_box: bool = True,
         vis_pred_box: bool = True,
@@ -353,7 +353,7 @@ class CoperceptionVisualizer:
         batch_data,
         fallback_pcd,
         config: Mapping[str, Any],
-        visualization_context: Optional[Mapping[str, Any]] = None,
+        visualization_context: Any | None = None,
     ) -> Tuple[np.ndarray, np.ndarray]:
         other_color = cls._as_uint8_color(config["lidar_point_colors"]["other"])
         ego_color = cls._as_uint8_color(config["lidar_point_colors"].get("ego", other_color))
@@ -444,7 +444,7 @@ class CoperceptionVisualizer:
         role: str,
         other_color: tuple,
         ego_color: tuple,
-        visualization_context: Optional[Mapping[str, Any]] = None,
+        visualization_context: Any | None = None,
     ):
         lidar_point_colors = config["lidar_point_colors"]
         if agent_id is not None and agent_id in lidar_point_colors:
@@ -454,7 +454,7 @@ class CoperceptionVisualizer:
         return other_color
 
     @classmethod
-    def _get_extra_box_tensors(cls, visualization_context: Optional[Mapping[str, Any]] = None) -> Dict[str, Any]:
+    def _get_extra_box_tensors(cls, visualization_context: Any | None = None) -> Dict[str, Any]:
         return {}
 
     @classmethod
