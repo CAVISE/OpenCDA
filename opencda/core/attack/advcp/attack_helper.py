@@ -537,39 +537,6 @@ class AdvCPAttackHelper:
         return resolved_attacker_ids, attack_boxes_by_batch_attacker
 
     @classmethod
-    def resolve_spoof_boxes(
-        cls,
-        advcp_config: AdvCPConfig,
-        memory_data: AdvCPMemoryData | None,
-    ) -> tuple[BatchAttackerId | None, list[BoxLwhBottomCenter]]:
-        """
-        Resolve target boxes for the first present attacker.
-
-        Single-attacker convenience wrapper around
-        :meth:`resolve_spoof_boxes_by_attacker`. Returns the boxes for
-        whichever attacker happens to be first in the resolved
-        mapping.
-
-        Parameters
-        ----------
-        advcp_config : AdvCPConfig
-            Resolved AdvCP config.
-        memory_data : Optional[AdvCPMemoryData]
-            Per-tick memory data.
-
-        Returns
-        -------
-        tuple
-            ``(batch_attacker_id, attack_boxes)``. When no attackers
-            are resolved, returns ``(None, [])``.
-        """
-        _, attack_boxes_by_batch_attacker = cls.resolve_spoof_boxes_by_attacker(advcp_config, memory_data)
-        if not attack_boxes_by_batch_attacker:
-            return None, []
-        attacker_id, attack_boxes = next(iter(attack_boxes_by_batch_attacker.items()))
-        return attacker_id, attack_boxes
-
-    @classmethod
     def resolve_spoof_boxes_for_agent(
         cls,
         scenario_data: AdvCPScenarioData,
