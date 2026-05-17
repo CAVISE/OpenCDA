@@ -24,6 +24,33 @@ _MISSING = object()
 logger = logging.getLogger("cavise.opencda.opencda.core.attack.adversary_framework.utils")
 
 
+def log_stage_object_transition(
+    stage_logger: logging.Logger,
+    *,
+    stage_name: str,
+    action: str,
+    before: Any,
+    after: Any,
+    service: BehaviorService[Any, Any] | None = None,
+    capability: Capability | None = None,
+) -> None:
+    """Log a stage-controlled object transition when DEBUG logging is enabled."""
+    if not stage_logger.isEnabledFor(logging.DEBUG):
+        return
+
+    service_type = getattr(service, "service_type", None)
+    capability_label = capability.value if capability is not None else None
+    stage_logger.debug(
+        "Attack stage '%s' %s object state: service=%r capability=%r\nbefore=%r\nafter=%r.",
+        stage_name,
+        action,
+        service_type,
+        capability_label,
+        before,
+        after,
+    )
+
+
 # TODO: Consider using a more robust cloning strategy if needed, such as copyreg or custom __deepcopy__ implementations on CARLA types.
 def safe_clone(value: Any) -> Any:
     """Clone common Python structures while tolerating opaque runtime objects such as CARLA types."""
