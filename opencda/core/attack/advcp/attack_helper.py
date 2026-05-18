@@ -9,8 +9,7 @@ Two helper classes live here:
   tracing utilities used by the early-fusion attack to inject or
   suppress points in the attacker's lidar.
 
-Both classes expose only static / class methods; they hold no
-per-attack state and can be called freely from any module.
+Both classes are purely static.
 """
 
 from __future__ import annotations
@@ -25,6 +24,7 @@ import numpy as np
 import numpy.typing as npt
 import torch
 from opencood.hypes_yaml.yaml_utils import load_yaml
+from opencood.utils import box_utils
 from opencood.utils.transformation_utils import x_to_world
 
 from opencda.core.attack.advcp.types import (
@@ -48,11 +48,6 @@ class AdvCPAttackHelper:
     """
     Configuration, attacker resolution, and target-box utilities shared
     by every AdvCP fusion strategy.
-
-    Notes
-    -----
-    All methods are stateless. Instantiation is unnecessary; call
-    methods on the class directly.
     """
 
     DENSITY_ALIASES = {
@@ -504,7 +499,7 @@ class AdvCPAttackHelper:
         ----------
         advcp_config : AdvCPConfig
             Resolved AdvCP config.
-        memory_data : AdvCPMemoryData or None
+        memory_data : Optional[AdvCPMemoryData]
             Per-tick memory data.
 
         Returns
@@ -541,39 +536,6 @@ class AdvCPAttackHelper:
             resolved_attacker_ids.append(attacker_id)
 
         return resolved_attacker_ids, attack_boxes_by_batch_attacker
-
-    @classmethod
-    def resolve_spoof_boxes(
-        cls,
-        advcp_config: AdvCPConfig,
-        memory_data: AdvCPMemoryData | None,
-    ) -> tuple[BatchAttackerId | None, list[BoxLwhBottomCenter]]:
-        """
-        Resolve target boxes for the first present attacker.
-
-        Single-attacker convenience wrapper around
-        :meth:`resolve_spoof_boxes_by_attacker`. Returns the boxes for
-        whichever attacker happens to be first in the resolved
-        mapping.
-
-        Parameters
-        ----------
-        advcp_config : AdvCPConfig
-            Resolved AdvCP config.
-        memory_data : AdvCPMemoryData or None
-            Per-tick memory data.
-
-        Returns
-        -------
-        tuple
-            ``(batch_attacker_id, attack_boxes)``. When no attackers
-            are resolved, returns ``(None, [])``.
-        """
-        _, attack_boxes_by_batch_attacker = cls.resolve_spoof_boxes_by_attacker(advcp_config, memory_data)
-        if not attack_boxes_by_batch_attacker:
-            return None, []
-        attacker_id, attack_boxes = next(iter(attack_boxes_by_batch_attacker.items()))
-        return attacker_id, attack_boxes
 
     @classmethod
     def resolve_spoof_boxes_for_agent(
@@ -876,6 +838,221 @@ class AdvCPAttackHelper:
 
         return torch.from_numpy(model_box).type(torch.float32)
 
+    @staticmethod
+    def model_boxes_to_lwh(boxes: torch.Tensor, dataset: Any) -> torch.Tensor:
+        """
+        Reorder model-format boxes into the canonical ``lwh`` order.
+
+        OpenCOOD models can be configured with either ``"lwh"`` or
+        ``"hwl"`` axis ordering for box dimensions. AdvCP geometry
+        utilities expect ``"lwh"``. This helper rearranges columns when
+        needed and returns the original tensor when already correct.
+
+        Parameters
+        ----------
+        boxes : torch.Tensor
+            ``(N, 7)`` boxes in the dataset/model order.
+        dataset : Any
+            Dataset whose ``post_processor.params["order"]`` selects
+            the model box order.
+
+        Returns
+        -------
+        torch.Tensor
+            ``(N, 7)`` boxes in ``[x, y, z, l, w, h, yaw]`` order.
+
+        Raises
+        ------
+        NotImplementedError
+            If the dataset's order is not one of ``"hwl"`` or ``"lwh"``.
+        """
+        if boxes.numel() == 0:
+            return boxes
+        order = dataset.post_processor.params.get("order", "hwl")
+        if order == "hwl":
+            return boxes[:, [0, 1, 2, 5, 4, 3, 6]]
+        if order == "lwh":
+            return boxes
+        raise NotImplementedError(f"Unsupported box order for AdvCP geometry: {order}")
+
+    @staticmethod
+    def compute_iou_weights(proposals_lwh: torch.Tensor, target_box_lwh: torch.Tensor) -> torch.Tensor:
+        """
+        Compute 2D oriented IoU between every proposal and one target.
+
+        Both proposals and target are interpreted as ``lwh`` boxes and
+        projected to BEV/XY oriented rectangles. The returned IoU values
+        are used by intermediate-fusion losses and late-fusion removal
+        filtering.
+
+        Parameters
+        ----------
+        proposals_lwh : torch.Tensor
+            ``(N, 7)`` proposal boxes in ``lwh`` order.
+        target_box_lwh : torch.Tensor
+            ``(7,)`` target box in ``lwh`` order.
+
+        Returns
+        -------
+        torch.Tensor
+            ``(N,)`` IoU values in ``[0, 1]``.
+        """
+        if proposals_lwh.shape[0] == 0:
+            return torch.zeros((0,), dtype=target_box_lwh.dtype, device=target_box_lwh.device)
+
+        repeated_target_boxes = target_box_lwh.unsqueeze(0).expand(proposals_lwh.shape[0], -1)
+        proposal_corners = box_utils.boxes_to_corners2d(proposals_lwh, order="lwh")[:, :, :2]
+        target_corners = box_utils.boxes_to_corners2d(repeated_target_boxes, order="lwh")[:, :, :2]
+        intersection_area = AdvCPAttackHelper._oriented_box_intersection_2d(
+            proposal_corners,
+            target_corners,
+        )
+        proposal_area = proposals_lwh[:, 3] * proposals_lwh[:, 4]
+        target_area = repeated_target_boxes[:, 3] * repeated_target_boxes[:, 4]
+        union_area = torch.clamp(proposal_area + target_area - intersection_area, min=1e-6)
+        return torch.clamp(intersection_area / union_area, min=0.0, max=1.0)
+
+    @classmethod
+    def _oriented_box_intersection_2d(
+        cls,
+        corners1: torch.Tensor,
+        corners2: torch.Tensor,
+    ) -> torch.Tensor:
+        """
+        Differentiable 2D oriented-box intersection area, batched.
+
+        Builds the intersection polygon from contained corners and
+        edge-edge intersections, then computes its area with the
+        shoelace formula.
+        """
+        intersections, intersection_mask = cls._box_intersection_th(corners1, corners2)
+        corners1_in_corners2, corners2_in_corners1 = cls._box_in_box_th(corners1, corners2)
+        vertices = torch.cat(
+            [
+                corners1,
+                corners2,
+                intersections.reshape(corners1.shape[0], -1, 2),
+            ],
+            dim=1,
+        )
+        vertex_mask = torch.cat(
+            [
+                corners1_in_corners2,
+                corners2_in_corners1,
+                intersection_mask.reshape(corners1.shape[0], -1),
+            ],
+            dim=1,
+        )
+        return cls._calculate_polygon_area(vertices, vertex_mask)
+
+    @staticmethod
+    def _box_intersection_th(
+        corners1: torch.Tensor,
+        corners2: torch.Tensor,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """
+        Compute every edge-edge intersection between two batched boxes.
+        """
+        epsilon = 1e-8
+        lines1 = torch.cat([corners1, corners1[:, [1, 2, 3, 0], :]], dim=2)
+        lines2 = torch.cat([corners2, corners2[:, [1, 2, 3, 0], :]], dim=2)
+
+        lines1_expanded = lines1.unsqueeze(2).repeat(1, 1, 4, 1)
+        lines2_expanded = lines2.unsqueeze(1).repeat(1, 4, 1, 1)
+        x1 = lines1_expanded[..., 0]
+        y1 = lines1_expanded[..., 1]
+        x2 = lines1_expanded[..., 2]
+        y2 = lines1_expanded[..., 3]
+        x3 = lines2_expanded[..., 0]
+        y3 = lines2_expanded[..., 1]
+        x4 = lines2_expanded[..., 2]
+        y4 = lines2_expanded[..., 3]
+
+        denominator = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4)
+        denominator_t = (x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)
+        denominator_u = (x1 - x2) * (y1 - y3) - (y1 - y2) * (x1 - x3)
+
+        t = denominator_t / torch.where(denominator == 0, torch.ones_like(denominator), denominator)
+        u = -denominator_u / torch.where(denominator == 0, torch.ones_like(denominator), denominator)
+        t = torch.where(denominator == 0, torch.full_like(t, -1.0), t)
+        u = torch.where(denominator == 0, torch.full_like(u, -1.0), u)
+
+        mask_t = (t > 0) & (t < 1)
+        mask_u = (u > 0) & (u < 1)
+        intersection_mask = mask_t & mask_u
+
+        stable_t = denominator_t / (denominator + epsilon)
+        intersections = torch.stack(
+            [
+                x1 + stable_t * (x2 - x1),
+                y1 + stable_t * (y2 - y1),
+            ],
+            dim=-1,
+        )
+        intersections = intersections * intersection_mask.unsqueeze(-1).to(intersections.dtype)
+        return intersections, intersection_mask
+
+    @classmethod
+    def _box_in_box_th(
+        cls,
+        corners1: torch.Tensor,
+        corners2: torch.Tensor,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """
+        Test corner containment in both directions.
+        """
+        return cls._box1_in_box2(corners1, corners2), cls._box1_in_box2(corners2, corners1)
+
+    @staticmethod
+    def _box1_in_box2(corners1: torch.Tensor, corners2: torch.Tensor) -> torch.Tensor:
+        """
+        Boolean mask: which corners of box 1 lie inside box 2.
+        """
+        corner_a = corners2[:, 0:1, :]
+        corner_b = corners2[:, 1:2, :]
+        corner_d = corners2[:, 3:4, :]
+        vector_ab = corner_b - corner_a
+        vector_am = corners1 - corner_a
+        vector_ad = corner_d - corner_a
+        projection_ab = torch.sum(vector_ab * vector_am, dim=-1)
+        norm_ab = torch.sum(vector_ab * vector_ab, dim=-1)
+        projection_ad = torch.sum(vector_ad * vector_am, dim=-1)
+        norm_ad = torch.sum(vector_ad * vector_ad, dim=-1)
+
+        condition_ab = (projection_ab / norm_ab > -1e-6) & (projection_ab / norm_ab < 1.0 + 1e-6)
+        condition_ad = (projection_ad / norm_ad > -1e-6) & (projection_ad / norm_ad < 1.0 + 1e-6)
+        return condition_ab & condition_ad
+
+    @staticmethod
+    def _calculate_polygon_area(vertices: torch.Tensor, vertex_mask: torch.Tensor) -> torch.Tensor:
+        """
+        Shoelace area of a batched polygon with masked vertices.
+        """
+        num_valid = vertex_mask.to(torch.int32).sum(dim=1)
+        safe_num_valid = torch.clamp(num_valid, min=1).to(vertices.dtype)
+        centroid = (vertices * vertex_mask.unsqueeze(-1).to(vertices.dtype)).sum(dim=1) / safe_num_valid.unsqueeze(-1)
+        normalized_vertices = vertices - centroid.unsqueeze(1)
+        angles = torch.atan2(normalized_vertices[..., 1], normalized_vertices[..., 0])
+        invalid_angle = torch.full_like(angles, float("inf"))
+        sorted_indices = torch.argsort(torch.where(vertex_mask, angles, invalid_angle), dim=1)
+
+        gather_indices = sorted_indices.unsqueeze(-1).expand(-1, -1, 2)
+        sorted_vertices = torch.gather(vertices, 1, gather_indices)
+        max_vertices = sorted_vertices.shape[1]
+        vertex_indices = torch.arange(max_vertices, device=vertices.device).unsqueeze(0).expand(sorted_vertices.shape[0], -1)
+        next_indices = torch.where(
+            vertex_indices + 1 < num_valid.unsqueeze(1),
+            vertex_indices + 1,
+            torch.zeros_like(vertex_indices),
+        )
+        valid_edge_mask = vertex_indices < num_valid.unsqueeze(1)
+        next_gather_indices = next_indices.unsqueeze(-1).expand(-1, -1, 2)
+        next_vertices = torch.gather(sorted_vertices, 1, next_gather_indices)
+
+        cross_products = sorted_vertices[..., 0] * next_vertices[..., 1] - sorted_vertices[..., 1] * next_vertices[..., 0]
+        polygon_area = torch.abs((cross_products * valid_edge_mask.to(sorted_vertices.dtype)).sum(dim=1)) / 2.0
+        return torch.where(num_valid >= 3, polygon_area, torch.zeros_like(polygon_area))
+
 
 class AdvCPCarMeshHelper:
     """
@@ -1023,7 +1200,7 @@ class AdvCPCarMeshHelper:
 
         Returns
         -------
-        list of Open3D meshes or None
+        Optional[list of Open3D meshes]
             ``None`` when the asset is missing or empty; otherwise the
             list of post-processed mesh pieces.
         """
@@ -1101,7 +1278,7 @@ class AdvCPCarMeshHelper:
 
         Parameters
         ----------
-        car_mesh_path : Path or None
+        car_mesh_path : Optional[Path]
 
         Returns
         -------

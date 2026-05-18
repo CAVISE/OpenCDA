@@ -83,14 +83,14 @@ class AdvCPVisualizationContext:
     """
     State carried alongside an attack's prediction tensors.
 
-    Consumed by the visualizer (to colour fake / removed boxes
+    Consumed by the visualizer (to color fake / removed boxes
     differently from regular predictions and ground truth) and by the
     metrics framework (to compute attack success rate and target
     confidence).
 
     Attributes
     ----------
-    mode : {"spoofing", "removal", None}
+    mode : Optional[str]
         The active AdvCP mode. ``None`` means the attack was not run on
         this tick.
     attacker_ids : list of AttackerId
@@ -98,11 +98,11 @@ class AdvCPVisualizationContext:
         from the configured ``attacker_ids`` whenever an attacker is
         missing from the current batch (e.g. out of communication
         range).
-    fake_box_tensor : torch.Tensor or None
+    fake_box_tensor : Optional[torch.Tensor]
         Spoofing target boxes for the current tick, in corner
         representation ``(N, 8, 3)``. Set only when ``mode ==
         "spoofing"`` and the attack succeeded.
-    removed_box_tensor : torch.Tensor or None
+    removed_box_tensor : Optional[torch.Tensor]
         Removal target boxes for the current tick, in corner
         representation ``(N, 8, 3)``. Set only when ``mode ==
         "removal"`` and the attack succeeded.
@@ -128,7 +128,7 @@ class AdvCPAgentState(TypedDict):
         Stable agent identifier.
     timestamp : Timestamp
         OpenCOOD timestamp string for the active tick.
-    yaml_path : str or None
+    yaml_path : Optional[str]
         Path to the source YAML, when available.
     params : Mapping
         Loaded YAML contents for this agent at this timestamp.
@@ -268,13 +268,13 @@ class AdvCPIntermediateAttackState(TypedDict, total=False):
 
     Attributes
     ----------
-    previous_memory_data : AdvCPMemoryData or None
+    previous_memory_data : Optional[AdvCPMemoryData]
         Snapshot of the memory data passed in at the previous tick.
         Used for synchronous optimization (``sync: true``) when the
         configured attackers were present at both ticks.
     current_memory_data : AdvCPMemoryData
         Snapshot of the memory data passed in at the current tick.
-    init_perturbation : dict[AttackerId, list of npt.NDArray] or None
+    init_perturbation : Optional[dict[AttackerId, list of npt.NDArray]]
         For each attacker that converged at the previous tick, the
         best perturbation tensor (clamped and halved) stored as numpy
         arrays. Loaded as the initial value for the next tick's

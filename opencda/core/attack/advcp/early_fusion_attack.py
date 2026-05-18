@@ -115,7 +115,7 @@ class AdvCoperceptionEarlyFusionAttack:
             Device the model lives on.
         advcp_config : AdvCPConfig
             Resolved AdvCP config.
-        memory_data : AdvCPMemoryData or None
+        memory_data : Optional[AdvCPMemoryData]
             Per-tick memory data; required for any non-fallback path.
 
         Returns
@@ -446,7 +446,7 @@ class AdvCoperceptionEarlyFusionAttack:
 
         Returns
         -------
-        torch.Tensor or None
+        Optional[torch.Tensor]
             ``(N, 8, 3)`` corner tensor, or ``None`` when the list is
             empty.
         """
@@ -485,7 +485,7 @@ class AdvCoperceptionEarlyFusionAttack:
 
         Returns
         -------
-        tuple of npt.NDArray or None
+        Optional[tuple of npt.NDArray]
             ``(points_xyz, point_distance, rays)`` or ``None`` when
             the cloud is empty or all points are at the origin.
         """

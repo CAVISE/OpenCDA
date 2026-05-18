@@ -11,49 +11,15 @@ modelled after live at <https://github.com/zqzqz/AdvCollaborativePerception>.
 
 ## Scope
 
-AdvCP supports two attack modes against three cooperative-perception
-fusion strategies:
-
-| Fusion          | Spoofing | Removal |
-|-----------------|----------|---------|
-| Early           | yes      | yes     |
-| Intermediate    | yes      | yes     |
-| Late            | yes      | yes     |
-
-Each combination supports a single attacker as well as multiple
-attackers acting jointly within the same tick.
+AdvCP supports spoofing and removal attacks for early, intermediate,
+and late cooperative-perception fusion. Each attack/fusion combination
+works with a single attacker or multiple attackers acting jointly within
+the same tick.
 
 - Spoofing injects a fake object into the cooperative perception output:
   the ego vehicle "sees" something that does not exist.
 - Removal suppresses an existing object from the cooperative perception
   output: the ego vehicle fails to see something that does exist.
-
-## Module map
-
-```
-opencda/core/attack/advcp/
-    __init__.py                       Public re-exports.
-    types.py                          Typed dictionaries, dataclasses,
-                                      and type aliases shared by every
-                                      attack module.
-    attack_helper.py                  Utilities used by every fusion
-                                      strategy: config validation,
-                                      attacker resolution, target box
-                                      construction, mesh helpers.
-    early_fusion_attack.py            Early-fusion attack: rewrites the
-                                      attacker LiDAR point cloud before
-                                      the cooperative pipeline.
-    intermediate_fusion_attack.py     Intermediate-fusion attack:
-                                      perturbs the attacker spatial
-                                      feature map produced by the
-                                      backbone (gradient-based, Adam).
-    late_fusion_attack.py             Late-fusion attack: rewrites the
-                                      attacker per-CAV detections
-                                      before late-stage NMS.
-    adv_coperception_model_manager.py Top-level manager that wires the
-                                      attack into the cooperative
-                                      perception inference pipeline.
-```
 
 ## High-level data flow
 
@@ -70,21 +36,9 @@ The manager is responsible for the top-level AdvCP orchestration. It performs th
 2. validates the configured attacker vehicles;
 3. dispatches execution to the correct inference hook depending on the cooperative perception fusion mode.
 
-Depending on the configured fusion strategy, the manager routes inference through one of the following paths:
-
-1. `_run_early`
-2. `_run_intermediate`
-3. `_run_late`
-
-Each inference path calls the corresponding AdvCP attack implementation:
-
-1. `_run_early` calls `EarlyFusionAttack.run`;
-2. `_run_intermediate` calls `IntermediateFusionAttack.run`;
-3. `_run_late` calls `LateFusionAttack.run`.
-
 The attack implementation then modifies the cooperative perception pipeline at the appropriate representation level:
 
-1. early fusion attacks rewrite the LiDAR `np.ndarray` before model inference;
+1. early fusion attacks rewrite the LiDAR `npt.NDArray` before model inference;
 2. intermediate fusion attacks perturb spatial feature maps inside the model pipeline;
 3. late fusion attacks rewrite per-CAV detection results before final fusion.
 
@@ -101,7 +55,7 @@ The `AdvCPAttackResult` is then passed to the downstream metrics framework and v
 
 The manager always returns an `AdvCPAttackResult`, regardless of the fusion mode. The visualization context carries the original target boxes and the list of effective attacker IDs. This allows downstream components to:
 
-1. colour predictions and attack-related objects in visualizations;
+1. color predictions and attack-related objects in visualizations;
 2. compute attack success rate;
 3. compute target confidence;
 4. compute attacker/benign visibility statistics;
@@ -185,7 +139,7 @@ always obvious from the surrounding code.
 - visualization context (`AdvCPVisualizationContext`): A small
   dataclass carried alongside the prediction tensors. Holds the mode,
   the list of effective attacker ids, and the target box tensor for
-  the current tick. Consumed by the visualizer (to colour boxes) and
+  the current tick. Consumed by the visualizer (to color boxes) and
   by ASR / confidence metrics.
 - density: An integer in `{0, 1, 2, 3}` derived from the
   `density` config value (`"replace"`, `"dense_a"`, `"dense_all"`,

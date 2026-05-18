@@ -880,7 +880,7 @@ class TestAdvCoperceptionModelManager:
         attacker_infos = mock_joint.call_args.args[5]
         assert [aid for aid, _, _ in attacker_infos] == ["cav-2", "cav-3"]
 
-    def test_late_advcp_resolve_spoof_boxes_by_attacker_supports_multiple_attackers(self):
+    def test_resolve_spoof_boxes_by_attacker_supports_multiple_attackers(self):
         memory_data = {
             0: {
                 "cav-1": {"ego": True, "000001": {"params": {"lidar_pose": [0.0] * 6, "true_ego_pos": [0.0] * 6}}},
@@ -900,7 +900,7 @@ class TestAdvCoperceptionModelManager:
             "resolve_spoof_boxes_for_agent",
             side_effect=_mock_resolve_spoof_boxes_for_agent,
         ):
-            attacker_ids, attack_boxes_by_attacker = AdvCoperceptionLateFusionAttack.resolve_spoof_boxes_by_attacker(
+            attacker_ids, attack_boxes_by_attacker = AdvCPAttackHelper.resolve_spoof_boxes_by_attacker(
                 make_advcp_config(attacker_ids=["cav-2", "cav-3"]),
                 memory_data,
             )
@@ -918,7 +918,7 @@ class TestAdvCoperceptionModelManager:
         dataset.post_processor.generate_gt_bbx.return_value = "gt"
 
         with patch.object(
-            AdvCoperceptionLateFusionAttack,
+            AdvCPAttackHelper,
             "resolve_spoof_boxes_by_attacker",
             return_value=(
                 ["cav-2"],

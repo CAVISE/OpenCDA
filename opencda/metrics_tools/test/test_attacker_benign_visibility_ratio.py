@@ -1,8 +1,8 @@
 from collections import OrderedDict
-from types import SimpleNamespace
 
 import numpy as np
 
+from opencda.core.attack.advcp.types import AdvCPVisualizationContext
 from opencda.metrics_tools.metrics.coperception import attacker_benign_visibility_ratio
 from opencda.metrics_tools.metrics.coperception.attacker_benign_visibility_ratio import AttackerBenignVisibilityRatioMetric
 
@@ -97,7 +97,7 @@ def test_attacker_benign_visibility_ratio_counts_target_points(monkeypatch):
                 "default_size": [2.0, 2.0, 2.0],
             },
             "memory_data": _memory_data(),
-            "visualization_context": SimpleNamespace(mode="removal", attacker_ids=["cav-2"]),
+            "visualization_context": AdvCPVisualizationContext(mode="removal", attacker_ids=["cav-2"]),
         }
     )
 
@@ -115,7 +115,7 @@ def test_attacker_benign_visibility_ratio_respects_warmup_steps(monkeypatch):
             "default_size": [2.0, 2.0, 2.0],
         },
         "memory_data": _memory_data(),
-        "visualization_context": SimpleNamespace(mode="removal", attacker_ids=["cav-2"]),
+        "visualization_context": AdvCPVisualizationContext(mode="removal", attacker_ids=["cav-2"]),
     }
 
     metric.update(context)
@@ -134,7 +134,7 @@ def test_attacker_benign_visibility_ratio_skips_without_attack_context(monkeypat
         {
             "advcp_config": {"boxes": [{"absolute": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}]},
             "memory_data": _memory_data(),
-            "visualization_context": SimpleNamespace(mode="removal", attacker_ids=[]),
+            "visualization_context": AdvCPVisualizationContext(mode="removal", attacker_ids=[]),
         }
     )
 

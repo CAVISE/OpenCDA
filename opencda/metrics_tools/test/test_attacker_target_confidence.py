@@ -1,7 +1,6 @@
-from types import SimpleNamespace
-
 import numpy as np
 
+from opencda.core.attack.advcp.types import AdvCPVisualizationContext
 from opencda.metrics_tools.metrics.coperception import attacker_target_confidence
 from opencda.metrics_tools.metrics.coperception.attacker_target_confidence import AttackerTargetConfidenceMetric
 
@@ -78,10 +77,7 @@ def test_removal_confidence_zero_when_target_is_not_detected(monkeypatch):
             "pred_box_tensor": None,
             "pred_score": None,
             "gt_box_tensor": _target_box(),
-            "visualization_context": {
-                "mode": "removal",
-                "removed_box_tensor": _target_box(),
-            },
+            "visualization_context": AdvCPVisualizationContext(mode="removal", removed_box_tensor=_target_box()),
         }
     )
 
@@ -96,10 +92,7 @@ def test_confidence_respects_warmup_steps(monkeypatch):
         "pred_box_tensor": None,
         "pred_score": None,
         "gt_box_tensor": _target_box(),
-        "visualization_context": {
-            "mode": "removal",
-            "removed_box_tensor": _target_box(),
-        },
+        "visualization_context": AdvCPVisualizationContext(mode="removal", removed_box_tensor=_target_box()),
     }
 
     metric.update(context)
@@ -119,10 +112,7 @@ def test_removal_confidence_uses_iou_match_for_score(monkeypatch):
             "pred_box_tensor": _target_boxes(3),
             "pred_score": np.array([0.8, 0.5, 0.4], dtype=np.float32),
             "gt_box_tensor": _target_box(),
-            "visualization_context": SimpleNamespace(
-                mode="removal",
-                removed_box_tensor=_target_box(),
-            ),
+            "visualization_context": AdvCPVisualizationContext(mode="removal", removed_box_tensor=_target_box()),
         }
     )
 
@@ -140,10 +130,7 @@ def test_removal_confidence_averages_per_target(monkeypatch):
             "pred_box_tensor": _target_boxes(3),
             "pred_score": np.array([0.6, 0.0, 0.0], dtype=np.float32),
             "gt_box_tensor": _target_boxes(3),
-            "visualization_context": {
-                "mode": "removal",
-                "removed_box_tensor": _target_box(),
-            },
+            "visualization_context": AdvCPVisualizationContext(mode="removal", removed_box_tensor=_target_box()),
         }
     )
 
@@ -161,10 +148,7 @@ def test_spoofing_confidence_uses_iou_match(monkeypatch):
         {
             "pred_box_tensor": _target_box(),
             "pred_score": np.array([0.7], dtype=np.float32),
-            "visualization_context": {
-                "mode": "spoofing",
-                "fake_box_tensor": _target_box(),
-            },
+            "visualization_context": AdvCPVisualizationContext(mode="spoofing", fake_box_tensor=_target_box()),
         }
     )
 
@@ -181,10 +165,7 @@ def test_spoofing_confidence_zero_when_iou_below_threshold(monkeypatch):
         {
             "pred_box_tensor": _target_box(),
             "pred_score": np.array([0.9], dtype=np.float32),
-            "visualization_context": {
-                "mode": "spoofing",
-                "fake_box_tensor": _target_box(),
-            },
+            "visualization_context": AdvCPVisualizationContext(mode="spoofing", fake_box_tensor=_target_box()),
         }
     )
 
@@ -198,10 +179,7 @@ def test_metric_skips_frames_without_attack_target():
         {
             "pred_box_tensor": _target_box(),
             "pred_score": np.array([0.5], dtype=np.float32),
-            "visualization_context": {
-                "mode": "spoofing",
-                "fake_box_tensor": "test-placeholder",
-            },
+            "visualization_context": AdvCPVisualizationContext(mode="spoofing", fake_box_tensor="test-placeholder"),
         }
     )
 

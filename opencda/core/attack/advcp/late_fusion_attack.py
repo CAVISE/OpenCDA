@@ -28,13 +28,11 @@ from typing import Any
 import torch
 
 from opencda.core.attack.advcp.attack_helper import AdvCPAttackHelper
-from opencda.core.attack.advcp.intermediate_fusion_attack import AdvCoperceptionIntermediateFusionAttack
 from opencda.core.attack.advcp.types import (
     AdvCPAttackResult,
     AdvCPConfig,
     AdvCPMemoryData,
     AdvCPVisualizationContext,
-    AttackerId,
     BatchAttackerId,
     BoxLwhBottomCenter,
 )
@@ -87,7 +85,7 @@ class AdvCoperceptionLateFusionAttack:
             Device the model lives on.
         advcp_config : AdvCPConfig
             Resolved AdvCP config.
-        memory_data : AdvCPMemoryData or None
+        memory_data : Optional[AdvCPMemoryData]
             Per-tick memory data; required to resolve per-attacker
             target boxes.
 
@@ -131,7 +129,7 @@ class AdvCoperceptionLateFusionAttack:
         if len(configured_attacker_ids) == 0:
             AdvCPAttackHelper.raise_no_configured_attackers("late")
 
-        attacker_ids, attack_boxes_by_attacker = AdvCoperceptionLateFusionAttack.resolve_spoof_boxes_by_attacker(
+        attacker_ids, attack_boxes_by_attacker = AdvCPAttackHelper.resolve_spoof_boxes_by_attacker(
             advcp_config,
             memory_data,
         )
@@ -162,10 +160,18 @@ class AdvCoperceptionLateFusionAttack:
             advcp_context.attacker_ids = []
             return AdvCoperceptionLateFusionAttack._run_default_prediction(batch_data, output_dict, dataset, advcp_context)
 
-        # The four lists below mirror what OpenCOOD assembles in its
-        # own late-fusion post-processor: 3D corners, 2D standup
-        # boxes + scores, and a per-detection bool flag tracking which
-        # ones were synthetically injected (used by metrics).
+        # The lists below are the attack-aware version of what
+        # OpenCOOD's late-fusion post-processor normally builds
+        # internally. We keep them explicit here because AdvCP needs a
+        # hook between per-CAV model output and ego-side NMS:
+        #
+        # - pred_box3d_list: projected 3D boxes from every CAV.
+        # - pred_box2d_list: BEV standup boxes + scores used by NMS.
+        # - pred_fake_list: bool flags aligned with pred_box3d_list so
+        #   spoofing metrics/visualization can identify injected boxes
+        #   after filters and NMS.
+        # - removed_target_corners_list: removal targets projected to
+        #   ego frame for visualization/metrics.
         pred_box3d_list = []
         pred_box2d_list = []
         pred_fake_list = []
@@ -174,28 +180,46 @@ class AdvCoperceptionLateFusionAttack:
         for cav_id, cav_content in batch_data.items():
             transformation_matrix = cav_content["transformation_matrix"]
             anchor_box = cav_content["anchor_box"]
-            # psm shape: (1, num_anchors_per_cell, H, W); permute and
-            # reshape so each anchor becomes a row with a sigmoided
-            # score.
+
+            # ``psm`` is the model's classification/objectness map:
+            # one raw logit per anchor candidate. Sigmoid converts
+            # logits into confidence scores, then reshape flattens the
+            # feature map into ``(num_anchors,)`` so the same mask can
+            # select both scores and decoded boxes.
             prob = output_dict[cav_id]["psm"]
             prob = torch.sigmoid(prob.permute(0, 2, 3, 1))
             prob = prob.reshape(1, -1)
-            reg = output_dict[cav_id]["rm"]
 
+            # ``rm`` is the regression map. It does not store boxes
+            # directly; it stores deltas that adjust each predefined
+            # anchor. ``delta_to_boxes3d`` applies those deltas and
+            # produces model-format boxes ``[x, y, z, size..., yaw]``.
+            reg = output_dict[cav_id]["rm"]
             batch_box3d = dataset.post_processor.delta_to_boxes3d(reg, anchor_box)
+
+            # Drop weak anchors before the AdvCP rewrite. From this
+            # point on, ``boxes3d`` and ``scores`` are this CAV's local
+            # detections above the OpenCOOD score threshold.
             mask = torch.gt(prob, dataset.post_processor.params["target_args"]["score_threshold"])
             mask = mask.view(1, -1)
             mask_reg = mask.unsqueeze(2).repeat(1, 1, 7)
 
             boxes3d = torch.masked_select(batch_box3d[0], mask_reg[0]).view(-1, 7)
             scores = torch.masked_select(prob[0], mask[0])
+
+            # Tracks which detections were synthetically injected.
+            # Real model predictions start as False; spoofing appends
+            # True entries. The mask is filtered together with boxes so
+            # it remains aligned through z/size filters, NMS, and range
+            # filtering.
             is_fake = torch.zeros((scores.shape[0],), dtype=torch.bool, device=device)
 
             cav_attack_boxes = attack_boxes_by_attacker_in_batch.get(cav_id)
             if cav_attack_boxes:
-                # Stack the configured target boxes into the
-                # model-friendly tensor representation expected
-                # downstream.
+                # Convert human/config-oriented AdvCP boxes into the
+                # same model order as decoded predictions. This lets
+                # fake/removal boxes flow through OpenCOOD geometry
+                # utilities exactly like real detections.
                 target_box_tensors = torch.stack(
                     [AdvCPAttackHelper.convert_box_for_model(attack_box, dataset).to(device) for attack_box in cav_attack_boxes],
                     dim=0,
@@ -203,16 +227,23 @@ class AdvCoperceptionLateFusionAttack:
 
                 match mode:
                     case "spoofing":
-                        # Append fake detections with score 1.0 and a
-                        # True flag in the parallel ``is_fake`` mask.
+                        # Late spoofing means "the attacker reports an
+                        # extra detection". We append the configured
+                        # target boxes to the attacker's local
+                        # detections with max confidence; they still
+                        # must survive the shared ego-side filters/NMS.
                         injected_scores = torch.ones((len(cav_attack_boxes),), dtype=scores.dtype, device=device)
                         injected_is_fake = torch.ones((len(cav_attack_boxes),), dtype=torch.bool, device=device)
                         boxes3d = torch.vstack([boxes3d, target_box_tensors])
                         scores = torch.hstack([scores, injected_scores])
                         is_fake = torch.hstack([is_fake, injected_is_fake])
                     case "removal":
-                        # Drop any attacker proposal whose IoU with any
-                        # configured target box exceeds the threshold.
+                        # Late removal means "the attacker withholds
+                        # detections matching the configured target".
+                        # Current semantics are IoU-based: proposals
+                        # overlapping a removal target above the
+                        # threshold are dropped from this attacker's
+                        # local detection list.
                         keep_mask = AdvCoperceptionLateFusionAttack._compute_removal_keep_mask(
                             boxes3d,
                             target_box_tensors,
@@ -222,6 +253,10 @@ class AdvCoperceptionLateFusionAttack:
                         scores = scores[keep_mask]
                         is_fake = is_fake[keep_mask]
 
+                        # The removed target boxes are not model
+                        # outputs. They are carried separately so the
+                        # visualizer and ASR/confidence metrics know
+                        # which regions the attack attempted to remove.
                         target_corners = box_utils.boxes_to_corners_3d(
                             target_box_tensors,
                             order=dataset.post_processor.params["order"],
@@ -231,8 +266,15 @@ class AdvCoperceptionLateFusionAttack:
             if boxes3d.shape[0] == 0:
                 continue
 
+            # Bring this CAV's remaining local detections into the ego
+            # coordinate frame. Late fusion can only merge predictions
+            # after all CAV boxes are expressed in the same frame.
             boxes3d_corner = box_utils.boxes_to_corners_3d(boxes3d, order=dataset.post_processor.params["order"])
             projected_boxes3d = box_utils.project_box3d(boxes3d_corner, transformation_matrix)
+
+            # OpenCOOD's NMS path uses BEV standup boxes (axis-aligned
+            # 2D boxes enclosing the rotated 3D box) plus the score,
+            # while final output keeps the full projected 3D corners.
             projected_boxes2d = box_utils.corner_to_standup_box_torch(projected_boxes3d)
             boxes2d_score = torch.cat((projected_boxes2d, scores.unsqueeze(1)), dim=1)
 
@@ -260,8 +302,19 @@ class AdvCoperceptionLateFusionAttack:
         pred_box3d_tensor = torch.vstack(pred_box3d_list)
         pred_is_fake_tensor = torch.hstack(pred_fake_list)
 
-        # Standard OpenCOOD post-processing pipeline: drop oversized
-        # boxes, drop boxes with abnormal z, then NMS, then range filter.
+        # TODO: If OpenCOOD becomes the attack-aware training/evaluation
+        # framework, move this forked late-fusion post-processing into
+        # OpenCOOD as an extension point/hook. AdvCP currently repeats
+        # the standard pipeline here because the vanilla post_processor
+        # hides the per-CAV stage where attacks must add/remove boxes
+        # and preserve fake/removal metadata.
+        #
+        # Standard OpenCOOD post-processing pipeline follows: remove
+        # physically implausible boxes, run rotated NMS to merge
+        # duplicate detections from multiple CAVs, then drop boxes
+        # outside the configured perception/evaluation range. The
+        # ``pred_is_fake_tensor`` mask is filtered in lockstep so we can
+        # tell which spoofing boxes survive to the final output.
         keep_index_1 = box_utils.remove_large_pred_bbx(pred_box3d_tensor)
         keep_index_2 = box_utils.remove_bbx_abnormal_z(pred_box3d_tensor)
         keep_index = torch.logical_and(keep_index_1, keep_index_2)
@@ -296,9 +349,9 @@ class AdvCoperceptionLateFusionAttack:
         Keep-mask for the removal mode: drop proposals overlapping the
         target boxes.
 
-        Reuses the oriented-box IoU machinery from the
-        intermediate-fusion attack (``_compute_iou_weights``,
-        ``_model_boxes_to_lwh``) instead of duplicating the logic.
+        Reuses the shared oriented-box IoU helpers from
+        ``AdvCPAttackHelper`` so late and intermediate attacks use the
+        same box-order conversion and BEV IoU implementation.
 
         Parameters
         ----------
@@ -321,14 +374,14 @@ class AdvCoperceptionLateFusionAttack:
         if boxes3d.shape[0] == 0:
             return torch.ones((0,), dtype=torch.bool, device=boxes3d.device)
 
-        boxes_lwh = AdvCoperceptionIntermediateFusionAttack._model_boxes_to_lwh(boxes3d, dataset)
-        targets_lwh = AdvCoperceptionIntermediateFusionAttack._model_boxes_to_lwh(target_boxes, dataset)
+        boxes_lwh = AdvCPAttackHelper.model_boxes_to_lwh(boxes3d, dataset)
+        targets_lwh = AdvCPAttackHelper.model_boxes_to_lwh(target_boxes, dataset)
 
         # AND the keep mask across every target so that overlap with
         # any single target removes the proposal.
         keep_mask = torch.ones((boxes3d.shape[0],), dtype=torch.bool, device=boxes3d.device)
         for target_lwh in targets_lwh:
-            ious = AdvCoperceptionIntermediateFusionAttack._compute_iou_weights(boxes_lwh, target_lwh)
+            ious = AdvCPAttackHelper.compute_iou_weights(boxes_lwh, target_lwh)
             keep_mask = keep_mask & (ious < iou_threshold)
         return keep_mask
 
@@ -364,35 +417,3 @@ class AdvCoperceptionLateFusionAttack:
         pred_box_tensor, pred_score = dataset.post_processor.post_process(batch_data, output_dict)
         gt_box_tensor = dataset.post_processor.generate_gt_bbx(batch_data)
         return pred_box_tensor, pred_score, gt_box_tensor, advcp_context
-
-    @staticmethod
-    def resolve_spoof_boxes(
-        advcp_config: AdvCPConfig,
-        memory_data: AdvCPMemoryData | None,
-    ) -> tuple[BatchAttackerId | None, list[BoxLwhBottomCenter]]:
-        """
-        Single-attacker convenience wrapper around
-        :meth:`AdvCPAttackHelper.resolve_spoof_boxes`.
-
-        Returns
-        -------
-        tuple
-            ``(batch_attacker_id, attack_boxes)``.
-        """
-        return AdvCPAttackHelper.resolve_spoof_boxes(advcp_config, memory_data)
-
-    @staticmethod
-    def resolve_spoof_boxes_by_attacker(
-        advcp_config: AdvCPConfig,
-        memory_data: AdvCPMemoryData | None,
-    ) -> tuple[list[AttackerId], dict[BatchAttackerId, list[BoxLwhBottomCenter]]]:
-        """
-        Multi-attacker wrapper around
-        :meth:`AdvCPAttackHelper.resolve_spoof_boxes_by_attacker`.
-
-        Returns
-        -------
-        tuple
-            ``(resolved_attacker_ids, boxes_by_batch_attacker)``.
-        """
-        return AdvCPAttackHelper.resolve_spoof_boxes_by_attacker(advcp_config, memory_data)

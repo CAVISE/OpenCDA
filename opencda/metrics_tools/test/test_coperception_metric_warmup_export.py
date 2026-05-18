@@ -1,8 +1,7 @@
 from collections import OrderedDict
-from types import SimpleNamespace
-
 import numpy as np
 
+from opencda.core.attack.advcp.types import AdvCPVisualizationContext
 from opencda.metrics_tools.metric_collector import MetricCollector
 from opencda.metrics_tools.metrics.coperception import (
     _opencood_eval,
@@ -124,7 +123,7 @@ def _valid_context():
             "default_size": [2.0, 2.0, 2.0],
         },
         "memory_data": _memory_data(),
-        "visualization_context": SimpleNamespace(
+        "visualization_context": AdvCPVisualizationContext(
             mode="removal",
             removed_box_tensor=_box_tensor(),
             attacker_ids=["cav-2"],
