@@ -1,7 +1,6 @@
-from types import SimpleNamespace
-
 import numpy as np
 
+from opencda.core.attack.advcp.types import AdvCPVisualizationContext
 from opencda.metrics_tools.metrics import attack_success_rate
 from opencda.metrics_tools.metrics.attack_success_rate import AttackSuccessRateMetric
 
@@ -101,10 +100,7 @@ def test_removal_asr_succeeds_when_target_is_not_detected(monkeypatch):
         {
             "pred_box_tensor": None,
             "gt_box_tensor": _target_box(),
-            "visualization_context": {
-                "mode": "removal",
-                "removed_box_tensor": _target_box(),
-            },
+            "visualization_context": AdvCPVisualizationContext(mode="removal", removed_box_tensor=_target_box()),
         }
     )
 
@@ -120,10 +116,7 @@ def test_removal_asr_fails_when_target_is_still_detected(monkeypatch):
         {
             "pred_box_tensor": _target_box(),
             "gt_box_tensor": _target_box(),
-            "visualization_context": SimpleNamespace(
-                mode="removal",
-                removed_box_tensor=_target_box(),
-            ),
+            "visualization_context": AdvCPVisualizationContext(mode="removal", removed_box_tensor=_target_box()),
         }
     )
 
@@ -147,10 +140,7 @@ def test_removal_asr_skips_when_no_gt_in_removal_zone(monkeypatch):
         {
             "pred_box_tensor": _target_box(),
             "gt_box_tensor": _target_box(),
-            "visualization_context": {
-                "mode": "removal",
-                "removed_box_tensor": _target_box(),
-            },
+            "visualization_context": AdvCPVisualizationContext(mode="removal", removed_box_tensor=_target_box()),
         }
     )
 
@@ -165,10 +155,7 @@ def test_removal_asr_reports_fraction_of_removed_targets(monkeypatch):
         {
             "pred_box_tensor": _target_box(),
             "gt_box_tensor": _target_boxes(3),
-            "visualization_context": {
-                "mode": "removal",
-                "removed_box_tensor": _target_box(),
-            },
+            "visualization_context": AdvCPVisualizationContext(mode="removal", removed_box_tensor=_target_box()),
         }
     )
 
@@ -183,10 +170,7 @@ def test_spoofing_asr_succeeds_when_fake_target_is_detected(monkeypatch):
     metric.update(
         {
             "pred_box_tensor": _target_box(),
-            "visualization_context": {
-                "mode": "spoofing",
-                "fake_box_tensor": _target_box(),
-            },
+            "visualization_context": AdvCPVisualizationContext(mode="spoofing", fake_box_tensor=_target_box()),
         }
     )
 
@@ -201,10 +185,7 @@ def test_spoofing_asr_deduplicates_identical_fake_boxes(monkeypatch):
     metric.update(
         {
             "pred_box_tensor": _target_box(),
-            "visualization_context": {
-                "mode": "spoofing",
-                "fake_box_tensor": _target_boxes(5),
-            },
+            "visualization_context": AdvCPVisualizationContext(mode="spoofing", fake_box_tensor=_target_boxes(5)),
         }
     )
 
@@ -219,10 +200,7 @@ def test_asr_skips_frames_without_attack_target():
     metric.update(
         {
             "pred_box_tensor": _target_box(),
-            "visualization_context": {
-                "mode": "spoofing",
-                "fake_box_tensor": "test-placeholder",
-            },
+            "visualization_context": AdvCPVisualizationContext(mode="spoofing", fake_box_tensor="test-placeholder"),
         }
     )
 
