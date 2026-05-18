@@ -1,88 +1,36 @@
 name: Lint, Format, Type and Unused code Check
 
-on: [ pull_request ]
+on:
+  pull_request:
 
 jobs:
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-      - name: Run ruff check
-        uses: astral-sh/ruff-action@v3
-        with:
-          args: "check"
-
-  format-check:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-      - name: Run ruff format check with diff
-        uses: astral-sh/ruff-action@v3
-        with:
-          args: "format --check --diff"
+  ruff:
+    uses: CAVISE/pipelines/.github/workflows/python-ruff.yml@ci/opencda-workflow
+    with:
+      run-lint: true
+      run-format-check: true
 
   type-check:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-      - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: "3.12"
-      - name: Install Dependencies
-        run: pip install mypy mypy-protobuf grpcio-tools
-      - name: Generate protobufs modules
-        run: |
-          python -m grpc_tools.protoc \
-            -I opencda/core/common/communication/messages \
-            --python_out=opencda/core/common/communication/protos/cavise \
-            --mypy_out=opencda/core/common/communication/protos/cavise \
-            opencda/core/common/communication/messages/capi.proto \
-            opencda/core/common/communication/messages/artery.proto \
-            opencda/core/common/communication/messages/opencda.proto \
-            opencda/core/common/communication/messages/entity.proto
-      - name: Run mypy
-        run: mypy . --follow-imports=silent
+    uses: CAVISE/pipelines/.github/workflows/python-mypy.yml@ci/opencda-workflow
+    with:
+      python-version: "3.12"
+      target-path: .
+      follow-imports-silent: true
+      protobuf-generate: true
+      protobuf-source-dir: opencda/core/common/communication/messages
+      protobuf-output-dir: opencda/core/common/communication/protos/cavise
+      protobuf-messages: '["capi", "artery", "opencda", "entity"]'
+      protobuf-mypy-out: true
 
   unused-code-check:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-      - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: "3.12"
-      - name: Install Dependencies
-        run: pip install deadcode
-      - name: Run deadcode
-        run: |
-          python - <<'PY'
-          import sys
-          from deadcode.cli import main
-
-          result = main(['.'])
-          if result is not None:
-              print(result)
-              sys.exit(1)
-          PY
+    uses: CAVISE/pipelines/.github/workflows/python-deadcode.yml@ci/opencda-workflow
+    with:
+      python-version: "3.12"
+      target-path: .
 
   pre-commit:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-      - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: '3.12'
-      - name: Run pre-commit
-        uses: pre-commit/action@v3.0.1
-        env:
-          SKIP: ruff-check,ruff-format,pretty-format-json
-        with:
-          extra_args: >-
-            --all-files
+    uses: CAVISE/pipelines/.github/workflows/python-pre-commit.yml@ci/opencda-workflow
+    with:
+      python-version: "3.12"
+      skip-hooks: ruff-check,ruff-format,pretty-format-json
+      all-files: true
