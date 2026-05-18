@@ -5,13 +5,13 @@ on:
 
 jobs:
   ruff:
-    uses: CAVISE/pipelines/.github/workflows/python-ruff.yml@ci/opencda-workflow
+    uses: CAVISE/pipelines/.github/workflows/python-ruff.yml@main
     with:
       run-lint: true
       run-format-check: true
 
   type-check:
-    uses: CAVISE/pipelines/.github/workflows/python-mypy.yml@ci/opencda-workflow
+    uses: CAVISE/pipelines/.github/workflows/python-mypy.yml@main
     with:
       python-version: "3.12"
       target-path: .
@@ -23,13 +23,13 @@ jobs:
       protobuf-mypy-out: true
 
   unused-code-check:
-    uses: CAVISE/pipelines/.github/workflows/python-deadcode.yml@ci/opencda-workflow
+    uses: CAVISE/pipelines/.github/workflows/python-deadcode.yml@main
     with:
       python-version: "3.12"
       target-path: .
 
   pre-commit:
-    uses: CAVISE/pipelines/.github/workflows/python-pre-commit.yml@ci/opencda-workflow
+    uses: CAVISE/pipelines/.github/workflows/python-pre-commit.yml@main
     with:
       python-version: "3.12"
       skip-hooks: ruff-check,ruff-format,pretty-format-json
