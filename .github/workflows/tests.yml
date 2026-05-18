@@ -18,7 +18,7 @@ jobs:
       protobuf-generate: true
       protobuf-source-dir: opencda/core/common/communication/messages
       protobuf-output-dir: opencda/core/common/communication/protos/cavise
-      protobuf-messages: '["capi"]'
+      protobuf-messages: '["entity", "opencda", "artery", "capi"]'
       protobuf-mypy-out: true
       pytest-maxfail: 0
       pytest-continue-on-collection-errors: true

@@ -1,4 +1,4 @@
-name: Lint, Format, Type and Unused code Check
+name: Lint, Format, Type and Unused code checks
 
 on:
   pull_request:
