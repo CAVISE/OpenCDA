@@ -102,26 +102,26 @@ scenario:
       destination: [170, 149.792206, 0.3]
       id: 1
 
-    # - name: custom-cav-10
-    #   spawn_position: [28, 149.792206, 0.3, 0, 0, 0]
-    #   destination: [170, 149.792206, 0.3]
-    #   id: 101
-    #   model: "vehicle.tesla.cybertruck"
+    - name: custom-cav-10
+      spawn_position: [28, 149.792206, 0.3, 0, 0, 0]
+      destination: [170, 149.792206, 0.3]
+      id: 101
+      model: "vehicle.tesla.cybertruck"
 
-    # - name: cav-2
-    #   spawn_position: [50, 135.792358, 0.3, 0, 0, 0]
-    #   destination: [200, 135.792358, 0.3]
-    #   id: 2
+    - name: cav-2
+      spawn_position: [50, 135.792358, 0.3, 0, 0, 0]
+      destination: [200, 135.792358, 0.3]
+      id: 2
 
     - name: helper-backward-cav-3
       spawn_position: [7.60, 150.46, 0.3, 0, 0, 0]
       destination: [200, 135.792358, 0.3]
       id: 3
 
-    # - name: helper-leftside-cav-4
-    #   spawn_position: [20, 135.792358, 0.3, 0, 0, 0]
-    #   destination: [170, 135.792358, 0.3]
-    #   id: 4
+    - name: helper-leftside-cav-4
+      spawn_position: [20, 135.792358, 0.3, 0, 0, 0]
+      destination: [170, 135.792358, 0.3]
+      id: 4
 
     - name: helper-leftside-cav-5
       spawn_position: [70, 135.792358, 0.3, 0, 0, 0]
@@ -138,16 +138,16 @@ scenario:
       destination: [170, 135.792358, 0.3]
       id: 7
 
-  # custom_actor_list:
-  #   - name: custom-cav-10
-  #     spawn_position: [28, 149.792206, 0.3, 0, 0, 0]
-  #     id: 101
-  #     model: "vehicle.carlamotors.firetruck"
+  custom_actor_list:
+    - name: custom-cav-10
+      spawn_position: [28, 149.792206, 0.3, 0, 0, 0]
+      id: 101
+      model: "vehicle.carlamotors.firetruck"
 
-  #   - name: custom-cav-20
-  #     spawn_position: [35, 149.792206, 0.3, 0, 0, 0]
-  #     id: 102
-  #     model: "vehicle.audi.a2"
+    - name: custom-cav-20
+      spawn_position: [35, 149.792206, 0.3, 0, 0, 0]
+      id: 102
+      model: "vehicle.audi.a2"
 
 coperception:
   visualization:
