@@ -1,6 +1,6 @@
 description: |-
-  Town01 co-simulation scenario with one RSU per intersection and 10 CAVs
-  distributed across the map.
+  Town01 co-simulation scenario for AIM testing with two RSUs and four CAVs.
+  Each selected intersection has one AIM RSU and two CAVs.
 
 world:
   town: Town01
@@ -80,91 +80,77 @@ carla_traffic_manager:
 
 scenario:
   rsu_list:
-    - name: rsu_town01_26
+    - name: rsu_town01_143
       spawn_position: [336.93, 5.39, 2.0, 0, 0, 0]
       id: 1
-    - name: rsu_town01_54
-      spawn_position: [156.52, 5.49, 2.0, 0, 0, 0]
-      id: 2
-    - name: rsu_town01_110
-      spawn_position: [91.04, 5.60, 2.0, 0, 0, 0]
-      id: 3
-    - name: rsu_town01_332
-      spawn_position: [156.08, 51.84, 2.0, 0, 0, 0]
-      id: 4
-    - name: rsu_town01_171
-      spawn_position: [95.88, 57.15, 2.0, 0, 0, 0]
-      id: 5
-    - name: rsu_town01_222
-      spawn_position: [331.02, 57.72, 2.0, 0, 0, 0]
-      id: 6
-    - name: rsu_town01_306
-      spawn_position: [95.90, 130.84, 2.0, 0, 0, 0]
-      id: 7
-    - name: rsu_town01_278
-      spawn_position: [331.23, 132.12, 2.0, 0, 0, 0]
-      id: 8
-    - name: rsu_town01_255
-      spawn_position: [95.91, 197.33, 2.0, 0, 0, 0]
-      id: 9
+      behavior_services:
+        - type: aim_server
+          debug: true
+          control_radius: 45
+          control_center_location:
+            x: 336.93
+            y: 5.39
+            z: 2.0
+          model: "MTP"
+          underling_model: "GNN_mtl_gnn"
+          hidden_channels: 128
+          weight: "model_rot_gnn_mtl_np_sumo_0911_e3_1930.pth"
+          priority: 1
     - name: rsu_town01_194
       spawn_position: [331.23, 197.40, 2.0, 0, 0, 0]
-      id: 10
-    - name: rsu_town01_87
-      spawn_position: [90.63, 322.94, 2.0, 0, 0, 0]
-      id: 11
-    - name: rsu_town01_143
-      spawn_position: [336.72, 323.03, 2.0, 0, 0, 0]
-      id: 12
+      id: 2
+      behavior_services:
+        - type: aim_server
+          debug: true
+          control_radius: 45
+          control_center_location:
+            x: 331.23
+            y: 197.40
+            z: 2.0
+          model: "MTP"
+          underling_model: "GNN_mtl_gnn"
+          hidden_channels: 128
+          weight: "model_rot_gnn_mtl_np_sumo_0911_e3_1930.pth"
+          priority: 1
 
   single_cav_list:
-    - name: cav1
-      spawn_position: [199.62, 1.96, 0.30, 0, 0.0, 0]
-      destination: [336.72, 323.03, 0.30]
+    - name: cav_town01_143_southbound
+      spawn_position: [334.83, 42.00, 0.30, 0, -90.0, 0]
+      destination: [334.77, 12.31, 0.30]
       id: 101
       color: [30, 144, 255]
-    - name: cav2
-      spawn_position: [338.88, 28.74, 0.30, 0, -90.0, 0]
-      destination: [90.63, 322.94, 0.30]
+      behavior_services:
+        - type: self_informer
+        - type: aim_client
+          debug: true
+        - type: movement_controller
+    - name: cav_town01_143_westbound
+      spawn_position: [370.00, 4.15, 0.30, 0, 180.0, 0]
+      destination: [324.47, 4.15, 0.30]
       id: 102
       color: [34, 139, 34]
-    - name: cav3
-      spawn_position: [92.38, 94.46, 0.30, 0, -90.0, 0]
-      destination: [336.93, 5.39, 0.30]
+      behavior_services:
+        - type: self_informer
+        - type: aim_client
+          debug: true
+        - type: movement_controller
+    - name: cav_town01_194_southbound
+      spawn_position: [334.89, 240.00, 0.30, 0, -90.0, 0]
+      destination: [334.89, 184.79, 0.30]
       id: 103
       color: [255, 140, 0]
-    - name: cav4
-      spawn_position: [285.50, 55.48, 0.30, 0, 180.0, 0]
-      destination: [90.63, 322.94, 0.30]
+      behavior_services:
+        - type: self_informer
+        - type: aim_client
+          debug: true
+        - type: movement_controller
+    - name: cav_town01_194_eastbound
+      spawn_position: [285.50, 190.80, 0.30, 0, 0.0, 0]
+      destination: [343.15, 190.80, 0.30]
       id: 104
       color: [138, 43, 226]
-    - name: cav5
-      spawn_position: [180.33, 133.45, 0.30, 0, 0.0, 0]
-      destination: [336.72, 323.03, 0.30]
-      id: 105
-      color: [220, 20, 60]
-    - name: cav6
-      spawn_position: [269.04, 195.16, 0.30, 0, 180.0, 0]
-      destination: [91.04, 5.60, 0.30]
-      id: 106
-      color: [0, 191, 255]
-    - name: cav7
-      spawn_position: [92.41, 268.20, 0.30, 0, -90.0, 0]
-      destination: [336.93, 5.39, 0.30]
-      id: 107
-      color: [154, 205, 50]
-    - name: cav8
-      spawn_position: [338.73, 278.92, 0.30, 0, -90.0, 0]
-      destination: [90.63, 322.94, 0.30]
-      id: 108
-      color: [255, 105, 180]
-    - name: cav9
-      spawn_position: [202.47, 330.60, 0.30, 0, 0.0, 0]
-      destination: [331.02, 57.72, 0.30]
-      id: 109
-      color: [255, 215, 0]
-    - name: cav10
-      spawn_position: [2.02, 234.62, 0.30, 0, -90.0, 0]
-      destination: [336.72, 5.39, 0.30]
-      id: 110
-      color: [0, 206, 209]
+      behavior_services:
+        - type: self_informer
+        - type: aim_client
+          debug: true
+        - type: movement_controller
