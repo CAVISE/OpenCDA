@@ -10,6 +10,7 @@ coloredlogs==15.0.1
 cumm-cu130==0.9.1
 
 # Optimization & Convex Programming
+cvxpy==1.7.3
 cython==3.2.4
 easydict==1.13
 einops==0.8.2

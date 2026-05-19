@@ -1,6 +1,4 @@
-csv
-fcd
-training_params
+.vscode
 
 *.log.json
 

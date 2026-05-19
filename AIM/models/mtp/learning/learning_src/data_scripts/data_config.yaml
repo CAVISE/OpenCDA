@@ -1,0 +1,57 @@
+# vehicle dynamics parameters in normalized coordinate system while sumo simulation
+vehicle:
+  accel: 0.025 # vehicle acceleration
+  decel: 0.045 # vehicle deceleration
+  sigma: 0.5 # driver imperfection
+  length: 0.05 # vehicle length
+  max_speed: 0.4 # maximum vehicle speed
+  min_gap: 0.025 # minimum gap between vehicles
+  collect_data_radius: 0.5 # radius for data collection area
+  cool_data_radius1: 0.2 # first importance radius (weights higher)
+  cool_data_radius2: 0.3 # second importance radius (weights higher)
+
+# data augmentation and normalization
+data_processing:
+  align_initial_direction_to_x: true # align initial direction of motion to +x axis
+  num_augmentation: 0 # number of data augmentation operations
+  normalize_data: true # enable data normalization
+  zscore_normalize: true # use z-score normalization after min_max
+
+# model input/output dimensions
+model:
+  input_vector_size: 7 # size of input feature vector
+  predict_vector_size: 2 # size of prediction output vector
+  obs_len: 1 # observation sequence length (number of past timesteps)
+  pred_len: 1 # length of sequence to be predicted by model
+  num_predict_on_predict: 19 # number of predictions based on previous predictions
+  num_predict: 39 # total number of predictions to generate
+  k_dot_steps: 4 # number of steps back and forward on lane to gather information
+  entire_movement_threshold: 0.005
+  dx_movement_on_threshold: 0.01
+
+# image map configuration
+image_map:
+  img_shape: 128 # image dimensions
+  bg_color: 0 # background color value (black in numpy)
+  road_color: 255 # road color value (white in numpy)
+  road_width_px: 1 # road width in pixels
+  map_img_name: "map" # map image file name
+  map_parts_name: "map_parts_info" # map parts information file name
+  map_lane_name: "map_lane_info" # map lane information file name
+
+# object map configuration
+object_map:
+  dt: 1e-2 # time to calc movement orientation
+  n_lane_samples: 25 # number of points on lane
+  n_lane_samples_yaw: 300 # number of points on lane for yaw calculation
+  non_linear_coeff: 2 # coeff of non-linear function to generate timestaps with respect to middle
+  object_vector_size: 5
+  neighbour_factor_high: 1.5
+  neighbour_low_lateral_factor: 0.5
+  cos_dotproduct_threshold: 0.95
+  vecs_dots_radius_factor: 4
+
+# temporal parameters
+temporal:
+  sample_rate: 20 # data sampling rate (samples per second)
+  dt: 0.05 # time delta between samples (1/sample_rate)

@@ -97,15 +97,30 @@ scenario:
       behavior_services:
         - type: aim_server
           debug: true
-          control_radius: 15
+          control_radius: 25
           control_center_location:
             x: 256
             y: -171
             z: 15
           model: "MTP"
-          underling_model: "GNN_mtl_gnn"
-          hidden_channels: 128
-          weight: "model_rot_gnn_mtl_np_sumo_0911_e3_1930.pth"
+          underling_model: TransfAny_v2_local_coords
+          model_params:
+            cars_hidden_channels: 128
+            lane_hidden_channels: 128
+            lane_conv_iters: 4
+            bias: true
+            dropout: 0.1
+            cross_attn_n_heads: 4
+            cross_attn_n_attn: 3
+            cross_attn_n_linear: 3
+            cars_self_attn_n_heads: 4
+            cars_self_attn_n_attn: 4
+            cars_self_attn_n_linear: 3
+            decoder_n_linear_decoder: 4
+          weight: "model_wp_train_config0_model_config0_0399.pth"
+          y_x_distr_file: "y_x_distr_file.pkl"
+          y_y_distr_file: "y_y_distr_file.pkl"
+          map_net_xml_path: "AIM/models/mtp/learning/data/sumo_maps/simple_separate_10m.net.xml"
           priority: 1
   single_cav_list:
     - name: cav1

@@ -1,0 +1,4 @@
+model_wrapper: MTP
+model: GNN_mtl_gnn
+model_params:
+    hidden_channels: 128
