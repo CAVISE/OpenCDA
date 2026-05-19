@@ -14,7 +14,7 @@ from opencda.metrics_tools.metric_sample import MetricSample
 from opencda.metrics_tools.report_models import MetricReportSpec, MetricSummarySpec
 from opencda.core.attack.advcp.types import AdvCPVisualizationContext
 
-logger = logging.getLogger("cavise.opencda.opencda.metrics_tools.metrics.attacker_target_confidence")
+logger = logging.getLogger("cavise.opencda.opencda.metrics_tools.metrics.coperception.attacker_target_confidence")
 
 
 def _load_common_utils() -> Any:

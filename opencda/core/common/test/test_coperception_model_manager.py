@@ -21,7 +21,6 @@ class DummyOpt:
         self.save_npy = False
         self.save_vis = False
         self.test_scenario = "test_scenario"
-        self.global_sort_detections = True
         self.__dict__.update(kwargs)
 
 
@@ -139,6 +138,39 @@ class TestCoperceptionModelManager:
 
         assert manager.device == "device(cuda)"
         manager_deps["model"].cuda.assert_called_once()
+
+    def test_coperception_metrics_use_scenario_config(self, manager_deps):
+        opt = DummyOpt()
+        manager = CoperceptionModelManager(
+            opt,
+            "2023_01_01",
+            coperception_config={
+                "visualization": {
+                    "background": [1, 2, 3],
+                },
+                "metrics": {
+                    "metric_configs": {
+                        "ap_at_iou": {"warmup_steps": 5, "global_sort_detections": True},
+                        "attack_success_rate": {"warmup_steps": 7, "iou_threshold": 0.5},
+                        "attacker_benign_visibility_ratio": {"warmup_steps": 2, "epsilon": 2.0},
+                    }
+                },
+            },
+        )
+
+        assert manager.metrics_collector.active_metrics == [
+            "ap_at_iou",
+            "attack_success_rate",
+            "attacker_benign_visibility_ratio",
+        ]
+        assert manager.metrics_collector.metrics["ap_at_iou"].warmup_steps == 5
+        assert manager.metrics_collector.metrics["ap_at_iou"].global_sort_detections is True
+        assert manager.metrics_collector.metrics["attack_success_rate"].warmup_steps == 7
+        assert manager.metrics_collector.metrics["attack_success_rate"].iou_threshold == 0.5
+        visibility_metric = manager.metrics_collector.metrics["attacker_benign_visibility_ratio"]
+        assert visibility_metric.warmup_steps == 2
+        assert visibility_metric.epsilon == 2.0
+        assert manager.visualization_config["background"] == (1, 2, 3)
 
     def test_update_dataset(self, manager_deps):
         """

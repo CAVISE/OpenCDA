@@ -2,6 +2,7 @@ description: |-
   This scenario is intended for experiments with AdvCP removal attacks.
 
 world:
+  fixed_delta_seconds: 0.1
   town: Town06
 
 blueprint:
@@ -101,13 +102,19 @@ scenario:
       destination: [170, 149.792206, 0.3]
       id: 1
 
+    - name: custom-cav-10
+      spawn_position: [28, 149.792206, 0.3, 0, 0, 0]
+      destination: [170, 149.792206, 0.3]
+      id: 101
+      model: "vehicle.tesla.cybertruck"
+
     - name: cav-2
       spawn_position: [50, 135.792358, 0.3, 0, 0, 0]
       destination: [200, 135.792358, 0.3]
       id: 2
 
     - name: helper-backward-cav-3
-      spawn_position: [7.60, 145.46, 0.3, 0, 90, 0]
+      spawn_position: [7.60, 150.46, 0.3, 0, 0, 0]
       destination: [200, 135.792358, 0.3]
       id: 3
 
@@ -117,17 +124,17 @@ scenario:
       id: 4
 
     - name: helper-leftside-cav-5
-      spawn_position: [30, 135.792358, 0.3, 0, 0, 0]
+      spawn_position: [70, 135.792358, 0.3, 0, 0, 0]
       destination: [170, 135.792358, 0.3]
       id: 5
 
     - name: helper-forward-cav-6
-      spawn_position: [70, 135.792358, 0.3, 0, 0, 0]
-      destination: [170, 135.792358, 0.3]
+      spawn_position: [120, 149.792206, 0.3, 0, 0, 0]
+      destination: [170, 149.792206, 0.3]
       id: 6
 
     - name: helper-forward-cav-7
-      spawn_position: [90, 149.792206, 0.3, 0, 0, 0]
+      spawn_position: [120, 135.792358, 0.3, 0, 0, 0]
       destination: [170, 135.792358, 0.3]
       id: 7
 
@@ -142,10 +149,26 @@ scenario:
       id: 102
       model: "vehicle.audi.a2"
 
-cooperative_perception_visualization:
-  lidar_point_colors:
-    attackers: [224, 104, 104] # used for real lidar points of attacking agents when AdvCP visualization is active
-    spoofing: [56, 189, 248] # used for fake/spoofed lidar points injected by AdvCP; not used yet
+coperception:
+  visualization:
+    lidar_point_colors:
+      attackers: [224, 104, 104] # used for real lidar points of attacking agents when AdvCP visualization is active
+      spoofing: [56, 189, 248] # used for fake/spoofed lidar points injected by AdvCP; not used yet
+      other: [92, 219, 149]
+      cav-5: [224, 104, 104]
+      cav-3: [224, 104, 104]
+      cav-6: [224, 104, 104]
+      cav-7: [224, 104, 104]
 
-  bbox_colors:
-    removed: [56, 189, 248] # AdvCP-only extra box color for early-fusion removal target boxes.
+    bbox_colors:
+      removed: [56, 189, 248] # AdvCP-only extra box color for early-fusion removal target boxes.
+
+  metrics:
+    metric_configs:
+      ap_at_iou: &cop_metric_defaults
+        warmup_steps: 5
+      mean_recall_at_iou: *cop_metric_defaults
+      mean_precision_at_iou: *cop_metric_defaults
+      attack_success_rate: *cop_metric_defaults
+      attacker_benign_visibility_ratio: *cop_metric_defaults
+      attacker_target_confidence: *cop_metric_defaults
