@@ -176,7 +176,9 @@ class CoScenarioManager(ScenarioManager):
 
         # Update data structures for the current frame.
         current_actors: set[int] = {
-            actor.id for actor in self.world.get_actors() if actor.type_id.startswith("vehicle.") or actor.type_id.startswith("static.")
+            actor.id
+            for actor in self.world.get_actors()
+            if actor.type_id.startswith("vehicle.") or actor.id in self.node_ids["rsu"]
         }
         self.spawned_actors = current_actors.difference(self._active_actors)
         self.destroyed_actors = self._active_actors.difference(current_actors)
