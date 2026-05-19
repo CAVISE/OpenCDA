@@ -6,7 +6,7 @@ import os
 from dataclasses import dataclass
 from itertools import chain
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Mapping, NoReturn, cast
+from typing import TYPE_CHECKING, Any, ClassVar, Mapping, NoReturn, cast
 
 import carla
 from omegaconf import DictConfig, OmegaConf
@@ -37,6 +37,10 @@ logger = logging.getLogger("cavise.opencda.opencda.scenario_testing.scenario")
 
 @dataclass
 class Scenario:
+    CAPI_BEHAVIOR_SERVICE_TYPES: ClassVar[set[str]] = {"aim_client", "aim_server"}
+    CAPI_BEHAVIOR_MODULE: ClassVar[str] = "behavior"
+    CAPI_BEHAVIOR_MESSAGES_KEY: ClassVar[str] = "messages"
+
     eval_manager: EvaluationManager
     scenario_manager: sim_api.ScenarioManager | sim_api.CoScenarioManager
     single_cav_list: list[VehicleManager]
@@ -340,6 +344,45 @@ class Scenario:
 
         return tuple(claims)
 
+    @classmethod
+    def _is_capi_behavior_message(cls, message: TransportMessage[Any]) -> bool:
+        return (
+            message.src_service_type in cls.CAPI_BEHAVIOR_SERVICE_TYPES
+            or message.dst_service_type in cls.CAPI_BEHAVIOR_SERVICE_TYPES
+        )
+
+    @classmethod
+    def _filter_capi_behavior_messages(cls, messages: list[TransportMessage[Any]]) -> list[TransportMessage[Any]]:
+        return [message for message in messages if cls._is_capi_behavior_message(message)]
+
+    @classmethod
+    def _add_capi_behavior_messages(cls, payload_handler: PayloadHandler, messages: list[TransportMessage[Any]]) -> None:
+        for message in messages:
+            src_owner_id = getattr(message, "src_owner_id", None)
+            if not isinstance(src_owner_id, str) or not src_owner_id:
+                raise ValueError("Behavior message must define a non-empty string 'src_owner_id'.")
+
+            with payload_handler.handle_opencda_payload(src_owner_id, cls.CAPI_BEHAVIOR_MODULE) as payload:
+                payload.setdefault(cls.CAPI_BEHAVIOR_MESSAGES_KEY, []).append(message)
+
+    @classmethod
+    def _get_capi_behavior_messages_by_owner(cls, payload_handler: PayloadHandler) -> dict[str, list[TransportMessage[Any]]]:
+        messages_by_owner: dict[str, list[TransportMessage[Any]]] = {}
+
+        for receiver_id, entities in payload_handler.current_artery_payload.items():
+            for entity_payload in entities.values():
+                behavior_payload = entity_payload.get(cls.CAPI_BEHAVIOR_MODULE, {})
+                if not isinstance(behavior_payload, dict):
+                    continue
+
+                messages = behavior_payload.get(cls.CAPI_BEHAVIOR_MESSAGES_KEY, [])
+                if not isinstance(messages, list):
+                    continue
+
+                messages_by_owner.setdefault(receiver_id, []).extend(cast(list[TransportMessage[Any]], messages))
+
+        return messages_by_owner
+
     def run(self, opt: argparse.Namespace) -> None:
         if self.communication_manager is None:
             self.default_loop(opt)
@@ -445,7 +488,8 @@ class Scenario:
                     transform = self.platoon_list[0].vehicle_manager_list[0].vehicle.get_transform()
                     self.spectator.set_transform(carla.Transform(transform.location + carla.Location(z=50), carla.Rotation(pitch=-90)))
 
-            # TODO: Add aim service support
+            capi_outgoing_messages = self._filter_capi_behavior_messages(self.messages)
+            self._add_capi_behavior_messages(payload_handler, capi_outgoing_messages)
 
             if self.platoon_list is not None:
                 logger.debug("updating platoons")
@@ -482,6 +526,7 @@ class Scenario:
             artery_message = communication_manager.receive_message()
             logger.info(f"{round(artery_message.ByteSize() / (1 << 20), 3)} MB were received")
             payload_handler.make_artery_payload(artery_message)
+            capi_messages_by_owner = self._get_capi_behavior_messages_by_owner(payload_handler)
 
             if self.coperception_model_manager is not None and tick_number > 0 and can_predict_current_tick:
                 self.coperception_model_manager.make_prediction(tick_number)
@@ -496,13 +541,13 @@ class Scenario:
             identity_claims: list[Mapping[str, str]] = []
             if self.single_cav_list is not None:
                 for single_cav in self.single_cav_list:
-                    cav_messages, _ = single_cav.run_step(messages=self.messages)
+                    cav_messages, _ = single_cav.run_step(messages=list(capi_messages_by_owner.get(single_cav.id, [])))
                     new_messages.extend(cav_messages)
                     identity_claims.extend(self._collect_identity_claims(single_cav.id, cav_messages))
 
             if self.rsu_list is not None:
                 for rsu in self.rsu_list:
-                    rsu_messages, _ = rsu.run_step(messages=self.messages)
+                    rsu_messages, _ = rsu.run_step(messages=list(capi_messages_by_owner.get(rsu.id, [])))
                     new_messages.extend(rsu_messages)
                     identity_claims.extend(self._collect_identity_claims(rsu.id, rsu_messages))
 
