@@ -1,0 +1,170 @@
+description: |-
+  Town01 co-simulation scenario with one RSU per intersection and 10 CAVs
+  distributed across the map.
+
+world:
+  town: Town01
+
+vehicle_base:
+  sensing:
+    perception:
+      activate: false
+      camera:
+        visualize: 0
+        num: 4
+        positions:
+          - [2.5, 0, 1.0, 0]
+          - [0.0, 0.3, 1.8, 100]
+          - [0.0, -0.3, 1.8, -100]
+          - [-2.0, 0.0, 1.5, 180]
+      lidar:
+        visualize: false
+        channels: 32
+        range: 120
+        points_per_second: 1000000
+        rotation_frequency: 20
+        upper_fov: 2
+        lower_fov: -25
+        dropoff_general_rate: 0.3
+        dropoff_intensity_limit: 0.7
+        dropoff_zero_intensity: 0.4
+        noise_stddev: 0.02
+    localization:
+      activate: false
+      debug_helper:
+        show_animation: false
+  map_manager:
+    visualize: false
+  behavior:
+    ignore_traffic_light: false
+    collision_time_ahead: 2.0
+    local_planner:
+      debug_trajectory: false
+      debug: false
+
+rsu_base:
+  sensing:
+    perception:
+      activate: false
+      camera:
+        visualize: 0
+        num: 4
+        positions:
+          - [2.5, 0, 1.0, 0]
+          - [0.0, 0.3, 1.8, 100]
+          - [0.0, -0.3, 1.8, -100]
+          - [-2.0, 0.0, 1.5, 180]
+      lidar:
+        visualize: false
+        channels: 128
+        range: 120
+        points_per_second: 5000000
+        rotation_frequency: 20
+        upper_fov: 20
+        lower_fov: -90
+        dropoff_general_rate: 0.3
+        dropoff_intensity_limit: 0.7
+        dropoff_zero_intensity: 0.4
+        noise_stddev: 0.02
+    localization:
+      activate: false
+      dt: ${world.fixed_delta_seconds}
+      gnss:
+        noise_alt_stddev: 0.05
+        noise_lat_stddev: 3e-6
+        noise_lon_stddev: 3e-6
+
+carla_traffic_manager:
+  vehicle_list: []
+  range: []
+
+scenario:
+  rsu_list:
+    - name: rsu_town01_26
+      spawn_position: [336.93, 5.39, 2.0, 0, 0, 0]
+      id: 1
+    - name: rsu_town01_54
+      spawn_position: [156.52, 5.49, 2.0, 0, 0, 0]
+      id: 2
+    - name: rsu_town01_110
+      spawn_position: [91.04, 5.60, 2.0, 0, 0, 0]
+      id: 3
+    - name: rsu_town01_332
+      spawn_position: [156.08, 51.84, 2.0, 0, 0, 0]
+      id: 4
+    - name: rsu_town01_171
+      spawn_position: [95.88, 57.15, 2.0, 0, 0, 0]
+      id: 5
+    - name: rsu_town01_222
+      spawn_position: [331.02, 57.72, 2.0, 0, 0, 0]
+      id: 6
+    - name: rsu_town01_306
+      spawn_position: [95.90, 130.84, 2.0, 0, 0, 0]
+      id: 7
+    - name: rsu_town01_278
+      spawn_position: [331.23, 132.12, 2.0, 0, 0, 0]
+      id: 8
+    - name: rsu_town01_255
+      spawn_position: [95.91, 197.33, 2.0, 0, 0, 0]
+      id: 9
+    - name: rsu_town01_194
+      spawn_position: [331.23, 197.40, 2.0, 0, 0, 0]
+      id: 10
+    - name: rsu_town01_87
+      spawn_position: [90.63, 322.94, 2.0, 0, 0, 0]
+      id: 11
+    - name: rsu_town01_143
+      spawn_position: [336.72, 323.03, 2.0, 0, 0, 0]
+      id: 12
+
+  single_cav_list:
+    - name: cav1
+      spawn_position: [199.62, 1.96, 0.30, 0, 0.0, 0]
+      destination: [336.72, 323.03, 0.30]
+      id: 101
+      color: [30, 144, 255]
+    - name: cav2
+      spawn_position: [338.88, 28.74, 0.30, 0, -90.0, 0]
+      destination: [90.63, 322.94, 0.30]
+      id: 102
+      color: [34, 139, 34]
+    - name: cav3
+      spawn_position: [92.38, 94.46, 0.30, 0, -90.0, 0]
+      destination: [336.93, 5.39, 0.30]
+      id: 103
+      color: [255, 140, 0]
+    - name: cav4
+      spawn_position: [285.50, 55.48, 0.30, 0, 180.0, 0]
+      destination: [90.63, 322.94, 0.30]
+      id: 104
+      color: [138, 43, 226]
+    - name: cav5
+      spawn_position: [180.33, 133.45, 0.30, 0, 0.0, 0]
+      destination: [336.72, 323.03, 0.30]
+      id: 105
+      color: [220, 20, 60]
+    - name: cav6
+      spawn_position: [269.04, 195.16, 0.30, 0, 180.0, 0]
+      destination: [91.04, 5.60, 0.30]
+      id: 106
+      color: [0, 191, 255]
+    - name: cav7
+      spawn_position: [92.41, 268.20, 0.30, 0, -90.0, 0]
+      destination: [336.93, 5.39, 0.30]
+      id: 107
+      color: [154, 205, 50]
+    - name: cav8
+      spawn_position: [338.73, 278.92, 0.30, 0, -90.0, 0]
+      destination: [90.63, 322.94, 0.30]
+      id: 108
+      color: [255, 105, 180]
+    - name: cav9
+      spawn_position: [202.47, 330.60, 0.30, 0, 0.0, 0]
+      destination: [331.02, 57.72, 0.30]
+      id: 109
+      color: [255, 215, 0]
+    - name: cav10
+      spawn_position: [2.02, 234.62, 0.30, 0, -90.0, 0]
+      destination: [336.72, 5.39, 0.30]
+      id: 110
+      color: [0, 206, 209]
