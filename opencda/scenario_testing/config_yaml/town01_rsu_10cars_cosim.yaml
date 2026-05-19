@@ -115,8 +115,8 @@ scenario:
 
   single_cav_list:
     - name: cav_town01_143_southbound
-      spawn_position: [330.59, -12.29, 0.30, 0, 90.0, 0]
-      destination: [330.57, -45.17, 0.30]
+      spawn_position: [339.83, 42.00, 0.30, 0, -90.0, 0]
+      destination: [370.77, 0.00, 0.30]
       id: 101
       color: [30, 144, 255]
       behavior_services:
@@ -124,34 +124,11 @@ scenario:
         - type: aim_client
           debug: true
         - type: movement_controller
-
     - name: cav_town01_143_westbound
-      spawn_position: [309.08, 6.32, 0.30, 0, 180.0, 0]
-      destination: [182.99, 6.34, 0.30]
+      spawn_position: [368.00, -1.15, 0.30, 0, 180.0, 0]
+      destination: [300.47, -1.15, 0.30]
       id: 102
       color: [34, 139, 34]
-      behavior_services:
-        - type: self_informer
-        - type: aim_client
-          debug: true
-        - type: movement_controller
-
-    - name: cav_town01_194_southbound
-      spawn_position: [330.51, -143.82, 0.30, 0, 90.0, 0]
-      destination: [330.49, -184.86, 0.30]
-      id: 103
-      color: [255, 140, 0]
-      behavior_services:
-        - type: self_informer
-        - type: aim_client
-          debug: true
-        - type: movement_controller
-
-    - name: cav_town01_194_eastbound
-      spawn_position: [150.00, -203.44, 0.30, 0, 0.0, 0]
-      destination: [310.00, -203.46, 0.30]
-      id: 104
-      color: [138, 43, 226]
       behavior_services:
         - type: self_informer
         - type: aim_client
