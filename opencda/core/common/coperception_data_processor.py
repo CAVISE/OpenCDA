@@ -11,13 +11,15 @@ from opencda.core.common.utils import transform_to_tuple
 from opencda.core.sensing.perception import sensor_transformation as st
 
 if TYPE_CHECKING:
+    import carla
+
     from opencda.core.common.rsu_manager import RSUManager
     from opencda.core.common.vehicle_manager import VehicleManager
     from opencda.core.plan.behavior_agent import BehaviorAgent
     from opencda.core.sensing.localization.localization_manager import LocalizationManager as VehicleLocalizationManager
     from opencda.core.sensing.localization.rsu_localization_manager import LocalizationManager as RsuLocalizationManager
     from opencda.core.sensing.perception.obstacle_vehicle import ObstacleVehicle
-    from opencda.core.sensing.perception.perception_manager import PerceptionManager
+    from opencda.core.sensing.perception.perception_manager import LidarSensor, PerceptionManager, SemanticLidarSensor
 
 logger = logging.getLogger("cavise.opencda.opencda.core.common.coperception_data_processor")
 
@@ -62,6 +64,31 @@ class CoperceptionDataProcessor:
         # cooperative perception models are supported in the live pipeline.
         _ = perception_manager
         return []
+
+    @staticmethod
+    def _is_carla_transform_like(transform: object) -> bool:
+        carla_transform = cast("carla.Transform", transform)
+        try:
+            location = carla_transform.location
+            rotation = carla_transform.rotation
+            values = (
+                location.x,
+                location.y,
+                location.z,
+                rotation.roll,
+                rotation.yaw,
+                rotation.pitch,
+            )
+        except AttributeError:
+            return False
+        return all(isinstance(value, (int, float)) for value in values)
+
+    @classmethod
+    def _resolve_lidar_transform(cls, lidar: LidarSensor | SemanticLidarSensor) -> "carla.Transform":
+        lidar_transform = getattr(lidar, "transform", None)
+        if cls._is_carla_transform_like(lidar_transform):
+            return cast("carla.Transform", lidar_transform)
+        return lidar.sensor.get_transform()
 
     @staticmethod
     def build_live_params(
@@ -117,7 +144,7 @@ class CoperceptionDataProcessor:
 
         if (lidar := perception_manager.lidar) is None:
             raise RuntimeError("Coperception requires LiDAR, but perception_manager.lidar is not initialized.")
-        lidar_transform = lidar.sensor.get_transform()
+        lidar_transform = CoperceptionDataProcessor._resolve_lidar_transform(lidar)
         dump_yml["lidar_pose"] = transform_to_tuple(lidar_transform)
 
         for i, camera in enumerate(getattr(perception_manager, "rgb_camera", None) or []):

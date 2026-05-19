@@ -71,7 +71,6 @@ class Scenario:
         self.communication_manager: CommunicationManager | None = None
         self.coperception_model_manager: CoperceptionModelManager | None = None
         self.coperception_data_processor: CoperceptionDataProcessor | None = None
-        cp_vis_config = None
 
         xodr_path: str | None = None
         if opt.xodr:
@@ -173,37 +172,27 @@ class Scenario:
             if not os.path.isdir(opt.model_dir):
                 self._abort_simulation(f'Model directory "{opt.model_dir}" does not exist; cannot initialize cooperative perception manager.')
 
-            cp_vis_config = OmegaConf.to_container(
-                scenario_params.get("cooperative_perception_visualization", {}),
-                resolve=True,
-            )
-
             CoperceptionManagerClass: type[CoperceptionModelManager]
             if opt.with_advcp:
                 from opencda.core.attack.advcp.adv_coperception_model_manager import AdvCoperceptionModelManager as CoperceptionManagerClass
             else:
                 from opencda.core.common.coperception_model_manager import CoperceptionModelManager as CoperceptionManagerClass
 
+            coperception_config = OmegaConf.to_container(
+                scenario_params.get("coperception", {}),
+                resolve=True,
+            )
+
             self.coperception_model_manager = CoperceptionManagerClass(
                 opt=opt,
                 current_time=current_time,
                 payload_handler=self.payload_handler,
-                visualization_config=cp_vis_config,
+                coperception_config=coperception_config,
             )
             valid_agent_ids = [vehicle_manager.id for vehicle_manager in self.single_cav_list]
             valid_agent_ids.extend(rsu_manager.id for rsu_manager in self.rsu_list)
             if hasattr(self.coperception_model_manager, "validate_advcp_agents"):
-                advcp_ready = self.coperception_model_manager.validate_advcp_agents(valid_agent_ids)
-                if not advcp_ready:
-                    from opencda.core.common.coperception_model_manager import CoperceptionModelManager
-
-                    logger.warning("AdvCP validation failed. Falling back to the default cooperative perception manager for this run.")
-                    self.coperception_model_manager = CoperceptionModelManager(
-                        opt=opt,
-                        current_time=current_time,
-                        payload_handler=self.payload_handler,
-                        visualization_config=cp_vis_config,
-                    )
+                self.coperception_model_manager.validate_advcp_agents(valid_agent_ids)
 
             """
             TODO: Create decorators to write such stuff

@@ -131,6 +131,11 @@ class VehicleManager(object):
         behavior_config = config_yaml["behavior"]
         control_config = config_yaml["controller"]
         v2x_config = config_yaml["v2x"]
+        self.use_carla_autopilot = self._resolve_bool_config(
+            config_yaml.get("carla_autopilot", behavior_config.get("carla_autopilot", False)),
+            "carla_autopilot",
+        )
+        self.carla_autopilot_port = int(config_yaml.get("carla_autopilot_port", behavior_config.get("carla_autopilot_port", 8000)))
         self.perception_requirements = perception_requirements or PerceptionRequirements()
 
         # v2x module
@@ -177,7 +182,25 @@ class VehicleManager(object):
         self.__set_behavior_services(behavior_services)
         self.__attach_behavior_services()
 
+        if self.use_carla_autopilot:
+            if self.behavior_services:
+                logger.warning("Vehicle %s uses CARLA autopilot; behavior services will not be executed.", self.id)
+            self.vehicle.set_autopilot(True, self.carla_autopilot_port)
+            logger.info("Vehicle %s is controlled by CARLA Traffic Manager on port %s.", self.id, self.carla_autopilot_port)
+
         cav_world.update_vehicle_manager(self)
+
+    @staticmethod
+    def _resolve_bool_config(value: Any, key_name: str) -> bool:
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            normalized_value = value.strip().lower()
+            if normalized_value in {"true", "1", "yes", "y", "on"}:
+                return True
+            if normalized_value in {"false", "0", "no", "n", "off"}:
+                return False
+        raise ValueError(f"Config key '{key_name}' must be a boolean or boolean-like string.")
 
     def __generate_unique_vehicle_id(self) -> str:
         """Generates a unique vehicle ID based on prefix."""
@@ -404,11 +427,20 @@ class VehicleManager(object):
     def run_step(
         self,
         target_speed: float | None = None,
-        messages: list[TransportMessage[Any]] = [],
+        messages: list[TransportMessage[Any]] | None = None,
     ) -> tuple[list[TransportMessage[Any]], dict[str, Any]]:
         """
         Execute one step of navigation.
         """
+        if self.use_carla_autopilot:
+            self.behavior_service_results.clear()
+            self.behavior_service_states.clear()
+            self.map_manager.run_step()
+            if self.data_dumper:
+                self.data_dumper.run_step(self.perception_manager, self.localizer, self.agent)
+            return self.behavior_service_results, self.behavior_service_states
+
+        messages = list(messages or ())
         payload = MovementControllerRequestMessage(target_speed=target_speed, target_location=None)
         messages.append(
             TransportMessage(
