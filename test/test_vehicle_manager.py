@@ -249,7 +249,8 @@ def test_carla_autopilot_run_step_skips_opencda_planning_and_control(mocker, min
 
     result = vm.run_step(target_speed=2.0)
 
-    assert result == vm.behavior_service_results
+    assert result == (vm.behavior_service_results, vm.behavior_service_states)
+    assert vm.behavior_service_states == {}
     deps["map_manager"].run_step.assert_called_once_with()
     deps["agent"].run_step.assert_not_called()
     deps["controller"].run_step.assert_not_called()

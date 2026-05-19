@@ -48,7 +48,8 @@ class PayloadHandler:
             bucket = self.current_artery_payload.setdefault(ego_id, {})
 
             for entity_info in transmission.entity:
-                bucket[entity_info.id] = pickle.loads(entity_info.auxillary)
+                if entity_info.auxillary:
+                    bucket[entity_info.id] = pickle.loads(entity_info.auxillary)
 
     def clear_messages(self) -> None:
         # Clear opencda and artery dict messages to avoid usage of date from previous ticks

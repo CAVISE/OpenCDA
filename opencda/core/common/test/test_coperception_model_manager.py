@@ -10,8 +10,6 @@ from opencda.core.common.coperception_data_processor import CoperceptionDataProc
 from opencda.core.common.coperception_model_manager import (
     CoperceptionModelManager,
     CoperceptionVisualizer,
-    EvaluationResultStat,
-    IoUResultStat,
 )
 
 
@@ -23,7 +21,6 @@ class DummyOpt:
         self.save_npy = False
         self.save_vis = False
         self.test_scenario = "test_scenario"
-        self.global_sort_detections = True
         self.__dict__.update(kwargs)
 
 
@@ -72,6 +69,7 @@ class TestCoperceptionModelManager:
             opencood.visualization.vis_utils.visualize_inference_sample_dataloader,
             opencood.visualization.vis_utils.linset_assign_list,
             opencood.utils.eval_utils.caluclate_tp_fp,
+            opencood.utils.eval_utils.calculate_ap,
             opencood.utils.eval_utils.eval_final_results,
             open3d.visualization.Visualizer,
             torch.cuda.is_available,
@@ -108,7 +106,6 @@ class TestCoperceptionModelManager:
         coperception_model_manager_module.inference_utils = opencood.tools.inference_utils
         coperception_model_manager_module.build_dataset = opencood.data_utils.datasets.build_dataset
         coperception_model_manager_module.vis_utils = opencood.visualization.vis_utils
-        coperception_model_manager_module.eval_utils = opencood.utils.eval_utils
 
         # Return dict for easy access
         return {
@@ -141,6 +138,39 @@ class TestCoperceptionModelManager:
 
         assert manager.device == "device(cuda)"
         manager_deps["model"].cuda.assert_called_once()
+
+    def test_coperception_metrics_use_scenario_config(self, manager_deps):
+        opt = DummyOpt()
+        manager = CoperceptionModelManager(
+            opt,
+            "2023_01_01",
+            coperception_config={
+                "visualization": {
+                    "background": [1, 2, 3],
+                },
+                "metrics": {
+                    "metric_configs": {
+                        "ap_at_iou": {"warmup_steps": 5, "global_sort_detections": True},
+                        "attack_success_rate": {"warmup_steps": 7, "iou_threshold": 0.5},
+                        "attacker_benign_visibility_ratio": {"warmup_steps": 2, "epsilon": 2.0},
+                    }
+                },
+            },
+        )
+
+        assert manager.metrics_collector.active_metrics == [
+            "ap_at_iou",
+            "attack_success_rate",
+            "attacker_benign_visibility_ratio",
+        ]
+        assert manager.metrics_collector.metrics["ap_at_iou"].warmup_steps == 5
+        assert manager.metrics_collector.metrics["ap_at_iou"].global_sort_detections is True
+        assert manager.metrics_collector.metrics["attack_success_rate"].warmup_steps == 7
+        assert manager.metrics_collector.metrics["attack_success_rate"].iou_threshold == 0.5
+        visibility_metric = manager.metrics_collector.metrics["attacker_benign_visibility_ratio"]
+        assert visibility_metric.warmup_steps == 2
+        assert visibility_metric.epsilon == 2.0
+        assert manager.visualization_config["background"] == (1, 2, 3)
 
     def test_update_dataset(self, manager_deps):
         """
@@ -178,68 +208,6 @@ class TestCoperceptionModelManager:
 
         dataset_mock.update_database.assert_called_once_with(memory_data={"in_memory": True})
         mock_warning.assert_called_once_with("No samples found in dataset after update.")
-
-    def test_make_prediction_state_update(self, manager_deps):
-        """Test that final_result_stat is actually updated via caluclate_tp_fp side effect."""
-        opt = DummyOpt()
-        manager = CoperceptionModelManager(opt, "2023_01_01")
-
-        # Setup Data Loader
-        manager.data_loader = [{"ego": {"origin_lidar": ["lidar_data"]}}]
-        manager.opencood_dataset = MagicMock()
-
-        # Define side effect for caluclate_tp_fp to modify the stats dictionary
-        def mock_calculate_tp_fp(pred, score, gt, stat, iou):
-            stat[iou]["gt"] += 1
-            stat[iou]["tp"].append(1)
-            stat[iou]["fp"].append(0)
-            stat[iou]["score"].append(0.9)
-
-        manager_deps["eval_utils"].caluclate_tp_fp.side_effect = mock_calculate_tp_fp
-
-        manager.make_prediction(0)
-
-        # Verify stats were accumulated
-        for iou in [0.3, 0.5, 0.7]:
-            assert manager.final_result_stat[iou]["gt"] == 1
-            assert len(manager.final_result_stat[iou]["tp"]) == 1
-            assert manager.final_result_stat[iou]["score"][0] == 0.9
-
-    def test_evaluation_result_stat_merges_nested_iou_stats(self):
-        accumulated = EvaluationResultStat.create_empty()
-        batch = EvaluationResultStat.create_empty()
-
-        batch[0.3]["gt"] = 2
-        batch[0.3]["tp"].extend([1, 1])
-        batch[0.3]["fp"].append(0)
-        batch[0.3]["score"].extend([0.7, 0.8])
-
-        batch[0.5]["gt"] = 1
-        batch[0.5]["tp"].append(1)
-        batch[0.5]["score"].append(0.9)
-
-        accumulated.merge_from(batch)
-
-        assert accumulated[0.3]["gt"] == 2
-        assert accumulated[0.3]["tp"] == [1, 1]
-        assert accumulated[0.3]["fp"] == [0]
-        assert accumulated[0.3]["score"] == [0.7, 0.8]
-        assert accumulated[0.5]["gt"] == 1
-        assert accumulated[0.5]["tp"] == [1]
-        assert accumulated[0.5]["score"] == [0.9]
-
-    def test_iou_result_stat_supports_dict_style_updates(self):
-        stat = IoUResultStat.create_empty()
-
-        stat["gt"] += 1
-        stat["tp"].append(1)
-        stat["fp"].append(0)
-        stat["score"].append(0.5)
-
-        assert stat.gt == 1
-        assert stat.tp == [1]
-        assert stat.fp == [0]
-        assert stat.score == [0.5]
 
     @pytest.mark.parametrize(
         ("core_method", "inference_attr"),
@@ -378,24 +346,6 @@ class TestCoperceptionModelManager:
         assert mock_warning.call_count == 2
         assert "Expected exactly 1 batch" in mock_warning.call_args_list[0].args[0]
         assert mock_warning.call_args_list[1].args[0] == "Skipping cooperative perception prediction because the data loader is empty."
-
-    def test_final_eval(self, manager_deps, tmp_path, monkeypatch):
-        monkeypatch.chdir(tmp_path)
-
-        opt = DummyOpt(test_scenario="scen1")
-        manager = CoperceptionModelManager(opt, "2023_01_01")
-
-        manager.final_eval()
-
-        expected_dir = tmp_path / "simulation_output/coperception/results/scen1_2023_01_01"
-        assert expected_dir.is_dir()
-
-        manager_deps["eval_utils"].eval_final_results.assert_called()
-        args = manager_deps["eval_utils"].eval_final_results.call_args[0]
-        # Check path arg
-        assert args[0] == manager.final_result_stat.as_dict()
-        assert Path(args[1]).resolve() == expected_dir.resolve()
-        assert args[2] == opt.global_sort_detections
 
 
 class TestCoperceptionVisualizer:

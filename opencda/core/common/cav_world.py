@@ -1,14 +1,18 @@
 from __future__ import annotations
 
 import importlib
+import logging
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     import carla
 
+    from opencda.core.application.behavior.behavior_service_protocol import BehaviorService
     from opencda.core.application.platooning.platooning_manager import PlatooningManager
     from opencda.core.common.rsu_manager import RSUManager
     from opencda.core.common.vehicle_manager import VehicleManager
+
+logger = logging.getLogger("cavise.opencda.opencda.core.common.cav_world")
 
 
 class CavWorld(object):
@@ -69,6 +73,11 @@ class CavWorld(object):
         """
         self.vehicle_id_set.add(vehicle_manager.vehicle.id)
         self._vehicle_manager_dict.update({vehicle_manager.id: vehicle_manager})
+        logger.debug(
+            "Registered vehicle manager node_id=%r with behavior_services=%s.",
+            vehicle_manager.id,
+            [service.service_type for service in vehicle_manager.behavior_services],
+        )
 
     def update_platooning(self, platooning_manager: PlatooningManager) -> None:
         """
@@ -91,6 +100,11 @@ class CavWorld(object):
             The RSU manager class.
         """
         self._rsu_manager_dict.update({rsu_manager.id: rsu_manager})
+        logger.debug(
+            "Registered RSU manager node_id=%r with behavior_services=%s.",
+            rsu_manager.id,
+            [service.service_type for service in rsu_manager.behavior_services],
+        )
 
     def update_sumo_vehicles(self, sumo2carla_ids: dict[str, int]) -> None:
         """
@@ -109,6 +123,82 @@ class CavWorld(object):
         Return vehicle manager dictionary.
         """
         return self._vehicle_manager_dict
+
+    def get_rsu_managers(self) -> dict[str, RSUManager]:  # noqa: DC04
+        """
+        Return RSU manager dictionary.
+        """
+        return self._rsu_manager_dict
+
+    def _get_behavior_services_for_node(self, node_id: str) -> tuple[BehaviorService[Any, Any], ...]:
+        vehicle_manager = self._vehicle_manager_dict.get(node_id)
+        if vehicle_manager is not None:
+            available_vehicle_services = [service.service_type for service in vehicle_manager.behavior_services]
+            logger.debug(
+                "Found vehicle manager for node_id=%r with behavior_services=%s.",
+                node_id,
+                available_vehicle_services,
+            )
+            return tuple(vehicle_manager.behavior_services)
+
+        rsu_manager = self._rsu_manager_dict.get(node_id)
+        if rsu_manager is not None:
+            available_rsu_services = [service.service_type for service in rsu_manager.behavior_services]
+            logger.debug(
+                "Found RSU manager for node_id=%r with behavior_services=%s.",
+                node_id,
+                available_rsu_services,
+            )
+            return tuple(rsu_manager.behavior_services)
+
+        return ()
+
+    def resolve_behavior_services(self, node_id: str, service_type: str | None = None) -> tuple[BehaviorService[Any, Any], ...]:
+        """
+        Resolve behavior service instances by node ID and optional service name.
+        """
+        logger.debug(
+            "Resolving behavior services node_id=%r service_type=%r. Known vehicle_nodes=%s known_rsu_nodes=%s.",
+            node_id,
+            service_type,
+            sorted(self._vehicle_manager_dict),
+            sorted(self._rsu_manager_dict),
+        )
+
+        node_services = self._get_behavior_services_for_node(node_id)
+        if not node_services:
+            logger.warning(
+                "Could not resolve behavior services node_id=%r service_type=%r. No matching vehicle or RSU manager found.",
+                node_id,
+                service_type,
+            )
+            return ()
+
+        if service_type is None:
+            logger.debug(
+                "Resolved %d behavior service(s) for node_id=%r without service_type filtering.",
+                len(node_services),
+                node_id,
+            )
+            return node_services
+
+        matched_services = tuple(service for service in node_services if service.service_type == service_type)
+        if matched_services:
+            logger.debug(
+                "Resolved %d behavior service(s) for node_id=%r service_type=%r.",
+                len(matched_services),
+                node_id,
+                service_type,
+            )
+            return matched_services
+
+        logger.warning(
+            "Node node_id=%r does not expose requested service_type=%r. Available services=%s.",
+            node_id,
+            service_type,
+            [service.service_type for service in node_services],
+        )
+        return ()
 
     def get_platoon_dict(self) -> dict[str, PlatooningManager]:
         """

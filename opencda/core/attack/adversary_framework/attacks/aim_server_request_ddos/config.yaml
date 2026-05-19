@@ -1,0 +1,60 @@
+attack:
+  name: aim_server_request_ddos
+
+  requirements:
+    all:
+      - source:
+          kind: snapshot
+          node_type: rsu
+          service_type: aim_server
+        verb: exists
+      - source:
+          kind: snapshot
+          node_type: vehicle
+          service_type: aim_client
+        verb: exists
+
+  start_trigger:
+    source:
+      kind: snapshot
+      node_type: rsu
+      service_type: aim_server
+      field: tracked_vehicle_count
+    verb: gte
+    value: 0
+
+  stop_trigger:
+    source:
+      kind: snapshot
+      node_type: rsu
+      service_type: aim_server
+      field: tracked_vehicle_count
+    verb: lt
+    value: 0
+
+  targets:
+    kind: service_state_field
+    source:
+      kind: snapshot
+      node_type: rsu
+      service_type: aim_server
+      field: owner_id
+    resolve_to:
+      node_type: rsu
+      service_type: aim_server
+
+  stages:
+    - id: drop_aim_server_requests
+      type: dropper
+      capabilities:
+        - request.observe
+      params:
+        drop_rate: 0.3
+      stage_stop_trigger:
+        source:
+          kind: snapshot
+          node_type: rsu
+          service_type: aim_server
+          field: tracked_vehicle_count
+        verb: lt
+        value: 0

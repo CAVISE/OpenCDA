@@ -4,8 +4,9 @@ import argparse
 import logging
 import os
 from dataclasses import dataclass
+from itertools import chain
 from pathlib import Path
-from typing import TYPE_CHECKING, NoReturn, cast
+from typing import TYPE_CHECKING, Any, Mapping, NoReturn, cast
 
 import carla
 from omegaconf import DictConfig, OmegaConf
@@ -13,15 +14,18 @@ from omegaconf import DictConfig, OmegaConf
 import opencda.scenario_testing.utils.cosim_api as sim_api
 import opencda.scenario_testing.utils.customized_map_api as map_api
 from opencda.core.application.platooning.platooning_manager import PlatooningManager
+from opencda.core.attack.adversary_framework import Attack, AttackManager, AttackSpec
 from opencda.core.common.cav_world import CavWorld
 from opencda.core.common.coperception_data_processor import CoperceptionDataProcessor
 from opencda.core.common.rsu_manager import RSUManager
 from opencda.core.common.vehicle_manager import VehicleManager
 from opencda.core.sensing.perception.perception_manager import PerceptionRequirements
+from opencda.metrics_tools.metric_collector import MetricCollector
+from opencda.scenario_testing.types import NodeSnapshot, SimulationSnapshot
 from opencda.scenario_testing.evaluations.evaluate_manager import EvaluationManager
-from opencda.scenario_testing.utils.yaml_utils import YamlDict, add_current_time, save_yaml
+from opencda.scenario_testing.utils.yaml_utils import YamlDict, add_current_time, load_yaml, save_yaml
 
-from opencda.core.application.behavior import TransportMessage
+from opencda.core.application.behavior import BROADCAST_OWNER_ID, TransportMessage
 
 if TYPE_CHECKING:
     from opencda.core.common.coperception_model_manager import CoperceptionModelManager
@@ -67,7 +71,6 @@ class Scenario:
         self.communication_manager: CommunicationManager | None = None
         self.coperception_model_manager: CoperceptionModelManager | None = None
         self.coperception_data_processor: CoperceptionDataProcessor | None = None
-        cp_vis_config = None
 
         xodr_path: str | None = None
         if opt.xodr:
@@ -107,6 +110,7 @@ class Scenario:
                 carla_host=opt.carla_host,
                 carla_timeout=opt.carla_timeout,
             )
+        self.cav_world = self.scenario_manager.cav_world
 
         if opt.with_capi:
             from opencda.core.common.communication import toolchain
@@ -168,37 +172,27 @@ class Scenario:
             if not os.path.isdir(opt.model_dir):
                 self._abort_simulation(f'Model directory "{opt.model_dir}" does not exist; cannot initialize cooperative perception manager.')
 
-            cp_vis_config = OmegaConf.to_container(
-                scenario_params.get("cooperative_perception_visualization", {}),
-                resolve=True,
-            )
-
             CoperceptionManagerClass: type[CoperceptionModelManager]
             if opt.with_advcp:
                 from opencda.core.attack.advcp.adv_coperception_model_manager import AdvCoperceptionModelManager as CoperceptionManagerClass
             else:
                 from opencda.core.common.coperception_model_manager import CoperceptionModelManager as CoperceptionManagerClass
 
+            coperception_config = OmegaConf.to_container(
+                scenario_params.get("coperception", {}),
+                resolve=True,
+            )
+
             self.coperception_model_manager = CoperceptionManagerClass(
                 opt=opt,
                 current_time=current_time,
                 payload_handler=self.payload_handler,
-                visualization_config=cp_vis_config,
+                coperception_config=coperception_config,
             )
             valid_agent_ids = [vehicle_manager.id for vehicle_manager in self.single_cav_list]
             valid_agent_ids.extend(rsu_manager.id for rsu_manager in self.rsu_list)
             if hasattr(self.coperception_model_manager, "validate_advcp_agents"):
-                advcp_ready = self.coperception_model_manager.validate_advcp_agents(valid_agent_ids)
-                if not advcp_ready:
-                    from opencda.core.common.coperception_model_manager import CoperceptionModelManager
-
-                    logger.warning("AdvCP validation failed. Falling back to the default cooperative perception manager for this run.")
-                    self.coperception_model_manager = CoperceptionModelManager(
-                        opt=opt,
-                        current_time=current_time,
-                        payload_handler=self.payload_handler,
-                        visualization_config=cp_vis_config,
-                    )
+                self.coperception_model_manager.validate_advcp_agents(valid_agent_ids)
 
             """
             TODO: Create decorators to write such stuff
@@ -215,14 +209,125 @@ class Scenario:
         self.scenario_manager.create_custom_actor_manager(application=["single"], map_helper=map_api.spawn_helper_2lanefree, data_dump=opt.record)
         logger.info("created single custom actors")
 
-        cav_world = self.scenario_manager.cav_world
-        if cav_world is None:
-            self._abort_simulation("Scenario manager was initialized without CavWorld; simulation cannot continue.")
-        self.eval_manager = EvaluationManager(cav_world, script_name=self.scenario_name, current_time=scenario_config["current_time"])
+        self.eval_manager = EvaluationManager(self.cav_world, script_name=self.scenario_name, current_time=scenario_config["current_time"])
 
         self.spectator = self.scenario_manager.world.get_spectator()
 
-        self.messages: list[TransportMessage] = []
+        self.messages: list[TransportMessage[Any]] = []
+        self.simulation_snapshot = SimulationSnapshot(tick=-1)
+        self.attack_manager = AttackManager()
+        self.scenario_metrics_collector = MetricCollector(
+            module="scenario",
+            entity_id=self.scenario_name,
+            metric_configs={
+                "collision_count": {"warmup_steps": 0},
+                "near_miss_count": {"warmup_steps": 0},
+                "identity_conflict_count": {"warmup_steps": 0},
+            },
+        )
+        attacks_config = scenario_config.get("attacks", [])
+        if not isinstance(attacks_config, list):
+            self._abort_simulation("Scenario config field 'attacks' must be a list of attack names.")
+
+        attacks: list[Attack] = []
+        for attack_name in attacks_config:
+            if not isinstance(attack_name, str):
+                self._abort_simulation("Scenario config field 'attacks' must contain only attack names as strings.")
+
+            attack_config_path = Path("opencda/core/attack/adversary_framework/attacks") / attack_name / "config.yaml"
+            attack_config = load_yaml(attack_config_path)
+            attack_spec = AttackSpec.from_dict(cast(YamlDict, attack_config["attack"]))
+            attacks.append(Attack.from_spec(attack_spec))
+
+        self.attacks = attacks
+
+    def _build_simulation_snapshot(self, tick: int) -> SimulationSnapshot:
+        vehicle_nodes = tuple(
+            NodeSnapshot(
+                node_id=vehicle_manager.id,
+                node_type="vehicle",
+                service_states=dict(vehicle_manager.behavior_service_states),
+            )
+            for vehicle_manager in chain(
+                self.single_cav_list,
+                *(platoon.vehicle_manager_list for platoon in self.platoon_list),
+            )
+        )
+
+        rsu_nodes = tuple(
+            NodeSnapshot(
+                node_id=rsu.id,
+                node_type="rsu",
+                service_states=dict(rsu.behavior_service_states),
+            )
+            for rsu in self.rsu_list
+        )
+
+        return SimulationSnapshot(
+            tick=tick,
+            vehicle_nodes=vehicle_nodes,
+            rsu_nodes=rsu_nodes,
+        )
+
+    def _collect_safety_status(self, vehicle_manager: VehicleManager) -> dict[str, bool]:
+        status: dict[str, bool] = {}
+        for sensor in vehicle_manager.safety_manager.sensors:
+            return_status = getattr(sensor, "return_status", None)
+            if not callable(return_status):
+                continue
+
+            sensor_status = return_status()
+            if isinstance(sensor_status, dict):
+                status.update({str(key): bool(value) for key, value in sensor_status.items()})
+        return status
+
+    def _build_scenario_metric_context(self, identity_claims: tuple[Mapping[str, str], ...]) -> dict[str, Any]:
+        vehicles: list[dict[str, Any]] = []
+
+        for vehicle_manager in chain(
+            self.single_cav_list,
+            *(platoon.vehicle_manager_list for platoon in self.platoon_list),
+        ):
+            ego_pos = vehicle_manager.localizer.get_ego_pos()
+            if ego_pos is None:
+                continue
+
+            safety_status = self._collect_safety_status(vehicle_manager)
+            vehicles.append(
+                {
+                    "node_id": vehicle_manager.id,
+                    "x": ego_pos.location.x,
+                    "y": ego_pos.location.y,
+                    "z": ego_pos.location.z,
+                    "collided": bool(safety_status.get("collision", False)),
+                }
+            )
+
+        return {
+            "vehicles": tuple(vehicles),
+            "identity_claims": identity_claims,
+        }
+
+    @staticmethod
+    def _collect_identity_claims(
+        producer_node_id: str,
+        messages: list[TransportMessage[Any]],
+    ) -> tuple[dict[str, str], ...]:
+        claims: list[dict[str, str]] = []
+
+        for message in messages:
+            claimed_node_id = getattr(message, "src_owner_id", "")
+            if not isinstance(claimed_node_id, str) or not claimed_node_id or claimed_node_id == BROADCAST_OWNER_ID:
+                continue
+
+            claims.append(
+                {
+                    "producer_node_id": producer_node_id,
+                    "claimed_node_id": claimed_node_id,
+                }
+            )
+
+        return tuple(claims)
 
     def run(self, opt: argparse.Namespace) -> None:
         if self.communication_manager is None:
@@ -254,7 +359,8 @@ class Scenario:
                 for platoon in self.platoon_list:
                     platoon.update_information()
 
-            new_messages = []
+            new_messages: list[TransportMessage[Any]] = []
+            identity_claims: list[Mapping[str, str]] = []
             if self.single_cav_list is not None:
                 logger.debug("updating single cavs")
 
@@ -282,15 +388,27 @@ class Scenario:
 
             if self.single_cav_list is not None:
                 for single_cav in self.single_cav_list:
-                    cav_messages = single_cav.run_step(messages=self.messages)
+                    cav_messages, _ = single_cav.run_step(messages=self.messages)
                     new_messages.extend(cav_messages)
+                    identity_claims.extend(self._collect_identity_claims(single_cav.id, cav_messages))
+            else:
+                identity_claims = []
 
             if self.rsu_list is not None:
                 for rsu in self.rsu_list:
-                    rsu_messages = rsu.run_step(self.messages)
+                    rsu_messages, _ = rsu.run_step(messages=self.messages)
                     new_messages.extend(rsu_messages)
+                    identity_claims.extend(self._collect_identity_claims(rsu.id, rsu_messages))
 
             self.messages = new_messages
+            self.simulation_snapshot = self._build_simulation_snapshot(tick_number)
+            self.scenario_metrics_collector.update(self._build_scenario_metric_context(tuple(identity_claims)))
+
+            self.attack_manager.evaluate(
+                self.attacks,
+                self.simulation_snapshot,
+                service_resolver=self.cav_world.resolve_behavior_services,
+            )
 
     def capi_loop(self, opt: argparse.Namespace) -> None:
         if self.communication_manager is None:
@@ -363,13 +481,28 @@ class Scenario:
                 for platoon in self.platoon_list:
                     platoon.run_step()
 
+            new_messages: list[TransportMessage[Any]] = []
+            identity_claims: list[Mapping[str, str]] = []
             if self.single_cav_list is not None:
                 for single_cav in self.single_cav_list:
-                    single_cav.run_step()  # TODO: handle messages from single cavs
+                    cav_messages, _ = single_cav.run_step(messages=self.messages)
+                    new_messages.extend(cav_messages)
+                    identity_claims.extend(self._collect_identity_claims(single_cav.id, cav_messages))
 
             if self.rsu_list is not None:
                 for rsu in self.rsu_list:
-                    rsu.run_step()  # TODO: handle messages from rsus
+                    rsu_messages, _ = rsu.run_step(messages=self.messages)
+                    new_messages.extend(rsu_messages)
+                    identity_claims.extend(self._collect_identity_claims(rsu.id, rsu_messages))
+
+            self.messages = new_messages
+            self.simulation_snapshot = self._build_simulation_snapshot(tick_number)
+            self.scenario_metrics_collector.update(self._build_scenario_metric_context(tuple(identity_claims)))
+            self.attack_manager.evaluate(
+                self.attacks,
+                self.simulation_snapshot,
+                service_resolver=self.cav_world.resolve_behavior_services,
+            )
 
     def finalize(self, opt: argparse.Namespace) -> None:
         if opt.record:
@@ -377,11 +510,11 @@ class Scenario:
             logger.info("finalizing: stopping recorder")
 
         if self.eval_manager is not None:
-            self.eval_manager.evaluate()
+            self.eval_manager.evaluate(
+                coperception_model_manager=self.coperception_model_manager,
+                scenario_metrics_collector=self.scenario_metrics_collector,
+            )
             logger.info("finalizing: evaluating results")
-
-        if self.coperception_model_manager is not None:
-            self.coperception_model_manager.final_eval()
 
         if self.single_cav_list is not None:
             logger.info(f"finalizing: destroying {len(self.single_cav_list)} single cavs")

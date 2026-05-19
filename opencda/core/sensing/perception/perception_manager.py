@@ -21,6 +21,17 @@ from opencda.core.sensing.perception.o3d_lidar_libs import o3d_visualizer_init, 
 logger = logging.getLogger("cavise.opencda.opencda.core.sensing.perception.perception_manager")
 
 
+def _resolve_sensor_event_transform(sensor_owner, event):
+    event_transform = getattr(event, "transform", None)
+    if event_transform is not None:
+        return event_transform
+
+    sensor = getattr(sensor_owner, "sensor", None)
+    if sensor is None:
+        return None
+    return sensor.get_transform()
+
+
 @dataclass(frozen=True)
 class PerceptionRequirements:
     enable_data_dump: bool = False
@@ -185,6 +196,7 @@ class LidarSensor:
         # lidar data
         self.data = None
         self.timestamp = None
+        self.transform = self.sensor.get_transform()
         self.frame = 0
         # open3d point cloud object
         self.o3d_pointcloud = o3d.geometry.PointCloud()
@@ -205,6 +217,7 @@ class LidarSensor:
         data = np.reshape(data, (int(data.shape[0] / 4), 4))
 
         self.data = data
+        self.transform = _resolve_sensor_event_transform(self, event)
         self.frame = event.frame
         self.timestamp = event.timestamp
 
@@ -270,6 +283,7 @@ class SemanticLidarSensor:
         self.obj_tag = None
 
         self.timestamp = None
+        self.transform = self.sensor.get_transform()
         self.frame = 0
         # open3d point cloud object
         self.o3d_pointcloud = o3d.geometry.PointCloud()
@@ -298,6 +312,7 @@ class SemanticLidarSensor:
         self.obj_idx = np.array(data["ObjIdx"])
 
         self.data = data
+        self.transform = _resolve_sensor_event_transform(self, event)
         self.frame = event.frame
         self.timestamp = event.timestamp
 

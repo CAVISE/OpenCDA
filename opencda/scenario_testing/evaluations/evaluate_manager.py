@@ -5,10 +5,17 @@ Evaluation manager.
 import os
 import json
 import logging
+from pathlib import Path
+from typing import TYPE_CHECKING
 
 from opencda.core.common.cav_world import CavWorld
+from opencda.metrics_tools.plot_builder import MetricPlotBuilder
 from opencda.metrics_tools.report_models import EntityReport, GroupReport, ModuleReport
 from opencda.metrics_tools.report_builder import UniversalReportBuilder
+
+if TYPE_CHECKING:
+    from opencda.core.common.coperception_model_manager import CoperceptionModelManager
+    from opencda.metrics_tools.metric_collector import MetricCollector
 
 logger = logging.getLogger("cavise.opencda.opencda.scenario_testing.evaluations.evaluate_manager")
 
@@ -45,7 +52,11 @@ class EvaluationManager(object):
         if not os.path.exists(self.eval_save_path):
             os.makedirs(self.eval_save_path)
 
-    def evaluate(self) -> None:
+    def evaluate(
+        self,
+        coperception_model_manager: "CoperceptionModelManager | None" = None,
+        scenario_metrics_collector: "MetricCollector | None" = None,
+    ) -> None:
         """
         Evaluate performance of all modules and persist structured outputs.
         """
@@ -58,19 +69,48 @@ class EvaluationManager(object):
         platooning_reports = self.platooning_eval()
         logger.info("Platooning Evaluation Done")
 
+        coperception_report = self.coperception_eval(coperception_model_manager)
+        logger.info("Cooperative perception evaluation done")
+
+        scenario_report = self.scenario_eval(scenario_metrics_collector)
+        logger.info("Scenario evaluation done")
+
         json_save_path = os.path.join(self.eval_save_path, "report.json")
         with open(json_save_path, "w", encoding="utf-8") as output_file:
             json.dump(
                 {
+                    "scenario": scenario_report.to_dict(),
                     "planning": planning_report.to_dict(),
                     "localization": localization_report.to_dict(),
                     "platooning": [report.to_dict() for report in platooning_reports],
+                    "coperception": coperception_report.to_dict(),
                 },
                 output_file,
                 indent=2,
             )
 
         logger.info("Evaluation JSON report saved to: %s", json_save_path)
+        self._build_metric_plots(
+            module_reports=(planning_report, localization_report, coperception_report, scenario_report),
+            platooning_reports=platooning_reports,
+        )
+
+    def _build_metric_plots(
+        self,
+        module_reports: tuple[ModuleReport, ...],
+        platooning_reports: tuple[GroupReport, ...],
+    ) -> None:
+        plot_builder = MetricPlotBuilder()
+        plots_dir = os.path.join(self.eval_save_path, "plots")
+        output_paths: list[Path] = []
+
+        for module_report in module_reports:
+            output_paths.extend(plot_builder.build_module_plots(module_report, plots_dir))
+
+        for platooning_report in platooning_reports:
+            output_paths.extend(plot_builder.build_group_plots(platooning_report, plots_dir, module="platooning"))
+
+        logger.info("Evaluation metric plots saved to: %s (%d files)", plots_dir, len(output_paths))
 
     def kinematics_eval(self) -> ModuleReport:
         """
@@ -109,3 +149,26 @@ class EvaluationManager(object):
             platooning_reports.append(report_builder.build_group_report(pmid, member_metrics, module="platooning"))
 
         return tuple(platooning_reports)
+
+    def coperception_eval(self, coperception_model_manager: "CoperceptionModelManager | None" = None) -> ModuleReport:
+        """
+        Cooperative perception module evaluation.
+        """
+        report_builder = UniversalReportBuilder()
+        if coperception_model_manager is None:
+            return report_builder.build_module_report("coperception", ())
+
+        raw_data = coperception_model_manager.get_metric_collection()
+        coperception_report = report_builder.build_entity_report(raw_data)
+        return report_builder.build_module_report("coperception", (coperception_report,))
+
+    def scenario_eval(self, scenario_metrics_collector: "MetricCollector | None" = None) -> ModuleReport:
+        """
+        Scenario-level evaluation.
+        """
+        report_builder = UniversalReportBuilder()
+        if scenario_metrics_collector is None:
+            return report_builder.build_module_report("scenario", ())
+
+        scenario_report = report_builder.build_entity_report(scenario_metrics_collector.get_raw())
+        return report_builder.build_module_report("scenario", (scenario_report,))

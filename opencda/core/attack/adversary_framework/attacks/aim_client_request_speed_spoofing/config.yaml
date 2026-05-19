@@ -1,0 +1,66 @@
+attack:
+  name: aim_client_request_speed_spoofing
+
+  requirements:
+    all:
+      - source:
+          kind: snapshot
+          node_type: rsu
+          service_type: aim_server
+        verb: exists
+      - source:
+          kind: snapshot
+          node_type: vehicle
+          service_type: aim_client
+        verb: exists
+
+  start_trigger:
+    source:
+      kind: snapshot
+      node_type: rsu
+      service_type: aim_server
+      field: tracked_vehicle_count
+    verb: increased
+    value: 1
+
+  stop_trigger:
+    source:
+      kind: snapshot
+      node_type: rsu
+      service_type: aim_server
+      field: tracked_vehicle_count
+    verb: eq
+    value: 0
+
+  targets:
+    kind: service_state_field
+    source:
+      kind: snapshot
+      node_type: rsu
+      service_type: aim_server
+      field: tracked_vehicle_ids
+    resolve_to:
+      node_type: vehicle
+      service_type: aim_client
+
+  stages:
+    - id: spoof_aim_client_requests
+      type: spoofer
+      capabilities:
+        - request.submit
+      params:
+        rewrites:
+          - path: payload.speed
+            operation: add
+            value: 5.0
+          - path: payload.yaw
+            operation: add
+            value: 10.0
+      stage_stop_trigger:
+        source:
+          kind: snapshot
+          node_type: rsu
+          service_type: aim_server
+          field: tracked_vehicle_count
+        verb: eq
+        value: 0

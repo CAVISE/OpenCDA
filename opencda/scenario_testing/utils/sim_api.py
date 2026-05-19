@@ -21,6 +21,7 @@ from omegaconf.listconfig import ListConfig
 
 import carla
 import numpy as np
+import torch
 
 from opencda.core.common.vehicle_manager import VehicleManager
 from opencda.core.application.platooning.platooning_manager import PlatooningManager
@@ -175,8 +176,12 @@ class ScenarioManager:
 
         # set random seed if stated
         if "seed" in simulation_config:
-            np.random.seed(simulation_config["seed"])
-            random.seed(simulation_config["seed"])
+            seed = int(simulation_config["seed"])
+            np.random.seed(seed)
+            random.seed(seed)
+            torch.manual_seed(seed)
+            if torch.cuda.is_available():
+                torch.cuda.manual_seed_all(seed)
 
         self.client = carla.Client(carla_host, simulation_config["client_port"])
         self.client.set_timeout(carla_timeout)
@@ -226,7 +231,7 @@ class ScenarioManager:
             # normalize probability
             self.bp_class_sample_prob = {k: v / sum(self.bp_class_sample_prob.values()) for k, v in self.bp_class_sample_prob.items()}
 
-        self.cav_world = cav_world
+        self.cav_world = cav_world if cav_world is not None else CavWorld(apply_ml)
         self.carla_map = self.world.get_map()
         self.apply_ml = apply_ml
 
@@ -461,8 +466,6 @@ class ScenarioManager:
         platoon_list: list[PlatooningManager] = []
         platoon_carla_ids: dict[int, Any] = {}
         perception_requirements = perception_requirements or PerceptionRequirements()
-
-        self.cav_world = CavWorld(self.apply_ml)
 
         if self.scenario_params.get("scenario") is None or self.scenario_params["scenario"].get("platoon_list", None) is None:
             logger.info("No platoon was created")

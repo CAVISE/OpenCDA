@@ -80,6 +80,7 @@ docstring-code-line-length = "dynamic"
 
 [tool.mypy]
 python_version = "3.12"
+install_types = true
 ignore_missing_imports = true
 disallow_untyped_defs = true
 check_untyped_defs = true
@@ -125,7 +126,6 @@ exclude = [
     "^opencda/core/common/misc\\.py$",
     "^opencda/core/common/rsu_manager\\.py$",
     "^opencda/core/common/v2x_manager\\.py$",
-    "^opencda/core/common/vehicle_manager\\.py$",
     "^opencda/core/plan(/|$)",
     "^opencda/core/safety/safety_manager\\.py$",
     "^opencda/core/safety/sensors\\.py$",
