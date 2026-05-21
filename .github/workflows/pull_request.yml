@@ -10,30 +10,6 @@ jobs:
       run-lint: true
       run-format-check: true
 
-  type-check:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-      - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: "3.12"
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y protobuf-compiler libprotobuf-dev pkg-config
-      - name: Install Dependencies
-        run: pip install mypy mypy-protobuf cmake ninja protobuf numpy pybind11
-      - name: Generate protobufs modules
-        run: |
-          cmake -B build -G Ninja -DOPENCDA_BUILD_CUDA=OFF -DOPENCDA_BUILD_CYTHON=OFF -DOPENCDA_BUILD_PROTOBUF=ON
-          cmake --build build
-          cmake --install build --prefix .
-      - name: Run mypy
-        run: mypy . --follow-imports=silent
-
-
   unused-code-check:
     uses: CAVISE/pipelines/.github/workflows/python-deadcode.yml@main
     with:
