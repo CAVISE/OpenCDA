@@ -6,9 +6,8 @@ on:
 
 jobs:
   pytest:
-    uses: CAVISE/pipelines/.github/workflows/python-pytest.yml@main
-    with:
-      python-versions: '["3.12"]'
+    runs-on: ubuntu-latest
+    strategy:
       fail-fast: false
       matrix:
         python-version: ["3.12"]
@@ -64,3 +63,4 @@ jobs:
         with:
           name: pytest-junit-${{ matrix.python-version }}
           path: reports/pytest-${{ matrix.python-version }}.xml
+          
