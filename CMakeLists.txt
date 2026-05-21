@@ -3,10 +3,11 @@ cmake_minimum_required(VERSION 3.31.10...4.3.1)
 project(OpenCDA)
 
 set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-option(OPENCDA_BUILD_CUDA "Build CUDA extensions" ON)
+option(OPENCDA_BUILD_CUDA "Build CUDA extensions" OFF)
 option(OPENCDA_BUILD_CYTHON "Build Cython extensions" ON)
 option(OPENCDA_BUILD_PROTOBUF "Build Protobuf files" ON)
 
@@ -14,9 +15,15 @@ if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
     set(CMAKE_CUDA_ARCHITECTURES "86")
 endif()
 
-find_package(Python3 3.10 REQUIRED COMPONENTS Interpreter Development NumPy)
+set(OPENCDA_PYTHON_COMPONENTS Interpreter)
+if(OPENCDA_BUILD_CUDA OR OPENCDA_BUILD_CYTHON)
+    list(APPEND OPENCDA_PYTHON_COMPONENTS Development.Module)
+endif()
+if(OPENCDA_BUILD_CYTHON)
+    list(APPEND OPENCDA_PYTHON_COMPONENTS NumPy)
+endif()
 
-list(APPEND CMAKE_MODULE_PATH "${Python3_SITEARCH}/cython_cmake/cmake")
+find_package(Python3 3.10 REQUIRED COMPONENTS ${OPENCDA_PYTHON_COMPONENTS})
 
 if(OPENCDA_BUILD_PROTOBUF)
     find_package(Protobuf REQUIRED)

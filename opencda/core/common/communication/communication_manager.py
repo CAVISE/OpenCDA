@@ -5,7 +5,7 @@ import sys
 
 import zmq
 
-sys.path.append(str(pathlib.Path("opencda/core/common/communication/protos/cavise").resolve()))
+sys.path.append(str((pathlib.Path(__file__).resolve().parent / "protos" / "cavise").resolve()))
 from .protos.cavise import artery_pb2 as proto_artery  # noqa: E402
 from .protos.cavise import capi_pb2 as proto_capi  # noqa: E402
 from .protos.cavise import opencda_pb2 as proto_opencda  # noqa: E402
