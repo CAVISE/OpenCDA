@@ -6,7 +6,9 @@ on:
 
 jobs:
   pytest:
+    name: pytest (${{ matrix.python-version }})
     runs-on: ubuntu-latest
+
     strategy:
       fail-fast: false
       matrix:
