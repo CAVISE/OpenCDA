@@ -1,4 +1,4 @@
-name: Opencda Tests
+name: pytest
 
 on:
   workflow_dispatch:
@@ -6,7 +6,7 @@ on:
 
 jobs:
   pytest:
-    name: pytest (${{ matrix.python-version }})
+    name: pytest
     runs-on: ubuntu-latest
 
     strategy:
@@ -44,14 +44,14 @@ jobs:
       - name: Build extensions
         shell: bash
         run: |
-            pip install cmake ninja cython protobuf pybind11 mypy-protobuf
-            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
-              -DOPENCDA_BUILD_CUDA=OFF \
-              -DOPENCDA_BUILD_CYTHON=ON \
-              -DOPENCDA_BUILD_PROTOBUF=ON
-            cmake --build build
-            cmake --install build --prefix .
-            cmake --install build --prefix OpenCOOD
+          pip install cmake ninja cython protobuf pybind11 mypy-protobuf
+          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DOPENCDA_BUILD_CUDA=OFF \
+            -DOPENCDA_BUILD_CYTHON=ON \
+            -DOPENCDA_BUILD_PROTOBUF=ON
+          cmake --build build
+          cmake --install build --prefix .
+          cmake --install build --prefix OpenCOOD
 
       - name: Run tests
         run: |
