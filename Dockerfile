@@ -29,6 +29,9 @@ RUN apt-get update && \
         python3-dev=3.12.3-0ubuntu2.1 \
         vulkan-tools=1.3.275.0+dfsg1-1 \
         libglib2.0-0=2.80.0-6ubuntu1 \
+        ninja-build=1.11.1-2 \
+        g++=4:13.2.0-7ubuntu1 \
+        libprotobuf-dev=3.21.12-8.2ubuntu0.3 \
     && \
     curl -LO https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/${PROTOC_ZIP} && \
     unzip -o ${PROTOC_ZIP} -d /usr/local && \
@@ -41,7 +44,17 @@ USER ${USER}
 ENV PATH="${HOME}/.local/bin:${PATH}"
 WORKDIR ${HOME}/cavise/opencda
 
+COPY requirements.txt pyproject.toml ./
+
 # Python Version: 3.12.3
-COPY opencda/requirements.txt requirements.txt
-RUN python3 -m pip install --no-cache-dir --break-system-packages --upgrade pip==26.0.1 setuptools==82.0.1 wheel==0.47.0 && \
+RUN python3 -m pip install --no-cache-dir --break-system-packages --upgrade pip==26.0.1 setuptools==82.0.0 wheel==0.46.3 && \
     python3 -m pip install --no-cache-dir --break-system-packages -r requirements.txt
+
+COPY opencda/ opencda/
+COPY OpenCOOD/ OpenCOOD/
+COPY CMakeLists.txt ./
+
+RUN OPENCDA_BUILD_CUDA=ON \
+    OPENCDA_BUILD_CYTHON=ON \
+    OPENCDA_BUILD_PROTOBUF=ON \
+    python3 -m pip install --no-cache-dir --break-system-packages --no-build-isolation -e .

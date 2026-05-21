@@ -2,7 +2,6 @@
 Script to run different scenarios.
 """
 
-import os
 import sys
 import enum
 import errno
@@ -12,7 +11,7 @@ import pathlib
 import logging
 import argparse
 import omegaconf
-import subprocess
+import importlib.util
 from collections.abc import Callable, Collection
 from types import ModuleType
 from typing import cast
@@ -37,8 +36,6 @@ except ModuleNotFoundError:
     print("could not find coloredlogs module! Your life will look pale.")
     print("if you are interested in improving it: https://pypi.org/project/coloredlogs")
 
-
-BUILD_COMPLETED_FLAG = "BUILD_COMPLETED_FLAG"
 DEFAULT_LOG_FILENAME = "opencda.log.json"
 
 
@@ -201,31 +198,6 @@ def arg_parse() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def check_buld_for_utils(module_path: str, cwd: pathlib.PurePath, verbose: bool, logger: logging.Logger) -> bool:
-    marker_file = cwd.joinpath(f"OpenCOOD/{module_path}/{BUILD_COMPLETED_FLAG}")
-    module_name = f"opencood.{module_path.split('/')[-2]}"
-    if os.path.isfile(marker_file):
-        logger.info(f"{module_name} is already built")
-        return True
-
-    try:
-        logger.info(f"Building {module_name} ...")
-        result = subprocess.run(
-            ["python", f"{module_path}setup.py", "build_ext", "--inplace"], check=True, cwd=cwd.joinpath("OpenCOOD"), capture_output=True, text=True
-        )
-        os.close(os.open(str(marker_file), os.O_CREAT))
-        logger.info(f"Complete building {module_name}")
-        if verbose:
-            logger.info(result.stdout)
-        return True
-
-    except subprocess.CalledProcessError as e:
-        logger.info(f"Compilation error {module_name}:")
-        if verbose:
-            logger.info(e.stderr)
-        return False
-
-
 def main() -> None:
     opt = arg_parse()
 
@@ -286,12 +258,25 @@ def main() -> None:
     opt.apply_ml = False
 
     if opt.with_coperception:
-        opencood_utils = "opencood/utils/"
-        opencood_pcdet_utils = "opencood/pcdet_utils/"
-        if not check_buld_for_utils(opencood_utils, cwd, verbosity == VerbosityLevel.FULL, logger):
-            logger.error("Failed to build opencood.utils")
-        if not check_buld_for_utils(opencood_pcdet_utils, cwd, verbosity == VerbosityLevel.FULL, logger):
-            logger.error("Failed to build opencood.pcdet_utils")
+        missing = []
+        for module_name in [
+            "opencood.pcdet_utils.iou3d_nms.iou3d_nms_cuda",
+            "opencood.pcdet_utils.roiaware_pool3d.roiaware_pool3d_cuda",
+            "opencood.pcdet_utils.pointnet2.pointnet2_stack.pointnet2_stack_cuda",
+            "opencood.pcdet_utils.pointnet2.pointnet2_batch.pointnet2_batch_cuda",
+        ]:
+            if importlib.util.find_spec(module_name) is None:
+                missing.append(module_name)
+
+        if missing:
+            logger.error(
+                "CUDA extensions not found: %s. Rebuild the package with CUDA support: "
+                "OPENCDA_BUILD_CUDA=ON python -m pip install -e . --no-build-isolation",
+                missing,
+            )
+            sys.exit(errno.ENOENT)
+
+        logger.info("CUDA extensions loaded successfully")
 
     # this function might setup crucial components in Scenario, so
     # we should import as late as possible

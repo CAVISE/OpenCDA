@@ -1,3 +1,36 @@
+[build-system]
+requires = [
+    "scikit-build-core>=0.10.7",
+    "cmake>=3.31.10",
+    "ninja>=1.13.0",
+    "cython>=3.2.4",
+    "numpy>=1.26",
+    "protobuf>=5.0",
+    "mypy-protobuf>=3.0",
+    "pybind11>=2.13",
+]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "opencda"
+version = "0.2.0"
+requires-python = ">=3.10"
+
+[tool.scikit-build]
+experimental = true
+minimum-version = "0.10"
+wheel.packages = ["opencda", "OpenCOOD/opencood"]
+cmake.version = ">=3.31.10"
+ninja.version = ">=1.11"
+ninja.make-fallback = true
+cmake.args = ["-DCMAKE_CUDA_ARCHITECTURES=86"]
+editable.mode = "redirect"
+editable.rebuild = false
+cmake.define.OPENCDA_BUILD_CUDA = {env = "OPENCDA_BUILD_CUDA", default = "OFF"}
+cmake.define.OPENCDA_BUILD_CYTHON = {env = "OPENCDA_BUILD_CYTHON", default = "ON"}
+cmake.define.OPENCDA_BUILD_PROTOBUF = {env = "OPENCDA_BUILD_PROTOBUF", default = "ON"}
+
+
 [tool.ruff]
 # Exclude a variety of commonly ignored directories.
 exclude = [

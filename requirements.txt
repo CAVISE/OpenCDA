@@ -5,6 +5,9 @@
 # Simulation & Control
 carla==0.9.16
 
+# Tools
+cmake==4.2.3
+
 # Packaging, Build & Runtime Utilities
 coloredlogs==15.0.1
 cumm-cu130==0.9.1
@@ -17,13 +20,12 @@ lxml==6.1.0
 
 # Visualization & Logging
 matplotlib==3.10.9
-
-# Tools
 mypy==1.20.2
 mypy-protobuf==5.1.0
 
 # Graphs & Networks
 networkx==3.6.1
+ninja==1.13.0
 
 # Jupyter & Notebook Packaging
 # Core Numerical & Scientific Computing
@@ -39,6 +41,7 @@ pillow==12.2.0
 # Protobuf & Code Generation
 protobuf==7.34.1
 protoc-wheel==21.1
+pybind11==3.0.2
 
 # Multimedia & GUI
 pyyaml==6.0.3
@@ -46,6 +49,7 @@ pyzmq==27.1.0
 
 # Extra (YAML support)
 rich==15.0.0
+scikit-build-core==0.11.6
 
 # Machine Learning & Deep Learning
 scikit-learn==1.8.0
