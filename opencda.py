@@ -5,6 +5,8 @@ Script to run different scenarios.
 import sys
 import enum
 import errno
+import json
+from datetime import datetime
 import pathlib
 import logging
 import argparse
@@ -34,6 +36,8 @@ except ModuleNotFoundError:
     print("could not find coloredlogs module! Your life will look pale.")
     print("if you are interested in improving it: https://pypi.org/project/coloredlogs")
 
+BUILD_COMPLETED_FLAG = "BUILD_COMPLETED_FLAG"
+DEFAULT_LOG_FILENAME = "opencda.log.json"
 
 class VerbosityLevel(enum.IntEnum):
     # minimal output: important info, warnings and errors
@@ -45,18 +49,46 @@ class VerbosityLevel(enum.IntEnum):
     FULL = 3
 
 
+class JsonFormatter(logging.Formatter):
+    def format(self, record: logging.LogRecord) -> str:
+        payload = {
+            "timestamp": datetime.fromtimestamp(
+                record.created,
+            ).strftime("%Y-%m-%d %H:%M:%S"),
+            "level": record.levelname,
+            "logger": record.name,
+            "message": record.getMessage(),
+            "function": record.funcName,
+            "line": record.lineno,
+        }
+
+        if record.exc_info:
+            payload["exception"] = self.formatException(record.exc_info)
+
+        return json.dumps(payload, ensure_ascii=False)
+
+
 # Handle cavise log creation, obtain this logger later with a call to
 # logging.getLogger('cavise'). Use for our (cavise) code only.
-def create_logger(level: int, fmt: str = "- [%(asctime)s][%(name)s] %(message)s", datefmt: str = "%H:%M:%S") -> logging.Logger:
+def create_logger(
+    level: int, fmt: str = "- [%(asctime)s][%(name)s] %(message)s", datefmt: str = "%H:%M:%S", filename: str = DEFAULT_LOG_FILENAME
+) -> logging.Logger:
     logger = logging.getLogger("cavise.opencda")
     if coloredlogs is not None:
-        coloredlogs.install(level=level, logger=logger, fmt=fmt, datefmt=datefmt)
+        coloredlogs.install(level=logging.DEBUG, logger=logger, fmt=fmt, datefmt=datefmt)
     else:
         handler = logging.StreamHandler(sys.stdout)
         handler.setFormatter(logging.Formatter(fmt=fmt, datefmt=datefmt))
-        handler.setLevel(level)
+        handler.setLevel(logging.DEBUG)
         logger.addHandler(handler)
+    # Duplicate logs to a JSON file
+    json_handler = logging.FileHandler(filename=filename, mode="w", encoding="utf-8")
+    json_handler.setLevel(logging.DEBUG)
+    json_handler.setFormatter(JsonFormatter())
+    logger.addHandler(json_handler)
+
     logger.propagate = False  # noqa: DC05
+    logger.setLevel(level=level)
     return logger
 
 
@@ -155,6 +187,12 @@ def arg_parse() -> argparse.Namespace:
         choices=[level.value for level in VerbosityLevel],
         help="Specifies overall verbosity of output.",
     )
+    parser.add_argument(
+        "--log-file",
+        type=str,
+        default=DEFAULT_LOG_FILENAME,
+        help=f"Filename for the json log output. If not specified, logs will be saved to {DEFAULT_LOG_FILENAME}.",
+    )
 
     parser.add_argument("--ticks", type=int, help="number of simulation ticks to execute")
     return parser.parse_args()
@@ -171,7 +209,7 @@ def main() -> None:
     else:
         level = logging.WARNING
 
-    logger = create_logger(level)
+    logger = create_logger(level=level, filename=opt.log_file)
     install_traceback_handler(verbose=verbosity != VerbosityLevel.SILENT)
 
     logger.info(f"OpenCDA Version: {__version__}")

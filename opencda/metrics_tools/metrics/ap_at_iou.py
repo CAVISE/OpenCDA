@@ -3,39 +3,22 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, ClassVar, Mapping, Sequence
+from typing import Any, ClassVar, Mapping
 
 from opencda.metrics_tools.base_metric import BaseMetric
 from opencda.metrics_tools.collection_models import MetricSeries
 from opencda.metrics_tools.metric_sample import MetricSample
+from opencda.metrics_tools.metrics._opencood_eval import (
+    ResultStat,
+    accumulate_tp_fp,
+    create_empty_result_stat,
+    iou_series_name,
+    load_eval_utils,
+    snapshot_result_stat,
+)
 from opencda.metrics_tools.report_models import MetricReportSpec, MetricSummarySpec
 
 logger = logging.getLogger("cavise.opencda.opencda.metrics_tools.metrics.ap_at_iou")
-
-ResultStat = dict[float, dict[str, Any]]
-
-
-def _load_eval_utils() -> Any:
-    from opencood.utils import eval_utils
-
-    return eval_utils
-
-
-def _create_empty_result_stat(iou_thresholds: Sequence[float]) -> ResultStat:
-    return {float(iou): {"tp": [], "fp": [], "gt": 0, "score": []} for iou in iou_thresholds}
-
-
-def _snapshot_result_stat(result_stat: ResultStat) -> ResultStat:
-    """Return a copy with fresh lists, since eval_utils mutates tp/fp in place."""
-    return {
-        iou: {
-            "tp": list(stat["tp"]),
-            "fp": list(stat["fp"]),
-            "gt": stat["gt"],
-            "score": list(stat["score"]),
-        }
-        for iou, stat in result_stat.items()
-    }
 
 
 class APAtIoUMetric(BaseMetric):
@@ -51,25 +34,10 @@ class APAtIoUMetric(BaseMetric):
     ):
         super().__init__(warmup_steps=warmup_steps)
         self.global_sort_detections = global_sort_detections
-        self.result_stat: ResultStat = _create_empty_result_stat(self.iou_thresholds)
+        self.result_stat: ResultStat = create_empty_result_stat(self.iou_thresholds)
 
     def _process_context(self, context: Mapping[str, Any]) -> None:
-        gt_box_tensor = context.get("gt_box_tensor")
-        if gt_box_tensor is None:
-            raise ValueError("AP at IoU metric requires 'gt_box_tensor' in the update context.")
-
-        pred_box_tensor = context.get("pred_box_tensor")
-        pred_score = context.get("pred_score")
-        eval_utils = _load_eval_utils()
-
-        for iou in self.iou_thresholds:
-            eval_utils.caluclate_tp_fp(
-                pred_box_tensor,
-                pred_score,
-                gt_box_tensor,
-                self.result_stat,
-                iou,
-            )
+        accumulate_tp_fp(self.result_stat, self.iou_thresholds, context, self.metric_name)
         self._log_ap_at_iou()
 
     def get_raw(self) -> tuple[MetricSeries, ...]:
@@ -90,21 +58,13 @@ class APAtIoUMetric(BaseMetric):
         )
 
     def calculate_ap(self, iou: float, global_sort_detections: bool | None = None) -> float:
-        eval_utils = _load_eval_utils()
+        eval_utils = load_eval_utils()
         ap, _, _ = eval_utils.calculate_ap(
-            _snapshot_result_stat(self.result_stat),
+            snapshot_result_stat(self.result_stat),
             iou,
             self.global_sort_detections if global_sort_detections is None else global_sort_detections,
         )
         return float(ap)
-
-    def save_eval_results(self, save_path: str, global_sort_detections: bool | None = None) -> None:
-        eval_utils = _load_eval_utils()
-        eval_utils.eval_final_results(
-            _snapshot_result_stat(self.result_stat),
-            save_path,
-            self.global_sort_detections if global_sort_detections is None else global_sort_detections,
-        )
 
     def _log_ap_at_iou(self) -> None:
         ap_parts = []
@@ -129,4 +89,4 @@ class APAtIoUMetric(BaseMetric):
 
     @staticmethod
     def _series_name(iou: float) -> str:
-        return f"ap_iou_{str(iou).replace('.', '_')}"
+        return iou_series_name("ap", iou)

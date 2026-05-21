@@ -16,7 +16,9 @@ class AttackStage(Protocol):
     """Single executable attack stage."""
 
     stage_name: str
-    required_capabilities: Collection[Capability]
+    supported_capabilities: Collection[Capability]
+    default_capabilities: Collection[Capability]
+    capabilities: Collection[Capability]
     description: str  # noqa: DC01
 
     def execute(self, services: Sequence[BehaviorService[Any, Any]]) -> AttackStageResult:

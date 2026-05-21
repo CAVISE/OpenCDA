@@ -24,6 +24,8 @@ from opencda.metrics_tools.metrics.attack_success_rate import AttackSuccessRateM
 from opencda.metrics_tools.metrics.attacker_benign_visibility_ratio import AttackerBenignVisibilityRatioMetric
 from opencda.metrics_tools.metrics.attacker_target_confidence import AttackerTargetConfidenceMetric
 from opencda.metrics_tools.metrics.ap_at_iou import APAtIoUMetric
+from opencda.metrics_tools.metrics.mean_precision_at_iou import MeanPrecisionAtIoUMetric
+from opencda.metrics_tools.metrics.mean_recall_at_iou import MeanRecallAtIoUMetric
 
 if TYPE_CHECKING:
     from opencood.data_utils.datasets.early_fusion_dataset import EarlyFusionDataset
@@ -65,7 +67,7 @@ class CoperceptionInferenceResult:
     pred_box_tensor: torch.Tensor | None
     pred_score: torch.Tensor | None
     gt_box_tensor: torch.Tensor | None
-    visualization_context: Optional[Mapping[str, Any]] = None
+    visualization_context: Any | None = None
 
 
 class InferenceMapper:
@@ -159,7 +161,7 @@ class CoperceptionVisualizer:
         save_path,
         batch_data=None,
         visualization_config: Optional[Mapping[str, Any]] = None,
-        visualization_context: Optional[Mapping[str, Any]] = None,
+        visualization_context: Any | None = None,
         method: str = "3d",
         vis_gt_box: bool = True,
         vis_pred_box: bool = True,
@@ -196,7 +198,7 @@ class CoperceptionVisualizer:
         o3d_pcd,
         batch_data=None,
         visualization_config: Optional[Mapping[str, Any]] = None,
-        visualization_context: Optional[Mapping[str, Any]] = None,
+        visualization_context: Any | None = None,
     ):
         config = cls.resolve_visualization_config(visualization_config)
         origin_lidar_np, point_colors_uint8 = cls._get_lidar_points_and_colors(
@@ -235,7 +237,7 @@ class CoperceptionVisualizer:
         pc_range,
         batch_data=None,
         visualization_config: Optional[Mapping[str, Any]] = None,
-        visualization_context: Optional[Mapping[str, Any]] = None,
+        visualization_context: Any | None = None,
         method: str = "3d",
         vis_gt_box: bool = True,
         vis_pred_box: bool = True,
@@ -351,7 +353,7 @@ class CoperceptionVisualizer:
         batch_data,
         fallback_pcd,
         config: Mapping[str, Any],
-        visualization_context: Optional[Mapping[str, Any]] = None,
+        visualization_context: Any | None = None,
     ) -> Tuple[np.ndarray, np.ndarray]:
         other_color = cls._as_uint8_color(config["lidar_point_colors"]["other"])
         ego_color = cls._as_uint8_color(config["lidar_point_colors"].get("ego", other_color))
@@ -442,7 +444,7 @@ class CoperceptionVisualizer:
         role: str,
         other_color: tuple,
         ego_color: tuple,
-        visualization_context: Optional[Mapping[str, Any]] = None,
+        visualization_context: Any | None = None,
     ):
         lidar_point_colors = config["lidar_point_colors"]
         if agent_id is not None and agent_id in lidar_point_colors:
@@ -452,7 +454,7 @@ class CoperceptionVisualizer:
         return other_color
 
     @classmethod
-    def _get_extra_box_tensors(cls, visualization_context: Optional[Mapping[str, Any]] = None) -> Dict[str, Any]:
+    def _get_extra_box_tensors(cls, visualization_context: Any | None = None) -> Dict[str, Any]:
         return {}
 
     @classmethod
@@ -505,6 +507,14 @@ class CoperceptionModelManager:
                     "warmup_steps": 0,
                     "global_sort_detections": self.opt.global_sort_detections,
                 },
+                MeanRecallAtIoUMetric.metric_name: {
+                    "warmup_steps": 0,
+                    "global_sort_detections": self.opt.global_sort_detections,
+                },
+                MeanPrecisionAtIoUMetric.metric_name: {
+                    "warmup_steps": 0,
+                    "global_sort_detections": self.opt.global_sort_detections,
+                },
                 AttackSuccessRateMetric.metric_name: {
                     "warmup_steps": 0,
                     "iou_threshold": 0.3,
@@ -524,17 +534,8 @@ class CoperceptionModelManager:
             entity_id="global",
             metric_configs=metric_configs,
         )
-        self.ap_at_iou_metric = self._get_ap_at_iou_metric()
 
         self._init_dataset()
-
-    def _get_ap_at_iou_metric(self) -> APAtIoUMetric | None:
-        metric = self.metrics_collector.get_metric(APAtIoUMetric.metric_name)
-        if metric is None:
-            return None
-        if not isinstance(metric, APAtIoUMetric):
-            raise RuntimeError("Coperception AP at IoU metric is not available.")
-        return metric
 
     def get_metric_collection(self) -> MetricCollection:
         """Return raw cooperative perception metrics for the global evaluation report."""
@@ -798,11 +799,3 @@ class CoperceptionModelManager:
                     visualization_context,
                     0,
                 )
-
-    def final_eval(self):
-        eval_dir = f"simulation_output/coperception/results/{self.opt.test_scenario}_{self.current_time}"
-        os.makedirs(eval_dir, exist_ok=True)
-        if self.ap_at_iou_metric is None:
-            logger.info("Skipping OpenCOOD AP final eval because '%s' metric is not active.", APAtIoUMetric.metric_name)
-            return
-        self.ap_at_iou_metric.save_eval_results(eval_dir, self.opt.global_sort_detections)

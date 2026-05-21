@@ -1,13 +1,14 @@
-name: Tests (matrix, CI deps)
+name: Opencda Tests
 
 on:
   workflow_dispatch:
   pull_request:
+
 jobs:
   pytest:
-    runs-on: ubuntu-latest
-
-    strategy:
+    uses: CAVISE/pipelines/.github/workflows/python-pytest.yml@main
+    with:
+      python-versions: '["3.12"]'
       fail-fast: false
       matrix:
         python-version: ["3.12"]

@@ -1,33 +1,23 @@
-from types import SimpleNamespace
-
 import numpy as np
 
+from opencda.core.attack.advcp.types import AdvCPVisualizationContext
 from opencda.metrics_tools.metrics import attacker_target_confidence
 from opencda.metrics_tools.metrics.attacker_target_confidence import AttackerTargetConfidenceMetric
 
 
-class CoveringPolygon:
+class DummyPolygon:
     @property
     def centroid(self):
         return self
 
-    def covers(self, _):
+    def contains(self, _):
         return True
-
-
-class NonCoveringPolygon:
-    @property
-    def centroid(self):
-        return self
-
-    def covers(self, _):
-        return False
 
 
 class HighIoUCommonUtils:
     @staticmethod
     def convert_format(boxes):
-        return [NonCoveringPolygon() for _ in boxes]
+        return [DummyPolygon() for _ in boxes]
 
     @staticmethod
     def compute_iou(_, pred_polygon_list):
@@ -37,24 +27,30 @@ class HighIoUCommonUtils:
 class LowIoUCommonUtils:
     @staticmethod
     def convert_format(boxes):
-        return [NonCoveringPolygon() for _ in boxes]
+        return [DummyPolygon() for _ in boxes]
 
     @staticmethod
     def compute_iou(_, pred_polygon_list):
         return np.zeros(len(pred_polygon_list), dtype=np.float32)
 
 
-class CoverFirstPredCommonUtils:
-    @staticmethod
-    def convert_format(boxes):
-        polygons: list = []
-        for index, _ in enumerate(boxes):
-            polygons.append(CoveringPolygon() if index == 0 else NonCoveringPolygon())
-        return polygons
+def _make_first_hit_utils():
+    """compute_iou returns ones for the first call only (first GT target still detected)."""
+    call_count = [0]
 
-    @staticmethod
-    def compute_iou(_, pred_polygon_list):
-        return np.zeros(len(pred_polygon_list), dtype=np.float32)
+    class FirstHitCommonUtils:
+        @staticmethod
+        def convert_format(boxes):
+            return [DummyPolygon() for _ in boxes]
+
+        @staticmethod
+        def compute_iou(_, pred_list):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                return np.ones(len(pred_list), dtype=np.float32)
+            return np.zeros(len(pred_list), dtype=np.float32)
+
+    return FirstHitCommonUtils
 
 
 def _target_box():
@@ -80,10 +76,8 @@ def test_removal_confidence_zero_when_target_is_not_detected(monkeypatch):
         {
             "pred_box_tensor": None,
             "pred_score": None,
-            "visualization_context": {
-                "mode": "removal",
-                "removed_box_tensor": _target_box(),
-            },
+            "gt_box_tensor": _target_box(),
+            "visualization_context": AdvCPVisualizationContext(mode="removal", removed_box_tensor=_target_box()),
         }
     )
 
@@ -91,39 +85,38 @@ def test_removal_confidence_zero_when_target_is_not_detected(monkeypatch):
     assert _series_values(metric, "confidence_spoofing") == []
 
 
-def test_removal_confidence_uses_pred_score_of_centroid_match(monkeypatch):
-    monkeypatch.setattr(attacker_target_confidence, "_load_common_utils", lambda: CoverFirstPredCommonUtils)
+def test_removal_confidence_uses_iou_match_for_score(monkeypatch):
+    monkeypatch.setattr(attacker_target_confidence, "_load_common_utils", lambda: HighIoUCommonUtils)
     metric = AttackerTargetConfidenceMetric(iou_threshold=0.3)
 
     metric.update(
         {
             "pred_box_tensor": _target_boxes(3),
             "pred_score": np.array([0.8, 0.5, 0.4], dtype=np.float32),
-            "visualization_context": SimpleNamespace(
-                mode="removal",
-                removed_box_tensor=_target_box(),
-            ),
+            "gt_box_tensor": _target_box(),
+            "visualization_context": AdvCPVisualizationContext(mode="removal", removed_box_tensor=_target_box()),
         }
     )
 
-    assert _series_values(metric, "confidence_removal") == [0.800000011920929]
+    values = _series_values(metric, "confidence_removal")
+    assert len(values) == 1
+    assert abs(values[0] - 0.8) < 1e-5
 
 
 def test_removal_confidence_averages_per_target(monkeypatch):
-    monkeypatch.setattr(attacker_target_confidence, "_load_common_utils", lambda: CoverFirstPredCommonUtils)
+    monkeypatch.setattr(attacker_target_confidence, "_load_common_utils", _make_first_hit_utils)
     metric = AttackerTargetConfidenceMetric(iou_threshold=0.3)
 
     metric.update(
         {
             "pred_box_tensor": _target_boxes(3),
             "pred_score": np.array([0.6, 0.0, 0.0], dtype=np.float32),
-            "visualization_context": {
-                "mode": "removal",
-                "removed_box_tensor": _target_boxes(3),
-            },
+            "gt_box_tensor": _target_boxes(3),
+            "visualization_context": AdvCPVisualizationContext(mode="removal", removed_box_tensor=_target_box()),
         }
     )
 
+    # first GT target: pred[0] best IoU match → score 0.6; others: no match → 0.0
     values = _series_values(metric, "confidence_removal")
     assert len(values) == 1
     assert abs(values[0] - 0.6 / 3) < 1e-5
@@ -137,10 +130,7 @@ def test_spoofing_confidence_uses_iou_match(monkeypatch):
         {
             "pred_box_tensor": _target_box(),
             "pred_score": np.array([0.7], dtype=np.float32),
-            "visualization_context": {
-                "mode": "spoofing",
-                "fake_box_tensor": _target_box(),
-            },
+            "visualization_context": AdvCPVisualizationContext(mode="spoofing", fake_box_tensor=_target_box()),
         }
     )
 
@@ -157,10 +147,7 @@ def test_spoofing_confidence_zero_when_iou_below_threshold(monkeypatch):
         {
             "pred_box_tensor": _target_box(),
             "pred_score": np.array([0.9], dtype=np.float32),
-            "visualization_context": {
-                "mode": "spoofing",
-                "fake_box_tensor": _target_box(),
-            },
+            "visualization_context": AdvCPVisualizationContext(mode="spoofing", fake_box_tensor=_target_box()),
         }
     )
 
@@ -174,10 +161,7 @@ def test_metric_skips_frames_without_attack_target():
         {
             "pred_box_tensor": _target_box(),
             "pred_score": np.array([0.5], dtype=np.float32),
-            "visualization_context": {
-                "mode": "spoofing",
-                "fake_box_tensor": "test-placeholder",
-            },
+            "visualization_context": AdvCPVisualizationContext(mode="spoofing", fake_box_tensor="test-placeholder"),
         }
     )
 
