@@ -10,6 +10,18 @@ jobs:
       run-lint: true
       run-format-check: true
 
+  type-check:
+    uses: CAVISE/pipelines/.github/workflows/python-mypy.yml@main
+    with:
+      python-version: "3.12"
+      target-path: .
+      follow-imports-silent: true
+      protobuf-generate: true
+      protobuf-source-dir: opencda/core/common/communication/messages
+      protobuf-output-dir: opencda/core/common/communication/protos/cavise
+      protobuf-messages: '["capi", "artery", "opencda", "entity"]'
+      protobuf-mypy-out: true
+
   unused-code-check:
     uses: CAVISE/pipelines/.github/workflows/python-deadcode.yml@main
     with:
