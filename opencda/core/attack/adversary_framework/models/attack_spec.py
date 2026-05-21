@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Mapping
 
+from opencda.core.application.behavior.capability import Capability
+
 
 @dataclass(frozen=True, slots=True)
 class TriggerSourceSpec:
@@ -82,7 +84,8 @@ class TargetSpec:
     kind: str
     source: TriggerSourceSpec
     resolve_to_node_type: str  # noqa: DC01
-    resolve_to_service_name: str
+    resolve_to_service_name: str | None
+    selection: str = "all"
 
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> TargetSpec:
@@ -91,7 +94,8 @@ class TargetSpec:
             kind=str(data["kind"]),
             source=TriggerSourceSpec.from_dict(data["source"]),
             resolve_to_node_type=str(resolve_to["node_type"]),
-            resolve_to_service_name=str(resolve_to["service_type"]),
+            resolve_to_service_name=(str(resolve_to["service_type"]) if resolve_to.get("service_type") is not None else None),
+            selection=str(data.get("selection", "all")),
         )
 
 
@@ -101,19 +105,35 @@ class StageSpec:
 
     id: str
     type: str
+    capabilities: tuple[Capability, ...] | None = None
+    params: Mapping[str, Any] | None = None
     requirements: ConditionSpec | None = None
     stage_start_trigger: ConditionSpec | None = None
     stage_stop_trigger: ConditionSpec | None = None
+
+    def __post_init__(self) -> None:
+        if self.capabilities is not None and not self.capabilities:
+            raise ValueError("StageSpec must define at least one capability.")
 
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> StageSpec:
         requirements = data.get("requirements")
         stage_start_trigger = data.get("stage_start_trigger")
         stage_stop_trigger = data.get("stage_stop_trigger")
+        configured_capabilities = data.get("capabilities")
+        params = data.get("params")
+        if isinstance(configured_capabilities, str):
+            configured_capabilities = (configured_capabilities,)
+        if params is not None and not isinstance(params, Mapping):
+            raise ValueError(f"Stage '{data.get('id', '<unknown>')}' has invalid 'params'; expected a mapping.")
 
         return cls(
             id=str(data["id"]),
             type=str(data["type"]),
+            capabilities=(
+                tuple(Capability(str(capability)) for capability in configured_capabilities) if configured_capabilities is not None else None
+            ),
+            params=dict(params) if params is not None else None,
             requirements=ConditionSpec.from_dict(requirements) if requirements is not None else None,
             stage_start_trigger=ConditionSpec.from_dict(stage_start_trigger) if stage_start_trigger is not None else None,
             stage_stop_trigger=ConditionSpec.from_dict(stage_stop_trigger) if stage_stop_trigger is not None else None,

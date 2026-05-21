@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Collection
 import inspect
 import logging
 from typing import Any, TypeVar, cast
+
+from opencda.core.application.behavior.capability import Capability
 
 from .attack_stage_protocol import AttackStage
 
@@ -46,9 +49,67 @@ class AttackStageRegistry:
     def create_stage(cls, stage_name: str, **kwargs: Any) -> AttackStage:
         """Instantiate an attack stage by name."""
         stage_cls = cls.get_stage_class(stage_name=stage_name)
+        configured_capabilities = kwargs.get("capabilities")
+        supported_capabilities = tuple(getattr(stage_cls, "supported_capabilities", ()))
+        default_capabilities = tuple(getattr(stage_cls, "default_capabilities", ()))
+
+        if not supported_capabilities:
+            raise ValueError(f"Attack stage '{stage_name}' must define non-empty 'supported_capabilities'.")
+
+        if not default_capabilities:
+            raise ValueError(f"Attack stage '{stage_name}' must define non-empty 'default_capabilities'.")
+
+        normalized_default_capabilities = cls._normalize_capabilities(default_capabilities)
+        cls._validate_supported_capabilities(
+            stage_name=stage_name,
+            capabilities=normalized_default_capabilities,
+            supported_capabilities=supported_capabilities,
+            source_label="default",
+        )
+
+        if configured_capabilities is None:
+            normalized_capabilities = normalized_default_capabilities
+        else:
+            normalized_capabilities = cls._normalize_capabilities(configured_capabilities)
+            cls._validate_supported_capabilities(
+                stage_name=stage_name,
+                capabilities=normalized_capabilities,
+                supported_capabilities=supported_capabilities,
+                source_label="configured",
+            )
+
+        kwargs["capabilities"] = normalized_capabilities
         return stage_cls(**kwargs)
+
+    @classmethod
+    def _validate_supported_capabilities(
+        cls,
+        stage_name: str,
+        capabilities: tuple[Capability, ...],
+        supported_capabilities: tuple[Capability, ...],
+        source_label: str,
+    ) -> None:
+        unsupported_capabilities = sorted(
+            set(capabilities).difference(supported_capabilities),
+            key=lambda capability: capability.value,
+        )
+        if unsupported_capabilities:
+            unsupported = ", ".join(capability.value for capability in unsupported_capabilities)
+            supported = ", ".join(capability.value for capability in supported_capabilities)
+            raise ValueError(
+                f"Attack stage '{stage_name}' does not support {source_label} capabilities [{unsupported}]. Supported capabilities: [{supported}]."
+            )
 
     @classmethod
     def list_stages(cls) -> list[str]:
         """List registered attack stages."""
         return sorted(cls._registry)
+
+    @staticmethod
+    def _normalize_capabilities(capabilities: Collection[Capability] | Collection[str]) -> tuple[Capability, ...]:
+        normalized_capabilities = tuple(
+            capability if isinstance(capability, Capability) else Capability(str(capability)) for capability in capabilities
+        )
+        if not normalized_capabilities:
+            raise ValueError("Configured stage capabilities cannot be empty.")
+        return normalized_capabilities

@@ -12,6 +12,7 @@ from opencda.metrics_tools.base_metric import BaseMetric
 from opencda.metrics_tools.collection_models import MetricSeries
 from opencda.metrics_tools.metric_sample import MetricSample
 from opencda.metrics_tools.report_models import MetricReportSpec, MetricSummarySpec
+from opencda.core.attack.advcp.types import AdvCPVisualizationContext
 
 logger = logging.getLogger("cavise.opencda.opencda.metrics_tools.metrics.attacker_benign_visibility_ratio")
 
@@ -34,7 +35,7 @@ class AttackerBenignVisibilityRatioMetric(BaseMetric):
     def __init__(self, warmup_steps: int = 0, epsilon: float = 1.0):
         super().__init__(warmup_steps=warmup_steps)
         self.epsilon = float(epsilon)
-        self._samples: dict[str, list[MetricSample]] = {
+        self._series_samples: dict[str, list[MetricSample]] = {
             self._RATIO_SERIES: [],
             self._ATTACKER_POINTS_SERIES: [],
             self._BENIGN_POINTS_SERIES: [],
@@ -42,7 +43,10 @@ class AttackerBenignVisibilityRatioMetric(BaseMetric):
 
     def _process_context(self, context: Mapping[str, Any]) -> None:
         visualization_context = context.get("visualization_context")
-        mode = self._normalize_mode(self._get_context_value(visualization_context, "mode"))
+        if not isinstance(visualization_context, AdvCPVisualizationContext):
+            return
+
+        mode = self._normalize_mode(visualization_context.mode)
         if mode not in self._ATTACK_MODES:
             return
 
@@ -61,13 +65,13 @@ class AttackerBenignVisibilityRatioMetric(BaseMetric):
 
         attacker_points, benign_points = visibility
         ratio = attacker_points / (benign_points + self.epsilon)
-        self._samples[self._RATIO_SERIES].append(self._make_sample(ratio))
-        self._samples[self._ATTACKER_POINTS_SERIES].append(self._make_sample(attacker_points))
-        self._samples[self._BENIGN_POINTS_SERIES].append(self._make_sample(benign_points))
+        self._series_samples[self._RATIO_SERIES].append(self._make_sample(ratio))
+        self._series_samples[self._ATTACKER_POINTS_SERIES].append(self._make_sample(attacker_points))
+        self._series_samples[self._BENIGN_POINTS_SERIES].append(self._make_sample(benign_points))
 
     def get_raw(self) -> tuple[MetricSeries, ...]:
         return tuple(
-            MetricSeries(name=series_name, samples=tuple(self._samples[series_name]))
+            MetricSeries(name=series_name, samples=tuple(self._series_samples[series_name]))
             for series_name in (self._RATIO_SERIES, self._ATTACKER_POINTS_SERIES, self._BENIGN_POINTS_SERIES)
         )
 
@@ -190,19 +194,8 @@ class AttackerBenignVisibilityRatioMetric(BaseMetric):
         )
 
     @staticmethod
-    def _resolve_attacker_ids(visualization_context: Any) -> set[str]:
-        attacker_ids = AttackerBenignVisibilityRatioMetric._get_context_value(visualization_context, "attacker_ids", [])
-        if not isinstance(attacker_ids, list | tuple | set):
-            return set()
-        return {str(attacker_id) for attacker_id in attacker_ids}
-
-    @staticmethod
-    def _get_context_value(context: Any, key: str, default: Any = None) -> Any:
-        if context is None:
-            return default
-        if isinstance(context, Mapping):
-            return context.get(key, default)
-        return getattr(context, key, default)
+    def _resolve_attacker_ids(visualization_context: AdvCPVisualizationContext) -> set[str]:
+        return {str(attacker_id) for attacker_id in visualization_context.attacker_ids}
 
     @staticmethod
     def _normalize_mode(mode: Any) -> str:

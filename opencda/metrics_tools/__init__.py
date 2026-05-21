@@ -16,6 +16,7 @@ from opencda.metrics_tools.collection_models import MetricCollection, MetricIssu
 from opencda.metrics_tools.config import resolve_metric_collector_config
 from opencda.metrics_tools.metric_collector import MetricCollector
 from opencda.metrics_tools.metric_sample import MetricSample
+from opencda.metrics_tools.plot_builder import DEFAULT_METRIC_PLOT_STYLE, MetricPlotBuilder, MetricPlotStyle
 from opencda.metrics_tools.report_builder import UniversalReportBuilder
 from opencda.metrics_tools.report_models import (
     EntityMetricCollections,
@@ -40,6 +41,7 @@ list_metrics = MetricRegistry.list_metrics
 __all__ = [
     "BaseMetric",
     "create_metric",
+    "DEFAULT_METRIC_PLOT_STYLE",
     "EntityMetricCollections",
     "EntityReport",
     "EntityReportInfo",
@@ -48,6 +50,8 @@ __all__ = [
     "MetricCollection",
     "MetricCollector",
     "MetricIssue",
+    "MetricPlotBuilder",
+    "MetricPlotStyle",
     "MetricReport",
     "MetricReportSpec",
     "MetricSample",

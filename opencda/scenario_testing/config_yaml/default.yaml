@@ -142,6 +142,8 @@ vehicle_base:
           warmup_steps: 1
         ttc:
           warmup_steps: 1
+        hard_brake_count:
+          warmup_steps: 1
 
   controller:
     type: pid_controller # this has to be exactly the same name as the controller py file
