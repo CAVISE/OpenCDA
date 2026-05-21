@@ -39,6 +39,7 @@ except ModuleNotFoundError:
 BUILD_COMPLETED_FLAG = "BUILD_COMPLETED_FLAG"
 DEFAULT_LOG_FILENAME = "opencda.log.json"
 
+
 class VerbosityLevel(enum.IntEnum):
     # minimal output: important info, warnings and errors
     SILENT = 1
