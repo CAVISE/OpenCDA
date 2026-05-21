@@ -36,7 +36,6 @@ except ModuleNotFoundError:
     print("could not find coloredlogs module! Your life will look pale.")
     print("if you are interested in improving it: https://pypi.org/project/coloredlogs")
 
-BUILD_COMPLETED_FLAG = "BUILD_COMPLETED_FLAG"
 DEFAULT_LOG_FILENAME = "opencda.log.json"
 
 
