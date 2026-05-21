@@ -1,9 +1,13 @@
-find_package(Cython MODULE REQUIRED)
-include(UseCython)
+find_program(CYTHON_EXECUTABLE NAMES cython cython3 REQUIRED)
 
-Cython_transpile(${CMAKE_CURRENT_SOURCE_DIR}/box_overlaps.pyx
-    LANGUAGE CXX
-    OUTPUT_VARIABLE BOX_OVERLAPS_CPP
+set(BOX_OVERLAPS_PYX "${CMAKE_CURRENT_SOURCE_DIR}/box_overlaps.pyx")
+set(BOX_OVERLAPS_CPP "${CMAKE_CURRENT_BINARY_DIR}/box_overlaps.cpp")
+
+add_custom_command(
+    OUTPUT ${BOX_OVERLAPS_CPP}
+    COMMAND ${CYTHON_EXECUTABLE} --cplus -3 ${BOX_OVERLAPS_PYX} -o ${BOX_OVERLAPS_CPP}
+    DEPENDS ${BOX_OVERLAPS_PYX}
+    VERBATIM
 )
 
 add_library(box_overlaps MODULE ${BOX_OVERLAPS_CPP})
@@ -27,7 +31,7 @@ target_compile_options(box_overlaps PRIVATE
 )
 
 set_target_properties(box_overlaps PROPERTIES
-    LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
 )
 
 install(TARGETS box_overlaps LIBRARY DESTINATION opencood/utils)

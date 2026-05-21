@@ -2,7 +2,6 @@ find_program(PROTOC_GEN_MYPY NAMES protoc-gen-mypy REQUIRED)
 
 set(PROTO_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/messages)
 set(PROTO_BUILD_DIR ${CMAKE_BINARY_DIR}/protos/cavise)
-set(PROTO_INSTALL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/protos/cavise)
 
 file(MAKE_DIRECTORY ${PROTO_BUILD_DIR})
 
@@ -32,9 +31,10 @@ protobuf_generate(
     PROTOC_OUT_DIR ${PROTO_BUILD_DIR}
 )
 
-add_custom_target(copy_protos ALL
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-        ${PROTO_BUILD_DIR}
-        ${PROTO_INSTALL_DIR}
+add_custom_target(generate_protos ALL
     DEPENDS ${PROTO_PY_OUTPUTS} ${PROTO_PYI_OUTPUTS}
+)
+
+install(FILES ${PROTO_PY_OUTPUTS} ${PROTO_PYI_OUTPUTS}
+    DESTINATION opencda/core/common/communication/protos/cavise
 )

@@ -22,7 +22,8 @@ jobs:
             -DOPENCDA_BUILD_CYTHON=OFF \
             -DOPENCDA_BUILD_PROTOBUF=ON
           cmake --build build
-      - run: ls opencda/core/common/communication/protos/cavise/*_pb2.py 1>/dev/null
+          cmake --install build --prefix /tmp/opencda-install
+      - run: test -f /tmp/opencda-install/opencda/core/common/communication/protos/cavise/capi_pb2.py
 
   build-cython:
     runs-on: ubuntu-latest
@@ -31,7 +32,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install cmake ninja cython cython-cmake numpy pybind11
+      - run: pip install cmake ninja cython numpy pybind11
       - name: Configure and build
         run: |
           cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
@@ -39,7 +40,8 @@ jobs:
             -DOPENCDA_BUILD_CYTHON=ON \
             -DOPENCDA_BUILD_PROTOBUF=OFF
           cmake --build build
-      - run: find build -name "box_overlaps*" -type f
+          cmake --install build --prefix /tmp/opencda-install
+      - run: test -n "$(find /tmp/opencda-install/opencood/utils -name 'box_overlaps*.so' -type f -print -quit)"
 
 #  build-cuda:
 #    runs-on: [self-hosted, cuda]
@@ -49,7 +51,7 @@ jobs:
 #      - uses: actions/setup-python@v5
 #        with:
 #          python-version: "3.12"
-#      - run: pip install cmake ninja cython cython-cmake numpy pybind11
+#      - run: pip install cmake ninja cython numpy pybind11
 #      - name: Configure and build
 #        run: |
 #          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \

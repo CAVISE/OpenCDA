@@ -42,6 +42,7 @@ jobs:
         run: |
           cmake -B build -G Ninja -DOPENCDA_BUILD_CUDA=OFF -DOPENCDA_BUILD_CYTHON=OFF -DOPENCDA_BUILD_PROTOBUF=ON
           cmake --build build
+          cmake --install build --prefix .
       - name: Run mypy
         run: mypy . --follow-imports=silent
 

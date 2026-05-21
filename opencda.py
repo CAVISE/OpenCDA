@@ -222,14 +222,20 @@ def main() -> None:
     if opt.with_coperception:
         missing = []
         for module_name in [
-            "opencood.pcdet_utils.iou3d_nms_cuda",
-            "opencood.pcdet_utils.pointnet2_stack_cuda",
+            "opencood.pcdet_utils.iou3d_nms.iou3d_nms_cuda",
+            "opencood.pcdet_utils.roiaware_pool3d.roiaware_pool3d_cuda",
+            "opencood.pcdet_utils.pointnet2.pointnet2_stack.pointnet2_stack_cuda",
+            "opencood.pcdet_utils.pointnet2.pointnet2_batch.pointnet2_batch_cuda",
         ]:
             if importlib.util.find_spec(module_name) is None:
                 missing.append(module_name)
 
         if missing:
-            logger.error(f"CUDA extensions not found: {missing}. Please rebuild the package with CUDA support: pip install -e .[cuda]")
+            logger.error(
+                "CUDA extensions not found: %s. Rebuild the package with CUDA support: "
+                "OPENCDA_BUILD_CUDA=ON python -m pip install -e . --no-build-isolation",
+                missing,
+            )
             sys.exit(errno.ENOENT)
 
         logger.info("CUDA extensions loaded successfully")
