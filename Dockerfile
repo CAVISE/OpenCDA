@@ -44,17 +44,17 @@ USER ${USER}
 ENV PATH="${HOME}/.local/bin:${PATH}"
 WORKDIR ${HOME}/cavise/opencda
 
-COPY requirements.txt pyproject.toml ./
+COPY opencda/requirements.txt opencda/pyproject.toml ./
 
 # Python Version: 3.12.3
 RUN python3 -m pip install --no-cache-dir --break-system-packages --upgrade pip==26.0.1 setuptools==82.0.0 wheel==0.46.3 && \
     python3 -m pip install --no-cache-dir --break-system-packages -r requirements.txt
 
-COPY opencda/ opencda/
-COPY OpenCOOD/ OpenCOOD/
-COPY CMakeLists.txt ./
+COPY opencda/opencda/ opencda/
+COPY opencda/OpenCOOD/ OpenCOOD/
+COPY opencda/CMakeLists.txt ./
 
 RUN OPENCDA_BUILD_CUDA=ON \
     OPENCDA_BUILD_CYTHON=ON \
     OPENCDA_BUILD_PROTOBUF=ON \
-    python3 -m pip install --no-cache-dir --break-system-packages --no-build-isolation -e .
+    python3 -m pip install --no-cache-dir --break-system-packages --no-build-isolation .
