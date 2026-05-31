@@ -31,17 +31,17 @@ class LocalizationTraceMetric(BaseMetric):
 
     def __init__(self, warmup_steps: int = 0):
         super().__init__(warmup_steps=warmup_steps)
-        self._samples: dict[str, list[MetricSample]] = {series_name: [] for series_name in self._SERIES_NAMES}
+        self._series_samples: dict[str, list[MetricSample]] = {series_name: [] for series_name in self._SERIES_NAMES}
 
     def _process_context(self, context: Mapping[str, Any]) -> None:
         for series_name in self._SERIES_NAMES:
             value = float(context.get(series_name, 0.0))
             if series_name in self._SPEED_SERIES:
                 value /= 3.6
-            self._samples[series_name].append(self._make_sample(value))
+            self._series_samples[series_name].append(self._make_sample(value))
 
     def get_raw(self) -> tuple[MetricSeries, ...]:
-        return tuple(MetricSeries(name=series_name, samples=tuple(self._samples[series_name])) for series_name in self._SERIES_NAMES)
+        return tuple(MetricSeries(name=series_name, samples=tuple(self._series_samples[series_name])) for series_name in self._SERIES_NAMES)
 
     @classmethod
     def get_report_spec(cls) -> MetricReportSpec:

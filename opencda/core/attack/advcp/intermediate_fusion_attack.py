@@ -1,3 +1,66 @@
+"""
+AdvCP intermediate-fusion attack.
+
+In an intermediate-fusion pipeline each CAV produces its own spatial
+feature map (after the per-CAV backbone but before the fusion head).
+The cooperative model concatenates / fuses these per-CAV feature maps
+and produces a single detection output.
+
+This module attacks at exactly that layer: it perturbs the attacker's
+spatial feature map before the fusion head sees it, in the immediate
+neighbourhood of the target box. The perturbation is the solution of
+an Adam optimization that:
+
+- Increases the model's confidence at the target location for spoofing.
+- Decreases the model's confidence at the target location for removal.
+
+Loss formulation
+----------------
+Let ``s_i`` be the sigmoided proposal score at anchor ``i`` and
+``w_i`` the IoU between the proposal box and the target box. Writing
+``log_p(x) = log(clamp(x, 1e-6))``:
+
+- Spoofing loss = sum over all targets t of:
+    ``sum_{i : w_i^t >= 0.01} w_i^t * log_p(1 - s_i)``
+  Minimising this pushes scores up for proposals overlapping the
+  target.
+- Removal loss = sum over all targets t of:
+    ``sum_{i : w_i^t >= 0.01} w_i^t * log_p(s_i)``
+  Minimising this pushes scores down for proposals overlapping the
+  target.
+
+The perturbation tensor itself is constrained to an L-infinity ball
+of radius ``max_perturb`` (clamped before each forward pass), and
+spatially confined to a square patch of side ``2 * feature_size``
+centred on the target's pixel coordinates in the feature map.
+
+Single attacker vs multiple attackers
+-------------------------------------
+- Single attacker: :meth:`_optimize_spoofing` runs one Adam optimizer
+  on a single perturbation tensor.
+- Multiple attackers: :meth:`_optimize_joint` runs one shared Adam
+  optimizer over all attackers' perturbation tensors and a single
+  combined forward pass per step. This is necessary because the
+  cooperative backbone fuses the attackers' features together;
+  optimizing them independently would ignore the interaction and
+  produce weaker attacks.
+
+Sync, init, online
+------------------
+- ``sync``: when both the previous and the current tick contain all
+  configured attackers, optimize the perturbation against the
+  previous-tick batch instead of the current-tick batch. The previous
+  tick's spatial features are usually closer to a stable optimum.
+- ``init``: warm-start the perturbation extraction by ray-tracing a
+  synthetic mesh into the attacker's lidar cloud (reusing the
+  early-fusion ``_apply_init_*_to_memory`` paths) so the base
+  perturbation already encodes a synthetic-object signal before Adam
+  begins.
+- ``online``: persist the converged perturbation and reuse it as the
+  initial value for the next tick (significantly speeds up
+  convergence when the scene changes slowly).
+"""
+
 from __future__ import annotations
 
 import copy
@@ -23,6 +86,8 @@ from opencda.core.attack.advcp.types import (
     AdvCPMemoryRecord,
     AdvCPScenarioData,
     AdvCPVisualizationContext,
+    AttackerId,
+    BoxLwhBottomCenter,
 )
 from opencda.core.common.coperception_data_processor import LiveMemorySnapshot
 
@@ -30,6 +95,15 @@ logger = logging.getLogger("cavise.opencda.opencda.core.attack.advcp.intermediat
 
 
 class AdvCoperceptionIntermediateFusionAttack:
+    """
+    Intermediate-fusion AdvCP attack runner.
+
+    All entry points are class / static methods; instantiation is
+    unnecessary. The only persistent state lives in
+    :class:`AdvCPIntermediateAttackState`, which the manager passes in
+    through ``run(..., attack_state=...)``.
+    """
+
     @staticmethod
     def run(
         batch_data: Any,
@@ -40,6 +114,46 @@ class AdvCoperceptionIntermediateFusionAttack:
         memory_data: AdvCPMemoryData | None = None,
         attack_state: AdvCPIntermediateAttackState | None = None,
     ) -> AdvCPAttackResult:
+        """
+        Execute the intermediate-fusion attack for a single tick.
+
+        Resolves the present attackers, dispatches to either the
+        single-attacker (:meth:`_optimize_spoofing`) or joint
+        (:meth:`_optimize_joint`) optimization path, updates the
+        intermediate-state buffers, and returns the cooperative
+        prediction.
+
+        Parameters
+        ----------
+        batch_data : Any
+            Collated batch.
+        model : Any
+            Cooperative perception model with the standard
+            intermediate-fusion structure (PointPillars or VoxelNet).
+        dataset : Any
+            OpenCOOD dataset.
+        device : torch.device
+            Device the model lives on.
+        advcp_config : AdvCPConfig
+            Resolved AdvCP config.
+        memory_data : Optional[AdvCPMemoryData]
+            Per-tick memory data; required for any non-fallback path.
+        attack_state : Optional[AdvCPIntermediateAttackState]
+            Persistent attack state. Created on demand if missing.
+
+        Returns
+        -------
+        AdvCPAttackResult
+
+        Raises
+        ------
+        NotImplementedError
+            If the AdvCP mode is not one of ``"spoofing"`` or
+            ``"removal"``.
+        ValueError
+            If ``memory_data`` is missing or no attackers are
+            configured.
+        """
         mode = AdvCPAttackHelper.require_config_value(advcp_config, "mode")
         advcp_context = AdvCPVisualizationContext(mode=mode)
 
@@ -174,9 +288,18 @@ class AdvCoperceptionIntermediateFusionAttack:
     def _update_attack_state(
         attack_state: AdvCPIntermediateAttackState,
         memory_data: AdvCPMemoryData,
-        init_perturbation: dict[str, list[npt.NDArray]] | None,
+        init_perturbation: dict[AttackerId, list[npt.NDArray]] | None,
         online: bool,
     ) -> None:
+        """
+        Advance the persistent attack state by one tick.
+
+        The two reusable buffers are swapped: yesterday's "current"
+        becomes today's "previous"; the empty buffer is then
+        repopulated from the freshly received ``memory_data``. The
+        last best perturbation is stored when ``online`` is enabled,
+        otherwise discarded.
+        """
         previous_buffer = attack_state.get("previous_memory_data")
         current_buffer = attack_state.get("current_memory_data")
         if previous_buffer is None:
@@ -198,7 +321,14 @@ class AdvCoperceptionIntermediateFusionAttack:
         target_buffer: AdvCPMemoryData,
         source_memory_data: AdvCPMemoryData,
     ) -> None:
-        """Copy only dict structure; keep heavy numpy payload objects by reference."""
+        """
+        Re-populate ``target_buffer`` with the structure of
+        ``source_memory_data``, keeping numpy payloads by reference.
+
+        Only the dict / OrderedDict scaffold is recreated; the bulky
+        ``lidar_np`` and ``params`` payloads are aliased rather than
+        copied, so the buffer is cheap to maintain across ticks.
+        """
         target_buffer.clear()
         for batch_idx, source_batch in source_memory_data.items():
             batch_copy: AdvCPScenarioData = OrderedDict()
@@ -216,8 +346,14 @@ class AdvCoperceptionIntermediateFusionAttack:
     def _resolve_ego_attack_boxes(
         scenario_data: AdvCPScenarioData,
         advcp_config: AdvCPConfig,
-        attacker_id: str,
-    ) -> list[npt.NDArray]:
+        attacker_id: AttackerId,
+    ) -> list[BoxLwhBottomCenter]:
+        """
+        Convenience wrapper returning only the ego-frame target boxes.
+
+        Equivalent to discarding the first three elements of
+        :meth:`AdvCPAttackHelper.resolve_spoof_boxes_for_ego`.
+        """
         _, _, _, attack_boxes = AdvCPAttackHelper.resolve_spoof_boxes_for_ego(
             scenario_data,
             advcp_config,
@@ -226,7 +362,16 @@ class AdvCoperceptionIntermediateFusionAttack:
         return attack_boxes
 
     @staticmethod
-    def _resolve_attacker_index(batch_data: Mapping[str, Any], attacker_id: str) -> int | None:
+    def _resolve_attacker_index(batch_data: Mapping[str, Any], attacker_id: AttackerId) -> int | None:
+        """
+        Find the attacker's slot in the cooperatively-stacked feature
+        tensor.
+
+        OpenCOOD stacks per-CAV spatial features in the order given by
+        ``ego.origin_lidar_agent_ids``. To inject a perturbation into
+        the right slot we must know that ordering. Returns ``None``
+        when the attacker is absent from the batch.
+        """
         ego_entry = batch_data.get("ego")
         if not isinstance(ego_entry, Mapping):
             return None
@@ -245,8 +390,21 @@ class AdvCoperceptionIntermediateFusionAttack:
         cls,
         memory_data: AdvCPMemoryData,
         advcp_config: AdvCPConfig,
-        attacker_id: str,
+        attacker_id: AttackerId,
     ) -> AdvCPMemoryData:
+        """
+        Build memory data with the early-fusion spoofing pipeline
+        applied to a single attacker.
+
+        Used as an initialization helper by intermediate fusion: when
+        ``init: true`` is configured, the attacker's lidar is first
+        rewritten by the early-fusion ray-tracing pipeline so the
+        backbone produces a "spoofed-looking" feature map; the base
+        perturbation is then the difference between that map and the
+        unmodified one. Reuses
+        :meth:`AdvCoperceptionEarlyFusionAttack._apply_sampled_ray_traced_spoof`
+        on a deep copy of the memory.
+        """
         attacked_memory = copy.deepcopy(memory_data)
         attacked_scenario_data = next(iter(attacked_memory.values()))
         original_scenario_data = next(iter(memory_data.values()))
@@ -279,8 +437,16 @@ class AdvCoperceptionIntermediateFusionAttack:
         cls,
         memory_data: AdvCPMemoryData,
         advcp_config: AdvCPConfig,
-        attacker_id: str,
+        attacker_id: AttackerId,
     ) -> AdvCPMemoryData:
+        """
+        Build memory data with the early-fusion removal pipeline
+        applied to a single attacker.
+
+        Mirror of :meth:`_apply_init_spoof_to_memory` for removal mode.
+        Used as warm-start initialization for the intermediate-fusion
+        optimizer when ``init: true``.
+        """
         attacked_memory = copy.deepcopy(memory_data)
         attacked_scenario_data = next(iter(attacked_memory.values()))
         original_scenario_data = next(iter(memory_data.values()))
@@ -315,14 +481,61 @@ class AdvCoperceptionIntermediateFusionAttack:
         dataset: Any,
         device: torch.device,
         advcp_config: AdvCPConfig,
-        attacker_id: str,
+        attacker_id: AttackerId,
         memory_data: AdvCPMemoryData,
-        current_attack_boxes: Sequence[npt.NDArray],
+        current_attack_boxes: Sequence[BoxLwhBottomCenter],
         previous_memory_data: AdvCPMemoryData | None,
         sync_enabled: bool,
         stored_init_perturbation: list[npt.NDArray] | None,
         mode: str = "spoofing",
     ) -> tuple[torch.Tensor | None, torch.Tensor | None, torch.Tensor | None, list[npt.NDArray] | None]:
+        """
+        Optimize a single-attacker perturbation against the cooperative
+        model.
+
+        Adam loop over ``optimization_steps`` iterations. Each step:
+
+        1. Forward-pass the model with the current ``base_perturbation
+           + learnable_perturbation`` applied to the attacker's slot
+           in the spatial feature tensor.
+        2. Compute the spoofing or removal loss (see module docstring).
+        3. Track the best (lowest loss) prediction so far, since Adam
+           updates after each step are not monotone.
+        4. Backpropagate and update the perturbation tensors.
+
+        When ``sync_enabled`` and the previous tick contained the
+        attacker, the optimization runs on the **previous** tick and
+        the resulting perturbation is evaluated on the **current**
+        tick. This decouples the optimization from the current tick's
+        possibly noisy spatial features.
+
+        Parameters
+        ----------
+        model, dataset, device : Any
+            Cooperative perception machinery.
+        advcp_config : AdvCPConfig
+            Resolved AdvCP config (provides ``step``, ``lr``,
+            ``max_perturb``, ``feature_size``, ``init``).
+        attacker_id : AttackerId
+        memory_data : AdvCPMemoryData
+            Current-tick memory.
+        current_attack_boxes : Sequence of BoxLwhBottomCenter
+            Target boxes in the ego lidar frame.
+        previous_memory_data : Optional[AdvCPMemoryData]
+            Previous-tick memory (for sync mode).
+        sync_enabled : bool
+        stored_init_perturbation : Optional[list of npt.NDArray]
+            Warm-start perturbation from the previous tick (online
+            mode).
+        mode : {"spoofing", "removal"}
+
+        Returns
+        -------
+        tuple
+            ``(pred_box_tensor, pred_score, gt_box_tensor, init_perturbation_for_next_tick)``.
+            The fourth element is ``None`` when no improvement was
+            found.
+        """
         max_perturb = float(AdvCPAttackHelper.require_config_value(advcp_config, "max_perturb"))
         learning_rate = float(AdvCPAttackHelper.require_config_value(advcp_config, "lr"))
         optimization_steps = int(AdvCPAttackHelper.require_config_value(advcp_config, "step"))
@@ -470,6 +683,10 @@ class AdvCoperceptionIntermediateFusionAttack:
         best_init_perturbation: list[npt.NDArray] | None = None
 
         for _ in range(optimization_steps):
+            # Forward pass on the optimization batch with the current
+            # perturbations applied. The base perturbation captures the
+            # init-mode warm start; the learnable tensor is the actual
+            # gradient target.
             output_dict, _ = cls._attack_forward(
                 original_optimize_batch,
                 model,
@@ -480,6 +697,10 @@ class AdvCoperceptionIntermediateFusionAttack:
             )
             loss = compute_loss_fn(output_dict, original_optimize_batch, dataset, optimize_target_boxes)
 
+            # Evaluate the current perturbation on the **real** (current
+            # tick) batch when sync mode optimized against the previous
+            # tick. The post-processed prediction is the artifact we
+            # actually return.
             with torch.no_grad():
                 if real_original_batch is not None and real_attacker_index is not None:
                     eval_output_dict, _ = cls._attack_forward(
@@ -497,6 +718,10 @@ class AdvCoperceptionIntermediateFusionAttack:
                 else:
                     pred_box_tensor, pred_score, gt_box_tensor = dataset.post_process(original_optimize_batch, output_dict)
 
+            # Adam updates are not monotone in the loss, so we keep the
+            # snapshot of the best step so far. Halving on save lets the
+            # next tick's warm start sit closer to the unperturbed
+            # tensor (helps convergence when scenes change slowly).
             if loss.item() < best_loss:
                 best_loss = float(loss.item())
                 best_pred_box_tensor = pred_box_tensor
@@ -524,12 +749,39 @@ class AdvCoperceptionIntermediateFusionAttack:
         device: torch.device,
         advcp_config: AdvCPConfig,
         memory_data: AdvCPMemoryData,
-        attacker_infos: list[tuple[str, int, list[npt.NDArray]]],
+        attacker_infos: list[tuple[AttackerId, int, list[BoxLwhBottomCenter]]],
         previous_memory_data: AdvCPMemoryData | None,
         sync_enabled: bool,
-        stored_init_map: dict[str, list[npt.NDArray]],
+        stored_init_map: dict[AttackerId, list[npt.NDArray]],
         mode: str = "spoofing",
-    ) -> tuple[torch.Tensor | None, torch.Tensor | None, torch.Tensor | None, dict[str, list[npt.NDArray]]]:
+    ) -> tuple[torch.Tensor | None, torch.Tensor | None, torch.Tensor | None, dict[AttackerId, list[npt.NDArray]]]:
+        """
+        Optimize multiple attackers' perturbations jointly.
+
+        Identical structure to :meth:`_optimize_spoofing` but with one
+        Adam optimizer holding all attackers' learnable tensors and a
+        single combined forward pass per step. This is required because
+        the cooperative backbone fuses the attackers' features
+        together: independently optimized perturbations would each
+        assume the other attackers' features are unchanged, which is
+        not what happens at evaluation time.
+
+        Parameters
+        ----------
+        attacker_infos : list of tuple
+            ``(attacker_id, attacker_index, ego_attack_boxes)`` for
+            every present attacker. The ``attacker_index`` is the
+            slot in the cooperative spatial-feature tensor.
+        stored_init_map : dict
+            Per-attacker warm starts from the previous tick.
+
+        Returns
+        -------
+        tuple
+            ``(pred_box_tensor, pred_score, gt_box_tensor, init_perturbation_map)``
+            where the last element maps attacker id to its current
+            best perturbation (for next-tick reuse).
+        """
         max_perturb = float(AdvCPAttackHelper.require_config_value(advcp_config, "max_perturb"))
         learning_rate = float(AdvCPAttackHelper.require_config_value(advcp_config, "lr"))
         optimization_steps = int(AdvCPAttackHelper.require_config_value(advcp_config, "step"))
@@ -650,6 +902,11 @@ class AdvCoperceptionIntermediateFusionAttack:
         best_init_map: dict[str, list[npt.NDArray]] = {}
 
         for _ in range(optimization_steps):
+            # Build the combined per-attacker spec list. The forward
+            # helper applies each attacker's perturbation to its slot
+            # in the shared spatial feature tensor, so the loss sees
+            # the joint effect of all attackers and gradients flow into
+            # all of their learnable tensors at once.
             optimize_specs: list[tuple[int, list[torch.Tensor], list[npt.NDArray]]] = [
                 (d["optimize_idx"], [b + p for b, p in zip(d["base_perts"], d["learnable_perts"])], d["optimize_centers"]) for d in per_attacker
             ]
@@ -664,6 +921,9 @@ class AdvCoperceptionIntermediateFusionAttack:
             )
             loss = compute_loss_fn(output_dict, original_optimize_batch, dataset, optimize_target_boxes)
 
+            # Sync-mode evaluation: same trick as _optimize_spoofing,
+            # but run as a combined forward pass on the current tick
+            # with the same set of perturbations.
             with torch.no_grad():
                 if real_original_batch is not None:
                     real_specs: list[tuple[int, list[torch.Tensor], list[npt.NDArray]]] = [
@@ -682,6 +942,9 @@ class AdvCoperceptionIntermediateFusionAttack:
                 else:
                     pred_box, pred_score, gt_box = dataset.post_process(original_optimize_batch, output_dict)
 
+            # Track best snapshot across all attackers simultaneously,
+            # so the warm-start map for the next tick is internally
+            # consistent.
             if loss.item() < best_loss:
                 best_loss = float(loss.item())
                 best_pred_box, best_pred_score, best_gt_box = pred_box, pred_score, gt_box
@@ -708,6 +971,15 @@ class AdvCoperceptionIntermediateFusionAttack:
         stored_init_perturbation: list[npt.NDArray] | None,
         expected_count: int,
     ) -> list[torch.Tensor]:
+        """
+        Allocate one learnable perturbation tensor per target box.
+
+        Each tensor has shape ``(feature_dim, 2 * feature_size, 2 * feature_size)``
+        and is initialised either from the stored numpy warm start
+        (when available and within range) or to zeros. The returned
+        tensors have ``requires_grad = True`` and are ready to be
+        passed to ``torch.optim.Adam``.
+        """
         perturbations: list[torch.Tensor] = []
         for index in range(expected_count):
             if stored_init_perturbation is not None and index < len(stored_init_perturbation):
@@ -725,6 +997,22 @@ class AdvCoperceptionIntermediateFusionAttack:
         centers: Sequence[npt.NDArray],
         feature_size: int,
     ) -> list[torch.Tensor]:
+        """
+        Compute the per-target base perturbation patches.
+
+        The base perturbation is the spatial difference between the
+        feature map produced from the warm-started lidar (post
+        early-fusion ray tracing) and the original lidar, restricted
+        to a square patch around each target's pixel coordinates. It
+        encodes "what the spatial features would look like if the
+        spoof object were really there", which is then the starting
+        signal that Adam refines.
+
+        Returns
+        -------
+        list of torch.Tensor
+            One detached patch per target.
+        """
         base_perturbations = []
         for center in centers:
             patch = AdvCoperceptionIntermediateFusionAttack._extract_feature_patch(
@@ -737,6 +1025,28 @@ class AdvCoperceptionIntermediateFusionAttack:
 
     @staticmethod
     def _extract_feature_patch(features: torch.Tensor, center: npt.NDArray, feature_size: int) -> torch.Tensor:
+        """
+        Crop a square patch from a feature tensor with zero padding.
+
+        The patch is ``2 * feature_size`` pixels on each side and
+        centred on ``center`` (rounded to integers). When the patch
+        spills past the feature-tensor borders, the out-of-bounds
+        portion is zero-filled.
+
+        Parameters
+        ----------
+        features : torch.Tensor
+            ``(C, H, W)`` feature tensor.
+        center : npt.NDArray
+            Pixel-coordinate centre ``(x, y)``.
+        feature_size : int
+            Half side length in pixels.
+
+        Returns
+        -------
+        torch.Tensor
+            ``(C, 2 * feature_size, 2 * feature_size)`` patch.
+        """
         _, height, width = features.shape
         center_x = int(center[0])
         center_y = int(center[1])
@@ -744,6 +1054,10 @@ class AdvCoperceptionIntermediateFusionAttack:
         patch_width = 2 * feature_size
         patch = torch.zeros((features.shape[0], patch_height, patch_width), device=features.device, dtype=features.dtype)
 
+        # Compute the intersection of [center - half, center + half]
+        # with [0, dim) for both axes; the corresponding source slice
+        # is copied into the same position inside the zero-filled
+        # patch.
         x_start = max(center_x - feature_size, 0)
         x_end = min(center_x + feature_size, width)
         y_start = max(center_y - feature_size, 0)
@@ -768,6 +1082,30 @@ class AdvCoperceptionIntermediateFusionAttack:
         max_perturb: float,
         all_attacker_specs: list[tuple[int, list[torch.Tensor], list[npt.NDArray]]] | None = None,
     ) -> tuple[OrderedDict[str, dict[str, torch.Tensor]], torch.Tensor]:
+        """
+        Run a forward pass with optional perturbations applied to the
+        spatial feature tensor.
+
+        Dispatches by model class to the PointPillars or VoxelNet
+        variant. Both variants reproduce the model's standard
+        backbone pipeline up to (and including) the spatial feature
+        tensor, then either:
+
+        - apply a single attacker's perturbation set (single-attacker
+          path: ``perturbations`` and ``centers`` are non-None), or
+        - apply all attackers' perturbations in one go (joint path:
+          ``all_attacker_specs`` is non-None).
+
+        After the perturbation is applied, the rest of the head is run
+        normally to produce the cooperative output.
+
+        Returns
+        -------
+        tuple
+            ``(output_dict, spatial_features)``. The spatial features
+            are returned (post-perturbation) so callers can use them
+            as the warm-start signal for the next tick.
+        """
         model_name = type(model).__name__
         if model_name == "VoxelNetIntermediate":
             return cls._attack_forward_voxelnet(batch_data, model, attacker_index, perturbations, centers, max_perturb, all_attacker_specs)
@@ -784,6 +1122,14 @@ class AdvCoperceptionIntermediateFusionAttack:
         max_perturb: float,
         all_attacker_specs: list[tuple[int, list[torch.Tensor], list[npt.NDArray]]] | None = None,
     ) -> tuple[OrderedDict[str, dict[str, torch.Tensor]], torch.Tensor]:
+        """
+        PointPillars-family forward pass with perturbation injection.
+
+        Reproduces the standard PointPillars backbone (PFE +
+        scatter), inserts the perturbation into the resulting spatial
+        feature tensor, and then dispatches to the appropriate fusion
+        head variant via :meth:`_run_point_pillar_head`.
+        """
         ego_entry = batch_data["ego"]
         processed_lidar = ego_entry["processed_lidar"]
         record_len = ego_entry["record_len"]
@@ -827,6 +1173,14 @@ class AdvCoperceptionIntermediateFusionAttack:
         max_perturb: float,
         all_attacker_specs: list[tuple[int, list[torch.Tensor], list[npt.NDArray]]] | None = None,
     ) -> tuple[OrderedDict[str, dict[str, torch.Tensor]], torch.Tensor]:
+        """
+        VoxelNet forward pass with perturbation injection.
+
+        Reproduces the SVFE + voxel-indexing + CML backbone of
+        ``VoxelNetIntermediate`` up to the 4D-to-2D reshape, applies
+        the perturbations there, then runs fusion + RPN heads
+        normally.
+        """
         ego_entry = batch_data["ego"]
         processed_lidar = ego_entry["processed_lidar"]
         record_len = ego_entry["record_len"]
@@ -871,6 +1225,20 @@ class AdvCoperceptionIntermediateFusionAttack:
         record_len: torch.Tensor,
         pairwise_t_matrix: torch.Tensor | None,
     ) -> dict[str, torch.Tensor]:
+        """
+        Dispatch the post-spatial-features stages of PointPillars
+        cooperative variants.
+
+        Each supported model class wires its fusion / compression /
+        head stages slightly differently. This helper applies the
+        right sequence based on ``type(model).__name__`` and returns
+        the ``{"psm", "rm"}`` head outputs.
+
+        Raises
+        ------
+        NotImplementedError
+            If the model class is not one of the supported families.
+        """
         model_name = type(model).__name__
         batch_dict = model.backbone(batch_dict)
         spatial_features_2d = batch_dict["spatial_features_2d"]
@@ -918,6 +1286,22 @@ class AdvCoperceptionIntermediateFusionAttack:
         centers: Sequence[npt.NDArray] | None,
         max_perturb: float,
     ) -> torch.Tensor:
+        """
+        Add a list of perturbation patches to one CAV's slot in the
+        spatial features tensor.
+
+        Each perturbation is clamped to the L-infinity ball of radius
+        ``max_perturb`` before being summed in via
+        :meth:`_build_perturbation_feature_map`. Falls through and
+        returns the input tensor unchanged when no perturbations are
+        provided (used when the same forward helper handles both
+        clean and attacked passes).
+
+        Returns
+        -------
+        torch.Tensor
+            Same shape as ``spatial_features``.
+        """
         if not perturbations or not centers:
             return spatial_features
 
@@ -935,6 +1319,22 @@ class AdvCoperceptionIntermediateFusionAttack:
         perturbation: torch.Tensor,
         center: npt.NDArray,
     ) -> torch.Tensor:
+        """
+        Place a perturbation patch into a full-size feature map with
+        sub-pixel registration.
+
+        The perturbation tensor is anchored at integer pixel
+        coordinates (the floor of ``center``), then resampled with a
+        ``grid_sample`` affine grid to apply the sub-pixel offset
+        ``center - floor(center)``. This avoids quantising the target
+        location to a coarse 2D grid.
+
+        Returns
+        -------
+        torch.Tensor
+            Same shape as ``attacker_features``; zero everywhere except
+            in the patch region.
+        """
         channels, height, width = attacker_features.shape
         center_x = float(center[0])
         center_y = float(center[1])
@@ -969,7 +1369,21 @@ class AdvCoperceptionIntermediateFusionAttack:
         return F.grid_sample(perturbation_map.unsqueeze(0), grid, align_corners=False)[0]
 
     @staticmethod
-    def _point_to_feature_index(attack_box: npt.NDArray, dataset: Any) -> npt.NDArray:
+    def _point_to_feature_index(attack_box: BoxLwhBottomCenter, dataset: Any) -> npt.NDArray:
+        """
+        Convert a target box's world centre into pixel coordinates in
+        the spatial feature map.
+
+        The OpenCOOD voxel grid spans ``cav_lidar_range`` and uses the
+        configured ``voxel_size``. The pixel index of the box centre
+        is therefore ``floor((centre - range_origin) / voxel_size)``.
+
+        Returns
+        -------
+        npt.NDArray
+            Length-3 ``int32`` array (typically only the first two
+            components are used as ``(x, y)`` pixel coordinates).
+        """
         lidar_range = np.asarray(dataset.pre_processor.params["cav_lidar_range"][:3], dtype=np.float32)
         voxel_size = np.asarray(dataset.pre_processor.params["args"]["voxel_size"], dtype=np.float32)
         return np.floor((attack_box[:3] - lidar_range) / voxel_size).astype(np.int32)
@@ -982,20 +1396,45 @@ class AdvCoperceptionIntermediateFusionAttack:
         dataset: Any,
         target_boxes: torch.Tensor,
     ) -> torch.Tensor:
+        """
+        Spoofing loss: encourage high confidence at every target box.
+
+        Computes the model's sigmoided proposal scores and the
+        per-proposal IoU with each target box. Proposals with
+        IoU >= 0.01 contribute a term ``iou * log(1 - score)``; the
+        sum is the loss to **minimise**, which pushes scores toward 1
+        for proposals overlapping the targets.
+
+        Returns
+        -------
+        torch.Tensor
+            Zero-dim loss tensor. Returns a zero tensor that still
+            tracks gradients when no proposal overlaps any target
+            (so the optimizer step is a no-op).
+        """
+        # psm has shape (batch, num_anchors_per_cell, H, W); permute
+        # to put anchors last and flatten so each proposal becomes a
+        # single row.
         probabilities = torch.sigmoid(output_dict["ego"]["psm"].permute(0, 2, 3, 1)).reshape(-1)
         proposals = dataset.post_processor.delta_to_boxes3d(output_dict["ego"]["rm"], batch_data["ego"]["anchor_box"])[0]
-        proposals_lwh = cls._model_boxes_to_lwh(proposals, dataset)
-        target_boxes_lwh = cls._model_boxes_to_lwh(target_boxes, dataset)
+        proposals_lwh = AdvCPAttackHelper.model_boxes_to_lwh(proposals, dataset)
+        target_boxes_lwh = AdvCPAttackHelper.model_boxes_to_lwh(target_boxes, dataset)
 
         loss_terms: list[torch.Tensor] = []
         for target_box in target_boxes_lwh:
-            iou_weights = cls._compute_iou_weights(proposals_lwh, target_box)
+            iou_weights = AdvCPAttackHelper.compute_iou_weights(proposals_lwh, target_box)
+            # 0.01 threshold filters out proposals so distant from the
+            # target that they would contribute negligible gradient.
             box_mask = iou_weights >= 0.01
             if torch.any(box_mask):
+                # log(1 - p) is unbounded as p -> 1, so clamp the
+                # complement away from zero before logging.
                 log_prob = torch.log(torch.clamp(1.0 - probabilities[box_mask], min=1e-6))
                 loss_terms.append((iou_weights[box_mask] * log_prob).sum())
 
         if not loss_terms:
+            # Return a zero tensor still tied to the graph so .backward()
+            # on it remains a valid no-op.
             return probabilities.sum() * 0.0
         return torch.stack(loss_terms).sum()
 
@@ -1007,169 +1446,33 @@ class AdvCoperceptionIntermediateFusionAttack:
         dataset: Any,
         target_boxes: torch.Tensor,
     ) -> torch.Tensor:
+        """
+        Removal loss: encourage low confidence at every target box.
+
+        Symmetric counterpart of :meth:`_compute_spoof_loss`: the
+        per-proposal contribution is ``iou * log(score)`` instead of
+        ``iou * log(1 - score)``. Minimising it drives scores toward
+        zero for proposals overlapping the targets.
+
+        Returns
+        -------
+        torch.Tensor
+            Zero-dim loss tensor.
+        """
         probabilities = torch.sigmoid(output_dict["ego"]["psm"].permute(0, 2, 3, 1)).reshape(-1)
         proposals = dataset.post_processor.delta_to_boxes3d(output_dict["ego"]["rm"], batch_data["ego"]["anchor_box"])[0]
-        proposals_lwh = cls._model_boxes_to_lwh(proposals, dataset)
-        target_boxes_lwh = cls._model_boxes_to_lwh(target_boxes, dataset)
+        proposals_lwh = AdvCPAttackHelper.model_boxes_to_lwh(proposals, dataset)
+        target_boxes_lwh = AdvCPAttackHelper.model_boxes_to_lwh(target_boxes, dataset)
 
         loss_terms: list[torch.Tensor] = []
         for target_box in target_boxes_lwh:
-            iou_weights = cls._compute_iou_weights(proposals_lwh, target_box)
+            iou_weights = AdvCPAttackHelper.compute_iou_weights(proposals_lwh, target_box)
             box_mask = iou_weights >= 0.01
             if torch.any(box_mask):
+                # Clamp away from zero to keep log() finite.
                 log_prob = torch.log(torch.clamp(probabilities[box_mask], min=1e-6))
                 loss_terms.append((iou_weights[box_mask] * log_prob).sum())
 
         if not loss_terms:
             return probabilities.sum() * 0.0
         return torch.stack(loss_terms).sum()
-
-    @staticmethod
-    def _model_boxes_to_lwh(boxes: torch.Tensor, dataset: Any) -> torch.Tensor:
-        if boxes.numel() == 0:
-            return boxes
-        order = dataset.post_processor.params.get("order", "hwl")
-        if order == "hwl":
-            return boxes[:, [0, 1, 2, 5, 4, 3, 6]]
-        if order == "lwh":
-            return boxes
-        raise NotImplementedError(f"Unsupported box order for AdvCP intermediate spoofing: {order}")
-
-    @staticmethod
-    def _compute_iou_weights(proposals_lwh: torch.Tensor, target_box_lwh: torch.Tensor) -> torch.Tensor:
-        if proposals_lwh.shape[0] == 0:
-            return torch.zeros((0,), dtype=target_box_lwh.dtype, device=target_box_lwh.device)
-
-        repeated_target_boxes = target_box_lwh.unsqueeze(0).expand(proposals_lwh.shape[0], -1)
-        proposal_corners = box_utils.boxes_to_corners2d(proposals_lwh, order="lwh")[:, :, :2]
-        target_corners = box_utils.boxes_to_corners2d(repeated_target_boxes, order="lwh")[:, :, :2]
-        intersection_area = AdvCoperceptionIntermediateFusionAttack._oriented_box_intersection_2d(
-            proposal_corners,
-            target_corners,
-        )
-        proposal_area = proposals_lwh[:, 3] * proposals_lwh[:, 4]
-        target_area = repeated_target_boxes[:, 3] * repeated_target_boxes[:, 4]
-        union_area = torch.clamp(proposal_area + target_area - intersection_area, min=1e-6)
-        return torch.clamp(intersection_area / union_area, min=0.0, max=1.0)
-
-    @classmethod
-    def _oriented_box_intersection_2d(
-        cls,
-        corners1: torch.Tensor,
-        corners2: torch.Tensor,
-    ) -> torch.Tensor:
-        intersections, intersection_mask = cls._box_intersection_th(corners1, corners2)
-        corners1_in_corners2, corners2_in_corners1 = cls._box_in_box_th(corners1, corners2)
-        vertices = torch.cat(
-            [
-                corners1,
-                corners2,
-                intersections.reshape(corners1.shape[0], -1, 2),
-            ],
-            dim=1,
-        )
-        vertex_mask = torch.cat(
-            [
-                corners1_in_corners2,
-                corners2_in_corners1,
-                intersection_mask.reshape(corners1.shape[0], -1),
-            ],
-            dim=1,
-        )
-        return cls._calculate_polygon_area(vertices, vertex_mask)
-
-    @staticmethod
-    def _box_intersection_th(
-        corners1: torch.Tensor,
-        corners2: torch.Tensor,
-    ) -> tuple[torch.Tensor, torch.Tensor]:
-        epsilon = 1e-8
-        lines1 = torch.cat([corners1, corners1[:, [1, 2, 3, 0], :]], dim=2)
-        lines2 = torch.cat([corners2, corners2[:, [1, 2, 3, 0], :]], dim=2)
-
-        lines1_expanded = lines1.unsqueeze(2).repeat(1, 1, 4, 1)
-        lines2_expanded = lines2.unsqueeze(1).repeat(1, 4, 1, 1)
-        x1 = lines1_expanded[..., 0]
-        y1 = lines1_expanded[..., 1]
-        x2 = lines1_expanded[..., 2]
-        y2 = lines1_expanded[..., 3]
-        x3 = lines2_expanded[..., 0]
-        y3 = lines2_expanded[..., 1]
-        x4 = lines2_expanded[..., 2]
-        y4 = lines2_expanded[..., 3]
-
-        denominator = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4)
-        denominator_t = (x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)
-        denominator_u = (x1 - x2) * (y1 - y3) - (y1 - y2) * (x1 - x3)
-
-        t = denominator_t / torch.where(denominator == 0, torch.ones_like(denominator), denominator)
-        u = -denominator_u / torch.where(denominator == 0, torch.ones_like(denominator), denominator)
-        t = torch.where(denominator == 0, torch.full_like(t, -1.0), t)
-        u = torch.where(denominator == 0, torch.full_like(u, -1.0), u)
-
-        mask_t = (t > 0) & (t < 1)
-        mask_u = (u > 0) & (u < 1)
-        intersection_mask = mask_t & mask_u
-
-        stable_t = denominator_t / (denominator + epsilon)
-        intersections = torch.stack(
-            [
-                x1 + stable_t * (x2 - x1),
-                y1 + stable_t * (y2 - y1),
-            ],
-            dim=-1,
-        )
-        intersections = intersections * intersection_mask.unsqueeze(-1).to(intersections.dtype)
-        return intersections, intersection_mask
-
-    @classmethod
-    def _box_in_box_th(
-        cls,
-        corners1: torch.Tensor,
-        corners2: torch.Tensor,
-    ) -> tuple[torch.Tensor, torch.Tensor]:
-        return cls._box1_in_box2(corners1, corners2), cls._box1_in_box2(corners2, corners1)
-
-    @staticmethod
-    def _box1_in_box2(corners1: torch.Tensor, corners2: torch.Tensor) -> torch.Tensor:
-        corner_a = corners2[:, 0:1, :]
-        corner_b = corners2[:, 1:2, :]
-        corner_d = corners2[:, 3:4, :]
-        vector_ab = corner_b - corner_a
-        vector_am = corners1 - corner_a
-        vector_ad = corner_d - corner_a
-        projection_ab = torch.sum(vector_ab * vector_am, dim=-1)
-        norm_ab = torch.sum(vector_ab * vector_ab, dim=-1)
-        projection_ad = torch.sum(vector_ad * vector_am, dim=-1)
-        norm_ad = torch.sum(vector_ad * vector_ad, dim=-1)
-
-        condition_ab = (projection_ab / norm_ab > -1e-6) & (projection_ab / norm_ab < 1.0 + 1e-6)
-        condition_ad = (projection_ad / norm_ad > -1e-6) & (projection_ad / norm_ad < 1.0 + 1e-6)
-        return condition_ab & condition_ad
-
-    @staticmethod
-    def _calculate_polygon_area(vertices: torch.Tensor, vertex_mask: torch.Tensor) -> torch.Tensor:
-        num_valid = vertex_mask.to(torch.int32).sum(dim=1)
-        safe_num_valid = torch.clamp(num_valid, min=1).to(vertices.dtype)
-        centroid = (vertices * vertex_mask.unsqueeze(-1).to(vertices.dtype)).sum(dim=1) / safe_num_valid.unsqueeze(-1)
-        normalized_vertices = vertices - centroid.unsqueeze(1)
-        angles = torch.atan2(normalized_vertices[..., 1], normalized_vertices[..., 0])
-        invalid_angle = torch.full_like(angles, float("inf"))
-        sorted_indices = torch.argsort(torch.where(vertex_mask, angles, invalid_angle), dim=1)
-
-        gather_indices = sorted_indices.unsqueeze(-1).expand(-1, -1, 2)
-        sorted_vertices = torch.gather(vertices, 1, gather_indices)
-        max_vertices = sorted_vertices.shape[1]
-        vertex_indices = torch.arange(max_vertices, device=vertices.device).unsqueeze(0).expand(sorted_vertices.shape[0], -1)
-        next_indices = torch.where(
-            vertex_indices + 1 < num_valid.unsqueeze(1),
-            vertex_indices + 1,
-            torch.zeros_like(vertex_indices),
-        )
-        valid_edge_mask = vertex_indices < num_valid.unsqueeze(1)
-        next_gather_indices = next_indices.unsqueeze(-1).expand(-1, -1, 2)
-        next_vertices = torch.gather(sorted_vertices, 1, next_gather_indices)
-
-        cross_products = sorted_vertices[..., 0] * next_vertices[..., 1] - sorted_vertices[..., 1] * next_vertices[..., 0]
-        polygon_area = torch.abs((cross_products * valid_edge_mask.to(sorted_vertices.dtype)).sum(dim=1)) / 2.0
-        return torch.where(num_valid >= 3, polygon_area, torch.zeros_like(polygon_area))

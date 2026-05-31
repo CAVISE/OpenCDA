@@ -46,6 +46,8 @@ attack:
   stages:
     - id: sniff_aim_client_responses
       type: sniffer
+      capabilities:
+        - response.observe
       stage_start_trigger:
         source:
           kind: attack
