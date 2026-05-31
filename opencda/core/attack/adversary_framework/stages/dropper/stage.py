@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping, Sequence
+from functools import partial
+import logging
 import random
 from typing import Any
 
@@ -10,7 +12,9 @@ from opencda.core.application.behavior.behavior_service_protocol import Behavior
 from opencda.core.application.behavior.capability import Capability
 from opencda.core.attack.adversary_framework.models import AttackStageResult, Status
 from opencda.core.attack.adversary_framework.stage_registry import AttackStageRegistry
-from opencda.core.attack.adversary_framework.utils import RestoreCallback, install_output_interceptor
+from opencda.core.attack.adversary_framework.utils import RestoreCallback, install_output_interceptor, log_stage_object_transition
+
+logger = logging.getLogger("cavise.opencda.opencda.core.attack.adversary_framework.stages.dropper")
 
 
 @AttackStageRegistry.register
@@ -52,7 +56,7 @@ class DropperStage:
                 restore_callback = install_output_interceptor(
                     service,
                     capability,
-                    rewrite_result=self._drop_output,
+                    rewrite_result=partial(self._drop_output, service, capability),
                 )
                 self._restore_callbacks.append(restore_callback)
 
@@ -71,7 +75,25 @@ class DropperStage:
             restore_callback = self._restore_callbacks.pop()
             restore_callback()
 
-    def _drop_output(self, output: Any) -> Any:
+    def _drop_output(
+        self,
+        service: BehaviorService[Any, Any],
+        capability: Capability,
+        output: Any,
+    ) -> Any:
+        dropped_output = self._drop_output_value(output)
+        log_stage_object_transition(
+            logger,
+            stage_name=self.stage_name,
+            action="dropped",
+            service=service,
+            capability=capability,
+            before=output,
+            after=dropped_output,
+        )
+        return dropped_output
+
+    def _drop_output_value(self, output: Any) -> Any:
         is_batch_output = self._is_batch_output(output)
         if self._drop_rate <= 0.0:
             if is_batch_output:

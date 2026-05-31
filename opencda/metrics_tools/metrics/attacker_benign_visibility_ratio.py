@@ -12,6 +12,7 @@ from opencda.metrics_tools.base_metric import BaseMetric
 from opencda.metrics_tools.collection_models import MetricSeries
 from opencda.metrics_tools.metric_sample import MetricSample
 from opencda.metrics_tools.report_models import MetricReportSpec, MetricSummarySpec
+from opencda.core.attack.advcp.types import AdvCPVisualizationContext
 
 logger = logging.getLogger("cavise.opencda.opencda.metrics_tools.metrics.attacker_benign_visibility_ratio")
 
@@ -42,7 +43,10 @@ class AttackerBenignVisibilityRatioMetric(BaseMetric):
 
     def _process_context(self, context: Mapping[str, Any]) -> None:
         visualization_context = context.get("visualization_context")
-        mode = self._normalize_mode(self._get_context_value(visualization_context, "mode"))
+        if not isinstance(visualization_context, AdvCPVisualizationContext):
+            return
+
+        mode = self._normalize_mode(visualization_context.mode)
         if mode not in self._ATTACK_MODES:
             return
 
@@ -190,19 +194,8 @@ class AttackerBenignVisibilityRatioMetric(BaseMetric):
         )
 
     @staticmethod
-    def _resolve_attacker_ids(visualization_context: Any) -> set[str]:
-        attacker_ids = AttackerBenignVisibilityRatioMetric._get_context_value(visualization_context, "attacker_ids", [])
-        if not isinstance(attacker_ids, list | tuple | set):
-            return set()
-        return {str(attacker_id) for attacker_id in attacker_ids}
-
-    @staticmethod
-    def _get_context_value(context: Any, key: str, default: Any = None) -> Any:
-        if context is None:
-            return default
-        if isinstance(context, Mapping):
-            return context.get(key, default)
-        return getattr(context, key, default)
+    def _resolve_attacker_ids(visualization_context: AdvCPVisualizationContext) -> set[str]:
+        return {str(attacker_id) for attacker_id in visualization_context.attacker_ids}
 
     @staticmethod
     def _normalize_mode(mode: Any) -> str:

@@ -1,3 +1,45 @@
+"""
+AdvCP early-fusion attack.
+
+Early fusion shares raw lidar point clouds between CAVs before any
+neural processing. The cooperative perception model receives a single
+merged point cloud (transformed into the ego frame). To attack at this
+layer, AdvCP rewrites the attacker's lidar point cloud in shared
+memory so that the merged cloud already contains injected or removed
+points by the time it reaches the model.
+
+Spoofing
+--------
+For each configured target box, build a synthetic 3D mesh (a real car
+mesh when the bundled assets are available, otherwise a four-wall
+bounding-box shell). Cast each lidar ray and replace the points whose
+ray hits the mesh with the surface intersection. The resulting cloud
+contains a realistic-looking obstacle at the target location.
+
+Removal
+-------
+Each target box becomes a "removal zone". Existing lidar returns
+inside that zone are replaced with farther-away points (sampled from a
+wall mesh, an adversarial-shape mesh, or the local ground plane) so
+that the perception model no longer sees the object.
+
+Density modes
+-------------
+The integer density code (resolved from the user's ``density``
+config string) controls how many synthetic points per target box are
+written:
+
+- 0 / ``"replace"``: replace only the points already inside the
+  target zone.
+- 1 / ``"dense_a"``: also synthesise one additional auxiliary ray
+  origin offset toward the target.
+- 2 / ``"dense_all"``: additionally synthesise one auxiliary ray
+  origin per neighbouring CAV pose.
+- 3 / ``"sampled"``: weight per-mesh sampling by visibility solid
+  angle from each non-attacker viewpoint and sample replacement points
+  accordingly. This is the default.
+"""
+
 from __future__ import annotations
 
 import copy
@@ -13,12 +55,34 @@ from opencood.tools import inference_utils
 from opencood.utils.transformation_utils import x_to_world
 
 from opencda.core.attack.advcp.attack_helper import AdvCPAttackHelper, AdvCPCarMeshHelper
-from opencda.core.attack.advcp.types import AdvCPAttackResult, AdvCPConfig, AdvCPMemoryData, AdvCPVisualizationContext
+from opencda.core.attack.advcp.types import (
+    AdvCPAttackResult,
+    AdvCPConfig,
+    AdvCPMemoryData,
+    AdvCPVisualizationContext,
+    AgentId,
+    AttackerId,
+    BoxLwhBottomCenter,
+)
 
 logger = logging.getLogger("cavise.opencda.opencda.core.attack.advcp.early_fusion_attack")
 
 
 class AdvCoperceptionEarlyFusionAttack:
+    """
+    Early-fusion AdvCP attack runner.
+
+    Stateless except for a one-shot warning flag for missing
+    adversarial-shape assets. All public entry points are class /
+    static methods.
+
+    Attributes
+    ----------
+    _REMOVE_ADV_SHAPE_WARNING_EMITTED : bool
+        Class-level guard preventing repeated fallback warnings when
+        the optional adversarial-shape mesh assets are missing.
+    """
+
     _REMOVE_ADV_SHAPE_WARNING_EMITTED = False
 
     @classmethod
@@ -31,6 +95,40 @@ class AdvCoperceptionEarlyFusionAttack:
         advcp_config: AdvCPConfig,
         memory_data: AdvCPMemoryData | None = None,
     ) -> AdvCPAttackResult:
+        """
+        Execute the early-fusion attack for a single tick.
+
+        Dispatches to the spoofing or removal handler based on
+        ``mode`` and validates that ``memory_data`` is available
+        (required to access the attackers' lidar clouds).
+
+        Parameters
+        ----------
+        batch_data : Any
+            Collated batch.
+        model : Any
+            Cooperative perception model.
+        dataset : Any
+            OpenCOOD dataset (provides post-processing, range filters,
+            and the database mutation API).
+        device : torch.device
+            Device the model lives on.
+        advcp_config : AdvCPConfig
+            Resolved AdvCP config.
+        memory_data : Optional[AdvCPMemoryData]
+            Per-tick memory data; required for any non-fallback path.
+
+        Returns
+        -------
+        AdvCPAttackResult
+
+        Raises
+        ------
+        NotImplementedError
+            If ``mode`` is not one of ``"spoofing"`` or ``"removal"``.
+        ValueError
+            If ``memory_data`` is ``None`` for a supported mode.
+        """
         mode = AdvCPAttackHelper.require_config_value(advcp_config, "mode")
         handler_by_mode = {
             "spoofing": cls._run_spoof,
@@ -63,6 +161,15 @@ class AdvCoperceptionEarlyFusionAttack:
         advcp_config: AdvCPConfig,
         memory_data: AdvCPMemoryData,
     ) -> AdvCPAttackResult:
+        """
+        Spoofing-mode handler.
+
+        Iterates over every present attacker, ray-traces the
+        configured target meshes into the attacker's lidar cloud, and
+        records the modified clouds back in shared memory. After all
+        attackers have written their modifications, runs cooperative
+        inference on the modified memory and returns the result.
+        """
         advcp_context = AdvCPVisualizationContext(mode="spoofing")
         scenario_data, configured_attacker_ids, present_attacker_ids, _ = AdvCPAttackHelper.resolve_attack_scope(
             advcp_config,
@@ -144,6 +251,15 @@ class AdvCoperceptionEarlyFusionAttack:
         advcp_config: AdvCPConfig,
         memory_data: AdvCPMemoryData,
     ) -> AdvCPAttackResult:
+        """
+        Removal-mode handler.
+
+        Iterates over every present attacker, replaces lidar points
+        falling inside each target box with farther-away points
+        (sampled from a wall, adversarial-shape, or ground-plane mesh),
+        and records the modified clouds back in shared memory. The
+        cooperative model is then run on the modified memory.
+        """
         advcp_context = AdvCPVisualizationContext(mode="removal")
         scenario_data, configured_attacker_ids, present_attacker_ids, _ = AdvCPAttackHelper.resolve_attack_scope(
             advcp_config,
@@ -217,6 +333,10 @@ class AdvCoperceptionEarlyFusionAttack:
         dataset: Any,
         advcp_context: AdvCPVisualizationContext,
     ) -> AdvCPAttackResult:
+        """
+        No-attacker fallback: run vanilla early-fusion inference and
+        attach the (empty) AdvCP visualization context.
+        """
         return (*inference_utils.inference_early_fusion(batch_data, model, dataset), advcp_context)
 
     @staticmethod
@@ -227,9 +347,44 @@ class AdvCoperceptionEarlyFusionAttack:
         device: torch.device,
         memory_data: AdvCPMemoryData,
         attacked_memory: AdvCPMemoryData,
-        attacked_attacker_ids: Sequence[str],
+        attacked_attacker_ids: Sequence[AttackerId],
         advcp_context: AdvCPVisualizationContext,
     ) -> tuple[torch.Tensor | None, torch.Tensor | None, torch.Tensor | None]:
+        """
+        Run cooperative inference with the attacker-modified memory.
+
+        Builds a fresh batch from ``attacked_memory`` (which mutates
+        the dataset in place), confirms that the attackers actually
+        appear in the resulting batch, and runs early-fusion inference.
+        Always restores the original memory in the dataset before
+        returning so subsequent calls operate on the unmodified data.
+
+        Parameters
+        ----------
+        batch_data : Any
+            Original collated batch; reused by the fallback path. The
+            batch is also rewritten in place when the attack runs.
+        model : Any
+            Cooperative perception model.
+        dataset : Any
+            OpenCOOD dataset.
+        device : torch.device
+            Device for the rebuilt batch.
+        memory_data : AdvCPMemoryData
+            Original memory (used to restore the dataset on exit).
+        attacked_memory : AdvCPMemoryData
+            Memory containing the attacker-rewritten lidar clouds.
+        attacked_attacker_ids : Sequence of AttackerId
+            Attackers expected to appear in the attacked batch.
+        advcp_context : AdvCPVisualizationContext
+            Context object; cleared if the attackers turned out to be
+            absent from the batch (fallback path).
+
+        Returns
+        -------
+        tuple
+            ``(pred_box_tensor, pred_score, gt_box_tensor)``.
+        """
         restored_original_memory = False
         try:
             attacked_batch = AdvCPAttackHelper.build_batch_from_memory(dataset, device, attacked_memory)
@@ -255,6 +410,14 @@ class AdvCoperceptionEarlyFusionAttack:
 
     @staticmethod
     def _resolve_advshape_enabled(advcp_config: AdvCPConfig) -> bool:
+        """
+        Read the ``advshape`` config flag, validating its type.
+
+        Raises
+        ------
+        ValueError
+            If ``advshape`` is set to a non-bool value.
+        """
         advshape_value = advcp_config.get("advshape", False)
         if not isinstance(advshape_value, bool):
             raise ValueError("AdvCP config key 'advshape' must be bool.")
@@ -262,10 +425,31 @@ class AdvCoperceptionEarlyFusionAttack:
 
     @staticmethod
     def _build_removed_box_tensor(
-        removal_boxes_ego: list[npt.NDArray],
+        removal_boxes_ego: list[BoxLwhBottomCenter],
         dataset: Any,
         device: torch.device,
     ) -> torch.Tensor | None:
+        """
+        Convert a list of ego-frame removal boxes into a corner tensor.
+
+        Used to populate the AdvCP visualization context with the boxes
+        that were targeted on this tick.
+
+        Parameters
+        ----------
+        removal_boxes_ego : list of BoxLwhBottomCenter
+            Removal boxes in the ego lidar frame.
+        dataset : Any
+            OpenCOOD dataset (provides the ``order`` parameter).
+        device : torch.device
+            Device for the returned tensor.
+
+        Returns
+        -------
+        Optional[torch.Tensor]
+            ``(N, 8, 3)`` corner tensor, or ``None`` when the list is
+            empty.
+        """
         if not removal_boxes_ego:
             return None
 
@@ -284,6 +468,27 @@ class AdvCoperceptionEarlyFusionAttack:
 
     @staticmethod
     def _build_lidar_rays(lidar: npt.NDArray) -> tuple[npt.NDArray, npt.NDArray, npt.NDArray] | None:
+        """
+        Reconstruct outgoing rays from a lidar point cloud.
+
+        For each point, the corresponding ray originates at the sensor
+        origin (assumed to be ``(0, 0, 0)`` in the lidar frame) and
+        travels in the direction of the point. Points at the sensor
+        origin are dropped. The output ``rays`` array follows the
+        Open3D ``RaycastingScene`` convention:
+        ``[ox, oy, oz, dx, dy, dz]`` per row.
+
+        Parameters
+        ----------
+        lidar : npt.NDArray
+            ``(N, 4+)`` lidar cloud (xyz + reflectance + ...).
+
+        Returns
+        -------
+        Optional[tuple of npt.NDArray]
+            ``(points_xyz, point_distance, rays)`` or ``None`` when
+            the cloud is empty or all points are at the origin.
+        """
         if lidar.size == 0:
             return None
 
@@ -293,6 +498,8 @@ class AdvCoperceptionEarlyFusionAttack:
         if not np.any(valid_mask):
             return None
 
+        # Direction = normalised point vector. The dummy zeros for
+        # invalid (origin) points are never used downstream.
         direction = np.zeros_like(points_xyz, dtype=np.float32)
         direction[valid_mask] = points_xyz[valid_mask] / point_distance[valid_mask, None]
         rays = np.hstack([np.zeros((direction.shape[0], 3), dtype=np.float32), direction])
@@ -302,14 +509,46 @@ class AdvCoperceptionEarlyFusionAttack:
     def _calculate_mesh_sampling_weights(
         cls,
         meshes: list[Any],
-        lidar_poses: Mapping[str, npt.NDArray],
-        attacker_id: str,
+        lidar_poses: Mapping[AgentId, npt.NDArray],
+        attacker_id: AttackerId,
     ) -> npt.NDArray:
+        """
+        Compute per-mesh sampling weights based on visibility solid
+        angle from neighbouring CAV poses.
+
+        Each non-attacker CAV "sees" the meshes from its own pose. A
+        mesh that subtends a larger horizontal and vertical angular
+        extent from a CAV's viewpoint receives a higher weight,
+        reflecting how many lidar returns that CAV would naturally
+        register on it.
+
+        The angular extents are computed from the mesh vertices in the
+        attacker's lidar frame (so the attack only cares about points
+        the attacker itself could plausibly emit).
+
+        Parameters
+        ----------
+        meshes : list of Open3D meshes
+        lidar_poses : Mapping
+            ``agent_id -> world-frame lidar pose``.
+        attacker_id : AttackerId
+            Attacker whose lidar-frame coordinate system the weights
+            are expressed in.
+
+        Returns
+        -------
+        npt.NDArray
+            ``(len(meshes),)`` non-negative weights. Falls back to
+            uniform weights when no neighbouring CAV provides a
+            non-zero angular contribution.
+        """
         mesh_weight = np.zeros(len(meshes), dtype=np.float64)
         attacker_pose = lidar_poses[attacker_id]
         for vehicle_id, lidar_pose in lidar_poses.items():
             if vehicle_id == attacker_id:
                 continue
+            # Project the neighbour's lidar origin into the attacker's
+            # frame so we can evaluate angles consistently.
             lidar_offset = cls._world_points_to_sensor(
                 np.asarray(lidar_pose[:3], dtype=np.float32)[np.newaxis, :],
                 attacker_pose,
@@ -318,10 +557,16 @@ class AdvCoperceptionEarlyFusionAttack:
                 vertices = np.asarray(mesh.vertices, dtype=np.float32)
                 if vertices.size == 0:
                     continue
+                # Horizontal angular extent (azimuth range across the
+                # mesh) and vertical angular extent (elevation range,
+                # approximated by tangent for small angles).
                 h_angle = np.arctan2(vertices[:, 1] - lidar_offset[1], vertices[:, 0] - lidar_offset[0])
                 planar_distance = np.linalg.norm(vertices[:, :2] - lidar_offset[:2], axis=1)
                 planar_distance = np.maximum(planar_distance, 1e-6)
                 v_angle = (vertices[:, 2] - lidar_offset[2]) / planar_distance
+                # 0.005 rad / 0.01 rad approximate the angular
+                # resolution of the simulated lidar; the product
+                # estimates the number of beams hitting this mesh.
                 mesh_weight[mesh_index] += ((h_angle.max() - h_angle.min()) / 0.005) * ((v_angle.max() - v_angle.min()) / 0.01)
 
         if not np.any(mesh_weight > 0):
@@ -334,6 +579,32 @@ class AdvCoperceptionEarlyFusionAttack:
         replace_data_list: list[npt.NDArray],
         mesh_weight: npt.NDArray,
     ) -> tuple[npt.NDArray, npt.NDArray]:
+        """
+        Pick a replacement point for each lidar return that intersects
+        any mesh.
+
+        For each ray, the candidate meshes are those whose
+        ``replace_mask`` has it as True. The chosen mesh is sampled
+        from the candidates weighted by ``mesh_weight`` (visibility
+        solid angle). Each ray's replacement point is then taken from
+        the corresponding mesh's intersection table.
+
+        Parameters
+        ----------
+        replace_mask_list : list of npt.NDArray
+            One boolean array per mesh, ``True`` where that mesh's
+            ray-trace returned a finite intersection.
+        replace_data_list : list of npt.NDArray
+            One ``(N, 3)`` array per mesh of intersection points.
+        mesh_weight : npt.NDArray
+            ``(num_meshes,)`` non-negative weights.
+
+        Returns
+        -------
+        tuple of npt.NDArray
+            ``(replace_indices, replace_data)`` for use by
+            ``_apply_ray_tracing``.
+        """
         point_sampling_weight = np.vstack(replace_mask_list).T.astype(np.float64) * mesh_weight
         replace_indices = np.argwhere(np.logical_or.reduce(replace_mask_list)).reshape(-1).astype(np.int32)
         replace_data = []
@@ -342,6 +613,8 @@ class AdvCoperceptionEarlyFusionAttack:
             weights = point_sampling_weight[point_index]
             total = np.sum(weights)
             if total <= 0:
+                # Fallback when all candidates have zero weight: just
+                # pick the first mesh that registers an intersection.
                 mesh_index = int(np.argmax(stacked_replace_masks[:, point_index]))
             else:
                 mesh_index = int(np.random.choice(mesh_weight.shape[0], p=weights / total))
@@ -352,12 +625,45 @@ class AdvCoperceptionEarlyFusionAttack:
     def _build_extra_rays(
         cls,
         rays: npt.NDArray,
-        target_box: npt.NDArray,
-        lidar_poses: Mapping[str, npt.NDArray],
-        attacker_id: str,
+        target_box: BoxLwhBottomCenter,
+        lidar_poses: Mapping[AgentId, npt.NDArray],
+        attacker_id: AttackerId,
         density: int,
         dense_distance: float,
     ) -> list[npt.NDArray]:
+        """
+        Build auxiliary ray batches that originate near the target box
+        rather than at the attacker's sensor.
+
+        Used by the dense modes to ensure the attack still places
+        synthetic points even on rays the attacker itself cannot reach.
+
+        - Always emits one ray batch shifted toward the target along
+          the line from the attacker to the target.
+        - For ``density == 2`` (``"dense_all"``) additionally emits
+          one ray batch per neighbouring CAV, shifted toward the
+          target along the line from that CAV to the target.
+
+        Parameters
+        ----------
+        rays : npt.NDArray
+            ``(N, 6)`` original ray batch (used as a template for
+            directions).
+        target_box : BoxLwhBottomCenter
+            Target box.
+        lidar_poses : Mapping
+            ``agent_id -> world-frame lidar pose``.
+        attacker_id : AttackerId
+        density : int
+            Density code (2 enables per-CAV auxiliary rays).
+        dense_distance : float
+            Distance offset toward the target.
+
+        Returns
+        -------
+        list of npt.NDArray
+            Auxiliary ray batches, possibly empty.
+        """
         extra_rays_list: list[npt.NDArray] = []
         target_offset = target_box[:2]
         target_distance = float(np.linalg.norm(target_offset))
@@ -391,13 +697,42 @@ class AdvCoperceptionEarlyFusionAttack:
     @staticmethod
     def _apply_sampled_ray_traced_remove(
         lidar: npt.NDArray,
-        removal_box: npt.NDArray,
-        lidar_poses: Mapping[str, npt.NDArray],
-        attacker_id: str,
+        removal_box: BoxLwhBottomCenter,
+        lidar_poses: Mapping[AgentId, npt.NDArray],
+        attacker_id: AttackerId,
         advcp_config: AdvCPConfig,
         density: int,
         advshape_enabled: bool,
     ) -> npt.NDArray:
+        """
+        Remove lidar points inside the target box (sampled-density mode).
+
+        For ``density != 3`` defers to
+        :meth:`_apply_dense_ray_traced_remove`. Otherwise builds
+        per-mesh removal candidates (wall meshes or adversarial-shape
+        meshes), computes per-mesh visibility weights, and replaces
+        each ray's hit with a sampled mesh's intersection point.
+
+        Parameters
+        ----------
+        lidar : npt.NDArray
+            Original ``(N, 4+)`` lidar cloud.
+        removal_box : BoxLwhBottomCenter
+            Target box.
+        lidar_poses : Mapping
+        attacker_id : AttackerId
+        advcp_config : AdvCPConfig
+        density : int
+            Density code.
+        advshape_enabled : bool
+            Whether to prefer the adversarial-shape mesh over wall
+            meshes.
+
+        Returns
+        -------
+        npt.NDArray
+            Modified lidar cloud.
+        """
         if density != 3:
             return AdvCoperceptionEarlyFusionAttack._apply_dense_ray_traced_remove(
                 lidar,
@@ -444,13 +779,23 @@ class AdvCoperceptionEarlyFusionAttack:
     @staticmethod
     def _apply_dense_ray_traced_remove(
         lidar: npt.NDArray,
-        removal_box: npt.NDArray,
-        lidar_poses: Mapping[str, npt.NDArray],
-        attacker_id: str,
+        removal_box: BoxLwhBottomCenter,
+        lidar_poses: Mapping[AgentId, npt.NDArray],
+        attacker_id: AttackerId,
         advcp_config: AdvCPConfig,
         density: int,
         advshape_enabled: bool,
     ) -> npt.NDArray:
+        """
+        Remove lidar points inside the target box (dense modes).
+
+        For ``density == 0`` (``"replace"``) replaces each in-box ray
+        with the corresponding mesh intersection. For ``density != 0``
+        additionally injects auxiliary rays from neighbouring viewpoints
+        and appends the resulting points instead of replacing.
+
+        Falls back to a plain box removal when no mesh is available.
+        """
         ray_data = AdvCoperceptionEarlyFusionAttack._build_lidar_rays(lidar)
         if ray_data is None:
             return np.asarray(lidar, dtype=np.float32)
@@ -514,10 +859,17 @@ class AdvCoperceptionEarlyFusionAttack:
 
     @staticmethod
     def _build_sampled_removal_meshes(
-        removal_box: npt.NDArray,
+        removal_box: BoxLwhBottomCenter,
         advcp_config: AdvCPConfig,
         advshape_enabled: bool,
     ) -> list[Any]:
+        """
+        Pick the mesh set for the sampled-density removal mode.
+
+        Returns the adversarial-shape mesh pieces when ``advshape``
+        is enabled and the assets are available; otherwise four wall
+        meshes around the target box.
+        """
         if advshape_enabled:
             adv_shape_meshes = AdvCoperceptionEarlyFusionAttack._build_adv_shape_meshes(removal_box, advcp_config)
             if len(adv_shape_meshes) > 0:
@@ -526,11 +878,20 @@ class AdvCoperceptionEarlyFusionAttack:
 
     @staticmethod
     def _build_dense_removal_meshes(
-        removal_box: npt.NDArray,
+        removal_box: BoxLwhBottomCenter,
         lidar: npt.NDArray,
         advcp_config: AdvCPConfig,
         advshape_enabled: bool,
     ) -> list[Any]:
+        """
+        Pick the mesh set for the dense-density removal mode.
+
+        When ``advshape`` is enabled and assets are present, returns
+        either the single adversarial-shape mesh or its merged form.
+        Otherwise returns a single ground-plane mesh derived from the
+        local lidar Z distribution (so removed points are pushed onto
+        the road instead of an arbitrary wall).
+        """
         if advshape_enabled:
             adv_shape_meshes = AdvCoperceptionEarlyFusionAttack._build_adv_shape_meshes(removal_box, advcp_config)
             if len(adv_shape_meshes) > 0:
@@ -540,7 +901,20 @@ class AdvCoperceptionEarlyFusionAttack:
         return [AdvCoperceptionEarlyFusionAttack._build_ground_plane_mesh(lidar)]
 
     @staticmethod
-    def _build_removal_wall_meshes(removal_box: npt.NDArray) -> list[Any]:
+    def _build_removal_wall_meshes(removal_box: BoxLwhBottomCenter) -> list[Any]:
+        """
+        Build four thin wall meshes around the perimeter of a removal
+        box.
+
+        Each wall is a thin (1 cm) box offset 0.3 m past one face of
+        the target box, so that lidar rays pointing into the target
+        zone first encounter a wall rather than disappearing. The
+        resulting cloud thus contains points on the wall surface
+        instead of inside the target.
+
+        The four walls (in the order returned) line up with the +y,
+        +x, -y, -x faces of the target box in its local frame.
+        """
         wall_boxes = []
         extend_distance = 0.3
 
@@ -579,6 +953,14 @@ class AdvCoperceptionEarlyFusionAttack:
 
     @staticmethod
     def _build_ground_plane_mesh(lidar: npt.NDArray) -> Any:
+        """
+        Build a large ground-plane mesh for dense-mode removal.
+
+        The plane Z is set 20 cm below the 2nd percentile of the
+        lidar's Z distribution, which is a robust estimate of the
+        ground level. When the cloud is empty the plane is placed at
+        ``z = -2.0`` (a sensible default for typical CARLA setups).
+        """
         import open3d as o3d
 
         if lidar.size == 0:
@@ -592,9 +974,18 @@ class AdvCoperceptionEarlyFusionAttack:
     @classmethod
     def _build_adv_shape_meshes(
         cls,
-        removal_box: npt.NDArray,
+        removal_box: BoxLwhBottomCenter,
         advcp_config: AdvCPConfig,
     ) -> list[Any]:
+        """
+        Build adversarial-shape mesh pieces fitted to a removal box.
+
+        Loads the canonical template (a 4.9 x 2.5 x 2.0 box, optionally
+        deformed by a precomputed perturbation), splits it into
+        regions, then scales / rotates / translates each piece to
+        match ``removal_box``. Logs and returns ``[]`` on any IO or
+        validation failure.
+        """
         try:
             template_mesh = cls._create_adv_shape_template_mesh(advcp_config)
             mesh_divide = cls._resolve_remove_adv_shape_divide(template_mesh, advcp_config)
@@ -704,6 +1095,15 @@ class AdvCoperceptionEarlyFusionAttack:
         ignore_indices: npt.NDArray | None = None,
         append_data: npt.NDArray | None = None,
     ) -> npt.NDArray:
+        """
+        Apply a sequence of replace / delete / append edits to a lidar
+        cloud.
+
+        Operations are applied in order. ``replace_data`` only
+        overwrites the XYZ columns; the reflectance column is
+        preserved. ``append_data`` is given a synthetic reflectance
+        of 1.0 per appended point.
+        """
         attacked_lidar = np.array(lidar, copy=True)
         if replace_indices is not None and replace_indices.shape[0] > 0 and replace_data is not None:
             attacked_lidar[replace_indices, :3] = replace_data
@@ -716,8 +1116,14 @@ class AdvCoperceptionEarlyFusionAttack:
     @staticmethod
     def _apply_box_removal(
         lidar: npt.NDArray,
-        removal_box: npt.NDArray,
+        removal_box: BoxLwhBottomCenter,
     ) -> npt.NDArray:
+        """
+        Drop every lidar point falling inside a box.
+
+        Used as a fallback when no removal mesh is available. Returns
+        the original cloud unchanged when nothing is inside the box.
+        """
         if lidar.size == 0:
             return np.asarray(lidar, dtype=np.float32)
 
@@ -730,8 +1136,17 @@ class AdvCoperceptionEarlyFusionAttack:
     @staticmethod
     def _select_points_in_expanded_box(
         points_xyz: npt.NDArray,
-        removal_box: npt.NDArray,
+        removal_box: BoxLwhBottomCenter,
     ) -> npt.NDArray:
+        """
+        Indices of points falling inside a slightly enlarged target box.
+
+        The box is widened by 0.6 m in each horizontal direction and
+        extended down by 5 m and up to a 10 m height. This catches
+        points near the box surface (which would otherwise be missed
+        due to lidar noise) and points just above ground (for ground-
+        plane removal).
+        """
         expanded_box = np.array(removal_box, copy=True)
         expanded_box[2] -= 5.0
         expanded_box[3] += 0.6
@@ -743,8 +1158,28 @@ class AdvCoperceptionEarlyFusionAttack:
     @staticmethod
     def _compute_points_inside_box_mask(
         points_xyz: npt.NDArray,
-        box_lwh_bottom_center: npt.NDArray,
+        box_lwh_bottom_center: BoxLwhBottomCenter,
     ) -> npt.NDArray:
+        """
+        Boolean mask for points lying inside a yawed bounding box.
+
+        Performs an inverse rotation around the box yaw, then checks
+        the local-frame coordinates against half-extents. The Z check
+        treats the box centre as the bottom face (per the
+        ``BoxLwhBottomCenter`` convention).
+
+        Parameters
+        ----------
+        points_xyz : npt.NDArray
+            ``(N, 3)`` points.
+        box_lwh_bottom_center : BoxLwhBottomCenter
+            ``[x, y, z, l, w, h, yaw]``.
+
+        Returns
+        -------
+        npt.NDArray
+            ``(N,)`` boolean mask, ``True`` for points inside the box.
+        """
         center_x, center_y, center_z = [float(value) for value in box_lwh_bottom_center[:3]]
         length, width, height = [float(value) for value in box_lwh_bottom_center[3:6]]
         yaw = float(box_lwh_bottom_center[6])
@@ -753,6 +1188,9 @@ class AdvCoperceptionEarlyFusionAttack:
         translated_y = points_xyz[:, 1] - center_y
         translated_z = points_xyz[:, 2] - center_z
 
+        # Rotate the translated points by -yaw to get coordinates in
+        # the box's own local frame, where the inside check reduces to
+        # comparing absolute values against half-extents.
         cos_yaw = float(np.cos(yaw))
         sin_yaw = float(np.sin(yaw))
         local_x = cos_yaw * translated_x + sin_yaw * translated_y
@@ -772,12 +1210,27 @@ class AdvCoperceptionEarlyFusionAttack:
     def _apply_sampled_ray_traced_spoof(
         lidar: npt.NDArray,
         spoofing_mask: npt.NDArray,
-        spoof_box: npt.NDArray,
-        lidar_poses: Mapping[str, npt.NDArray],
-        attacker_id: str,
+        spoof_box: BoxLwhBottomCenter,
+        lidar_poses: Mapping[AgentId, npt.NDArray],
+        attacker_id: AttackerId,
         advcp_config: AdvCPConfig,
         density: int,
     ) -> tuple[npt.NDArray, npt.NDArray]:
+        """
+        Inject points onto a spoof box (sampled-density mode).
+
+        For ``density != 3`` defers to
+        :meth:`_apply_dense_ray_traced_spoof`. Otherwise builds the
+        spoof mesh pieces, ray-traces every existing lidar ray, and
+        replaces hit points with the surface intersection sampled per
+        viewpoint visibility weights. Marks the replaced points as
+        spoofed in ``spoofing_mask``.
+
+        Returns
+        -------
+        tuple of npt.NDArray
+            ``(modified_lidar, updated_spoofing_mask)``.
+        """
         if density != 3:
             return AdvCoperceptionEarlyFusionAttack._apply_dense_ray_traced_spoof(
                 lidar,
@@ -822,12 +1275,23 @@ class AdvCoperceptionEarlyFusionAttack:
     def _apply_dense_ray_traced_spoof(
         lidar: npt.NDArray,
         spoofing_mask: npt.NDArray,
-        spoof_box: npt.NDArray,
-        lidar_poses: Mapping[str, npt.NDArray],
-        attacker_id: str,
+        spoof_box: BoxLwhBottomCenter,
+        lidar_poses: Mapping[AgentId, npt.NDArray],
+        attacker_id: AttackerId,
         advcp_config: AdvCPConfig,
         density: int,
     ) -> tuple[npt.NDArray, npt.NDArray]:
+        """
+        Inject points onto a spoof box (dense modes).
+
+        Uses an occlusion test against a single solid collision mesh:
+        a ray's hit replaces an existing point only if the existing
+        point lies behind the spoof object. For ``density != 0``
+        additionally injects auxiliary rays from neighbouring
+        viewpoints, taking only the hits that fall inside the target
+        box (so injected points are confined to the spoofed object's
+        envelope).
+        """
         dense_distance = float(AdvCPAttackHelper.require_config_value(advcp_config, "dense_distance"))
         ray_data = AdvCoperceptionEarlyFusionAttack._build_lidar_rays(lidar)
         if ray_data is None:
@@ -884,6 +1348,19 @@ class AdvCoperceptionEarlyFusionAttack:
         ignore_indices: npt.NDArray | None = None,
         append_data: npt.NDArray | None = None,
     ) -> tuple[npt.NDArray, npt.NDArray]:
+        """
+        Same edit pipeline as :meth:`_apply_ray_tracing` but with a
+        parallel boolean mask flagging spoofed points.
+
+        Replaced and appended points are flagged ``True``; deletions
+        keep ``mask`` and ``lidar`` length-aligned by deleting the
+        corresponding mask rows.
+
+        Returns
+        -------
+        tuple of npt.NDArray
+            ``(spoofed_lidar, updated_mask)``.
+        """
         spoofed_lidar = np.array(lidar, copy=True)
         updated_mask = np.array(spoofing_mask, copy=True)
         if replace_indices is not None and replace_indices.shape[0] > 0 and replace_data is not None:
@@ -899,11 +1376,36 @@ class AdvCoperceptionEarlyFusionAttack:
 
     @staticmethod
     def _append_reflectance_column(points_xyz: npt.NDArray) -> npt.NDArray:
+        """
+        Append a constant reflectance of 1.0 to a XYZ point array.
+
+        OpenCOOD lidar clouds use ``(x, y, z, reflectance)`` rows;
+        synthetic injected points must include the fourth column to
+        stay shape-compatible.
+        """
         reflectance = np.ones((points_xyz.shape[0], 1), dtype=np.float32)
         return np.hstack([points_xyz.astype(np.float32), reflectance])
 
     @staticmethod
     def _world_points_to_sensor(points_world: npt.NDArray, sensor_pose: npt.NDArray) -> npt.NDArray:
+        """
+        Project world-frame points into a sensor frame.
+
+        Inverse of ``x_to_world(sensor_pose)`` applied to the points
+        in homogeneous coordinates.
+
+        Parameters
+        ----------
+        points_world : npt.NDArray
+            ``(N, 3)`` world-frame points.
+        sensor_pose : npt.NDArray
+            Sensor pose ``[x, y, z, roll, yaw, pitch]``.
+
+        Returns
+        -------
+        npt.NDArray
+            ``(N, 3)`` sensor-frame points.
+        """
         sensor_matrix = x_to_world(sensor_pose.tolist())
         world_to_sensor = np.linalg.inv(sensor_matrix)
         homogeneous_points = np.hstack([points_world.astype(np.float32), np.ones((points_world.shape[0], 1), dtype=np.float32)])
