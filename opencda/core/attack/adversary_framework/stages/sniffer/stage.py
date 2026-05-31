@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from functools import partial
+import logging
 from typing import Any
 
 from opencda.core.application.behavior.behavior_service_protocol import BehaviorService
@@ -11,7 +12,9 @@ from opencda.core.application.behavior.capability import Capability
 from opencda.core.attack.adversary_framework.models import AttackStageResult, Status
 from opencda.core.attack.adversary_framework.stage_registry import AttackStageRegistry
 from opencda.core.attack.adversary_framework.stages.sniffer.types import ObservedOutput
-from opencda.core.attack.adversary_framework.utils import RestoreCallback, install_output_interceptor, safe_clone
+from opencda.core.attack.adversary_framework.utils import RestoreCallback, install_output_interceptor, log_stage_object_transition, safe_clone
+
+logger = logging.getLogger("cavise.opencda.opencda.core.attack.adversary_framework.stages.sniffer")
 
 
 @AttackStageRegistry.register
@@ -78,5 +81,14 @@ class SnifferStage:
                 capability=capability,
                 output=safe_clone(output),
             )
+        )
+        log_stage_object_transition(
+            logger,
+            stage_name=self.stage_name,
+            action="observed",
+            service=service,
+            capability=capability,
+            before=output,
+            after=output,
         )
         return output
