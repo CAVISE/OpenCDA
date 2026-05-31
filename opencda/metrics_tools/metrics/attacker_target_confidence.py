@@ -12,6 +12,7 @@ from opencda.metrics_tools.base_metric import BaseMetric
 from opencda.metrics_tools.collection_models import MetricSeries
 from opencda.metrics_tools.metric_sample import MetricSample
 from opencda.metrics_tools.report_models import MetricReportSpec, MetricSummarySpec
+from opencda.core.attack.advcp.types import AdvCPVisualizationContext
 
 logger = logging.getLogger("cavise.opencda.opencda.metrics_tools.metrics.attacker_target_confidence")
 
@@ -91,7 +92,10 @@ class AttackerTargetConfidenceMetric(BaseMetric):
 
     def _process_context(self, context: Mapping[str, Any]) -> None:
         visualization_context = context.get("visualization_context")
-        mode = self._normalize_mode(self._get_context_value(visualization_context, "mode"))
+        if not isinstance(visualization_context, AdvCPVisualizationContext):
+            return
+
+        mode = self._normalize_mode(visualization_context.mode)
 
         if mode == "removal":
             per_target = self._collect_removal_confidence(context, visualization_context)
@@ -127,13 +131,13 @@ class AttackerTargetConfidenceMetric(BaseMetric):
     def _collect_removal_confidence(
         self,
         context: Mapping[str, Any],
-        visualization_context: Any,
+        visualization_context: AdvCPVisualizationContext,
     ) -> list[float] | None:
         """
         Targets = GT objects whose centroid lies inside the removal zone.
         Confidence for each = best pred score with IoU >= threshold, else 0.
         """
-        removal_np = self._to_box_array(self._get_context_value(visualization_context, "removed_box_tensor"))
+        removal_np = self._to_box_array(visualization_context.removed_box_tensor)
         gt_np = self._to_box_array(context.get("gt_box_tensor"))
         if removal_np is None or gt_np is None:
             return None
@@ -165,13 +169,13 @@ class AttackerTargetConfidenceMetric(BaseMetric):
     def _collect_spoofing_confidence(
         self,
         context: Mapping[str, Any],
-        visualization_context: Any,
+        visualization_context: AdvCPVisualizationContext,
     ) -> list[float] | None:
         """
         Targets = unique configured spoof boxes (deduplicated fake_box_tensor).
         Confidence for each = best pred score with IoU >= threshold, else 0.
         """
-        fake_np = self._to_box_array(self._get_context_value(visualization_context, "fake_box_tensor"))
+        fake_np = self._to_box_array(visualization_context.fake_box_tensor)
         if fake_np is None:
             return None
 
@@ -209,14 +213,6 @@ class AttackerTargetConfidenceMetric(BaseMetric):
             mean_confidence,
             target_count,
         )
-
-    @staticmethod
-    def _get_context_value(context: Any, key: str) -> Any:
-        if context is None:
-            return None
-        if isinstance(context, Mapping):
-            return context.get(key)
-        return getattr(context, key, None)
 
     @staticmethod
     def _normalize_mode(mode: Any) -> str:

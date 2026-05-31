@@ -8,7 +8,7 @@ from typing import Any, TypeAlias
 
 
 class Capability(str, Enum):
-    """Сross-service capability vocabulary."""
+    """Cross-service capability vocabulary."""
 
     REQUEST_OBSERVE = "request.observe"
     REQUEST_SUBMIT = "request.submit"
