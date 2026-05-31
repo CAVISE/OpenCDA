@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+import logging
 
 from opencda.scenario_testing.types import SimulationSnapshot
 
 from .attack import Attack
 from .models import AttackResult, AttackStageResult, RuntimeStatus, Status
 from .utils import ServiceResolver
+
+logger = logging.getLogger("cavise.opencda.opencda.core.attack.adversary_framework.attack_manager")
 
 
 class AttackManager:
@@ -34,20 +37,22 @@ class AttackManager:
                     stage_history = attack.get_stage_history()
                     attack.deactivate()
                     attack.mark_stopped()
-                    results.append(
-                        AttackResult(
-                            attack_name=attack.attack_name,
-                            status=Status.STOP,
-                            reason="Attack stop trigger fired.",
-                            stage_history=stage_history,
-                        )
+                    attack_result = AttackResult(
+                        attack_name=attack.attack_name,
+                        status=Status.STOP,
+                        reason="Attack stop trigger fired.",
+                        stage_history=stage_history,
                     )
+                    self._log_attack_result(attack_result)
+                    results.append(attack_result)
                     continue
 
                 target_services = tuple(attack.resolve_targets(current_snapshot, service_resolver))
                 stage_results = attack.run_stage_lifecycle(previous_snapshot, current_snapshot, target_services)
                 if stage_results:
-                    results.append(self._build_attack_result(attack, stage_results))
+                    attack_result = self._build_attack_result(attack, stage_results)
+                    self._log_attack_result(attack_result)
+                    results.append(attack_result)
                 continue
 
             if not attack.should_start(previous_snapshot, current_snapshot):
@@ -55,13 +60,13 @@ class AttackManager:
 
             target_services = tuple(attack.resolve_targets(current_snapshot, service_resolver))
             if not target_services:
-                results.append(
-                    AttackResult(
-                        attack_name=attack.attack_name,
-                        status=Status.FAIL,
-                        reason="Attack trigger fired, but no target services were resolved.",
-                    )
+                attack_result = AttackResult(
+                    attack_name=attack.attack_name,
+                    status=Status.FAIL,
+                    reason="Attack trigger fired, but no target services were resolved.",
                 )
+                self._log_attack_result(attack_result)
+                results.append(attack_result)
                 continue
 
             attack.mark_started()
@@ -69,7 +74,9 @@ class AttackManager:
             if attack.status == RuntimeStatus.STARTED:
                 attack.mark_active()
             if stage_results:
-                results.append(self._build_attack_result(attack, stage_results))
+                attack_result = self._build_attack_result(attack, stage_results)
+                self._log_attack_result(attack_result)
+                results.append(attack_result)
 
         self.previous_snapshot = current_snapshot
         return tuple(results)
@@ -102,3 +109,16 @@ class AttackManager:
             reason=last_result.reason,
             stage_history=attack.get_stage_history(),
         )
+
+    @staticmethod
+    def _log_attack_result(attack_result: AttackResult) -> None:
+        log_message = "Attack '%s' result: status=%s, reason=%s."
+        log_args = (
+            attack_result.attack_name,
+            attack_result.status.value,
+            attack_result.reason,
+        )
+        if attack_result.status == Status.FAIL:
+            logger.warning(log_message, *log_args)
+            return
+        logger.info(log_message, *log_args)

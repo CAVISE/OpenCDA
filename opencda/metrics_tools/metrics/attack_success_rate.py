@@ -12,6 +12,7 @@ from opencda.metrics_tools.base_metric import BaseMetric
 from opencda.metrics_tools.collection_models import MetricSeries
 from opencda.metrics_tools.metric_sample import MetricSample
 from opencda.metrics_tools.report_models import MetricReportSpec, MetricSummarySpec
+from opencda.core.attack.advcp.types import AdvCPVisualizationContext
 
 logger = logging.getLogger("cavise.opencda.opencda.metrics_tools.metrics.attack_success_rate")
 
@@ -81,11 +82,14 @@ class AttackSuccessRateMetric(BaseMetric):
     def __init__(self, warmup_steps: int = 0, iou_threshold: float = 0.3):
         super().__init__(warmup_steps=warmup_steps)
         self.iou_threshold = float(iou_threshold)
-        self._samples: dict[str, list[MetricSample]] = {name: [] for name in self._SERIES_NAMES}
+        self._series_samples: dict[str, list[MetricSample]] = {name: [] for name in self._SERIES_NAMES}
 
     def _process_context(self, context: Mapping[str, Any]) -> None:
         visualization_context = context.get("visualization_context")
-        mode = self._normalize_mode(self._get_context_value(visualization_context, "mode"))
+        if not isinstance(visualization_context, AdvCPVisualizationContext):
+            return
+
+        mode = self._normalize_mode(visualization_context.mode)
 
         if mode == "removal":
             result = self._compute_removal_result(context, visualization_context)
@@ -101,11 +105,11 @@ class AttackSuccessRateMetric(BaseMetric):
 
         matched_count, target_count = result
         success_rate = matched_count / target_count if mode == "spoofing" else (target_count - matched_count) / target_count
-        self._samples[series_name].append(self._make_sample(success_rate))
+        self._series_samples[series_name].append(self._make_sample(success_rate))
         self._log_asr(mode=mode, success_rate=success_rate, matched_count=matched_count, target_count=target_count)
 
     def get_raw(self) -> tuple[MetricSeries, ...]:
-        return tuple(MetricSeries(name=name, samples=tuple(self._samples[name])) for name in self._SERIES_NAMES)
+        return tuple(MetricSeries(name=name, samples=tuple(self._series_samples[name])) for name in self._SERIES_NAMES)
 
     @classmethod
     def get_report_spec(cls) -> MetricReportSpec:
@@ -122,14 +126,14 @@ class AttackSuccessRateMetric(BaseMetric):
     def _compute_removal_result(
         self,
         context: Mapping[str, Any],
-        visualization_context: Any,
+        visualization_context: AdvCPVisualizationContext,
     ) -> tuple[int, int] | None:
         """
         Targets = GT objects whose centroid lies inside the removal zone.
         Matched = still detected (IoU with any pred >= threshold).
         ASR = (target_count - matched_count) / target_count.
         """
-        removal_np = self._to_box_array(self._get_context_value(visualization_context, "removed_box_tensor"))
+        removal_np = self._to_box_array(visualization_context.removed_box_tensor)
         gt_np = self._to_box_array(context.get("gt_box_tensor"))
         if removal_np is None or gt_np is None:
             return None
@@ -162,14 +166,14 @@ class AttackSuccessRateMetric(BaseMetric):
     def _compute_spoofing_result(
         self,
         context: Mapping[str, Any],
-        visualization_context: Any,
+        visualization_context: AdvCPVisualizationContext,
     ) -> tuple[int, int] | None:
         """
         Targets = unique configured spoof boxes (deduplicated fake_box_tensor).
         Matched = detected in predictions (IoU with any pred >= threshold).
         ASR = matched_count / target_count.
         """
-        fake_np = self._to_box_array(self._get_context_value(visualization_context, "fake_box_tensor"))
+        fake_np = self._to_box_array(visualization_context.fake_box_tensor)
         if fake_np is None:
             return None
 
@@ -208,14 +212,6 @@ class AttackSuccessRateMetric(BaseMetric):
             matched_count,
             target_count,
         )
-
-    @staticmethod
-    def _get_context_value(context: Any, key: str) -> Any:
-        if context is None:
-            return None
-        if isinstance(context, Mapping):
-            return context.get(key)
-        return getattr(context, key, None)
 
     @staticmethod
     def _normalize_mode(mode: Any) -> str:

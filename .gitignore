@@ -2,6 +2,8 @@ csv
 fcd
 training_params
 
+*.log.json
+
 __pycache__/
 *.py[cod]
 *$py.class

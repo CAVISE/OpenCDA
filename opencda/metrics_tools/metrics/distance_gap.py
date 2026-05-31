@@ -3,9 +3,7 @@
 from typing import Mapping, Any
 
 from opencda.metrics_tools.base_metric import BaseMetric
-from opencda.metrics_tools.collection_models import MetricSeries
 from opencda.metrics_tools.report_models import MetricReportSpec, MetricSummarySpec
-from opencda.metrics_tools.metric_sample import MetricSample
 
 
 class DistanceGapMetric(BaseMetric):  # noqa DC03
@@ -15,14 +13,10 @@ class DistanceGapMetric(BaseMetric):  # noqa DC03
 
     def __init__(self, warmup_steps: int = 100):
         super().__init__(warmup_steps=warmup_steps)
-        self._samples: list[MetricSample] = []
 
     def _process_context(self, context: Mapping[str, Any]) -> None:
         distance_gap = float(context.get("distance_gap", 100.0))
-        self._samples.append(self._make_sample(distance_gap))
-
-    def get_raw(self) -> tuple[MetricSeries, ...]:
-        return (MetricSeries(name="distance_gap", samples=tuple(self._samples)),)
+        self._record_sample(distance_gap)
 
     @classmethod
     def get_report_spec(cls) -> MetricReportSpec:

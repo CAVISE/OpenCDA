@@ -7,7 +7,7 @@ from opencda.core.application.behavior.types import Location
 def calculate_target_speeds(
     trajectory: Sequence[Location],
     dt: float = 0.1,
-    current_location: Location | carla.Location | None = None,
+    current_location: Location | None = None,
     current_speed: float | None = None,
     max_speed: float | None = None,
     max_accel: float | None = None,
@@ -25,7 +25,7 @@ def calculate_target_speeds(
         Time delta between two predicted trajectory points, in seconds.
         The original AIM inference examples use 0.1 s.
 
-    current_location : Location | carla.Location | None
+    current_location : Location | None
         Current ego location. If provided, the speed for the first trajectory
         point is calculated from ego location to trajectory[0].
 
@@ -84,7 +84,7 @@ def calculate_target_speeds(
     return speeds
 
 
-def _distance_2d(first: Location | carla.Location, second: Location | carla.Location) -> float:
+def _distance_2d(first: Location, second: Location) -> float:
     dx = second.x - first.x
     dy = second.y - first.y
     return (dx * dx + dy * dy) ** 0.5
@@ -116,5 +116,5 @@ def draw_trajetory_points(
     size: float = 0.1,
 ) -> None:
     for location in locations:
-        loc = carla.Location(location.x, location.y, location.z)
+        loc = carla.Location(location.x, location.y, location.z + 1)
         world.debug.draw_point(loc, size=size, color=color, life_time=life_time)
