@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from collections import OrderedDict
-from typing import TYPE_CHECKING, Any, Mapping, NotRequired, Sequence, TypedDict, cast
+from typing import TYPE_CHECKING, Mapping, NotRequired, Sequence, TypedDict, cast
 
 import numpy as np
 
@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     from opencda.core.sensing.localization.localization_manager import LocalizationManager as VehicleLocalizationManager
     from opencda.core.sensing.localization.rsu_localization_manager import LocalizationManager as RsuLocalizationManager
     from opencda.core.sensing.perception.obstacle_vehicle import ObstacleVehicle
-    from opencda.core.sensing.perception.perception_manager import LidarSensor, PerceptionManager, SemanticLidarSensor, SensorMeasurement
+    from opencda.core.sensing.perception.perception_manager import PerceptionManager, SensorMeasurement
 
 logger = logging.getLogger("cavise.opencda.opencda.core.common.coperception_data_processor")
 
@@ -73,40 +73,15 @@ class CoperceptionDataProcessor:
         return []
 
     @staticmethod
-    def _is_carla_transform_like(transform: object) -> bool:
-        carla_transform = cast("carla.Transform", transform)
-        try:
-            location = carla_transform.location
-            rotation = carla_transform.rotation
-            values = (
-                location.x,
-                location.y,
-                location.z,
-                rotation.roll,
-                rotation.yaw,
-                rotation.pitch,
-            )
-        except AttributeError:
-            return False
-        return all(isinstance(value, (int, float)) for value in values)
-
-    @classmethod
-    def _resolve_lidar_transform(cls, lidar: LidarSensor | SemanticLidarSensor) -> "carla.Transform":
-        lidar_transform = getattr(lidar, "transform", None)
-        if cls._is_carla_transform_like(lidar_transform):
-            return cast("carla.Transform", lidar_transform)
-        return lidar.sensor.get_transform()
-
-    @classmethod
     def _resolve_measurement_transform(
-        cls,
         measurement: "SensorMeasurement | None",
-        fallback_sensor: Any,
+        sensor_name: str,
     ) -> "carla.Transform":
-        measurement_transform = getattr(measurement, "transform", None)
-        if cls._is_carla_transform_like(measurement_transform):
-            return cast("carla.Transform", measurement_transform)
-        return cast("carla.Transform", fallback_sensor.get_transform())
+        if measurement is None:
+            raise RuntimeError(f"CoP requires synchronized '{sensor_name}' measurement, but it is missing.")
+        if measurement.transform is None:
+            raise RuntimeError(f"CoP synchronized '{sensor_name}' measurement does not contain a transform.")
+        return cast("carla.Transform", measurement.transform)
 
     @staticmethod
     def _wait_for_sensor_frame(
@@ -125,7 +100,7 @@ class CoperceptionDataProcessor:
         perception_manager: PerceptionManager,
         localization_manager: VehicleLocalizationManager | RsuLocalizationManager,
         behavior_agent: BehaviorAgent | None,
-        sensor_measurements: Mapping[str, "SensorMeasurement"] | None = None,
+        sensor_measurements: Mapping[str, "SensorMeasurement"],
     ) -> LiveParams:
         dump_yml: LiveParams = {}
         vehicle_dict: dict[int, "VehicleDumpRecord"] = {}
@@ -173,17 +148,14 @@ class CoperceptionDataProcessor:
         dump_yml["true_ego_pos"] = transform_to_tuple(true_ego_pos)
         dump_yml["ego_speed"] = float(localization_manager.get_ego_spd())
 
-        if (lidar := perception_manager.lidar) is None:
+        if perception_manager.lidar is None:
             raise RuntimeError("Coperception requires LiDAR, but perception_manager.lidar is not initialized.")
-        if sensor_measurements is not None:
-            lidar_transform = CoperceptionDataProcessor._resolve_measurement_transform(sensor_measurements.get("lidar"), lidar.sensor)
-        else:
-            lidar_transform = CoperceptionDataProcessor._resolve_lidar_transform(lidar)
+        lidar_transform = CoperceptionDataProcessor._resolve_measurement_transform(sensor_measurements.get("lidar"), "lidar")
         dump_yml["lidar_pose"] = transform_to_tuple(lidar_transform)
 
         for i, camera in enumerate(getattr(perception_manager, "rgb_camera", None) or []):
-            camera_measurement = None if sensor_measurements is None else sensor_measurements.get(f"camera{i}")
-            camera_transform = CoperceptionDataProcessor._resolve_measurement_transform(camera_measurement, camera.sensor)
+            camera_measurement = sensor_measurements.get(f"camera{i}")
+            camera_transform = CoperceptionDataProcessor._resolve_measurement_transform(camera_measurement, f"camera{i}")
             camera_intrinsic = st.get_camera_intrinsic(camera.sensor)
             lidar2world = st.x_to_world_transformation(lidar_transform)
             camera2world = st.x_to_world_transformation(camera_transform)
@@ -207,7 +179,7 @@ class CoperceptionDataProcessor:
         single_cav_list: Sequence[VehicleManager],
         rsu_list: Sequence[RSUManager],
         tick_number: int,
-        sensor_frame: int | None = None,
+        sensor_frame: int,
     ) -> OrderedDict[int, OrderedDict[str, OrderedDict[str, LiveMemorySnapshot | bool]]] | None:
         timestamp = f"{tick_number:06d}"
         if len(single_cav_list) == 0 and len(rsu_list) == 0:
@@ -229,18 +201,14 @@ class CoperceptionDataProcessor:
                 )
                 continue
 
-            sensor_measurements: dict[str, "SensorMeasurement"] | None = None
-            if sensor_frame is not None:
-                sensor_measurements = self._wait_for_sensor_frame(
-                    vehicle_manager.perception_manager,
-                    vehicle_manager.id,
-                    sensor_frame,
-                    self.sensor_sync_timeout_seconds,
-                )
-                lidar_measurement = sensor_measurements.get("lidar")
-                vehicle_lidar_data = None if lidar_measurement is None else np.asarray(lidar_measurement.data)
-            else:
-                vehicle_lidar_data = vehicle_lidar.data
+            sensor_measurements = self._wait_for_sensor_frame(
+                vehicle_manager.perception_manager,
+                vehicle_manager.id,
+                sensor_frame,
+                self.sensor_sync_timeout_seconds,
+            )
+            lidar_measurement = sensor_measurements.get("lidar")
+            vehicle_lidar_data = None if lidar_measurement is None or lidar_measurement.data is None else np.asarray(lidar_measurement.data)
 
             if vehicle_lidar_data is None:
                 logger.warning(
@@ -275,18 +243,14 @@ class CoperceptionDataProcessor:
                 )
                 continue
 
-            sensor_measurements = None
-            if sensor_frame is not None:
-                sensor_measurements = self._wait_for_sensor_frame(
-                    rsu_manager.perception_manager,
-                    rsu_manager.id,
-                    sensor_frame,
-                    self.sensor_sync_timeout_seconds,
-                )
-                lidar_measurement = sensor_measurements.get("lidar")
-                rsu_lidar_data = None if lidar_measurement is None else np.asarray(lidar_measurement.data)
-            else:
-                rsu_lidar_data = rsu_lidar.data
+            sensor_measurements = self._wait_for_sensor_frame(
+                rsu_manager.perception_manager,
+                rsu_manager.id,
+                sensor_frame,
+                self.sensor_sync_timeout_seconds,
+            )
+            lidar_measurement = sensor_measurements.get("lidar")
+            rsu_lidar_data = None if lidar_measurement is None or lidar_measurement.data is None else np.asarray(lidar_measurement.data)
 
             if rsu_lidar_data is None:
                 logger.warning(
