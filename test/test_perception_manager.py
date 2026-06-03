@@ -113,6 +113,7 @@ class _FakeEvent:
     raw_data: object
     frame: int = 1
     timestamp: float = 1.0
+    transform: object | None = None
 
 
 class _FakeSensor:
@@ -128,6 +129,8 @@ class _FakeSensor:
     def trigger(self, event: _FakeEvent) -> None:
         if self._callback is None:
             raise AssertionError("Sensor callback is not set (listen was not called).")
+        if event.transform is None:
+            event.transform = self._transform
         self._callback(event)
 
     def get_transform(self):
@@ -501,7 +504,7 @@ def test_lidar_sensor_on_data_event_reshapes_to_n_by_4(perception_manager_module
         ],
         dtype=np.float32,
     )
-    ev = _FakeEvent(raw_data=pts.tobytes(), frame=11, timestamp=12.5)
+    ev = _FakeEvent(raw_data=pts.tobytes(), frame=11, timestamp=12.5, transform=object())
 
     LidarSensor._on_data_event(lambda: dummy, ev)
 
@@ -536,7 +539,7 @@ def test_semantic_lidar_sensor_on_data_event_parses_structured_buffer(perception
         dtype=dt,
     ).tobytes()
 
-    ev = _FakeEvent(raw_data=raw, frame=3, timestamp=4.0)
+    ev = _FakeEvent(raw_data=raw, frame=3, timestamp=4.0, transform=object())
     SemanticLidarSensor._on_data_event(lambda: dummy, ev)
 
     assert dummy.frame == 3
