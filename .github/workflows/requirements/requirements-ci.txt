@@ -9,11 +9,11 @@ mypy-protobuf==5.1.0
 networkx==3.6.1
 
 # keep numpy pinned to avoid accidental numpy>=2 upgrades / binary incompat
-numpy==2.4.4
+numpy==2.4.6
 
 # image I/O used by MLManager tests
 opencv-python-headless==4.13.0.92
-protobuf==7.34.1
+protobuf==7.35.0
 protoc-wheel==21.1
 pytest==9.0.3
 pytest-mock==3.15.1
@@ -25,4 +25,4 @@ scipy==1.17.1
 
 # optional but often useful in logs/utilities
 tqdm==4.67.3
-traci==1.26.0
+traci==1.27.0
