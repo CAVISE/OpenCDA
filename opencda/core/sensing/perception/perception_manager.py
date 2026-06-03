@@ -6,6 +6,8 @@ import weakref
 import sys
 import logging
 from dataclasses import dataclass
+import threading
+import time
 
 import carla
 import cv2
@@ -33,6 +35,47 @@ def _resolve_sensor_event_transform(sensor_owner, event):
 
 
 @dataclass(frozen=True)
+class SensorMeasurement:
+    frame: int
+    timestamp: float
+    transform: carla.Transform | None
+    data: object
+
+
+class FrameSynchronizedSensor:
+    def _init_frame_sync(self) -> None:
+        self._frame_condition = threading.Condition()
+        self.latest_measurement: SensorMeasurement | None = None
+
+    def _set_latest_measurement(self, measurement: SensorMeasurement) -> None:
+        with self._frame_condition:
+            self.latest_measurement = measurement
+            self._frame_condition.notify_all()
+
+    def wait_for_frame(self, frame: int, timeout_seconds: float) -> SensorMeasurement:
+        deadline = time.monotonic() + timeout_seconds
+        with self._frame_condition:
+            while True:
+                measurement = self.latest_measurement
+                if measurement is not None:
+                    if measurement.frame == frame:
+                        return measurement
+                    if measurement.frame > frame:
+                        raise RuntimeError(
+                            f"Sensor {getattr(self, 'sensor', '<unknown>')} skipped requested frame {frame}; latest frame is {measurement.frame}."
+                        )
+
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    latest_frame = None if measurement is None else measurement.frame
+                    raise RuntimeError(
+                        f"Timed out waiting {timeout_seconds:.3f}s for sensor {getattr(self, 'sensor', '<unknown>')} "
+                        f"frame {frame}; latest frame is {latest_frame}."
+                    )
+                self._frame_condition.wait(remaining)
+
+
+@dataclass(frozen=True)
 class PerceptionRequirements:
     enable_data_dump: bool = False
     force_rgb_camera: bool = False
@@ -51,7 +94,7 @@ class PerceptionRequirements:
         )
 
 
-class CameraSensor:
+class CameraSensor(FrameSynchronizedSensor):
     """
     Camera manager for vehicle or infrastructure.
 
@@ -93,8 +136,10 @@ class CameraSensor:
         else:
             self.sensor = world.spawn_actor(blueprint, spawn_point)
 
+        self._init_frame_sync()
         self.image = None
         self.timstamp = None  # noqa: DC05
+        self.transform = self.sensor.get_transform()
         self.frame = 0
         weak_self = weakref.ref(self)
         self.sensor.listen(lambda event: CameraSensor._on_rgb_image_event(weak_self, event))
@@ -134,11 +179,21 @@ class CameraSensor:
         image = image[:, :, :3]
 
         self.image = image
+        self.transform = _resolve_sensor_event_transform(self, event)
         self.frame = event.frame
         self.timestamp = event.timestamp
+        if hasattr(self, "_set_latest_measurement"):
+            self._set_latest_measurement(
+                SensorMeasurement(
+                    frame=event.frame,
+                    timestamp=event.timestamp,
+                    transform=self.transform,
+                    data=image,
+                )
+            )
 
 
-class LidarSensor:
+class LidarSensor(FrameSynchronizedSensor):
     """
     Lidar sensor manager.
 
@@ -193,6 +248,7 @@ class LidarSensor:
         else:
             self.sensor = world.spawn_actor(blueprint, spawn_point)
 
+        self._init_frame_sync()
         # lidar data
         self.data = None
         self.timestamp = None
@@ -220,9 +276,18 @@ class LidarSensor:
         self.transform = _resolve_sensor_event_transform(self, event)
         self.frame = event.frame
         self.timestamp = event.timestamp
+        if hasattr(self, "_set_latest_measurement"):
+            self._set_latest_measurement(
+                SensorMeasurement(
+                    frame=event.frame,
+                    timestamp=event.timestamp,
+                    transform=self.transform,
+                    data=data,
+                )
+            )
 
 
-class SemanticLidarSensor:
+class SemanticLidarSensor(FrameSynchronizedSensor):
     """
     Semantic lidar sensor manager. This class is used when data dumping
     is needed.
@@ -277,6 +342,7 @@ class SemanticLidarSensor:
         else:
             self.sensor = world.spawn_actor(blueprint, spawn_point)
 
+        self._init_frame_sync()
         # lidar data
         self.points = None
         self.obj_idx = None
@@ -315,6 +381,15 @@ class SemanticLidarSensor:
         self.transform = _resolve_sensor_event_transform(self, event)
         self.frame = event.frame
         self.timestamp = event.timestamp
+        if hasattr(self, "_set_latest_measurement"):
+            self._set_latest_measurement(
+                SensorMeasurement(
+                    frame=event.frame,
+                    timestamp=event.timestamp,
+                    transform=self.transform,
+                    data=data,
+                )
+            )
 
 
 class PerceptionManager:
@@ -437,6 +512,16 @@ class PerceptionManager:
         self.objects = {}
         # traffic light detection related
         self.traffic_thresh = config_yaml["traffic_light_thresh"] if "traffic_light_thresh" in config_yaml else 50  # noqa: DC05
+
+    def wait_for_sensor_frame(self, frame: int, timeout_seconds: float) -> dict[str, SensorMeasurement]:
+        measurements: dict[str, SensorMeasurement] = {}
+        if self.lidar is not None:
+            measurements["lidar"] = self.lidar.wait_for_frame(frame, timeout_seconds)
+        if self.semantic_lidar is not None:
+            measurements["semantic_lidar"] = self.semantic_lidar.wait_for_frame(frame, timeout_seconds)
+        for index, camera in enumerate(self.rgb_camera or []):
+            measurements[f"camera{index}"] = camera.wait_for_frame(frame, timeout_seconds)
+        return measurements
 
     def dist(self, a):
         """

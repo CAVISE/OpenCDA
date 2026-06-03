@@ -203,7 +203,9 @@ class Scenario:
 
             Also ideally it would also somehow verify manager configs, for example.
             """
-            self.coperception_data_processor = CoperceptionDataProcessor()
+            sensor_sync_config = coperception_config.get("sensor_sync", {}) if isinstance(coperception_config, Mapping) else {}
+            sensor_sync_timeout = float(sensor_sync_config.get("timeout_seconds", 1.0)) if isinstance(sensor_sync_config, Mapping) else 1.0
+            self.coperception_data_processor = CoperceptionDataProcessor(sensor_sync_timeout_seconds=sensor_sync_timeout)
             logger.info("created cooperception manager")
 
         self.scenario_manager.create_custom_actor_manager(application=["single"], map_helper=map_api.spawn_helper_2lanefree, data_dump=opt.record)
@@ -344,7 +346,7 @@ class Scenario:
                 break
             logger.debug(f"running: simulation tick: {tick_number}")
             self.scenario_manager.sumo_tick()
-            self.scenario_manager.tick()
+            carla_frame = self.scenario_manager.tick()
 
             if not opt.free_spectator and any(array is not None for array in [self.single_cav_list, self.platoon_list]):
                 if len(self.single_cav_list) > 0:
@@ -374,7 +376,12 @@ class Scenario:
 
             if self.coperception_model_manager is not None and tick_number > 0:
                 logger.info(f"Processing {tick_number} tick")
-                memory_structure = self._require_coperception_data_processor().build_live_memory(self.single_cav_list, self.rsu_list, tick_number)
+                memory_structure = self._require_coperception_data_processor().build_live_memory(
+                    self.single_cav_list,
+                    self.rsu_list,
+                    tick_number,
+                    sensor_frame=carla_frame,
+                )
                 if memory_structure is None:
                     logger.warning(f"Live cooperative perception data for tick {tick_number} is not available.")
                 else:
@@ -424,7 +431,7 @@ class Scenario:
             if opt.ticks and tick_number > opt.ticks:
                 break
             logger.debug(f"running: simulation tick: {tick_number}")
-            self.scenario_manager.tick()
+            carla_frame = self.scenario_manager.tick()
 
             if not opt.free_spectator and any(array is not None for array in [self.single_cav_list, self.platoon_list]):
                 if len(self.single_cav_list) > 0:
@@ -453,7 +460,12 @@ class Scenario:
 
             can_predict_current_tick = False
             if self.coperception_model_manager is not None and tick_number > 0:
-                memory_structure = self._require_coperception_data_processor().build_live_memory(self.single_cav_list, self.rsu_list, tick_number)
+                memory_structure = self._require_coperception_data_processor().build_live_memory(
+                    self.single_cav_list,
+                    self.rsu_list,
+                    tick_number,
+                    sensor_frame=carla_frame,
+                )
                 if memory_structure is not None:
                     self.coperception_model_manager.update_dataset(memory_structure)
                     opencood_dataset = self.coperception_model_manager.opencood_dataset

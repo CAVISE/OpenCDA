@@ -102,12 +102,6 @@ scenario:
       destination: [170, 149.792206, 0.3]
       id: 1
 
-    - name: custom-cav-10
-      spawn_position: [28, 149.792206, 0.3, 0, 0, 0]
-      destination: [170, 149.792206, 0.3]
-      id: 101
-      model: "vehicle.tesla.cybertruck"
-
     - name: cav-2
       spawn_position: [50, 135.792358, 0.3, 0, 0, 0]
       destination: [200, 135.792358, 0.3]

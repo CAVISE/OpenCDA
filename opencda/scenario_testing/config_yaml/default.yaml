@@ -220,6 +220,9 @@ sumo:
   step_length: ${world.fixed_delta_seconds}
 
 coperception:
+  sensor_sync:
+    timeout_seconds: 1.0 # max time to wait for every spawned CoP sensor to produce the current CARLA frame
+
   visualization:
     background: [17, 34, 42]
     bbox_line_thickness: 3 # optional global line thickness for all rendered bounding boxes in BEV/3D
