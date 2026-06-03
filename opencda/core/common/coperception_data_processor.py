@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from collections import OrderedDict
-from typing import TYPE_CHECKING, NotRequired, Sequence, TypedDict, cast
+from typing import TYPE_CHECKING, Mapping, NotRequired, Sequence, TypedDict, cast
 
 import numpy as np
 
@@ -11,13 +11,15 @@ from opencda.core.common.utils import transform_to_tuple
 from opencda.core.sensing.perception import sensor_transformation as st
 
 if TYPE_CHECKING:
+    import carla
+
     from opencda.core.common.rsu_manager import RSUManager
     from opencda.core.common.vehicle_manager import VehicleManager
     from opencda.core.plan.behavior_agent import BehaviorAgent
     from opencda.core.sensing.localization.localization_manager import LocalizationManager as VehicleLocalizationManager
     from opencda.core.sensing.localization.rsu_localization_manager import LocalizationManager as RsuLocalizationManager
     from opencda.core.sensing.perception.obstacle_vehicle import ObstacleVehicle
-    from opencda.core.sensing.perception.perception_manager import PerceptionManager
+    from opencda.core.sensing.perception.perception_manager import PerceptionManager, SensorMeasurement
 
 logger = logging.getLogger("cavise.opencda.opencda.core.common.coperception_data_processor")
 
@@ -56,18 +58,38 @@ class LiveMemorySnapshot(TypedDict):
 
 
 class CoperceptionDataProcessor:
+    def __init__(self, sensor_sync_timeout_seconds: float = 1.0) -> None:
+        self.sensor_sync_timeout_seconds = sensor_sync_timeout_seconds
+
     @staticmethod
-    def _build_live_camera_snapshots(perception_manager: PerceptionManager) -> list[object]:
+    def _build_live_camera_snapshots(
+        perception_manager: PerceptionManager,
+        sensor_measurements: Mapping[str, "SensorMeasurement"] | None = None,
+    ) -> list[object]:
         # TODO: Populate this with in-memory camera data when OpenCOOD camera-based
         # cooperative perception models are supported in the live pipeline.
         _ = perception_manager
+        _ = sensor_measurements
         return []
+
+    @staticmethod
+    def _wait_for_sensor_frame(
+        perception_manager: PerceptionManager,
+        agent_id: str,
+        frame: int,
+        timeout_seconds: float,
+    ) -> dict[str, "SensorMeasurement"]:
+        try:
+            return perception_manager.wait_for_sensor_frame(frame, timeout_seconds)
+        except RuntimeError as error:
+            raise RuntimeError(f"CoP sensor synchronization failed for agent '{agent_id}' on CARLA frame {frame}: {error}") from error
 
     @staticmethod
     def build_live_params(
         perception_manager: PerceptionManager,
         localization_manager: VehicleLocalizationManager | RsuLocalizationManager,
         behavior_agent: BehaviorAgent | None,
+        sensor_measurements: Mapping[str, "SensorMeasurement"],
     ) -> LiveParams:
         dump_yml: LiveParams = {}
         vehicle_dict: dict[int, "VehicleDumpRecord"] = {}
@@ -115,13 +137,13 @@ class CoperceptionDataProcessor:
         dump_yml["true_ego_pos"] = transform_to_tuple(true_ego_pos)
         dump_yml["ego_speed"] = float(localization_manager.get_ego_spd())
 
-        if (lidar := perception_manager.lidar) is None:
+        if perception_manager.lidar is None:
             raise RuntimeError("Coperception requires LiDAR, but perception_manager.lidar is not initialized.")
-        lidar_transform = lidar.sensor.get_transform()
+        lidar_transform = cast("carla.Transform", sensor_measurements["lidar"].transform)
         dump_yml["lidar_pose"] = transform_to_tuple(lidar_transform)
 
         for i, camera in enumerate(getattr(perception_manager, "rgb_camera", None) or []):
-            camera_transform = camera.sensor.get_transform()
+            camera_transform = cast("carla.Transform", sensor_measurements[f"camera{i}"].transform)
             camera_intrinsic = st.get_camera_intrinsic(camera.sensor)
             lidar2world = st.x_to_world_transformation(lidar_transform)
             camera2world = st.x_to_world_transformation(camera_transform)
@@ -145,6 +167,7 @@ class CoperceptionDataProcessor:
         single_cav_list: Sequence[VehicleManager],
         rsu_list: Sequence[RSUManager],
         tick_number: int,
+        sensor_frame: int,
     ) -> OrderedDict[int, OrderedDict[str, OrderedDict[str, LiveMemorySnapshot | bool]]] | None:
         timestamp = f"{tick_number:06d}"
         if len(single_cav_list) == 0 and len(rsu_list) == 0:
@@ -165,14 +188,24 @@ class CoperceptionDataProcessor:
                     tick_number,
                 )
                 continue
-            if vehicle_lidar.data is None:
+
+            sensor_measurements = self._wait_for_sensor_frame(
+                vehicle_manager.perception_manager,
+                vehicle_manager.id,
+                sensor_frame,
+                self.sensor_sync_timeout_seconds,
+            )
+            lidar_measurement = sensor_measurements.get("lidar")
+            vehicle_lidar_data = None if lidar_measurement is None or lidar_measurement.data is None else np.asarray(lidar_measurement.data)
+
+            if vehicle_lidar_data is None:
                 logger.warning(
                     "Skipping cooperative perception agent %s on tick %s because LiDAR data is not initialized.",
                     vehicle_manager.id,
                     tick_number,
                 )
                 continue
-            vehicle_lidar_data = cast(np.ndarray, vehicle_lidar.data)
+            vehicle_lidar_data = cast(np.ndarray, vehicle_lidar_data)
             agent_record: OrderedDict[str, LiveMemorySnapshot | bool] = OrderedDict()
             single_batch[vehicle_manager.id] = agent_record
             agent_snapshot: LiveMemorySnapshot = {
@@ -180,9 +213,10 @@ class CoperceptionDataProcessor:
                     vehicle_manager.perception_manager,
                     vehicle_manager.localizer,
                     vehicle_manager.agent,
+                    sensor_measurements,
                 ),
                 "lidar_np": vehicle_lidar_data.copy(),
-                "camera0": self._build_live_camera_snapshots(vehicle_manager.perception_manager),
+                "camera0": self._build_live_camera_snapshots(vehicle_manager.perception_manager, sensor_measurements),
             }
             agent_record[timestamp] = agent_snapshot
             agent_record["ego"] = vehicle_manager.id == ego_vehicle_id
@@ -196,14 +230,24 @@ class CoperceptionDataProcessor:
                     tick_number,
                 )
                 continue
-            if rsu_lidar.data is None:
+
+            sensor_measurements = self._wait_for_sensor_frame(
+                rsu_manager.perception_manager,
+                rsu_manager.id,
+                sensor_frame,
+                self.sensor_sync_timeout_seconds,
+            )
+            lidar_measurement = sensor_measurements.get("lidar")
+            rsu_lidar_data = None if lidar_measurement is None or lidar_measurement.data is None else np.asarray(lidar_measurement.data)
+
+            if rsu_lidar_data is None:
                 logger.warning(
                     "Skipping cooperative perception agent %s on tick %s because LiDAR data is not initialized.",
                     rsu_manager.id,
                     tick_number,
                 )
                 continue
-            rsu_lidar_data = cast(np.ndarray, rsu_lidar.data)
+            rsu_lidar_data = cast(np.ndarray, rsu_lidar_data)
             rsu_record: OrderedDict[str, LiveMemorySnapshot | bool] = OrderedDict()
             single_batch[rsu_manager.id] = rsu_record
             rsu_snapshot: LiveMemorySnapshot = {
@@ -211,9 +255,10 @@ class CoperceptionDataProcessor:
                     rsu_manager.perception_manager,
                     rsu_manager.localizer,
                     None,
+                    sensor_measurements,
                 ),
                 "lidar_np": rsu_lidar_data.copy(),
-                "camera0": self._build_live_camera_snapshots(rsu_manager.perception_manager),
+                "camera0": self._build_live_camera_snapshots(rsu_manager.perception_manager, sensor_measurements),
             }
             rsu_record[timestamp] = rsu_snapshot
             rsu_record["ego"] = False

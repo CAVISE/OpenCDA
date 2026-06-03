@@ -737,11 +737,11 @@ class ScenarioManager:
             logger.info("CARLA traffic flow generated")
         return tm, bg_list
 
-    def tick(self) -> None:
+    def tick(self) -> int:
         """
         Tick the server.
         """
-        self.world.tick()
+        return self.world.tick()
 
     def sumo_tick(self) -> None:
         return None
