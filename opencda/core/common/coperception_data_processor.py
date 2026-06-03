@@ -73,17 +73,6 @@ class CoperceptionDataProcessor:
         return []
 
     @staticmethod
-    def _resolve_measurement_transform(
-        measurement: "SensorMeasurement | None",
-        sensor_name: str,
-    ) -> "carla.Transform":
-        if measurement is None:
-            raise RuntimeError(f"CoP requires synchronized '{sensor_name}' measurement, but it is missing.")
-        if measurement.transform is None:
-            raise RuntimeError(f"CoP synchronized '{sensor_name}' measurement does not contain a transform.")
-        return cast("carla.Transform", measurement.transform)
-
-    @staticmethod
     def _wait_for_sensor_frame(
         perception_manager: PerceptionManager,
         agent_id: str,
@@ -150,12 +139,11 @@ class CoperceptionDataProcessor:
 
         if perception_manager.lidar is None:
             raise RuntimeError("Coperception requires LiDAR, but perception_manager.lidar is not initialized.")
-        lidar_transform = CoperceptionDataProcessor._resolve_measurement_transform(sensor_measurements.get("lidar"), "lidar")
+        lidar_transform = cast("carla.Transform", sensor_measurements["lidar"].transform)
         dump_yml["lidar_pose"] = transform_to_tuple(lidar_transform)
 
         for i, camera in enumerate(getattr(perception_manager, "rgb_camera", None) or []):
-            camera_measurement = sensor_measurements.get(f"camera{i}")
-            camera_transform = CoperceptionDataProcessor._resolve_measurement_transform(camera_measurement, f"camera{i}")
+            camera_transform = cast("carla.Transform", sensor_measurements[f"camera{i}"].transform)
             camera_intrinsic = st.get_camera_intrinsic(camera.sensor)
             lidar2world = st.x_to_world_transformation(lidar_transform)
             camera2world = st.x_to_world_transformation(camera_transform)
