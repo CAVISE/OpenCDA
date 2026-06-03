@@ -11,6 +11,8 @@ from opencda.core.common.utils import transform_to_tuple
 from opencda.core.sensing.perception import sensor_transformation as st
 
 if TYPE_CHECKING:
+    import carla
+
     from opencda.core.common.rsu_manager import RSUManager
     from opencda.core.common.vehicle_manager import VehicleManager
     from opencda.core.plan.behavior_agent import BehaviorAgent
