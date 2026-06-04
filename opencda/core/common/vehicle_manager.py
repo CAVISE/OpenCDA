@@ -388,10 +388,25 @@ class VehicleManager(object):
         # TODO: Implement
         pass
 
-    def control(self, target_speed: float | None = None, target_location: Location | None = None) -> None:
+    def control(
+        self,
+        target_speed: float | None = None,
+        target_location: Location | None = None,
+        target_yaw: float | None = None,
+    ) -> None:
         # visualize the bev map if needed
         self.map_manager.run_step()
-        if target_location is None or target_speed is None:
+
+        if target_yaw is not None:
+            transform = self.vehicle.get_transform()
+            transform.rotation = carla.Rotation(
+                pitch=transform.rotation.pitch,
+                yaw=float(target_yaw),
+                roll=transform.rotation.roll,
+            )
+            self.vehicle.set_transform(transform)
+
+        if target_speed is None or target_location is None:
             target_speed, target_location = self.agent.run_step(target_speed)
         control = self.controller.run_step(target_speed, target_location)
 
