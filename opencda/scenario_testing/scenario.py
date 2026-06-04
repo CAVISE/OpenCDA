@@ -71,7 +71,6 @@ class Scenario:
         self.communication_manager: CommunicationManager | None = None
         self.coperception_model_manager: CoperceptionModelManager | None = None
         self.coperception_data_processor: CoperceptionDataProcessor | None = None
-        cp_vis_config = None
 
         xodr_path: str | None = None
         if opt.xodr:
@@ -173,37 +172,27 @@ class Scenario:
             if not os.path.isdir(opt.model_dir):
                 self._abort_simulation(f'Model directory "{opt.model_dir}" does not exist; cannot initialize cooperative perception manager.')
 
-            cp_vis_config = OmegaConf.to_container(
-                scenario_params.get("cooperative_perception_visualization", {}),
-                resolve=True,
-            )
-
             CoperceptionManagerClass: type[CoperceptionModelManager]
             if opt.with_advcp:
                 from opencda.core.attack.advcp.adv_coperception_model_manager import AdvCoperceptionModelManager as CoperceptionManagerClass
             else:
                 from opencda.core.common.coperception_model_manager import CoperceptionModelManager as CoperceptionManagerClass
 
+            coperception_config = OmegaConf.to_container(
+                scenario_params.get("coperception", {}),
+                resolve=True,
+            )
+
             self.coperception_model_manager = CoperceptionManagerClass(
                 opt=opt,
                 current_time=current_time,
                 payload_handler=self.payload_handler,
-                visualization_config=cp_vis_config,
+                coperception_config=coperception_config,
             )
             valid_agent_ids = [vehicle_manager.id for vehicle_manager in self.single_cav_list]
             valid_agent_ids.extend(rsu_manager.id for rsu_manager in self.rsu_list)
             if hasattr(self.coperception_model_manager, "validate_advcp_agents"):
-                advcp_ready = self.coperception_model_manager.validate_advcp_agents(valid_agent_ids)
-                if not advcp_ready:
-                    from opencda.core.common.coperception_model_manager import CoperceptionModelManager
-
-                    logger.warning("AdvCP validation failed. Falling back to the default cooperative perception manager for this run.")
-                    self.coperception_model_manager = CoperceptionModelManager(
-                        opt=opt,
-                        current_time=current_time,
-                        payload_handler=self.payload_handler,
-                        visualization_config=cp_vis_config,
-                    )
+                self.coperception_model_manager.validate_advcp_agents(valid_agent_ids)
 
             """
             TODO: Create decorators to write such stuff
@@ -214,7 +203,9 @@ class Scenario:
 
             Also ideally it would also somehow verify manager configs, for example.
             """
-            self.coperception_data_processor = CoperceptionDataProcessor()
+            sensor_sync_config = coperception_config.get("sensor_sync", {}) if isinstance(coperception_config, Mapping) else {}
+            sensor_sync_timeout = float(sensor_sync_config.get("timeout_seconds", 1.0)) if isinstance(sensor_sync_config, Mapping) else 1.0
+            self.coperception_data_processor = CoperceptionDataProcessor(sensor_sync_timeout_seconds=sensor_sync_timeout)
             logger.info("created cooperception manager")
 
         self.scenario_manager.create_custom_actor_manager(application=["single"], map_helper=map_api.spawn_helper_2lanefree, data_dump=opt.record)
@@ -355,7 +346,7 @@ class Scenario:
                 break
             logger.debug(f"running: simulation tick: {tick_number}")
             self.scenario_manager.sumo_tick()
-            self.scenario_manager.tick()
+            carla_frame = self.scenario_manager.tick()
 
             if not opt.free_spectator and any(array is not None for array in [self.single_cav_list, self.platoon_list]):
                 if len(self.single_cav_list) > 0:
@@ -385,7 +376,12 @@ class Scenario:
 
             if self.coperception_model_manager is not None and tick_number > 0:
                 logger.info(f"Processing {tick_number} tick")
-                memory_structure = self._require_coperception_data_processor().build_live_memory(self.single_cav_list, self.rsu_list, tick_number)
+                memory_structure = self._require_coperception_data_processor().build_live_memory(
+                    self.single_cav_list,
+                    self.rsu_list,
+                    tick_number,
+                    sensor_frame=carla_frame,
+                )
                 if memory_structure is None:
                     logger.warning(f"Live cooperative perception data for tick {tick_number} is not available.")
                 else:
@@ -435,7 +431,7 @@ class Scenario:
             if opt.ticks and tick_number > opt.ticks:
                 break
             logger.debug(f"running: simulation tick: {tick_number}")
-            self.scenario_manager.tick()
+            carla_frame = self.scenario_manager.tick()
 
             if not opt.free_spectator and any(array is not None for array in [self.single_cav_list, self.platoon_list]):
                 if len(self.single_cav_list) > 0:
@@ -464,7 +460,12 @@ class Scenario:
 
             can_predict_current_tick = False
             if self.coperception_model_manager is not None and tick_number > 0:
-                memory_structure = self._require_coperception_data_processor().build_live_memory(self.single_cav_list, self.rsu_list, tick_number)
+                memory_structure = self._require_coperception_data_processor().build_live_memory(
+                    self.single_cav_list,
+                    self.rsu_list,
+                    tick_number,
+                    sensor_frame=carla_frame,
+                )
                 if memory_structure is not None:
                     self.coperception_model_manager.update_dataset(memory_structure)
                     opencood_dataset = self.coperception_model_manager.opencood_dataset

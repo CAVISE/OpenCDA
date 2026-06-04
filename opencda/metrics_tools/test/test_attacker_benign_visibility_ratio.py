@@ -3,8 +3,8 @@ from collections import OrderedDict
 import numpy as np
 
 from opencda.core.attack.advcp.types import AdvCPVisualizationContext
-from opencda.metrics_tools.metrics import attacker_benign_visibility_ratio
-from opencda.metrics_tools.metrics.attacker_benign_visibility_ratio import AttackerBenignVisibilityRatioMetric
+from opencda.metrics_tools.metrics.coperception import attacker_benign_visibility_ratio
+from opencda.metrics_tools.metrics.coperception.attacker_benign_visibility_ratio import AttackerBenignVisibilityRatioMetric
 
 
 class DummyAttackHelper:
@@ -103,6 +103,26 @@ def test_attacker_benign_visibility_ratio_counts_target_points(monkeypatch):
 
     assert _series_values(metric, "attacker_points_on_target") == [2.0]
     assert _series_values(metric, "benign_points_on_target") == [2.0]
+    assert _series_values(metric, "attacker_benign_visibility_ratio") == [2.0 / 3.0]
+
+
+def test_attacker_benign_visibility_ratio_respects_warmup_steps(monkeypatch):
+    monkeypatch.setattr(attacker_benign_visibility_ratio, "_load_advcp_attack_helper", lambda: DummyAttackHelper)
+    metric = AttackerBenignVisibilityRatioMetric(warmup_steps=1, epsilon=1.0)
+    context = {
+        "advcp_config": {
+            "boxes": [{"absolute": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}],
+            "default_size": [2.0, 2.0, 2.0],
+        },
+        "memory_data": _memory_data(),
+        "visualization_context": AdvCPVisualizationContext(mode="removal", attacker_ids=["cav-2"]),
+    }
+
+    metric.update(context)
+    assert _series_values(metric, "attacker_benign_visibility_ratio") == []
+
+    metric.update(context)
+
     assert _series_values(metric, "attacker_benign_visibility_ratio") == [2.0 / 3.0]
 
 

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any, Mapping, Sequence, TypeAlias
 
+import numpy as np
+
 ResultStat: TypeAlias = dict[float, dict[str, Any]]
 
 
@@ -35,10 +37,10 @@ def accumulate_tp_fp(
     iou_thresholds: Sequence[float],
     context: Mapping[str, Any],
     metric_name: str,
-) -> None:
+) -> bool:
     gt_box_tensor = context.get("gt_box_tensor")
     if gt_box_tensor is None:
-        raise ValueError(f"{metric_name} metric requires 'gt_box_tensor' in the update context.")
+        return False
 
     pred_box_tensor = context.get("pred_box_tensor")
     pred_score = context.get("pred_score")
@@ -51,6 +53,17 @@ def accumulate_tp_fp(
             result_stat,
             iou,
         )
+    return True
+
+
+def mean_curve_value(curve_values: Sequence[float]) -> float:
+    """Return a scalar summary for a VOC AP precision/recall curve."""
+    values = list(curve_values)
+    if len(values) > 2:
+        values = values[1:-1]
+    if not values:
+        return 0.0
+    return float(np.mean(np.asarray(values, dtype=float)))
 
 
 def iou_series_name(prefix: str, iou: float) -> str:

@@ -115,7 +115,7 @@ class CoScenarioManager(ScenarioManager):
     def sumo_tick(self) -> None:
         self.sumo.tick()
 
-    def tick(self) -> None:
+    def tick(self) -> int:
         """
         Execute a single step of co-simulation. Logic: sumo will move the
         sumo vehicles to certain positions and then carla use set_transform to
@@ -172,7 +172,7 @@ class CoScenarioManager(ScenarioManager):
         # -----------------
         # carla-->sumo sync
         # -----------------
-        self.world.tick()
+        carla_frame = self.world.tick()
 
         # Update data structures for the current frame.
         current_actors: set[int] = {
@@ -230,6 +230,7 @@ class CoScenarioManager(ScenarioManager):
 
         # update the sumo2carla dict to cav world
         cast(Any, self.cav_world).update_sumo_vehicles(self.sumo2carla_ids)
+        return carla_frame
 
     @property
     def traffic_light_ids(self) -> set[str]:
