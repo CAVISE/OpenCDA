@@ -11,6 +11,8 @@ import carla
 from opencda.core.actuation.control_manager import ControlManager
 from opencda.core.application.behavior import BehaviorService, TransportMessage, BROADCAST_OWNER_ID, BROADCAST_SERVICE_TYPE, create_service
 from opencda.core.application.platooning.platoon_behavior_agent import PlatooningBehaviorAgent
+from opencda.core.attack import build_attack
+from opencda.core.attack.lidar_jamming import LidarJammingAttack
 from opencda.core.common.v2x_manager import V2XManager
 from opencda.core.sensing.localization.localization_manager import LocalizationManager
 from opencda.core.sensing.perception.perception_manager import PerceptionManager, PerceptionRequirements
@@ -85,7 +87,7 @@ class VehicleManager(object):
         config_yaml: Mapping[str, Any],
         application: Sequence[str],
         carla_map: carla.Map,
-        cav_world: carla.World,
+        cav_world: Any,
         current_time: str = "",
         perception_requirements: PerceptionRequirements | None = None,
         autogenerate_id_on_failure: bool = True,  # TODO: Link with scenario config
@@ -122,8 +124,10 @@ class VehicleManager(object):
                 logger.error("No vehicle ID specified in config.")
                 raise ValueError("No vehicle ID specified in config.")
 
+        self.vid = self.id
         self.vehicle = vehicle
         self.carla_map = carla_map
+        self.cav_world = cav_world
 
         # retrieve the configure for different modules
         sensing_config = config_yaml["sensing"]
@@ -133,11 +137,17 @@ class VehicleManager(object):
         v2x_config = config_yaml["v2x"]
         self.perception_requirements = perception_requirements or PerceptionRequirements()
 
-        # v2x module
+        print(f"[V2X CFG] vid={self.vid}, v2x_config={v2x_config}")
+
         self.v2x_manager = V2XManager(cav_world, v2x_config, self.id)
+        # LiDAR jamming is not registered in opencda.core.attack.__init__.py because
+        # its constructor receives VehicleManager directly instead of using from_v2x_config(...).
+        self.lidar_jamming = LidarJammingAttack(self, v2x_config)
         # localization module
         self.localizer = LocalizationManager(vehicle, sensing_config["localization"], carla_map)
         # perception module
+        print(f"[PERCEPTION CFG VEHICLE] vid={self.vid}, perception={sensing_config['perception']}")
+        print(f"[DATA DUMP VEHICLE] vid={self.vid}, data_dumping={self.perception_requirements.enable_data_dump}")
         self.perception_manager = PerceptionManager(
             vehicle=vehicle,
             config_yaml=sensing_config["perception"],
@@ -171,6 +181,13 @@ class VehicleManager(object):
             self.data_dumper: DataDumper | None = DataDumper(self.perception_manager, self.id, save_time=current_time)
         else:
             self.data_dumper = None
+
+        self.attack = build_attack(
+            vid=self.vid,
+            v2x_config=v2x_config,
+            cav_world=cav_world,
+            carla_map=carla_map,
+        )
 
         behavior_services = self.__build_behavior_services(config_yaml)
 
@@ -324,6 +341,11 @@ class VehicleManager(object):
                 out_messages = [msg for msg in result_messages if getattr(msg, "dst_owner_id", None) != self.id]
                 self.behavior_service_results.extend(out_messages)
 
+    def _attack_active(self) -> bool:
+        return bool(getattr(self.attack, "enabled", False)) or bool(
+            getattr(self.lidar_jamming, "enabled", False)
+        )
+
     def set_destination(self, start_location: Location, end_location: Location, clean: bool = False, end_reset: bool = True) -> None:
         """
         Set global route.
@@ -355,6 +377,8 @@ class VehicleManager(object):
         Call perception and localization module to
         retrieve surrounding info an ego position.
         """
+        print(f"[UPDATE_INFO ENTER] vid={self.vid}")
+
         # localization
         self.localizer.localize()
 
@@ -380,7 +404,14 @@ class VehicleManager(object):
 
         # leave this for platooning for now
         self.v2x_manager.update_info(ego_pos, ego_spd)
+        objects = self.lidar_jamming.inject(objects, ego_pos)
+
+        self.attack.tick()
+        objects = self.attack.inject(objects, ego_pos)
+        print(f"[OBJECTS VEHICLES] vid={self.vid}, count={len(objects.get('vehicles', []))}")
+
         self.agent.update_information(ego_pos, ego_spd, objects)
+        print(f"[EGO SPEED] vid={self.vid}, speed={ego_spd}")
         # pass position and speed info to controller
         self.controller.update_info(ego_pos, ego_spd)
 
@@ -395,8 +426,14 @@ class VehicleManager(object):
             target_speed, target_location = self.agent.run_step(target_speed)
         control = self.controller.run_step(target_speed, target_location)
 
+        print(
+            f"[CONTROL] vid={self.vid}, "
+            f"target_speed={target_speed}, throttle={control.throttle:.3f}, "
+            f"brake={control.brake:.3f}, steer={control.steer:.3f}"
+        )
+
         # dump data
-        if self.data_dumper:
+        if self.data_dumper and not self._attack_active():
             self.data_dumper.run_step(self.perception_manager, self.localizer, self.agent)
 
         self.vehicle.apply_control(control)
