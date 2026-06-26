@@ -19,7 +19,6 @@ from opencda.core.plan.behavior_agent import BehaviorAgent
 from opencda.core.map.map_manager import MapManager
 from opencda.core.common.data_dumper import DataDumper
 from opencda.core.application.behavior.types import Location
-from opencda.core.application.behavior.services.movement_controller.messages import MovementControllerRequestMessage
 
 logger = logging.getLogger("cavise.opencda.opencda.core.common.vehicle_manager")
 
@@ -403,22 +402,11 @@ class VehicleManager(object):
 
     def run_step(
         self,
-        target_speed: float | None = None,
         messages: list[TransportMessage[Any]] = [],
     ) -> tuple[list[TransportMessage[Any]], dict[str, Any]]:
         """
         Execute one step of navigation.
         """
-        payload = MovementControllerRequestMessage(target_speed=target_speed, target_location=None)
-        messages.append(
-            TransportMessage(
-                src_owner_id=self.id,
-                src_service_type="",
-                dst_owner_id=self.id,
-                dst_service_type="movement_controller",
-                payload=payload,
-            )
-        )
         self.update_behavior_services(messages)
 
         return (self.behavior_service_results, self.behavior_service_states)
