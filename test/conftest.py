@@ -304,6 +304,16 @@ _install_stub(
 )
 
 
+# Stubbing opencda.core.application.behavior.services above blocks the package's
+# auto-discovery (which would otherwise need carla at import time). The services
+# used by tests must therefore be imported explicitly so their @BehaviorServiceRegistry.register
+# decorators run.
+import importlib as _importlib  # noqa: E402
+
+_importlib.import_module("opencda.core.application.behavior.services.movement_controller")
+_importlib.import_module("opencda.core.application.behavior.services.default_movement_request")
+
+
 # Static state reset fixtures
 @pytest.fixture(autouse=True)
 def reset_vehicle_manager_state():
@@ -351,7 +361,10 @@ def minimal_vehicle_config():
         "v2x": {},
         "safety_manager": {},
         "platoon": {},
-        "behavior_services": [{"type": "movement_controller"}],
+        "behavior_services": [
+            {"type": "default_movement_request"},
+            {"type": "movement_controller"},
+        ],
     }
 
 

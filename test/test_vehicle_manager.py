@@ -216,7 +216,7 @@ def test_run_step_with_data_dumper(mocker, minimal_vehicle_config, mock_cav_worl
     deps["agent"].run_step.return_value = (1.0, "p")
     deps["controller"].run_step.return_value = "ctrl"
 
-    vm.run_step(target_speed=2.0)
+    vm.run_step()
     deps["dumper"].run_step.assert_called_once_with(deps["perception"], deps["localizer"], deps["agent"])
 
 
@@ -352,7 +352,7 @@ def test_run_step_agent_failure_propagates_and_skips_controller(mocker, minimal_
     deps["agent"].run_step.side_effect = RuntimeError("planner failed")
 
     with pytest.raises(RuntimeError, match="planner failed"):
-        vm.run_step(target_speed=5.0)
+        vm.run_step()
 
     deps["map_manager"].run_step.assert_called_once_with()
     deps["controller"].run_step.assert_not_called()
@@ -380,6 +380,6 @@ def test_run_step_controller_failure_propagates_and_skips_data_dump(mocker, mini
 
     deps["dumper"].reset_mock()
     with pytest.raises(RuntimeError, match="control failed"):
-        vm.run_step(target_speed=5.0)
+        vm.run_step()
 
     deps["dumper"].run_step.assert_not_called()

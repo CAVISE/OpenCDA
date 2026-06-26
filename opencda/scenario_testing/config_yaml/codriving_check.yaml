@@ -111,5 +111,6 @@ scenario:
         communication_range: 45
       behavior_services:
         - type: self_informer
+        - type: default_movement_request
         - type: aim_client
         - type: movement_controller
