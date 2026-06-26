@@ -3,6 +3,8 @@ description: |-
 
 world:
   town: Town04
+  weather:
+    sun_altitude_angle: -90
 
 blueprint:
   use_multi_class_bp: true
@@ -115,6 +117,7 @@ scenario:
       color: [156, 255, 206]
       behavior_services:
         - type: self_informer
+        - type: default_movement_request
         - type: aim_client
           debug: true
         - type: movement_controller
@@ -126,6 +129,7 @@ scenario:
       color: [156, 255, 206]
       behavior_services:
         - type: self_informer
+        - type: default_movement_request
         - type: aim_client
           debug: true
         - type: movement_controller
@@ -137,6 +141,7 @@ scenario:
       color: [156, 255, 206]
       behavior_services:
         - type: self_informer
+        - type: default_movement_request
         - type: aim_client
           debug: true
         - type: movement_controller
@@ -148,6 +153,7 @@ scenario:
       color: [156, 255, 206]
       behavior_services:
         - type: self_informer
+        - type: default_movement_request
         - type: aim_client
           debug: true
         - type: movement_controller
