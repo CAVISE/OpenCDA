@@ -87,6 +87,7 @@ vehicle_base:
 
 # define the background traffic control by carla
 carla_traffic_manager:
+  cav_spawn_clearance: 5
   global_distance: 2
   global_speed_perc: -100
   auto_lane_change: true
