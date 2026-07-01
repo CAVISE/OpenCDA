@@ -420,7 +420,7 @@ class VehicleManager(object):
         """
         if self.use_carla_autopilot:
             self.map_manager.run_step()
-            return (self.behavior_service_results, self.behavior_service_states)
+            return [], {}
 
         self.update_behavior_services(messages)
 
