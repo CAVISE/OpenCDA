@@ -702,6 +702,12 @@ class ScenarioManager:
         spawn_ranges = traffic_config["range"]
         spawn_set: set[tuple[float, float, float, float, float, float]] = set()
         spawn_num = 0
+        cav_spawn_clearance = float(traffic_config.get("cav_spawn_clearance", 0))
+        if cav_spawn_clearance < 0:
+            raise ValueError("Config key 'cav_spawn_clearance' must be non-negative.")
+        cav_locations = (
+            [manager.vehicle.get_location() for manager in self.cav_world.get_vehicle_managers().values()] if cav_spawn_clearance > 0 else []
+        )
 
         for spawn_range in spawn_ranges:
             spawn_range = cast(list[Any], spawn_range)
@@ -727,17 +733,17 @@ class ScenarioManager:
         spawn_list = list(spawn_set)
         shuffle(spawn_list)
 
-        while count < spawn_num:
-            if len(spawn_list) == 0:
+        for coordinates in spawn_list:
+            if count >= spawn_num:
                 break
-
-            coordinates = spawn_list[0]
-            spawn_list.pop(0)
 
             spawn_transform = carla.Transform(
                 carla.Location(x=coordinates[0], y=coordinates[1], z=coordinates[2] + 0.3),
                 carla.Rotation(roll=coordinates[3], yaw=coordinates[4], pitch=coordinates[5]),
             )
+            if any(spawn_transform.location.distance(cav_location) < cav_spawn_clearance for cav_location in cav_locations):
+                continue
+
             if not traffic_config["random"]:
                 ego_vehicle_bp.set_attribute("color", color)
 
@@ -765,6 +771,14 @@ class ScenarioManager:
 
             bg_list.append(vehicle)
             count += 1
+
+        if count < spawn_num:
+            logger.warning(
+                "Spawned %d of %d requested range vehicles; no more valid spawn points are available (cav_spawn_clearance=%.1f m).",
+                count,
+                spawn_num,
+                cav_spawn_clearance,
+            )
 
         return bg_list
 

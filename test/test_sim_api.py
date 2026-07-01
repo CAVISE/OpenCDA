@@ -756,6 +756,58 @@ def test_spawn_vehicle_by_range_non_random_spawns_one_and_configures_tm(mocker):
     tm.ignore_walkers_percentage.assert_called_once_with(actor, 0)
 
 
+def test_spawn_vehicle_by_range_respects_cav_spawn_clearance(mocker, caplog):
+    """Range spawning skips candidate locations that are too close to an existing CAV."""
+    from test import mocked_carla as carla
+
+    sm, world, _ = _make_scenario_manager(mocker, _minimal_scenario_params())
+    _setup_traffic_spawning_world(sm, world)
+
+    mocker.patch("opencda.scenario_testing.utils.sim_api.car_blueprint_filter", return_value=[Mock()])
+    mocker.patch("opencda.scenario_testing.utils.sim_api.shuffle", side_effect=lambda values: values.sort())
+    mocker.patch("opencda.scenario_testing.utils.sim_api.random.randint", return_value=0)
+
+    sm.carla_map = Mock()
+    sm.carla_map.get_waypoint.side_effect = lambda location: Mock(
+        transform=carla.Transform(
+            carla.Location(location.x, location.y, 0.0),
+            carla.Rotation(),
+        )
+    )
+    cav_vehicle = Mock()
+    cav_vehicle.get_location.return_value = carla.Location(0.0, 0.0, 0.3)
+    mocker.patch.object(
+        sm.cav_world,
+        "get_vehicle_managers",
+        return_value={"cav-1": Mock(vehicle=cav_vehicle)},
+    )
+
+    actor = Mock(spec_set=["set_autopilot"])
+    world.try_spawn_actor = Mock(return_value=actor)
+    tm = Mock()
+    traffic_config = {
+        "random": False,
+        "auto_lane_change": False,
+        "range": [[0.0, 2.0, 0.0, 1.0, 1.0, 1.0, 2]],
+        "cav_spawn_clearance": 0.5,
+        "ignore_lights_percentage": 0,
+        "ignore_signs_percentage": 0,
+        "ignore_vehicles_percentage": 0,
+        "ignore_walkers_percentage": 0,
+        "random_left_lanechange_percentage": 0,
+        "random_right_lanechange_percentage": 0,
+        "global_speed_perc": 0,
+    }
+
+    out = sm.spawn_vehicle_by_range(tm, traffic_config, bg_list=[])
+
+    assert out == [actor]
+    world.try_spawn_actor.assert_called_once()
+    spawned_transform = world.try_spawn_actor.call_args.args[1]
+    assert spawned_transform.location.x == pytest.approx(1.0)
+    assert "Spawned 1 of 2 requested range vehicles" in caplog.text
+
+
 def _make_color_blueprint(*, recommended_colors):
     """Create a strict mock blueprint that supports the color attribute."""
     blueprint = Mock(spec_set=["has_attribute", "get_attribute", "set_attribute"])
