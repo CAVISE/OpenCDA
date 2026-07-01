@@ -107,12 +107,12 @@ class Canvas_BEV_heading_right(object):
                 None: colors all points white.
                 Tuple: RGB (0 ~ 255), indicating a single color for all points.
                 ndarray: (N, 3) array of RGB values for each point.
-                String: Such as "Spectral", uses a matplotlib colormaps, with the
-                    operand (the value colormaps is called on for each point) being
-                    colors_operand. If colors_operand is None, uses normalized
-                    distance from (0, 0) of XY point coords.
-            colors_operand (ndarray | None): (N,) array of values cooresponding
-                to canvas_xy, to be used only if colors is a colormaps.
+            String: Such as "Spectral", uses a Matplotlib colormap, with the
+                operand (the value the colormap is called on for each point) being
+                colors_operand. If colors_operand is None, uses normalized
+                distance from (0, 0) of XY point coords.
+            colors_operand (ndarray | None): (N,) array of values corresponding
+                to canvas_xy, to be used only if colors is a colormap name.
         """
         if len(canvas_xy) == 0:
             return
@@ -128,19 +128,19 @@ class Canvas_BEV_heading_right(object):
             assert len(colors) == len(canvas_xy)
             colors = colors.astype(np.uint8)
         elif isinstance(colors, str):
-            colors = colormaps.get_cmap(colors)
+            cmap = colormaps.get_cmap(colors)
             if colors_operand is None:
                 # Get distances from (0, 0) (albeit potentially clipped)
                 origin_center = self.get_canvas_coords(np.zeros((1, 2)))[0][0]
                 colors_operand = np.sqrt(((canvas_xy - origin_center) ** 2).sum(axis=1))
 
-            # Normalize 0 ~ 1 for colormaps
+            # Normalize to 0 ~ 1 for colormap
             colors_operand = colors_operand - colors_operand.min()
             colors_operand = colors_operand / colors_operand.max()
 
-            # Get colormaps colors - note that colormaps returns (*input_shape, 4), with
-            # colors scaled 0 ~ 1
-            colors = (colors(colors_operand)[:, :3] * 255).astype(np.uint8)
+            # Get colormap colors - note that a colormap returns (*input_shape, 4),
+            # with colors scaled 0 ~ 1
+            colors = (cmap(colors_operand)[:, :3] * 255).astype(np.uint8)
         else:
             raise Exception("colors type {} was not an expected type".format(type(colors)))
 
