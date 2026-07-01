@@ -95,6 +95,13 @@ vehicle_base:
         x_scale: 1.0 # used to multiply with the x coordinate to make the error on x axis clearer
         y_scale: 100.0 # used to multiply with the y coordinate to make the error on y axis clearer
 
+  # If true, CARLA Traffic Manager controls the CAV movement.
+  # OpenCDA still updates localization, perception, sensors, V2X and data dumping,
+  # but skips OpenCDA BehaviorAgent planning and PID control.
+  # In this mode `destination` is optional and ignored if present.
+  carla_autopilot: false
+  carla_autopilot_port: 8000
+
   map_manager:
     pixels_per_meter: 2 # rasterization map resolution
     raster_size: [224, 224] # the rasterize map size (pixel)
