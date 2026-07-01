@@ -87,7 +87,9 @@ vehicle_base:
 
 # define the background traffic control by carla
 carla_traffic_manager:
-  global_speed_perc: -10
+  cav_spawn_clearance: 5
+  global_distance: 2
+  global_speed_perc: -100
   auto_lane_change: true
   random: true # whether to random select vehicles' color and model
   ignore_lights_percentage: 100 # whether set the traffic ignore traffic lights
