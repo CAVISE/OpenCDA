@@ -7,7 +7,7 @@ alternative to mayavi for certain point cloud tasks.
 
 import numpy as np
 import cv2
-import matplotlib
+from matplotlib import colormaps
 
 
 class Canvas_3D(object):
@@ -134,11 +134,11 @@ class Canvas_3D(object):
                 None: colors all points white.
                 Tuple: RGB (0 ~ 255), indicating a single color for all points.
                 ndarray: (N, 3) array of RGB values for each point.
-                String: Such as "Spectral", uses a matplotlib cmap, with the
-                    operand (the value cmap is called on for each point) being
+                String: Such as "Spectral", uses a matplotlib colormaps, with the
+                    operand (the value colormaps is called on for each point) being
                     colors_operand.
             colors_operand (ndarray): (N,) array of values cooresponding to
-                canvas_xy, to be used only if colors is a cmap. Unlike
+                canvas_xy, to be used only if colors is a colormaps. Unlike
                 Canvas_BEV, cannot be None if colors is a String.
         """
         if len(canvas_xy) == 0:
@@ -156,13 +156,13 @@ class Canvas_3D(object):
             colors = colors.astype(np.uint8)
         elif isinstance(colors, str):
             assert colors_operand is not None
-            colors = matplotlib.cm.get_cmap(colors)
+            colors = colormaps.get_cmap(colors)
 
-            # Normalize 0 ~ 1 for cmap
+            # Normalize 0 ~ 1 for colormaps
             colors_operand = colors_operand - colors_operand.min()
             colors_operand = colors_operand / colors_operand.max()
 
-            # Get cmap colors - note that cmap returns (*input_shape, 4), with
+            # Get colormaps colors - note that colormaps returns (*input_shape, 4), with
             # colors scaled 0 ~ 1
             colors = (colors(colors_operand)[:, :3] * 255).astype(np.uint8)
         else:
