@@ -2,18 +2,18 @@
 # Add here only what tests truly need.
 
 # headless plotting
-matplotlib==3.10.9
+matplotlib==3.11.0
 
 mypy-protobuf==5.1.0
 
 networkx==3.6.1
 
 # keep numpy pinned to avoid accidental numpy>=2 upgrades / binary incompat
-numpy==2.4.6
+numpy==2.5.0
 
 # image I/O used by MLManager tests
 opencv-python-headless==4.13.0.92
-protobuf==7.35.0
+protobuf==7.35.1
 protoc-wheel==21.1
 pytest==9.0.3
 pytest-mock==3.15.1
@@ -21,8 +21,8 @@ PyYAML==6.0.3
 pyzmq==27.1.0
 
 # used by KF/EKF tests
-scipy==1.17.1
+scipy==1.18.0
 
 # optional but often useful in logs/utilities
-tqdm==4.67.3
-traci==1.27.0
+tqdm==4.68.3
+traci==1.27.1
