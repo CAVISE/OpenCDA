@@ -130,10 +130,10 @@ class VehicleManager(object):
         behavior_config = config_yaml["behavior"]
         control_config = config_yaml["controller"]
         v2x_config = config_yaml["v2x"]
-        self.use_carla_autopilot = self._resolve_bool_config(
-            config_yaml.get("carla_autopilot", behavior_config.get("carla_autopilot", False)),
-            "carla_autopilot",
-        )
+        carla_autopilot = config_yaml.get("carla_autopilot", behavior_config.get("carla_autopilot", False))
+        if not isinstance(carla_autopilot, bool):
+            raise ValueError("Config key 'carla_autopilot' must be a bool.")
+        self.use_carla_autopilot = carla_autopilot
         self.carla_autopilot_port = int(config_yaml.get("carla_autopilot_port", behavior_config.get("carla_autopilot_port", 8000)))
         self.perception_requirements = perception_requirements or PerceptionRequirements()
 
@@ -188,12 +188,6 @@ class VehicleManager(object):
             logger.info("Vehicle %s is controlled by CARLA Traffic Manager on port %s.", self.id, self.carla_autopilot_port)
 
         cav_world.update_vehicle_manager(self)
-
-    @staticmethod
-    def _resolve_bool_config(value: Any, key_name: str) -> bool:
-        if isinstance(value, bool):
-            return value
-        raise ValueError(f"Config key '{key_name}' must be a bool.")
 
     def __generate_unique_vehicle_id(self) -> str:
         """Generates a unique vehicle ID based on prefix."""
