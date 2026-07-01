@@ -193,13 +193,7 @@ class VehicleManager(object):
     def _resolve_bool_config(value: Any, key_name: str) -> bool:
         if isinstance(value, bool):
             return value
-        if isinstance(value, str):
-            normalized_value = value.strip().lower()
-            if normalized_value in {"true", "1", "yes", "y", "on"}:
-                return True
-            if normalized_value in {"false", "0", "no", "n", "off"}:
-                return False
-        raise ValueError(f"Config key '{key_name}' must be a boolean or boolean-like string.")
+        raise ValueError(f"Config key '{key_name}' must be a bool.")
 
     def __generate_unique_vehicle_id(self) -> str:
         """Generates a unique vehicle ID based on prefix."""
@@ -430,6 +424,10 @@ class VehicleManager(object):
         """
         Execute one step of navigation.
         """
+        if self.use_carla_autopilot:
+            self.map_manager.run_step()
+            return (self.behavior_service_results, self.behavior_service_states)
+
         self.update_behavior_services(messages)
 
         return (self.behavior_service_results, self.behavior_service_states)

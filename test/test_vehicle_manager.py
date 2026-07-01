@@ -238,6 +238,17 @@ def test_carla_autopilot_sets_vehicle_autopilot(mocker, minimal_vehicle_config, 
     vehicle.set_autopilot.assert_called_once_with(True, 9000)
 
 
+@pytest.mark.parametrize("invalid_value", ["true", 1, None])
+def test_carla_autopilot_requires_bool(invalid_value, mocker, minimal_vehicle_config, mock_cav_world):
+    _patch_vehicle_manager_deps(mocker)
+    from opencda.core.common.vehicle_manager import VehicleManager
+
+    cfg = {**minimal_vehicle_config, "carla_autopilot": invalid_value}
+
+    with pytest.raises(ValueError, match="Config key 'carla_autopilot' must be a bool"):
+        VehicleManager(Mock(id=10), cfg, ["single"], Mock(), mock_cav_world, prefix="cav")
+
+
 def test_carla_autopilot_run_step_skips_opencda_planning_and_control(mocker, minimal_vehicle_config, mock_cav_world):
     deps = _patch_vehicle_manager_deps(mocker)
     from opencda.core.common.vehicle_manager import VehicleManager
@@ -247,7 +258,7 @@ def test_carla_autopilot_run_step_skips_opencda_planning_and_control(mocker, min
 
     vm = VehicleManager(vehicle, cfg, ["single"], Mock(), mock_cav_world, prefix="cav")
 
-    result = vm.run_step(target_speed=2.0)
+    result = vm.run_step()
 
     assert result == (vm.behavior_service_results, vm.behavior_service_states)
     assert vm.behavior_service_states == {}

@@ -398,6 +398,11 @@ class ScenarioManager:
         """
         Apply scenario Traffic Manager settings to an OpenCDA-managed vehicle
         that is driven by CARLA autopilot.
+
+        Parameters
+        ----------
+        vehicle : carla.Vehicle
+            Vehicle driven by CARLA autopilot.
         """
         if self.scenario_params.get("carla_traffic_manager") is None:
             return
@@ -408,6 +413,16 @@ class ScenarioManager:
 
     @staticmethod
     def _configure_traffic_manager(tm: carla.TrafficManager, traffic_config: ConfigDict) -> None:
+        """
+        Apply global scenario settings to CARLA Traffic Manager.
+
+        Parameters
+        ----------
+        tm : carla.TrafficManager
+            Traffic Manager instance to configure.
+        traffic_config : ConfigDict
+            Scenario Traffic Manager settings.
+        """
         tm.set_global_distance_to_leading_vehicle(traffic_config["global_distance"])
         tm.set_synchronous_mode(traffic_config["sync_mode"])
         tm.set_osm_mode(traffic_config["set_osm_mode"])
@@ -421,6 +436,20 @@ class ScenarioManager:
         *,
         randomize_speed: bool,
     ) -> None:
+        """
+        Apply scenario Traffic Manager settings to a vehicle.
+
+        Parameters
+        ----------
+        tm : carla.TrafficManager
+            Traffic Manager instance controlling the vehicle.
+        traffic_config : ConfigDict
+            Scenario Traffic Manager settings.
+        vehicle : carla.Vehicle
+            Vehicle to configure.
+        randomize_speed : bool
+            Whether to add a random offset to the configured speed difference.
+        """
         tm.auto_lane_change(vehicle, traffic_config["auto_lane_change"])
         tm.ignore_lights_percentage(vehicle, traffic_config["ignore_lights_percentage"])
         tm.ignore_signs_percentage(vehicle, traffic_config["ignore_signs_percentage"])
