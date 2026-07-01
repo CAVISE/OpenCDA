@@ -130,6 +130,11 @@ class VehicleManager(object):
         behavior_config = config_yaml["behavior"]
         control_config = config_yaml["controller"]
         v2x_config = config_yaml["v2x"]
+        carla_autopilot = config_yaml.get("carla_autopilot", behavior_config.get("carla_autopilot", False))
+        if not isinstance(carla_autopilot, bool):
+            raise ValueError("Config key 'carla_autopilot' must be a bool.")
+        self.use_carla_autopilot = carla_autopilot
+        self.carla_autopilot_port = int(config_yaml.get("carla_autopilot_port", behavior_config.get("carla_autopilot_port", 8000)))
         self.perception_requirements = perception_requirements or PerceptionRequirements()
 
         # v2x module
@@ -175,6 +180,12 @@ class VehicleManager(object):
 
         self.__set_behavior_services(behavior_services)
         self.__attach_behavior_services()
+
+        if self.use_carla_autopilot:
+            if self.behavior_services:
+                logger.warning("Vehicle %s uses CARLA autopilot; behavior services will not be executed.", self.id)
+            self.vehicle.set_autopilot(True, self.carla_autopilot_port)
+            logger.info("Vehicle %s is controlled by CARLA Traffic Manager on port %s.", self.id, self.carla_autopilot_port)
 
         cav_world.update_vehicle_manager(self)
 
@@ -407,6 +418,10 @@ class VehicleManager(object):
         """
         Execute one step of navigation.
         """
+        if self.use_carla_autopilot:
+            self.map_manager.run_step()
+            return (self.behavior_service_results, self.behavior_service_states)
+
         self.update_behavior_services(messages)
 
         return (self.behavior_service_results, self.behavior_service_states)
