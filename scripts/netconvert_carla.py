@@ -4,6 +4,8 @@ it uses netconvert to generatet he net and inserts, manually, the traffic
 light landmarks retrieved from the opendrive.
 """
 
+from __future__ import annotations
+
 import argparse
 import bisect
 import collections
@@ -11,27 +13,73 @@ import logging
 import shutil
 import subprocess
 import tempfile
-from typing import TypeAlias
-
-import lxml.etree as ET
+from typing import Any, TypeAlias
 
 import os
 import sys
 
 
-if "SUMO_HOME" in os.environ:
-    sys.path.append(os.path.join(os.environ["SUMO_HOME"], "tools"))
-else:
-    sys.exit("please declare environment variable 'SUMO_HOME'")
-
-import carla
-import sumolib
+ET: Any = None
+carla: Any = None
+sumolib: Any = None
 
 RoadLaneId: TypeAlias = tuple[str, int]
 ConnectionPath: TypeAlias = tuple[RoadLaneId, RoadLaneId]
 TopologyMap: TypeAlias = dict[RoadLaneId, set[RoadLaneId]]
 PathsMap: TypeAlias = dict[RoadLaneId, set[ConnectionPath]]
 OdrToSumoIdsMap: TypeAlias = dict[RoadLaneId, set[RoadLaneId]]
+
+
+def _load_lxml_etree() -> Any:
+    """
+    Load lxml lazily so argparse can run without conversion dependencies.
+    """
+    global ET
+    if ET is None:
+        import lxml.etree as etree_module
+
+        ET = etree_module
+    return ET
+
+
+def _load_carla() -> Any:
+    """
+    Load CARLA lazily so CLI help works even outside the CARLA environment.
+    """
+    global carla
+    if carla is None:
+        import carla as carla_module
+
+        carla = carla_module
+    return carla
+
+
+def _load_sumolib() -> Any:
+    """
+    Load sumolib lazily so argparse can run before SUMO_HOME is configured.
+    """
+    global sumolib
+    if sumolib is None:
+        if "SUMO_HOME" not in os.environ:
+            sys.exit("please declare environment variable 'SUMO_HOME'")
+
+        sumo_tools_path = os.path.join(os.environ["SUMO_HOME"], "tools")
+        if sumo_tools_path not in sys.path:
+            sys.path.append(sumo_tools_path)
+
+        import sumolib as sumolib_module
+
+        sumolib = sumolib_module
+    return sumolib
+
+
+def _load_conversion_dependencies() -> None:
+    """
+    Load dependencies required by both netconvert and CARLA landmark handling.
+    """
+    _load_lxml_etree()
+    _load_carla()
+    _load_sumolib()
 
 
 class SumoTopology(object):
@@ -297,14 +345,15 @@ class SumoTrafficLight(object):
         self.add_parameter(link_index, landmark_id)
         return True
 
-    def to_xml(self) -> ET._Element:
+    def to_xml(self) -> Any:
+        etree = _load_lxml_etree()
         info = {"id": self.id, "type": self.type, "programID": self.program_id, "offset": str(self.offset)}
 
-        xml_tag = ET.Element("tlLogic", info)
+        xml_tag = etree.Element("tlLogic", info)
         for phase in self.phases:
-            ET.SubElement(xml_tag, "phase", {"state": phase.state, "duration": str(phase.duration)})
+            etree.SubElement(xml_tag, "phase", {"state": phase.state, "duration": str(phase.duration)})
         for parameter in sorted(self.parameters, key=lambda parameter: parameter[0]):
-            ET.SubElement(xml_tag, "param", {"key": "linkSignalID:" + str(parameter[0]), "value": str(parameter[1])})
+            etree.SubElement(xml_tag, "param", {"key": "linkSignalID:" + str(parameter[0]), "value": str(parameter[1])})
 
         return xml_tag
 
@@ -313,6 +362,8 @@ def _netconvert_carla_impl(xodr_file: str, output: str, tmpdir: str, guess_tls: 
     """
     Implements netconvert carla.
     """
+    _load_conversion_dependencies()
+
     # ----------
     # netconvert
     # ----------
@@ -321,20 +372,29 @@ def _netconvert_carla_impl(xodr_file: str, output: str, tmpdir: str, guess_tls: 
 
     try:
         basedir = os.path.dirname(os.path.realpath(__file__))
-        result = subprocess.call(
+        netconvert_cmd = [
+            "netconvert",
+            "--opendrive",
+            xodr_file,
+            "--output-file",
+            tmp_sumo_net,
+            "--geometry.min-radius.fix",
+            "--geometry.remove",
+            "--opendrive.curve-resolution",
+            "1",
+            "--opendrive.import-all-lanes",
+        ]
+        type_file = os.path.join(basedir, "data/opendrive_netconvert.typ.xml")
+        if os.path.exists(type_file):
+            netconvert_cmd.extend(["--type-files", type_file])
+        else:
+            logging.warning(
+                "SUMO OpenDRIVE type file was not found at %s. Running netconvert without custom type definitions.",
+                type_file,
+            )
+
+        netconvert_cmd.extend(
             [
-                "netconvert",
-                "--opendrive",
-                xodr_file,
-                "--output-file",
-                tmp_sumo_net,
-                "--geometry.min-radius.fix",
-                "--geometry.remove",
-                "--opendrive.curve-resolution",
-                "1",
-                "--opendrive.import-all-lanes",
-                "--type-files",
-                os.path.join(basedir, "data/opendrive_netconvert.typ.xml"),
                 # Necessary to link odr and sumo ids.
                 "--output.original-names",
                 # Discard loading traffic lights as them will be inserted
@@ -343,6 +403,7 @@ def _netconvert_carla_impl(xodr_file: str, output: str, tmpdir: str, guess_tls: 
                 "true",
             ]
         )
+        result = subprocess.call(netconvert_cmd)
     except subprocess.CalledProcessError:
         raise RuntimeError("There was an error when executing netconvert.")
     else:
@@ -438,8 +499,9 @@ def _netconvert_carla_impl(xodr_file: str, output: str, tmpdir: str, guess_tls: 
     # ---------------
     # Modify sumo net
     # ---------------
-    parser = ET.XMLParser(remove_blank_text=True)
-    tree = ET.parse(tmp_sumo_net, parser)
+    etree = _load_lxml_etree()
+    parser = etree.XMLParser(remove_blank_text=True)
+    tree = etree.parse(tmp_sumo_net, parser)
     root = tree.getroot()
 
     for tl in tls.values():
@@ -473,6 +535,9 @@ def _netconvert_carla_impl(xodr_file: str, output: str, tmpdir: str, guess_tls: 
                     )
                 )
 
+    output_dir = os.path.dirname(os.path.abspath(output))
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
     tree.write(output, pretty_print=True, encoding="UTF-8", xml_declaration=True)
 
 
@@ -485,22 +550,76 @@ def netconvert_carla(xodr_file: str, output: str, guess_tls: bool = False) -> st
         :param guess_tls: guess traffic lights at intersections.
         :returns: path to the generated sumo net.
     """
+    tmpdir = None
     try:
         tmpdir = tempfile.mkdtemp()
         _netconvert_carla_impl(xodr_file, output, tmpdir, guess_tls)
 
     finally:
-        if os.path.exists(tmpdir):
+        if tmpdir is not None and os.path.exists(tmpdir):
             shutil.rmtree(tmpdir)
 
     return output
 
 
+def netconvert_carla_from_opendrive(xodr_content: str, output: str, guess_tls: bool = False, map_name: str = "carla_map") -> str:
+    """
+    Generates a SUMO net from an OpenDRIVE string.
+
+        :param xodr_content: opendrive map content.
+        :param output: output file (*.net.xml)
+        :param guess_tls: guess traffic lights at intersections.
+        :param map_name: name used only for temporary conversion files.
+        :returns: path to the generated sumo net.
+    """
+    tmpdir = None
+    try:
+        tmpdir = tempfile.mkdtemp()
+        tmp_xodr_file = os.path.join(tmpdir, map_name + ".xodr")
+        with open(tmp_xodr_file, "w", encoding="utf-8") as f:
+            f.write(xodr_content)
+
+        _netconvert_carla_impl(tmp_xodr_file, output, tmpdir, guess_tls)
+
+    finally:
+        if tmpdir is not None and os.path.exists(tmpdir):
+            shutil.rmtree(tmpdir)
+
+    return output
+
+
+def get_opendrive_from_carla(carla_host: str, carla_port: int, carla_timeout: float) -> str:
+    """
+    Retrieves the currently loaded CARLA map as OpenDRIVE.
+    """
+    carla_module = _load_carla()
+    client = carla_module.Client(carla_host, carla_port)
+    client.set_timeout(carla_timeout)
+    world = client.get_world()
+    return str(world.get_map().to_opendrive())
+
+
 if __name__ == "__main__":
     argparser = argparse.ArgumentParser(description=__doc__)
-    argparser.add_argument("xodr_file", help="opendrive file (*.xodr")
+    argparser.add_argument("xodr_file", nargs="?", help="opendrive file (*.xodr)")
     argparser.add_argument("--output", "-o", default="net.net.xml", type=str, help="output file (default: net.net.xml)")
     argparser.add_argument("--guess-tls", action="store_true", help="guess traffic lights at intersections (default: False)")
+    argparser.add_argument(
+        "--from-carla",
+        action="store_true",
+        help="read OpenDRIVE from the currently loaded CARLA map instead of an xodr file",
+    )
+    argparser.add_argument("--carla-host", type=str, default="carla", help="IP address or hostname of the CARLA server (default: 'carla')")
+    argparser.add_argument("--carla-port", type=int, default=2000, help="Port of the CARLA server (default: 2000)")
+    argparser.add_argument("--carla-timeout", type=float, default=30.0, help="Timeout of the CARLA server response in seconds (default: 30.0)")
     args = argparser.parse_args()
 
-    netconvert_carla(args.xodr_file, args.output, args.guess_tls)
+    if args.from_carla:
+        if args.xodr_file is not None:
+            argparser.error("xodr_file cannot be used together with --from-carla")
+        opendrive = get_opendrive_from_carla(args.carla_host, args.carla_port, args.carla_timeout)
+        netconvert_carla_from_opendrive(opendrive, args.output, args.guess_tls)
+    else:
+        if args.xodr_file is None:
+            argparser.error("xodr_file is required unless --from-carla is used")
+        netconvert_carla(args.xodr_file, args.output, args.guess_tls)
