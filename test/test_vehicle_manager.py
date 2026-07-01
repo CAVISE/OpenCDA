@@ -220,6 +220,54 @@ def test_run_step_with_data_dumper(mocker, minimal_vehicle_config, mock_cav_worl
     deps["dumper"].run_step.assert_called_once_with(deps["perception"], deps["localizer"], deps["agent"])
 
 
+def test_carla_autopilot_sets_vehicle_autopilot(mocker, minimal_vehicle_config, mock_cav_world):
+    _patch_vehicle_manager_deps(mocker)
+    from opencda.core.common.vehicle_manager import VehicleManager
+
+    vehicle = Mock(id=10)
+    cfg = {
+        **minimal_vehicle_config,
+        "carla_autopilot": True,
+        "carla_autopilot_port": 9000,
+    }
+
+    vm = VehicleManager(vehicle, cfg, ["single"], Mock(), mock_cav_world, prefix="cav")
+
+    assert vm.use_carla_autopilot is True
+    assert vm.carla_autopilot_port == 9000
+    vehicle.set_autopilot.assert_called_once_with(True, 9000)
+
+
+@pytest.mark.parametrize("invalid_value", ["true", 1, None])
+def test_carla_autopilot_requires_bool(invalid_value, mocker, minimal_vehicle_config, mock_cav_world):
+    _patch_vehicle_manager_deps(mocker)
+    from opencda.core.common.vehicle_manager import VehicleManager
+
+    cfg = {**minimal_vehicle_config, "carla_autopilot": invalid_value}
+
+    with pytest.raises(ValueError, match="Config key 'carla_autopilot' must be a bool"):
+        VehicleManager(Mock(id=10), cfg, ["single"], Mock(), mock_cav_world, prefix="cav")
+
+
+def test_carla_autopilot_run_step_skips_opencda_planning_and_control(mocker, minimal_vehicle_config, mock_cav_world):
+    deps = _patch_vehicle_manager_deps(mocker)
+    from opencda.core.common.vehicle_manager import VehicleManager
+
+    vehicle = Mock(id=10)
+    cfg = {**minimal_vehicle_config, "carla_autopilot": True}
+
+    vm = VehicleManager(vehicle, cfg, ["single"], Mock(), mock_cav_world, prefix="cav")
+
+    result = vm.run_step()
+
+    assert result == ([], {})
+    assert vm.behavior_service_states == {}
+    deps["map_manager"].run_step.assert_called_once_with()
+    deps["agent"].run_step.assert_not_called()
+    deps["controller"].run_step.assert_not_called()
+    vehicle.apply_control.assert_not_called()
+
+
 def test_destroy_calls_all(mocker, minimal_vehicle_config, mock_cav_world):
     deps = _patch_vehicle_manager_deps(mocker)
     from opencda.core.common.vehicle_manager import VehicleManager
