@@ -209,12 +209,41 @@ class ScenarioManager:
         new_settings = self.world.get_settings()
 
         if simulation_config["sync_mode"]:
+            fixed_delta_seconds = float(simulation_config["fixed_delta_seconds"])
+            substepping = simulation_config.get("substepping", True)
+            max_substep_delta_time = float(simulation_config.get("max_substep_delta_time", 0.01))
+            max_substeps = simulation_config.get("max_substeps", 10)
+
+            if not isinstance(substepping, bool):
+                raise ValueError("Config key 'substepping' must be a boolean.")
+            if not isinstance(max_substeps, int) or isinstance(max_substeps, bool) or not 1 <= max_substeps <= 16:
+                raise ValueError("Config key 'max_substeps' must be an integer in the range [1, 16].")
+            if fixed_delta_seconds <= 0 or max_substep_delta_time <= 0:
+                raise ValueError("Config keys 'fixed_delta_seconds' and 'max_substep_delta_time' must be positive.")
+            max_physics_delta = max_substep_delta_time * max_substeps
+            if substepping and fixed_delta_seconds > max_physics_delta and not math.isclose(fixed_delta_seconds, max_physics_delta):
+                raise ValueError(
+                    "Invalid CARLA physics settings: fixed_delta_seconds must be less than or equal to "
+                    "max_substep_delta_time * max_substeps "
+                    f"({fixed_delta_seconds} > {max_substep_delta_time} * {max_substeps})."
+                )
+
             new_settings.synchronous_mode = True  # noqa: DC05
-            new_settings.fixed_delta_seconds = simulation_config["fixed_delta_seconds"]
+            new_settings.fixed_delta_seconds = fixed_delta_seconds
+            new_settings.substepping = substepping
+            new_settings.max_substep_delta_time = max_substep_delta_time
+            new_settings.max_substeps = max_substeps
         else:
             sys.exit("ERROR: Current version only supports sync simulation mode")
 
         self.world.apply_settings(new_settings)
+
+        traffic_config = self.scenario_params.get("carla_traffic_manager")
+        if traffic_config is not None:
+            self._configure_traffic_manager(
+                self.client.get_trafficmanager(),
+                cast(ConfigDict, traffic_config),
+            )
 
         # set weather
         weather = self.set_weather(simulation_config["weather"])
@@ -802,8 +831,6 @@ class ScenarioManager:
 
         traffic_config = cast(ConfigDict, self.scenario_params["carla_traffic_manager"])
         tm = self.client.get_trafficmanager()
-
-        self._configure_traffic_manager(tm, traffic_config)
 
         if isinstance(traffic_config["vehicle_list"], list) or isinstance(traffic_config["vehicle_list"], ListConfig):
             bg_list = self.spawn_vehicles_by_list(tm, traffic_config, bg_list)
