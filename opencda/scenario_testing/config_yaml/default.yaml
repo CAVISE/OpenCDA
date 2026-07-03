@@ -8,6 +8,14 @@ world:
   sync_mode: true
   client_port: 2000
   fixed_delta_seconds: 0.05
+  substepping: true
+  max_substep_delta_time: 0.01
+  max_substeps: 10
+  # Physics settings must satisfy:
+  # fixed_delta_seconds <= max_substep_delta_time * max_substeps
+  # CARLA requires 1 <= max_substeps <= 16. Choose max_substeps as
+  # ceil(fixed_delta_seconds / max_substep_delta_time) within that range.
+  # Example: 0.2 seconds requires 16 substeps of at least 0.0125 seconds.
   seed: 11 # seed for numpy, random, and torch
   weather:
     sun_altitude_angle: 30 # 90 is the midday and -90 is the midnight
@@ -95,6 +103,13 @@ vehicle_base:
         x_scale: 1.0 # used to multiply with the x coordinate to make the error on x axis clearer
         y_scale: 100.0 # used to multiply with the y coordinate to make the error on y axis clearer
 
+  # If true, CARLA Traffic Manager controls the CAV movement.
+  # OpenCDA still updates localization, perception, sensors, V2X and data dumping,
+  # but skips OpenCDA BehaviorAgent planning and PID control.
+  # In this mode `destination` is optional and ignored if present.
+  carla_autopilot: false
+  carla_autopilot_port: 8000
+
   map_manager:
     pixels_per_meter: 2 # rasterization map resolution
     raster_size: [224, 224] # the rasterize map size (pixel)
@@ -174,6 +189,7 @@ vehicle_base:
 carla_traffic_manager:
   sync_mode: true # has to be same as the world setting
   global_distance: 5 # the minimum distance in meters that vehicles have to keep with the rest
+  cav_spawn_clearance: 0 # minimum range-generated vehicle spawn distance from a CAV in meters; 0 disables the check
   # Sets the difference the vehicle's intended speed and its current speed limit.
   #  Carla default speed is 30 km/h, so -100 represents 60 km/h,
   # and 20 represents 24 km/h

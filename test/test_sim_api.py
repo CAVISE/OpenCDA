@@ -36,6 +36,9 @@ def _minimal_scenario_params(sync_mode: bool = True):
             "client_port": 2000,
             "sync_mode": sync_mode,
             "fixed_delta_seconds": 0.05,
+            "substepping": True,
+            "max_substep_delta_time": 0.01,
+            "max_substeps": 10,
             "weather": _minimal_weather(),
         },
     }
@@ -78,13 +81,15 @@ def _make_mock_client(world):
     return client
 
 
-def _make_scenario_manager(mocker, scenario_params=None):
+def _make_scenario_manager(mocker, scenario_params=None, traffic_manager=None):
     from opencda.scenario_testing.utils.sim_api import ScenarioManager
 
     scenario_params = scenario_params or _minimal_scenario_params()
 
     world = _make_mock_world()
     client = _make_mock_client(world)
+    if traffic_manager is not None:
+        client.get_trafficmanager.return_value = traffic_manager
 
     mocker.patch("opencda.scenario_testing.utils.sim_api.carla.Client", return_value=client)
 
@@ -174,6 +179,49 @@ def test_sync_mode_false_exits(mocker):
 
     with pytest.raises(SystemExit, match="only supports sync simulation mode"):
         ScenarioManager(params, apply_ml=False, carla_version="0.9.15", town=None, xodr_path=None, cav_world=Mock(), carla_host="carla")
+
+
+def test_substepping_settings_are_applied(mocker):
+    params = _minimal_scenario_params()
+    params["world"].update(
+        {
+            "fixed_delta_seconds": 0.2,
+            "substepping": True,
+            "max_substep_delta_time": 0.0125,
+            "max_substeps": 16,
+        }
+    )
+
+    _, world, _ = _make_scenario_manager(mocker, params)
+    applied_settings = world.apply_settings.call_args.args[0]
+
+    assert applied_settings.fixed_delta_seconds == pytest.approx(0.2)
+    assert applied_settings.substepping is True
+    assert applied_settings.max_substep_delta_time == pytest.approx(0.0125)
+    assert applied_settings.max_substeps == 16
+
+
+def test_invalid_substepping_settings_raise(mocker):
+    params = _minimal_scenario_params()
+    params["world"].update(
+        {
+            "fixed_delta_seconds": 0.2,
+            "substepping": True,
+            "max_substep_delta_time": 0.01,
+            "max_substeps": 10,
+        }
+    )
+
+    with pytest.raises(ValueError, match="fixed_delta_seconds must be less than or equal"):
+        _make_scenario_manager(mocker, params)
+
+
+def test_max_substeps_above_carla_limit_raises(mocker):
+    params = _minimal_scenario_params()
+    params["world"]["max_substeps"] = 17
+
+    with pytest.raises(ValueError, match=r"range \[1, 16\]"):
+        _make_scenario_manager(mocker, params)
 
 
 def test_create_vehicle_manager_empty(mocker):
@@ -388,6 +436,7 @@ def test_create_vehicle_manager_single_cav(mocker, minimal_vehicle_config):
     vm_mock = Mock()
     vm_mock.id = "cav-7"
     vm_mock.vehicle = vehicle_actor
+    vm_mock.use_carla_autopilot = False
     vm_mock.v2x_manager = Mock(spec_set=["set_platoon"])
     vm_mock.v2x_manager.set_platoon = Mock()
     vm_mock.update_info = Mock()
@@ -433,6 +482,113 @@ def test_create_vehicle_manager_single_cav(mocker, minimal_vehicle_config):
     assert kwargs["clean"] is True
 
     assert world.tick.call_count == 1
+
+
+def test_create_vehicle_manager_carla_autopilot_does_not_require_destination(mocker, minimal_vehicle_config):
+    """CARLA-autopilot CAVs are OpenCDA sensor actors but do not need an OpenCDA route destination."""
+    params = _make_single_cav_scenario_params(minimal_vehicle_config, cav_id=7)
+    params["scenario"]["single_cav_list"][0]["carla_autopilot"] = True
+    del params["scenario"]["single_cav_list"][0]["destination"]
+    params["carla_traffic_manager"] = {
+        "global_distance": 2,
+        "sync_mode": True,
+        "set_osm_mode": False,
+        "auto_lane_change": False,
+        "ignore_lights_percentage": 100,
+        "ignore_signs_percentage": 10,
+        "ignore_vehicles_percentage": 0,
+        "ignore_walkers_percentage": 5,
+        "random_left_lanechange_percentage": 0,
+        "random_right_lanechange_percentage": 0,
+        "global_speed_perc": -10,
+    }
+
+    tm = Mock(
+        spec_set=[
+            "set_global_distance_to_leading_vehicle",
+            "set_synchronous_mode",
+            "set_osm_mode",
+            "global_percentage_speed_difference",
+            "auto_lane_change",
+            "ignore_lights_percentage",
+            "ignore_signs_percentage",
+            "ignore_vehicles_percentage",
+            "ignore_walkers_percentage",
+            "random_left_lanechange_percentage",
+            "random_right_lanechange_percentage",
+            "vehicle_percentage_speed_difference",
+        ]
+    )
+    tm.auto_lane_change = Mock()
+    tm.ignore_lights_percentage = Mock()
+    tm.ignore_signs_percentage = Mock()
+    tm.ignore_vehicles_percentage = Mock()
+    tm.ignore_walkers_percentage = Mock()
+    tm.random_left_lanechange_percentage = Mock()
+    tm.random_right_lanechange_percentage = Mock()
+    tm.vehicle_percentage_speed_difference = Mock()
+
+    sm, world, _ = _make_scenario_manager(mocker, params, traffic_manager=tm)
+    randint = mocker.patch("opencda.scenario_testing.utils.sim_api.random.randint", return_value=5)
+
+    tm.set_synchronous_mode.assert_called_once_with(True)
+    world.tick.reset_mock()
+
+    vehicle_actor = Mock(spec_set=["id", "get_location"])
+    vehicle_actor.id = 123
+
+    mocker.patch.object(sm, "spawn_custom_actor", return_value=vehicle_actor)
+
+    vm_mock = Mock()
+    vm_mock.id = "cav-7"
+    vm_mock.vehicle = vehicle_actor
+    vm_mock.use_carla_autopilot = True
+    vm_mock.v2x_manager = Mock(spec_set=["set_platoon"])
+    vm_mock.v2x_manager.set_platoon = Mock()
+    vm_mock.update_info = Mock()
+    vm_mock.set_destination = Mock()
+
+    mocker.patch("opencda.scenario_testing.utils.sim_api.VehicleManager", return_value=vm_mock)
+
+    cav_list, cav_carla_list = sm.create_vehicle_manager(application=["single"], map_helper=None)
+
+    assert cav_list == [vm_mock]
+    assert cav_carla_list == {123: "cav-7"}
+    vm_mock.update_info.assert_called_once_with()
+    vm_mock.set_destination.assert_not_called()
+    randint.assert_called_once_with(-30, 30)
+    tm.auto_lane_change.assert_called_once_with(vehicle_actor, False)
+    tm.ignore_lights_percentage.assert_called_once_with(vehicle_actor, 100)
+    tm.ignore_signs_percentage.assert_called_once_with(vehicle_actor, 10)
+    tm.ignore_vehicles_percentage.assert_called_once_with(vehicle_actor, 0)
+    tm.ignore_walkers_percentage.assert_called_once_with(vehicle_actor, 5)
+    tm.vehicle_percentage_speed_difference.assert_called_once_with(vehicle_actor, -5)
+
+
+def test_create_vehicle_manager_requires_destination_without_carla_autopilot(mocker, minimal_vehicle_config):
+    """OpenCDA-controlled CAVs still need a destination for route planning."""
+    params = _make_single_cav_scenario_params(minimal_vehicle_config, cav_id=7)
+    del params["scenario"]["single_cav_list"][0]["destination"]
+
+    sm, _, _ = _make_scenario_manager(mocker, params)
+
+    vehicle_actor = Mock(spec_set=["id", "get_location"])
+    vehicle_actor.id = 123
+
+    mocker.patch.object(sm, "spawn_custom_actor", return_value=vehicle_actor)
+
+    vm_mock = Mock()
+    vm_mock.id = "cav-7"
+    vm_mock.vehicle = vehicle_actor
+    vm_mock.use_carla_autopilot = False
+    vm_mock.v2x_manager = Mock(spec_set=["set_platoon"])
+    vm_mock.v2x_manager.set_platoon = Mock()
+    vm_mock.update_info = Mock()
+
+    mocker.patch("opencda.scenario_testing.utils.sim_api.VehicleManager", return_value=vm_mock)
+
+    with pytest.raises(ValueError, match="requires 'destination' unless carla_autopilot is enabled"):
+        sm.create_vehicle_manager(application=["single"], map_helper=None)
 
 
 def test_create_platoon_manager_creates_one_platoon_two_members(mocker, minimal_vehicle_config):
@@ -655,6 +811,58 @@ def test_spawn_vehicle_by_range_non_random_spawns_one_and_configures_tm(mocker):
     tm.ignore_signs_percentage.assert_called_once_with(actor, 0)
     tm.ignore_vehicles_percentage.assert_called_once_with(actor, 0)
     tm.ignore_walkers_percentage.assert_called_once_with(actor, 0)
+
+
+def test_spawn_vehicle_by_range_respects_cav_spawn_clearance(mocker, caplog):
+    """Range spawning skips candidate locations that are too close to an existing CAV."""
+    from test import mocked_carla as carla
+
+    sm, world, _ = _make_scenario_manager(mocker, _minimal_scenario_params())
+    _setup_traffic_spawning_world(sm, world)
+
+    mocker.patch("opencda.scenario_testing.utils.sim_api.car_blueprint_filter", return_value=[Mock()])
+    mocker.patch("opencda.scenario_testing.utils.sim_api.shuffle", side_effect=lambda values: values.sort())
+    mocker.patch("opencda.scenario_testing.utils.sim_api.random.randint", return_value=0)
+
+    sm.carla_map = Mock()
+    sm.carla_map.get_waypoint.side_effect = lambda location: Mock(
+        transform=carla.Transform(
+            carla.Location(location.x, location.y, 0.0),
+            carla.Rotation(),
+        )
+    )
+    cav_vehicle = Mock()
+    cav_vehicle.get_location.return_value = carla.Location(0.0, 0.0, 0.3)
+    mocker.patch.object(
+        sm.cav_world,
+        "get_vehicle_managers",
+        return_value={"cav-1": Mock(vehicle=cav_vehicle)},
+    )
+
+    actor = Mock(spec_set=["set_autopilot"])
+    world.try_spawn_actor = Mock(return_value=actor)
+    tm = Mock()
+    traffic_config = {
+        "random": False,
+        "auto_lane_change": False,
+        "range": [[0.0, 2.0, 0.0, 1.0, 1.0, 1.0, 2]],
+        "cav_spawn_clearance": 0.5,
+        "ignore_lights_percentage": 0,
+        "ignore_signs_percentage": 0,
+        "ignore_vehicles_percentage": 0,
+        "ignore_walkers_percentage": 0,
+        "random_left_lanechange_percentage": 0,
+        "random_right_lanechange_percentage": 0,
+        "global_speed_perc": 0,
+    }
+
+    out = sm.spawn_vehicle_by_range(tm, traffic_config, bg_list=[])
+
+    assert out == [actor]
+    world.try_spawn_actor.assert_called_once()
+    spawned_transform = world.try_spawn_actor.call_args.args[1]
+    assert spawned_transform.location.x == pytest.approx(1.0)
+    assert "Spawned 1 of 2 requested range vehicles" in caplog.text
 
 
 def _make_color_blueprint(*, recommended_colors):
@@ -1317,8 +1525,6 @@ def test_create_traffic_carla_with_vehicle_list_uses_spawn_vehicles_by_list(mock
         "vehicle_list": [{"spawn_position": [0.0, 0.0, 0.3, 0.0, 0.0, 0.0]}],
     }
 
-    sm, world, client = _make_scenario_manager(mocker, params)
-
     tm = Mock(
         spec_set=[
             "set_global_distance_to_leading_vehicle",
@@ -1331,7 +1537,8 @@ def test_create_traffic_carla_with_vehicle_list_uses_spawn_vehicles_by_list(mock
     tm.set_synchronous_mode = Mock()
     tm.set_osm_mode = Mock()
     tm.global_percentage_speed_difference = Mock()
-    client.get_trafficmanager.return_value = tm
+
+    sm, world, _ = _make_scenario_manager(mocker, params, traffic_manager=tm)
 
     sm.spawn_vehicles_by_list = Mock(return_value=["V1"])
     sm.spawn_vehicle_by_range = Mock(return_value=["SHOULD_NOT_HAPPEN"])
@@ -1364,8 +1571,6 @@ def test_create_traffic_carla_with_range_uses_spawn_vehicle_by_range(mocker):
         "random_right_lanechange_percentage": 0,
     }
 
-    sm, world, client = _make_scenario_manager(mocker, params)
-
     tm = Mock(
         spec_set=[
             "set_global_distance_to_leading_vehicle",
@@ -1378,7 +1583,8 @@ def test_create_traffic_carla_with_range_uses_spawn_vehicle_by_range(mocker):
     tm.set_synchronous_mode = Mock()
     tm.set_osm_mode = Mock()
     tm.global_percentage_speed_difference = Mock()
-    client.get_trafficmanager.return_value = tm
+
+    sm, world, _ = _make_scenario_manager(mocker, params, traffic_manager=tm)
 
     sm.spawn_vehicles_by_list = Mock(return_value=["SHOULD_NOT_HAPPEN"])
     sm.spawn_vehicle_by_range = Mock(return_value=["V2"])

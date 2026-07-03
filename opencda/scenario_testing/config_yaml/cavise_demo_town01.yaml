@@ -1,0 +1,245 @@
+description: |-
+  Dense Town01 scenario for CoP experiments and AdvCP attack evaluation.
+
+
+world:
+  town: Town01
+  sync_mode: true
+  client_port: 2000
+  fixed_delta_seconds: 0.1
+  substepping: true
+  max_substep_delta_time: 0.01
+  max_substeps: 10
+  seed: 67
+  weather:
+    sun_altitude_angle: 30
+
+
+blueprint:
+  use_multi_class_bp: true
+  bp_meta_path: "opencda/assets/blueprint_meta/bbx_stats_0915.json"
+  bp_class_sample_prob:
+    car: 1         # 0.5
+    truck: 0       # 0.1
+    bus: 0         # 0.1
+    bicycle: 0     # 0.1
+    motorcycle: 0  # 0.1
+
+
+rsu_base:
+  sensing:
+    perception:
+      activate: false
+      camera:
+        visualize: 0
+        num: 0
+      lidar:
+        visualize: false
+        channels: 64
+        range: 120
+        points_per_second: 1000000
+        rotation_frequency: 10
+        upper_fov: 2
+        lower_fov: -25
+        dropoff_general_rate: 0.3
+        dropoff_intensity_limit: 0.7
+        dropoff_zero_intensity: 0.4
+        noise_stddev: 0.02
+    localization:
+      activate: false
+
+
+vehicle_base:
+  sensing:
+    perception:
+      activate: false
+      camera:
+        visualize: 0
+        num: 0
+      lidar:
+        visualize: false
+        channels: 64
+        range: 120
+        points_per_second: 1000000
+        rotation_frequency: 10
+        upper_fov: 2
+        lower_fov: -25
+        dropoff_general_rate: 0.3
+        dropoff_intensity_limit: 0.7
+        dropoff_zero_intensity: 0.4
+        noise_stddev: 0.02
+    localization:
+      activate: false
+  behavior:
+    local_planner:
+      debug: false
+      debug_trajectory: false
+  carla_autopilot: true
+  carla_autopilot_port: 8000
+  safety_manager:
+    print_message: false
+  map_manager:
+    activate: false
+    visualize: false
+
+
+carla_traffic_manager:
+  cav_spawn_clearance: 10
+  set_osm_mode: false
+  global_distance: 3
+  global_speed_perc: -20
+  auto_lane_change: true
+  random: true
+  ignore_lights_percentage: 0
+  ignore_signs_percentage: 0
+  ignore_vehicles_percentage: 0
+  ignore_walkers_percentage: 0
+  random_left_lanechange_percentage: 0
+  random_right_lanechange_percentage: 0
+  vehicle_list: ~
+  range:
+    - [-12.17, 404.55, -11.66, 342.80, 4, 4, 100]
+
+
+scenario:
+  rsu_list:
+    - name: rsu_town01_26
+      spawn_position: [336.93, 5.39, 2.0, 0, 0, 0]
+      id: 1
+
+    - name: rsu_town01_54
+      spawn_position: [156.52, 5.49, 2.0, 0, 0, 0]
+      id: 2
+
+    - name: rsu_town01_110
+      spawn_position: [91.04, 5.60, 2.0, 0, 0, 0]
+      id: 3
+
+    - name: rsu_town01_332
+      spawn_position: [156.08, 51.84, 2.0, 0, 0, 0]
+      id: 4
+
+    - name: rsu_town01_171
+      spawn_position: [95.88, 57.15, 2.0, 0, 0, 0]
+      id: 5
+
+    - name: rsu_town01_222
+      spawn_position: [331.02, 57.72, 2.0, 0, 0, 0]
+      id: 6
+
+    - name: rsu_town01_306
+      spawn_position: [95.90, 130.84, 2.0, 0, 0, 0]
+      id: 7
+
+    - name: rsu_town01_278
+      spawn_position: [331.23, 132.12, 2.0, 0, 0, 0]
+      id: 8
+
+    - name: rsu_town01_255
+      spawn_position: [95.91, 197.33, 2.0, 0, 0, 0]
+      id: 9
+
+    - name: rsu_town01_194
+      spawn_position: [331.23, 197.40, 2.0, 0, 0, 0]
+      id: 10
+
+    - name: rsu_town01_87
+      spawn_position: [90.63, 322.94, 2.0, 0, 0, 0]
+      id: 11
+
+    - name: rsu_town01_143
+      spawn_position: [336.72, 323.03, 2.0, 0, 0, 0]
+      id: 12
+
+
+  single_cav_list:
+    - name: cav1
+      spawn_position: [269.04, 195.16, 0.30, 0, 180.0, 0]
+      destination: [91.04, 5.60, 0.30]
+      id: 101
+      model: "vehicle.tesla.model3"
+      color: [0, 0, 255]
+
+    - name: cav2
+      spawn_position: [338.88, 28.74, 0.30, 0, -90.0, 0]
+      destination: [90.63, 322.94, 0.30]
+      id: 102
+      model: "vehicle.tesla.model3"
+      color: [0, 0, 255]
+
+    - name: cav3
+      spawn_position: [92.38, 94.46, 0.30, 0, -90.0, 0]
+      destination: [336.93, 5.39, 0.30]
+      id: 103
+      model: "vehicle.tesla.model3"
+      color: [0, 0, 255]
+
+    - name: cav4
+      spawn_position: [285.50, 55.48, 0.30, 0, 180.0, 0]
+      destination: [90.63, 322.94, 0.30]
+      id: 104
+      model: "vehicle.tesla.model3"
+      color: [0, 0, 255]
+
+    - name: cav5
+      spawn_position: [180.33, 133.45, 0.30, 0, 0.0, 0]
+      destination: [336.72, 323.03, 0.30]
+      id: 105
+      model: "vehicle.tesla.model3"
+      color: [0, 0, 255]
+
+    - name: cav6
+      spawn_position: [199.62, 1.96, 0.30, 0, 0.0, 0]
+      destination: [336.72, 323.03, 0.30]
+      id: 106
+      model: "vehicle.tesla.model3"
+      color: [0, 0, 255]
+
+    - name: cav7
+      spawn_position: [92.41, 268.20, 0.30, 0, -90.0, 0]
+      destination: [336.93, 5.39, 0.30]
+      id: 107
+      model: "vehicle.tesla.model3"
+      color: [0, 0, 255]
+
+    - name: cav8
+      spawn_position: [338.73, 278.92, 0.30, 0, -90.0, 0]
+      destination: [90.63, 322.94, 0.30]
+      id: 108
+      model: "vehicle.tesla.model3"
+      color: [0, 0, 255]
+
+    - name: cav9
+      spawn_position: [202.47, 330.60, 0.30, 0, 0.0, 0]
+      destination: [331.02, 57.72, 0.30]
+      id: 109
+      model: "vehicle.tesla.model3"
+      color: [0, 0, 255]
+
+    - name: cav10
+      spawn_position: [2.02, 234.62, 0.30, 0, -90.0, 0]
+      destination: [336.72, 5.39, 0.30]
+      id: 110
+      model: "vehicle.tesla.model3"
+      color: [0, 0, 255]
+
+
+coperception:
+  visualization:
+    lidar_point_colors:
+      attackers: [224, 104, 104]
+      spoofing: [56, 189, 248]
+      other: [92, 219, 149]
+
+    bbox_colors:
+      removed: [56, 189, 248]
+
+  metrics:
+    metric_configs:
+      ap_at_iou: &cop_metric_defaults
+        warmup_steps: 5
+      mean_recall_at_iou: *cop_metric_defaults
+      mean_precision_at_iou: *cop_metric_defaults
+      attack_success_rate: *cop_metric_defaults
+      attacker_benign_visibility_ratio: *cop_metric_defaults
+      attacker_target_confidence: *cop_metric_defaults
