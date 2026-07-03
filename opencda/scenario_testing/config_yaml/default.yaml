@@ -8,6 +8,14 @@ world:
   sync_mode: true
   client_port: 2000
   fixed_delta_seconds: 0.05
+  substepping: true
+  max_substep_delta_time: 0.01
+  max_substeps: 10
+  # Physics settings must satisfy:
+  # fixed_delta_seconds <= max_substep_delta_time * max_substeps
+  # CARLA requires 1 <= max_substeps <= 16. Choose max_substeps as
+  # ceil(fixed_delta_seconds / max_substep_delta_time) within that range.
+  # Example: 0.2 seconds requires 16 substeps of at least 0.0125 seconds.
   seed: 11 # seed for numpy, random, and torch
   weather:
     sun_altitude_angle: 30 # 90 is the midday and -90 is the midnight

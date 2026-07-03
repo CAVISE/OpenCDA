@@ -36,6 +36,9 @@ def _minimal_scenario_params(sync_mode: bool = True):
             "client_port": 2000,
             "sync_mode": sync_mode,
             "fixed_delta_seconds": 0.05,
+            "substepping": True,
+            "max_substep_delta_time": 0.01,
+            "max_substeps": 10,
             "weather": _minimal_weather(),
         },
     }
@@ -78,13 +81,15 @@ def _make_mock_client(world):
     return client
 
 
-def _make_scenario_manager(mocker, scenario_params=None):
+def _make_scenario_manager(mocker, scenario_params=None, traffic_manager=None):
     from opencda.scenario_testing.utils.sim_api import ScenarioManager
 
     scenario_params = scenario_params or _minimal_scenario_params()
 
     world = _make_mock_world()
     client = _make_mock_client(world)
+    if traffic_manager is not None:
+        client.get_trafficmanager.return_value = traffic_manager
 
     mocker.patch("opencda.scenario_testing.utils.sim_api.carla.Client", return_value=client)
 
@@ -174,6 +179,49 @@ def test_sync_mode_false_exits(mocker):
 
     with pytest.raises(SystemExit, match="only supports sync simulation mode"):
         ScenarioManager(params, apply_ml=False, carla_version="0.9.15", town=None, xodr_path=None, cav_world=Mock(), carla_host="carla")
+
+
+def test_substepping_settings_are_applied(mocker):
+    params = _minimal_scenario_params()
+    params["world"].update(
+        {
+            "fixed_delta_seconds": 0.2,
+            "substepping": True,
+            "max_substep_delta_time": 0.0125,
+            "max_substeps": 16,
+        }
+    )
+
+    _, world, _ = _make_scenario_manager(mocker, params)
+    applied_settings = world.apply_settings.call_args.args[0]
+
+    assert applied_settings.fixed_delta_seconds == pytest.approx(0.2)
+    assert applied_settings.substepping is True
+    assert applied_settings.max_substep_delta_time == pytest.approx(0.0125)
+    assert applied_settings.max_substeps == 16
+
+
+def test_invalid_substepping_settings_raise(mocker):
+    params = _minimal_scenario_params()
+    params["world"].update(
+        {
+            "fixed_delta_seconds": 0.2,
+            "substepping": True,
+            "max_substep_delta_time": 0.01,
+            "max_substeps": 10,
+        }
+    )
+
+    with pytest.raises(ValueError, match="fixed_delta_seconds must be less than or equal"):
+        _make_scenario_manager(mocker, params)
+
+
+def test_max_substeps_above_carla_limit_raises(mocker):
+    params = _minimal_scenario_params()
+    params["world"]["max_substeps"] = 17
+
+    with pytest.raises(ValueError, match=r"range \[1, 16\]"):
+        _make_scenario_manager(mocker, params)
 
 
 def test_create_vehicle_manager_empty(mocker):
@@ -442,6 +490,9 @@ def test_create_vehicle_manager_carla_autopilot_does_not_require_destination(moc
     params["scenario"]["single_cav_list"][0]["carla_autopilot"] = True
     del params["scenario"]["single_cav_list"][0]["destination"]
     params["carla_traffic_manager"] = {
+        "global_distance": 2,
+        "sync_mode": True,
+        "set_osm_mode": False,
         "auto_lane_change": False,
         "ignore_lights_percentage": 100,
         "ignore_signs_percentage": 10,
@@ -452,14 +503,12 @@ def test_create_vehicle_manager_carla_autopilot_does_not_require_destination(moc
         "global_speed_perc": -10,
     }
 
-    sm, _, client = _make_scenario_manager(mocker, params)
-    randint = mocker.patch("opencda.scenario_testing.utils.sim_api.random.randint", return_value=5)
-
-    vehicle_actor = Mock(spec_set=["id", "get_location"])
-    vehicle_actor.id = 123
-
     tm = Mock(
         spec_set=[
+            "set_global_distance_to_leading_vehicle",
+            "set_synchronous_mode",
+            "set_osm_mode",
+            "global_percentage_speed_difference",
             "auto_lane_change",
             "ignore_lights_percentage",
             "ignore_signs_percentage",
@@ -478,7 +527,15 @@ def test_create_vehicle_manager_carla_autopilot_does_not_require_destination(moc
     tm.random_left_lanechange_percentage = Mock()
     tm.random_right_lanechange_percentage = Mock()
     tm.vehicle_percentage_speed_difference = Mock()
-    client.get_trafficmanager.return_value = tm
+
+    sm, world, _ = _make_scenario_manager(mocker, params, traffic_manager=tm)
+    randint = mocker.patch("opencda.scenario_testing.utils.sim_api.random.randint", return_value=5)
+
+    tm.set_synchronous_mode.assert_called_once_with(True)
+    world.tick.reset_mock()
+
+    vehicle_actor = Mock(spec_set=["id", "get_location"])
+    vehicle_actor.id = 123
 
     mocker.patch.object(sm, "spawn_custom_actor", return_value=vehicle_actor)
 
@@ -1468,8 +1525,6 @@ def test_create_traffic_carla_with_vehicle_list_uses_spawn_vehicles_by_list(mock
         "vehicle_list": [{"spawn_position": [0.0, 0.0, 0.3, 0.0, 0.0, 0.0]}],
     }
 
-    sm, world, client = _make_scenario_manager(mocker, params)
-
     tm = Mock(
         spec_set=[
             "set_global_distance_to_leading_vehicle",
@@ -1482,7 +1537,8 @@ def test_create_traffic_carla_with_vehicle_list_uses_spawn_vehicles_by_list(mock
     tm.set_synchronous_mode = Mock()
     tm.set_osm_mode = Mock()
     tm.global_percentage_speed_difference = Mock()
-    client.get_trafficmanager.return_value = tm
+
+    sm, world, _ = _make_scenario_manager(mocker, params, traffic_manager=tm)
 
     sm.spawn_vehicles_by_list = Mock(return_value=["V1"])
     sm.spawn_vehicle_by_range = Mock(return_value=["SHOULD_NOT_HAPPEN"])
@@ -1515,8 +1571,6 @@ def test_create_traffic_carla_with_range_uses_spawn_vehicle_by_range(mocker):
         "random_right_lanechange_percentage": 0,
     }
 
-    sm, world, client = _make_scenario_manager(mocker, params)
-
     tm = Mock(
         spec_set=[
             "set_global_distance_to_leading_vehicle",
@@ -1529,7 +1583,8 @@ def test_create_traffic_carla_with_range_uses_spawn_vehicle_by_range(mocker):
     tm.set_synchronous_mode = Mock()
     tm.set_osm_mode = Mock()
     tm.global_percentage_speed_difference = Mock()
-    client.get_trafficmanager.return_value = tm
+
+    sm, world, _ = _make_scenario_manager(mocker, params, traffic_manager=tm)
 
     sm.spawn_vehicles_by_list = Mock(return_value=["SHOULD_NOT_HAPPEN"])
     sm.spawn_vehicle_by_range = Mock(return_value=["V2"])
