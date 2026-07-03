@@ -4,6 +4,7 @@ import argparse
 def arg_parse() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Set the CARLA spectator location from stdin.")
     parser.add_argument("--carla-host", type=str, default="carla", help="IP address or hostname of the CARLA server (default: 'carla')")
+    parser.add_argument("--carla-port", "--port", dest="carla_port", type=int, default=2000, help="Port of the CARLA server (default: 2000)")
     parser.add_argument("--carla-timeout", type=float, default=30.0, help="Timeout of the CARLA server response in seconds (default: 30.0)")
     return parser.parse_args()
 
@@ -12,7 +13,7 @@ def main() -> None:
     opt = arg_parse()
     import carla
 
-    client = carla.Client(opt.carla_host, 2000)
+    client = carla.Client(opt.carla_host, opt.carla_port)
     client.set_timeout(opt.carla_timeout)
     world = client.get_world()
 
