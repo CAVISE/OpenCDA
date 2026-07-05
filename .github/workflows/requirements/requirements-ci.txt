@@ -1,6 +1,8 @@
 # Minimal dependencies to run the current unit tests fast in CI/act.
 # Add here only what tests truly need.
 
+
+lxml==6.1.1
 # headless plotting
 matplotlib==3.11.0
 
