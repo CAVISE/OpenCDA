@@ -1,0 +1,2288 @@
+description: |-
+  Large-scale Town06 scenario for overload testing.
+  Target setup: 436 autopilot-controlled CAVs.
+  Use this scenario to check CARLA autopilot behavior under maximum native-spawn CAV traffic on Town06.
+
+
+world:
+  town: Town06
+  sync_mode: true
+  client_port: 2000
+  fixed_delta_seconds: 0.1
+  substepping: true
+  max_substep_delta_time: 0.01
+  max_substeps: 10
+  seed: 67
+  weather:
+    sun_altitude_angle: 30
+
+
+blueprint:
+  use_multi_class_bp: true
+  bp_meta_path: "opencda/assets/blueprint_meta/bbx_stats_0915.json"
+  bp_class_sample_prob:
+    car: 1        # 0.6
+    truck: 0      # 0.14
+    bus: 0        # 0.15
+    bicycle: 0    # 0.03
+    motorcycle: 0 # 0.08
+
+
+rsu_base:
+  sensing:
+    perception:
+      activate: false
+      camera:
+        visualize: 0
+        num: 0
+      lidar:
+        visualize: false
+        channels: 64
+        range: 120
+        points_per_second: 1000000
+        rotation_frequency: 10
+        upper_fov: 2
+        lower_fov: -25
+        dropoff_general_rate: 0.3
+        dropoff_intensity_limit: 0.7
+        dropoff_zero_intensity: 0.4
+        noise_stddev: 0.02
+    localization:
+      activate: false
+
+
+vehicle_base:
+  sensing:
+    perception:
+      activate: false
+      camera:
+        visualize: 0
+        num: 0
+      lidar:
+        visualize: false
+        channels: 64
+        range: 120
+        points_per_second: 1000000
+        rotation_frequency: 10
+        upper_fov: 2
+        lower_fov: -25
+        dropoff_general_rate: 0.3
+        dropoff_intensity_limit: 0.7
+        dropoff_zero_intensity: 0.4
+        noise_stddev: 0.02
+    localization:
+      activate: false
+  behavior:
+    local_planner:
+      debug: false
+      debug_trajectory: false
+  carla_autopilot: true
+  carla_autopilot_port: 8000
+  safety_manager:
+    print_message: false
+  map_manager:
+    activate: false
+    visualize: false
+
+
+scenario:
+  single_cav_list:
+    - name: cav-1
+      spawn_position: [-340.97, 243.75, 0.30, 0.00, 21.97, 0.00]
+      id: 1
+      model: "vehicle.tesla.model3"
+
+    - name: cav-2
+      spawn_position: [-338.74, 240.88, 0.30, 0.00, 21.97, 0.00]
+      id: 2
+      model: "vehicle.tesla.model3"
+
+    - name: cav-3
+      spawn_position: [-338.36, 237.26, 0.30, 0.00, 21.97, 0.00]
+      id: 3
+      model: "vehicle.tesla.model3"
+
+    - name: cav-4
+      spawn_position: [-336.12, 234.39, 0.30, 0.00, 21.97, 0.00]
+      id: 4
+      model: "vehicle.tesla.model3"
+
+    - name: cav-5
+      spawn_position: [-230.69, -18.64, 0.30, 0.00, 179.48, 0.00]
+      id: 5
+      model: "vehicle.tesla.model3"
+
+    - name: cav-6
+      spawn_position: [-230.63, -11.64, 0.30, 0.00, 179.48, 0.00]
+      id: 6
+      model: "vehicle.tesla.model3"
+
+    - name: cav-7
+      spawn_position: [-229.63, -22.15, 0.30, 0.00, 179.48, 0.00]
+      id: 7
+      model: "vehicle.tesla.model3"
+
+    - name: cav-8
+      spawn_position: [-229.56, -15.15, 0.30, 0.00, 179.48, 0.00]
+      id: 8
+      model: "vehicle.tesla.model3"
+
+    - name: cav-9
+      spawn_position: [-230.54, 46.14, 0.30, 0.00, -3.18, 0.00]
+      id: 9
+      model: "vehicle.tesla.model3"
+
+    - name: cav-10
+      spawn_position: [-230.15, 53.13, 0.30, 0.00, -3.18, 0.00]
+      id: 10
+      model: "vehicle.tesla.model3"
+
+    - name: cav-11
+      spawn_position: [-228.64, 42.64, 0.30, 0.00, -3.18, 0.00]
+      id: 11
+      model: "vehicle.tesla.model3"
+
+    - name: cav-12
+      spawn_position: [-228.25, 49.63, 0.30, 0.00, -3.18, 0.00]
+      id: 12
+      model: "vehicle.tesla.model3"
+
+    - name: cav-13
+      spawn_position: [-247.51, 198.30, 0.30, 0.00, 90.14, 0.00]
+      id: 13
+      model: "vehicle.tesla.model3"
+
+    - name: cav-14
+      spawn_position: [-194.09, -18.64, 0.30, 0.00, 179.48, 0.00]
+      id: 14
+      model: "vehicle.tesla.model3"
+
+    - name: cav-15
+      spawn_position: [-194.03, -11.64, 0.30, 0.00, 179.48, 0.00]
+      id: 15
+      model: "vehicle.tesla.model3"
+
+    - name: cav-16
+      spawn_position: [-193.02, -22.15, 0.30, 0.00, 179.48, 0.00]
+      id: 16
+      model: "vehicle.tesla.model3"
+
+    - name: cav-17
+      spawn_position: [-192.96, -15.15, 0.30, 0.00, 179.48, 0.00]
+      id: 17
+      model: "vehicle.tesla.model3"
+
+    - name: cav-18
+      spawn_position: [-216.02, 45.45, 0.30, 0.00, -0.02, 0.00]
+      id: 18
+      model: "vehicle.tesla.model3"
+
+    - name: cav-19
+      spawn_position: [-216.01, 52.45, 0.30, 0.00, -0.02, 0.00]
+      id: 19
+      model: "vehicle.tesla.model3"
+
+    - name: cav-20
+      spawn_position: [-213.92, 41.95, 0.30, 0.00, -0.02, 0.00]
+      id: 20
+      model: "vehicle.tesla.model3"
+
+    - name: cav-21
+      spawn_position: [-213.91, 48.95, 0.30, 0.00, -0.02, 0.00]
+      id: 21
+      model: "vehicle.tesla.model3"
+
+    - name: cav-22
+      spawn_position: [-180.33, 45.45, 0.30, 0.00, -0.02, 0.00]
+      id: 22
+      model: "vehicle.tesla.model3"
+
+    - name: cav-23
+      spawn_position: [-180.33, 52.45, 0.30, 0.00, -0.02, 0.00]
+      id: 23
+      model: "vehicle.tesla.model3"
+
+    - name: cav-24
+      spawn_position: [-177.83, 41.95, 0.30, 0.00, -0.02, 0.00]
+      id: 24
+      model: "vehicle.tesla.model3"
+
+    - name: cav-25
+      spawn_position: [-177.83, 48.95, 0.30, 0.00, -0.02, 0.00]
+      id: 25
+      model: "vehicle.tesla.model3"
+
+    - name: cav-26
+      spawn_position: [-216.41, 145.63, 0.30, 0.00, -179.87, 0.00]
+      id: 26
+      model: "vehicle.tesla.model3"
+
+    - name: cav-27
+      spawn_position: [-216.39, 138.63, 0.30, 0.00, -179.87, 0.00]
+      id: 27
+      model: "vehicle.tesla.model3"
+
+    - name: cav-28
+      spawn_position: [-214.20, 142.14, 0.30, 0.00, -179.87, 0.00]
+      id: 28
+      model: "vehicle.tesla.model3"
+
+    - name: cav-29
+      spawn_position: [-214.18, 135.14, 0.30, 0.00, -179.87, 0.00]
+      id: 29
+      model: "vehicle.tesla.model3"
+
+    - name: cav-30
+      spawn_position: [-213.83, 149.86, 0.30, 0.00, 171.23, 0.00]
+      id: 30
+      model: "vehicle.tesla.model3"
+
+    - name: cav-31
+      spawn_position: [-187.53, 142.13, 0.30, 0.00, -179.87, 0.00]
+      id: 31
+      model: "vehicle.tesla.model3"
+
+    - name: cav-32
+      spawn_position: [-187.52, 135.13, 0.30, 0.00, -179.87, 0.00]
+      id: 32
+      model: "vehicle.tesla.model3"
+
+    - name: cav-33
+      spawn_position: [-185.14, 145.64, 0.30, 0.00, -179.87, 0.00]
+      id: 33
+      model: "vehicle.tesla.model3"
+
+    - name: cav-34
+      spawn_position: [-185.12, 138.64, 0.30, 0.00, -179.87, 0.00]
+      id: 34
+      model: "vehicle.tesla.model3"
+
+    - name: cav-35
+      spawn_position: [-209.23, 236.13, 0.30, 0.00, -0.10, 0.00]
+      id: 35
+      model: "vehicle.tesla.model3"
+
+    - name: cav-36
+      spawn_position: [-209.22, 243.63, 0.30, 0.00, -0.10, 0.00]
+      id: 36
+      model: "vehicle.tesla.model3"
+
+    - name: cav-37
+      spawn_position: [-209.20, 250.63, 0.30, 0.00, -0.10, 0.00]
+      id: 37
+      model: "vehicle.tesla.model3"
+
+    - name: cav-38
+      spawn_position: [-207.22, 240.12, 0.30, 0.00, -0.10, 0.00]
+      id: 38
+      model: "vehicle.tesla.model3"
+
+    - name: cav-39
+      spawn_position: [-207.21, 247.12, 0.30, 0.00, -0.10, 0.00]
+      id: 39
+      model: "vehicle.tesla.model3"
+
+    - name: cav-40
+      spawn_position: [-145.72, -5.58, 0.30, 0.00, 135.53, 0.00]
+      id: 40
+      model: "vehicle.tesla.model3"
+
+    - name: cav-41
+      spawn_position: [-145.47, -18.90, 0.30, 0.00, 179.79, 0.00]
+      id: 41
+      model: "vehicle.tesla.model3"
+
+    - name: cav-42
+      spawn_position: [-145.44, -11.90, 0.30, 0.00, 179.79, 0.00]
+      id: 42
+      model: "vehicle.tesla.model3"
+
+    - name: cav-43
+      spawn_position: [-144.38, -22.41, 0.30, 0.00, 179.79, 0.00]
+      id: 43
+      model: "vehicle.tesla.model3"
+
+    - name: cav-44
+      spawn_position: [-144.36, -15.41, 0.30, 0.00, 179.79, 0.00]
+      id: 44
+      model: "vehicle.tesla.model3"
+
+    - name: cav-45
+      spawn_position: [-143.91, -2.45, 0.30, 0.00, 135.53, 0.00]
+      id: 45
+      model: "vehicle.tesla.model3"
+
+    - name: cav-46
+      spawn_position: [-131.24, 41.95, 0.30, 0.00, -0.02, 0.00]
+      id: 46
+      model: "vehicle.tesla.model3"
+
+    - name: cav-47
+      spawn_position: [-131.23, 48.95, 0.30, 0.00, -0.02, 0.00]
+      id: 47
+      model: "vehicle.tesla.model3"
+
+    - name: cav-48
+      spawn_position: [-129.74, 45.45, 0.30, 0.00, -0.02, 0.00]
+      id: 48
+      model: "vehicle.tesla.model3"
+
+    - name: cav-49
+      spawn_position: [-129.73, 52.45, 0.30, 0.00, -0.02, 0.00]
+      id: 49
+      model: "vehicle.tesla.model3"
+
+    - name: cav-50
+      spawn_position: [-126.08, 145.84, 0.30, 0.00, -179.87, 0.00]
+      id: 50
+      model: "vehicle.tesla.model3"
+
+    - name: cav-51
+      spawn_position: [-126.06, 138.84, 0.30, 0.00, -179.87, 0.00]
+      id: 51
+      model: "vehicle.tesla.model3"
+
+    - name: cav-52
+      spawn_position: [-114.71, -18.90, 0.30, 0.00, 179.79, 0.00]
+      id: 52
+      model: "vehicle.tesla.model3"
+
+    - name: cav-53
+      spawn_position: [-114.68, -11.90, 0.30, 0.00, 179.79, 0.00]
+      id: 53
+      model: "vehicle.tesla.model3"
+
+    - name: cav-54
+      spawn_position: [-113.62, -22.41, 0.30, 0.00, 179.79, 0.00]
+      id: 54
+      model: "vehicle.tesla.model3"
+
+    - name: cav-55
+      spawn_position: [-113.60, -15.41, 0.30, 0.00, 179.79, 0.00]
+      id: 55
+      model: "vehicle.tesla.model3"
+
+    - name: cav-56
+      spawn_position: [-122.89, 149.35, 0.30, 0.00, -179.87, 0.00]
+      id: 56
+      model: "vehicle.tesla.model3"
+
+    - name: cav-57
+      spawn_position: [-122.87, 142.35, 0.30, 0.00, -179.87, 0.00]
+      id: 57
+      model: "vehicle.tesla.model3"
+
+    - name: cav-58
+      spawn_position: [-122.85, 135.35, 0.30, 0.00, -179.87, 0.00]
+      id: 58
+      model: "vehicle.tesla.model3"
+
+    - name: cav-59
+      spawn_position: [-99.96, 145.85, 0.30, 0.00, -179.87, 0.00]
+      id: 59
+      model: "vehicle.tesla.model3"
+
+    - name: cav-60
+      spawn_position: [-99.94, 138.85, 0.30, 0.00, -179.87, 0.00]
+      id: 60
+      model: "vehicle.tesla.model3"
+
+    - name: cav-61
+      spawn_position: [-97.55, 142.35, 0.30, 0.00, -179.87, 0.00]
+      id: 61
+      model: "vehicle.tesla.model3"
+
+    - name: cav-62
+      spawn_position: [-97.54, 135.35, 0.30, 0.00, -179.87, 0.00]
+      id: 62
+      model: "vehicle.tesla.model3"
+
+    - name: cav-63
+      spawn_position: [-102.91, 235.40, 0.30, 0.00, -13.00, 0.00]
+      id: 63
+      model: "vehicle.tesla.model3"
+
+    - name: cav-64
+      spawn_position: [-102.38, 243.34, 0.30, 0.00, -0.20, 0.00]
+      id: 64
+      model: "vehicle.tesla.model3"
+
+    - name: cav-65
+      spawn_position: [-102.35, 250.34, 0.30, 0.00, -0.20, 0.00]
+      id: 65
+      model: "vehicle.tesla.model3"
+
+    - name: cav-66
+      spawn_position: [-100.49, 239.84, 0.30, 0.00, -0.20, 0.00]
+      id: 66
+      model: "vehicle.tesla.model3"
+
+    - name: cav-67
+      spawn_position: [-100.47, 246.84, 0.30, 0.00, -0.20, 0.00]
+      id: 67
+      model: "vehicle.tesla.model3"
+
+    - name: cav-68
+      spawn_position: [-71.27, -18.90, 0.30, 0.00, 179.79, 0.00]
+      id: 68
+      model: "vehicle.tesla.model3"
+
+    - name: cav-69
+      spawn_position: [-71.24, -11.90, 0.30, 0.00, 179.79, 0.00]
+      id: 69
+      model: "vehicle.tesla.model3"
+
+    - name: cav-70
+      spawn_position: [-70.18, -22.41, 0.30, 0.00, 179.79, 0.00]
+      id: 70
+      model: "vehicle.tesla.model3"
+
+    - name: cav-71
+      spawn_position: [-70.16, -15.41, 0.30, 0.00, 179.79, 0.00]
+      id: 71
+      model: "vehicle.tesla.model3"
+
+    - name: cav-72
+      spawn_position: [-30.72, -19.32, 0.30, 0.00, 179.79, 0.00]
+      id: 72
+      model: "vehicle.tesla.model3"
+
+    - name: cav-73
+      spawn_position: [-30.69, -12.32, 0.30, 0.00, 179.79, 0.00]
+      id: 73
+      model: "vehicle.tesla.model3"
+
+    - name: cav-74
+      spawn_position: [-29.63, -22.83, 0.30, 0.00, 179.79, 0.00]
+      id: 74
+      model: "vehicle.tesla.model3"
+
+    - name: cav-75
+      spawn_position: [-29.61, -15.83, 0.30, 0.00, 179.79, 0.00]
+      id: 75
+      model: "vehicle.tesla.model3"
+
+    - name: cav-76
+      spawn_position: [-68.41, 145.85, 0.30, 0.00, -179.87, 0.00]
+      id: 76
+      model: "vehicle.tesla.model3"
+
+    - name: cav-77
+      spawn_position: [-68.39, 138.85, 0.30, 0.00, -179.87, 0.00]
+      id: 77
+      model: "vehicle.tesla.model3"
+
+    - name: cav-78
+      spawn_position: [-66.50, 142.35, 0.30, 0.00, -179.87, 0.00]
+      id: 78
+      model: "vehicle.tesla.model3"
+
+    - name: cav-79
+      spawn_position: [-66.48, 135.35, 0.30, 0.00, -179.87, 0.00]
+      id: 79
+      model: "vehicle.tesla.model3"
+
+    - name: cav-80
+      spawn_position: [-73.36, 194.96, 0.30, 0.00, -86.73, 0.00]
+      id: 80
+      model: "vehicle.tesla.model3"
+
+    - name: cav-81
+      spawn_position: [-11.88, -98.54, 0.30, 0.00, 90.38, 0.00]
+      id: 81
+      model: "vehicle.tesla.model3"
+
+    - name: cav-82
+      spawn_position: [-8.39, -96.11, 0.30, 0.00, 90.38, 0.00]
+      id: 82
+      model: "vehicle.tesla.model3"
+
+    - name: cav-83
+      spawn_position: [-4.88, -98.49, 0.30, 0.00, 90.38, 0.00]
+      id: 83
+      model: "vehicle.tesla.model3"
+
+    - name: cav-84
+      spawn_position: [2.70, -34.88, 0.30, 0.00, -89.62, 0.00]
+      id: 84
+      model: "vehicle.tesla.model3"
+
+    - name: cav-85
+      spawn_position: [6.21, -36.85, 0.30, 0.00, -89.62, 0.00]
+      id: 85
+      model: "vehicle.tesla.model3"
+
+    - name: cav-86
+      spawn_position: [9.70, -34.83, 0.30, 0.00, -89.62, 0.00]
+      id: 86
+      model: "vehicle.tesla.model3"
+
+    - name: cav-87
+      spawn_position: [-9.16, 18.29, 0.30, 0.00, 90.38, 0.00]
+      id: 87
+      model: "vehicle.tesla.model3"
+
+    - name: cav-88
+      spawn_position: [-5.65, 17.21, 0.30, 0.00, 90.38, 0.00]
+      id: 88
+      model: "vehicle.tesla.model3"
+
+    - name: cav-89
+      spawn_position: [2.33, 20.51, 0.30, 0.00, -89.62, 0.00]
+      id: 89
+      model: "vehicle.tesla.model3"
+
+    - name: cav-90
+      spawn_position: [5.84, 19.43, 0.30, 0.00, -89.62, 0.00]
+      id: 90
+      model: "vehicle.tesla.model3"
+
+    - name: cav-91
+      spawn_position: [-12.52, 110.31, 0.30, 0.00, 89.51, 0.00]
+      id: 91
+      model: "vehicle.tesla.model3"
+
+    - name: cav-92
+      spawn_position: [-9.11, 107.98, 0.30, 0.00, 89.51, 0.00]
+      id: 92
+      model: "vehicle.tesla.model3"
+
+    - name: cav-93
+      spawn_position: [-5.52, 110.25, 0.30, 0.00, 89.51, 0.00]
+      id: 93
+      model: "vehicle.tesla.model3"
+
+    - name: cav-94
+      spawn_position: [6.23, 122.74, 0.30, 0.00, -92.17, 0.00]
+      id: 94
+      model: "vehicle.tesla.model3"
+
+    - name: cav-95
+      spawn_position: [9.82, 124.90, 0.30, 0.00, -92.17, 0.00]
+      id: 95
+      model: "vehicle.tesla.model3"
+
+    - name: cav-96
+      spawn_position: [-23.86, 139.08, 0.30, 0.00, -179.87, 0.00]
+      id: 96
+      model: "vehicle.tesla.model3"
+
+    - name: cav-97
+      spawn_position: [-22.17, 142.59, 0.30, 0.00, -179.87, 0.00]
+      id: 97
+      model: "vehicle.tesla.model3"
+
+    - name: cav-98
+      spawn_position: [-22.15, 135.59, 0.30, 0.00, -179.87, 0.00]
+      id: 98
+      model: "vehicle.tesla.model3"
+
+    - name: cav-99
+      spawn_position: [-10.75, 162.52, 0.30, 0.00, 89.47, 0.00]
+      id: 99
+      model: "vehicle.tesla.model3"
+
+    - name: cav-100
+      spawn_position: [-7.26, 160.98, 0.30, 0.00, 89.47, 0.00]
+      id: 100
+      model: "vehicle.tesla.model3"
+
+    - name: cav-101
+      spawn_position: [-3.75, 162.45, 0.30, 0.00, 89.47, 0.00]
+      id: 101
+      model: "vehicle.tesla.model3"
+
+    - name: cav-102
+      spawn_position: [2.82, 125.17, 0.30, 0.00, -92.17, 0.00]
+      id: 102
+      model: "vehicle.tesla.model3"
+
+    - name: cav-103
+      spawn_position: [4.25, 162.38, 0.30, 0.00, -90.53, 0.00]
+      id: 103
+      model: "vehicle.tesla.model3"
+
+    - name: cav-104
+      spawn_position: [7.74, 160.84, 0.30, 0.00, -90.53, 0.00]
+      id: 104
+      model: "vehicle.tesla.model3"
+
+    - name: cav-105
+      spawn_position: [11.25, 162.31, 0.30, 0.00, -90.53, 0.00]
+      id: 105
+      model: "vehicle.tesla.model3"
+
+    - name: cav-106
+      spawn_position: [21.67, 150.02, 0.30, 0.00, 0.23, 0.00]
+      id: 106
+      model: "vehicle.tesla.model3"
+
+    - name: cav-107
+      spawn_position: [21.70, 143.02, 0.30, 0.00, 0.23, 0.00]
+      id: 107
+      model: "vehicle.tesla.model3"
+
+    - name: cav-108
+      spawn_position: [21.73, 136.02, 0.30, 0.00, 0.23, 0.00]
+      id: 108
+      model: "vehicle.tesla.model3"
+
+    - name: cav-109
+      spawn_position: [23.49, 146.53, 0.30, 0.00, 0.23, 0.00]
+      id: 109
+      model: "vehicle.tesla.model3"
+
+    - name: cav-110
+      spawn_position: [23.52, 139.53, 0.30, 0.00, 0.23, 0.00]
+      id: 110
+      model: "vehicle.tesla.model3"
+
+    - name: cav-111
+      spawn_position: [-9.43, 263.27, 0.30, 0.00, 89.10, 0.00]
+      id: 111
+      model: "vehicle.tesla.model3"
+
+    - name: cav-112
+      spawn_position: [-5.90, 265.22, 0.30, 0.00, 89.10, 0.00]
+      id: 112
+      model: "vehicle.tesla.model3"
+
+    - name: cav-113
+      spawn_position: [-2.44, 263.16, 0.30, 0.00, 89.10, 0.00]
+      id: 113
+      model: "vehicle.tesla.model3"
+
+    - name: cav-114
+      spawn_position: [5.00, 227.52, 0.30, 0.00, -90.90, 0.00]
+      id: 114
+      model: "vehicle.tesla.model3"
+
+    - name: cav-115
+      spawn_position: [8.49, 225.96, 0.30, 0.00, -90.90, 0.00]
+      id: 115
+      model: "vehicle.tesla.model3"
+
+    - name: cav-116
+      spawn_position: [12.00, 227.41, 0.30, 0.00, -90.90, 0.00]
+      id: 116
+      model: "vehicle.tesla.model3"
+
+    - name: cav-117
+      spawn_position: [22.38, 251.53, 0.30, 0.00, 0.02, 0.00]
+      id: 117
+      model: "vehicle.tesla.model3"
+
+    - name: cav-118
+      spawn_position: [22.38, 244.53, 0.30, 0.00, 0.02, 0.00]
+      id: 118
+      model: "vehicle.tesla.model3"
+
+    - name: cav-119
+      spawn_position: [22.38, 237.53, 0.30, 0.00, 0.02, 0.00]
+      id: 119
+      model: "vehicle.tesla.model3"
+
+    - name: cav-120
+      spawn_position: [24.68, 248.03, 0.30, 0.00, 0.02, 0.00]
+      id: 120
+      model: "vehicle.tesla.model3"
+
+    - name: cav-121
+      spawn_position: [24.68, 241.03, 0.30, 0.00, 0.02, 0.00]
+      id: 121
+      model: "vehicle.tesla.model3"
+
+    - name: cav-122
+      spawn_position: [-9.37, 348.04, 0.30, 0.00, 90.60, 0.00]
+      id: 122
+      model: "vehicle.tesla.model3"
+
+    - name: cav-123
+      spawn_position: [-5.85, 345.78, 0.30, 0.00, 90.60, 0.00]
+      id: 123
+      model: "vehicle.tesla.model3"
+
+    - name: cav-124
+      spawn_position: [-2.37, 348.11, 0.30, 0.00, 90.60, 0.00]
+      id: 124
+      model: "vehicle.tesla.model3"
+
+    - name: cav-125
+      spawn_position: [5.65, 346.20, 0.30, 0.00, -89.40, 0.00]
+      id: 125
+      model: "vehicle.tesla.model3"
+
+    - name: cav-126
+      spawn_position: [9.17, 343.94, 0.30, 0.00, -89.40, 0.00]
+      id: 126
+      model: "vehicle.tesla.model3"
+
+    - name: cav-127
+      spawn_position: [12.65, 346.27, 0.30, 0.00, -89.40, 0.00]
+      id: 127
+      model: "vehicle.tesla.model3"
+
+    - name: cav-128
+      spawn_position: [49.73, -23.12, 0.30, 0.00, 179.79, 0.00]
+      id: 128
+      model: "vehicle.tesla.model3"
+
+    - name: cav-129
+      spawn_position: [49.75, -16.12, 0.30, 0.00, 179.79, 0.00]
+      id: 129
+      model: "vehicle.tesla.model3"
+
+    - name: cav-130
+      spawn_position: [51.14, -19.62, 0.30, 0.00, 179.79, 0.00]
+      id: 130
+      model: "vehicle.tesla.model3"
+
+    - name: cav-131
+      spawn_position: [51.17, -12.62, 0.30, 0.00, 179.79, 0.00]
+      id: 131
+      model: "vehicle.tesla.model3"
+
+    - name: cav-132
+      spawn_position: [26.24, 41.87, 0.30, 0.00, -0.05, 0.00]
+      id: 132
+      model: "vehicle.tesla.model3"
+
+    - name: cav-133
+      spawn_position: [26.24, 48.87, 0.30, 0.00, -0.05, 0.00]
+      id: 133
+      model: "vehicle.tesla.model3"
+
+    - name: cav-134
+      spawn_position: [27.84, 45.37, 0.30, 0.00, -0.05, 0.00]
+      id: 134
+      model: "vehicle.tesla.model3"
+
+    - name: cav-135
+      spawn_position: [27.85, 52.37, 0.30, 0.00, -0.05, 0.00]
+      id: 135
+      model: "vehicle.tesla.model3"
+
+    - name: cav-136
+      spawn_position: [79.75, -23.23, 0.30, 0.00, 179.79, 0.00]
+      id: 136
+      model: "vehicle.tesla.model3"
+
+    - name: cav-137
+      spawn_position: [79.78, -16.23, 0.30, 0.00, 179.79, 0.00]
+      id: 137
+      model: "vehicle.tesla.model3"
+
+    - name: cav-138
+      spawn_position: [80.96, -19.73, 0.30, 0.00, 179.79, 0.00]
+      id: 138
+      model: "vehicle.tesla.model3"
+
+    - name: cav-139
+      spawn_position: [80.99, -12.73, 0.30, 0.00, 179.79, 0.00]
+      id: 139
+      model: "vehicle.tesla.model3"
+
+    - name: cav-140
+      spawn_position: [104.37, -23.32, 0.30, 0.00, 179.79, 0.00]
+      id: 140
+      model: "vehicle.tesla.model3"
+
+    - name: cav-141
+      spawn_position: [104.40, -16.32, 0.30, 0.00, 179.79, 0.00]
+      id: 141
+      model: "vehicle.tesla.model3"
+
+    - name: cav-142
+      spawn_position: [105.88, -19.82, 0.30, 0.00, 179.79, 0.00]
+      id: 142
+      model: "vehicle.tesla.model3"
+
+    - name: cav-143
+      spawn_position: [105.91, -12.82, 0.30, 0.00, 179.79, 0.00]
+      id: 143
+      model: "vehicle.tesla.model3"
+
+    - name: cav-144
+      spawn_position: [120.26, 41.76, 0.30, 0.00, -0.05, 0.00]
+      id: 144
+      model: "vehicle.tesla.model3"
+
+    - name: cav-145
+      spawn_position: [120.27, 48.76, 0.30, 0.00, -0.05, 0.00]
+      id: 145
+      model: "vehicle.tesla.model3"
+
+    - name: cav-146
+      spawn_position: [122.57, 45.26, 0.30, 0.00, -0.05, 0.00]
+      id: 146
+      model: "vehicle.tesla.model3"
+
+    - name: cav-147
+      spawn_position: [122.57, 52.26, 0.30, 0.00, -0.05, 0.00]
+      id: 147
+      model: "vehicle.tesla.model3"
+
+    - name: cav-148
+      spawn_position: [93.27, 131.88, 0.30, 0.00, -13.57, 0.00]
+      id: 148
+      model: "vehicle.tesla.model3"
+
+    - name: cav-149
+      spawn_position: [93.74, 146.81, 0.30, 0.00, 0.23, 0.00]
+      id: 149
+      model: "vehicle.tesla.model3"
+
+    - name: cav-150
+      spawn_position: [93.77, 139.81, 0.30, 0.00, 0.23, 0.00]
+      id: 150
+      model: "vehicle.tesla.model3"
+
+    - name: cav-151
+      spawn_position: [94.83, 150.32, 0.30, 0.00, 0.23, 0.00]
+      id: 151
+      model: "vehicle.tesla.model3"
+
+    - name: cav-152
+      spawn_position: [94.86, 143.32, 0.30, 0.00, 0.23, 0.00]
+      id: 152
+      model: "vehicle.tesla.model3"
+
+    - name: cav-153
+      spawn_position: [94.89, 136.32, 0.30, 0.00, 0.23, 0.00]
+      id: 153
+      model: "vehicle.tesla.model3"
+
+    - name: cav-154
+      spawn_position: [106.31, 248.06, 0.30, 0.00, 0.02, 0.00]
+      id: 154
+      model: "vehicle.tesla.model3"
+
+    - name: cav-155
+      spawn_position: [106.31, 241.06, 0.30, 0.00, 0.02, 0.00]
+      id: 155
+      model: "vehicle.tesla.model3"
+
+    - name: cav-156
+      spawn_position: [107.91, 251.56, 0.30, 0.00, 0.02, 0.00]
+      id: 156
+      model: "vehicle.tesla.model3"
+
+    - name: cav-157
+      spawn_position: [107.91, 244.56, 0.30, 0.00, 0.02, 0.00]
+      id: 157
+      model: "vehicle.tesla.model3"
+
+    - name: cav-158
+      spawn_position: [107.92, 237.56, 0.30, 0.00, 0.02, 0.00]
+      id: 158
+      model: "vehicle.tesla.model3"
+
+    - name: cav-159
+      spawn_position: [108.23, 232.39, 0.62, 0.00, -19.64, 0.00]
+      id: 159
+      model: "vehicle.tesla.model3"
+
+    - name: cav-160
+      spawn_position: [127.30, -23.40, 0.30, 0.00, 179.79, 0.00]
+      id: 160
+      model: "vehicle.tesla.model3"
+
+    - name: cav-161
+      spawn_position: [127.32, -16.40, 0.30, 0.00, 179.79, 0.00]
+      id: 161
+      model: "vehicle.tesla.model3"
+
+    - name: cav-162
+      spawn_position: [128.81, -19.91, 0.30, 0.00, 179.79, 0.00]
+      id: 162
+      model: "vehicle.tesla.model3"
+
+    - name: cav-163
+      spawn_position: [128.84, -12.91, 0.30, 0.00, 179.79, 0.00]
+      id: 163
+      model: "vehicle.tesla.model3"
+
+    - name: cav-164
+      spawn_position: [137.71, 29.81, 0.30, 0.00, -53.47, 0.00]
+      id: 164
+      model: "vehicle.tesla.model3"
+
+    - name: cav-165
+      spawn_position: [139.65, 33.24, 0.30, 0.00, -53.47, 0.00]
+      id: 165
+      model: "vehicle.tesla.model3"
+
+    - name: cav-166
+      spawn_position: [146.00, 41.76, 0.30, 0.00, -0.05, 0.00]
+      id: 166
+      model: "vehicle.tesla.model3"
+
+    - name: cav-167
+      spawn_position: [146.00, 48.76, 0.30, 0.00, -0.05, 0.00]
+      id: 167
+      model: "vehicle.tesla.model3"
+
+    - name: cav-168
+      spawn_position: [148.30, 45.26, 0.30, 0.00, -0.05, 0.00]
+      id: 168
+      model: "vehicle.tesla.model3"
+
+    - name: cav-169
+      spawn_position: [148.31, 52.26, 0.30, 0.00, -0.05, 0.00]
+      id: 169
+      model: "vehicle.tesla.model3"
+
+    - name: cav-170
+      spawn_position: [157.42, 190.34, 0.30, 0.00, -49.62, 0.00]
+      id: 170
+      model: "vehicle.tesla.model3"
+
+    - name: cav-171
+      spawn_position: [169.86, 177.34, 0.30, 0.00, -41.96, 0.00]
+      id: 171
+      model: "vehicle.tesla.model3"
+
+    - name: cav-172
+      spawn_position: [177.72, 41.71, 0.30, 0.00, -0.05, 0.00]
+      id: 172
+      model: "vehicle.tesla.model3"
+
+    - name: cav-173
+      spawn_position: [177.73, 48.71, 0.30, 0.00, -0.05, 0.00]
+      id: 173
+      model: "vehicle.tesla.model3"
+
+    - name: cav-174
+      spawn_position: [180.13, 45.21, 0.30, 0.00, -0.05, 0.00]
+      id: 174
+      model: "vehicle.tesla.model3"
+
+    - name: cav-175
+      spawn_position: [180.13, 52.21, 0.30, 0.00, -0.05, 0.00]
+      id: 175
+      model: "vehicle.tesla.model3"
+
+    - name: cav-176
+      spawn_position: [200.06, 41.71, 0.30, 0.00, -0.05, 0.00]
+      id: 176
+      model: "vehicle.tesla.model3"
+
+    - name: cav-177
+      spawn_position: [200.07, 48.71, 0.30, 0.00, -0.05, 0.00]
+      id: 177
+      model: "vehicle.tesla.model3"
+
+    - name: cav-178
+      spawn_position: [202.46, 45.21, 0.30, 0.00, -0.05, 0.00]
+      id: 178
+      model: "vehicle.tesla.model3"
+
+    - name: cav-179
+      spawn_position: [202.47, 52.21, 0.30, 0.00, -0.05, 0.00]
+      id: 179
+      model: "vehicle.tesla.model3"
+
+    - name: cav-180
+      spawn_position: [183.24, 86.66, 0.30, 0.00, -36.71, 0.00]
+      id: 180
+      model: "vehicle.tesla.model3"
+
+    - name: cav-181
+      spawn_position: [203.77, 150.96, 0.30, 0.00, 0.23, 0.00]
+      id: 181
+      model: "vehicle.tesla.model3"
+
+    - name: cav-182
+      spawn_position: [203.80, 143.96, 0.30, 0.00, 0.23, 0.00]
+      id: 182
+      model: "vehicle.tesla.model3"
+
+    - name: cav-183
+      spawn_position: [203.83, 136.96, 0.30, 0.00, 0.23, 0.00]
+      id: 183
+      model: "vehicle.tesla.model3"
+
+    - name: cav-184
+      spawn_position: [205.38, 147.46, 0.30, 0.00, 0.23, 0.00]
+      id: 184
+      model: "vehicle.tesla.model3"
+
+    - name: cav-185
+      spawn_position: [205.41, 140.46, 0.30, 0.00, 0.23, 0.00]
+      id: 185
+      model: "vehicle.tesla.model3"
+
+    - name: cav-186
+      spawn_position: [242.92, 41.85, 0.30, 0.00, -0.03, 0.00]
+      id: 186
+      model: "vehicle.tesla.model3"
+
+    - name: cav-187
+      spawn_position: [242.93, 48.85, 0.30, 0.00, -0.03, 0.00]
+      id: 187
+      model: "vehicle.tesla.model3"
+
+    - name: cav-188
+      spawn_position: [245.62, 45.35, 0.30, 0.00, -0.03, 0.00]
+      id: 188
+      model: "vehicle.tesla.model3"
+
+    - name: cav-189
+      spawn_position: [245.63, 52.35, 0.30, 0.00, -0.03, 0.00]
+      id: 189
+      model: "vehicle.tesla.model3"
+
+    - name: cav-190
+      spawn_position: [262.19, 41.85, 0.30, 0.00, -0.03, 0.00]
+      id: 190
+      model: "vehicle.tesla.model3"
+
+    - name: cav-191
+      spawn_position: [262.20, 48.85, 0.30, 0.00, -0.03, 0.00]
+      id: 191
+      model: "vehicle.tesla.model3"
+
+    - name: cav-192
+      spawn_position: [264.89, 45.35, 0.30, 0.00, -0.03, 0.00]
+      id: 192
+      model: "vehicle.tesla.model3"
+
+    - name: cav-193
+      spawn_position: [264.90, 52.35, 0.30, 0.00, -0.03, 0.00]
+      id: 193
+      model: "vehicle.tesla.model3"
+
+    - name: cav-194
+      spawn_position: [251.06, 150.96, 0.30, 0.00, 0.23, 0.00]
+      id: 194
+      model: "vehicle.tesla.model3"
+
+    - name: cav-195
+      spawn_position: [251.09, 143.96, 0.30, 0.00, 0.23, 0.00]
+      id: 195
+      model: "vehicle.tesla.model3"
+
+    - name: cav-196
+      spawn_position: [251.11, 136.96, 0.30, 0.00, 0.23, 0.00]
+      id: 196
+      model: "vehicle.tesla.model3"
+
+    - name: cav-197
+      spawn_position: [253.07, 147.47, 0.30, 0.00, 0.23, 0.00]
+      id: 197
+      model: "vehicle.tesla.model3"
+
+    - name: cav-198
+      spawn_position: [253.10, 140.47, 0.30, 0.00, 0.23, 0.00]
+      id: 198
+      model: "vehicle.tesla.model3"
+
+    - name: cav-199
+      spawn_position: [269.18, 151.03, 0.30, 0.00, 0.23, 0.00]
+      id: 199
+      model: "vehicle.tesla.model3"
+
+    - name: cav-200
+      spawn_position: [269.21, 144.03, 0.30, 0.00, 0.23, 0.00]
+      id: 200
+      model: "vehicle.tesla.model3"
+
+    # - name: cav-201
+    #   spawn_position: [269.24, 137.03, 0.30, 0.00, 0.23, 0.00]
+    #   id: 201
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-202
+    #   spawn_position: [270.79, 147.54, 0.30, 0.00, 0.23, 0.00]
+    #   id: 202
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-203
+    #   spawn_position: [270.82, 140.54, 0.30, 0.00, 0.23, 0.00]
+    #   id: 203
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-204
+    #   spawn_position: [305.83, -24.05, 0.30, 0.00, 179.79, 0.00]
+    #   id: 204
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-205
+    #   spawn_position: [305.85, -17.05, 0.30, 0.00, 179.79, 0.00]
+    #   id: 205
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-206
+    #   spawn_position: [307.34, -20.56, 0.30, 0.00, 179.79, 0.00]
+    #   id: 206
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-207
+    #   spawn_position: [307.36, -13.56, 0.30, 0.00, 179.79, 0.00]
+    #   id: 207
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-208
+    #   spawn_position: [319.91, -24.10, 0.30, 0.00, 179.79, 0.00]
+    #   id: 208
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-209
+    #   spawn_position: [319.94, -17.10, 0.30, 0.00, 179.79, 0.00]
+    #   id: 209
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-210
+    #   spawn_position: [322.22, -20.61, 0.30, 0.00, 179.79, 0.00]
+    #   id: 210
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-211
+    #   spawn_position: [322.25, -13.61, 0.30, 0.00, 179.79, 0.00]
+    #   id: 211
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-212
+    #   spawn_position: [291.19, 151.12, 0.30, 0.00, 0.23, 0.00]
+    #   id: 212
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-213
+    #   spawn_position: [291.22, 144.12, 0.30, 0.00, 0.23, 0.00]
+    #   id: 213
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-214
+    #   spawn_position: [291.25, 137.12, 0.30, 0.00, 0.23, 0.00]
+    #   id: 214
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-215
+    #   spawn_position: [293.10, 147.63, 0.30, 0.00, 0.23, 0.00]
+    #   id: 215
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-216
+    #   spawn_position: [293.13, 140.63, 0.30, 0.00, 0.23, 0.00]
+    #   id: 216
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-217
+    #   spawn_position: [312.25, 151.21, 0.30, 0.00, 0.23, 0.00]
+    #   id: 217
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-218
+    #   spawn_position: [312.28, 144.21, 0.30, 0.00, 0.23, 0.00]
+    #   id: 218
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-219
+    #   spawn_position: [312.31, 137.21, 0.30, 0.00, 0.23, 0.00]
+    #   id: 219
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-220
+    #   spawn_position: [313.76, 147.72, 0.30, 0.00, 0.23, 0.00]
+    #   id: 220
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-221
+    #   spawn_position: [313.79, 140.72, 0.30, 0.00, 0.23, 0.00]
+    #   id: 221
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-222
+    #   spawn_position: [335.13, -24.16, 0.30, 0.00, 179.79, 0.00]
+    #   id: 222
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-223
+    #   spawn_position: [335.16, -17.16, 0.30, 0.00, 179.79, 0.00]
+    #   id: 223
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-224
+    #   spawn_position: [337.45, -20.67, 0.30, 0.00, 179.79, 0.00]
+    #   id: 224
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-225
+    #   spawn_position: [337.47, -13.67, 0.30, 0.00, 179.79, 0.00]
+    #   id: 225
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-226
+    #   spawn_position: [351.46, -24.22, 0.30, 0.00, 179.79, 0.00]
+    #   id: 226
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-227
+    #   spawn_position: [351.49, -17.22, 0.30, 0.00, 179.79, 0.00]
+    #   id: 227
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-228
+    #   spawn_position: [353.77, -20.73, 0.30, 0.00, 179.79, 0.00]
+    #   id: 228
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-229
+    #   spawn_position: [353.80, -13.73, 0.30, 0.00, 179.79, 0.00]
+    #   id: 229
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-230
+    #   spawn_position: [368.14, -24.28, 0.30, 0.00, 179.79, 0.00]
+    #   id: 230
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-231
+    #   spawn_position: [368.17, -17.28, 0.30, 0.00, 179.79, 0.00]
+    #   id: 231
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-232
+    #   spawn_position: [370.45, -20.79, 0.30, 0.00, 179.79, 0.00]
+    #   id: 232
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-233
+    #   spawn_position: [370.48, -13.79, 0.30, 0.00, 179.79, 0.00]
+    #   id: 233
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-234
+    #   spawn_position: [343.58, 38.30, 0.30, 0.00, -0.03, 0.00]
+    #   id: 234
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-235
+    #   spawn_position: [343.58, 45.30, 0.30, 0.00, -0.03, 0.00]
+    #   id: 235
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-236
+    #   spawn_position: [343.59, 52.30, 0.30, 0.00, -0.03, 0.00]
+    #   id: 236
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-237
+    #   spawn_position: [345.48, 41.80, 0.30, 0.00, -0.03, 0.00]
+    #   id: 237
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-238
+    #   spawn_position: [345.48, 48.80, 0.30, 0.00, -0.03, 0.00]
+    #   id: 238
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-239
+    #   spawn_position: [359.44, 38.29, 0.30, 0.00, -0.03, 0.00]
+    #   id: 239
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-240
+    #   spawn_position: [359.45, 45.29, 0.30, 0.00, -0.03, 0.00]
+    #   id: 240
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-241
+    #   spawn_position: [359.45, 52.29, 0.30, 0.00, -0.03, 0.00]
+    #   id: 241
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-242
+    #   spawn_position: [361.35, 41.79, 0.30, 0.00, -0.03, 0.00]
+    #   id: 242
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-243
+    #   spawn_position: [361.35, 48.79, 0.30, 0.00, -0.03, 0.00]
+    #   id: 243
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-244
+    #   spawn_position: [372.28, 38.28, 0.30, 0.00, -0.03, 0.00]
+    #   id: 244
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-245
+    #   spawn_position: [372.28, 45.28, 0.30, 0.00, -0.03, 0.00]
+    #   id: 245
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-246
+    #   spawn_position: [372.29, 52.28, 0.30, 0.00, -0.03, 0.00]
+    #   id: 246
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-247
+    #   spawn_position: [374.18, 41.78, 0.30, 0.00, -0.03, 0.00]
+    #   id: 247
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-248
+    #   spawn_position: [374.18, 48.78, 0.30, 0.00, -0.03, 0.00]
+    #   id: 248
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-249
+    #   spawn_position: [330.61, 151.28, 0.30, 0.00, 0.23, 0.00]
+    #   id: 249
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-250
+    #   spawn_position: [330.64, 144.28, 0.30, 0.00, 0.23, 0.00]
+    #   id: 250
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-251
+    #   spawn_position: [330.67, 137.28, 0.30, 0.00, 0.23, 0.00]
+    #   id: 251
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-252
+    #   spawn_position: [332.13, 147.79, 0.30, 0.00, 0.23, 0.00]
+    #   id: 252
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-253
+    #   spawn_position: [332.16, 140.79, 0.30, 0.00, 0.23, 0.00]
+    #   id: 253
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-254
+    #   spawn_position: [350.21, 151.36, 0.30, 0.00, 0.23, 0.00]
+    #   id: 254
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-255
+    #   spawn_position: [350.24, 144.36, 0.30, 0.00, 0.23, 0.00]
+    #   id: 255
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-256
+    #   spawn_position: [350.26, 137.36, 0.30, 0.00, 0.23, 0.00]
+    #   id: 256
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-257
+    #   spawn_position: [352.22, 147.87, 0.30, 0.00, 0.23, 0.00]
+    #   id: 257
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-258
+    #   spawn_position: [352.25, 140.87, 0.30, 0.00, 0.23, 0.00]
+    #   id: 258
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-259
+    #   spawn_position: [374.48, 151.46, 0.30, 0.00, 0.23, 0.00]
+    #   id: 259
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-260
+    #   spawn_position: [374.51, 144.46, 0.30, 0.00, 0.23, 0.00]
+    #   id: 260
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-261
+    #   spawn_position: [374.53, 137.46, 0.30, 0.00, 0.23, 0.00]
+    #   id: 261
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-262
+    #   spawn_position: [380.10, -24.32, 0.30, 0.00, 179.79, 0.00]
+    #   id: 262
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-263
+    #   spawn_position: [380.13, -17.32, 0.30, 0.00, 179.79, 0.00]
+    #   id: 263
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-264
+    #   spawn_position: [382.41, -20.83, 0.30, 0.00, 179.79, 0.00]
+    #   id: 264
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-265
+    #   spawn_position: [382.44, -13.83, 0.30, 0.00, 179.79, 0.00]
+    #   id: 265
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-266
+    #   spawn_position: [397.39, -24.38, 0.30, 0.00, 179.79, 0.00]
+    #   id: 266
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-267
+    #   spawn_position: [397.42, -17.38, 0.30, 0.00, 179.79, 0.00]
+    #   id: 267
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-268
+    #   spawn_position: [399.70, -20.89, 0.30, 0.00, 179.79, 0.00]
+    #   id: 268
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-269
+    #   spawn_position: [399.73, -13.89, 0.30, 0.00, 179.79, 0.00]
+    #   id: 269
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-270
+    #   spawn_position: [411.83, -24.44, 0.30, 0.00, 179.79, 0.00]
+    #   id: 270
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-271
+    #   spawn_position: [411.86, -17.44, 0.30, 0.00, 179.79, 0.00]
+    #   id: 271
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-272
+    #   spawn_position: [414.14, -20.95, 0.30, 0.00, 179.79, 0.00]
+    #   id: 272
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-273
+    #   spawn_position: [414.17, -13.95, 0.30, 0.00, 179.79, 0.00]
+    #   id: 273
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-274
+    #   spawn_position: [386.04, 38.28, 0.30, 0.00, -0.03, 0.00]
+    #   id: 274
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-275
+    #   spawn_position: [386.04, 45.28, 0.30, 0.00, -0.03, 0.00]
+    #   id: 275
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-276
+    #   spawn_position: [386.05, 52.28, 0.30, 0.00, -0.03, 0.00]
+    #   id: 276
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-277
+    #   spawn_position: [387.94, 41.78, 0.30, 0.00, -0.03, 0.00]
+    #   id: 277
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-278
+    #   spawn_position: [387.95, 48.78, 0.30, 0.00, -0.03, 0.00]
+    #   id: 278
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-279
+    #   spawn_position: [398.97, 38.27, 0.30, 0.00, -0.03, 0.00]
+    #   id: 279
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-280
+    #   spawn_position: [398.97, 45.27, 0.30, 0.00, -0.03, 0.00]
+    #   id: 280
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-281
+    #   spawn_position: [398.98, 52.27, 0.30, 0.00, -0.03, 0.00]
+    #   id: 281
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-282
+    #   spawn_position: [400.87, 41.77, 0.30, 0.00, -0.03, 0.00]
+    #   id: 282
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-283
+    #   spawn_position: [400.88, 48.77, 0.30, 0.00, -0.03, 0.00]
+    #   id: 283
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-284
+    #   spawn_position: [413.17, 38.26, 0.30, 0.00, -0.03, 0.00]
+    #   id: 284
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-285
+    #   spawn_position: [413.18, 45.26, 0.30, 0.00, -0.03, 0.00]
+    #   id: 285
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-286
+    #   spawn_position: [413.18, 52.26, 0.30, 0.00, -0.03, 0.00]
+    #   id: 286
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-287
+    #   spawn_position: [415.07, 41.76, 0.30, 0.00, -0.03, 0.00]
+    #   id: 287
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-288
+    #   spawn_position: [415.08, 48.76, 0.30, 0.00, -0.03, 0.00]
+    #   id: 288
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-289
+    #   spawn_position: [376.19, 147.97, 0.30, 0.00, 0.23, 0.00]
+    #   id: 289
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-290
+    #   spawn_position: [376.22, 140.97, 0.30, 0.00, 0.23, 0.00]
+    #   id: 290
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-291
+    #   spawn_position: [410.29, 151.61, 0.30, 0.00, 0.23, 0.00]
+    #   id: 291
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-292
+    #   spawn_position: [410.32, 144.61, 0.30, 0.00, 0.23, 0.00]
+    #   id: 292
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-293
+    #   spawn_position: [410.35, 137.61, 0.30, 0.00, 0.23, 0.00]
+    #   id: 293
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-294
+    #   spawn_position: [411.70, 148.12, 0.30, 0.00, 0.23, 0.00]
+    #   id: 294
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-295
+    #   spawn_position: [411.73, 141.12, 0.30, 0.00, 0.23, 0.00]
+    #   id: 295
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-296
+    #   spawn_position: [428.08, -24.50, 0.30, 0.00, 179.79, 0.00]
+    #   id: 296
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-297
+    #   spawn_position: [428.10, -17.50, 0.30, 0.00, 179.79, 0.00]
+    #   id: 297
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-298
+    #   spawn_position: [430.39, -21.00, 0.30, 0.00, 179.79, 0.00]
+    #   id: 298
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-299
+    #   spawn_position: [430.42, -14.00, 0.30, 0.00, 179.79, 0.00]
+    #   id: 299
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-300
+    #   spawn_position: [443.70, -24.55, 0.30, 0.00, 179.79, 0.00]
+    #   id: 300
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-301
+    #   spawn_position: [443.72, -17.55, 0.30, 0.00, 179.79, 0.00]
+    #   id: 301
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-302
+    #   spawn_position: [446.01, -21.06, 0.30, 0.00, 179.79, 0.00]
+    #   id: 302
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-303
+    #   spawn_position: [446.04, -14.06, 0.30, 0.00, 179.79, 0.00]
+    #   id: 303
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-304
+    #   spawn_position: [429.93, 38.26, 0.30, 0.00, -0.03, 0.00]
+    #   id: 304
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-305
+    #   spawn_position: [429.94, 45.26, 0.30, 0.00, -0.03, 0.00]
+    #   id: 305
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-306
+    #   spawn_position: [429.94, 52.26, 0.30, 0.00, -0.03, 0.00]
+    #   id: 306
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-307
+    #   spawn_position: [431.84, 41.75, 0.30, 0.00, -0.03, 0.00]
+    #   id: 307
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-308
+    #   spawn_position: [431.84, 48.75, 0.30, 0.00, -0.03, 0.00]
+    #   id: 308
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-309
+    #   spawn_position: [442.59, 38.25, 0.30, 0.00, -0.03, 0.00]
+    #   id: 309
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-310
+    #   spawn_position: [442.59, 45.25, 0.30, 0.00, -0.03, 0.00]
+    #   id: 310
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-311
+    #   spawn_position: [442.60, 52.25, 0.30, 0.00, -0.03, 0.00]
+    #   id: 311
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-312
+    #   spawn_position: [444.49, 41.75, 0.30, 0.00, -0.03, 0.00]
+    #   id: 312
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-313
+    #   spawn_position: [444.50, 48.75, 0.30, 0.00, -0.03, 0.00]
+    #   id: 313
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-314
+    #   spawn_position: [454.32, 38.24, 0.30, 0.00, -0.03, 0.00]
+    #   id: 314
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-315
+    #   spawn_position: [454.32, 45.24, 0.30, 0.00, -0.03, 0.00]
+    #   id: 315
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-316
+    #   spawn_position: [454.33, 52.24, 0.30, 0.00, -0.03, 0.00]
+    #   id: 316
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-317
+    #   spawn_position: [456.02, 41.74, 0.30, 0.00, -0.03, 0.00]
+    #   id: 317
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-318
+    #   spawn_position: [456.02, 48.74, 0.30, 0.00, -0.03, 0.00]
+    #   id: 318
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-319
+    #   spawn_position: [466.10, 38.24, 0.30, 0.00, -0.03, 0.00]
+    #   id: 319
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-320
+    #   spawn_position: [466.10, 45.24, 0.30, 0.00, -0.03, 0.00]
+    #   id: 320
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-321
+    #   spawn_position: [466.10, 52.24, 0.30, 0.00, -0.03, 0.00]
+    #   id: 321
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-322
+    #   spawn_position: [467.80, 41.74, 0.30, 0.00, -0.03, 0.00]
+    #   id: 322
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-323
+    #   spawn_position: [467.80, 48.74, 0.30, 0.00, -0.03, 0.00]
+    #   id: 323
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-324
+    #   spawn_position: [449.41, 151.89, 0.30, 0.00, 0.23, 0.00]
+    #   id: 324
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-325
+    #   spawn_position: [449.44, 144.89, 0.30, 0.00, 0.23, 0.00]
+    #   id: 325
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-326
+    #   spawn_position: [449.46, 137.89, 0.30, 0.00, 0.23, 0.00]
+    #   id: 326
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-327
+    #   spawn_position: [451.42, 148.40, 0.30, 0.00, 0.23, 0.00]
+    #   id: 327
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-328
+    #   spawn_position: [451.45, 141.40, 0.30, 0.00, 0.23, 0.00]
+    #   id: 328
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-329
+    #   spawn_position: [497.30, -13.95, 0.30, 0.00, -179.87, 0.00]
+    #   id: 329
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-330
+    #   spawn_position: [497.31, -20.95, 0.30, 0.00, -179.87, 0.00]
+    #   id: 330
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-331
+    #   spawn_position: [498.79, -10.45, 0.30, 0.00, -179.87, 0.00]
+    #   id: 331
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-332
+    #   spawn_position: [498.81, -17.45, 0.30, 0.00, -179.87, 0.00]
+    #   id: 332
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-333
+    #   spawn_position: [498.82, -24.45, 0.30, 0.00, -179.87, 0.00]
+    #   id: 333
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-334
+    #   spawn_position: [477.04, 38.23, 0.30, 0.00, -0.03, 0.00]
+    #   id: 334
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-335
+    #   spawn_position: [477.04, 45.23, 0.30, 0.00, -0.03, 0.00]
+    #   id: 335
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-336
+    #   spawn_position: [477.05, 52.23, 0.30, 0.00, -0.03, 0.00]
+    #   id: 336
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-337
+    #   spawn_position: [478.74, 41.73, 0.30, 0.00, -0.03, 0.00]
+    #   id: 337
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-338
+    #   spawn_position: [478.75, 48.73, 0.30, 0.00, -0.03, 0.00]
+    #   id: 338
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-339
+    #   spawn_position: [502.05, 38.23, 0.30, 0.00, -0.03, 0.00]
+    #   id: 339
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-340
+    #   spawn_position: [502.06, 45.23, 0.30, 0.00, -0.03, 0.00]
+    #   id: 340
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-341
+    #   spawn_position: [502.06, 52.23, 0.30, 0.00, -0.03, 0.00]
+    #   id: 341
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-342
+    #   spawn_position: [503.56, 41.73, 0.30, 0.00, -0.03, 0.00]
+    #   id: 342
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-343
+    #   spawn_position: [503.56, 48.73, 0.30, 0.00, -0.03, 0.00]
+    #   id: 343
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-344
+    #   spawn_position: [504.31, 31.87, 0.30, 0.00, -33.65, 0.00]
+    #   id: 344
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-345
+    #   spawn_position: [524.82, 38.21, 0.30, 0.00, -0.03, 0.00]
+    #   id: 345
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-346
+    #   spawn_position: [524.82, 45.21, 0.30, 0.00, -0.03, 0.00]
+    #   id: 346
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-347
+    #   spawn_position: [524.82, 52.71, 0.30, 0.00, -0.03, 0.00]
+    #   id: 347
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-348
+    #   spawn_position: [507.39, 97.50, 0.30, 0.00, -66.75, 0.00]
+    #   id: 348
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-349
+    #   spawn_position: [478.54, 151.89, 0.30, 0.00, 0.23, 0.00]
+    #   id: 349
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-350
+    #   spawn_position: [478.57, 144.89, 0.30, 0.00, 0.23, 0.00]
+    #   id: 350
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-351
+    #   spawn_position: [478.60, 137.89, 0.30, 0.00, 0.23, 0.00]
+    #   id: 351
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-352
+    #   spawn_position: [480.56, 148.40, 0.30, 0.00, 0.23, 0.00]
+    #   id: 352
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-353
+    #   spawn_position: [480.59, 141.40, 0.30, 0.00, 0.23, 0.00]
+    #   id: 353
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-354
+    #   spawn_position: [481.31, 131.87, 0.30, 0.00, -33.19, 0.00]
+    #   id: 354
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-355
+    #   spawn_position: [498.96, 151.97, 0.30, 0.00, 0.23, 0.00]
+    #   id: 355
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-356
+    #   spawn_position: [498.99, 144.97, 0.30, 0.00, 0.23, 0.00]
+    #   id: 356
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-357
+    #   spawn_position: [499.02, 137.97, 0.30, 0.00, 0.23, 0.00]
+    #   id: 357
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-358
+    #   spawn_position: [500.98, 148.48, 0.30, 0.00, 0.23, 0.00]
+    #   id: 358
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-359
+    #   spawn_position: [501.01, 141.48, 0.30, 0.00, 0.23, 0.00]
+    #   id: 359
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-360
+    #   spawn_position: [531.65, -13.97, 0.30, 0.00, -179.58, 0.00]
+    #   id: 360
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-361
+    #   spawn_position: [531.70, -20.97, 0.30, 0.00, -179.58, 0.00]
+    #   id: 361
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-362
+    #   spawn_position: [533.63, -10.45, 0.30, 0.00, -179.58, 0.00]
+    #   id: 362
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-363
+    #   spawn_position: [533.68, -17.45, 0.30, 0.00, -179.58, 0.00]
+    #   id: 363
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-364
+    #   spawn_position: [533.73, -24.45, 0.30, 0.00, -179.58, 0.00]
+    #   id: 364
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-365
+    #   spawn_position: [549.38, -13.84, 0.30, 0.00, -179.58, 0.00]
+    #   id: 365
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-366
+    #   spawn_position: [549.43, -20.84, 0.30, 0.00, -179.58, 0.00]
+    #   id: 366
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-367
+    #   spawn_position: [551.35, -10.32, 0.30, 0.00, -179.58, 0.00]
+    #   id: 367
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-368
+    #   spawn_position: [551.40, -17.32, 0.30, 0.00, -179.58, 0.00]
+    #   id: 368
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-369
+    #   spawn_position: [551.46, -24.32, 0.30, 0.00, -179.58, 0.00]
+    #   id: 369
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-370
+    #   spawn_position: [568.92, -13.69, 0.30, 0.00, -179.58, 0.00]
+    #   id: 370
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-371
+    #   spawn_position: [568.97, -20.69, 0.30, 0.00, -179.58, 0.00]
+    #   id: 371
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-372
+    #   spawn_position: [570.89, -10.18, 0.30, 0.00, -179.58, 0.00]
+    #   id: 372
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-373
+    #   spawn_position: [570.95, -17.18, 0.30, 0.00, -179.58, 0.00]
+    #   id: 373
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-374
+    #   spawn_position: [571.00, -24.18, 0.30, 0.00, -179.58, 0.00]
+    #   id: 374
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-375
+    #   spawn_position: [525.72, 41.71, 0.30, 0.00, -0.03, 0.00]
+    #   id: 375
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-376
+    #   spawn_position: [525.72, 48.71, 0.30, 0.00, -0.03, 0.00]
+    #   id: 376
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-377
+    #   spawn_position: [549.13, 38.21, 0.30, 0.00, -0.03, 0.00]
+    #   id: 377
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-378
+    #   spawn_position: [549.13, 45.21, 0.30, 0.00, -0.03, 0.00]
+    #   id: 378
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-379
+    #   spawn_position: [549.14, 52.71, 0.30, 0.00, -0.03, 0.00]
+    #   id: 379
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-380
+    #   spawn_position: [550.73, 41.71, 0.30, 0.00, -0.03, 0.00]
+    #   id: 380
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-381
+    #   spawn_position: [550.74, 48.71, 0.30, 0.00, -0.03, 0.00]
+    #   id: 381
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-382
+    #   spawn_position: [526.04, 148.58, 0.30, 0.00, 0.23, 0.00]
+    #   id: 382
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-383
+    #   spawn_position: [526.07, 141.58, 0.30, 0.00, 0.23, 0.00]
+    #   id: 383
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-384
+    #   spawn_position: [528.22, 152.09, 0.30, 0.00, 0.23, 0.00]
+    #   id: 384
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-385
+    #   spawn_position: [528.25, 145.09, 0.30, 0.00, 0.23, 0.00]
+    #   id: 385
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-386
+    #   spawn_position: [528.28, 138.09, 0.30, 0.00, 0.23, 0.00]
+    #   id: 386
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-387
+    #   spawn_position: [548.56, 148.68, 0.30, 0.00, 0.23, 0.00]
+    #   id: 387
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-388
+    #   spawn_position: [548.59, 141.68, 0.30, 0.00, 0.23, 0.00]
+    #   id: 388
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-389
+    #   spawn_position: [550.75, 152.19, 0.30, 0.00, 0.23, 0.00]
+    #   id: 389
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-390
+    #   spawn_position: [550.78, 145.19, 0.30, 0.00, 0.23, 0.00]
+    #   id: 390
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-391
+    #   spawn_position: [550.81, 138.19, 0.30, 0.00, 0.23, 0.00]
+    #   id: 391
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-392
+    #   spawn_position: [535.10, 251.71, 0.30, 0.00, 0.02, 0.00]
+    #   id: 392
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-393
+    #   spawn_position: [535.10, 244.71, 0.30, 0.00, 0.02, 0.00]
+    #   id: 393
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-394
+    #   spawn_position: [535.10, 237.71, 0.30, 0.00, 0.02, 0.00]
+    #   id: 394
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-395
+    #   spawn_position: [537.30, 248.21, 0.30, 0.00, 0.02, 0.00]
+    #   id: 395
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-396
+    #   spawn_position: [537.30, 241.21, 0.30, 0.00, 0.02, 0.00]
+    #   id: 396
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-397
+    #   spawn_position: [570.52, 251.72, 0.30, 0.00, 0.02, 0.00]
+    #   id: 397
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-398
+    #   spawn_position: [570.52, 244.72, 0.30, 0.00, 0.02, 0.00]
+    #   id: 398
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-399
+    #   spawn_position: [570.52, 237.72, 0.30, 0.00, 0.02, 0.00]
+    #   id: 399
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-400
+    #   spawn_position: [572.72, 248.22, 0.30, 0.00, 0.02, 0.00]
+    #   id: 400
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-401
+    #   spawn_position: [572.72, 241.22, 0.30, 0.00, 0.02, 0.00]
+    #   id: 401
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-402
+    #   spawn_position: [584.83, -13.58, 0.30, 0.00, -179.58, 0.00]
+    #   id: 402
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-403
+    #   spawn_position: [584.88, -20.58, 0.30, 0.00, -179.58, 0.00]
+    #   id: 403
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-404
+    #   spawn_position: [586.81, -10.06, 0.30, 0.00, -179.58, 0.00]
+    #   id: 404
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-405
+    #   spawn_position: [586.86, -17.06, 0.30, 0.00, -179.58, 0.00]
+    #   id: 405
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-406
+    #   spawn_position: [586.91, -24.06, 0.30, 0.00, -179.58, 0.00]
+    #   id: 406
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-407
+    #   spawn_position: [598.92, -13.47, 0.30, 0.00, -179.58, 0.00]
+    #   id: 407
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-408
+    #   spawn_position: [598.97, -20.47, 0.30, 0.00, -179.58, 0.00]
+    #   id: 408
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-409
+    #   spawn_position: [600.90, -9.96, 0.30, 0.00, -179.58, 0.00]
+    #   id: 409
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-410
+    #   spawn_position: [600.95, -16.96, 0.30, 0.00, -179.58, 0.00]
+    #   id: 410
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-411
+    #   spawn_position: [601.00, -23.96, 0.30, 0.00, -179.58, 0.00]
+    #   id: 411
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-412
+    #   spawn_position: [576.82, 148.79, 0.30, 0.00, 0.23, 0.00]
+    #   id: 412
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-413
+    #   spawn_position: [576.85, 141.79, 0.30, 0.00, 0.23, 0.00]
+    #   id: 413
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-414
+    #   spawn_position: [579.60, 152.30, 0.30, 0.00, 0.23, 0.00]
+    #   id: 414
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-415
+    #   spawn_position: [579.63, 145.30, 0.30, 0.00, 0.23, 0.00]
+    #   id: 415
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-416
+    #   spawn_position: [579.66, 138.30, 0.30, 0.00, 0.23, 0.00]
+    #   id: 416
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-417
+    #   spawn_position: [604.04, 148.90, 0.30, 0.00, 0.23, 0.00]
+    #   id: 417
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-418
+    #   spawn_position: [604.07, 141.90, 0.30, 0.00, 0.23, 0.00]
+    #   id: 418
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-419
+    #   spawn_position: [606.83, 152.42, 0.30, 0.00, 0.23, 0.00]
+    #   id: 419
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-420
+    #   spawn_position: [606.86, 145.42, 0.30, 0.00, 0.23, 0.00]
+    #   id: 420
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-421
+    #   spawn_position: [606.89, 138.42, 0.30, 0.00, 0.23, 0.00]
+    #   id: 421
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-422
+    #   spawn_position: [585.45, 251.73, 0.30, 0.00, 0.02, 0.00]
+    #   id: 422
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-423
+    #   spawn_position: [585.45, 244.73, 0.30, 0.00, 0.02, 0.00]
+    #   id: 423
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-424
+    #   spawn_position: [585.45, 237.73, 0.30, 0.00, 0.02, 0.00]
+    #   id: 424
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-425
+    #   spawn_position: [587.65, 248.23, 0.30, 0.00, 0.02, 0.00]
+    #   id: 425
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-426
+    #   spawn_position: [587.65, 241.23, 0.30, 0.00, 0.02, 0.00]
+    #   id: 426
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-427
+    #   spawn_position: [599.10, 251.73, 0.30, 0.00, 0.02, 0.00]
+    #   id: 427
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-428
+    #   spawn_position: [599.10, 244.73, 0.30, 0.00, 0.02, 0.00]
+    #   id: 428
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-429
+    #   spawn_position: [599.10, 237.73, 0.30, 0.00, 0.02, 0.00]
+    #   id: 429
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-430
+    #   spawn_position: [601.30, 248.23, 0.30, 0.00, 0.02, 0.00]
+    #   id: 430
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-431
+    #   spawn_position: [601.30, 241.23, 0.30, 0.00, 0.02, 0.00]
+    #   id: 431
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-432
+    #   spawn_position: [657.69, 178.53, 0.30, 0.00, -89.38, 0.00]
+    #   id: 432
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-433
+    #   spawn_position: [661.17, 180.17, 0.30, 0.00, -89.38, 0.00]
+    #   id: 433
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-434
+    #   spawn_position: [664.69, 178.61, 0.30, 0.00, -89.38, 0.00]
+    #   id: 434
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-435
+    #   spawn_position: [668.17, 180.25, 0.30, 0.00, -89.38, 0.00]
+    #   id: 435
+    #   model: "vehicle.tesla.model3"
+
+    # - name: cav-436
+    #   spawn_position: [671.69, 178.68, 0.30, 0.00, -89.38, 0.00]
+    #   id: 436
+    #   model: "vehicle.tesla.model3"
+
+coperception:
+  visualization:
+    lidar_point_colors:
+      attackers: [224, 104, 104]
+      spoofing: [56, 189, 248]
+      other: [92, 219, 149]
+
+    bbox_colors:
+      removed: [56, 189, 248]
+
+  metrics:
+    metric_configs:
+      ap_at_iou: &cop_metric_defaults
+        warmup_steps: 5
+      mean_recall_at_iou: *cop_metric_defaults
+      mean_precision_at_iou: *cop_metric_defaults
+      attack_success_rate: *cop_metric_defaults
+      attacker_benign_visibility_ratio: *cop_metric_defaults
+      attacker_target_confidence: *cop_metric_defaults

@@ -481,7 +481,7 @@ def test_create_vehicle_manager_single_cav(mocker, minimal_vehicle_config):
     assert args[1].z == pytest.approx(3.0)
     assert kwargs["clean"] is True
 
-    assert world.tick.call_count == 1
+    world.tick.assert_not_called()
 
 
 def test_create_vehicle_manager_carla_autopilot_does_not_require_destination(mocker, minimal_vehicle_config):
@@ -534,8 +534,9 @@ def test_create_vehicle_manager_carla_autopilot_does_not_require_destination(moc
     tm.set_synchronous_mode.assert_called_once_with(True)
     world.tick.reset_mock()
 
-    vehicle_actor = Mock(spec_set=["id", "get_location"])
+    vehicle_actor = Mock(spec_set=["id", "get_location", "set_autopilot"])
     vehicle_actor.id = 123
+    vehicle_actor.set_autopilot = Mock()
 
     mocker.patch.object(sm, "spawn_custom_actor", return_value=vehicle_actor)
 
@@ -543,6 +544,7 @@ def test_create_vehicle_manager_carla_autopilot_does_not_require_destination(moc
     vm_mock.id = "cav-7"
     vm_mock.vehicle = vehicle_actor
     vm_mock.use_carla_autopilot = True
+    vm_mock.carla_autopilot_port = 8000
     vm_mock.v2x_manager = Mock(spec_set=["set_platoon"])
     vm_mock.v2x_manager.set_platoon = Mock()
     vm_mock.update_info = Mock()
@@ -563,6 +565,7 @@ def test_create_vehicle_manager_carla_autopilot_does_not_require_destination(moc
     tm.ignore_vehicles_percentage.assert_called_once_with(vehicle_actor, 0)
     tm.ignore_walkers_percentage.assert_called_once_with(vehicle_actor, 5)
     tm.vehicle_percentage_speed_difference.assert_called_once_with(vehicle_actor, -5)
+    vehicle_actor.set_autopilot.assert_called_once_with(True, 8000)
 
 
 def test_create_vehicle_manager_requires_destination_without_carla_autopilot(mocker, minimal_vehicle_config):
@@ -666,7 +669,7 @@ def test_create_platoon_manager_creates_one_platoon_two_members(mocker, minimal_
     assert destination.z == pytest.approx(0.0)
 
     platoon_manager.update_member_order.assert_called_once_with()
-    world.tick.assert_called_once_with()
+    world.tick.assert_not_called()
 
 
 def _setup_traffic_spawning_world(sm, world):
@@ -1139,11 +1142,11 @@ def test_create_platoon_manager_uses_map_helper_when_spawn_special_present(mocke
     spawn_custom_actor.assert_called_once()
     assert spawn_custom_actor.call_args.args[0] == expected_transform
     platoon_manager.set_lead.assert_called_once_with(vm)
-    world.tick.assert_called_once_with()
+    world.tick.assert_not_called()
 
 
-def test_create_platoon_manager_multiple_platoons_combines_mapping_and_ticks_each_platoon(mocker, minimal_vehicle_config):
-    """create_platoon_manager creates 2 platoons and returns a combined carla-id mapping (ticks once per platoon)."""
+def test_create_platoon_manager_multiple_platoons_combines_mapping_without_ticking(mocker, minimal_vehicle_config):
+    """create_platoon_manager creates 2 platoons and leaves simulation ticking to the scenario setup boundary."""
     from test import mocked_carla as carla
 
     params = _minimal_scenario_params()
@@ -1253,8 +1256,7 @@ def test_create_platoon_manager_multiple_platoons_combines_mapping_and_ticks_eac
 
     pm1.update_member_order.assert_called_once_with()
     pm2.update_member_order.assert_called_once_with()
-    assert world.tick.call_count == 2
-    world.tick.assert_has_calls([call(), call()], any_order=False)
+    world.tick.assert_not_called()
 
 
 def test_spawn_vehicles_by_list_random_no_color_attribute_does_not_set_color(mocker):
