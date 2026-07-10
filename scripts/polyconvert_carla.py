@@ -161,7 +161,7 @@ def _opendrive_bounds(xodr: str) -> tuple[float, float, float, float]:
     tuple[float, float, float, float]
         Minimum and maximum CARLA X/Y coordinates.
     """
-    parser = XmlTree.XMLPullParser(events=("start",))
+    parser: XmlTree.XMLPullParser[XmlTree.Element] = XmlTree.XMLPullParser(events=("start",))
     for offset in range(0, len(xodr), OPENDRIVE_PARSE_CHUNK_SIZE):
         parser.feed(xodr[offset : offset + OPENDRIVE_PARSE_CHUNK_SIZE])
         for event in parser.read_events():
