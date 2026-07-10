@@ -402,12 +402,7 @@ class ScenarioManager:
 
             cav_carla_list[vehicle.id] = vehicle_manager.id
 
-            self.world.tick()
-
             vehicle_manager.v2x_manager.set_platoon(None)
-            if vehicle_manager.use_carla_autopilot:
-                self.configure_carla_autopilot_vehicle(vehicle_manager.vehicle)
-
             vehicle_manager.update_info()
             if vehicle_manager.use_carla_autopilot:
                 if "destination" in cav_config:
@@ -420,6 +415,11 @@ class ScenarioManager:
 
             single_cav_list.append(vehicle_manager)
             logger.info(f"Created CAV with id {vehicle_manager.id}")
+
+        for vehicle_manager in single_cav_list:
+            if vehicle_manager.use_carla_autopilot:
+                self.configure_carla_autopilot_vehicle(vehicle_manager.vehicle)
+                vehicle_manager.vehicle.set_autopilot(True, vehicle_manager.carla_autopilot_port)
 
         return single_cav_list, cav_carla_list
 
@@ -569,7 +569,6 @@ class ScenarioManager:
                 else:
                     platoon_manager.add_member(vehicle_manager, leader=False)
 
-            self.world.tick()
             destination = carla.Location(x=platoon["destination"][0], y=platoon["destination"][1], z=platoon["destination"][2])
 
             platoon_manager.set_destination(destination)

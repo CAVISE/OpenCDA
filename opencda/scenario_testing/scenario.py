@@ -211,6 +211,9 @@ class Scenario:
         self.scenario_manager.create_custom_actor_manager(application=["single"], map_helper=map_api.spawn_helper_2lanefree, data_dump=opt.record)
         logger.info("created single custom actors")
 
+        self.scenario_manager.tick()
+        logger.info("completed initial spawn synchronization tick")
+
         self.eval_manager = EvaluationManager(self.cav_world, script_name=self.scenario_name, current_time=scenario_config["current_time"])
 
         self.spectator = self.scenario_manager.world.get_spectator()
@@ -565,6 +568,7 @@ def run_scenario(opt: argparse.Namespace, scenario_params: DictConfig) -> None:
         scenario = Scenario(opt, scenario_params)
         scenario.run(opt)
     except Exception as error:
+        logger.exception("Simulation failed before finalization.")
         raised_error = error
     finally:
         logger.info("Wrapping things up... Please don't press Ctrl+C")
