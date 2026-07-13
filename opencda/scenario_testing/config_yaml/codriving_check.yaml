@@ -95,6 +95,8 @@ scenario:
       spawn_position: [16.292295, 60.521175, 15, 0, 0, 0]
       id: -1
       behavior_services:
+        - type: self_informer
+          priority: 0
         - type: aim_server
           model: "MTP"
           underling_model: "GNN_mtl_gnn"

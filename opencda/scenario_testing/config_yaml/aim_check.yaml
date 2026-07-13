@@ -97,6 +97,7 @@ scenario:
       spawn_position: [256, -171, 15, 0, 0, 0]
       id: 1
       behavior_services:
+        - type: self_informer
         - type: aim_server
           debug: true
           control_radius: 15

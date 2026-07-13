@@ -8,8 +8,6 @@ from collections import deque
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, cast
 
-import traci
-
 from opencda.core.application.behavior.capability import Capability, CapabilityBindings
 from opencda.core.application.behavior.registry import BehaviorServiceRegistry
 from opencda.core.application.behavior.transport_message import TransportMessage, BROADCAST_OWNER_ID, BROADCAST_SERVICE_TYPE
@@ -151,8 +149,8 @@ class AIMClient:
             control_trajectory = response.payload.trajectory[1:]  # drop first because it was calculated on previous tick
             if self._self_informer_data is None:
                 raise RuntimeError("_self_informer_data not set")
-            current_location = self._self_informer_data.location
-            current_speed = self._self_informer_data.speed
+            current_location = self._self_informer_data.localization.transform.location
+            current_speed = self._self_informer_data.localization.speed_kmh
             target_speeds = calculate_target_speeds(control_trajectory, 0.05, current_location, current_speed, 111, 2.5, 4.5)
             self.trajectory = deque(zip(control_trajectory, target_speeds))
 
@@ -168,13 +166,15 @@ class AIMClient:
 
     def _build_aim_server_request_messages(self, dst_owner_id: str = BROADCAST_OWNER_ID) -> tuple[TransportMessage[AIMServerRequest], ...]:
         owner = self._get_owner()
-        position = Location.from_carla(owner.vehicle.get_transform().location)
+        if self._self_informer_data is None:
+            raise RuntimeError("_self_informer_data not set")
+        localization = self._self_informer_data.localization
         waypoints = [Transform.from_carla(waypoint[0].transform) for waypoint in owner.agent.get_local_planner().get_waypoint_buffer()]
         payload = AIMServerRequest(
             vehicle_id=owner.id,
-            position=position,
-            speed=traci.vehicle.getSpeed(owner.id),
-            yaw=traci.vehicle.getAngle(owner.id),
+            position=localization.transform.location,
+            speed=localization.speed_kmh / 3.6,
+            yaw=localization.transform.rotation.yaw,
             waypoints=waypoints,
         )
         return (

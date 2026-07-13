@@ -8,16 +8,17 @@ from typing import Any, Sequence, cast, TYPE_CHECKING, Mapping
 
 from opencda.core.application.behavior.capability import Capability, CapabilityBindings
 from opencda.core.application.behavior.registry import BehaviorServiceRegistry
-from opencda.core.application.behavior.transport_message import TransportMessage
+from opencda.core.application.behavior.services.self_informer import SelfInformerResponse
+from opencda.core.application.behavior.transport_message import BROADCAST_SERVICE_TYPE, TransportMessage
 
 from AIM import get_model
 
 if TYPE_CHECKING:
     from opencda.core.common.rsu_manager import RSUManager
-    from .messages import AIMServerRequest, AIMServerResponse
     from opencda.core.application.behavior.types import Location
 
 from .aim_model_manager import AIMModelManager
+from .messages import AIMServerRequest, AIMServerResponse
 from .types import AIMServerState
 from .utils import parse_location, draw_radius_circle
 
@@ -80,14 +81,19 @@ class AIMServer:
         """Initialize the service for a particular participant instance."""
         self._owner_ref = weakref.ref(owner)
 
-        owner_instance = self._get_owner()
-        if self.control_center_location is None:
-            owner_instance.localizer.localize()
-            control_center = owner_instance.localizer.get_ego_pos()
-            if control_center is None:
-                raise RuntimeError("AIM server could not resolve the node localization control center.")
-            self.control_center_location = control_center.location
-        self.aim_model_manager = AIMModelManager(self.model, self.control_center_location, self.service_type, owner_instance.id, self.control_radius)
+        if self.control_center_location is not None:
+            self._initialize_model_manager(self.control_center_location)
+
+    def _initialize_model_manager(self, control_center_location: Location) -> None:
+        owner = self._get_owner()
+        self.control_center_location = control_center_location
+        self.aim_model_manager = AIMModelManager(
+            self.model,
+            control_center_location,
+            self.service_type,
+            owner.id,
+            self.control_radius,
+        )
 
     def on_detach(self) -> None:
         """Release service resources before the participant is destroyed."""
@@ -109,9 +115,26 @@ class AIMServer:
 
     def _observe_aim_requests(
         self,
-        messages: Sequence[TransportMessage[AIMServerRequest]],
+        messages: Sequence[TransportMessage[AIMServerRequest | SelfInformerResponse]],
     ) -> tuple[TransportMessage[AIMServerRequest], ...]:
-        return tuple(messages)
+        return tuple(message for message in messages if isinstance(message.payload, AIMServerRequest))
+
+    def _observe_self_localization(
+        self,
+        messages: Sequence[TransportMessage[AIMServerRequest | SelfInformerResponse]],
+    ) -> SelfInformerResponse | None:
+        owner = self._get_owner()
+        return next(
+            (
+                message.payload
+                for message in messages
+                if isinstance(message.payload, SelfInformerResponse)
+                and message.src_owner_id == owner.id
+                and message.dst_owner_id == owner.id
+                and message.dst_service_type == BROADCAST_SERVICE_TYPE
+            ),
+            None,
+        )
 
     def _build_aim_response_messages(
         self,
@@ -123,10 +146,19 @@ class AIMServer:
 
         return aim_model_manager.process(messages)
 
-    def process(self, messages: Sequence[TransportMessage[AIMServerRequest]]) -> tuple[TransportMessage[AIMServerResponse], ...]:
+    def process(
+        self,
+        messages: Sequence[TransportMessage[AIMServerRequest | SelfInformerResponse]],
+    ) -> tuple[TransportMessage[AIMServerResponse], ...]:
+        if self.aim_model_manager is None:
+            self_localization = self._observe_self_localization(messages)
+            if self_localization is None:
+                raise RuntimeError("AIM server requires SelfInformer localization to resolve its control center.")
+            self._initialize_model_manager(self_localization.localization.transform.location)
+
         if self.debug and self.control_center_location is not None:
             owner = self._get_owner()
-            world = owner.localizer.gnss.sensor.get_world()
+            world = owner.actor.get_world()
             draw_radius_circle(world, self.control_center_location, self.control_radius)
 
         observed_requests = self._observe_aim_requests(messages)
