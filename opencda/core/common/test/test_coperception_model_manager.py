@@ -613,23 +613,21 @@ class TestCoperceptionDataProcessor:
 
         cav1 = MagicMock()
         cav1.id = "cav-1"
-        cav1.perception_manager = MagicMock(lidar=MagicMock(data=np.array([[1.0, 2.0, 3.0, 1.0]])))
-        cav1.localizer = MagicMock()
-        cav1.vehicle = MagicMock()
         cav1.agent = MagicMock()
+        cav1.agent.is_vehicle = True
+        cav1.agent.perception_manager = MagicMock(lidar=MagicMock(data=np.array([[1.0, 2.0, 3.0, 1.0]])))
 
         cav2 = MagicMock()
         cav2.id = "cav-2"
-        cav2.perception_manager = MagicMock(lidar=MagicMock(data=np.array([[4.0, 5.0, 6.0, 1.0]])))
-        cav2.localizer = MagicMock()
-        cav2.vehicle = MagicMock()
         cav2.agent = MagicMock()
+        cav2.agent.is_vehicle = True
+        cav2.agent.perception_manager = MagicMock(lidar=MagicMock(data=np.array([[4.0, 5.0, 6.0, 1.0]])))
 
         rsu = MagicMock()
         rsu.id = "rsu-1"
-        rsu.perception_manager = MagicMock(lidar=MagicMock(data=np.array([[7.0, 8.0, 9.0, 1.0]])))
-        rsu.localizer = MagicMock()
-        rsu.actor = MagicMock()
+        rsu.agent = MagicMock()
+        rsu.agent.is_vehicle = False
+        rsu.agent.perception_manager = MagicMock(lidar=MagicMock(data=np.array([[7.0, 8.0, 9.0, 1.0]])))
 
         with (
             patch.object(
@@ -666,9 +664,8 @@ class TestCoperceptionDataProcessor:
         processor = CoperceptionDataProcessor()
         cav = MagicMock()
         cav.id = "cav-1"
-        cav.perception_manager = MagicMock(lidar=None)
-        cav.localizer = MagicMock()
         cav.agent = MagicMock()
+        cav.agent.perception_manager = MagicMock(lidar=None)
 
         with patch("opencda.core.common.coperception_data_processor.logger.warning") as mock_warning:
             memory = processor.build_live_memory([cav], [], 1, sensor_frame=12)
@@ -682,9 +679,8 @@ class TestCoperceptionDataProcessor:
         processor = CoperceptionDataProcessor()
         cav = MagicMock()
         cav.id = "cav-1"
-        cav.perception_manager = MagicMock(lidar=MagicMock(data=None))
-        cav.localizer = MagicMock()
         cav.agent = MagicMock()
+        cav.agent.perception_manager = MagicMock(lidar=MagicMock(data=None))
 
         with (
             patch.object(

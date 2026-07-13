@@ -2,7 +2,7 @@
 
 Uses existing test/mocked_carla.py and adds:
 - sys.modules["carla"] registration
-- VehicleManager/RSUManager static state reset
+- AgentManager static state reset
 - OpenCDA internal module stubs required to import tested modules
 """
 
@@ -234,7 +234,7 @@ if importlib.util.find_spec("omegaconf") is None:  # pragma: no cover
     _install_stub("omegaconf.listconfig", omegaconf_listconfig_stub)
 
 
-# Stub OpenCDA internal modules used by vehicle_manager/rsu_manager/sim_api/cosim_api
+# Stub OpenCDA internal modules used by agent_manager/sim_api/cosim_api
 _install_stub(
     "opencda.core.actuation.control_manager",
     _make_placeholder_module("opencda.core.actuation.control_manager", ControlManager=_Placeholder),
@@ -313,39 +313,21 @@ _importlib.import_module("opencda.core.application.behavior.services.movement_co
 _importlib.import_module("opencda.core.application.behavior.services.default_movement_request")
 
 
-# Static state reset fixtures
+# Static state reset fixture
 @pytest.fixture(autouse=True)
-def reset_vehicle_manager_state():
-    from opencda.core.common.vehicle_manager import VehicleManager
+def reset_agent_manager_state():
+    from opencda.core.common.agent_manager import AgentManager
 
-    VehicleManager.current_cav_id = 1
-    VehicleManager.current_platoon_id = 1
-    VehicleManager.current_unknown_id = 1
-    VehicleManager.used_ids = set()
+    AgentManager.reset_id_registry()
     yield
-    VehicleManager.current_cav_id = 1
-    VehicleManager.current_platoon_id = 1
-    VehicleManager.current_unknown_id = 1
-    VehicleManager.used_ids = set()
-
-
-@pytest.fixture(autouse=True)
-def reset_rsu_manager_state():
-    from opencda.core.common.rsu_manager import RSUManager
-
-    RSUManager.current_id = 1
-    RSUManager.used_ids = set()
-    yield
-    RSUManager.current_id = 1
-    RSUManager.used_ids = set()
+    AgentManager.reset_id_registry()
 
 
 # Common fixtures
 @pytest.fixture
 def mock_cav_world():
     cav_world = Mock()
-    cav_world.update_vehicle_manager = Mock()
-    cav_world.update_rsu_manager = Mock()
+    cav_world.update_agent_manager = Mock()
     cav_world.update_sumo_vehicles = Mock()
     return cav_world
 
