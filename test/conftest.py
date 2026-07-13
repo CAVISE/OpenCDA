@@ -137,6 +137,13 @@ carla_stub.BoundingBox = mocked_carla.BoundingBox
 carla_stub.Actor = object
 
 
+class AttachmentType:
+    Rigid = object()
+
+
+carla_stub.AttachmentType = AttachmentType
+
+
 class Color:
     def __init__(self, r=0, g=0, b=0, a=255):
         self.r = r
@@ -243,14 +250,6 @@ _install_stub(
 _install_stub(
     "opencda.core.common.v2x_manager",
     _make_placeholder_module("opencda.core.common.v2x_manager", V2XManager=_Placeholder),
-)
-_install_stub(
-    "opencda.core.sensing.localization.localization_manager",
-    _make_placeholder_module("opencda.core.sensing.localization.localization_manager", LocalizationManager=_Placeholder),
-)
-_install_stub(
-    "opencda.core.sensing.localization.rsu_localization_manager",
-    _make_placeholder_module("opencda.core.sensing.localization.rsu_localization_manager", LocalizationManager=_Placeholder),
 )
 _install_stub(
     "opencda.core.sensing.perception.perception_manager",
