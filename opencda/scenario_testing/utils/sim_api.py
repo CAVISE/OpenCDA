@@ -611,14 +611,18 @@ class ScenarioManager:
 
             actor = self.world.spawn_actor(static_bp, spawn_transform)
 
-            rsu_manager = RSUManager(
-                self.world,
-                rsu_config,
-                self.carla_map,
-                self.cav_world,
-                self.scenario_params["current_time"],
-                perception_requirements=perception_requirements,
-            )
+            try:
+                rsu_manager = RSUManager(
+                    actor,
+                    rsu_config,
+                    self.carla_map,
+                    self.cav_world,
+                    self.scenario_params["current_time"],
+                    perception_requirements=perception_requirements,
+                )
+            except Exception:
+                actor.destroy()
+                raise
 
             rsu_carla_ids[actor.id] = rsu_manager.id
 
