@@ -25,7 +25,7 @@ def _patch_vehicle_manager_deps(mocker):
     dumper = Mock()
 
     mocker.patch("opencda.core.common.vehicle_manager.V2XManager", return_value=v2x)
-    mocker.patch("opencda.core.common.vehicle_manager.LocalizationManager", return_value=localizer)
+    localizer_factory = mocker.patch("opencda.core.common.vehicle_manager.create_localizer", return_value=localizer)
     mocker.patch("opencda.core.common.vehicle_manager.PerceptionManager", return_value=perception)
     mocker.patch("opencda.core.common.vehicle_manager.MapManager", return_value=map_manager)
     mocker.patch("opencda.core.common.vehicle_manager.SafetyManager", return_value=safety)
@@ -38,6 +38,7 @@ def _patch_vehicle_manager_deps(mocker):
     return {
         "v2x": v2x,
         "localizer": localizer,
+        "localizer_factory": localizer_factory,
         "perception": perception,
         "map_manager": map_manager,
         "safety": safety,
@@ -48,14 +49,30 @@ def _patch_vehicle_manager_deps(mocker):
     }
 
 
+def _set_localization_state(localizer, ego_pos=None, ego_spd=None):
+    state = Mock()
+    state.transform.to_carla.return_value = ego_pos if ego_pos is not None else Mock()
+    state.speed_kmh = ego_spd if ego_spd is not None else Mock()
+    localizer.update.return_value = state
+    return state
+
+
 def test_valid_id_from_config(mocker, minimal_vehicle_config, mock_cav_world):
-    _patch_vehicle_manager_deps(mocker)
+    deps = _patch_vehicle_manager_deps(mocker)
     from opencda.core.common.vehicle_manager import VehicleManager
 
     cfg = {**minimal_vehicle_config, "id": 5}
+    vehicle = Mock(id=10)
+    carla_map = Mock()
 
-    vm = VehicleManager(Mock(id=10), cfg, ["single"], Mock(), mock_cav_world, prefix="cav")
+    vm = VehicleManager(vehicle, cfg, ["single"], carla_map, mock_cav_world, prefix="cav")
     assert vm.id == "cav-5"
+    deps["localizer_factory"].assert_called_once_with(
+        vehicle,
+        cfg["sensing"]["localization"],
+        carla_map,
+        use_imu=True,
+    )
     mock_cav_world.update_vehicle_manager.assert_called_once_with(vm)
 
 
@@ -173,13 +190,12 @@ def test_update_info_calls_chain(mocker, minimal_vehicle_config, mock_cav_world)
     ego_spd = Mock()
     objects = [{"id": 1}]
 
-    deps["localizer"].get_ego_pos.return_value = ego_pos
-    deps["localizer"].get_ego_spd.return_value = ego_spd
+    _set_localization_state(deps["localizer"], ego_pos, ego_spd)
     deps["perception"].detect.return_value = objects
 
     vm.update_info()
 
-    deps["localizer"].localize.assert_called_once_with()
+    deps["localizer"].update.assert_called_once_with()
     deps["perception"].detect.assert_called_once_with(ego_pos)
     deps["map_manager"].update_information.assert_called_once_with(ego_pos)
 
@@ -202,8 +218,9 @@ def test_run_step_with_data_dumper(mocker, minimal_vehicle_config, mock_cav_worl
     from opencda.core.common.vehicle_manager import VehicleManager
     from opencda.core.sensing.perception.perception_manager import PerceptionRequirements
 
+    vehicle = Mock(id=10)
     vm = VehicleManager(
-        Mock(id=10),
+        vehicle,
         minimal_vehicle_config,
         ["single"],
         Mock(),
@@ -217,7 +234,7 @@ def test_run_step_with_data_dumper(mocker, minimal_vehicle_config, mock_cav_worl
     deps["controller"].run_step.return_value = "ctrl"
 
     vm.run_step()
-    deps["dumper"].run_step.assert_called_once_with(deps["perception"], deps["localizer"], deps["agent"])
+    deps["dumper"].run_step.assert_called_once_with(deps["perception"], deps["localizer"], vehicle, deps["agent"])
 
 
 def test_carla_autopilot_sets_vehicle_autopilot(mocker, minimal_vehicle_config, mock_cav_world):
@@ -315,7 +332,7 @@ def test_update_info_v2x_does_not_raise(mocker, minimal_vehicle_config, mock_cav
 
 
 def test_update_info_localizer_failure_propagates_and_stops_chain(mocker, minimal_vehicle_config, mock_cav_world):
-    """If localizer.localize() fails, update_info() should propagate and not call downstream modules."""
+    """If localizer.update() fails, update_info() should propagate and not call downstream modules."""
     deps = _patch_vehicle_manager_deps(mocker)
     from opencda.core.common.vehicle_manager import VehicleManager
 
@@ -324,7 +341,7 @@ def test_update_info_localizer_failure_propagates_and_stops_chain(mocker, minima
     carla_map = Mock()
     vm = VehicleManager(vehicle, minimal_vehicle_config, ["single"], carla_map, mock_cav_world, prefix="cav")
 
-    deps["localizer"].localize.side_effect = RuntimeError("localize failed")
+    deps["localizer"].update.side_effect = RuntimeError("localize failed")
 
     with pytest.raises(RuntimeError, match="localize failed"):
         vm.update_info()
@@ -349,8 +366,7 @@ def test_update_info_perception_failure_propagates_and_stops_chain(mocker, minim
 
     ego_pos = Mock()
     ego_spd = Mock()
-    deps["localizer"].get_ego_pos.return_value = ego_pos
-    deps["localizer"].get_ego_spd.return_value = ego_spd
+    _set_localization_state(deps["localizer"], ego_pos, ego_spd)
     deps["perception"].detect.side_effect = RuntimeError("detect failed")
 
     with pytest.raises(RuntimeError, match="detect failed"):
@@ -377,8 +393,7 @@ def test_update_info_agent_failure_propagates_and_stops_before_controller(mocker
     ego_spd = Mock()
     objects = [{"id": 1}]
 
-    deps["localizer"].get_ego_pos.return_value = ego_pos
-    deps["localizer"].get_ego_spd.return_value = ego_spd
+    _set_localization_state(deps["localizer"], ego_pos, ego_spd)
     deps["perception"].detect.return_value = objects
     deps["agent"].update_information.side_effect = RuntimeError("agent failed")
 

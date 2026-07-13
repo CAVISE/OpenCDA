@@ -19,21 +19,41 @@ def _patch_rsu_manager_deps(mocker):
     perception = Mock()
     dumper = Mock()
 
-    mocker.patch("opencda.core.common.rsu_manager.LocalizationManager", return_value=localizer)
+    localizer_factory = mocker.patch("opencda.core.common.rsu_manager.create_localizer", return_value=localizer)
     mocker.patch("opencda.core.common.rsu_manager.PerceptionManager", return_value=perception)
     mocker.patch("opencda.core.common.rsu_manager.DataDumper", return_value=dumper)
 
-    return {"localizer": localizer, "perception": perception, "dumper": dumper}
+    return {
+        "localizer": localizer,
+        "localizer_factory": localizer_factory,
+        "perception": perception,
+        "dumper": dumper,
+    }
+
+
+def _set_localization_state(localizer, ego_pos=None):
+    state = Mock()
+    state.transform.to_carla.return_value = ego_pos if ego_pos is not None else Mock()
+    localizer.update.return_value = state
+    return state
 
 
 def test_valid_id_from_config(mocker, minimal_rsu_config, mock_cav_world):
-    _patch_rsu_manager_deps(mocker)
+    deps = _patch_rsu_manager_deps(mocker)
     from opencda.core.common.rsu_manager import RSUManager
 
     cfg = {**minimal_rsu_config, "id": 3}
+    actor = Mock()
+    carla_map = Mock()
 
-    rsu = RSUManager(Mock(), cfg, Mock(), mock_cav_world)
+    rsu = RSUManager(actor, cfg, carla_map, mock_cav_world)
     assert rsu.id == "rsu-3"
+    deps["localizer_factory"].assert_called_once_with(
+        actor,
+        cfg["sensing"]["localization"],
+        carla_map,
+        use_imu=False,
+    )
     mock_cav_world.update_rsu_manager.assert_called_once_with(rsu)
 
 
@@ -96,7 +116,8 @@ def test_missing_id_with_autogen(mocker, minimal_rsu_config, mock_cav_world):
     _patch_rsu_manager_deps(mocker)
     from opencda.core.common.rsu_manager import RSUManager
 
-    rsu = RSUManager(Mock(), minimal_rsu_config, Mock(), mock_cav_world)
+    actor = Mock()
+    rsu = RSUManager(actor, minimal_rsu_config, Mock(), mock_cav_world)
     assert rsu.id == "rsu-1"
 
 
@@ -139,11 +160,11 @@ def test_update_info_calls_localize_and_detect(mocker, minimal_rsu_config, mock_
     rsu = RSUManager(Mock(), minimal_rsu_config, Mock(), mock_cav_world)
 
     ego_pos = Mock()
-    deps["localizer"].get_ego_pos.return_value = ego_pos
+    _set_localization_state(deps["localizer"], ego_pos)
 
     rsu.update_info()
 
-    deps["localizer"].localize.assert_called_once_with()
+    deps["localizer"].update.assert_called_once_with()
     deps["perception"].detect.assert_called_once_with(ego_pos)
 
 
@@ -152,8 +173,9 @@ def test_run_step_with_dumper(mocker, minimal_rsu_config, mock_cav_world):
     from opencda.core.common.rsu_manager import RSUManager
     from opencda.core.sensing.perception.perception_manager import PerceptionRequirements
 
+    actor = Mock()
     rsu = RSUManager(
-        Mock(),
+        actor,
         minimal_rsu_config,
         Mock(),
         mock_cav_world,
@@ -161,14 +183,15 @@ def test_run_step_with_dumper(mocker, minimal_rsu_config, mock_cav_world):
     )
 
     rsu.run_step()
-    deps["dumper"].run_step.assert_called_once_with(deps["perception"], deps["localizer"], None)
+    deps["dumper"].run_step.assert_called_once_with(deps["perception"], deps["localizer"], actor, None)
 
 
 def test_run_step_without_dumper(mocker, minimal_rsu_config, mock_cav_world):
     deps = _patch_rsu_manager_deps(mocker)
     from opencda.core.common.rsu_manager import RSUManager
 
-    rsu = RSUManager(Mock(), minimal_rsu_config, Mock(), mock_cav_world)
+    actor = Mock()
+    rsu = RSUManager(actor, minimal_rsu_config, Mock(), mock_cav_world)
 
     rsu.run_step()
     deps["dumper"].run_step.assert_not_called()
@@ -178,11 +201,13 @@ def test_destroy_calls_both_destroy(mocker, minimal_rsu_config, mock_cav_world):
     deps = _patch_rsu_manager_deps(mocker)
     from opencda.core.common.rsu_manager import RSUManager
 
-    rsu = RSUManager(Mock(), minimal_rsu_config, Mock(), mock_cav_world)
+    actor = Mock()
+    rsu = RSUManager(actor, minimal_rsu_config, Mock(), mock_cav_world)
 
     rsu.destroy()
     deps["perception"].destroy.assert_called_once_with()
     deps["localizer"].destroy.assert_called_once_with()
+    actor.destroy.assert_called_once_with()
 
 
 def test_update_info_v2x_does_not_raise_and_has_no_side_effects(mocker, minimal_rsu_config, mock_cav_world):
@@ -202,12 +227,12 @@ def test_update_info_v2x_does_not_raise_and_has_no_side_effects(mocker, minimal_
 
 
 def test_update_info_localizer_failure_propagates_and_stops_chain(mocker, minimal_rsu_config, mock_cav_world):
-    """If localizer.localize() fails, update_info() should propagate and not call perception."""
+    """If localizer.update() fails, update_info() should propagate and not call perception."""
     deps = _patch_rsu_manager_deps(mocker)
     from opencda.core.common.rsu_manager import RSUManager
 
     rsu = RSUManager(Mock(), minimal_rsu_config, Mock(), mock_cav_world)
-    deps["localizer"].localize.side_effect = RuntimeError("localize failed")
+    deps["localizer"].update.side_effect = RuntimeError("localize failed")
 
     with pytest.raises(RuntimeError, match="localize failed"):
         rsu.update_info()
@@ -223,11 +248,11 @@ def test_update_info_perception_failure_propagates(mocker, minimal_rsu_config, m
     rsu = RSUManager(Mock(), minimal_rsu_config, Mock(), mock_cav_world)
 
     ego_pos = Mock()
-    deps["localizer"].get_ego_pos.return_value = ego_pos
+    _set_localization_state(deps["localizer"], ego_pos)
     deps["perception"].detect.side_effect = RuntimeError("detect failed")
 
     with pytest.raises(RuntimeError, match="detect failed"):
         rsu.update_info()
 
-    deps["localizer"].localize.assert_called_once_with()
+    deps["localizer"].update.assert_called_once_with()
     deps["perception"].detect.assert_called_once_with(ego_pos)

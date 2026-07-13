@@ -12,7 +12,7 @@ from opencda.core.actuation.control_manager import ControlManager
 from opencda.core.application.behavior import BehaviorService, TransportMessage, BROADCAST_OWNER_ID, BROADCAST_SERVICE_TYPE, create_service
 from opencda.core.application.platooning.platoon_behavior_agent import PlatooningBehaviorAgent
 from opencda.core.common.v2x_manager import V2XManager
-from opencda.core.sensing.localization.localization_manager import LocalizationManager
+from opencda.core.sensing.localization import Localizer, create_localizer
 from opencda.core.sensing.perception.perception_manager import PerceptionManager, PerceptionRequirements
 from opencda.core.safety.safety_manager import SafetyManager
 from opencda.core.plan.behavior_agent import BehaviorAgent
@@ -140,7 +140,12 @@ class VehicleManager(object):
         # v2x module
         self.v2x_manager = V2XManager(cav_world, v2x_config, self.id)
         # localization module
-        self.localizer = LocalizationManager(vehicle, sensing_config["localization"], carla_map)
+        self.localizer: Localizer = create_localizer(
+            vehicle,
+            sensing_config["localization"],
+            carla_map,
+            use_imu=True,
+        )
         # perception module
         self.perception_manager = PerceptionManager(
             vehicle=vehicle,
@@ -366,10 +371,9 @@ class VehicleManager(object):
         retrieve surrounding info an ego position.
         """
         # localization
-        self.localizer.localize()
-
-        ego_pos = self.localizer.get_ego_pos()
-        ego_spd = self.localizer.get_ego_spd()
+        localization_state = self.localizer.update()
+        ego_pos = localization_state.transform.to_carla()
+        ego_spd = localization_state.speed_kmh
 
         # object detection
         objects = self.perception_manager.detect(ego_pos)
@@ -394,7 +398,7 @@ class VehicleManager(object):
         # pass position and speed info to controller
         self.controller.update_info(ego_pos, ego_spd)
 
-    def update_info_v2x(self) -> None:  # noqa: deadcode,
+    def update_info_v2x(self) -> None:
         # TODO: Implement
         pass
 
@@ -407,7 +411,7 @@ class VehicleManager(object):
 
         # dump data
         if self.data_dumper:
-            self.data_dumper.run_step(self.perception_manager, self.localizer, self.agent)
+            self.data_dumper.run_step(self.perception_manager, self.localizer, self.vehicle, self.agent)
 
         self.vehicle.apply_control(control)
 
