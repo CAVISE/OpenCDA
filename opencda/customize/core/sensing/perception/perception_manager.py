@@ -1,14 +1,19 @@
 import cv2
 import numpy as np
-from opencda.core.sensing.perception.perception_manager import PerceptionManager
+from opencda.core.sensing.perception.perception_manager import PerceptionManager, PerceptionRequirements
 from opencda.core.sensing.perception.obstacle_vehicle import ObstacleVehicle
 from opencda.core.sensing.perception.static_obstacle import TrafficLight
-from opencda.core.sensing.localization.localization_manager import CustomizedLocalizationManager
 
 
-class CustomziedPeceptionManager(PerceptionManager):  # noqa: DC03
+class CustomziedPeceptionManager(PerceptionManager):
     def __init__(self, vehicle, config_yaml, cav_world, data_dump=False):
-        super(CustomizedLocalizationManager, self).__init__(vehicle, config_yaml, cav_world, data_dump)
+        super().__init__(
+            vehicle=vehicle,
+            config_yaml=config_yaml,
+            cav_world=cav_world,
+            infra_id=vehicle.id,
+            perception_requirements=PerceptionRequirements.from_runtime_flags(data_dump=data_dump),
+        )
 
     def detect(self, ego_pos):
         objects = {"vehicles": [], "traffic_lights": [], "other_objects_you_wanna_add": []}
