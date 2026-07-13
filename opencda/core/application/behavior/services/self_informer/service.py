@@ -11,12 +11,12 @@ from opencda.core.application.behavior.capability import Capability, CapabilityB
 from opencda.core.application.behavior.registry import BehaviorServiceRegistry
 from opencda.core.application.behavior.transport_message import TransportMessage, BROADCAST_SERVICE_TYPE
 from .messages import SelfInformerResponse
-from .utils import get_speed
 from .types import SelfInformerState
-from opencda.core.application.behavior.types import Location
 
 if TYPE_CHECKING:
+    from opencda.core.common.rsu_manager import RSUManager
     from opencda.core.common.vehicle_manager import VehicleManager
+    from opencda.core.sensing.localization.types import LocalizationState
 
 
 logger = logging.getLogger("cavise.opencda.opencda.core.application.behavior.services.self_informer")
@@ -37,12 +37,11 @@ class SelfInformer:
 
     def __init__(self, priority: int = 1) -> None:
         """Initialize the self-informer behavior service."""
-        self._owner_ref: weakref.ReferenceType[VehicleManager] | None = None
+        self._owner_ref: weakref.ReferenceType[VehicleManager | RSUManager] | None = None
         self.priority = priority
-        self.location: Location | None = None
-        self.speed: float | None = None
+        self.localization: LocalizationState | None = None
 
-    def _get_owner(self) -> VehicleManager:
+    def _get_owner(self) -> VehicleManager | RSUManager:
         owner_ref = self._owner_ref
         if owner_ref is None:
             raise RuntimeError("Self-informer is not attached to an owner.")
@@ -53,34 +52,33 @@ class SelfInformer:
 
         return owner
 
-    def on_attach(self, owner: VehicleManager) -> None:
+    def on_attach(self, owner: VehicleManager | RSUManager) -> None:
         """Initialize the service for a particular participant instance."""
         self._owner_ref = weakref.ref(owner)
+        self.localization = None
 
     def on_detach(self) -> None:
         """Release service resources before the participant is destroyed."""
         self._owner_ref = None
+        self.localization = None
 
     def get_state(self) -> SelfInformerState:
         """Return an immutable snapshot of the current service state."""
         owner = self._get_owner()
-        if self.location is None or self.speed is None:
-            self.location = Location.from_carla(owner.vehicle.get_location())
-            self.speed = get_speed(owner.vehicle)
+        if self.localization is None:
+            self.localization = owner.localizer.get_state()
         return SelfInformerState(
             service_type=self.service_type,
             owner_id=owner.id,
-            location=self.location,
-            speed=self.speed,
+            localization=self.localization,
         )
 
     def _build_self_informer_response(
         self,
     ) -> TransportMessage[SelfInformerResponse]:
         owner = self._get_owner()
-        self.location = Location.from_carla(owner.vehicle.get_location())
-        self.speed = get_speed(owner.vehicle)
-        payload = SelfInformerResponse(location=self.location, speed=self.speed)
+        self.localization = owner.localizer.get_state()
+        payload = SelfInformerResponse(localization=self.localization)
         return TransportMessage(
             src_owner_id=owner.id,
             src_service_type=self.service_type,
