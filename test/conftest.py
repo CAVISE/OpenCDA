@@ -201,7 +201,13 @@ class SetSimulatePhysics:
         self.enabled = enabled
 
 
+class DestroyActor:
+    def __init__(self, actor_id):
+        self.actor_id = actor_id
+
+
 command_stub.SpawnActor = SpawnActor
+command_stub.DestroyActor = DestroyActor
 command_stub.SetSimulatePhysics = SetSimulatePhysics
 command_stub.FutureActor = object()
 carla_stub.command = command_stub
