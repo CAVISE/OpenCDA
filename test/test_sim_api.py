@@ -1507,7 +1507,7 @@ def test_create_rsu_manager_single_rsu(mocker, minimal_rsu_config):
     world.spawn_actor.assert_called_once_with(static_bp, expected_transform)
 
     rsu_ctor.assert_called_once()
-    assert rsu_ctor.call_args.args[0] is world
+    assert rsu_ctor.call_args.args[0] is actor
     assert rsu_ctor.call_args.args[2] is sm.carla_map
     assert rsu_ctor.call_args.args[3] is sm.cav_world
     assert rsu_ctor.call_args.args[4] == "t0"
