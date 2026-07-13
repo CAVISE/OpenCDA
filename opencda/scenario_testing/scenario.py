@@ -293,9 +293,7 @@ class Scenario:
             self.single_cav_list,
             *(platoon.vehicle_manager_list for platoon in self.platoon_list),
         ):
-            ego_pos = vehicle_manager.localizer.get_ego_pos()
-            if ego_pos is None:
-                continue
+            ego_pos = vehicle_manager.localizer.get_state().transform
 
             safety_status = self._collect_safety_status(vehicle_manager)
             vehicles.append(

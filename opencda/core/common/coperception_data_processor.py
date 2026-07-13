@@ -16,8 +16,7 @@ if TYPE_CHECKING:
     from opencda.core.common.rsu_manager import RSUManager
     from opencda.core.common.vehicle_manager import VehicleManager
     from opencda.core.plan.behavior_agent import BehaviorAgent
-    from opencda.core.sensing.localization.localization_manager import LocalizationManager as VehicleLocalizationManager
-    from opencda.core.sensing.localization.rsu_localization_manager import LocalizationManager as RsuLocalizationManager
+    from opencda.core.sensing.localization.protocol import Localizer
     from opencda.core.sensing.perception.obstacle_vehicle import ObstacleVehicle
     from opencda.core.sensing.perception.perception_manager import PerceptionManager, SensorMeasurement
 
@@ -87,9 +86,12 @@ class CoperceptionDataProcessor:
     @staticmethod
     def build_live_params(
         perception_manager: PerceptionManager,
-        localization_manager: VehicleLocalizationManager | RsuLocalizationManager,
+        localizer: Localizer,
+        actor: carla.Actor,
         behavior_agent: BehaviorAgent | None,
         sensor_measurements: Mapping[str, "SensorMeasurement"],
+        *,
+        is_rsu: bool,
     ) -> LiveParams:
         dump_yml: LiveParams = {}
         vehicle_dict: dict[int, "VehicleDumpRecord"] = {}
@@ -121,21 +123,14 @@ class CoperceptionDataProcessor:
 
         dump_yml["vehicles"] = vehicle_dict
 
-        predicted_ego_pos = localization_manager.get_ego_pos()
-        if hasattr(localization_manager, "rsu"):
-            rsu_localizer = cast("RsuLocalizationManager", localization_manager)
-            true_ego_pos = rsu_localizer.true_ego_pos
-            dump_yml["RSU"] = True
-        elif hasattr(localization_manager, "vehicle"):
-            vehicle_localizer = cast("VehicleLocalizationManager", localization_manager)
-            true_ego_pos = vehicle_localizer.vehicle.get_transform()
-            dump_yml["RSU"] = False
-        else:
-            raise ValueError("Unknown localization manager type")
+        localization_state = localizer.get_state()
+        predicted_ego_pos = localization_state.transform
+        true_ego_pos = actor.get_transform()
+        dump_yml["RSU"] = is_rsu
 
         dump_yml["predicted_ego_pos"] = transform_to_tuple(predicted_ego_pos)
         dump_yml["true_ego_pos"] = transform_to_tuple(true_ego_pos)
-        dump_yml["ego_speed"] = float(localization_manager.get_ego_spd())
+        dump_yml["ego_speed"] = float(localization_state.speed_kmh)
 
         if perception_manager.lidar is None:
             raise RuntimeError("Coperception requires LiDAR, but perception_manager.lidar is not initialized.")
@@ -212,8 +207,10 @@ class CoperceptionDataProcessor:
                 "params": self.build_live_params(
                     vehicle_manager.perception_manager,
                     vehicle_manager.localizer,
+                    vehicle_manager.vehicle,
                     vehicle_manager.agent,
                     sensor_measurements,
+                    is_rsu=False,
                 ),
                 "lidar_np": vehicle_lidar_data.copy(),
                 "camera0": self._build_live_camera_snapshots(vehicle_manager.perception_manager, sensor_measurements),
@@ -254,8 +251,10 @@ class CoperceptionDataProcessor:
                 "params": self.build_live_params(
                     rsu_manager.perception_manager,
                     rsu_manager.localizer,
+                    rsu_manager.actor,
                     None,
                     sensor_measurements,
+                    is_rsu=True,
                 ),
                 "lidar_np": rsu_lidar_data.copy(),
                 "camera0": self._build_live_camera_snapshots(rsu_manager.perception_manager, sensor_measurements),
