@@ -25,8 +25,8 @@ class PlatooningBehaviorAgent(BehaviorAgent):
     vehicle : carla.Vehicle
         The carla vehicle.
 
-    vehicle_manager : opencda object
-        The vehicle manager, used when joining platoon finished.
+    agent_manager : opencda object
+        The universal agent manager, used when joining platoon finishes.
 
     v2x_manager : opencda object
         Used to received and deliver information.
@@ -42,8 +42,8 @@ class PlatooningBehaviorAgent(BehaviorAgent):
 
     Attributes
     ----------
-    vehicle_manager : opencda object
-        The weak reference of the vehicle manager, used when joining platoon
+    agent_manager : opencda object
+        The weak reference of the agent manager, used when joining platoon
         finished.
 
     v2x_manager : opencda object
@@ -56,10 +56,10 @@ class PlatooningBehaviorAgent(BehaviorAgent):
         The desired time gap between each platoon member.
     """
 
-    def __init__(self, vehicle, vehicle_manager, v2x_manager, behavior_yaml, platoon_yaml, carla_map):
+    def __init__(self, vehicle, agent_manager, v2x_manager, behavior_yaml, platoon_yaml, carla_map):
         super(PlatooningBehaviorAgent, self).__init__(vehicle, carla_map, behavior_yaml)
 
-        self.vehicle_manager = weakref.ref(vehicle_manager)()
+        self.agent_manager = weakref.ref(agent_manager)() if agent_manager is not None else None
         # communication manager
         self.v2x_manager = weakref.ref(v2x_manager)()
 
@@ -91,6 +91,10 @@ class PlatooningBehaviorAgent(BehaviorAgent):
         )
         self.time_gap = 100.0
         self.dist_gap = 100.0
+
+    def bind_agent_manager(self, agent_manager):
+        """Bind the manager after the universal agent construction is complete."""
+        self.agent_manager = weakref.ref(agent_manager)()
 
     def run_step(self, target_speed=None, collision_detector_enabled=True, lane_change_allowed=True):
         """
@@ -179,7 +183,7 @@ class PlatooningBehaviorAgent(BehaviorAgent):
                 self.v2x_manager.set_platoon_status(FSM.SEARCHING)
                 _, rear_vehicle_manager = self.v2x_manager.get_platoon_front_rear()
 
-                self.v2x_manager.add_platoon_blacklist(rear_vehicle_manager.v2x_manager.get_platoon_manager()[0].pmid)
+                self.v2x_manager.add_platoon_blacklist(rear_vehicle_manager.agent.v2x_manager.get_platoon_manager()[0].pmid)
 
             if new_status == FSM.JOINING_FINISHED:
                 self.joining_finish_manager("rear")
@@ -253,12 +257,12 @@ class PlatooningBehaviorAgent(BehaviorAgent):
         """
         frontal_vehicle_manager, rear_vehicle_manager = self.v2x_manager.get_platoon_front_rear()
         if insert_vehicle == "front":
-            platoon_manger, index = frontal_vehicle_manager.v2x_manager.get_platoon_manager()
-            platoon_manger.set_member(self.vehicle_manager, index + 1)
+            platoon_manger, index = frontal_vehicle_manager.agent.v2x_manager.get_platoon_manager()
+            platoon_manger.set_member(self.agent_manager, index + 1)
             self._local_planner.debug_trajectory = False
         else:
-            platoon_manger, index = rear_vehicle_manager.v2x_manager.get_platoon_manager()
-            platoon_manger.set_member(self.vehicle_manager, index, lead=True)
+            platoon_manger, index = rear_vehicle_manager.agent.v2x_manager.get_platoon_manager()
+            platoon_manger.set_member(self.agent_manager, index, lead=True)
 
         platoon_manger.update_member_order()
 
@@ -293,16 +297,16 @@ class PlatooningBehaviorAgent(BehaviorAgent):
         """
 
         frontal_vehicle_manager, _ = self.v2x_manager.get_platoon_front_rear()
-        frontal_front_vehicle_manger, _ = frontal_vehicle_manager.v2x_manager.get_platoon_front_rear()
+        frontal_front_vehicle_manger, _ = frontal_vehicle_manager.agent.v2x_manager.get_platoon_front_rear()
 
         if len(self._local_planner.get_trajectory()) > self.get_local_planner().trajectory_update_freq - 2:
             return self._local_planner.run_step([], [], [], following=True)
         else:
             # this agent is a behavior agent
-            frontal_trajectory = frontal_vehicle_manager.agent.get_local_planner().get_trajectory()
+            frontal_trajectory = frontal_vehicle_manager.agent.behavior_agent.get_local_planner().get_trajectory()
 
             # get front speed
-            frontal_speed = frontal_vehicle_manager.agent._ego_speed
+            frontal_speed = frontal_vehicle_manager.agent.behavior_agent._ego_speed
 
             ego_trajetory = deque(maxlen=30)
             ego_loc_x, ego_loc_y, ego_loc_z = self._ego_pos.location.x, self._ego_pos.location.y, self._ego_pos.location.z
@@ -380,8 +384,8 @@ class PlatooningBehaviorAgent(BehaviorAgent):
         """
         logger.info("start merging !")
         self.lane_change_allowed = True
-        frontal_vehicle_loc = frontal_vehicle_vm.v2x_manager.get_ego_pos().location
-        frontal_vehicle_speed = frontal_vehicle_vm.v2x_manager.get_ego_speed()
+        frontal_vehicle_loc = frontal_vehicle_vm.agent.v2x_manager.get_ego_pos().location
+        frontal_vehicle_speed = frontal_vehicle_vm.agent.v2x_manager.get_ego_speed()
 
         # we choose next waypoint of the frontal vehicle as starting point to
         # have smooth speed
@@ -389,7 +393,7 @@ class PlatooningBehaviorAgent(BehaviorAgent):
         frontal_vehicle_next_waypoint = frontal_vehicle_waypoint.next(frontal_vehicle_speed / 3.6)[0].transform.location
 
         # retrieve the platooning's destination
-        platooning_manager, _ = frontal_vehicle_vm.v2x_manager.get_platoon_manager()
+        platooning_manager, _ = frontal_vehicle_vm.agent.v2x_manager.get_platoon_manager()
         destination = platooning_manager.destination
 
         # regenerate route the route to make merge(lane change)
@@ -414,8 +418,8 @@ class PlatooningBehaviorAgent(BehaviorAgent):
         frontal_vehicle_manager, _ = self.v2x_manager.get_platoon_front_rear()
         self.current_gap = self.inter_gap
 
-        frontal_vehicle = frontal_vehicle_manager.vehicle
-        frontal_vehicle_loc = frontal_vehicle_manager.v2x_manager.get_ego_pos().location
+        frontal_vehicle = frontal_vehicle_manager.agent.vehicle
+        frontal_vehicle_loc = frontal_vehicle_manager.agent.v2x_manager.get_ego_pos().location
         ego_vehicle_loc = self._ego_pos.location
 
         # headway distance
@@ -456,13 +460,13 @@ class PlatooningBehaviorAgent(BehaviorAgent):
         """
 
         frontal_vehicle_manager, rear_vehicle_vm = self.v2x_manager.get_platoon_front_rear()
-        frontal_vehicle = frontal_vehicle_manager.vehicle
-        frontal_vehicle_speed = frontal_vehicle_manager.v2x_manager.get_ego_speed()
+        frontal_vehicle = frontal_vehicle_manager.agent.vehicle
+        frontal_vehicle_speed = frontal_vehicle_manager.agent.v2x_manager.get_ego_speed()
 
         ego_vehicle_loc = self._ego_pos.location
         ego_vehicle_yaw = self._ego_pos.rotation.yaw
 
-        distance, angle = cal_distance_angle(frontal_vehicle_manager.v2x_manager.get_ego_pos().location, ego_vehicle_loc, ego_vehicle_yaw)
+        distance, angle = cal_distance_angle(frontal_vehicle_manager.agent.v2x_manager.get_ego_pos().location, ego_vehicle_loc, ego_vehicle_yaw)
 
         # calculate the time gap with the frontal vehicle
         self.calculate_gap(compute_distance(frontal_vehicle.get_location(), ego_vehicle_loc))
@@ -471,10 +475,10 @@ class PlatooningBehaviorAgent(BehaviorAgent):
         # mode TODO: lane change not considered
         if self.hazard_flag:
             if rear_vehicle_vm:
-                rear_vehicle_vm.v2x_manager.set_platoon_status(FSM.MAINTINING)
+                rear_vehicle_vm.agent.v2x_manager.set_platoon_status(FSM.MAINTINING)
             # retrieve the last member in the platoon
-            platoon_manager, _ = frontal_vehicle_manager.v2x_manager.get_platoon_manager()
-            last_member = platoon_manager.vehicle_manager_list[-1]
+            platoon_manager, _ = frontal_vehicle_manager.agent.v2x_manager.get_platoon_manager()
+            last_member = platoon_manager.agent_manager_list[-1]
 
             # set the last member as the frontal vehicle
             self.v2x_manager.set_platoon_front(last_member)
@@ -485,7 +489,7 @@ class PlatooningBehaviorAgent(BehaviorAgent):
 
         # the vehicle needs to warm up first. But if the platooning is in car
         # following state, then we should ignore
-        if self._ego_speed <= self.warm_up_speed and not frontal_vehicle_manager.agent.car_following_flag:
+        if self._ego_speed <= self.warm_up_speed and not frontal_vehicle_manager.agent.behavior_agent.car_following_flag:
             logger.info("warming up speed")
             return (*super().run_step(self.tailgate_speed), FSM.MOVE_TO_POINT)
 
@@ -503,13 +507,13 @@ class PlatooningBehaviorAgent(BehaviorAgent):
         if not rear_vehicle_vm:
             return (*self.platooning_merge_management(frontal_vehicle_manager), FSM.JOINING)
 
-        distance, angle = cal_distance_angle(rear_vehicle_vm.v2x_manager.get_ego_pos().location, ego_vehicle_loc, ego_vehicle_yaw)
+        distance, angle = cal_distance_angle(rear_vehicle_vm.agent.v2x_manager.get_ego_pos().location, ego_vehicle_loc, ego_vehicle_yaw)
 
         # check whether the rear vehicle gives enough gap
         if distance < 1.0 * self.inter_gap / 2.0 * self._ego_speed / 3.6 or angle <= 100 or rear_vehicle_vm.agent.current_gap < self.open_gap:
             # force the rear vehicle open gap for self
             logger.info("too close to rear vehicle!")
-            rear_vehicle_vm.v2x_manager.set_platoon_status(FSM.OPEN_GAP)
+            rear_vehicle_vm.agent.v2x_manager.set_platoon_status(FSM.OPEN_GAP)
             return (*super().run_step(1.5 * frontal_vehicle_speed), FSM.MOVE_TO_POINT)
 
         return (*self.platooning_merge_management(frontal_vehicle_manager), FSM.JOINING)
@@ -530,9 +534,9 @@ class PlatooningBehaviorAgent(BehaviorAgent):
 
         frontal_vehicle_manager, rear_vehicle_vm = self.v2x_manager.get_platoon_front_rear()
 
-        frontal_vehicle = frontal_vehicle_manager.vehicle
-        frontal_vehicle_speed = frontal_vehicle_manager.v2x_manager.get_ego_speed()
-        frontal_lane = self._map.get_waypoint(frontal_vehicle_manager.v2x_manager.get_ego_pos().location).lane_id
+        frontal_vehicle = frontal_vehicle_manager.agent.vehicle
+        frontal_vehicle_speed = frontal_vehicle_manager.agent.v2x_manager.get_ego_speed()
+        frontal_lane = self._map.get_waypoint(frontal_vehicle_manager.agent.v2x_manager.get_ego_pos().location).lane_id
 
         ego_vehicle_loc = self._ego_pos.location
         ego_vehicle_lane = self._map.get_waypoint(ego_vehicle_loc).lane_id
@@ -545,7 +549,7 @@ class PlatooningBehaviorAgent(BehaviorAgent):
         if frontal_lane == ego_vehicle_lane and angle <= 5:
             logger.info("merge finished")
             if rear_vehicle_vm:
-                rear_vehicle_vm.v2x_manager.set_platoon_status(FSM.MAINTINING)
+                rear_vehicle_vm.agent.v2x_manager.set_platoon_status(FSM.MAINTINING)
             return (*self.run_step_maintaining(), FSM.JOINING_FINISHED)
 
         return (*super().run_step(target_speed=frontal_vehicle_speed, collision_detector_enabled=False), FSM.JOINING)
@@ -568,7 +572,7 @@ class PlatooningBehaviorAgent(BehaviorAgent):
         ego_vehicle_loc = self._ego_pos.location
         ego_vehicle_yaw = self._ego_pos.rotation.yaw
 
-        distance, _ = cal_distance_angle(frontal_vehicle_manager.vehicle.get_location(), ego_vehicle_loc, ego_vehicle_yaw)
+        distance, _ = cal_distance_angle(frontal_vehicle_manager.agent.vehicle.get_location(), ego_vehicle_loc, ego_vehicle_yaw)
         self.calculate_gap(distance)
 
         # gradually open the gap TODO: Make this dynamic to map a linear
@@ -597,12 +601,12 @@ class PlatooningBehaviorAgent(BehaviorAgent):
 
         # get necessary information of the ego vehicle and target vehicle in
         # the platooning
-        frontal_vehicle = frontal_vehicle_manager.vehicle
-        frontal_speed = frontal_vehicle_manager.v2x_manager.get_ego_speed()
-        frontal_lane = self._map.get_waypoint(frontal_vehicle_manager.v2x_manager.get_ego_pos().location).lane_id
+        frontal_vehicle = frontal_vehicle_manager.agent.vehicle
+        frontal_speed = frontal_vehicle_manager.agent.v2x_manager.get_ego_speed()
+        frontal_lane = self._map.get_waypoint(frontal_vehicle_manager.agent.v2x_manager.get_ego_pos().location).lane_id
 
         # retrieve the platooning's destination
-        platooning_manager, _ = frontal_vehicle_manager.v2x_manager.get_platoon_manager()
+        platooning_manager, _ = frontal_vehicle_manager.agent.v2x_manager.get_platoon_manager()
         frontal_destination = platooning_manager.destination
 
         # retrieve ego vehicle info TODO: remove this later
@@ -611,7 +615,7 @@ class PlatooningBehaviorAgent(BehaviorAgent):
         ego_vehicle_lane = ego_wpt.lane_id
         ego_vehicle_yaw = self._ego_pos.rotation.yaw
 
-        distance, angle = cal_distance_angle(frontal_vehicle_manager.v2x_manager.get_ego_pos().location, ego_vehicle_loc, ego_vehicle_yaw)
+        distance, angle = cal_distance_angle(frontal_vehicle_manager.agent.v2x_manager.get_ego_pos().location, ego_vehicle_loc, ego_vehicle_yaw)
 
         # calculate the time gap with the frontal vehicle(we use groundtruth
         # position for evaluation)
@@ -694,13 +698,13 @@ class PlatooningBehaviorAgent(BehaviorAgent):
         _, rear_vehicle_manager = self.v2x_manager.get_platoon_front_rear()
         # get necessary information of the ego vehicle and target vehicle in
         # the platooning
-        rear_vehicle = rear_vehicle_manager.vehicle
-        rear_vehicle_speed = rear_vehicle_manager.v2x_manager.get_ego_speed()
+        rear_vehicle = rear_vehicle_manager.agent.vehicle
+        rear_vehicle_speed = rear_vehicle_manager.agent.v2x_manager.get_ego_speed()
 
-        rear_lane = self._map.get_waypoint(rear_vehicle_manager.v2x_manager.get_ego_pos().location).lane_id
+        rear_lane = self._map.get_waypoint(rear_vehicle_manager.agent.v2x_manager.get_ego_pos().location).lane_id
 
         # retrieve the platooning's destination
-        platooning_manager, _ = rear_vehicle_manager.v2x_manager.get_platoon_manager()
+        platooning_manager, _ = rear_vehicle_manager.agent.v2x_manager.get_platoon_manager()
         rear_destination = platooning_manager.destination
 
         # retrieve ego vehicle info
@@ -709,7 +713,7 @@ class PlatooningBehaviorAgent(BehaviorAgent):
         ego_vehicle_lane = ego_wpt.lane_id
         ego_vehicle_yaw = self._ego_pos.rotation.yaw
 
-        distance, angle = cal_distance_angle(rear_vehicle_manager.v2x_manager.get_ego_pos().location, ego_vehicle_loc, ego_vehicle_yaw)
+        distance, angle = cal_distance_angle(rear_vehicle_manager.agent.v2x_manager.get_ego_pos().location, ego_vehicle_loc, ego_vehicle_yaw)
 
         # if there is a vehicle blocking between, then abandon this joining
 

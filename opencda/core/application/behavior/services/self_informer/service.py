@@ -14,8 +14,7 @@ from .messages import SelfInformerResponse
 from .types import SelfInformerState
 
 if TYPE_CHECKING:
-    from opencda.core.common.rsu_manager import RSUManager
-    from opencda.core.common.vehicle_manager import VehicleManager
+    from opencda.core.common.agent_manager import AgentManager
     from opencda.core.sensing.localization.types import LocalizationState
 
 
@@ -37,11 +36,11 @@ class SelfInformer:
 
     def __init__(self, priority: int = 1) -> None:
         """Initialize the self-informer behavior service."""
-        self._owner_ref: weakref.ReferenceType[VehicleManager | RSUManager] | None = None
+        self._owner_ref: weakref.ReferenceType[AgentManager] | None = None
         self.priority = priority
         self.localization: LocalizationState | None = None
 
-    def _get_owner(self) -> VehicleManager | RSUManager:
+    def _get_owner(self) -> AgentManager:
         owner_ref = self._owner_ref
         if owner_ref is None:
             raise RuntimeError("Self-informer is not attached to an owner.")
@@ -52,7 +51,7 @@ class SelfInformer:
 
         return owner
 
-    def on_attach(self, owner: VehicleManager | RSUManager) -> None:
+    def on_attach(self, owner: AgentManager) -> None:
         """Initialize the service for a particular participant instance."""
         self._owner_ref = weakref.ref(owner)
         self.localization = None
@@ -66,7 +65,7 @@ class SelfInformer:
         """Return an immutable snapshot of the current service state."""
         owner = self._get_owner()
         if self.localization is None:
-            self.localization = owner.localizer.get_state()
+            self.localization = owner.agent.localizer.get_state()
         return SelfInformerState(
             service_type=self.service_type,
             owner_id=owner.id,
@@ -77,7 +76,7 @@ class SelfInformer:
         self,
     ) -> TransportMessage[SelfInformerResponse]:
         owner = self._get_owner()
-        self.localization = owner.localizer.get_state()
+        self.localization = owner.agent.localizer.get_state()
         payload = SelfInformerResponse(localization=self.localization)
         return TransportMessage(
             src_owner_id=owner.id,
