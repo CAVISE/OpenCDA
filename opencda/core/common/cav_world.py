@@ -223,8 +223,9 @@ class CavWorld(object):
 
         target_vm = None
         for vm in self._vehicle_manager_dict.values():
-            x = vm.localizer.get_ego_pos().location.x
-            y = vm.localizer.get_ego_pos().location.y
+            location = vm.localizer.get_state().transform.location
+            x = location.x
+            y = location.y
 
             if loc.x == x and loc.y == y:
                 target_vm = vm
