@@ -23,9 +23,9 @@ import carla
 import numpy as np
 import torch
 
-from opencda.core.common.vehicle_manager import VehicleManager
 from opencda.core.application.platooning.platooning_manager import PlatooningManager
-from opencda.core.common.rsu_manager import RSUManager
+from opencda.core.common.agent import AgentType
+from opencda.core.common.agent_manager import AgentManager
 from opencda.core.common.cav_world import CavWorld
 from opencda.core.sensing.perception.perception_manager import PerceptionRequirements
 from opencda.scenario_testing.utils.customized_map_api import load_customized_world, bcolors
@@ -333,13 +333,13 @@ class ScenarioManager:
 
         return None
 
-    def create_vehicle_manager(
+    def create_vehicle_agents(
         self,
         application: list[str],
         map_helper: MapHelper | None = None,
         perception_requirements: PerceptionRequirements | None = None,
         fallback_model: str = "vehicle.lincoln.mkz_2017",
-    ) -> tuple[list[VehicleManager], dict[int, Any]]:
+    ) -> tuple[list[AgentManager], dict[int, Any]]:
         """
         Create a list of single CAVs.
 
@@ -363,7 +363,7 @@ class ScenarioManager:
         single_cav_list : list
             A list contains all single CAVs' vehicle manager.
         """
-        single_cav_list: list[VehicleManager] = []
+        single_cav_list: list[AgentManager] = []
         cav_carla_list: dict[int, Any] = {}
         perception_requirements = perception_requirements or PerceptionRequirements()
 
@@ -388,38 +388,37 @@ class ScenarioManager:
 
             vehicle = self.spawn_custom_actor(spawn_transform, cav_config, fallback_model)
 
-            # create vehicle manager for each cav
-            vehicle_manager = VehicleManager(
-                vehicle,
-                cav_config,
-                application,
-                self.carla_map,
-                self.cav_world,
+            agent_manager = AgentManager.create(
+                actor=vehicle,
+                config_yaml=cav_config,
+                carla_map=self.carla_map,
+                cav_world=self.cav_world,
+                agent_type=AgentType.CAV,
+                application=application,
                 current_time=self.scenario_params["current_time"],
                 perception_requirements=perception_requirements,
-                prefix="cav",
+                id_prefix="cav",
             )
 
-            cav_carla_list[vehicle.id] = vehicle_manager.id
+            cav_carla_list[vehicle.id] = agent_manager.id
 
-            vehicle_manager.v2x_manager.set_platoon(None)
-            vehicle_manager.update_info()
-            if vehicle_manager.use_carla_autopilot:
+            agent_manager.agent.v2x_manager.set_platoon(None)
+            agent_manager.agent.update()
+            if agent_manager.agent.use_carla_autopilot:
                 if "destination" in cav_config:
-                    logger.info("CAV %s is using CARLA autopilot; configured destination is ignored.", vehicle_manager.id)
+                    logger.info("CAV %s is using CARLA autopilot; configured destination is ignored.", agent_manager.id)
             else:
                 if "destination" not in cav_config:
-                    raise ValueError(f"CAV {vehicle_manager.id} requires 'destination' unless carla_autopilot is enabled.")
+                    raise ValueError(f"CAV {agent_manager.id} requires 'destination' unless carla_autopilot is enabled.")
                 destination = carla.Location(x=cav_config["destination"][0], y=cav_config["destination"][1], z=cav_config["destination"][2])
-                vehicle_manager.set_destination(vehicle_manager.vehicle.get_location(), destination, clean=True)
+                agent_manager.agent.set_destination(agent_manager.agent.vehicle.get_location(), destination, clean=True)
 
-            single_cav_list.append(vehicle_manager)
-            logger.info(f"Created CAV with id {vehicle_manager.id}")
+            single_cav_list.append(agent_manager)
+            logger.info(f"Created CAV with id {agent_manager.id}")
 
-        for vehicle_manager in single_cav_list:
-            if vehicle_manager.use_carla_autopilot:
-                self.configure_carla_autopilot_vehicle(vehicle_manager.vehicle)
-                vehicle_manager.vehicle.set_autopilot(True, vehicle_manager.carla_autopilot_port)
+        for agent_manager in single_cav_list:
+            if agent_manager.agent.use_carla_autopilot:
+                self.configure_carla_autopilot_vehicle(agent_manager.agent.vehicle)
 
         return single_cav_list, cav_carla_list
 
@@ -549,25 +548,24 @@ class ScenarioManager:
 
                 vehicle = self.spawn_custom_actor(spawn_transform, cav_config, fallback_model)
 
-                # create vehicle manager for each cav
-                vehicle_manager = VehicleManager(
-                    vehicle,
-                    cav_config,
-                    ["platoon"],
-                    self.carla_map,
-                    self.cav_world,
+                agent_manager = AgentManager.create(
+                    actor=vehicle,
+                    config_yaml=cav_config,
+                    carla_map=self.carla_map,
+                    cav_world=self.cav_world,
+                    agent_type=AgentType.CAV,
+                    application=["platoon"],
                     current_time=self.scenario_params["current_time"],
                     perception_requirements=perception_requirements,
-                    prefix="platoon",
+                    id_prefix="platoon",
                 )
 
-                platoon_carla_ids[vehicle.id] = vehicle_manager.id
+                platoon_carla_ids[vehicle.id] = agent_manager.id
 
-                # add the vehicle manager to platoon
                 if j == 0:
-                    platoon_manager.set_lead(vehicle_manager)
+                    platoon_manager.set_lead(agent_manager)
                 else:
-                    platoon_manager.add_member(vehicle_manager, leader=False)
+                    platoon_manager.add_member(agent_manager, leader=False)
 
             destination = carla.Location(x=platoon["destination"][0], y=platoon["destination"][1], z=platoon["destination"][2])
 
@@ -577,7 +575,7 @@ class ScenarioManager:
 
         return platoon_list, platoon_carla_ids
 
-    def create_rsu_manager(self, perception_requirements: PerceptionRequirements | None = None) -> tuple[list[RSUManager], dict[int, Any]]:
+    def create_rsu_agents(self, perception_requirements: PerceptionRequirements | None = None) -> tuple[list[AgentManager], dict[int, Any]]:
         """
         Create a list of RSU.
 
@@ -591,7 +589,7 @@ class ScenarioManager:
         rsu_list : list
             A list contains all rsu managers..
         """
-        rsu_list: list[RSUManager] = []
+        rsu_list: list[AgentManager] = []
         rsu_carla_ids: dict[int, Any] = {}
         perception_requirements = perception_requirements or PerceptionRequirements()
 
@@ -612,22 +610,23 @@ class ScenarioManager:
             actor = self.world.spawn_actor(static_bp, spawn_transform)
 
             try:
-                rsu_manager = RSUManager(
-                    actor,
-                    rsu_config,
-                    self.carla_map,
-                    self.cav_world,
-                    self.scenario_params["current_time"],
+                agent_manager = AgentManager.create(
+                    actor=actor,
+                    config_yaml=rsu_config,
+                    carla_map=self.carla_map,
+                    cav_world=self.cav_world,
+                    agent_type=AgentType.RSU,
+                    current_time=self.scenario_params["current_time"],
                     perception_requirements=perception_requirements,
                 )
             except Exception:
                 actor.destroy()
                 raise
 
-            rsu_carla_ids[actor.id] = rsu_manager.id
+            rsu_carla_ids[actor.id] = agent_manager.id
 
-            rsu_list.append(rsu_manager)
-            logger.info(f"Created RSU with id {rsu_manager.id}")
+            rsu_list.append(agent_manager)
+            logger.info(f"Created RSU with id {agent_manager.id}")
 
         return rsu_list, rsu_carla_ids
 
@@ -738,7 +737,9 @@ class ScenarioManager:
         if cav_spawn_clearance < 0:
             raise ValueError("Config key 'cav_spawn_clearance' must be non-negative.")
         cav_locations = (
-            [manager.vehicle.get_location() for manager in self.cav_world.get_vehicle_managers().values()] if cav_spawn_clearance > 0 else []
+            [manager.agent.vehicle.get_location() for manager in self.cav_world.get_vehicle_agent_managers().values()]
+            if cav_spawn_clearance > 0
+            else []
         )
 
         for spawn_range in spawn_ranges:

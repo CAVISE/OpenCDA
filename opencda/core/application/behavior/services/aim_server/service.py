@@ -14,7 +14,7 @@ from opencda.core.application.behavior.transport_message import BROADCAST_SERVIC
 from AIM import get_model
 
 if TYPE_CHECKING:
-    from opencda.core.common.rsu_manager import RSUManager
+    from opencda.core.common.agent_manager import AgentManager
     from opencda.core.application.behavior.types import Location
 
 from .aim_model_manager import AIMModelManager
@@ -56,7 +56,7 @@ class AIMServer:
         model : AIMModel
             Loaded AIM model used for trajectory prediction.
         """
-        self._owner_ref: weakref.ReferenceType[RSUManager] | None = None
+        self._owner_ref: weakref.ReferenceType[AgentManager] | None = None
         self.aim_model_manager: AIMModelManager | None = None
         self.priority = priority
         self.debug = debug
@@ -66,7 +66,7 @@ class AIMServer:
         aim_model_name = cast(str, aim_config.pop("model", "MTP"))
         self.model = get_model(aim_model_name, **aim_config)
 
-    def _get_owner(self) -> RSUManager:
+    def _get_owner(self) -> AgentManager:
         owner_ref = self._owner_ref
         if owner_ref is None:
             raise RuntimeError("AIM server is not attached to an owner.")
@@ -77,7 +77,7 @@ class AIMServer:
 
         return owner
 
-    def on_attach(self, owner: RSUManager) -> None:
+    def on_attach(self, owner: AgentManager) -> None:
         """Initialize the service for a particular participant instance."""
         self._owner_ref = weakref.ref(owner)
 
@@ -158,7 +158,7 @@ class AIMServer:
 
         if self.debug and self.control_center_location is not None:
             owner = self._get_owner()
-            world = owner.actor.get_world()
+            world = owner.agent.actor.get_world()
             draw_radius_circle(world, self.control_center_location, self.control_radius)
 
         observed_requests = self._observe_aim_requests(messages)

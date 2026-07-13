@@ -119,8 +119,8 @@ class EvaluationManager(object):
         report_builder = UniversalReportBuilder()
         kinematics_reports: list[EntityReport] = []
 
-        for _, vm in self.cav_world.get_vehicle_managers().items():
-            raw_data = vm.agent.metrics_collector.get_raw()
+        for manager in self.cav_world.get_vehicle_agent_managers().values():
+            raw_data = manager.agent.behavior_agent.metrics_collector.get_raw()
             kinematics_reports.append(report_builder.build_entity_report(raw_data))
 
         return report_builder.build_module_report("planning", kinematics_reports)
@@ -131,8 +131,8 @@ class EvaluationManager(object):
         """
         report_builder = UniversalReportBuilder()
         localization_reports: list[EntityReport] = []
-        for _, vm in self.cav_world.get_vehicle_managers().items():
-            metrics_collector = getattr(vm.localizer, "metrics_collector", None)
+        for manager in self.cav_world.get_vehicle_agent_managers().values():
+            metrics_collector = getattr(manager.agent.localizer, "metrics_collector", None)
             if metrics_collector is None:
                 continue
             raw_data = metrics_collector.get_raw()

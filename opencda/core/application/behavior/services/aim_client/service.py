@@ -20,7 +20,7 @@ from .types import AIMClientState
 from .utils import draw_trajetory_points, calculate_target_speeds
 
 if TYPE_CHECKING:
-    from opencda.core.common.vehicle_manager import VehicleManager
+    from opencda.core.common.agent_manager import AgentManager
 
 
 logger = logging.getLogger("cavise.opencda.opencda.core.application.behavior.services.aim_client")
@@ -45,14 +45,14 @@ class AIMClient:
         """
         Initialize the AIM-backed behavior service.
         """
-        self._owner_ref: weakref.ReferenceType[VehicleManager] | None = None
+        self._owner_ref: weakref.ReferenceType[AgentManager] | None = None
         self.priority = priority
         self.trajectory: deque[tuple[Location, float]] = deque()
         self.server_id: str = BROADCAST_OWNER_ID
         self.debug = debug
         self._self_informer_data: SelfInformerResponse | None = None
 
-    def _get_owner(self) -> VehicleManager:
+    def _get_owner(self) -> AgentManager:
         owner_ref = self._owner_ref
         if owner_ref is None:
             raise RuntimeError("AIM server is not attached to an owner.")
@@ -63,7 +63,7 @@ class AIMClient:
 
         return owner
 
-    def on_attach(self, owner: VehicleManager) -> None:
+    def on_attach(self, owner: AgentManager) -> None:
         """Initialize the service for a particular participant instance."""
         self._owner_ref = weakref.ref(owner)
 
@@ -169,7 +169,7 @@ class AIMClient:
         if self._self_informer_data is None:
             raise RuntimeError("_self_informer_data not set")
         localization = self._self_informer_data.localization
-        waypoints = [Transform.from_carla(waypoint[0].transform) for waypoint in owner.agent.get_local_planner().get_waypoint_buffer()]
+        waypoints = [Transform.from_carla(waypoint[0].transform) for waypoint in owner.agent.behavior_agent.get_local_planner().get_waypoint_buffer()]
         payload = AIMServerRequest(
             vehicle_id=owner.id,
             position=localization.transform.location,
@@ -189,12 +189,12 @@ class AIMClient:
 
     def _draw_control_trajectory(
         self,
-        owner: VehicleManager,
+        owner: AgentManager,
         control_trajectory: Sequence[Location],
     ) -> None:
         """Visualize the currently active AIM trajectory in debug mode."""
         draw_trajetory_points(
-            owner.agent._local_planner._vehicle.get_world(),
+            owner.agent.actor.get_world(),
             control_trajectory,
             size=0.05,
             life_time=0.1,
