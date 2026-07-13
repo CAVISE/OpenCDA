@@ -27,8 +27,8 @@ class PlatooningManager(object):
     ----------
     pmid : int
         The  platooning manager ID.
-    vehicle_manager_list : list
-        A list of all vehciel managers within the platoon.
+    agent_manager_list : list
+        A list of all vehicle agent managers within the platoon.
     destination : carla.location
         The destiantion of the current plan.
     center_loc : carla.location
@@ -44,7 +44,7 @@ class PlatooningManager(object):
     def __init__(self, config_yaml, cav_world):
         self.pmid = str(uuid.uuid1())
 
-        self.vehicle_manager_list = []
+        self.agent_manager_list = []
         self.maximum_capacity = config_yaml["max_capacity"]
 
         self.destination = None
@@ -58,21 +58,22 @@ class PlatooningManager(object):
         cav_world.update_platooning(self)
         self.cav_world = weakref.ref(cav_world)()
 
-    def set_lead(self, vehicle_manager):
+    def set_lead(self, agent_manager):
         """
         Set the leader of the platooning
 
         Parameters
         __________
-        vehicle_manager : opencda object
-            The vehicle manager class.
+        agent_manager : opencda object
+            The universal agent manager.
         """
-        self.add_member(vehicle_manager, leader=True)
+        self.add_member(agent_manager, leader=True)
 
         # this variable is used to control leader speed
-        self.origin_leader_target_speed = vehicle_manager.agent.max_speed - vehicle_manager.agent.speed_lim_dist
+        behavior_agent = agent_manager.agent.behavior_agent
+        self.origin_leader_target_speed = behavior_agent.max_speed - behavior_agent.speed_lim_dist
 
-    def add_member(self, vehicle_manager, leader=False):
+    def add_member(self, agent_manager, leader=False):
         """
         Add memeber to the current platooning
 
@@ -81,13 +82,18 @@ class PlatooningManager(object):
         leader : boolean
             Indicator of whether this cav is a leader.
 
-        vehicle_manager : opencda object
-            The vehicle manager class.
+        agent_manager : opencda object
+            The universal agent manager.
         """
-        self.vehicle_manager_list.append(vehicle_manager)
-        vehicle_manager.v2x_manager.set_platoon(len(self.vehicle_manager_list) - 1, platooning_object=self, platooning_id=self.pmid, leader=leader)
+        self.agent_manager_list.append(agent_manager)
+        agent_manager.agent.v2x_manager.set_platoon(
+            len(self.agent_manager_list) - 1,
+            platooning_object=self,
+            platooning_id=self.pmid,
+            leader=leader,
+        )
 
-    def set_member(self, vehicle_manager, index, lead=False):
+    def set_member(self, agent_manager, index, lead=False):
         """
         Set member at specific index
 
@@ -96,21 +102,21 @@ class PlatooningManager(object):
         lead : boolean
             Indicator of whether this cav is a leader.
 
-        vehicle_manager : opencda object
-            The vehicle manager class.
+        agent_manager : opencda object
+            The universal agent manager.
 
         index : int
             The platoon index of the current vehicle.
         """
-        self.vehicle_manager_list.insert(index, vehicle_manager)
-        vehicle_manager.v2x_manager.set_platoon(index, platooning_object=self, platooning_id=self.pmid, leader=lead)
+        self.agent_manager_list.insert(index, agent_manager)
+        agent_manager.agent.v2x_manager.set_platoon(index, platooning_object=self, platooning_id=self.pmid, leader=lead)
 
     def cal_center_loc(self):
         """
         Calculate and update center location of the platoon.
         """
-        v1_ego_transform = self.vehicle_manager_list[0].v2x_manager.get_ego_pos()
-        v2_ego_transform = self.vehicle_manager_list[-1].v2x_manager.get_ego_pos()
+        v1_ego_transform = self.agent_manager_list[0].agent.v2x_manager.get_ego_pos()
+        v2_ego_transform = self.agent_manager_list[-1].agent.v2x_manager.get_ego_pos()
 
         if any(t is None for t in (v1_ego_transform, v2_ego_transform)):
             return
@@ -125,14 +131,14 @@ class PlatooningManager(object):
         Update the members' front and rear vehicle.
         This should be called whenever new member added to the platoon list.
         """
-        for i, vm in enumerate(self.vehicle_manager_list):
+        for i, manager in enumerate(self.agent_manager_list):
             if i != 0:
-                vm.v2x_manager.set_platoon(i, leader=False)
-                vm.v2x_manager.set_platoon_front(self.vehicle_manager_list[i - 1])
-            if i != len(self.vehicle_manager_list) - 1:
+                manager.agent.v2x_manager.set_platoon(i, leader=False)
+                manager.agent.v2x_manager.set_platoon_front(self.agent_manager_list[i - 1])
+            if i != len(self.agent_manager_list) - 1:
                 leader = True if i == 0 else False
-                vm.v2x_manager.set_platoon(i, leader=leader)
-                vm.v2x_manager.set_platoon_rear(self.vehicle_manager_list[i + 1])
+                manager.agent.v2x_manager.set_platoon(i, leader=leader)
+                manager.agent.v2x_manager.set_platoon_rear(self.agent_manager_list[i + 1])
 
     def reset_speed(self):
         """
@@ -159,7 +165,7 @@ class PlatooningManager(object):
         Indicator of whether the joining request is accepted.
 
         """
-        if len(self.vehicle_manager_list) >= self.maximum_capacity:
+        if len(self.agent_manager_list) >= self.maximum_capacity:
             return False
         else:
             # when the platoon accept a joining request,by default
@@ -170,8 +176,8 @@ class PlatooningManager(object):
 
             # find the corresponding vehicle manager and add it to the leader's
             # whitelist
-            request_vm = self.cav_world.locate_vehicle_manager(request_loc)
-            self.vehicle_manager_list[0].agent.add_white_list(request_vm)
+            request_manager = self.cav_world.locate_agent_manager(request_loc)
+            self.agent_manager_list[0].agent.behavior_agent.add_white_list(request_manager)
 
             return True
 
@@ -180,16 +186,16 @@ class PlatooningManager(object):
         Set desination of the vehicle managers in the platoon.
         """
         self.destination = destination
-        for i in range(len(self.vehicle_manager_list)):
-            self.vehicle_manager_list[i].set_destination(self.vehicle_manager_list[i].vehicle.get_location(), destination, clean=True)
+        for manager in self.agent_manager_list:
+            manager.agent.set_destination(manager.agent.vehicle.get_location(), destination, clean=True)
 
     def update_information(self):
         """
         Update CAV world information for every member in the list.
         """
         self.reset_speed()
-        for i in range(len(self.vehicle_manager_list)):
-            self.vehicle_manager_list[i].update_info()
+        for manager in self.agent_manager_list:
+            manager.agent.update()
         # update the center location of the platoon
         self.cal_center_loc()
 
@@ -203,12 +209,12 @@ class PlatooningManager(object):
             The control command list for all vehicles.
         """
         control_list = []
-        for i in range(len(self.vehicle_manager_list)):
-            control = self.vehicle_manager_list[i].run_step(self.leader_target_speed)
+        for manager in self.agent_manager_list:
+            control = manager.agent.plan_control(self.leader_target_speed)
             control_list.append(control)
 
         for i, control in enumerate(control_list):
-            self.vehicle_manager_list[i].vehicle.apply_control(control)
+            self.agent_manager_list[i].agent.vehicle.apply_control(control)
 
         return control_list
 
@@ -216,19 +222,19 @@ class PlatooningManager(object):
         """Return raw metric collections for all platoon members."""
         return tuple(
             EntityMetricCollections(
-                entity_id=vm.vehicle.id,
+                entity_id=manager.agent.vehicle.id,
                 context_id=index,
                 collections=(
-                    vm.agent.metrics_collector.get_raw(),
-                    vm.agent.platooning_metrics_collector.get_raw(),
+                    manager.agent.behavior_agent.metrics_collector.get_raw(),
+                    manager.agent.behavior_agent.platooning_metrics_collector.get_raw(),
                 ),
             )
-            for index, vm in enumerate(self.vehicle_manager_list)
+            for index, manager in enumerate(self.agent_manager_list)
         )
 
     def destroy(self):
         """
         Destroy platoon vehicles actors inside simulation world.
         """
-        for vm in self.vehicle_manager_list:
-            vm.destroy()
+        for manager in self.agent_manager_list:
+            manager.destroy()

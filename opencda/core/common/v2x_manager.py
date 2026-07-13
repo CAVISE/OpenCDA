@@ -141,16 +141,16 @@ class V2XManager(object):
         """
         Search the CAVs nearby.
         """
-        vehicle_manager_dict = self.cav_world.get_vehicle_managers()
+        vehicle_manager_dict = self.cav_world.get_vehicle_agent_managers()
 
         for id, vm in vehicle_manager_dict.items():
             # avoid the Nonetype error at the first simulation step
-            if not vm.v2x_manager.get_ego_pos():
+            if not vm.agent.v2x_manager.get_ego_pos():
                 continue
             # avoid add itself as the cav nearby
             if id == self.id:
                 continue
-            distance = compute_distance(self.ego_pos[-1].location, vm.v2x_manager.get_ego_pos().location)
+            distance = compute_distance(self.ego_pos[-1].location, vm.agent.v2x_manager.get_ego_pos().location)
 
             if distance < self.communication_range:
                 self.cav_nearby.update({id: vm})
