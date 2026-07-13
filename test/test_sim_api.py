@@ -224,23 +224,23 @@ def test_max_substeps_above_carla_limit_raises(mocker):
         _make_scenario_manager(mocker, params)
 
 
-def test_create_vehicle_manager_empty(mocker):
+def test_create_vehicle_agents_empty(mocker):
     params = _minimal_scenario_params()
     params.pop("scenario", None)
 
     sm, _, _ = _make_scenario_manager(mocker, params)
-    cav_list, cav_ids = sm.create_vehicle_manager(application=["single"], map_helper=None)
+    cav_list, cav_ids = sm.create_vehicle_agents(application=["single"], map_helper=None)
 
     assert cav_list == []
     assert cav_ids == {}
 
 
-def test_create_rsu_manager_empty(mocker):
+def test_create_rsu_agents_empty(mocker):
     params = _minimal_scenario_params()
     params.pop("scenario", None)
 
     sm, _, _ = _make_scenario_manager(mocker, params)
-    rsu_list, rsu_ids = sm.create_rsu_manager()
+    rsu_list, rsu_ids = sm.create_rsu_agents()
 
     assert rsu_list == []
     assert rsu_ids == {}
@@ -417,8 +417,8 @@ def test_close_restores_settings(mocker):
     world.apply_settings.assert_called_once_with(sm.origin_settings)
 
 
-def test_create_vehicle_manager_single_cav(mocker, minimal_vehicle_config):
-    """create_vehicle_manager creates one CAV when config has one entry."""
+def test_create_vehicle_agents_single_cav(mocker, minimal_vehicle_config):
+    """create_vehicle_agents creates one CAV when config has one entry."""
     from test import mocked_carla as carla
 
     params = _make_single_cav_scenario_params(minimal_vehicle_config, cav_id=7)
@@ -435,16 +435,17 @@ def test_create_vehicle_manager_single_cav(mocker, minimal_vehicle_config):
 
     vm_mock = Mock()
     vm_mock.id = "cav-7"
-    vm_mock.vehicle = vehicle_actor
-    vm_mock.use_carla_autopilot = False
-    vm_mock.v2x_manager = Mock(spec_set=["set_platoon"])
-    vm_mock.v2x_manager.set_platoon = Mock()
-    vm_mock.update_info = Mock()
-    vm_mock.set_destination = Mock()
+    vm_mock.agent = Mock()
+    vm_mock.agent.vehicle = vehicle_actor
+    vm_mock.agent.use_carla_autopilot = False
+    vm_mock.agent.v2x_manager = Mock(spec_set=["set_platoon"])
+    vm_mock.agent.v2x_manager.set_platoon = Mock()
+    vm_mock.agent.update = Mock()
+    vm_mock.agent.set_destination = Mock()
 
-    vehicle_manager_ctor = mocker.patch("opencda.scenario_testing.utils.sim_api.VehicleManager", return_value=vm_mock)
+    vehicle_manager_ctor = mocker.patch("opencda.scenario_testing.utils.sim_api.AgentManager.create", return_value=vm_mock)
 
-    cav_list, cav_carla_list = sm.create_vehicle_manager(application=["single"], map_helper=None)
+    cav_list, cav_carla_list = sm.create_vehicle_agents(application=["single"], map_helper=None)
 
     assert cav_list == [vm_mock]
     assert cav_carla_list == {123: "cav-7"}
@@ -456,23 +457,25 @@ def test_create_vehicle_manager_single_cav(mocker, minimal_vehicle_config):
     assert isinstance(spawn_args[0].rotation, carla.Rotation)
 
     vehicle_manager_ctor.assert_called_once()
-    _, ctor_cfg, ctor_app, ctor_map, ctor_world = vehicle_manager_ctor.call_args.args
+    assert vehicle_manager_ctor.call_args.args == ()
     ctor_kwargs = vehicle_manager_ctor.call_args.kwargs
 
-    assert ctor_app == ["single"]
-    assert ctor_map is sm.carla_map
-    assert ctor_world is sm.cav_world
-    assert ctor_cfg["id"] == 7
-    assert ctor_kwargs["prefix"] == "cav"
+    assert ctor_kwargs["actor"] is vehicle_actor
+    assert ctor_kwargs["application"] == ["single"]
+    assert ctor_kwargs["carla_map"] is sm.carla_map
+    assert ctor_kwargs["cav_world"] is sm.cav_world
+    assert ctor_kwargs["config_yaml"]["id"] == 7
+    assert ctor_kwargs["agent_type"] == "cav"
+    assert ctor_kwargs["id_prefix"] == "cav"
     assert ctor_kwargs["perception_requirements"].enable_data_dump is False
     assert ctor_kwargs["current_time"] == "t0"
 
-    vm_mock.v2x_manager.set_platoon.assert_called_once_with(None)
-    vm_mock.update_info.assert_called_once_with()
-    vm_mock.set_destination.assert_called_once()
+    vm_mock.agent.v2x_manager.set_platoon.assert_called_once_with(None)
+    vm_mock.agent.update.assert_called_once_with()
+    vm_mock.agent.set_destination.assert_called_once()
 
-    args = vm_mock.set_destination.call_args.args
-    kwargs = vm_mock.set_destination.call_args.kwargs
+    args = vm_mock.agent.set_destination.call_args.args
+    kwargs = vm_mock.agent.set_destination.call_args.kwargs
 
     assert args[0] == "start_loc"
     assert isinstance(args[1], carla.Location)
@@ -484,7 +487,7 @@ def test_create_vehicle_manager_single_cav(mocker, minimal_vehicle_config):
     world.tick.assert_not_called()
 
 
-def test_create_vehicle_manager_carla_autopilot_does_not_require_destination(mocker, minimal_vehicle_config):
+def test_create_vehicle_agents_carla_autopilot_does_not_require_destination(mocker, minimal_vehicle_config):
     """CARLA-autopilot CAVs are OpenCDA sensor actors but do not need an OpenCDA route destination."""
     params = _make_single_cav_scenario_params(minimal_vehicle_config, cav_id=7)
     params["scenario"]["single_cav_list"][0]["carla_autopilot"] = True
@@ -542,22 +545,23 @@ def test_create_vehicle_manager_carla_autopilot_does_not_require_destination(moc
 
     vm_mock = Mock()
     vm_mock.id = "cav-7"
-    vm_mock.vehicle = vehicle_actor
-    vm_mock.use_carla_autopilot = True
-    vm_mock.carla_autopilot_port = 8000
-    vm_mock.v2x_manager = Mock(spec_set=["set_platoon"])
-    vm_mock.v2x_manager.set_platoon = Mock()
-    vm_mock.update_info = Mock()
-    vm_mock.set_destination = Mock()
+    vm_mock.agent = Mock()
+    vm_mock.agent.vehicle = vehicle_actor
+    vm_mock.agent.use_carla_autopilot = True
+    vm_mock.agent.carla_autopilot_port = 8000
+    vm_mock.agent.v2x_manager = Mock(spec_set=["set_platoon"])
+    vm_mock.agent.v2x_manager.set_platoon = Mock()
+    vm_mock.agent.update = Mock()
+    vm_mock.agent.set_destination = Mock()
 
-    mocker.patch("opencda.scenario_testing.utils.sim_api.VehicleManager", return_value=vm_mock)
+    mocker.patch("opencda.scenario_testing.utils.sim_api.AgentManager.create", return_value=vm_mock)
 
-    cav_list, cav_carla_list = sm.create_vehicle_manager(application=["single"], map_helper=None)
+    cav_list, cav_carla_list = sm.create_vehicle_agents(application=["single"], map_helper=None)
 
     assert cav_list == [vm_mock]
     assert cav_carla_list == {123: "cav-7"}
-    vm_mock.update_info.assert_called_once_with()
-    vm_mock.set_destination.assert_not_called()
+    vm_mock.agent.update.assert_called_once_with()
+    vm_mock.agent.set_destination.assert_not_called()
     randint.assert_called_once_with(-30, 30)
     tm.auto_lane_change.assert_called_once_with(vehicle_actor, False)
     tm.ignore_lights_percentage.assert_called_once_with(vehicle_actor, 100)
@@ -565,10 +569,10 @@ def test_create_vehicle_manager_carla_autopilot_does_not_require_destination(moc
     tm.ignore_vehicles_percentage.assert_called_once_with(vehicle_actor, 0)
     tm.ignore_walkers_percentage.assert_called_once_with(vehicle_actor, 5)
     tm.vehicle_percentage_speed_difference.assert_called_once_with(vehicle_actor, -5)
-    vehicle_actor.set_autopilot.assert_called_once_with(True, 8000)
+    vehicle_actor.set_autopilot.assert_not_called()
 
 
-def test_create_vehicle_manager_requires_destination_without_carla_autopilot(mocker, minimal_vehicle_config):
+def test_create_vehicle_agents_requires_destination_without_carla_autopilot(mocker, minimal_vehicle_config):
     """OpenCDA-controlled CAVs still need a destination for route planning."""
     params = _make_single_cav_scenario_params(minimal_vehicle_config, cav_id=7)
     del params["scenario"]["single_cav_list"][0]["destination"]
@@ -582,16 +586,17 @@ def test_create_vehicle_manager_requires_destination_without_carla_autopilot(moc
 
     vm_mock = Mock()
     vm_mock.id = "cav-7"
-    vm_mock.vehicle = vehicle_actor
-    vm_mock.use_carla_autopilot = False
-    vm_mock.v2x_manager = Mock(spec_set=["set_platoon"])
-    vm_mock.v2x_manager.set_platoon = Mock()
-    vm_mock.update_info = Mock()
+    vm_mock.agent = Mock()
+    vm_mock.agent.vehicle = vehicle_actor
+    vm_mock.agent.use_carla_autopilot = False
+    vm_mock.agent.v2x_manager = Mock(spec_set=["set_platoon"])
+    vm_mock.agent.v2x_manager.set_platoon = Mock()
+    vm_mock.agent.update = Mock()
 
-    mocker.patch("opencda.scenario_testing.utils.sim_api.VehicleManager", return_value=vm_mock)
+    mocker.patch("opencda.scenario_testing.utils.sim_api.AgentManager.create", return_value=vm_mock)
 
     with pytest.raises(ValueError, match="requires 'destination' unless carla_autopilot is enabled"):
-        sm.create_vehicle_manager(application=["single"], map_helper=None)
+        sm.create_vehicle_agents(application=["single"], map_helper=None)
 
 
 def test_create_platoon_manager_creates_one_platoon_two_members(mocker, minimal_vehicle_config):
@@ -632,11 +637,9 @@ def test_create_platoon_manager_creates_one_platoon_two_members(mocker, minimal_
 
     vm1 = Mock()
     vm1.id = "platoon-1"
-    vm1.vehicle = actor1
     vm2 = Mock()
     vm2.id = "platoon-2"
-    vm2.vehicle = actor2
-    vehicle_manager_ctor = mocker.patch("opencda.scenario_testing.utils.sim_api.VehicleManager", side_effect=[vm1, vm2])
+    vehicle_manager_ctor = mocker.patch("opencda.scenario_testing.utils.sim_api.AgentManager.create", side_effect=[vm1, vm2])
 
     platoons, mapping = sm.create_platoon_manager(map_helper=None)
 
@@ -653,8 +656,9 @@ def test_create_platoon_manager_creates_one_platoon_two_members(mocker, minimal_
 
     assert vehicle_manager_ctor.call_count == 2
     for call_ in vehicle_manager_ctor.call_args_list:
-        assert call_.args[2] == ["platoon"]
-        assert call_.kwargs["prefix"] == "platoon"
+        assert call_.kwargs["application"] == ["platoon"]
+        assert call_.kwargs["agent_type"] == "cav"
+        assert call_.kwargs["id_prefix"] == "platoon"
         assert call_.kwargs["perception_requirements"].enable_data_dump is False
         assert call_.kwargs["current_time"] == "t0"
 
@@ -838,8 +842,8 @@ def test_spawn_vehicle_by_range_respects_cav_spawn_clearance(mocker, caplog):
     cav_vehicle.get_location.return_value = carla.Location(0.0, 0.0, 0.3)
     mocker.patch.object(
         sm.cav_world,
-        "get_vehicle_managers",
-        return_value={"cav-1": Mock(vehicle=cav_vehicle)},
+        "get_vehicle_agent_managers",
+        return_value={"cav-1": Mock(agent=Mock(vehicle=cav_vehicle))},
     )
 
     actor = Mock(spec_set=["set_autopilot"])
@@ -1130,8 +1134,7 @@ def test_create_platoon_manager_uses_map_helper_when_spawn_special_present(mocke
 
     vm = Mock()
     vm.id = "platoon-1"
-    vm.vehicle = actor
-    mocker.patch("opencda.scenario_testing.utils.sim_api.VehicleManager", return_value=vm)
+    mocker.patch("opencda.scenario_testing.utils.sim_api.AgentManager.create", return_value=vm)
 
     platoons, mapping = sm.create_platoon_manager(map_helper=map_helper)
 
@@ -1199,17 +1202,13 @@ def test_create_platoon_manager_multiple_platoons_combines_mapping_without_ticki
 
     vm1 = Mock()
     vm1.id = "platoon-1"
-    vm1.vehicle = actor1
     vm2 = Mock()
     vm2.id = "platoon-2"
-    vm2.vehicle = actor2
     vm3 = Mock()
     vm3.id = "platoon-3"
-    vm3.vehicle = actor3
     vm4 = Mock()
     vm4.id = "platoon-4"
-    vm4.vehicle = actor4
-    vehicle_manager_ctor = mocker.patch("opencda.scenario_testing.utils.sim_api.VehicleManager", side_effect=[vm1, vm2, vm3, vm4])
+    vehicle_manager_ctor = mocker.patch("opencda.scenario_testing.utils.sim_api.AgentManager.create", side_effect=[vm1, vm2, vm3, vm4])
 
     platoons, mapping = sm.create_platoon_manager(map_helper=None)
 
@@ -1226,8 +1225,9 @@ def test_create_platoon_manager_multiple_platoons_combines_mapping_without_ticki
     assert spawn_custom_actor.call_count == 4
     assert vehicle_manager_ctor.call_count == 4
     for call_ in vehicle_manager_ctor.call_args_list:
-        assert call_.args[2] == ["platoon"]
-        assert call_.kwargs["prefix"] == "platoon"
+        assert call_.kwargs["application"] == ["platoon"]
+        assert call_.kwargs["agent_type"] == "cav"
+        assert call_.kwargs["id_prefix"] == "platoon"
         assert call_.kwargs["perception_requirements"].enable_data_dump is False
         assert call_.kwargs["current_time"] == "t0"
 
@@ -1459,7 +1459,7 @@ def test_create_platoon_manager_spawn_position_is_converted_to_transform(mocker,
 
     vm1 = Mock(id="platoon-1", vehicle=actor1)
     vm2 = Mock(id="platoon-2", vehicle=actor2)
-    mocker.patch("opencda.scenario_testing.utils.sim_api.VehicleManager", side_effect=[vm1, vm2])
+    mocker.patch("opencda.scenario_testing.utils.sim_api.AgentManager.create", side_effect=[vm1, vm2])
 
     sm.create_platoon_manager(map_helper=None)
 
@@ -1470,8 +1470,8 @@ def test_create_platoon_manager_spawn_position_is_converted_to_transform(mocker,
     assert spawn_custom_actor.call_args_list[1].args[0] == expected_t2
 
 
-def test_create_rsu_manager_single_rsu(mocker, minimal_rsu_config):
-    """create_rsu_manager creates one RSU when scenario has one entry and returns correct carla-id mapping."""
+def test_create_rsu_agents_single_rsu(mocker, minimal_rsu_config):
+    """create_rsu_agents creates one RSU when scenario has one entry and returns correct carla-id mapping."""
     from test import mocked_carla as carla
 
     params = _minimal_scenario_params()
@@ -1491,9 +1491,9 @@ def test_create_rsu_manager_single_rsu(mocker, minimal_rsu_config):
 
     rsu_mgr = Mock()
     rsu_mgr.id = "rsu-3"
-    rsu_ctor = mocker.patch("opencda.scenario_testing.utils.sim_api.RSUManager", return_value=rsu_mgr)
+    rsu_ctor = mocker.patch("opencda.scenario_testing.utils.sim_api.AgentManager.create", return_value=rsu_mgr)
 
-    rsu_list, rsu_ids = sm.create_rsu_manager()
+    rsu_list, rsu_ids = sm.create_rsu_agents()
 
     assert rsu_list == [rsu_mgr]
     assert rsu_ids == {999: "rsu-3"}
@@ -1507,10 +1507,12 @@ def test_create_rsu_manager_single_rsu(mocker, minimal_rsu_config):
     world.spawn_actor.assert_called_once_with(static_bp, expected_transform)
 
     rsu_ctor.assert_called_once()
-    assert rsu_ctor.call_args.args[0] is actor
-    assert rsu_ctor.call_args.args[2] is sm.carla_map
-    assert rsu_ctor.call_args.args[3] is sm.cav_world
-    assert rsu_ctor.call_args.args[4] == "t0"
+    assert rsu_ctor.call_args.args == ()
+    assert rsu_ctor.call_args.kwargs["actor"] is actor
+    assert rsu_ctor.call_args.kwargs["carla_map"] is sm.carla_map
+    assert rsu_ctor.call_args.kwargs["cav_world"] is sm.cav_world
+    assert rsu_ctor.call_args.kwargs["agent_type"] == "rsu"
+    assert rsu_ctor.call_args.kwargs["current_time"] == "t0"
     assert rsu_ctor.call_args.kwargs["perception_requirements"].enable_data_dump is False
 
 
