@@ -132,7 +132,10 @@ class EvaluationManager(object):
         report_builder = UniversalReportBuilder()
         localization_reports: list[EntityReport] = []
         for _, vm in self.cav_world.get_vehicle_managers().items():
-            raw_data = vm.localizer.metrics_collector.get_raw()
+            metrics_collector = getattr(vm.localizer, "metrics_collector", None)
+            if metrics_collector is None:
+                continue
+            raw_data = metrics_collector.get_raw()
             localization_reports.append(report_builder.build_entity_report(raw_data))
 
         return report_builder.build_module_report("localization", localization_reports)
