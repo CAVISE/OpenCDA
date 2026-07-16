@@ -65,6 +65,7 @@ class AgentManager:
         autogenerate_id_on_failure: bool = True,
         id_prefix: str | None = None,
         sensor_actors: SensorActorBundle | None = None,
+        autopilot_already_enabled: bool = False,
     ) -> AgentManager:
         """Create either a CAV or RSU through the same construction path."""
         resolved_type = AgentType(agent_type)
@@ -117,13 +118,17 @@ class AgentManager:
         if platooning_behavior_agent is not None:
             platooning_behavior_agent.bind_agent_manager(manager)
 
+        if autopilot_already_enabled and not agent.use_carla_autopilot:
+            raise ValueError("autopilot_already_enabled requires CARLA autopilot in the agent config.")
+
         if agent.use_carla_autopilot:
             if manager.behavior_services:
                 logger.warning(
                     "Agent %s uses CARLA autopilot; behavior services will not be executed.",
                     manager.id,
                 )
-            agent.vehicle.set_autopilot(True, agent.carla_autopilot_port)
+            if not autopilot_already_enabled:
+                agent.vehicle.set_autopilot(True, agent.carla_autopilot_port)
 
         cav_world.update_agent_manager(manager)
         return manager
@@ -133,6 +138,17 @@ class AgentManager:
         if agent_type is AgentType.RSU:
             return "rsu"
         return id_prefix if id_prefix in {"cav", "platoon"} else "unknown"
+
+    @staticmethod
+    def resolve_carla_autopilot(config_yaml: Mapping[str, Any]) -> tuple[bool, int]:
+        """Return validated CARLA autopilot state and Traffic Manager port."""
+        behavior_config = config_yaml["behavior"]
+        use_carla_autopilot = config_yaml.get("carla_autopilot", behavior_config.get("carla_autopilot", False))
+        if not isinstance(use_carla_autopilot, bool):
+            raise ValueError("Config key 'carla_autopilot' must be a bool.")
+
+        autopilot_port = int(config_yaml.get("carla_autopilot_port", behavior_config.get("carla_autopilot_port", 8000)))
+        return use_carla_autopilot, autopilot_port
 
     @classmethod
     def _allocate_id(
@@ -217,11 +233,7 @@ class AgentManager:
     ) -> tuple[VehicleComponents, PlatooningBehaviorAgent | None]:
         vehicle = cast(carla.Vehicle, actor)
         behavior_config = config_yaml["behavior"]
-        use_carla_autopilot = config_yaml.get("carla_autopilot", behavior_config.get("carla_autopilot", False))
-        if not isinstance(use_carla_autopilot, bool):
-            raise ValueError("Config key 'carla_autopilot' must be a bool.")
-
-        autopilot_port = int(config_yaml.get("carla_autopilot_port", behavior_config.get("carla_autopilot_port", 8000)))
+        use_carla_autopilot, autopilot_port = AgentManager.resolve_carla_autopilot(config_yaml)
         v2x_manager = V2XManager(cav_world, config_yaml["v2x"], agent_id)
         map_manager = MapManager(vehicle, carla_map, config_yaml["map_manager"])
         if sensor_actors is not None and sensor_actors.collision is None:

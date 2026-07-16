@@ -191,8 +191,10 @@ class SpawnActor:
         self.blueprint = blueprint
         self.transform = transform
         self.parent = parent
+        self.chained_command = None
 
     def then(self, cmd):
+        self.chained_command = cmd
         return self
 
 
@@ -207,9 +209,17 @@ class DestroyActor:
         self.actor_id = actor_id
 
 
+class SetAutopilot:
+    def __init__(self, actor, enabled: bool, port: int):
+        self.actor = actor
+        self.enabled = enabled
+        self.port = port
+
+
 command_stub.SpawnActor = SpawnActor
 command_stub.DestroyActor = DestroyActor
 command_stub.SetSimulatePhysics = SetSimulatePhysics
+command_stub.SetAutopilot = SetAutopilot
 command_stub.FutureActor = object()
 carla_stub.command = command_stub
 
