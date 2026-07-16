@@ -51,10 +51,16 @@ class AgentSpawnSpec:
     blueprint: carla.ActorBlueprint
     transform: carla.Transform
     application: tuple[str, ...] = ()
+    autopilot_port: int | None = None
 
     def __post_init__(self) -> None:
         if self.source_index < 0:
             raise ValueError("source_index must be non-negative.")
+        if self.autopilot_port is not None:
+            if self.agent_type is not AgentType.CAV:
+                raise ValueError("Only CAV spawn specs can enable CARLA autopilot.")
+            if self.autopilot_port <= 0:
+                raise ValueError("autopilot_port must be positive.")
 
 
 def _chunked[T](items: Sequence[T], chunk_size: int) -> list[Sequence[T]]:
@@ -302,7 +308,18 @@ class ScenarioManager:
         actor_ids: list[int] = []
         try:
             for spec_batch in _chunked(spawn_specs, batch_size):
-                commands = [carla.command.SpawnActor(spec.blueprint, spec.transform) for spec in spec_batch]
+                commands = []
+                for spec in spec_batch:
+                    command = carla.command.SpawnActor(spec.blueprint, spec.transform)
+                    if spec.autopilot_port is not None:
+                        command = command.then(
+                            carla.command.SetAutopilot(
+                                carla.command.FutureActor,
+                                True,
+                                spec.autopilot_port,
+                            )
+                        )
+                    commands.append(command)
                 responses = list(self.client.apply_batch_sync(commands, False))
 
                 batch_actor_ids, failures = self._parse_spawn_responses(spec_batch, responses)
@@ -605,6 +622,7 @@ class ScenarioManager:
             else:
                 spawn_transform = cast(MapHelper, map_helper)(self.carla_version, *cav_config["spawn_special"])
 
+            use_carla_autopilot, autopilot_port = AgentManager.resolve_carla_autopilot(cav_config)
             spawn_specs.append(
                 AgentSpawnSpec(
                     source_index=i,
@@ -613,6 +631,7 @@ class ScenarioManager:
                     blueprint=self.prepare_actor_blueprint(cav_config, fallback_model, blueprint_library),
                     transform=spawn_transform,
                     application=agent_application,
+                    autopilot_port=autopilot_port if use_carla_autopilot else None,
                 )
             )
 
@@ -639,6 +658,7 @@ class ScenarioManager:
                     perception_requirements=perception_requirements,
                     id_prefix="cav",
                     sensor_actors=sensor_bundle,
+                    autopilot_already_enabled=spawn_spec.autopilot_port is not None,
                 )
             except Exception:
                 self._rollback_uninitialized_agents(vehicles, sensor_bundles, actor_index)
@@ -647,7 +667,6 @@ class ScenarioManager:
             cav_carla_list[vehicle.id] = agent_manager.id
 
             agent_manager.agent.v2x_manager.set_platoon(None)
-            agent_manager.agent.update()
             if agent_manager.agent.use_carla_autopilot:
                 if "destination" in spawn_spec.config:
                     logger.info("CAV %s is using CARLA autopilot; configured destination is ignored.", agent_manager.id)

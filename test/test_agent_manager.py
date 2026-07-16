@@ -160,7 +160,13 @@ def test_create_cav_builds_vehicle_agent_through_common_factory(mocker, minimal_
     mocker.patch("opencda.core.common.agent_manager.BehaviorAgent", return_value=behavior_agent)
     mocker.patch("opencda.core.common.agent_manager.ControlManager", return_value=controller)
 
-    config = {**minimal_vehicle_config, "id": 7, "behavior_services": []}
+    config = {
+        **minimal_vehicle_config,
+        "id": 7,
+        "behavior_services": [],
+        "carla_autopilot": True,
+        "carla_autopilot_port": 8123,
+    }
     manager = AgentManager.create(
         actor=actor,
         config_yaml=config,
@@ -170,6 +176,7 @@ def test_create_cav_builds_vehicle_agent_through_common_factory(mocker, minimal_
         application=["single"],
         id_prefix="cav",
         sensor_actors=sensor_actors,
+        autopilot_already_enabled=True,
     )
 
     assert manager.id == "cav-7"
@@ -186,6 +193,7 @@ def test_create_cav_builds_vehicle_agent_through_common_factory(mocker, minimal_
     assert perception_factory.call_args.kwargs["vehicle"] is actor
     assert perception_factory.call_args.kwargs["sensor_actors"] is sensor_actors
     assert safety_factory.call_args.kwargs["collision_sensor_actor"] is collision_sensor_actor
+    actor.set_autopilot.assert_not_called()
     mock_cav_world.update_agent_manager.assert_called_once_with(manager)
 
 
