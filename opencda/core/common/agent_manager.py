@@ -25,6 +25,7 @@ from opencda.core.plan.behavior_agent import BehaviorAgent
 from opencda.core.safety.safety_manager import SafetyManager
 from opencda.core.sensing.localization import create_localizer
 from opencda.core.sensing.perception.perception_manager import PerceptionManager, PerceptionRequirements
+from opencda.core.sensing.sensor_types import SensorActorBundle
 
 logger = logging.getLogger("cavise.opencda.opencda.core.common.agent_manager")
 
@@ -63,6 +64,7 @@ class AgentManager:
         perception_requirements: PerceptionRequirements | None = None,
         autogenerate_id_on_failure: bool = True,
         id_prefix: str | None = None,
+        sensor_actors: SensorActorBundle | None = None,
     ) -> AgentManager:
         """Create either a CAV or RSU through the same construction path."""
         resolved_type = AgentType(agent_type)
@@ -71,12 +73,10 @@ class AgentManager:
         requirements = perception_requirements or PerceptionRequirements()
         sensing_config = config_yaml["sensing"]
 
-        localizer = create_localizer(
-            actor,
-            sensing_config["localization"],
-            carla_map,
-            use_imu=resolved_type is AgentType.CAV,
-        )
+        localizer_kwargs: dict[str, Any] = {"use_imu": resolved_type is AgentType.CAV}
+        if sensor_actors is not None:
+            localizer_kwargs["sensor_actors"] = sensor_actors
+        localizer = create_localizer(actor, sensing_config["localization"], carla_map, **localizer_kwargs)
         perception_manager = cls._create_perception_manager(
             actor,
             resolved_type,
@@ -85,6 +85,7 @@ class AgentManager:
             cav_world,
             agent_id,
             requirements,
+            sensor_actors,
         )
         data_dumper = DataDumper(perception_manager, agent_id, save_time=current_time) if requirements.enable_data_dump else None
 
@@ -98,6 +99,7 @@ class AgentManager:
                 carla_map,
                 cav_world,
                 agent_id,
+                sensor_actors,
             )
 
         agent = Agent(
@@ -182,10 +184,17 @@ class AgentManager:
         cav_world: Any,
         agent_id: str,
         requirements: PerceptionRequirements,
+        sensor_actors: SensorActorBundle | None,
     ) -> PerceptionManager:
         config = dict(perception_config)
         if agent_type is AgentType.RSU:
             config["global_position"] = config_yaml["spawn_position"]
+
+        perception_kwargs: dict[str, Any] = {}
+        if agent_type is AgentType.RSU:
+            perception_kwargs["carla_world"] = actor.get_world()
+        if sensor_actors is not None:
+            perception_kwargs["sensor_actors"] = sensor_actors
 
         return PerceptionManager(
             vehicle=cast(carla.Vehicle, actor) if agent_type is AgentType.CAV else None,
@@ -193,7 +202,7 @@ class AgentManager:
             cav_world=cav_world,
             infra_id=agent_id,
             perception_requirements=requirements,
-            **({"carla_world": actor.get_world()} if agent_type is AgentType.RSU else {}),
+            **perception_kwargs,
         )
 
     @staticmethod
@@ -204,6 +213,7 @@ class AgentManager:
         carla_map: carla.Map,
         cav_world: Any,
         agent_id: str,
+        sensor_actors: SensorActorBundle | None,
     ) -> tuple[VehicleComponents, PlatooningBehaviorAgent | None]:
         vehicle = cast(carla.Vehicle, actor)
         behavior_config = config_yaml["behavior"]
@@ -214,7 +224,10 @@ class AgentManager:
         autopilot_port = int(config_yaml.get("carla_autopilot_port", behavior_config.get("carla_autopilot_port", 8000)))
         v2x_manager = V2XManager(cav_world, config_yaml["v2x"], agent_id)
         map_manager = MapManager(vehicle, carla_map, config_yaml["map_manager"])
-        safety_manager = SafetyManager(vehicle=vehicle, params=config_yaml["safety_manager"])
+        if sensor_actors is not None and sensor_actors.collision is None:
+            raise ValueError("CAV initialization requires a collision sensor actor.")
+        safety_kwargs = {"collision_sensor_actor": sensor_actors.collision} if sensor_actors is not None else {}
+        safety_manager = SafetyManager(vehicle=vehicle, params=config_yaml["safety_manager"], **safety_kwargs)
 
         platooning_behavior_agent = None
         if "platoon" in application:

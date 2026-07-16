@@ -28,7 +28,9 @@ from opencda.core.application.platooning.platooning_manager import PlatooningMan
 from opencda.core.common.agent import AgentType
 from opencda.core.common.agent_manager import AgentManager
 from opencda.core.common.cav_world import CavWorld
+from opencda.core.sensing.sensor_factory import build_sensor_actor_bundles, prepare_sensor_spawn_specs
 from opencda.core.sensing.perception.perception_manager import PerceptionRequirements
+from opencda.core.sensing.sensor_types import AgentSensorContext, SensorActorBundle, SensorSpawnSpec
 from opencda.scenario_testing.utils.customized_map_api import load_customized_world, bcolors
 
 logger = logging.getLogger("cavise.opencda.opencda.scenario_testing.utils.sim_api")
@@ -362,6 +364,111 @@ class ScenarioManager:
                 if error:
                     logger.error("Failed to roll back CARLA actor %s: %s", actor_id, error)
 
+    def spawn_agent_sensors_batch(
+        self,
+        agent_specs: Sequence[AgentSpawnSpec],
+        agent_actors: Sequence[carla.Actor],
+        perception_requirements: PerceptionRequirements,
+        batch_size: int = DEFAULT_AGENT_SPAWN_BATCH_SIZE,
+    ) -> list[SensorActorBundle]:
+        """Prepare, spawn, and group sensors for a batch of agent actors."""
+        if len(agent_specs) != len(agent_actors):
+            raise ValueError("Agent spec and actor counts must match.")
+
+        contexts = [
+            AgentSensorContext(
+                agent_index=index,
+                agent_type=spec.agent_type,
+                actor=actor,
+                config=spec.config,
+            )
+            for index, (spec, actor) in enumerate(zip(agent_specs, agent_actors, strict=True))
+        ]
+        sensor_specs = prepare_sensor_spawn_specs(
+            contexts,
+            self.world.get_blueprint_library(),
+            perception_requirements,
+        )
+        sensor_actors = self._spawn_sensor_actors_batch(sensor_specs, batch_size)
+        try:
+            return build_sensor_actor_bundles(len(agent_specs), sensor_specs, sensor_actors)
+        except Exception:
+            self._rollback_spawned_actors([actor.id for actor in sensor_actors], batch_size)
+            raise
+
+    def _spawn_sensor_actors_batch(
+        self,
+        spawn_specs: Sequence[SensorSpawnSpec],
+        batch_size: int,
+    ) -> list[carla.Actor]:
+        if isinstance(batch_size, bool) or not isinstance(batch_size, int) or batch_size <= 0:
+            raise ValueError("batch_size must be a positive integer.")
+        if not spawn_specs:
+            return []
+
+        actor_ids: list[int] = []
+        try:
+            for spec_batch in _chunked(spawn_specs, batch_size):
+                commands = [
+                    carla.command.SpawnActor(spec.blueprint, spec.transform, spec.parent_actor_id)
+                    if spec.parent_actor_id is not None
+                    else carla.command.SpawnActor(spec.blueprint, spec.transform)
+                    for spec in spec_batch
+                ]
+                responses = list(self.client.apply_batch_sync(commands, False))
+                batch_actor_ids, failures = self._parse_sensor_spawn_responses(spec_batch, responses)
+                actor_ids.extend(batch_actor_ids)
+                if failures:
+                    raise RuntimeError("CARLA sensor batch spawn failed: " + "; ".join(failures))
+
+            actors = list(self.world.get_actors(actor_ids))
+            actors_by_id = {actor.id: actor for actor in actors}
+            missing_actor_ids = [actor_id for actor_id in actor_ids if actor_id not in actors_by_id]
+            if missing_actor_ids:
+                raise RuntimeError(f"CARLA did not return spawned sensor actors with IDs: {missing_actor_ids}.")
+            return [actors_by_id[actor_id] for actor_id in actor_ids]
+        except Exception:
+            self._rollback_spawned_actors(actor_ids, batch_size)
+            raise
+
+    @staticmethod
+    def _parse_sensor_spawn_responses(
+        spawn_specs: Sequence[SensorSpawnSpec],
+        responses: Sequence[Any],
+    ) -> tuple[list[int], list[str]]:
+        actor_ids: list[int] = []
+        failures: list[str] = []
+        if len(responses) != len(spawn_specs):
+            failures.append(f"expected {len(spawn_specs)} responses, received {len(responses)}")
+
+        for response_index, response in enumerate(responses):
+            label = spawn_specs[response_index].label if response_index < len(spawn_specs) else f"unexpected response {response_index}"
+            error = getattr(response, "error", None)
+            actor_id = getattr(response, "actor_id", None)
+            if error:
+                failures.append(f"{label}: {error}")
+            elif not isinstance(actor_id, int) or isinstance(actor_id, bool) or actor_id <= 0:
+                failures.append(f"{label}: invalid actor_id {actor_id!r}")
+            else:
+                actor_ids.append(actor_id)
+
+        for spec in spawn_specs[len(responses) :]:
+            failures.append(f"{spec.label}: missing response")
+        return actor_ids, failures
+
+    def _rollback_uninitialized_agents(
+        self,
+        agent_actors: Sequence[carla.Actor],
+        sensor_bundles: Sequence[SensorActorBundle],
+        start_index: int,
+    ) -> None:
+        sensor_actor_ids = [actor_id for bundle in sensor_bundles[start_index:] for actor_id in bundle.actor_ids()]
+        self._rollback_spawned_actors(sensor_actor_ids, DEFAULT_AGENT_SPAWN_BATCH_SIZE)
+        self._rollback_spawned_actors(
+            [actor.id for actor in agent_actors[start_index:]],
+            DEFAULT_AGENT_SPAWN_BATCH_SIZE,
+        )
+
     @staticmethod
     def set_weather(weather_settings: Mapping[str, float]) -> carla.WeatherParameters:
         """
@@ -510,18 +617,32 @@ class ScenarioManager:
             )
 
         vehicles = self.spawn_agent_actors_batch(spawn_specs)
-        for spawn_spec, vehicle in zip(spawn_specs, vehicles, strict=True):
-            agent_manager = AgentManager.create(
-                actor=vehicle,
-                config_yaml=spawn_spec.config,
-                carla_map=self.carla_map,
-                cav_world=self.cav_world,
-                agent_type=spawn_spec.agent_type,
-                application=spawn_spec.application,
-                current_time=self.scenario_params["current_time"],
-                perception_requirements=perception_requirements,
-                id_prefix="cav",
+        try:
+            sensor_bundles = self.spawn_agent_sensors_batch(spawn_specs, vehicles, perception_requirements)
+        except Exception:
+            self._rollback_spawned_actors(
+                [vehicle.id for vehicle in vehicles],
+                DEFAULT_AGENT_SPAWN_BATCH_SIZE,
             )
+            raise
+
+        for actor_index, (spawn_spec, vehicle, sensor_bundle) in enumerate(zip(spawn_specs, vehicles, sensor_bundles, strict=True)):
+            try:
+                agent_manager = AgentManager.create(
+                    actor=vehicle,
+                    config_yaml=spawn_spec.config,
+                    carla_map=self.carla_map,
+                    cav_world=self.cav_world,
+                    agent_type=spawn_spec.agent_type,
+                    application=spawn_spec.application,
+                    current_time=self.scenario_params["current_time"],
+                    perception_requirements=perception_requirements,
+                    id_prefix="cav",
+                    sensor_actors=sensor_bundle,
+                )
+            except Exception:
+                self._rollback_uninitialized_agents(vehicles, sensor_bundles, actor_index)
+                raise
 
             cav_carla_list[vehicle.id] = agent_manager.id
 
@@ -743,7 +864,16 @@ class ScenarioManager:
             )
 
         actors = self.spawn_agent_actors_batch(spawn_specs)
-        for actor_index, (spawn_spec, actor) in enumerate(zip(spawn_specs, actors, strict=True)):
+        try:
+            sensor_bundles = self.spawn_agent_sensors_batch(spawn_specs, actors, perception_requirements)
+        except Exception:
+            self._rollback_spawned_actors(
+                [actor.id for actor in actors],
+                DEFAULT_AGENT_SPAWN_BATCH_SIZE,
+            )
+            raise
+
+        for actor_index, (spawn_spec, actor, sensor_bundle) in enumerate(zip(spawn_specs, actors, sensor_bundles, strict=True)):
             try:
                 agent_manager = AgentManager.create(
                     actor=actor,
@@ -753,12 +883,10 @@ class ScenarioManager:
                     agent_type=spawn_spec.agent_type,
                     current_time=self.scenario_params["current_time"],
                     perception_requirements=perception_requirements,
+                    sensor_actors=sensor_bundle,
                 )
             except Exception:
-                self._rollback_spawned_actors(
-                    [remaining_actor.id for remaining_actor in actors[actor_index:]],
-                    DEFAULT_AGENT_SPAWN_BATCH_SIZE,
-                )
+                self._rollback_uninitialized_agents(actors, sensor_bundles, actor_index)
                 raise
 
             rsu_carla_ids[actor.id] = agent_manager.id

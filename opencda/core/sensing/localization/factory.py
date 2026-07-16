@@ -10,6 +10,7 @@ from opencda.core.sensing.localization.gt_localizer import GTLocalizer
 from opencda.core.sensing.localization.kalman_filter import KalmanFilter
 from opencda.core.sensing.localization.protocol import Localizer
 from opencda.core.sensing.localization.sensor_localizer import SensorLocalizer
+from opencda.core.sensing.sensor_types import SensorActorBundle
 
 
 def create_localizer(
@@ -18,13 +19,26 @@ def create_localizer(
     carla_map: carla.Map,
     *,
     use_imu: bool,
+    sensor_actors: SensorActorBundle | None = None,
 ) -> Localizer:
     """Create a localization provider for a CARLA actor."""
-    provider = _resolve_provider(config)
+    provider = resolve_localization_provider(config)
     if provider == "gt":
         return GTLocalizer(actor)
 
     estimator = _create_estimator(config) if use_imu else None
+    if sensor_actors is not None:
+        if sensor_actors.gnss is None:
+            raise ValueError("Sensor localization requires a GNSS actor.")
+        if use_imu and sensor_actors.imu is None:
+            raise ValueError("CAV sensor localization requires an IMU actor.")
+        return SensorLocalizer.for_sensor_actors(
+            carla_map=carla_map,
+            gnss_actor=sensor_actors.gnss,
+            imu_actor=sensor_actors.imu if use_imu else None,
+            estimator=estimator,
+        )
+
     return SensorLocalizer.for_actor(
         actor=actor,
         config=config,
@@ -34,7 +48,7 @@ def create_localizer(
     )
 
 
-def _resolve_provider(config: Mapping[str, Any]) -> str:
+def resolve_localization_provider(config: Mapping[str, Any]) -> str:
     provider = config.get("provider")
     if provider is None:
         activate = config.get("activate")

@@ -19,6 +19,7 @@ from opencda.core.common.misc import cal_distance_angle, get_speed, get_speed_su
 from opencda.core.sensing.perception.obstacle_vehicle import ObstacleVehicle
 from opencda.core.sensing.perception.static_obstacle import TrafficLight
 from opencda.core.sensing.perception.o3d_lidar_libs import o3d_visualizer_init, o3d_pointcloud_encode, o3d_visualizer_show, o3d_camera_lidar_fusion
+from opencda.core.sensing.sensor_types import SensorActorBundle
 
 logger = logging.getLogger("cavise.opencda.opencda.core.sensing.perception.perception_manager")
 
@@ -122,16 +123,29 @@ class CameraSensor(FrameSynchronizedSensor):
         if vehicle is not None:
             world = vehicle.get_world()
 
-        blueprint = world.get_blueprint_library().find("sensor.camera.rgb")
-        blueprint.set_attribute("fov", "100")
-
+        blueprint = self.prepare_blueprint(world.get_blueprint_library())
         spawn_point = self.spawn_point_estimation(relative_position, global_position)
 
         if vehicle is not None:
-            self.sensor = world.spawn_actor(blueprint, spawn_point, attach_to=vehicle)
+            sensor = world.spawn_actor(blueprint, spawn_point, attach_to=vehicle)
         else:
-            self.sensor = world.spawn_actor(blueprint, spawn_point)
+            sensor = world.spawn_actor(blueprint, spawn_point)
+        self._bind_sensor(sensor)
 
+    @staticmethod
+    def prepare_blueprint(blueprint_library):
+        blueprint = blueprint_library.find("sensor.camera.rgb")
+        blueprint.set_attribute("fov", "100")
+        return blueprint
+
+    @classmethod
+    def from_sensor_actor(cls, sensor):
+        instance = cls.__new__(cls)
+        instance._bind_sensor(sensor)
+        return instance
+
+    def _bind_sensor(self, sensor):
+        self.sensor = sensor
         self._init_frame_sync()
         self.image = None
         self.timstamp = None  # noqa: DC05
@@ -220,9 +234,17 @@ class LidarSensor(FrameSynchronizedSensor):
     def __init__(self, vehicle, world, config_yaml, global_position):
         if vehicle is not None:
             world = vehicle.get_world()
-        blueprint = world.get_blueprint_library().find("sensor.lidar.ray_cast")
+        blueprint = self.prepare_blueprint(world.get_blueprint_library(), config_yaml)
+        spawn_point = self.spawn_point_estimation(global_position)
+        if vehicle is not None:
+            sensor = world.spawn_actor(blueprint, spawn_point, attach_to=vehicle)
+        else:
+            sensor = world.spawn_actor(blueprint, spawn_point)
+        self._bind_sensor(sensor)
 
-        # set attribute based on the configuration
+    @staticmethod
+    def prepare_blueprint(blueprint_library, config_yaml):
+        blueprint = blueprint_library.find("sensor.lidar.ray_cast")
         blueprint.set_attribute("upper_fov", str(config_yaml["upper_fov"]))
         blueprint.set_attribute("lower_fov", str(config_yaml["lower_fov"]))
         blueprint.set_attribute("channels", str(config_yaml["channels"]))
@@ -233,17 +255,22 @@ class LidarSensor(FrameSynchronizedSensor):
         blueprint.set_attribute("dropoff_intensity_limit", str(config_yaml["dropoff_intensity_limit"]))
         blueprint.set_attribute("dropoff_zero_intensity", str(config_yaml["dropoff_zero_intensity"]))
         blueprint.set_attribute("noise_stddev", str(config_yaml["noise_stddev"]))
+        return blueprint
 
-        # spawn sensor
+    @staticmethod
+    def spawn_point_estimation(global_position):
         if global_position is None:
-            spawn_point = carla.Transform(carla.Location(x=-0.5, z=1.9))
-        else:
-            spawn_point = carla.Transform(carla.Location(x=global_position[0], y=global_position[1], z=global_position[2]))
-        if vehicle is not None:
-            self.sensor = world.spawn_actor(blueprint, spawn_point, attach_to=vehicle)
-        else:
-            self.sensor = world.spawn_actor(blueprint, spawn_point)
+            return carla.Transform(carla.Location(x=-0.5, z=1.9))
+        return carla.Transform(carla.Location(x=global_position[0], y=global_position[1], z=global_position[2]))
 
+    @classmethod
+    def from_sensor_actor(cls, sensor):
+        instance = cls.__new__(cls)
+        instance._bind_sensor(sensor)
+        return instance
+
+    def _bind_sensor(self, sensor):
+        self.sensor = sensor
         self._init_frame_sync()
         # lidar data
         self.data = None
@@ -317,27 +344,40 @@ class SemanticLidarSensor(FrameSynchronizedSensor):
         if vehicle is not None:
             world = vehicle.get_world()
 
-        blueprint = world.get_blueprint_library().find("sensor.lidar.ray_cast_semantic")
+        blueprint = self.prepare_blueprint(world.get_blueprint_library(), config_yaml)
+        spawn_point = self.spawn_point_estimation(global_position)
 
-        # set attribute based on the configuration
+        if vehicle is not None:
+            sensor = world.spawn_actor(blueprint, spawn_point, attach_to=vehicle)
+        else:
+            sensor = world.spawn_actor(blueprint, spawn_point)
+        self._bind_sensor(sensor)
+
+    @staticmethod
+    def prepare_blueprint(blueprint_library, config_yaml):
+        blueprint = blueprint_library.find("sensor.lidar.ray_cast_semantic")
         blueprint.set_attribute("upper_fov", str(config_yaml["upper_fov"]))
         blueprint.set_attribute("lower_fov", str(config_yaml["lower_fov"]))
         blueprint.set_attribute("channels", str(config_yaml["channels"]))
         blueprint.set_attribute("range", str(config_yaml["range"]))
         blueprint.set_attribute("points_per_second", str(config_yaml["points_per_second"]))
         blueprint.set_attribute("rotation_frequency", str(config_yaml["rotation_frequency"]))
+        return blueprint
 
-        # spawn sensor
+    @staticmethod
+    def spawn_point_estimation(global_position):
         if global_position is None:
-            spawn_point = carla.Transform(carla.Location(x=-0.5, z=1.9))
-        else:
-            spawn_point = carla.Transform(carla.Location(x=global_position[0], y=global_position[1], z=global_position[2]))
+            return carla.Transform(carla.Location(x=-0.5, z=1.9))
+        return carla.Transform(carla.Location(x=global_position[0], y=global_position[1], z=global_position[2]))
 
-        if vehicle is not None:
-            self.sensor = world.spawn_actor(blueprint, spawn_point, attach_to=vehicle)
-        else:
-            self.sensor = world.spawn_actor(blueprint, spawn_point)
+    @classmethod
+    def from_sensor_actor(cls, sensor):
+        instance = cls.__new__(cls)
+        instance._bind_sensor(sensor)
+        return instance
 
+    def _bind_sensor(self, sensor):
+        self.sensor = sensor
         self._init_frame_sync()
         # lidar data
         self.points = None
@@ -430,6 +470,7 @@ class PerceptionManager:
         infra_id,
         perception_requirements: PerceptionRequirements = PerceptionRequirements(),
         carla_world=None,
+        sensor_actors: SensorActorBundle | None = None,
     ):
         self.vehicle = vehicle
         self.carla_world = carla_world if carla_world is not None else self.vehicle.get_world()
@@ -465,12 +506,14 @@ class PerceptionManager:
         # we only spawn the camera when perception module is activated or
         # camera visualization is needed
         if self.activate or self.camera_visualize or self.perception_requirements.force_rgb_camera:
-            self.rgb_camera = []
             mount_position = config_yaml["camera"]["positions"]
             assert len(mount_position) == self.camera_num, "The camera number has to be the same as the length of the relative positions list"
-
-            for i in range(self.camera_num):
-                self.rgb_camera.append(CameraSensor(vehicle, self.carla_world, mount_position[i], self.global_position))
+            if sensor_actors is not None:
+                if len(sensor_actors.cameras) != self.camera_num:
+                    raise ValueError(f"Expected {self.camera_num} camera actors, received {len(sensor_actors.cameras)}.")
+                self.rgb_camera = [CameraSensor.from_sensor_actor(sensor) for sensor in sensor_actors.cameras]
+            else:
+                self.rgb_camera = [CameraSensor(vehicle, self.carla_world, mount_position[i], self.global_position) for i in range(self.camera_num)]
 
         else:
             self.rgb_camera = None
@@ -484,7 +527,12 @@ class PerceptionManager:
         self.o3d_vis = None
 
         if self.lidar_visualize or self.activate or self.perception_requirements.force_lidar:
-            self.lidar = LidarSensor(vehicle, self.carla_world, config_yaml["lidar"], self.global_position)
+            if sensor_actors is not None:
+                if sensor_actors.lidar is None:
+                    raise ValueError("Perception configuration requires a LiDAR actor.")
+                self.lidar = LidarSensor.from_sensor_actor(sensor_actors.lidar)
+            else:
+                self.lidar = LidarSensor(vehicle, self.carla_world, config_yaml["lidar"], self.global_position)
             if self.lidar_visualize:
                 self.o3d_vis = o3d_visualizer_init(self.id)
             elif not self.lidar_visualize:
@@ -497,7 +545,12 @@ class PerceptionManager:
         self.data_dump = self.perception_requirements.enable_data_dump
         self.semantic_lidar = None
         if self.perception_requirements.force_semantic_lidar:
-            self.semantic_lidar = SemanticLidarSensor(vehicle, self.carla_world, config_yaml["lidar"], self.global_position)
+            if sensor_actors is not None:
+                if sensor_actors.semantic_lidar is None:
+                    raise ValueError("Perception requirements need a semantic LiDAR actor.")
+                self.semantic_lidar = SemanticLidarSensor.from_sensor_actor(sensor_actors.semantic_lidar)
+            else:
+                self.semantic_lidar = SemanticLidarSensor(vehicle, self.carla_world, config_yaml["lidar"], self.global_position)
 
         # count how many steps have been passed
         self.count = 0
