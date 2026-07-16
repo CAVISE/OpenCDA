@@ -107,27 +107,31 @@ class MapManager(object):
 
         self.raster_radius = float(np.linalg.norm(self.raster_size * np.array([self.meter_per_pixel, self.meter_per_pixel]))) / 2
 
-        # list of all start waypoints in HD Map
-        topology = [x[0] for x in carla_map.get_topology()]
-        # sort by altitude
-        self.topology = sorted(topology, key=lambda w: w.transform.location.z)
-
         # basic elements in HDMap: lane, crosswalk and traffic light
+        self.topology: list[Any] = []
         self.lane_info: dict[str, dict[str, Any]] = {}
         self.crosswalk_info: dict[str, dict[str, Any]] = {}
         self.traffic_light_info: dict[str, dict[str, Any]] = {}
         # this is mainly used for efficient filtering
         self.bound_info: dict[str, dict[str, Any]] = {"lanes": {}, "crosswalks": {}}
 
-        # generate information for traffic light
-        self.generate_tl_info(self.world)
-        # generate lane, crosswalk and boundary information
-        self.generate_lane_cross_info()
-
         # bev maps
         self.dynamic_bev: npt.NDArray[np.uint8] | None = None
         self.static_bev: npt.NDArray[np.uint8] | None = None
         self.vis_bev: npt.NDArray[np.uint8] | None = None
+
+        if not self.actvate:
+            return
+
+        # list of all start waypoints in HD Map
+        topology = [x[0] for x in carla_map.get_topology()]
+        # sort by altitude
+        self.topology = sorted(topology, key=lambda w: w.transform.location.z)
+
+        # generate information for traffic light
+        self.generate_tl_info(self.world)
+        # generate lane, crosswalk and boundary information
+        self.generate_lane_cross_info()
 
     def update_information(self, ego_pose: carla.Transform) -> None:
         """

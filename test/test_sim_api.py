@@ -181,6 +181,34 @@ def test_spawn_agent_actors_batch_preserves_order_and_chunks_requests(mocker):
     world.get_actors.assert_called_once_with([101, 102, 103, 104, 105])
 
 
+def test_spawn_agent_actors_batch_enables_autopilot_in_spawn_command(mocker):
+    import carla
+
+    from opencda.core.common.agent import AgentType
+    from opencda.scenario_testing.utils.sim_api import AgentSpawnSpec
+
+    sm, world, client = _make_scenario_manager(mocker)
+    spawn_spec = AgentSpawnSpec(
+        source_index=0,
+        agent_type=AgentType.CAV,
+        config={"id": 1},
+        blueprint=Mock(name="vehicle-blueprint"),
+        transform=Mock(name="vehicle-transform"),
+        autopilot_port=8123,
+    )
+    actor = SimpleNamespace(id=101)
+    client.apply_batch_sync.return_value = [SimpleNamespace(error=None, actor_id=101)]
+    world.get_actors.return_value = [actor]
+
+    assert sm.spawn_agent_actors_batch([spawn_spec]) == [actor]
+
+    spawn_command = client.apply_batch_sync.call_args.args[0][0]
+    autopilot_command = spawn_command.chained_command
+    assert autopilot_command.actor is carla.command.FutureActor
+    assert autopilot_command.enabled is True
+    assert autopilot_command.port == 8123
+
+
 def test_spawn_agent_actors_batch_rolls_back_all_created_actors_on_spawn_error(mocker):
     sm, world, client = _make_scenario_manager(mocker)
     spawn_specs = _make_agent_spawn_specs(4)
@@ -702,7 +730,7 @@ def test_create_vehicle_agents_single_cav(mocker, minimal_vehicle_config):
     assert ctor_kwargs["sensor_actors"] is sensor_bundle
 
     vm_mock.agent.v2x_manager.set_platoon.assert_called_once_with(None)
-    vm_mock.agent.update.assert_called_once_with()
+    vm_mock.agent.update.assert_not_called()
     vm_mock.agent.set_destination.assert_called_once()
 
     args = vm_mock.agent.set_destination.call_args.args
@@ -849,7 +877,7 @@ def test_create_vehicle_agents_carla_autopilot_does_not_require_destination(mock
     vehicle_actor.set_autopilot = Mock()
 
     mocker.patch.object(sm, "prepare_actor_blueprint", return_value=Mock())
-    mocker.patch.object(sm, "spawn_agent_actors_batch", return_value=[vehicle_actor])
+    spawn_batch = mocker.patch.object(sm, "spawn_agent_actors_batch", return_value=[vehicle_actor])
     mocker.patch.object(sm, "spawn_agent_sensors_batch", return_value=_empty_sensor_bundles(1))
 
     vm_mock = Mock()
@@ -863,14 +891,16 @@ def test_create_vehicle_agents_carla_autopilot_does_not_require_destination(mock
     vm_mock.agent.update = Mock()
     vm_mock.agent.set_destination = Mock()
 
-    mocker.patch("opencda.scenario_testing.utils.sim_api.AgentManager.create", return_value=vm_mock)
+    manager_create = mocker.patch("opencda.scenario_testing.utils.sim_api.AgentManager.create", return_value=vm_mock)
 
     cav_list, cav_carla_list = sm.create_vehicle_agents(application=["single"], map_helper=None)
 
     assert cav_list == [vm_mock]
     assert cav_carla_list == {123: "cav-7"}
-    vm_mock.agent.update.assert_called_once_with()
+    vm_mock.agent.update.assert_not_called()
     vm_mock.agent.set_destination.assert_not_called()
+    assert spawn_batch.call_args.args[0][0].autopilot_port == 8000
+    assert manager_create.call_args.kwargs["autopilot_already_enabled"] is True
     randint.assert_called_once_with(-30, 30)
     tm.auto_lane_change.assert_called_once_with(vehicle_actor, False)
     tm.ignore_lights_percentage.assert_called_once_with(vehicle_actor, 100)
