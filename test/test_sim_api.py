@@ -125,6 +125,41 @@ def _make_agent_spawn_specs(count):
     ]
 
 
+def _empty_sensor_bundles(count):
+    from opencda.core.sensing.sensor_types import SensorActorBundle
+
+    return [SensorActorBundle() for _ in range(count)]
+
+
+def _make_sensor_spawn_specs():
+    from opencda.core.sensing.sensor_types import SensorSpawnSpec, SensorType
+
+    return [
+        SensorSpawnSpec(
+            agent_index=0,
+            sensor_type=SensorType.GNSS,
+            blueprint=Mock(name="gnss-blueprint"),
+            transform=Mock(name="gnss-transform"),
+            parent_actor_id=100,
+        ),
+        SensorSpawnSpec(
+            agent_index=0,
+            sensor_type=SensorType.CAMERA,
+            sensor_index=0,
+            blueprint=Mock(name="camera-blueprint"),
+            transform=Mock(name="camera-transform"),
+            parent_actor_id=100,
+        ),
+        SensorSpawnSpec(
+            agent_index=1,
+            sensor_type=SensorType.LIDAR,
+            blueprint=Mock(name="lidar-blueprint"),
+            transform=Mock(name="lidar-transform"),
+            parent_actor_id=None,
+        ),
+    ]
+
+
 def test_spawn_agent_actors_batch_preserves_order_and_chunks_requests(mocker):
     sm, world, client = _make_scenario_manager(mocker)
     spawn_specs = _make_agent_spawn_specs(5)
@@ -229,6 +264,67 @@ def test_spawn_agent_actors_batch_skips_carla_calls_for_empty_input(mocker):
     assert sm.spawn_agent_actors_batch([]) == []
     client.apply_batch_sync.assert_not_called()
     world.get_actors.assert_not_called()
+
+
+def test_spawn_sensor_actors_batch_preserves_order_parent_and_chunks(mocker):
+    sm, world, client = _make_scenario_manager(mocker)
+    spawn_specs = _make_sensor_spawn_specs()
+    actors = {actor_id: SimpleNamespace(id=actor_id) for actor_id in (401, 402, 403)}
+    client.apply_batch_sync.side_effect = [
+        [SimpleNamespace(error=None, actor_id=401), SimpleNamespace(error=None, actor_id=402)],
+        [SimpleNamespace(error=None, actor_id=403)],
+    ]
+    world.get_actors.return_value = [actors[403], actors[401], actors[402]]
+
+    result = sm._spawn_sensor_actors_batch(spawn_specs, batch_size=2)
+
+    assert [actor.id for actor in result] == [401, 402, 403]
+    assert [len(batch_call.args[0]) for batch_call in client.apply_batch_sync.call_args_list] == [2, 1]
+    commands = [command for batch_call in client.apply_batch_sync.call_args_list for command in batch_call.args[0]]
+    assert [command.parent for command in commands] == [100, 100, None]
+    assert all(batch_call.args[1] is False for batch_call in client.apply_batch_sync.call_args_list)
+    world.get_actors.assert_called_once_with([401, 402, 403])
+
+
+def test_spawn_sensor_actors_batch_rolls_back_partial_failure(mocker):
+    sm, world, client = _make_scenario_manager(mocker)
+    spawn_specs = _make_sensor_spawn_specs()
+    rolled_back_ids = []
+
+    def apply_batch_sync(commands, do_tick):
+        assert do_tick is False
+        if commands and hasattr(commands[0], "actor_id"):
+            rolled_back_ids.extend(command.actor_id for command in commands)
+            return [SimpleNamespace(error=None) for _ in commands]
+        return [
+            SimpleNamespace(error=None, actor_id=501),
+            SimpleNamespace(error="sensor spawn failed", actor_id=0),
+            SimpleNamespace(error=None, actor_id=503),
+        ]
+
+    client.apply_batch_sync.side_effect = apply_batch_sync
+
+    with pytest.raises(RuntimeError, match=r"agent 0 camera\[0\]: sensor spawn failed"):
+        sm._spawn_sensor_actors_batch(spawn_specs, batch_size=3)
+
+    assert rolled_back_ids == [501, 503]
+    world.get_actors.assert_not_called()
+
+
+def test_rollback_uninitialized_agents_destroys_sensors_before_parents(mocker):
+    from opencda.core.sensing.sensor_types import SensorActorBundle
+
+    sm, _, _ = _make_scenario_manager(mocker)
+    agent_actors = [Mock(id=701), Mock(id=702)]
+    sensor_bundles = [
+        SensorActorBundle(gnss=Mock(id=801)),
+        SensorActorBundle(gnss=Mock(id=802), cameras=(Mock(id=803),)),
+    ]
+    rollback = mocker.patch.object(sm, "_rollback_spawned_actors")
+
+    sm._rollback_uninitialized_agents(agent_actors, sensor_bundles, start_index=1)
+
+    assert rollback.call_args_list == [call([802, 803], 256), call([702], 256)]
 
 
 @pytest.mark.parametrize("version", ["0.9.14", "0.9.15"])
@@ -559,6 +655,8 @@ def test_create_vehicle_agents_single_cav(mocker, minimal_vehicle_config):
     blueprint = Mock(name="vehicle-blueprint")
     prepare_blueprint = mocker.patch.object(sm, "prepare_actor_blueprint", return_value=blueprint)
     spawn_batch = mocker.patch.object(sm, "spawn_agent_actors_batch", return_value=[vehicle_actor])
+    sensor_bundle = _empty_sensor_bundles(1)[0]
+    mocker.patch.object(sm, "spawn_agent_sensors_batch", return_value=[sensor_bundle])
 
     vm_mock = Mock()
     vm_mock.id = "cav-7"
@@ -601,6 +699,7 @@ def test_create_vehicle_agents_single_cav(mocker, minimal_vehicle_config):
     assert ctor_kwargs["id_prefix"] == "cav"
     assert ctor_kwargs["perception_requirements"].enable_data_dump is False
     assert ctor_kwargs["current_time"] == "t0"
+    assert ctor_kwargs["sensor_actors"] is sensor_bundle
 
     vm_mock.agent.v2x_manager.set_platoon.assert_called_once_with(None)
     vm_mock.agent.update.assert_called_once_with()
@@ -658,6 +757,7 @@ def test_create_vehicle_agents_batches_all_spawns_before_initialization(mocker, 
 
     batch_spawn = mocker.patch.object(sm, "spawn_agent_actors_batch", side_effect=spawn_batch)
     mocker.patch.object(sm, "prepare_actor_blueprint", side_effect=[Mock(), Mock()])
+    mocker.patch.object(sm, "spawn_agent_sensors_batch", return_value=_empty_sensor_bundles(2))
 
     cav_list, cav_carla_list = sm.create_vehicle_agents(application=["single"])
 
@@ -667,6 +767,31 @@ def test_create_vehicle_agents_batches_all_spawns_before_initialization(mocker, 
     assert manager_create.call_count == 2
     assert [call_.kwargs["actor"] for call_ in manager_create.call_args_list] == actors
     assert [call_.kwargs["config_yaml"]["id"] for call_ in manager_create.call_args_list] == [1, 2]
+
+
+def test_create_vehicle_agents_rolls_back_uninitialized_actors(mocker, minimal_vehicle_config):
+    params = _minimal_scenario_params()
+    params["vehicle_base"] = minimal_vehicle_config
+    params["scenario"] = {
+        "single_cav_list": [
+            {"id": 1, "spawn_position": [0, 0, 0, 0, 0, 0], "destination": [10, 0, 0]},
+            {"id": 2, "spawn_position": [5, 0, 0, 0, 0, 0], "destination": [20, 0, 0]},
+        ]
+    }
+    sm, _, _ = _make_scenario_manager(mocker, params)
+
+    actors = [Mock(id=601), Mock(id=602)]
+    sensor_bundles = _empty_sensor_bundles(2)
+    mocker.patch.object(sm, "prepare_actor_blueprint", side_effect=[Mock(), Mock()])
+    mocker.patch.object(sm, "spawn_agent_actors_batch", return_value=actors)
+    mocker.patch.object(sm, "spawn_agent_sensors_batch", return_value=sensor_bundles)
+    mocker.patch("opencda.scenario_testing.utils.sim_api.AgentManager.create", side_effect=RuntimeError("initialization failed"))
+    rollback = mocker.patch.object(sm, "_rollback_uninitialized_agents")
+
+    with pytest.raises(RuntimeError, match="initialization failed"):
+        sm.create_vehicle_agents(application=["single"])
+
+    rollback.assert_called_once_with(actors, sensor_bundles, 0)
 
 
 def test_create_vehicle_agents_carla_autopilot_does_not_require_destination(mocker, minimal_vehicle_config):
@@ -725,6 +850,7 @@ def test_create_vehicle_agents_carla_autopilot_does_not_require_destination(mock
 
     mocker.patch.object(sm, "prepare_actor_blueprint", return_value=Mock())
     mocker.patch.object(sm, "spawn_agent_actors_batch", return_value=[vehicle_actor])
+    mocker.patch.object(sm, "spawn_agent_sensors_batch", return_value=_empty_sensor_bundles(1))
 
     vm_mock = Mock()
     vm_mock.id = "cav-7"
@@ -767,6 +893,7 @@ def test_create_vehicle_agents_requires_destination_without_carla_autopilot(mock
 
     mocker.patch.object(sm, "prepare_actor_blueprint", return_value=Mock())
     mocker.patch.object(sm, "spawn_agent_actors_batch", return_value=[vehicle_actor])
+    mocker.patch.object(sm, "spawn_agent_sensors_batch", return_value=_empty_sensor_bundles(1))
 
     vm_mock = Mock()
     vm_mock.id = "cav-7"
@@ -1672,6 +1799,8 @@ def test_create_rsu_agents_single_rsu(mocker, minimal_rsu_config):
     actor = Mock(spec_set=["id"])
     actor.id = 999
     spawn_batch = mocker.patch.object(sm, "spawn_agent_actors_batch", return_value=[actor])
+    sensor_bundle = _empty_sensor_bundles(1)[0]
+    mocker.patch.object(sm, "spawn_agent_sensors_batch", return_value=[sensor_bundle])
 
     rsu_mgr = Mock()
     rsu_mgr.id = "rsu-3"
@@ -1705,6 +1834,7 @@ def test_create_rsu_agents_single_rsu(mocker, minimal_rsu_config):
     assert rsu_ctor.call_args.kwargs["agent_type"] == "rsu"
     assert rsu_ctor.call_args.kwargs["current_time"] == "t0"
     assert rsu_ctor.call_args.kwargs["perception_requirements"].enable_data_dump is False
+    assert rsu_ctor.call_args.kwargs["sensor_actors"] is sensor_bundle
 
 
 def test_create_rsu_agents_batches_all_spawns_before_initialization(mocker, minimal_rsu_config):
@@ -1730,6 +1860,7 @@ def test_create_rsu_agents_batches_all_spawns_before_initialization(mocker, mini
 
     batch_spawn = mocker.patch.object(sm, "spawn_agent_actors_batch", side_effect=spawn_batch)
     mocker.patch.object(sm, "prepare_actor_blueprint", side_effect=[Mock(), Mock()])
+    mocker.patch.object(sm, "spawn_agent_sensors_batch", return_value=_empty_sensor_bundles(2))
 
     rsu_list, rsu_ids = sm.create_rsu_agents()
 
@@ -1753,15 +1884,17 @@ def test_create_rsu_agents_rolls_back_uninitialized_actors(mocker, minimal_rsu_c
     sm, _, _ = _make_scenario_manager(mocker, params)
 
     actors = [Mock(id=301), Mock(id=302)]
+    sensor_bundles = _empty_sensor_bundles(2)
     mocker.patch.object(sm, "prepare_actor_blueprint", side_effect=[Mock(), Mock()])
     mocker.patch.object(sm, "spawn_agent_actors_batch", return_value=actors)
+    mocker.patch.object(sm, "spawn_agent_sensors_batch", return_value=sensor_bundles)
     mocker.patch("opencda.scenario_testing.utils.sim_api.AgentManager.create", side_effect=RuntimeError("initialization failed"))
-    rollback = mocker.patch.object(sm, "_rollback_spawned_actors")
+    rollback = mocker.patch.object(sm, "_rollback_uninitialized_agents")
 
     with pytest.raises(RuntimeError, match="initialization failed"):
         sm.create_rsu_agents()
 
-    rollback.assert_called_once_with([301, 302], 256)
+    rollback.assert_called_once_with(actors, sensor_bundles, 0)
 
 
 def test_create_traffic_carla_with_vehicle_list_uses_spawn_vehicles_by_list(mocker):

@@ -187,9 +187,10 @@ command_stub = types.ModuleType("carla.command")
 
 
 class SpawnActor:
-    def __init__(self, blueprint, transform):
+    def __init__(self, blueprint, transform, parent=None):
         self.blueprint = blueprint
         self.transform = transform
+        self.parent = parent
 
     def then(self, cmd):
         return self
@@ -263,6 +264,9 @@ _install_stub(
         "opencda.core.sensing.perception.perception_manager",
         PerceptionManager=_Placeholder,
         PerceptionRequirements=_PlaceholderPerceptionRequirements,
+        CameraSensor=type("CameraSensor", (), {}),
+        LidarSensor=type("LidarSensor", (), {}),
+        SemanticLidarSensor=type("SemanticLidarSensor", (), {}),
     ),
 )
 _install_stub(

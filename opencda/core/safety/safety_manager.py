@@ -22,11 +22,13 @@ class SafetyManager:
         A dictionary of parameters that are used to configure the SafetyManager.
     """
 
-    def __init__(self, vehicle, params):
+    def __init__(self, vehicle, params, collision_sensor_actor=None):
         self.vehicle = vehicle
         self.print_message = params["print_message"]
         self.sensors = [
-            CollisionSensor(vehicle, params["collision_sensor"]),
+            CollisionSensor.from_sensor_actor(collision_sensor_actor, params["collision_sensor"])
+            if collision_sensor_actor is not None
+            else CollisionSensor(vehicle, params["collision_sensor"]),
             StuckDetector(params["stuck_dector"]),
             OffRoadDetector(params["offroad_dector"]),
             TrafficLightDector(params["traffic_light_detector"], vehicle),

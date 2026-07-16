@@ -69,6 +69,22 @@ class SensorLocalizer:
             estimator=(estimator or KalmanFilter(float(config["dt"]))) if use_imu else None,
         )
 
+    @classmethod
+    def for_sensor_actors(
+        cls,
+        carla_map: carla.Map,
+        gnss_actor: carla.Actor,
+        imu_actor: carla.Actor | None = None,
+        estimator: _Estimator | None = None,
+    ) -> SensorLocalizer:
+        """Bind localization adapters to sensor actors created by a batch."""
+        return cls(
+            carla_map=carla_map,
+            gnss=GnssSensor.from_sensor_actor(gnss_actor),
+            imu=ImuSensor.from_sensor_actor(imu_actor) if imu_actor is not None else None,
+            estimator=estimator,
+        )
+
     def update(self) -> LocalizationState:
         x, y, z = geo_to_transform(
             self._gnss.lat,

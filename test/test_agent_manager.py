@@ -15,6 +15,7 @@ from opencda.core.application.behavior import (
 )
 from opencda.core.common.agent import AgentType
 from opencda.core.common.agent_manager import AgentManager
+from opencda.core.sensing.sensor_types import SensorActorBundle
 
 
 class StubBehaviorService:
@@ -148,12 +149,14 @@ def test_create_cav_builds_vehicle_agent_through_common_factory(mocker, minimal_
     safety_manager = Mock()
     behavior_agent = Mock()
     controller = Mock()
+    collision_sensor_actor = Mock()
+    sensor_actors = SensorActorBundle(collision=collision_sensor_actor)
 
     localizer_factory = mocker.patch("opencda.core.common.agent_manager.create_localizer", return_value=localizer)
     perception_factory = mocker.patch("opencda.core.common.agent_manager.PerceptionManager", return_value=perception_manager)
     mocker.patch("opencda.core.common.agent_manager.V2XManager", return_value=v2x_manager)
     mocker.patch("opencda.core.common.agent_manager.MapManager", return_value=map_manager)
-    mocker.patch("opencda.core.common.agent_manager.SafetyManager", return_value=safety_manager)
+    safety_factory = mocker.patch("opencda.core.common.agent_manager.SafetyManager", return_value=safety_manager)
     mocker.patch("opencda.core.common.agent_manager.BehaviorAgent", return_value=behavior_agent)
     mocker.patch("opencda.core.common.agent_manager.ControlManager", return_value=controller)
 
@@ -166,14 +169,23 @@ def test_create_cav_builds_vehicle_agent_through_common_factory(mocker, minimal_
         agent_type=AgentType.CAV,
         application=["single"],
         id_prefix="cav",
+        sensor_actors=sensor_actors,
     )
 
     assert manager.id == "cav-7"
     assert manager.agent.actor is actor
     assert manager.agent.is_vehicle is True
     assert manager.agent.v2x_manager is v2x_manager
-    localizer_factory.assert_called_once_with(actor, config["sensing"]["localization"], carla_map, use_imu=True)
+    localizer_factory.assert_called_once_with(
+        actor,
+        config["sensing"]["localization"],
+        carla_map,
+        use_imu=True,
+        sensor_actors=sensor_actors,
+    )
     assert perception_factory.call_args.kwargs["vehicle"] is actor
+    assert perception_factory.call_args.kwargs["sensor_actors"] is sensor_actors
+    assert safety_factory.call_args.kwargs["collision_sensor_actor"] is collision_sensor_actor
     mock_cav_world.update_agent_manager.assert_called_once_with(manager)
 
 
