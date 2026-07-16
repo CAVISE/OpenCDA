@@ -598,6 +598,50 @@ def test_perception_manager_init_spawns_camera_and_lidar_when_activate_true(perc
     assert pm.lidar is not None
 
 
+def test_perception_manager_binds_precreated_sensor_actors_without_spawning(perception_manager_module):
+    import carla
+
+    from opencda.core.sensing.sensor_types import SensorActorBundle
+
+    PerceptionManager = perception_manager_module.PerceptionManager
+    PerceptionRequirements = perception_manager_module.PerceptionRequirements
+    cfg = _perception_config(activate=False, camera_visualize=1, lidar_visualize=False)
+    cav_world = Mock()
+    cav_world.ml_manager = Mock()
+    cav_world.sumo2carla_ids = {}
+    world = _FakeWorld(blueprint_library=_FakeBlueprintLibrary({}), carla_map=Mock())
+
+    camera = _FakeSensor(
+        attributes={"image_size_x": "2", "image_size_y": "2"},
+        transform=carla.Transform(carla.Location()),
+    )
+    lidar = _FakeSensor(attributes={}, transform=carla.Transform(carla.Location()))
+    semantic_lidar = _FakeSensor(attributes={}, transform=carla.Transform(carla.Location()))
+    sensor_actors = SensorActorBundle(
+        cameras=(camera,),
+        lidar=lidar,
+        semantic_lidar=semantic_lidar,
+    )
+
+    pm = PerceptionManager(
+        vehicle=None,
+        config_yaml=cfg,
+        cav_world=cav_world,
+        infra_id=1,
+        perception_requirements=PerceptionRequirements(force_lidar=True, force_semantic_lidar=True),
+        carla_world=world,
+        sensor_actors=sensor_actors,
+    )
+
+    assert world.spawn_calls == []
+    assert pm.rgb_camera[0].sensor is camera
+    assert pm.lidar.sensor is lidar
+    assert pm.semantic_lidar.sensor is semantic_lidar
+    assert camera._callback is not None
+    assert lidar._callback is not None
+    assert semantic_lidar._callback is not None
+
+
 def test_perception_manager_init_spawns_semantic_lidar_when_data_dump_true(perception_manager_module):
     PerceptionManager = perception_manager_module.PerceptionManager
     PerceptionRequirements = perception_manager_module.PerceptionRequirements

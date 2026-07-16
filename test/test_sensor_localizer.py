@@ -71,6 +71,24 @@ def test_for_actor_uses_same_gnss_flow_with_optional_imu() -> None:
     imu_factory.assert_called_once_with(actor)
 
 
+def test_for_sensor_actors_binds_callbacks_without_owner_actor() -> None:
+    gnss_actor = Mock()
+    imu_actor = Mock()
+    estimator = Mock()
+
+    localizer = SensorLocalizer.for_sensor_actors(
+        carla_map=_carla_map(),
+        gnss_actor=gnss_actor,
+        imu_actor=imu_actor,
+        estimator=estimator,
+    )
+
+    assert localizer._gnss.sensor is gnss_actor
+    assert localizer._imu.sensor is imu_actor
+    gnss_actor.listen.assert_called_once()
+    imu_actor.listen.assert_called_once()
+
+
 def test_vehicle_update_fuses_gnss_and_imu() -> None:
     gnss = _gnss()
     imu = SimpleNamespace(compass=0.0, gyroscope=(0.0, 0.0, 0.25), sensor=Mock())

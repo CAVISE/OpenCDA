@@ -13,17 +13,35 @@ class GnssSensor:
 
     def __init__(self, actor: carla.Actor, config: Mapping[str, Any]) -> None:
         world = actor.get_world()
-        blueprint = world.get_blueprint_library().find("sensor.other.gnss")
-        blueprint.set_attribute("noise_alt_stddev", str(config["noise_alt_stddev"]))
-        blueprint.set_attribute("noise_lat_stddev", str(config["noise_lat_stddev"]))
-        blueprint.set_attribute("noise_lon_stddev", str(config["noise_lon_stddev"]))
-        self.sensor: carla.Actor = world.spawn_actor(
+        blueprint = self.prepare_blueprint(world.get_blueprint_library(), config)
+        sensor = world.spawn_actor(
             blueprint,
-            carla.Transform(carla.Location(x=0.0, y=0.0, z=0.0)),
+            self.spawn_transform(),
             attach_to=actor,
             attachment_type=carla.AttachmentType.Rigid,
         )
+        self._bind_sensor(sensor)
 
+    @staticmethod
+    def prepare_blueprint(blueprint_library: Any, config: Mapping[str, Any]) -> carla.ActorBlueprint:
+        blueprint = blueprint_library.find("sensor.other.gnss")
+        blueprint.set_attribute("noise_alt_stddev", str(config["noise_alt_stddev"]))
+        blueprint.set_attribute("noise_lat_stddev", str(config["noise_lat_stddev"]))
+        blueprint.set_attribute("noise_lon_stddev", str(config["noise_lon_stddev"]))
+        return blueprint
+
+    @staticmethod
+    def spawn_transform() -> carla.Transform:
+        return carla.Transform(carla.Location(x=0.0, y=0.0, z=0.0))
+
+    @classmethod
+    def from_sensor_actor(cls, sensor: carla.Actor) -> GnssSensor:
+        instance = cls.__new__(cls)
+        instance._bind_sensor(sensor)
+        return instance
+
+    def _bind_sensor(self, sensor: carla.Actor) -> None:
+        self.sensor = sensor
         self.lat = 0.0
         self.lon = 0.0
         self.alt = 0.0
@@ -50,13 +68,29 @@ class ImuSensor:
 
     def __init__(self, actor: carla.Actor) -> None:
         world = actor.get_world()
-        blueprint = world.get_blueprint_library().find("sensor.other.imu")
-        self.sensor: carla.Actor = world.spawn_actor(
-            blueprint,
-            carla.Transform(),
+        sensor = world.spawn_actor(
+            self.prepare_blueprint(world.get_blueprint_library()),
+            self.spawn_transform(),
             attach_to=actor,
         )
+        self._bind_sensor(sensor)
 
+    @staticmethod
+    def prepare_blueprint(blueprint_library: Any) -> carla.ActorBlueprint:
+        return blueprint_library.find("sensor.other.imu")
+
+    @staticmethod
+    def spawn_transform() -> carla.Transform:
+        return carla.Transform()
+
+    @classmethod
+    def from_sensor_actor(cls, sensor: carla.Actor) -> ImuSensor:
+        instance = cls.__new__(cls)
+        instance._bind_sensor(sensor)
+        return instance
+
+    def _bind_sensor(self, sensor: carla.Actor) -> None:
+        self.sensor = sensor
         self.accelerometer: tuple[float, float, float] | None = None
         self.gyroscope: tuple[float, float, float] | None = None
         self.compass: float | None = None

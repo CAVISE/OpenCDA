@@ -32,10 +32,29 @@ class CollisionSensor(object):
 
     def __init__(self, vehicle, params):
         world = vehicle.get_world()
+        sensor = world.spawn_actor(
+            self.prepare_blueprint(world.get_blueprint_library()),
+            self.spawn_transform(),
+            attach_to=vehicle,
+        )
+        self._bind_sensor(sensor, params)
 
-        blueprint = world.get_blueprint_library().find("sensor.other.collision")
-        self.sensor = world.spawn_actor(blueprint, carla.Transform(), attach_to=vehicle)
+    @staticmethod
+    def prepare_blueprint(blueprint_library):
+        return blueprint_library.find("sensor.other.collision")
 
+    @staticmethod
+    def spawn_transform():
+        return carla.Transform()
+
+    @classmethod
+    def from_sensor_actor(cls, sensor, params):
+        instance = cls.__new__(cls)
+        instance._bind_sensor(sensor, params)
+        return instance
+
+    def _bind_sensor(self, sensor, params):
+        self.sensor = sensor
         # We need to pass the lambda a weak reference to self to avoid circular
         # reference.
         weak_self = weakref.ref(self)
