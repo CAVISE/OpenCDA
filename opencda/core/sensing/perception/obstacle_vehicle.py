@@ -5,9 +5,13 @@ Obstacle vehicle class to save object detection.
 import carla
 import numpy as np
 import open3d as o3d
+from typing import TYPE_CHECKING
 
 import opencda.core.sensing.perception.sensor_transformation as st
 from opencda.core.common.misc import get_speed_sumo
+
+if TYPE_CHECKING:
+    from opencda.core.common.world_frame import WorldActorState
 
 
 def is_vehicle_cococlass(label):
@@ -108,6 +112,20 @@ class ObstacleVehicle(object):
                 sumo2carla_ids = dict()
             self.set_vehicle(vehicle, lidar, sumo2carla_ids)
 
+    @classmethod
+    def from_actor_state(cls, actor_state: WorldActorState, lidar=None, sumo2carla_ids=None):
+        """Build an obstacle from a cached CARLA actor state."""
+        instance = cls.__new__(cls)
+        instance._set_vehicle_data(
+            actor_state.actor,
+            actor_state.location,
+            actor_state.transform,
+            actor_state.velocity,
+            lidar,
+            sumo2carla_ids or {},
+        )
+        return instance
+
     def get_transform(self):
         """
         Return the transform of the object vehicle.
@@ -169,13 +187,23 @@ class ObstacleVehicle(object):
             server. We will need this dict to read vehicle speed
             from sumo api--traci.
         """
-        self.location = vehicle.get_location()
-        self.transform = vehicle.get_transform()
+        self._set_vehicle_data(
+            vehicle,
+            vehicle.get_location(),
+            vehicle.get_transform(),
+            vehicle.get_velocity(),
+            lidar,
+            sumo2carla_ids,
+        )
+
+    def _set_vehicle_data(self, vehicle, location, transform, velocity, lidar, sumo2carla_ids):
+        self.location = location
+        self.transform = transform
         self.bounding_box = vehicle.bounding_box
         self.carla_id = vehicle.id
         self.type_id = vehicle.type_id
         self.color = vehicle.attributes["color"] if hasattr(vehicle, "attributes") and "color" in vehicle.attributes else None
-        self.set_velocity(vehicle.get_velocity())
+        self.set_velocity(velocity)
         # the vehicle controlled by sumo has speed 0 in carla,
         # thus we need to retrieve the correct number from sumo
         if len(sumo2carla_ids) > 0:

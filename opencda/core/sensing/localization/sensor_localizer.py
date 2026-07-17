@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from typing import Any, Mapping, Protocol
+from typing import TYPE_CHECKING, Any, Mapping, Protocol
 
 import carla
 
@@ -12,6 +12,9 @@ from opencda.core.sensing.localization.coordinate_transform import geo_to_transf
 from opencda.core.sensing.localization.kalman_filter import KalmanFilter
 from opencda.core.sensing.localization.sensors import GnssSensor, ImuSensor
 from opencda.core.sensing.localization.types import LocalizationSource, LocalizationState
+
+if TYPE_CHECKING:
+    from opencda.core.common.world_frame import WorldFrame
 
 
 class _Estimator(Protocol):
@@ -85,7 +88,7 @@ class SensorLocalizer:
             estimator=estimator,
         )
 
-    def update(self) -> LocalizationState:
+    def update(self, _world_frame: WorldFrame | None = None) -> LocalizationState:
         x, y, z = geo_to_transform(
             self._gnss.lat,
             self._gnss.lon,

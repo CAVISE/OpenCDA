@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from opencda.core.actuation.control_manager import ControlManager
     from opencda.core.common.data_dumper import DataDumper
     from opencda.core.common.v2x_manager import V2XManager
+    from opencda.core.common.world_frame import WorldFrame
     from opencda.core.map.map_manager import MapManager
     from opencda.core.plan.behavior_agent import BehaviorAgent
     from opencda.core.safety.safety_manager import SafetyManager
@@ -115,12 +116,12 @@ class Agent:
     def carla_autopilot_port(self) -> int:
         return self._require_vehicle_components().carla_autopilot_port
 
-    def update(self) -> None:
+    def update(self, world_frame: WorldFrame | None = None) -> None:
         """Refresh localization, perception, and vehicle-only components."""
-        localization_state = self.localizer.update()
+        localization_state = self.localizer.update() if world_frame is None else self.localizer.update(world_frame)
         ego_pos = localization_state.transform.to_carla()
         ego_speed = localization_state.speed_kmh
-        objects = self.perception_manager.detect(ego_pos)
+        objects = self.perception_manager.detect(ego_pos) if world_frame is None else self.perception_manager.detect(ego_pos, world_frame)
 
         components = self._vehicle_components
         if components is None:
