@@ -119,3 +119,20 @@ def test_update_keeps_behavior_for_opencda_control() -> None:
     agent.update()
 
     behavior_agent.update_information.assert_called_once_with(ego_pos, 25.0, objects)
+
+
+def test_stop_runtime_sensors_delegates_to_vehicle_safety_manager() -> None:
+    safety_manager = Mock()
+    agent = Agent.__new__(Agent)
+    agent._vehicle_components = SimpleNamespace(safety_manager=safety_manager)
+
+    agent.stop_runtime_sensors()
+
+    safety_manager.stop_runtime_sensors.assert_called_once_with()
+
+
+def test_stop_runtime_sensors_is_noop_for_rsu() -> None:
+    agent = Agent.__new__(Agent)
+    agent._vehicle_components = None
+
+    agent.stop_runtime_sensors()

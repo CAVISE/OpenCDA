@@ -229,6 +229,12 @@ class Agent:
         if self.data_dumper is not None:
             self.data_dumper.run_step(self.perception_manager, self.localizer, self.actor, None)
 
+    def stop_runtime_sensors(self) -> None:
+        """Stop asynchronous sensors while retaining data needed for evaluation."""
+        components = self._vehicle_components
+        if components is not None:
+            components.safety_manager.stop_runtime_sensors()
+
     def destroy(self) -> None:
         """Destroy all agent components and its CARLA actor."""
         if self._destroyed:
