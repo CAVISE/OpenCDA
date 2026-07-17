@@ -513,6 +513,16 @@ def test_tick_calls_world_tick(mocker):
     world.tick.assert_called_once_with()
 
 
+def test_capture_world_frame_uses_completed_tick_frame(mocker):
+    sm, world, _ = _make_scenario_manager(mocker, _minimal_scenario_params())
+    capture = mocker.patch("opencda.scenario_testing.utils.sim_api.WorldFrame.capture", return_value=Mock())
+
+    result = sm.capture_world_frame(12)
+
+    assert result is capture.return_value
+    capture.assert_called_once_with(world, frame=12)
+
+
 def _make_single_cav_scenario_params(minimal_vehicle_config, *, cav_id=7, spawn_position=None, destination=None):
     """Build minimal scenario_params for a single CAV spawn."""
     spawn_position = spawn_position or [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
