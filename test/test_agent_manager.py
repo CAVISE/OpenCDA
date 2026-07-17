@@ -144,7 +144,6 @@ def test_create_cav_builds_vehicle_agent_through_common_factory(mocker, minimal_
     carla_map = Mock()
     localizer = Mock()
     perception_manager = Mock()
-    v2x_manager = Mock()
     map_manager = Mock()
     safety_manager = Mock()
     behavior_agent = Mock()
@@ -154,7 +153,6 @@ def test_create_cav_builds_vehicle_agent_through_common_factory(mocker, minimal_
 
     localizer_factory = mocker.patch("opencda.core.common.agent_manager.create_localizer", return_value=localizer)
     perception_factory = mocker.patch("opencda.core.common.agent_manager.PerceptionManager", return_value=perception_manager)
-    mocker.patch("opencda.core.common.agent_manager.V2XManager", return_value=v2x_manager)
     mocker.patch("opencda.core.common.agent_manager.MapManager", return_value=map_manager)
     safety_factory = mocker.patch("opencda.core.common.agent_manager.SafetyManager", return_value=safety_manager)
     mocker.patch("opencda.core.common.agent_manager.BehaviorAgent", return_value=behavior_agent)
@@ -182,7 +180,7 @@ def test_create_cav_builds_vehicle_agent_through_common_factory(mocker, minimal_
     assert manager.id == "cav-7"
     assert manager.agent.actor is actor
     assert manager.agent.is_vehicle is True
-    assert manager.agent.v2x_manager is v2x_manager
+    assert not hasattr(manager.agent._vehicle_components, "v2x_manager")
     localizer_factory.assert_called_once_with(
         actor,
         config["sensing"]["localization"],
@@ -224,6 +222,20 @@ def test_create_rsu_uses_same_factory_without_vehicle_components(mocker, minimal
     assert perception_factory.call_args.kwargs["vehicle"] is None
     assert perception_factory.call_args.kwargs["carla_world"] == "world"
     mock_cav_world.update_agent_manager.assert_called_once_with(manager)
+
+
+def test_create_rejects_platooning_without_v2x(minimal_vehicle_config, mock_cav_world) -> None:
+    with pytest.raises(NotImplementedError, match="V2XManager was removed"):
+        AgentManager.create(
+            actor=Mock(),
+            config_yaml=minimal_vehicle_config,
+            carla_map=Mock(),
+            cav_world=mock_cav_world,
+            agent_type=AgentType.CAV,
+            application=["platoon"],
+        )
+
+    mock_cav_world.update_agent_manager.assert_not_called()
 
 
 def test_agent_ids_are_unique_in_shared_registry() -> None:

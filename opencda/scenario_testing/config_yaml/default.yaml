@@ -104,7 +104,7 @@ vehicle_base:
         y_scale: 100.0 # used to multiply with the y coordinate to make the error on y axis clearer
 
   # If true, CARLA Traffic Manager controls the CAV movement.
-  # OpenCDA still updates localization, perception, sensors, V2X and data dumping,
+  # OpenCDA still updates localization, perception, safety sensors and data dumping,
   # but skips OpenCDA BehaviorAgent planning and PID control.
   # In this mode `destination` is optional and ignored if present.
   carla_autopilot: false
