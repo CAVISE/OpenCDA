@@ -15,7 +15,7 @@ class CustomziedPeceptionManager(PerceptionManager):
             perception_requirements=PerceptionRequirements.from_runtime_flags(data_dump=data_dump),
         )
 
-    def detect(self, ego_pos):
+    def detect(self, ego_pos, _world_frame=None):
         objects = {"vehicles": [], "traffic_lights": [], "other_objects_you_wanna_add": []}
 
         # retrieve current rgb images from all cameras

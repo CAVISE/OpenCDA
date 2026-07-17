@@ -347,13 +347,15 @@ class Scenario:
             logger.debug(f"running: simulation tick: {tick_number}")
             self.scenario_manager.sumo_tick()
             carla_frame = self.scenario_manager.tick()
+            world_frame = self.scenario_manager.capture_world_frame(carla_frame)
 
             if not opt.free_spectator and any(array is not None for array in [self.single_cav_list, self.platoon_list]):
                 if len(self.single_cav_list) > 0:
-                    transform = self.single_cav_list[0].agent.vehicle.get_transform()
+                    transform = world_frame.actor_state(self.single_cav_list[0].agent.vehicle.id).transform
                     self.spectator.set_transform(carla.Transform(transform.location + carla.Location(z=50), carla.Rotation(pitch=-90)))
                 else:
-                    transform = self.platoon_list[0].agent_manager_list[0].agent.vehicle.get_transform()
+                    platoon_vehicle = self.platoon_list[0].agent_manager_list[0].agent.vehicle
+                    transform = world_frame.actor_state(platoon_vehicle.id).transform
                     self.spectator.set_transform(carla.Transform(transform.location + carla.Location(z=50), carla.Rotation(pitch=-90)))
 
             if self.platoon_list is not None:
@@ -367,12 +369,12 @@ class Scenario:
                 logger.debug("updating single cavs")
 
                 for single_cav in self.single_cav_list:
-                    single_cav.agent.update()
+                    single_cav.agent.update(world_frame)
 
             if self.rsu_list is not None:
                 logger.debug("updating RSUs")
                 for rsu in self.rsu_list:
-                    rsu.agent.update()
+                    rsu.agent.update(world_frame)
 
             if self.coperception_model_manager is not None and tick_number > 0:
                 logger.info(f"Processing {tick_number} tick")
@@ -434,13 +436,15 @@ class Scenario:
                 break
             logger.debug(f"running: simulation tick: {tick_number}")
             carla_frame = self.scenario_manager.tick()
+            world_frame = self.scenario_manager.capture_world_frame(carla_frame)
 
             if not opt.free_spectator and any(array is not None for array in [self.single_cav_list, self.platoon_list]):
                 if len(self.single_cav_list) > 0:
-                    transform = self.single_cav_list[0].agent.vehicle.get_transform()
+                    transform = world_frame.actor_state(self.single_cav_list[0].agent.vehicle.id).transform
                     self.spectator.set_transform(carla.Transform(transform.location + carla.Location(z=50), carla.Rotation(pitch=-90)))
                 else:
-                    transform = self.platoon_list[0].agent_manager_list[0].agent.vehicle.get_transform()
+                    platoon_vehicle = self.platoon_list[0].agent_manager_list[0].agent.vehicle
+                    transform = world_frame.actor_state(platoon_vehicle.id).transform
                     self.spectator.set_transform(carla.Transform(transform.location + carla.Location(z=50), carla.Rotation(pitch=-90)))
 
             # TODO: Add aim service support
@@ -453,12 +457,12 @@ class Scenario:
             if self.single_cav_list is not None:
                 logger.debug("updating single cavs")
                 for single_cav in self.single_cav_list:
-                    single_cav.agent.update()
+                    single_cav.agent.update(world_frame)
 
             if self.rsu_list is not None:
                 logger.debug("updating RSUs")
                 for rsu in self.rsu_list:
-                    rsu.agent.update()
+                    rsu.agent.update(world_frame)
 
             can_predict_current_tick = False
             if self.coperception_model_manager is not None and tick_number > 0:

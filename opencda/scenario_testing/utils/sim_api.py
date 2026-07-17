@@ -28,6 +28,7 @@ from opencda.core.application.platooning.platooning_manager import PlatooningMan
 from opencda.core.common.agent import AgentType
 from opencda.core.common.agent_manager import AgentManager
 from opencda.core.common.cav_world import CavWorld
+from opencda.core.common.world_frame import WorldFrame
 from opencda.core.sensing.sensor_factory import build_sensor_actor_bundles, prepare_sensor_spawn_specs
 from opencda.core.sensing.perception.perception_manager import PerceptionRequirements
 from opencda.core.sensing.sensor_types import AgentSensorContext, SensorActorBundle, SensorSpawnSpec
@@ -1137,6 +1138,10 @@ class ScenarioManager:
         Tick the server.
         """
         return self.world.tick()
+
+    def capture_world_frame(self, frame: int) -> WorldFrame:
+        """Capture shared actor state for one completed simulation tick."""
+        return WorldFrame.capture(self.world, frame=frame)
 
     def sumo_tick(self) -> None:
         return None

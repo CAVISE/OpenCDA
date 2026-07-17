@@ -2,12 +2,15 @@
 Perception module base.
 """
 
+from __future__ import annotations
+
 import weakref
 import sys
 import logging
 from dataclasses import dataclass
 import threading
 import time
+from typing import TYPE_CHECKING
 
 import carla
 import cv2
@@ -20,6 +23,9 @@ from opencda.core.sensing.perception.obstacle_vehicle import ObstacleVehicle
 from opencda.core.sensing.perception.static_obstacle import TrafficLight
 from opencda.core.sensing.perception.o3d_lidar_libs import o3d_visualizer_init, o3d_pointcloud_encode, o3d_visualizer_show, o3d_camera_lidar_fusion
 from opencda.core.sensing.sensor_types import SensorActorBundle
+
+if TYPE_CHECKING:
+    from opencda.core.common.world_frame import WorldFrame
 
 logger = logging.getLogger("cavise.opencda.opencda.core.sensing.perception.perception_manager")
 
@@ -589,7 +595,7 @@ class PerceptionManager:
         """
         return a.get_location().distance(self.ego_pos.location)
 
-    def detect(self, ego_pos):
+    def detect(self, ego_pos, world_frame: WorldFrame | None = None):
         """
         Detect surrounding objects. Currently only vehicle detection supported.
 
@@ -609,16 +615,16 @@ class PerceptionManager:
         objects = {"vehicles": [], "traffic_lights": []}
 
         if not self.activate:
-            objects = self.deactivate_mode(objects)
+            objects = self.deactivate_mode(objects) if world_frame is None else self.deactivate_mode(objects, world_frame)
 
         else:
-            objects = self.activate_mode(objects)
+            objects = self.activate_mode(objects) if world_frame is None else self.activate_mode(objects, world_frame)
 
         self.count += 1
 
         return objects
 
-    def activate_mode(self, objects):
+    def activate_mode(self, objects, world_frame: WorldFrame | None = None):
         """
         Use Yolov5 + Lidar fusion to detect objects.
 
@@ -657,7 +663,10 @@ class PerceptionManager:
 
             # calculate the speed. current we retrieve from the server
             # directly.
-            self.speed_retrieve(objects)
+            if world_frame is None:
+                self.speed_retrieve(objects)
+            else:
+                self.speed_retrieve(objects, world_frame)
 
         if self.camera_visualize:
             for i, rgb_image in enumerate(rgb_draw_images):
@@ -674,12 +683,15 @@ class PerceptionManager:
             o3d_pointcloud_encode(self.lidar.data, self.lidar.o3d_pointcloud)
             o3d_visualizer_show(self.o3d_vis, self.count, self.lidar.o3d_pointcloud, objects)
         # add traffic light
-        objects = self.retrieve_traffic_lights(objects)
+        if world_frame is None:
+            objects = self.retrieve_traffic_lights(objects)
+        else:
+            objects = self.retrieve_traffic_lights(objects, world_frame)
         self.objects = objects
 
         return objects
 
-    def deactivate_mode(self, objects):
+    def deactivate_mode(self, objects, world_frame: WorldFrame | None = None):
         """
         Object detection using server information directly.
 
@@ -695,27 +707,36 @@ class PerceptionManager:
          objects: dict
             Updated object dictionary.
         """
-        world = self.carla_world
-
         # TODO: add argument whether to include each group and integrate with semantic_tag_list
-        vehicle_list = []
-        vehicle_list += [i for i in world.get_actors().filter("*vehicle*")]
-        vehicle_list += [i for i in world.get_actors().filter("*walker*")]
-
         # TODO: hard coded
         thresh = 120 if self.perception_requirements.extend_inactive_detection_range else 50
 
-        vehicle_list = [v for v in vehicle_list if self.dist(v) < thresh and v.id != self.carla_id]
+        actor_states = None
+        if world_frame is None:
+            world = self.carla_world
+            vehicle_list = []
+            vehicle_list += [i for i in world.get_actors().filter("*vehicle*")]
+            vehicle_list += [i for i in world.get_actors().filter("*walker*")]
+            vehicle_list = [v for v in vehicle_list if self.dist(v) < thresh and v.id != self.carla_id]
+        else:
+            actor_states = world_frame.nearby_dynamic(self.ego_pos.location, thresh, exclude_actor_id=self.carla_id)
+            vehicle_list = [state.actor for state in actor_states]
 
         # use semantic lidar to filter out vehicles out of the range
         if self.semantic_lidar is not None:
             vehicle_list = self.filter_vehicle_out_sensor(vehicle_list)
+            if actor_states is not None:
+                selected_actor_ids = {actor.id for actor in vehicle_list}
+                actor_states = tuple(state for state in actor_states if state.actor_id in selected_actor_ids)
 
         # convert carla.Vehicle to opencda.ObstacleVehicle if lidar
         # visualization is required.
         sensor = self.lidar.sensor if self.lidar else None
 
-        vehicle_list = [ObstacleVehicle(None, None, v, sensor, self.cav_world.sumo2carla_ids) for v in vehicle_list]
+        if actor_states is None:
+            vehicle_list = [ObstacleVehicle(None, None, v, sensor, self.cav_world.sumo2carla_ids) for v in vehicle_list]
+        else:
+            vehicle_list = [ObstacleVehicle.from_actor_state(state, sensor, self.cav_world.sumo2carla_ids) for state in actor_states]
 
         objects.update({"vehicles": vehicle_list})
 
@@ -746,7 +767,10 @@ class PerceptionManager:
             o3d_visualizer_show(self.o3d_vis, self.count, self.lidar.o3d_pointcloud, objects)
 
         # add traffic light
-        objects = self.retrieve_traffic_lights(objects)
+        if world_frame is None:
+            objects = self.retrieve_traffic_lights(objects)
+        else:
+            objects = self.retrieve_traffic_lights(objects, world_frame)
         self.objects = objects
 
         return objects
@@ -826,7 +850,7 @@ class PerceptionManager:
 
         return rgb_image
 
-    def speed_retrieve(self, objects):
+    def speed_retrieve(self, objects, world_frame: WorldFrame | None = None):
         """
         We don't implement any obstacle speed calculation algorithm.
         The speed will be retrieved from the server directly.
@@ -839,13 +863,18 @@ class PerceptionManager:
         if "vehicles" not in objects:
             return
 
-        world = self.carla_world
-        vehicle_list = world.get_actors().filter("*vehicle*")
-        vehicle_list = [v for v in vehicle_list if self.dist(v) < 50 and v.id != self.id]
+        if world_frame is None:
+            world = self.carla_world
+            vehicle_list = world.get_actors().filter("*vehicle*")
+            vehicle_list = [v for v in vehicle_list if self.dist(v) < 50 and v.id != self.id]
+            vehicle_states = None
+        else:
+            vehicle_states = world_frame.nearby_vehicles(self.ego_pos.location, 50, exclude_actor_id=self.carla_id)
+            vehicle_list = [state.actor for state in vehicle_states]
 
         # TODO: consider the minimum distance to be safer in next version
-        for v in vehicle_list:
-            loc = v.get_location()
+        for index, v in enumerate(vehicle_list):
+            loc = v.get_location() if vehicle_states is None else vehicle_states[index].location
             for obstacle_vehicle in objects["vehicles"]:
                 obstacle_speed = get_speed(obstacle_vehicle)
                 # if speed > 0, it represents that the vehicle
@@ -854,7 +883,8 @@ class PerceptionManager:
                     continue
                 obstacle_loc = obstacle_vehicle.get_location()
                 if abs(loc.x - obstacle_loc.x) <= 3.0 and abs(loc.y - obstacle_loc.y) <= 3.0:
-                    obstacle_vehicle.set_velocity(v.get_velocity())
+                    velocity = v.get_velocity() if vehicle_states is None else vehicle_states[index].velocity
+                    obstacle_vehicle.set_velocity(velocity)
 
                     # the case where the obstacle vehicle is controled by
                     # sumo
@@ -867,7 +897,7 @@ class PerceptionManager:
 
                     obstacle_vehicle.set_carla_id(v.id)
 
-    def retrieve_traffic_lights(self, objects):
+    def retrieve_traffic_lights(self, objects, world_frame: WorldFrame | None = None):
         """
         Retrieve the traffic lights nearby from the server  directly.
         Next version may consider add traffic light detection module.
@@ -882,8 +912,10 @@ class PerceptionManager:
         object : dict
             The updated dictionary.
         """
-        world = self.carla_world
-        tl_list = world.get_actors().filter("traffic.traffic_light*")
+        if world_frame is None:
+            tl_list = self.carla_world.get_actors().filter("traffic.traffic_light*")
+        else:
+            tl_list = world_frame.traffic_lights
 
         vehicle_location = self.ego_pos.location
         vehicle_waypoint = self._map.get_waypoint(vehicle_location)
