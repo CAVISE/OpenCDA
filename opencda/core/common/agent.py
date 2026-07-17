@@ -142,7 +142,8 @@ class Agent:
                     "static_bev": components.map_manager.static_bev,
                 }
             )
-            components.behavior_agent.update_information(ego_pos, ego_speed, objects)
+            if not components.use_carla_autopilot:
+                components.behavior_agent.update_information(ego_pos, ego_speed, objects)
             components.controller.update_info(ego_pos, ego_speed)
             return
 
@@ -159,8 +160,9 @@ class Agent:
                     "static_bev": components.map_manager.static_bev,
                 }
             )
-        with profiler.measure("behavior"):
-            components.behavior_agent.update_information(ego_pos, ego_speed, objects)
+        if not components.use_carla_autopilot:
+            with profiler.measure("behavior"):
+                components.behavior_agent.update_information(ego_pos, ego_speed, objects)
         with profiler.measure("control"):
             components.controller.update_info(ego_pos, ego_speed)
 
