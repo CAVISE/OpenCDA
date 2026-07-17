@@ -4,6 +4,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock
 
 import carla
+import pytest
 
 from opencda.core.common.agent import AgentType
 from opencda.core.sensing import sensor_factory
@@ -100,6 +101,42 @@ def test_prepare_cav_sensor_specs_attaches_localization_and_collision_sensors(mo
 
     assert [spec.sensor_type for spec in specs] == [SensorType.GNSS, SensorType.IMU, SensorType.COLLISION]
     assert [spec.parent_actor_id for spec in specs] == [10, 10, 10]
+
+
+def test_disabled_perception_only_keeps_non_perception_sensors(mocker):
+    _patch_perception_sensor_adapters(mocker)
+    actor = SimpleNamespace(id=10)
+    config = _agent_config(sensor_localization=False)
+    config["sensing"]["perception"]["enabled"] = False
+    context = AgentSensorContext(
+        agent_index=0,
+        agent_type=AgentType.CAV,
+        actor=actor,
+        config=config,
+    )
+
+    specs = prepare_sensor_spawn_specs([context], _blueprint_library(), PerceptionRequirements())
+
+    assert [spec.sensor_type for spec in specs] == [SensorType.COLLISION]
+
+
+def test_disabled_perception_rejects_forced_coperception_sensors(mocker):
+    _patch_perception_sensor_adapters(mocker)
+    config = _agent_config(sensor_localization=False)
+    config["sensing"]["perception"]["enabled"] = False
+    context = AgentSensorContext(
+        agent_index=0,
+        agent_type=AgentType.CAV,
+        actor=SimpleNamespace(id=10),
+        config=config,
+    )
+
+    with pytest.raises(ValueError, match="incompatible"):
+        prepare_sensor_spawn_specs(
+            [context],
+            _blueprint_library(),
+            PerceptionRequirements.from_runtime_flags(with_coperception=True),
+        )
 
 
 def test_prepare_rsu_perception_specs_use_global_transforms_without_parent(mocker):
