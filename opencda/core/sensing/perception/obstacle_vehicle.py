@@ -2,6 +2,8 @@
 Obstacle vehicle class to save object detection.
 """
 
+from __future__ import annotations
+
 import carla
 import numpy as np
 import open3d as o3d

@@ -16,10 +16,8 @@ from opencda.core.application.behavior import (
     TransportMessage,
     create_service,
 )
-from opencda.core.application.platooning.platoon_behavior_agent import PlatooningBehaviorAgent
 from opencda.core.common.agent import Agent, AgentType, VehicleComponents
 from opencda.core.common.data_dumper import DataDumper
-from opencda.core.common.v2x_manager import V2XManager
 from opencda.core.map.map_manager import MapManager
 from opencda.core.plan.behavior_agent import BehaviorAgent
 from opencda.core.safety.safety_manager import SafetyManager
@@ -69,6 +67,9 @@ class AgentManager:
     ) -> AgentManager:
         """Create either a CAV or RSU through the same construction path."""
         resolved_type = AgentType(agent_type)
+        if resolved_type is AgentType.CAV and "platoon" in application:
+            raise NotImplementedError("Platooning is unavailable because V2XManager was removed from the agent runtime.")
+
         prefix = cls._resolve_id_prefix(resolved_type, id_prefix)
         agent_id = cls._allocate_id(config_yaml.get("id"), prefix, autogenerate_id_on_failure)
         requirements = perception_requirements or PerceptionRequirements()
@@ -91,15 +92,11 @@ class AgentManager:
         data_dumper = DataDumper(perception_manager, agent_id, save_time=current_time) if requirements.enable_data_dump else None
 
         vehicle_components = None
-        platooning_behavior_agent = None
         if resolved_type is AgentType.CAV:
-            vehicle_components, platooning_behavior_agent = cls._create_vehicle_components(
+            vehicle_components = cls._create_vehicle_components(
                 actor,
                 config_yaml,
-                application,
                 carla_map,
-                cav_world,
-                agent_id,
                 sensor_actors,
             )
 
@@ -114,9 +111,6 @@ class AgentManager:
         )
         services = cls._build_behavior_services(config_yaml, agent_id)
         manager = cls(agent=agent, agent_id=agent_id, behavior_services=services)
-
-        if platooning_behavior_agent is not None:
-            platooning_behavior_agent.bind_agent_manager(manager)
 
         if autopilot_already_enabled and not agent.use_carla_autopilot:
             raise ValueError("autopilot_already_enabled requires CARLA autopilot in the agent config.")
@@ -225,47 +219,25 @@ class AgentManager:
     def _create_vehicle_components(
         actor: carla.Actor,
         config_yaml: Mapping[str, Any],
-        application: Sequence[str],
         carla_map: carla.Map,
-        cav_world: Any,
-        agent_id: str,
         sensor_actors: SensorActorBundle | None,
-    ) -> tuple[VehicleComponents, PlatooningBehaviorAgent | None]:
+    ) -> VehicleComponents:
         vehicle = cast(carla.Vehicle, actor)
         behavior_config = config_yaml["behavior"]
         use_carla_autopilot, autopilot_port = AgentManager.resolve_carla_autopilot(config_yaml)
-        v2x_manager = V2XManager(cav_world, config_yaml["v2x"], agent_id)
         map_manager = MapManager(vehicle, carla_map, config_yaml["map_manager"])
         if sensor_actors is not None and sensor_actors.collision is None:
             raise ValueError("CAV initialization requires a collision sensor actor.")
         safety_kwargs = {"collision_sensor_actor": sensor_actors.collision} if sensor_actors is not None else {}
         safety_manager = SafetyManager(vehicle=vehicle, params=config_yaml["safety_manager"], **safety_kwargs)
 
-        platooning_behavior_agent = None
-        if "platoon" in application:
-            platooning_behavior_agent = PlatooningBehaviorAgent(
-                vehicle,
-                None,
-                v2x_manager,
-                behavior_config,
-                config_yaml["platoon"],
-                carla_map,
-            )
-            behavior_agent = platooning_behavior_agent
-        else:
-            behavior_agent = BehaviorAgent(vehicle, carla_map, behavior_config)
-
-        return (
-            VehicleComponents(
-                v2x_manager=v2x_manager,
-                map_manager=map_manager,
-                safety_manager=safety_manager,
-                behavior_agent=behavior_agent,
-                controller=ControlManager(config_yaml["controller"]),
-                use_carla_autopilot=use_carla_autopilot,
-                carla_autopilot_port=autopilot_port,
-            ),
-            platooning_behavior_agent,
+        return VehicleComponents(
+            map_manager=map_manager,
+            safety_manager=safety_manager,
+            behavior_agent=BehaviorAgent(vehicle, carla_map, behavior_config),
+            controller=ControlManager(config_yaml["controller"]),
+            use_carla_autopilot=use_carla_autopilot,
+            carla_autopilot_port=autopilot_port,
         )
 
     @staticmethod
