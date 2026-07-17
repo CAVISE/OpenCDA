@@ -667,7 +667,6 @@ class ScenarioManager:
 
             cav_carla_list[vehicle.id] = agent_manager.id
 
-            agent_manager.agent.v2x_manager.set_platoon(None)
             if agent_manager.agent.use_carla_autopilot:
                 if "destination" in spawn_spec.config:
                     logger.info("CAV %s is using CARLA autopilot; configured destination is ignored.", agent_manager.id)

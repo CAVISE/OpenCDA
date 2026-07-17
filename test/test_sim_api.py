@@ -739,7 +739,6 @@ def test_create_vehicle_agents_single_cav(mocker, minimal_vehicle_config):
     assert ctor_kwargs["current_time"] == "t0"
     assert ctor_kwargs["sensor_actors"] is sensor_bundle
 
-    vm_mock.agent.v2x_manager.set_platoon.assert_called_once_with(None)
     vm_mock.agent.update.assert_not_called()
     vm_mock.agent.set_destination.assert_called_once()
 

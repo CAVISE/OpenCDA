@@ -14,7 +14,6 @@ from opencda.core.application.behavior.types import Location
 if TYPE_CHECKING:
     from opencda.core.actuation.control_manager import ControlManager
     from opencda.core.common.data_dumper import DataDumper
-    from opencda.core.common.v2x_manager import V2XManager
     from opencda.core.common.world_frame import WorldFrame
     from opencda.core.map.map_manager import MapManager
     from opencda.core.plan.behavior_agent import BehaviorAgent
@@ -36,7 +35,6 @@ class AgentType(StrEnum):
 class VehicleComponents:
     """Components used only by a movable CAV agent."""
 
-    v2x_manager: V2XManager
     map_manager: MapManager
     safety_manager: SafetyManager
     behavior_agent: BehaviorAgent
@@ -88,10 +86,6 @@ class Agent:
         return cast(carla.Vehicle, self.actor)
 
     @property
-    def v2x_manager(self) -> V2XManager:
-        return self._require_vehicle_components().v2x_manager
-
-    @property
     def map_manager(self) -> MapManager:
         return self._require_vehicle_components().map_manager
 
@@ -138,7 +132,6 @@ class Agent:
                 "static_bev": components.map_manager.static_bev,
             }
         )
-        components.v2x_manager.update_info(ego_pos, ego_speed)
         components.behavior_agent.update_information(ego_pos, ego_speed, objects)
         components.controller.update_info(ego_pos, ego_speed)
 
