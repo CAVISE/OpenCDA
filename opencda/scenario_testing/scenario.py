@@ -18,7 +18,6 @@ from opencda.core.attack.adversary_framework import Attack, AttackManager, Attac
 from opencda.core.common.agent_manager import AgentManager
 from opencda.core.common.cav_world import CavWorld
 from opencda.core.common.coperception_data_processor import CoperceptionDataProcessor
-from opencda.core.common.tick_profiler import TickProfiler
 from opencda.core.sensing.perception.perception_manager import PerceptionRequirements
 from opencda.metrics_tools.metric_collector import MetricCollector
 from opencda.scenario_testing.types import NodeSnapshot, SimulationSnapshot
@@ -46,7 +45,6 @@ class Scenario:
     platoon_list: list[PlatooningManager]
     bg_veh_list: list[carla.Actor]
     scenario_name: str
-    tick_profiler: TickProfiler
 
     def _abort_simulation(self, message: str) -> NoReturn:
         logger.error(message)
@@ -60,7 +58,6 @@ class Scenario:
     def __init__(self, opt: argparse.Namespace, scenario_params: DictConfig) -> None:
         self.node_ids: dict[str, dict[int, str]] = {"cav": {}, "rsu": {}, "platoon": {}}
         self.scenario_name = opt.test_scenario
-        self.tick_profiler = TickProfiler(enabled=getattr(opt, "tick_timing", False))
         scenario_config = cast(YamlDict, OmegaConf.to_container(scenario_params, resolve=True))
         self.scenario_params, current_time = add_current_time(scenario_config)
         scenario_config = self.scenario_params
@@ -342,84 +339,66 @@ class Scenario:
 
     def default_loop(self, opt: argparse.Namespace) -> None:
         tick_number = -1
-        profiler = self.tick_profiler
-        agent_profiler = profiler if profiler.enabled else None
         while True:
             tick_number += 1
 
             if opt.ticks and tick_number > opt.ticks:
                 break
             logger.debug(f"running: simulation tick: {tick_number}")
-            profiler.start_tick(tick_number)
-            with profiler.measure("sumo_tick"):
-                self.scenario_manager.sumo_tick()
-            with profiler.measure("carla_tick"):
-                carla_frame = self.scenario_manager.tick()
-            with profiler.measure("world_frame"):
-                world_frame = self.scenario_manager.capture_world_frame(carla_frame)
+            self.scenario_manager.sumo_tick()
+            carla_frame = self.scenario_manager.tick()
+            world_frame = self.scenario_manager.capture_world_frame(carla_frame)
 
-            with profiler.measure("spectator"):
-                if not opt.free_spectator and any(array is not None for array in [self.single_cav_list, self.platoon_list]):
-                    if len(self.single_cav_list) > 0:
-                        transform = world_frame.actor_state(self.single_cav_list[0].agent.vehicle.id).transform
-                        self.spectator.set_transform(carla.Transform(transform.location + carla.Location(z=50), carla.Rotation(pitch=-90)))
-                    else:
-                        platoon_vehicle = self.platoon_list[0].agent_manager_list[0].agent.vehicle
-                        transform = world_frame.actor_state(platoon_vehicle.id).transform
-                        self.spectator.set_transform(carla.Transform(transform.location + carla.Location(z=50), carla.Rotation(pitch=-90)))
+            if not opt.free_spectator and any(array is not None for array in [self.single_cav_list, self.platoon_list]):
+                if len(self.single_cav_list) > 0:
+                    transform = world_frame.actor_state(self.single_cav_list[0].agent.vehicle.id).transform
+                    self.spectator.set_transform(carla.Transform(transform.location + carla.Location(z=50), carla.Rotation(pitch=-90)))
+                else:
+                    platoon_vehicle = self.platoon_list[0].agent_manager_list[0].agent.vehicle
+                    transform = world_frame.actor_state(platoon_vehicle.id).transform
+                    self.spectator.set_transform(carla.Transform(transform.location + carla.Location(z=50), carla.Rotation(pitch=-90)))
 
-            with profiler.measure("platoons"):
-                if self.platoon_list is not None:
-                    logger.debug("updating platoons")
-                    for platoon in self.platoon_list:
-                        platoon.update_information()
+            if self.platoon_list is not None:
+                logger.debug("updating platoons")
+                for platoon in self.platoon_list:
+                    platoon.update_information()
 
             new_messages: list[TransportMessage[Any]] = []
             identity_claims: list[Mapping[str, str]] = []
             if self.single_cav_list is not None:
                 logger.debug("updating single cavs")
 
-                with profiler.measure("cav_update"):
-                    for single_cav in self.single_cav_list:
-                        single_cav.agent.update(world_frame, agent_profiler)
+                for single_cav in self.single_cav_list:
+                    single_cav.agent.update(world_frame)
 
             if self.rsu_list is not None:
                 logger.debug("updating RSUs")
-                with profiler.measure("rsu_update"):
-                    for rsu in self.rsu_list:
-                        rsu.agent.update(world_frame, agent_profiler)
+                for rsu in self.rsu_list:
+                    rsu.agent.update(world_frame)
 
-            with profiler.measure("coperception"):
-                if self.coperception_model_manager is not None and tick_number > 0:
-                    logger.info(f"Processing {tick_number} tick")
-                    memory_structure = self._require_coperception_data_processor().build_live_memory(
-                        self.single_cav_list,
-                        self.rsu_list,
-                        tick_number,
-                        sensor_frame=carla_frame,
-                    )
-                    if memory_structure is None:
-                        logger.warning(f"Live cooperative perception data for tick {tick_number} is not available.")
-                    else:
-                        self.coperception_model_manager.update_dataset(memory_structure)
-                        self.coperception_model_manager.make_prediction(tick_number)
-                        logger.info(f"Successfully processed {tick_number} tick")
+            if self.coperception_model_manager is not None and tick_number > 0:
+                logger.info(f"Processing {tick_number} tick")
+                memory_structure = self._require_coperception_data_processor().build_live_memory(
+                    self.single_cav_list,
+                    self.rsu_list,
+                    tick_number,
+                    sensor_frame=carla_frame,
+                )
+                if memory_structure is None:
+                    logger.warning(f"Live cooperative perception data for tick {tick_number} is not available.")
+                else:
+                    self.coperception_model_manager.update_dataset(memory_structure)
+                    self.coperception_model_manager.make_prediction(tick_number)
+                    logger.info(f"Successfully processed {tick_number} tick")
 
-            with profiler.measure("platoons"):
-                if self.platoon_list is not None:
-                    for platoon in self.platoon_list:
-                        platoon.run_step()
+            if self.platoon_list is not None:
+                for platoon in self.platoon_list:
+                    platoon.run_step()
 
             if self.single_cav_list is not None:
                 for single_cav in self.single_cav_list:
-                    if profiler.enabled:
-                        with profiler.measure("behavior_services"):
-                            cav_messages, _ = single_cav.update_behavior_services(self.messages)
-                        with profiler.measure("finish_step"):
-                            single_cav.agent.finish_step()
-                    else:
-                        cav_messages, _ = single_cav.update_behavior_services(self.messages)
-                        single_cav.agent.finish_step()
+                    cav_messages, _ = single_cav.update_behavior_services(self.messages)
+                    single_cav.agent.finish_step()
                     new_messages.extend(cav_messages)
                     identity_claims.extend(self._collect_identity_claims(single_cav.id, cav_messages))
             else:
@@ -427,28 +406,20 @@ class Scenario:
 
             if self.rsu_list is not None:
                 for rsu in self.rsu_list:
-                    if profiler.enabled:
-                        with profiler.measure("behavior_services"):
-                            rsu_messages, _ = rsu.update_behavior_services(self.messages)
-                        with profiler.measure("finish_step"):
-                            rsu.agent.finish_step()
-                    else:
-                        rsu_messages, _ = rsu.update_behavior_services(self.messages)
-                        rsu.agent.finish_step()
+                    rsu_messages, _ = rsu.update_behavior_services(self.messages)
+                    rsu.agent.finish_step()
                     new_messages.extend(rsu_messages)
                     identity_claims.extend(self._collect_identity_claims(rsu.id, rsu_messages))
 
-            with profiler.measure("post_update"):
-                self.messages = new_messages
-                self.simulation_snapshot = self._build_simulation_snapshot(tick_number)
-                self.scenario_metrics_collector.update(self._build_scenario_metric_context(tuple(identity_claims)))
+            self.messages = new_messages
+            self.simulation_snapshot = self._build_simulation_snapshot(tick_number)
+            self.scenario_metrics_collector.update(self._build_scenario_metric_context(tuple(identity_claims)))
 
-                self.attack_manager.evaluate(
-                    self.attacks,
-                    self.simulation_snapshot,
-                    service_resolver=self.cav_world.resolve_behavior_services,
-                )
-            profiler.finish_tick()
+            self.attack_manager.evaluate(
+                self.attacks,
+                self.simulation_snapshot,
+                service_resolver=self.cav_world.resolve_behavior_services,
+            )
 
     def capi_loop(self, opt: argparse.Namespace) -> None:
         if self.communication_manager is None:
@@ -458,126 +429,100 @@ class Scenario:
         communication_manager = self.communication_manager
         payload_handler = self.payload_handler
         tick_number = -1
-        profiler = self.tick_profiler
-        agent_profiler = profiler if profiler.enabled else None
         while True:
             tick_number += 1
 
             if opt.ticks and tick_number > opt.ticks:
                 break
             logger.debug(f"running: simulation tick: {tick_number}")
-            profiler.start_tick(tick_number)
-            with profiler.measure("carla_tick"):
-                carla_frame = self.scenario_manager.tick()
-            with profiler.measure("world_frame"):
-                world_frame = self.scenario_manager.capture_world_frame(carla_frame)
+            carla_frame = self.scenario_manager.tick()
+            world_frame = self.scenario_manager.capture_world_frame(carla_frame)
 
-            with profiler.measure("spectator"):
-                if not opt.free_spectator and any(array is not None for array in [self.single_cav_list, self.platoon_list]):
-                    if len(self.single_cav_list) > 0:
-                        transform = world_frame.actor_state(self.single_cav_list[0].agent.vehicle.id).transform
-                        self.spectator.set_transform(carla.Transform(transform.location + carla.Location(z=50), carla.Rotation(pitch=-90)))
-                    else:
-                        platoon_vehicle = self.platoon_list[0].agent_manager_list[0].agent.vehicle
-                        transform = world_frame.actor_state(platoon_vehicle.id).transform
-                        self.spectator.set_transform(carla.Transform(transform.location + carla.Location(z=50), carla.Rotation(pitch=-90)))
+            if not opt.free_spectator and any(array is not None for array in [self.single_cav_list, self.platoon_list]):
+                if len(self.single_cav_list) > 0:
+                    transform = world_frame.actor_state(self.single_cav_list[0].agent.vehicle.id).transform
+                    self.spectator.set_transform(carla.Transform(transform.location + carla.Location(z=50), carla.Rotation(pitch=-90)))
+                else:
+                    platoon_vehicle = self.platoon_list[0].agent_manager_list[0].agent.vehicle
+                    transform = world_frame.actor_state(platoon_vehicle.id).transform
+                    self.spectator.set_transform(carla.Transform(transform.location + carla.Location(z=50), carla.Rotation(pitch=-90)))
 
             # TODO: Add aim service support
 
-            with profiler.measure("platoons"):
-                if self.platoon_list is not None:
-                    logger.debug("updating platoons")
-                    for platoon in self.platoon_list:
-                        platoon.update_information()
+            if self.platoon_list is not None:
+                logger.debug("updating platoons")
+                for platoon in self.platoon_list:
+                    platoon.update_information()
 
             if self.single_cav_list is not None:
                 logger.debug("updating single cavs")
-                with profiler.measure("cav_update"):
-                    for single_cav in self.single_cav_list:
-                        single_cav.agent.update(world_frame, agent_profiler)
+                for single_cav in self.single_cav_list:
+                    single_cav.agent.update(world_frame)
 
             if self.rsu_list is not None:
                 logger.debug("updating RSUs")
-                with profiler.measure("rsu_update"):
-                    for rsu in self.rsu_list:
-                        rsu.agent.update(world_frame, agent_profiler)
+                for rsu in self.rsu_list:
+                    rsu.agent.update(world_frame)
 
             can_predict_current_tick = False
-            with profiler.measure("coperception"):
-                if self.coperception_model_manager is not None and tick_number > 0:
-                    memory_structure = self._require_coperception_data_processor().build_live_memory(
-                        self.single_cav_list,
-                        self.rsu_list,
-                        tick_number,
-                        sensor_frame=carla_frame,
-                    )
-                    if memory_structure is not None:
-                        self.coperception_model_manager.update_dataset(memory_structure)
-                        opencood_dataset = self.coperception_model_manager.opencood_dataset
-                        if opencood_dataset is None:
-                            self._abort_simulation("Coperception dataset is missing; prediction pipeline cannot continue.")
-                        opencood_dataset.extract_data(idx=0)
-                        can_predict_current_tick = True
+            if self.coperception_model_manager is not None and tick_number > 0:
+                memory_structure = self._require_coperception_data_processor().build_live_memory(
+                    self.single_cav_list,
+                    self.rsu_list,
+                    tick_number,
+                    sensor_frame=carla_frame,
+                )
+                if memory_structure is not None:
+                    self.coperception_model_manager.update_dataset(memory_structure)
+                    opencood_dataset = self.coperception_model_manager.opencood_dataset
+                    if opencood_dataset is None:
+                        self._abort_simulation("Coperception dataset is missing; prediction pipeline cannot continue.")
+                    opencood_dataset.extract_data(idx=0)
+                    can_predict_current_tick = True
 
-            with profiler.measure("capi_exchange"):
-                opencda_message = payload_handler.make_opencda_message()
-                logger.info(f"{round(opencda_message.ByteSize() / (1 << 20), 3)} MB of payload about to be sent")
-                communication_manager.send_message(opencda_message)
+            opencda_message = payload_handler.make_opencda_message()
+            logger.info(f"{round(opencda_message.ByteSize() / (1 << 20), 3)} MB of payload about to be sent")
+            communication_manager.send_message(opencda_message)
 
-                self.scenario_manager.sumo_tick()
+            self.scenario_manager.sumo_tick()
 
-                artery_message = communication_manager.receive_message()
-                logger.info(f"{round(artery_message.ByteSize() / (1 << 20), 3)} MB were received")
-                payload_handler.make_artery_payload(artery_message)
+            artery_message = communication_manager.receive_message()
+            logger.info(f"{round(artery_message.ByteSize() / (1 << 20), 3)} MB were received")
+            payload_handler.make_artery_payload(artery_message)
 
-                if self.coperception_model_manager is not None and tick_number > 0 and can_predict_current_tick:
-                    self.coperception_model_manager.make_prediction(tick_number)
+            if self.coperception_model_manager is not None and tick_number > 0 and can_predict_current_tick:
+                self.coperception_model_manager.make_prediction(tick_number)
 
-                payload_handler.clear_messages()
+            payload_handler.clear_messages()
 
-            with profiler.measure("platoons"):
-                if self.platoon_list is not None:
-                    for platoon in self.platoon_list:
-                        platoon.run_step()
+            if self.platoon_list is not None:
+                for platoon in self.platoon_list:
+                    platoon.run_step()
 
             new_messages: list[TransportMessage[Any]] = []
             identity_claims: list[Mapping[str, str]] = []
             if self.single_cav_list is not None:
                 for single_cav in self.single_cav_list:
-                    if profiler.enabled:
-                        with profiler.measure("behavior_services"):
-                            cav_messages, _ = single_cav.update_behavior_services(self.messages)
-                        with profiler.measure("finish_step"):
-                            single_cav.agent.finish_step()
-                    else:
-                        cav_messages, _ = single_cav.update_behavior_services(self.messages)
-                        single_cav.agent.finish_step()
+                    cav_messages, _ = single_cav.update_behavior_services(self.messages)
+                    single_cav.agent.finish_step()
                     new_messages.extend(cav_messages)
                     identity_claims.extend(self._collect_identity_claims(single_cav.id, cav_messages))
 
             if self.rsu_list is not None:
                 for rsu in self.rsu_list:
-                    if profiler.enabled:
-                        with profiler.measure("behavior_services"):
-                            rsu_messages, _ = rsu.update_behavior_services(self.messages)
-                        with profiler.measure("finish_step"):
-                            rsu.agent.finish_step()
-                    else:
-                        rsu_messages, _ = rsu.update_behavior_services(self.messages)
-                        rsu.agent.finish_step()
+                    rsu_messages, _ = rsu.update_behavior_services(self.messages)
+                    rsu.agent.finish_step()
                     new_messages.extend(rsu_messages)
                     identity_claims.extend(self._collect_identity_claims(rsu.id, rsu_messages))
 
-            with profiler.measure("post_update"):
-                self.messages = new_messages
-                self.simulation_snapshot = self._build_simulation_snapshot(tick_number)
-                self.scenario_metrics_collector.update(self._build_scenario_metric_context(tuple(identity_claims)))
-                self.attack_manager.evaluate(
-                    self.attacks,
-                    self.simulation_snapshot,
-                    service_resolver=self.cav_world.resolve_behavior_services,
-                )
-            profiler.finish_tick()
+            self.messages = new_messages
+            self.simulation_snapshot = self._build_simulation_snapshot(tick_number)
+            self.scenario_metrics_collector.update(self._build_scenario_metric_context(tuple(identity_claims)))
+            self.attack_manager.evaluate(
+                self.attacks,
+                self.simulation_snapshot,
+                service_resolver=self.cav_world.resolve_behavior_services,
+            )
 
     def finalize(self, opt: argparse.Namespace) -> None:
         if opt.record:
