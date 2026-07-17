@@ -16,6 +16,7 @@ from opencda.core.sensing.perception.perception_manager import (
     LidarSensor,
     PerceptionRequirements,
     SemanticLidarSensor,
+    resolve_perception_enabled,
 )
 from opencda.core.sensing.sensor_types import AgentSensorContext, SensorActorBundle, SensorSpawnSpec, SensorType
 
@@ -52,6 +53,7 @@ def prepare_sensor_spawn_specs(
                 )
 
         perception_config = sensing_config["perception"]
+        perception_enabled = resolve_perception_enabled(perception_config, requirements)
         global_position = context.config["spawn_position"] if context.agent_type is AgentType.RSU else None
         parent_actor_id = context.actor.id if context.agent_type is AgentType.CAV else None
         activate = perception_config["activate"]
@@ -59,7 +61,7 @@ def prepare_sensor_spawn_specs(
         camera_num = perception_config["camera"]["num"]
         camera_positions = perception_config["camera"]["positions"]
 
-        if activate or camera_visualize or requirements.force_rgb_camera:
+        if perception_enabled and (activate or camera_visualize or requirements.force_rgb_camera):
             if len(camera_positions) != camera_num:
                 raise ValueError("The camera number has to be the same as the length of the relative positions list.")
             for camera_index, relative_position in enumerate(camera_positions):
@@ -75,7 +77,7 @@ def prepare_sensor_spawn_specs(
                 )
 
         lidar_config = perception_config["lidar"]
-        if lidar_config["visualize"] or activate or requirements.force_lidar:
+        if perception_enabled and (lidar_config["visualize"] or activate or requirements.force_lidar):
             spawn_specs.append(
                 SensorSpawnSpec(
                     agent_index=context.agent_index,
@@ -86,7 +88,7 @@ def prepare_sensor_spawn_specs(
                 )
             )
 
-        if requirements.force_semantic_lidar:
+        if perception_enabled and requirements.force_semantic_lidar:
             spawn_specs.append(
                 SensorSpawnSpec(
                     agent_index=context.agent_index,

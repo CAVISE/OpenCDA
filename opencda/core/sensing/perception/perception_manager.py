@@ -7,6 +7,7 @@ from __future__ import annotations
 import weakref
 import sys
 import logging
+from collections.abc import Mapping
 from dataclasses import dataclass
 import threading
 import time
@@ -95,6 +96,29 @@ class PerceptionRequirements:
             force_semantic_lidar=data_dump or with_coperception,
             extend_inactive_detection_range=data_dump or with_coperception,
         )
+
+
+def resolve_perception_enabled(config: Mapping[str, object], requirements: PerceptionRequirements) -> bool:
+    """Resolve explicit perception disablement and reject incompatible modes."""
+    enabled = config.get("enabled", True)
+    if not isinstance(enabled, bool):
+        raise TypeError("Perception config key 'enabled' must be a boolean.")
+    if enabled:
+        return True
+
+    if config["activate"] or config["camera"]["visualize"] or config["lidar"]["visualize"]:
+        raise ValueError("Disabled perception cannot activate detection or sensor visualization.")
+    if any(
+        (
+            requirements.enable_data_dump,
+            requirements.force_rgb_camera,
+            requirements.force_lidar,
+            requirements.force_semantic_lidar,
+            requirements.extend_inactive_detection_range,
+        )
+    ):
+        raise ValueError("Disabled perception is incompatible with data dump or cooperative perception requirements.")
+    return False
 
 
 class CameraSensor(FrameSynchronizedSensor):
@@ -484,6 +508,7 @@ class PerceptionManager:
         # 12 - walker, pedestrian, [13,18] - bikes, motobikes, 14 - vehicles, 15 - vehicles, trucks,  16 - vehicle.mitsubishi.fusorosa,
         self.semantic_tag_list = [12, 13, 14, 15, 16, 18]
         self.perception_requirements = perception_requirements
+        self.enabled = resolve_perception_enabled(config_yaml, perception_requirements)
 
         self.id = infra_id
         if vehicle is None:
@@ -523,9 +548,10 @@ class PerceptionManager:
 
         else:
             self.rgb_camera = None
-            logger.warning(
-                "Variable rgb_camera is None. Dumping, detection function or camera visualization should be activated to avoid this behavior"
-            )
+            if self.enabled:
+                logger.warning(
+                    "Variable rgb_camera is None. Dumping, detection function or camera visualization should be activated to avoid this behavior"
+                )
 
         # we only spawn the LiDAR when perception module is activated or lidar
         # visualization is needed
@@ -544,7 +570,7 @@ class PerceptionManager:
             elif not self.lidar_visualize:
                 logger.warning("Variable o3d_vis is None. Lidar visualization should be activated to avoid this behavior")
 
-        if not self.lidar:
+        if self.enabled and not self.lidar:
             logger.warning("Variable lidar is None. Dumping, detection function or Lidar visualization should be activated to avoid this behavior")
 
         # semantic lidar is needed both for dataset dumping and CoP range filtering
@@ -613,6 +639,11 @@ class PerceptionManager:
         self.ego_pos = ego_pos
 
         objects = {"vehicles": [], "traffic_lights": []}
+
+        if not self.enabled:
+            self.objects = objects
+            self.count += 1
+            return objects
 
         if not self.activate:
             objects = self.deactivate_mode(objects) if world_frame is None else self.deactivate_mode(objects, world_frame)

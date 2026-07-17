@@ -31,6 +31,7 @@ blueprint:
 rsu_base:
   sensing:
     perception:
+      enabled: false
       activate: false
       camera:
         visualize: 0
@@ -54,6 +55,7 @@ rsu_base:
 vehicle_base:
   sensing:
     perception:
+      enabled: false
       activate: false
       camera:
         visualize: 0
