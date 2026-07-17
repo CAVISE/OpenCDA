@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import logging
 import os
+import sys
 from dataclasses import dataclass
 from itertools import chain
 from pathlib import Path
@@ -580,49 +581,87 @@ class Scenario:
             profiler.finish_tick()
 
     def finalize(self, opt: argparse.Namespace) -> None:
-        if opt.record:
-            self.scenario_manager.client.stop_recorder()
-            logger.info("finalizing: stopping recorder")
+        try:
+            self._stop_runtime_sensors()
 
-        if self.eval_manager is not None:
-            self.eval_manager.evaluate(
-                coperception_model_manager=self.coperception_model_manager,
-                scenario_metrics_collector=self.scenario_metrics_collector,
-            )
-            logger.info("finalizing: evaluating results")
+            if opt.record:
+                self.scenario_manager.client.stop_recorder()
+                logger.info("finalizing: stopping recorder")
 
-        if self.single_cav_list is not None:
-            logger.info(f"finalizing: destroying {len(self.single_cav_list)} single cavs")
-            for v in self.single_cav_list:
-                v.destroy()
+            if self.eval_manager is not None:
+                self.eval_manager.evaluate(
+                    coperception_model_manager=self.coperception_model_manager,
+                    scenario_metrics_collector=self.scenario_metrics_collector,
+                )
+                logger.info("finalizing: evaluating results")
+        finally:
+            finalization_failed = sys.exc_info()[0] is not None
+            try:
+                self._destroy_resources()
+            except Exception:
+                if finalization_failed:
+                    logger.exception("Resource cleanup also failed during scenario finalization.")
+                else:
+                    raise
 
-        if self.rsu_list is not None:
-            logger.info(f"finalizing: destroying {len(self.rsu_list)} RSUs")
-            for r in self.rsu_list:
-                r.destroy()
+    def _stop_runtime_sensors(self) -> None:
+        vehicle_managers = chain(
+            self.single_cav_list or (),
+            *(platoon.agent_manager_list for platoon in (self.platoon_list or ())),
+        )
+        for manager in vehicle_managers:
+            try:
+                manager.agent.stop_runtime_sensors()
+            except Exception:
+                logger.exception("Failed to stop runtime sensors for CAV %s.", manager.id)
+
+    def _destroy_resources(self) -> None:
+        first_exception: Exception | None = None
+
+        def destroy(resource: Any, description: str) -> None:
+            nonlocal first_exception
+            try:
+                resource.destroy()
+            except Exception as exc:
+                logger.exception("Failed to destroy %s.", description)
+                if first_exception is None:
+                    first_exception = exc
+
+        logger.info("finalizing: destroying %d single cavs", len(self.single_cav_list or ()))
+        for manager in self.single_cav_list or ():
+            destroy(manager, f"single CAV {manager.id}")
+
+        logger.info("finalizing: destroying %d RSUs", len(self.rsu_list or ()))
+        for manager in self.rsu_list or ():
+            destroy(manager, f"RSU {manager.id}")
 
         if self.scenario_manager is not None:
-            self.scenario_manager.close()
-            logger.info("finalizing: evaluating results")
+            try:
+                self.scenario_manager.close()
+                logger.info("finalizing: closing scenario manager")
+            except Exception as exc:
+                logger.exception("Failed to close scenario manager.")
+                if first_exception is None:
+                    first_exception = exc
 
-        if self.platoon_list is not None:
-            logger.info(f"finalizing: destroying {len(self.platoon_list)} platoons")
-            for platoon in self.platoon_list:
-                platoon.destroy()
+        logger.info("finalizing: destroying %d platoons", len(self.platoon_list or ()))
+        for platoon in self.platoon_list or ():
+            destroy(platoon, "platoon")
 
-        if self.bg_veh_list is not None:
-            logger.info(f"finalizing: destroying {len(self.bg_veh_list)} background cars")
-            for v in self.bg_veh_list:
-                v.destroy()
+        logger.info("finalizing: destroying %d background cars", len(self.bg_veh_list or ()))
+        for vehicle in self.bg_veh_list or ():
+            destroy(vehicle, f"background vehicle {vehicle.id}")
 
-        if self.communication_manager:
-            self.communication_manager.destroy()
+        if self.communication_manager is not None:
+            destroy(self.communication_manager, "communication manager")
 
-        # TODO: Add general function to destroy actors
+        if first_exception is not None:
+            raise first_exception
 
 
 def run_scenario(opt: argparse.Namespace, scenario_params: DictConfig) -> None:
     raised_error: Exception | None = None
+    finalization_error: Exception | None = None
     scenario: Scenario | None = None
     try:
         scenario = Scenario(opt, scenario_params)
@@ -633,6 +672,12 @@ def run_scenario(opt: argparse.Namespace, scenario_params: DictConfig) -> None:
     finally:
         logger.info("Wrapping things up... Please don't press Ctrl+C")
         if scenario:
-            scenario.finalize(opt)
+            try:
+                scenario.finalize(opt)
+            except Exception as error:
+                logger.exception("Scenario finalization failed.")
+                finalization_error = error
         if raised_error is not None:
             raise raised_error
+        if finalization_error is not None:
+            raise finalization_error
