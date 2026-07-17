@@ -28,7 +28,7 @@ from opencda.core.application.platooning.platooning_manager import PlatooningMan
 from opencda.core.common.agent import AgentType
 from opencda.core.common.agent_manager import AgentManager
 from opencda.core.common.cav_world import CavWorld
-from opencda.core.common.world_frame import WorldFrame
+from opencda.core.common.world_frame import WorldFrame, WorldFrameBuilder
 from opencda.core.sensing.sensor_factory import build_sensor_actor_bundles, prepare_sensor_spawn_specs
 from opencda.core.sensing.perception.perception_manager import PerceptionRequirements
 from opencda.core.sensing.sensor_types import AgentSensorContext, SensorActorBundle, SensorSpawnSpec
@@ -293,6 +293,7 @@ class ScenarioManager:
 
         self.cav_world = cav_world if cav_world is not None else CavWorld(apply_ml)
         self.carla_map = self.world.get_map()
+        self._world_frame_builder = WorldFrameBuilder(self.world, self.carla_map)
         self.apply_ml = apply_ml
 
     def spawn_agent_actors_batch(
@@ -1140,7 +1141,7 @@ class ScenarioManager:
 
     def capture_world_frame(self, frame: int) -> WorldFrame:
         """Capture shared actor state for one completed simulation tick."""
-        return WorldFrame.capture(self.world, frame=frame)
+        return self._world_frame_builder.capture(frame=frame)
 
     def sumo_tick(self) -> None:
         return None
