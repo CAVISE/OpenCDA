@@ -864,6 +864,44 @@ def test_deactivate_mode_filters_by_distance_and_excludes_self(perception_manage
     assert constructed[0]["vehicle"] is v_close
 
 
+def test_deactivate_mode_uses_world_frame_without_world_actor_queries(perception_manager_module, monkeypatch):
+    import carla
+
+    PerceptionManager = perception_manager_module.PerceptionManager
+
+    cfg = _perception_config(activate=False)
+    cav_world = Mock()
+    cav_world.ml_manager = Mock()
+    cav_world.sumo2carla_ids = {}
+    world = _FakeWorld(blueprint_library=_FakeBlueprintLibrary({}), carla_map=Mock())
+    world.get_actors = Mock(side_effect=AssertionError("Perception must use WorldFrame"))
+    pm = PerceptionManager(vehicle=None, config_yaml=cfg, cav_world=cav_world, infra_id=1, carla_world=world)
+    pm.ego_pos = carla.Transform(carla.Location(), carla.Rotation())
+
+    actor = Mock(id=2)
+    actor_state = types.SimpleNamespace(actor_id=2, actor=actor)
+    world_frame = Mock()
+    world_frame.nearby_dynamic.return_value = (actor_state,)
+    world_frame.traffic_lights = ()
+    constructed = []
+
+    class _OV:
+        @classmethod
+        def from_actor_state(cls, state, lidar, sumo2carla_ids):
+            constructed.append((state, lidar, sumo2carla_ids))
+            return "obstacle"
+
+    monkeypatch.setattr(perception_manager_module, "ObstacleVehicle", _OV)
+    monkeypatch.setattr(pm, "retrieve_traffic_lights", lambda objects, _world_frame: objects)
+
+    out = pm.deactivate_mode({"vehicles": [], "traffic_lights": []}, world_frame)
+
+    world_frame.nearby_dynamic.assert_called_once_with(pm.ego_pos.location, 50, exclude_actor_id=1)
+    assert out["vehicles"] == ["obstacle"]
+    assert constructed == [(actor_state, None, {})]
+    world.get_actors.assert_not_called()
+
+
 def test_deactivate_mode_calls_filter_vehicle_out_sensor_when_data_dump_true(perception_manager_module, monkeypatch):
     import carla
 
