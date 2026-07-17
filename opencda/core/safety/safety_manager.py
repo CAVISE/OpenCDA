@@ -25,10 +25,13 @@ class SafetyManager:
     def __init__(self, vehicle, params, collision_sensor_actor=None):
         self.vehicle = vehicle
         self.print_message = params["print_message"]
-        self.sensors = [
+        self.collision_sensor = (
             CollisionSensor.from_sensor_actor(collision_sensor_actor, params["collision_sensor"])
             if collision_sensor_actor is not None
-            else CollisionSensor(vehicle, params["collision_sensor"]),
+            else CollisionSensor(vehicle, params["collision_sensor"])
+        )
+        self.sensors = [
+            self.collision_sensor,
             StuckDetector(params["stuck_dector"]),
             OffRoadDetector(params["offroad_dector"]),
             TrafficLightDector(params["traffic_light_detector"], vehicle),
@@ -49,6 +52,10 @@ class SafetyManager:
             if print_flag:
                 logger.info(f"Safety Warning from the safety manager:\n{status_dict}")
         return status_dict
+
+    def stop_runtime_sensors(self) -> None:
+        """Stop asynchronous sensor callbacks without discarding evaluation data."""
+        self.collision_sensor.stop()
 
     def destroy(self):
         for sensor in self.sensors:

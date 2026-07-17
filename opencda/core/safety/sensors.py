@@ -55,6 +55,7 @@ class CollisionSensor(object):
 
     def _bind_sensor(self, sensor, params):
         self.sensor = sensor
+        self._stopped = False
         # We need to pass the lambda a weak reference to self to avoid circular
         # reference.
         weak_self = weakref.ref(self)
@@ -83,14 +84,24 @@ class CollisionSensor(object):
     def tick(self, data_dict):
         pass
 
+    def stop(self) -> None:
+        """Stop collision callbacks while preserving the collected history."""
+        if self._stopped:
+            return
+        if self.sensor.is_alive:
+            self.sensor.stop()
+        self._stopped = True
+
     def destroy(self) -> None:
         """
         Clear collision sensor in Carla world.
         """
-        self._history.clear()
-        if self.sensor.is_alive:
-            self.sensor.stop()
-            self.sensor.destroy()
+        try:
+            self.stop()
+        finally:
+            self._history.clear()
+            if self.sensor.is_alive:
+                self.sensor.destroy()
 
 
 class StuckDetector(object):
