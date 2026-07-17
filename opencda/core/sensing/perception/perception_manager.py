@@ -25,7 +25,7 @@ from opencda.core.sensing.perception.o3d_lidar_libs import o3d_visualizer_init, 
 from opencda.core.sensing.sensor_types import SensorActorBundle
 
 if TYPE_CHECKING:
-    from opencda.core.common.world_frame import WorldFrame
+    from opencda.core.common.world_frame import WorldFrame, WorldTrafficLightState
 
 logger = logging.getLogger("cavise.opencda.opencda.core.sensing.perception.perception_manager")
 
@@ -735,6 +735,15 @@ class PerceptionManager:
 
         if actor_states is None:
             vehicle_list = [ObstacleVehicle(None, None, v, sensor, self.cav_world.sumo2carla_ids) for v in vehicle_list]
+        elif sensor is None:
+            vehicle_list = [
+                world_frame.shared_actor_value(
+                    "ground_truth_obstacle",
+                    state.actor_id,
+                    lambda state=state: ObstacleVehicle.from_actor_state(state, None, self.cav_world.sumo2carla_ids),
+                )
+                for state in actor_states
+            ]
         else:
             vehicle_list = [ObstacleVehicle.from_actor_state(state, sensor, self.cav_world.sumo2carla_ids) for state in actor_states]
 
@@ -920,14 +929,42 @@ class PerceptionManager:
         vehicle_location = self.ego_pos.location
         vehicle_waypoint = self._map.get_waypoint(vehicle_location)
 
-        activate_tl, light_trigger_location = self._get_active_light(tl_list, vehicle_location, vehicle_waypoint)
+        traffic_light_states = None if world_frame is None else world_frame.traffic_light_states
+        if traffic_light_states:
+            active_light_state = self._get_active_light_from_frame(traffic_light_states, vehicle_waypoint)
+            activate_tl = None if active_light_state is None else active_light_state.actor
+            light_trigger_location = None if active_light_state is None else active_light_state.intersection_location
+            light_state = None if active_light_state is None else active_light_state.state
+        else:
+            activate_tl, light_trigger_location = self._get_active_light(tl_list, vehicle_location, vehicle_waypoint)
+            light_state = None if activate_tl is None else activate_tl.get_state()
 
         objects.update({"traffic_lights": []})
 
         if activate_tl is not None:
-            traffic_light = TrafficLight(activate_tl, light_trigger_location, activate_tl.get_state())
+            traffic_light = TrafficLight(activate_tl, light_trigger_location, light_state)
             objects["traffic_lights"].append(traffic_light)
         return objects
+
+    @staticmethod
+    def _get_active_light_from_frame(
+        traffic_lights: tuple[WorldTrafficLightState, ...],
+        vehicle_waypoint,
+    ) -> WorldTrafficLightState | None:
+        vehicle_direction = vehicle_waypoint.transform.get_forward_vector()
+        for traffic_light in traffic_lights:
+            if traffic_light.road_id != vehicle_waypoint.road_id:
+                continue
+
+            light_direction = traffic_light.forward_vector
+            direction_dot_product = (
+                vehicle_direction.x * light_direction.x
+                + vehicle_direction.y * light_direction.y
+                + vehicle_direction.z * light_direction.z
+            )
+            if direction_dot_product >= 0:
+                return traffic_light
+        return None
 
     def _get_active_light(self, tl_list, vehicle_location, vehicle_waypoint):
         for tl in tl_list:
