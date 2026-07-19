@@ -3,11 +3,8 @@
 from types import SimpleNamespace
 from unittest.mock import Mock
 
-import pytest
-
 from opencda.core.application.behavior.types import Transform
 from opencda.core.common.agent import Agent, VehicleComponents
-from opencda.core.common.tick_profiler import TickProfiler
 from opencda.core.sensing.localization.types import LocalizationSource, LocalizationState
 
 
@@ -48,8 +45,7 @@ def test_update_without_world_frame_uses_legacy_component_signatures() -> None:
     agent.perception_manager.detect.assert_called_once_with(localization_state.transform.to_carla())
 
 
-@pytest.mark.parametrize("timing_enabled", [False, True])
-def test_update_skips_behavior_for_carla_autopilot(timing_enabled: bool) -> None:
+def test_update_skips_behavior_for_carla_autopilot() -> None:
     ego_pos = Mock()
     localization_state = SimpleNamespace(
         transform=SimpleNamespace(to_carla=Mock(return_value=ego_pos)),
@@ -79,9 +75,7 @@ def test_update_skips_behavior_for_carla_autopilot(timing_enabled: bool) -> None
         use_carla_autopilot=True,
         carla_autopilot_port=8000,
     )
-    profiler = TickProfiler(enabled=True) if timing_enabled else None
-
-    agent.update(profiler=profiler)
+    agent.update()
 
     behavior_agent.update_information.assert_not_called()
     map_manager.update_information.assert_called_once_with(ego_pos)
