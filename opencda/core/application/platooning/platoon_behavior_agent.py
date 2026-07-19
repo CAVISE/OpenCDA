@@ -92,7 +92,7 @@ class PlatooningBehaviorAgent(BehaviorAgent):
         self.time_gap = 100.0
         self.dist_gap = 100.0
 
-    def bind_agent_manager(self, agent_manager):
+    def bind_agent_manager(self, agent_manager):  # noqa DC04
         """Bind the manager after the universal agent construction is complete."""
         self.agent_manager = weakref.ref(agent_manager)()
 

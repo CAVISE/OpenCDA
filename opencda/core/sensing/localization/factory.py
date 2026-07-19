@@ -6,10 +6,9 @@ from typing import Any, Mapping
 
 import carla
 
-from opencda.core.sensing.localization.gt_localizer import GTLocalizer
-from opencda.core.sensing.localization.kalman_filter import KalmanFilter
-from opencda.core.sensing.localization.protocol import Localizer
-from opencda.core.sensing.localization.sensor_localizer import SensorLocalizer
+from opencda.core.sensing.localization.contracts import Localizer
+from opencda.core.sensing.localization.providers import GTLocalizer, SensorLocalizer
+from opencda.core.sensing.localization.sensor.kalman_filter import KalmanFilter
 from opencda.core.sensing.sensor_types import SensorActorBundle
 
 

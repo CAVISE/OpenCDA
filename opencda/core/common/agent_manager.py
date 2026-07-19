@@ -179,7 +179,7 @@ class AgentManager:
                 )
                 return candidate
 
-    @classmethod
+    @classmethod  # noqa DC04
     def reset_id_registry(cls) -> None:
         """Reset process-local IDs. Intended for isolated simulation runs and tests."""
         cls._next_ids = {"cav": 1, "platoon": 1, "rsu": 1, "unknown": 1}
@@ -336,7 +336,7 @@ class AgentManager:
         self,
         messages: Sequence[TransportMessage[Any]],
     ) -> dict[str, list[TransportMessage[Any]]]:
-        grouped = {service.service_type: [] for service in self.behavior_services}
+        grouped: dict[str, list[TransportMessage[Any]]] = {service.service_type: [] for service in self.behavior_services}
         grouped[BROADCAST_SERVICE_TYPE] = []
         for message in messages:
             grouped[message.dst_service_type].append(message)

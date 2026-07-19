@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
-from opencda.core.sensing.localization.types import LocalizationState
+from opencda.core.sensing.localization.contracts.types import LocalizationState
 
 if TYPE_CHECKING:
     from opencda.core.common.world_frame import WorldFrame

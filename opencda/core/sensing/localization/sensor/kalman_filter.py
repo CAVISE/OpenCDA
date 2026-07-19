@@ -1,7 +1,4 @@
-"""
-Use Kalman Filter on GPS + IMU for better localization.
-Reference: https://www.bzarg.com/p/how-a-kalman-filter-works-in-pictures/
-"""
+"""Kalman Filter for GNSS and IMU localization."""
 
 import math
 

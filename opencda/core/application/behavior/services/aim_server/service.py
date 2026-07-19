@@ -117,7 +117,7 @@ class AIMServer:
         self,
         messages: Sequence[TransportMessage[AIMServerRequest | SelfInformerResponse]],
     ) -> tuple[TransportMessage[AIMServerRequest], ...]:
-        return tuple(message for message in messages if isinstance(message.payload, AIMServerRequest))
+        return tuple(cast(TransportMessage[AIMServerRequest], message) for message in messages if isinstance(message.payload, AIMServerRequest))
 
     def _observe_self_localization(
         self,
