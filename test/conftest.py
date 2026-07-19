@@ -122,6 +122,28 @@ class _PlaceholderPerceptionRequirements:
         )
 
 
+def _resolve_perception_enabled(config, requirements) -> bool:
+    enabled = config.get("enabled", True)
+    if not isinstance(enabled, bool):
+        raise TypeError("Perception config key 'enabled' must be a boolean.")
+    if enabled:
+        return True
+
+    if config["activate"] or config["camera"]["visualize"] or config["lidar"]["visualize"]:
+        raise ValueError("Disabled perception cannot activate detection or sensor visualization.")
+    if any(
+        (
+            requirements.enable_data_dump,
+            requirements.force_rgb_camera,
+            requirements.force_lidar,
+            requirements.force_semantic_lidar,
+            requirements.extend_inactive_detection_range,
+        )
+    ):
+        raise ValueError("Disabled perception is incompatible with data dump or cooperative perception requirements.")
+    return False
+
+
 # Install carla stub using existing mocked_carla classes
 carla_stub = types.ModuleType("carla")
 carla_stub.Location = mocked_carla.Location
@@ -231,6 +253,9 @@ if importlib.util.find_spec("omegaconf") is None:  # pragma: no cover
     omegaconf_stub = types.ModuleType("omegaconf")
     omegaconf_listconfig_stub = types.ModuleType("omegaconf.listconfig")
 
+    class DictConfig(dict):
+        pass
+
     class OmegaConf:
         @staticmethod
         def create(obj):
@@ -244,6 +269,7 @@ if importlib.util.find_spec("omegaconf") is None:  # pragma: no cover
                     result.update(cfg)
             return result
 
+    omegaconf_stub.DictConfig = DictConfig
     omegaconf_stub.OmegaConf = OmegaConf
     omegaconf_listconfig_stub.ListConfig = list
 
@@ -274,6 +300,7 @@ _install_stub(
         "opencda.core.sensing.perception.perception_manager",
         PerceptionManager=_Placeholder,
         PerceptionRequirements=_PlaceholderPerceptionRequirements,
+        resolve_perception_enabled=_resolve_perception_enabled,
         CameraSensor=type("CameraSensor", (), {}),
         LidarSensor=type("LidarSensor", (), {}),
         SemanticLidarSensor=type("SemanticLidarSensor", (), {}),

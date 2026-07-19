@@ -146,6 +146,46 @@ class Transform:
     def to_dict(self) -> dict:
         return {"location": self.location.to_dict(), "rotation": self.rotation.to_dict()}
 
+    def transform(self, location: Location) -> Location:
+        """Transform a point from local coordinates into world coordinates."""
+        if not isinstance(location, Location):
+            raise TypeError(f"transform() expects Location, got {type(location).__name__}")
+
+        pitch = math.radians(float(self.rotation.pitch))
+        yaw = math.radians(float(self.rotation.yaw))
+        roll = math.radians(float(self.rotation.roll))
+        cos_pitch, sin_pitch = math.cos(pitch), math.sin(pitch)
+        cos_yaw, sin_yaw = math.cos(yaw), math.sin(yaw)
+        cos_roll, sin_roll = math.cos(roll), math.sin(roll)
+
+        x = (
+            cos_pitch * cos_yaw * float(location.x)
+            + (cos_yaw * sin_pitch * sin_roll - sin_yaw * cos_roll) * float(location.y)
+            + (-cos_yaw * sin_pitch * cos_roll - sin_yaw * sin_roll) * float(location.z)
+        )
+        y = (
+            sin_yaw * cos_pitch * float(location.x)
+            + (sin_yaw * sin_pitch * sin_roll + cos_yaw * cos_roll) * float(location.y)
+            + (-sin_yaw * sin_pitch * cos_roll + cos_yaw * sin_roll) * float(location.z)
+        )
+        z = sin_pitch * float(location.x) - cos_pitch * sin_roll * float(location.y) + cos_pitch * cos_roll * float(location.z)
+
+        return Location(
+            x=float(self.location.x) + x,
+            y=float(self.location.y) + y,
+            z=float(self.location.z) + z,
+        )
+
+    def get_forward_vector(self) -> Vector3D:
+        """Return the unit vector pointing along the transform's forward axis."""
+        pitch = math.radians(float(self.rotation.pitch))
+        yaw = math.radians(float(self.rotation.yaw))
+        return Vector3D(
+            x=math.cos(pitch) * math.cos(yaw),
+            y=math.cos(pitch) * math.sin(yaw),
+            z=math.sin(pitch),
+        )
+
     def __repr__(self):
         return f"Transform(location={self.location!r}, rotation={self.rotation!r})"
 
