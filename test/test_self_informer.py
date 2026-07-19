@@ -1,5 +1,6 @@
 """Tests for localization delivery through SelfInformer."""
 
+from types import SimpleNamespace
 from unittest.mock import Mock
 
 from opencda.core.application.behavior import BROADCAST_SERVICE_TYPE
@@ -11,8 +12,8 @@ from opencda.core.sensing.localization import LocalizationSource, LocalizationSt
 class _Owner:
     def __init__(self, localization: LocalizationState) -> None:
         self.id = "node-1"
-        self.localizer = Mock()
-        self.localizer.get_state.return_value = localization
+        self.agent = SimpleNamespace(localizer=Mock())
+        self.agent.localizer.get_state.return_value = localization
 
 
 def test_process_publishes_localizer_state() -> None:
@@ -32,4 +33,4 @@ def test_process_publishes_localizer_state() -> None:
     assert message.dst_service_type == BROADCAST_SERVICE_TYPE
     assert message.payload.localization is localization
     assert service.get_state().localization is localization
-    owner.localizer.get_state.assert_called_once_with()
+    owner.agent.localizer.get_state.assert_called_once_with()
