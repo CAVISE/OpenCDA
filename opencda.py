@@ -191,11 +191,6 @@ def arg_parse() -> argparse.Namespace:
     )
 
     parser.add_argument("--ticks", type=int, help="number of simulation ticks to execute")
-    parser.add_argument(
-        "--tick-timing",
-        action="store_true",
-        help="Log per-tick timings for the simulation loop and agent update stages.",
-    )
     return parser.parse_args()
 
 

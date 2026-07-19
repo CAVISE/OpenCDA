@@ -14,7 +14,6 @@ from opencda.core.application.behavior.types import Location
 if TYPE_CHECKING:
     from opencda.core.actuation.control_manager import ControlManager
     from opencda.core.common.data_dumper import DataDumper
-    from opencda.core.common.tick_profiler import TickProfiler
     from opencda.core.common.world_frame import WorldFrame
     from opencda.core.map.map_manager import MapManager
     from opencda.core.plan.behavior_agent import BehaviorAgent
@@ -111,60 +110,31 @@ class Agent:
     def carla_autopilot_port(self) -> int:
         return self._require_vehicle_components().carla_autopilot_port
 
-    def update(self, world_frame: WorldFrame | None = None, profiler: TickProfiler | None = None) -> None:
+    def update(self, world_frame: WorldFrame | None = None) -> None:
         """Refresh localization, perception, and vehicle-only components."""
-        if profiler is None:
-            localization_state = self.localizer.update() if world_frame is None else self.localizer.update(world_frame)
-        else:
-            with profiler.measure("localization"):
-                localization_state = self.localizer.update() if world_frame is None else self.localizer.update(world_frame)
+        localization_state = self.localizer.update() if world_frame is None else self.localizer.update(world_frame)
         ego_pos = localization_state.transform.to_carla()
         ego_speed = localization_state.speed_kmh
-        if profiler is None:
-            objects = self.perception_manager.detect(ego_pos) if world_frame is None else self.perception_manager.detect(ego_pos, world_frame)
-        else:
-            with profiler.measure("perception"):
-                objects = self.perception_manager.detect(ego_pos) if world_frame is None else self.perception_manager.detect(ego_pos, world_frame)
+        objects = self.perception_manager.detect(ego_pos) if world_frame is None else self.perception_manager.detect(ego_pos, world_frame)
 
         components = self._vehicle_components
         if components is None:
             return
 
-        if profiler is None:
-            components.map_manager.update_information(ego_pos)
-            components.safety_manager.update_info(
-                {
-                    "ego_pos": ego_pos,
-                    "ego_speed": ego_speed,
-                    "objects": objects,
-                    "carla_map": self.carla_map,
-                    "world": self.actor.get_world(),
-                    "static_bev": components.map_manager.static_bev,
-                }
-            )
-            if not components.use_carla_autopilot:
-                components.behavior_agent.update_information(ego_pos, ego_speed, objects)
-            components.controller.update_info(ego_pos, ego_speed)
-            return
-
-        with profiler.measure("map"):
-            components.map_manager.update_information(ego_pos)
-        with profiler.measure("safety"):
-            components.safety_manager.update_info(
-                {
-                    "ego_pos": ego_pos,
-                    "ego_speed": ego_speed,
-                    "objects": objects,
-                    "carla_map": self.carla_map,
-                    "world": self.actor.get_world(),
-                    "static_bev": components.map_manager.static_bev,
-                }
-            )
+        components.map_manager.update_information(ego_pos)
+        components.safety_manager.update_info(
+            {
+                "ego_pos": ego_pos,
+                "ego_speed": ego_speed,
+                "objects": objects,
+                "carla_map": self.carla_map,
+                "world": self.actor.get_world(),
+                "static_bev": components.map_manager.static_bev,
+            }
+        )
         if not components.use_carla_autopilot:
-            with profiler.measure("behavior"):
-                components.behavior_agent.update_information(ego_pos, ego_speed, objects)
-        with profiler.measure("control"):
-            components.controller.update_info(ego_pos, ego_speed)
+            components.behavior_agent.update_information(ego_pos, ego_speed, objects)
+        components.controller.update_info(ego_pos, ego_speed)
 
     def set_destination(
         self,
