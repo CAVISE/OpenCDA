@@ -23,7 +23,7 @@ def test_rsu_update_returns_gnss_position_and_zero_speed() -> None:
     localizer = SensorLocalizer(carla_map=_carla_map(), gnss=gnss)
 
     with patch(
-        "opencda.core.sensing.localization.sensor_localizer.geo_to_transform",
+        "opencda.core.sensing.localization.providers.sensor_fusion.geo_to_transform",
         return_value=(4.0, 5.0, 6.0),
     ):
         state = localizer.update()
@@ -39,7 +39,7 @@ def test_rsu_update_returns_gnss_position_and_zero_speed() -> None:
 
 def test_for_actor_uses_same_gnss_flow_with_optional_imu() -> None:
     sensor_localizer_module = __import__(
-        "opencda.core.sensing.localization.sensor_localizer",
+        "opencda.core.sensing.localization.providers.sensor_fusion",
         fromlist=["GnssSensor"],
     )
     gnss = _gnss()
@@ -97,7 +97,7 @@ def test_vehicle_update_fuses_gnss_and_imu() -> None:
     localizer = SensorLocalizer(carla_map=_carla_map(), gnss=gnss, imu=imu, estimator=estimator)
 
     with patch(
-        "opencda.core.sensing.localization.sensor_localizer.geo_to_transform",
+        "opencda.core.sensing.localization.providers.sensor_fusion.geo_to_transform",
         side_effect=[(0.0, 0.0, 1.0), (3.0, 4.0, 1.0)],
     ):
         initial_state = localizer.update()

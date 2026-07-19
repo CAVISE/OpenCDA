@@ -5,7 +5,7 @@ from unittest.mock import Mock
 
 from opencda.core.application.behavior.types import Transform
 from opencda.core.common.agent import Agent, VehicleComponents
-from opencda.core.sensing.localization.types import LocalizationSource, LocalizationState
+from opencda.core.sensing.localization.contracts import LocalizationSource, LocalizationState
 
 
 def test_update_passes_shared_world_frame_to_localization_and_perception() -> None:

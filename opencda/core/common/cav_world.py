@@ -92,7 +92,7 @@ class CavWorld(object):
         """
         self.sumo2carla_ids = sumo2carla_ids
 
-    def get_agent_managers(self) -> dict[str, AgentManager]:
+    def get_agent_managers(self) -> dict[str, AgentManager]:  # noqa DC04
         """Return all registered agent managers."""
         return self._agent_manager_dict
 

@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 
     from opencda.core.common.agent_manager import AgentManager
     from opencda.core.plan.behavior_agent import BehaviorAgent
-    from opencda.core.sensing.localization.protocol import Localizer
+    from opencda.core.sensing.localization.contracts import Localizer
     from opencda.core.sensing.perception.obstacle_vehicle import ObstacleVehicle
     from opencda.core.sensing.perception.perception_manager import PerceptionManager, SensorMeasurement
 

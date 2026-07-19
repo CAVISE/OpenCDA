@@ -10,7 +10,7 @@ import carla
 from opencda.core.common.agent import AgentType
 from opencda.core.safety.sensors import CollisionSensor
 from opencda.core.sensing.localization.factory import resolve_localization_provider
-from opencda.core.sensing.localization.sensors import GnssSensor, ImuSensor
+from opencda.core.sensing.localization.sensor.adapters import GnssSensor, ImuSensor
 from opencda.core.sensing.perception.perception_manager import (
     CameraSensor,
     LidarSensor,
