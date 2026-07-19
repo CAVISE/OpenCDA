@@ -8,10 +8,10 @@ from typing import TYPE_CHECKING, Any, Mapping, Protocol
 import carla
 
 from opencda.core.application.behavior.types import Location, Rotation, Transform
-from opencda.core.sensing.localization.coordinate_transform import geo_to_transform
-from opencda.core.sensing.localization.kalman_filter import KalmanFilter
-from opencda.core.sensing.localization.sensors import GnssSensor, ImuSensor
-from opencda.core.sensing.localization.types import LocalizationSource, LocalizationState
+from opencda.core.sensing.localization.contracts.types import LocalizationSource, LocalizationState
+from opencda.core.sensing.localization.sensor.adapters import GnssSensor, ImuSensor
+from opencda.core.sensing.localization.sensor.kalman_filter import KalmanFilter
+from opencda.core.sensing.localization.sensor.utils import geo_to_transform
 
 if TYPE_CHECKING:
     from opencda.core.common.world_frame import WorldFrame

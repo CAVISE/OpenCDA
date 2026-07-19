@@ -989,9 +989,7 @@ class PerceptionManager:
 
             light_direction = traffic_light.forward_vector
             direction_dot_product = (
-                vehicle_direction.x * light_direction.x
-                + vehicle_direction.y * light_direction.y
-                + vehicle_direction.z * light_direction.z
+                vehicle_direction.x * light_direction.x + vehicle_direction.y * light_direction.y + vehicle_direction.z * light_direction.z
             )
             if direction_dot_product >= 0:
                 return traffic_light

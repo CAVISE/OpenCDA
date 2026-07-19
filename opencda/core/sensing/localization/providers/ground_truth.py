@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 import carla
 
 from opencda.core.application.behavior.types import Transform
-from opencda.core.sensing.localization.types import LocalizationSource, LocalizationState
+from opencda.core.sensing.localization.contracts.types import LocalizationSource, LocalizationState
 
 if TYPE_CHECKING:
     from opencda.core.common.world_frame import WorldFrame

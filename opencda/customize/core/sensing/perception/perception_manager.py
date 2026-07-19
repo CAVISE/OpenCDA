@@ -5,7 +5,7 @@ from opencda.core.sensing.perception.obstacle_vehicle import ObstacleVehicle
 from opencda.core.sensing.perception.static_obstacle import TrafficLight
 
 
-class CustomziedPeceptionManager(PerceptionManager):
+class CustomziedPeceptionManager(PerceptionManager):  # noqa DC03
     def __init__(self, vehicle, config_yaml, cav_world, data_dump=False):
         super().__init__(
             vehicle=vehicle,

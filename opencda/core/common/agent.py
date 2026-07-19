@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Protocol, cast
 
 import carla
 
@@ -22,6 +22,10 @@ if TYPE_CHECKING:
     from opencda.core.sensing.perception.perception_manager import PerceptionManager
 
 logger = logging.getLogger("cavise.opencda.opencda.core.common.agent")
+
+
+class _Destroyable(Protocol):
+    def destroy(self) -> None: ...
 
 
 class AgentType(StrEnum):
@@ -211,7 +215,7 @@ class Agent:
             return
         self._destroyed = True
 
-        resources = [self.perception_manager, self.localizer]
+        resources: list[_Destroyable] = [self.perception_manager, self.localizer]
         components = self._vehicle_components
         if components is not None:
             resources.extend((components.map_manager, components.safety_manager))

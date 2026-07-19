@@ -3,7 +3,7 @@
 from __future__ import annotations
 from dataclasses import dataclass
 
-from opencda.core.sensing.localization.types import LocalizationState
+from opencda.core.sensing.localization.contracts import LocalizationState
 
 
 @dataclass(frozen=True)

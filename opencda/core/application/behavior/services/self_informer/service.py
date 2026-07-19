@@ -15,7 +15,7 @@ from .types import SelfInformerState
 
 if TYPE_CHECKING:
     from opencda.core.common.agent_manager import AgentManager
-    from opencda.core.sensing.localization.types import LocalizationState
+    from opencda.core.sensing.localization.contracts import LocalizationState
 
 
 logger = logging.getLogger("cavise.opencda.opencda.core.application.behavior.services.self_informer")

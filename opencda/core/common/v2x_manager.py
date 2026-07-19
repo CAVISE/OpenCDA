@@ -8,7 +8,7 @@ from opencda.core.application.platooning.platooning_plugin import PlatooningPlug
 from opencda.core.common.misc import compute_distance
 
 
-class V2XManager(object):
+class V2XManager(object):  # noqa DC03
     """
     V2X Manager for platooning, cooperative perception and so on.
 
