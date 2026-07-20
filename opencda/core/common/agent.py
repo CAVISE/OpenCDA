@@ -36,7 +36,7 @@ class AgentType(StrEnum):
 
 
 @dataclass(frozen=True, slots=True)
-class VehicleComponents: # TODO: Maybe combine this with the agent class and none values
+class VehicleComponents:  # TODO: Maybe combine this with the agent class and none values
     """Components used only by a movable CAV agent."""
 
     map_manager: MapManager
