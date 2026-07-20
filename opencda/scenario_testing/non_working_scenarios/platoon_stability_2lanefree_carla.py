@@ -46,7 +46,7 @@ def run_scenario(opt: Any, scenario_params: YamlDict) -> None:
             sys.exit("In this scenario testing, only single platoon is allowed.")
 
         spectator = scenario_manager.world.get_spectator()
-        spectator_vehicle = platoon_list[0].vehicle_manager_list[0].vehicle
+        spectator_vehicle = platoon_list[0].agent_manager_list[0].agent.vehicle
 
         cav_world = scenario_manager.cav_world
         assert cav_world is not None
