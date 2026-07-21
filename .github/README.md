@@ -1,13 +1,14 @@
-# <img src="https://raw.githubusercontent.com/Haralishev77/Haralishev77/main/CAVISE-square-logo.png" alt="CAVISE" width="28" style="border-radius: 6px;" /> OpenCDA (CAVISE Fork)
+# <img src="../docs/images/CAVISE-square-logo.png" alt="CAVISE" width="28" style="border-radius: 6px;" /> OpenCDA (CAVISE Fork)
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/Haralishev77/Haralishev77/main/CAVISE.png" alt="CAVISE banner" width="100%" />
+  <img src="../docs/images/CAVISE.png" alt="CAVISE banner" width="100%" />
 </p>
 
 <p align="center">
   <a href="https://github.com/CAVISE/opencda/commits"><img alt="Last Commit" src="https://img.shields.io/github/last-commit/CAVISE/opencda?style=for-the-badge&color=9BFFCE&logo=git&logoColor=D9E0EE&labelColor=1E202B" /></a>
   <a href="https://github.com/CAVISE/opencda/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/CAVISE/opencda?style=for-the-badge&logo=github&color=9BFFCE&logoColor=D9E0EE&labelColor=1E202B" /></a>
   <a href="https://github.com/CAVISE/opencda/releases"><img alt="Latest Release" src="https://img.shields.io/github/v/release/CAVISE/opencda?style=for-the-badge&logo=github&color=9BFFCE&logoColor=D9E0EE&labelColor=1E202B" /></a>
+  <a href="https://cavise.github.io/Documentation/opencda/index.html"><img alt="Documentation" src="https://img.shields.io/badge/docs-OpenCDA-9BFFCE?style=for-the-badge&logo=readthedocs&logoColor=D9E0EE&labelColor=1E202B" /></a>
   <a href="https://github.com/CAVISE/CAVISE"><img alt="CAVISE" src="https://img.shields.io/badge/CAVISE-main%20repository-9BFFCE?style=for-the-badge&logo=github&logoColor=D9E0EE&labelColor=1E202B" /></a>
   <a href="https://github.com/CAVISE/artery"><img alt="Artery" src="https://img.shields.io/badge/CAVISE-Artery-9BFFCE?style=for-the-badge&logo=github&logoColor=D9E0EE&labelColor=1E202B" /></a>
 </p>
@@ -25,7 +26,7 @@ the automated-driving stack to CARLA, SUMO, and Artery.
 The current CAVISE fork provides:
 
 - YAML-driven CARLA worlds with configurable maps, weather, vehicles, roadside units, background traffic, and random seeds
-- localization, camera and LiDAR perception, map management, safety monitoring, planning, PID control, CARLA autopilot, and platooning
+- localization, camera and LiDAR perception, map management, safety monitoring, planning, PID control, CARLA autopilot
 - bidirectional CARLA-SUMO co-simulation and CAPI v2 communication with Artery
 - reusable vehicle and RSU behavior services, including AIM client/server workflows
 - OpenCOOD-based cooperative perception with visualization and evaluation metrics
@@ -35,6 +36,11 @@ The current CAVISE fork provides:
 See the [OpenCDA Overview and Launch](https://cavise.github.io/Documentation/opencda/index.html)
 guide for the runtime workflow, launch modes, demonstrations, and links to the
 detailed scenario, behavior-service, and attack documentation.
+
+## Documentation
+
+- [OpenCDA Overview and Launch](https://cavise.github.io/Documentation/opencda/index.html)
+- [CAVISE Install & Launch](https://cavise.github.io/Documentation/wiki/install-and-launch.html)
 
 ## Requirements
 
@@ -154,7 +160,12 @@ python3 opencda.py \
 - `OpenCOOD`: bundled cooperative-perception framework
 - `scripts`: map conversion, spectator control, prediction conversion, and video helper commands
 - `test`: repository-level unit and integration tests
-- `docs`: upstream reference documentation and generated API stubs
+
+## OpenCDA Demonstration
+
+<p align="center">
+  <img src="../docs/images/platoon_joining_town06.png" alt="platoon_joining_town06_carla" width="80%" />
+</p>
 
 ## Cooperative Perception Examples
 
@@ -171,8 +182,8 @@ python3 opencda.py \
 ```
 
 <p align="center">
-  <img src="docs/md_files/images/v2xp_datadump_town06_carla_3d.gif" alt="v2xp_datadump_town06_carla 3D view" width="49%" />
-  <img src="docs/md_files/images/v2xp_datadump_town06_carla_bev.gif" alt="v2xp_datadump_town06_carla BEV view" width="49%" />
+  <img src="../docs/images/v2xp_datadump_town06_carla_3d.png" alt="v2xp_datadump_town06_carla 3D view" width="49%" />
+  <img src="../docs/images/v2xp_datadump_town06_carla_bev.png" alt="v2xp_datadump_town06_carla BEV view" width="49%" />
 </p>
 
 <p align="center"><em>Left: 3D view. Right: BEV.</em></p>
