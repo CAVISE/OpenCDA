@@ -37,7 +37,7 @@ BlueprintMeta: TypeAlias = Mapping[str, Mapping[str, Any]]
 MapHelper: TypeAlias = Callable[..., carla.Transform]
 
 
-def car_blueprint_filter(blueprint_library: Any, carla_version: str = "0.9.15") -> list[Any]:
+def car_blueprint_filter(blueprint_library: Any) -> list[Any]:
     """
     Exclude the uncommon vehicles from the default CARLA blueprint library
     (i.e., isetta, carlacola, cybertruck, t2).
@@ -47,45 +47,33 @@ def car_blueprint_filter(blueprint_library: Any, carla_version: str = "0.9.15") 
     blueprint_library : carla.blueprint_library
         The blueprint library that contains all models.
 
-    carla_version : str
-        CARLA simulator version, currently support 0.9.11 and 0.9.12. We need
-        this as since CARLA 0.9.12 the blueprint name has been changed a lot.
-
     Returns
     -------
     blueprints : list
         The list of suitable blueprints for vehicles.
     """
 
-    if carla_version == "0.9.15" or carla_version == "0.9.14":
-        logger.info(f"Carla {carla_version} version is selected")
-        blueprints = [
-            blueprint_library.find("vehicle.audi.a2"),
-            blueprint_library.find("vehicle.audi.tt"),
-            blueprint_library.find("vehicle.ford.ambulance"),
-            blueprint_library.find("vehicle.ford.crown"),
-            blueprint_library.find("vehicle.mini.cooper_s_2021"),
-            blueprint_library.find("vehicle.nissan.micra"),
-            blueprint_library.find("vehicle.nissan.patrol"),
-            blueprint_library.find("vehicle.nissan.patrol_2021"),
-            blueprint_library.find("vehicle.tesla.cybertruck"),
-            blueprint_library.find("vehicle.volkswagen.t2"),
-            blueprint_library.find("vehicle.volkswagen.t2_2021"),
-            blueprint_library.find("vehicle.micro.microlino"),
-            blueprint_library.find("vehicle.dodge.charger_police"),
-            blueprint_library.find("vehicle.dodge.charger_police_2020"),
-            blueprint_library.find("vehicle.dodge.charger_2020"),
-            blueprint_library.find("vehicle.lincoln.mkz_2020"),
-            blueprint_library.find("vehicle.seat.leon"),
-            blueprint_library.find("vehicle.nissan.patrol"),
-            blueprint_library.find("vehicle.nissan.micra"),
-        ]
-    else:
-        sys.exit(
-            "Since v0.1.4, we do not support version earlier than "
-            "CARLA v0.9.14. If you want to use early CARLA version including"
-            "0.9.11 and 0.9.12, please use OpenCDA v0.1.3."
-        )
+    blueprints = [
+        blueprint_library.find("vehicle.audi.a2"),
+        blueprint_library.find("vehicle.audi.tt"),
+        blueprint_library.find("vehicle.ford.ambulance"),
+        blueprint_library.find("vehicle.ford.crown"),
+        blueprint_library.find("vehicle.mini.cooper_s_2021"),
+        blueprint_library.find("vehicle.nissan.micra"),
+        blueprint_library.find("vehicle.nissan.patrol"),
+        blueprint_library.find("vehicle.nissan.patrol_2021"),
+        blueprint_library.find("vehicle.tesla.cybertruck"),
+        blueprint_library.find("vehicle.volkswagen.t2"),
+        blueprint_library.find("vehicle.volkswagen.t2_2021"),
+        blueprint_library.find("vehicle.micro.microlino"),
+        blueprint_library.find("vehicle.dodge.charger_police"),
+        blueprint_library.find("vehicle.dodge.charger_police_2020"),
+        blueprint_library.find("vehicle.dodge.charger_2020"),
+        blueprint_library.find("vehicle.lincoln.mkz_2020"),
+        blueprint_library.find("vehicle.seat.leon"),
+        blueprint_library.find("vehicle.nissan.patrol"),
+        blueprint_library.find("vehicle.nissan.micra"),
+    ]
 
     return blueprints
 
@@ -125,9 +113,6 @@ class ScenarioManager:
     scenario_params : dict
         The dictionary contains all simulation configurations.
 
-    carla_version : str
-        CARLA simulator version, it currently supports 0.9.11 and 0.9.12
-
     xodr_path : str
         The xodr file to the customized map, default: None.
 
@@ -160,7 +145,6 @@ class ScenarioManager:
         self,
         scenario_params: ConfigDict,
         apply_ml: bool,
-        carla_version: str,
         xodr_path: str | None = None,
         town: str | None = None,
         cav_world: CavWorld | None = None,
@@ -168,7 +152,6 @@ class ScenarioManager:
         carla_timeout: float = 30.0,
     ) -> None:
         self.scenario_params = scenario_params
-        self.carla_version = carla_version
         self.bp_meta: dict[str, dict[str, Any]] = {}
         self.bp_class_sample_prob: dict[str, float] = {}
 
@@ -327,7 +310,7 @@ class ScenarioManager:
                     ),
                 )
             else:
-                spawn_transform = cast(MapHelper, map_helper)(self.carla_version, *actor_config["spawn_special"])
+                spawn_transform = cast(MapHelper, map_helper)(*actor_config["spawn_special"])
 
             self.spawn_custom_actor(spawn_transform, actor_config, fallback_model)
 
@@ -384,7 +367,7 @@ class ScenarioManager:
                     carla.Rotation(pitch=cav_config["spawn_position"][5], yaw=cav_config["spawn_position"][4], roll=cav_config["spawn_position"][3]),
                 )
             else:
-                spawn_transform = cast(MapHelper, map_helper)(self.carla_version, *cav_config["spawn_special"])
+                spawn_transform = cast(MapHelper, map_helper)(*cav_config["spawn_special"])
 
             vehicle = self.spawn_custom_actor(spawn_transform, cav_config, fallback_model)
 
@@ -545,7 +528,7 @@ class ScenarioManager:
                         ),
                     )
                 else:
-                    spawn_transform = cast(MapHelper, map_helper)(self.carla_version, *cav_config["spawn_special"])
+                    spawn_transform = cast(MapHelper, map_helper)(*cav_config["spawn_special"])
 
                 vehicle = self.spawn_custom_actor(spawn_transform, cav_config, fallback_model)
 
@@ -650,7 +633,7 @@ class ScenarioManager:
 
         blueprint_library = self.world.get_blueprint_library()
         if not self.use_multi_class_bp:
-            ego_vehicle_random_list = car_blueprint_filter(blueprint_library, self.carla_version)
+            ego_vehicle_random_list = car_blueprint_filter(blueprint_library)
         else:
             label_list = list(self.bp_class_sample_prob.keys())
             prob = [self.bp_class_sample_prob[itm] for itm in label_list]
@@ -717,7 +700,7 @@ class ScenarioManager:
         """
         blueprint_library = self.world.get_blueprint_library()
         if not self.use_multi_class_bp:
-            ego_vehicle_random_list = car_blueprint_filter(blueprint_library, self.carla_version)
+            ego_vehicle_random_list = car_blueprint_filter(blueprint_library)
         else:
             label_list = list(self.bp_class_sample_prob.keys())
             prob = [self.bp_class_sample_prob[itm] for itm in label_list]
