@@ -224,7 +224,7 @@ def main() -> None:
     logger = create_logger(level=level, filename=opt.log_file)
     install_traceback_handler(verbose=verbosity != VerbosityLevel.SILENT)
 
-    logger.info(f"OpenCDA Version: {__version__}")
+    logger.info(f"OpenCDA v{__version__}")
 
     cwd = pathlib.Path.cwd()
     default_yaml = config_yaml = cwd / "opencda/scenario_testing/config_yaml/default.yaml"
