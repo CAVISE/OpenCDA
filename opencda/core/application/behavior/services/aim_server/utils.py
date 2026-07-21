@@ -8,7 +8,7 @@ from typing import Any, Sequence, Mapping
 from opencda.core.application.behavior.types import Location, Rotation, Transform
 
 
-def rotation_matrix_back(yaw: float) -> np.ndarray:
+def rotation_matrix_back(yaw: float) -> np.ndarray:  # noqa: DC02
     """
     Rotate back.
     https://en.wikipedia.org/wiki/Rotation_matrix#Non-standard_orientation_of_the_coordinate_system
@@ -17,7 +17,7 @@ def rotation_matrix_back(yaw: float) -> np.ndarray:
     return rotation
 
 
-def get_intention_vector(intention: str = "straight") -> np.ndarray:
+def get_intention_vector(intention: str = "straight") -> np.ndarray:  # noqa: DC02
     """
     Return a 3-bit one-hot format intention vector.
     """

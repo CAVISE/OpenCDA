@@ -49,6 +49,7 @@ class Controller:
         self._lon_k_i: float = args["lon"]["k_i"]  # noqa: DC05
 
         self._lon_ebuffer: deque[float] = deque(maxlen=10)
+        self.stop_target_speed_threshold: float = float(args.get("stop_target_speed_threshold", 1.0))
 
         # lateral related
         self.max_steering: float = args["max_steering"]
@@ -188,7 +189,7 @@ class Controller:
         control = carla.VehicleControl()
 
         # emergency stop
-        if target_speed == 0 or target_location is None:
+        if target_speed <= self.stop_target_speed_threshold or target_location is None:
             control.steer = 0.0  # noqa: DC05
             control.throttle = 0.0  # noqa: DC05
             control.brake = 1.0  # noqa: DC05

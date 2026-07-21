@@ -1,0 +1,15 @@
+model_wrapper: MTP
+model: TransfAny_v2_local_coords
+model_params:
+    cars_hidden_channels: 128
+    lane_hidden_channels: 128
+    lane_conv_iters: 4
+    bias: true
+    dropout: 0.1
+    cross_attn_n_heads: 4
+    cross_attn_n_attn: 3
+    cross_attn_n_linear: 3
+    cars_self_attn_n_heads: 4
+    cars_self_attn_n_attn: 4
+    cars_self_attn_n_linear: 3
+    decoder_n_linear_decoder: 4
