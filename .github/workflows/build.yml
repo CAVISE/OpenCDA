@@ -1,0 +1,63 @@
+name: Build Extensions
+
+on: [pull_request]
+
+jobs:
+  build-protobuf:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler libprotobuf-dev pkg-config
+      - run: pip install cmake ninja protobuf numpy pybind11 mypy-protobuf
+      - name: Configure and build
+        run: |
+          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DOPENCDA_BUILD_CUDA=OFF \
+            -DOPENCDA_BUILD_CYTHON=OFF \
+            -DOPENCDA_BUILD_PROTOBUF=ON
+          cmake --build build
+          cmake --install build --prefix /tmp/opencda-install
+      - run: test -f /tmp/opencda-install/opencda/core/common/communication/protos/cavise/capi_pb2.py
+
+  build-cython:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install cmake ninja cython numpy pybind11
+      - name: Configure and build
+        run: |
+          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DOPENCDA_BUILD_CUDA=OFF \
+            -DOPENCDA_BUILD_CYTHON=ON \
+            -DOPENCDA_BUILD_PROTOBUF=OFF
+          cmake --build build
+          cmake --install build --prefix /tmp/opencda-install
+      - run: test -n "$(find /tmp/opencda-install/opencood/utils -name 'box_overlaps*.so' -type f -print -quit)"
+
+#  build-cuda:
+#    runs-on: [self-hosted, cuda]
+#    if: false #${{ github.event.pull_request.head.repo.full_name == github.repository }}
+#    steps:
+#      - uses: actions/checkout@v5
+#      - uses: actions/setup-python@v5
+#        with:
+#          python-version: "3.12"
+#      - run: pip install cmake ninja cython numpy pybind11
+#      - name: Configure and build
+#        run: |
+#          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+#            -DCMAKE_CUDA_ARCHITECTURES="86;89" \
+#            -DOPENCDA_BUILD_CUDA=ON \
+#            -DOPENCDA_BUILD_CYTHON=OFF \
+#            -DOPENCDA_BUILD_PROTOBUF=OFF
+#          cmake --build build
+#      - run: find build -name "*_cuda*.so" -type f

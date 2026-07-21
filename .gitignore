@@ -160,3 +160,4 @@ ready*
 *.tar*
 
 simulation_output
+.DS_Store
