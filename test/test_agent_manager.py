@@ -195,6 +195,21 @@ def test_create_cav_builds_vehicle_agent_through_common_factory(mocker, minimal_
     mock_cav_world.update_agent_manager.assert_called_once_with(manager)
 
 
+@pytest.mark.parametrize("sensor_actors", [None, SensorActorBundle()])
+def test_create_vehicle_components_requires_pre_spawned_collision_sensor(mocker, minimal_vehicle_config, sensor_actors) -> None:
+    map_manager_factory = mocker.patch("opencda.core.common.agent_manager.MapManager")
+
+    with pytest.raises(ValueError, match="pre-spawned collision sensor actor"):
+        AgentManager._create_vehicle_components(
+            actor=Mock(),
+            config_yaml=minimal_vehicle_config,
+            carla_map=Mock(),
+            sensor_actors=sensor_actors,
+        )
+
+    map_manager_factory.assert_not_called()
+
+
 def test_create_rsu_uses_same_factory_without_vehicle_components(mocker, minimal_rsu_config, mock_cav_world) -> None:
     actor = Mock()
     actor.id = 20

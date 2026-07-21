@@ -27,7 +27,7 @@ def test_update_passes_shared_world_frame_to_localization_and_perception() -> No
     agent.perception_manager.detect.assert_called_once_with(localization_state.transform.to_carla(), world_frame)
 
 
-def test_update_without_world_frame_uses_legacy_component_signatures() -> None:
+def test_update_passes_none_when_world_frame_is_unavailable() -> None:
     localization_state = LocalizationState(
         transform=Transform(),
         speed_kmh=0.0,
@@ -41,8 +41,8 @@ def test_update_without_world_frame_uses_legacy_component_signatures() -> None:
 
     agent.update()
 
-    agent.localizer.update.assert_called_once_with()
-    agent.perception_manager.detect.assert_called_once_with(localization_state.transform.to_carla())
+    agent.localizer.update.assert_called_once_with(None)
+    agent.perception_manager.detect.assert_called_once_with(localization_state.transform.to_carla(), None)
 
 
 def test_update_skips_behavior_for_carla_autopilot() -> None:

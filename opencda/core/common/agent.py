@@ -116,10 +116,10 @@ class Agent:
 
     def update(self, world_frame: WorldFrame | None = None) -> None:
         """Refresh localization, perception, and vehicle-only components."""
-        localization_state = self.localizer.update() if world_frame is None else self.localizer.update(world_frame)
+        localization_state = self.localizer.update(world_frame)
         ego_pos = localization_state.transform.to_carla()
         ego_speed = localization_state.speed_kmh
-        objects = self.perception_manager.detect(ego_pos) if world_frame is None else self.perception_manager.detect(ego_pos, world_frame)
+        objects = self.perception_manager.detect(ego_pos, world_frame)
 
         components = self._vehicle_components
         if components is None:
@@ -149,15 +149,9 @@ class Agent:
     ) -> None:
         """Set a vehicle route."""
         behavior_agent = self.behavior_agent
-        start = self._to_carla_location(start_location)
-        end = self._to_carla_location(end_location)
+        start = start_location.to_carla() if isinstance(start_location, Location) else start_location
+        end = end_location.to_carla() if isinstance(end_location, Location) else end_location
         behavior_agent.set_destination(start, end, clean, end_reset)
-
-    @staticmethod
-    def _to_carla_location(location: Location | carla.Location) -> carla.Location:
-        if isinstance(location, carla.Location):
-            return location
-        return carla.Location(location.x, location.y, location.z)
 
     def _calculate_control(
         self,
