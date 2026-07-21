@@ -96,7 +96,6 @@ def _make_scenario_manager(mocker, scenario_params=None, traffic_manager=None):
     sm = ScenarioManager(
         scenario_params,
         apply_ml=False,
-        carla_version="0.9.15",
         town=None,
         xodr_path=None,
         cav_world=Mock(),
@@ -106,25 +105,17 @@ def _make_scenario_manager(mocker, scenario_params=None, traffic_manager=None):
     return sm, world, client
 
 
-@pytest.mark.parametrize("version", ["0.9.14", "0.9.15"])
-def test_car_blueprint_filter_supported_versions(version):
+def test_car_blueprint_filter_returns_supported_blueprints():
     from opencda.scenario_testing.utils.sim_api import car_blueprint_filter
 
     blueprint_library = Mock()
     blueprint_library.find.side_effect = lambda name: f"bp:{name}"
 
-    blueprints = car_blueprint_filter(blueprint_library, carla_version=version)
+    blueprints = car_blueprint_filter(blueprint_library)
 
     assert isinstance(blueprints, list)
     assert len(blueprints) == 19
     assert blueprint_library.find.call_count == 19
-
-
-def test_car_blueprint_filter_unsupported_exits():
-    from opencda.scenario_testing.utils.sim_api import car_blueprint_filter
-
-    with pytest.raises(SystemExit):
-        car_blueprint_filter(Mock(), carla_version="0.9.13")
 
 
 def test_multi_class_vehicle_blueprint_filter():
@@ -178,7 +169,7 @@ def test_sync_mode_false_exits(mocker):
     mocker.patch("opencda.scenario_testing.utils.sim_api.carla.Client", return_value=client)
 
     with pytest.raises(SystemExit, match="only supports sync simulation mode"):
-        ScenarioManager(params, apply_ml=False, carla_version="0.9.15", town=None, xodr_path=None, cav_world=Mock(), carla_host="carla")
+        ScenarioManager(params, apply_ml=False, town=None, xodr_path=None, cav_world=Mock(), carla_host="carla")
 
 
 def test_substepping_settings_are_applied(mocker):
@@ -1137,7 +1128,7 @@ def test_create_platoon_manager_uses_map_helper_when_spawn_special_present(mocke
 
     assert platoons == [platoon_manager]
     assert mapping == {501: "platoon-1"}
-    map_helper.assert_called_once_with("0.9.15", 42, 43, 44)
+    map_helper.assert_called_once_with(42, 43, 44)
 
     spawn_custom_actor.assert_called_once()
     assert spawn_custom_actor.call_args.args[0] == expected_transform

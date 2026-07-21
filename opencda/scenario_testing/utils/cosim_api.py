@@ -34,9 +34,6 @@ class CoScenarioManager(ScenarioManager):
     scenario_params : dict
         The dictionary contains all simulation configurations.
 
-    carla_version : str
-        CARLA simulator version, it currently supports 0.9.11 and 0.9.12
-
     xodr_path : str
         The xodr file to the customized map, default: None.
 
@@ -52,7 +49,6 @@ class CoScenarioManager(ScenarioManager):
         self,
         scenario_params: dict[str, Any],
         apply_ml: bool,
-        carla_version: str,
         node_ids: NodeIdMapping,
         xodr_path: str | None = None,
         town: str | None = None,
@@ -61,8 +57,16 @@ class CoScenarioManager(ScenarioManager):
         carla_host: str = "carla",
         carla_timeout: float = 30.0,
     ) -> None:
-        # carla side initializations(partial init is already done in scenario manager
-        super(CoScenarioManager, self).__init__(scenario_params, apply_ml, carla_version, xodr_path, town, cav_world, carla_host)
+        # CARLA side initializations (partial initialization is already done in ScenarioManager).
+        super().__init__(
+            scenario_params=scenario_params,
+            apply_ml=apply_ml,
+            xodr_path=xodr_path,
+            town=town,
+            cav_world=cav_world,
+            carla_host=carla_host,
+            carla_timeout=carla_timeout,
+        )
 
         # these following sets are used to track the vehicles controlled by sumo side
         self._active_actors: set[int] = set()

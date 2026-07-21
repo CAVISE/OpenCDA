@@ -91,7 +91,6 @@ class Scenario:
             self.scenario_manager = sim_api.CoScenarioManager(
                 scenario_params=scenario_config,
                 apply_ml=opt.apply_ml,
-                carla_version=opt.version,
                 town=town,
                 cav_world=self.cav_world,
                 sumo_file_parent_path=sumo_cfg,
@@ -103,7 +102,6 @@ class Scenario:
             self.scenario_manager = sim_api.ScenarioManager(
                 scenario_params=scenario_config,
                 apply_ml=opt.apply_ml,
-                carla_version=opt.version,
                 xodr_path=xodr_path,
                 town=town,
                 cav_world=self.cav_world,
