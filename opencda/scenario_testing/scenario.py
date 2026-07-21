@@ -56,11 +56,15 @@ class Scenario:
             self._abort_simulation("Coperception data processor is required, but it was not initialized.")
         return self.coperception_data_processor
 
-    def __init__(self, opt: argparse.Namespace, scenario_params: DictConfig) -> None:
+    def __init__(self, opt: argparse.Namespace, scenario_params: DictConfig, current_time: str | None = None) -> None:
         self.node_ids: dict[str, dict[int, str]] = {"cav": {}, "rsu": {}, "platoon": {}}
         self.scenario_name = opt.test_scenario
         scenario_config = cast(YamlDict, OmegaConf.to_container(scenario_params, resolve=True))
-        self.scenario_params, current_time = add_current_time(scenario_config)
+        if current_time is None:
+            self.scenario_params, current_time = add_current_time(scenario_config)
+        else:
+            scenario_config["current_time"] = current_time
+            self.scenario_params = scenario_config
         scenario_config = self.scenario_params
         logger.info(f"running scenario with name: {self.scenario_name}; current time: {current_time}")
 
@@ -556,11 +560,11 @@ class Scenario:
         # TODO: Add general function to destroy actors
 
 
-def run_scenario(opt: argparse.Namespace, scenario_params: DictConfig) -> None:
+def run_scenario(opt: argparse.Namespace, scenario_params: DictConfig, current_time: str | None = None) -> None:
     raised_error: Exception | None = None
     scenario: Scenario | None = None
     try:
-        scenario = Scenario(opt, scenario_params)
+        scenario = Scenario(opt, scenario_params, current_time=current_time)
         scenario.run(opt)
     except Exception as error:
         logger.exception("Simulation failed before finalization.")
