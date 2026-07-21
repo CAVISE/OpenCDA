@@ -11,31 +11,12 @@ from datetime import datetime
 import pathlib
 import logging
 import argparse
-import omegaconf
 import subprocess
-from collections.abc import Callable, Collection
+from collections.abc import Collection
 from types import ModuleType
 from typing import cast
 
-from omegaconf import DictConfig
 from opencda.version import __version__
-
-
-try:
-    from rich.traceback import install as _rich_traceback_install
-except ModuleNotFoundError:
-    rich_traceback_install: Callable[..., object] | None = None
-    print("Rich tracebacks are not available, all CLI configuration regarding tracebacks is ignored.")
-else:
-    rich_traceback_install = _rich_traceback_install
-
-
-try:
-    import coloredlogs
-except ModuleNotFoundError:
-    coloredlogs = None
-    print("could not find coloredlogs module! Your life will look pale.")
-    print("if you are interested in improving it: https://pypi.org/project/coloredlogs")
 
 
 BUILD_COMPLETED_FLAG = "BUILD_COMPLETED_FLAG"
@@ -77,13 +58,17 @@ def create_logger(
     level: int, fmt: str = "- [%(asctime)s][%(name)s] %(message)s", datefmt: str = "%H:%M:%S", filename: str = DEFAULT_LOG_FILENAME
 ) -> logging.Logger:
     logger = logging.getLogger("cavise.opencda")
-    if coloredlogs is not None:
-        coloredlogs.install(level=logging.DEBUG, logger=logger, fmt=fmt, datefmt=datefmt)
-    else:
+    try:
+        import coloredlogs
+    except ModuleNotFoundError:
+        print("could not find coloredlogs module! Your life will look pale.")
+        print("if you are interested in improving it: https://pypi.org/project/coloredlogs")
         handler = logging.StreamHandler(sys.stdout)
         handler.setFormatter(logging.Formatter(fmt=fmt, datefmt=datefmt))
         handler.setLevel(logging.DEBUG)
         logger.addHandler(handler)
+    else:
+        coloredlogs.install(level=logging.DEBUG, logger=logger, fmt=fmt, datefmt=datefmt)
     # Duplicate logs to a JSON file
     json_handler = logging.FileHandler(filename=filename, mode="w", encoding="utf-8")
     json_handler.setLevel(logging.DEBUG)
@@ -111,8 +96,13 @@ def install_traceback_handler(verbose: bool = True, suppress_modules: Collection
 
     joined_strings = set(default_filtered_modules) & set(suppress_modules)
     joined: set[str | ModuleType] = set(joined_strings)
-    if rich_traceback_install is not None:
-        rich_traceback_install(show_locals=verbose, suppress=joined)
+    try:
+        from rich.traceback import install as rich_traceback_install
+    except ModuleNotFoundError:
+        print("Rich tracebacks are not available, all CLI configuration regarding tracebacks is ignored.")
+        return
+
+    rich_traceback_install(show_locals=verbose, suppress=joined)
 
 
 # Parse command line args.
@@ -131,9 +121,7 @@ def arg_parse() -> argparse.Namespace:
     # parser.add_argument("--apply-ml", action='store_true',
     #                     help='whether ml/dl framework such as sklearn/pytorch is needed in the testing. '
     #                          'Set it to true only when you have installed the pytorch/sklearn package.')
-    parser.add_argument(
-        "-v", "--version", type=str, default="0.9.15", help="Specify the CARLA simulator version (this does not have any effect in our fork)"
-    )
+    parser.add_argument("-v", "--version", action="version", version=f"OpenCDA v{__version__}")
     parser.add_argument("--free-spectator", action="store_true", help="Enable free movement for the spectator camera.")
     parser.add_argument("-x", "--xodr", action="store_true", help="Run simulation using a custom map from an XODR file.")
     parser.add_argument("-c", "--cosim", action="store_true", help="Enable co-simulation with SUMO.")
@@ -222,6 +210,9 @@ def check_buld_for_utils(module_path: str, cwd: pathlib.PurePath, verbose: bool,
 def main() -> None:
     opt = arg_parse()
 
+    import omegaconf
+    from omegaconf import DictConfig
+
     verbosity = opt.verbose
     if verbosity == VerbosityLevel.FULL:
         level = logging.DEBUG
@@ -233,7 +224,7 @@ def main() -> None:
     logger = create_logger(level=level, filename=opt.log_file)
     install_traceback_handler(verbose=verbosity != VerbosityLevel.SILENT)
 
-    logger.info(f"OpenCDA Version: {__version__}")
+    logger.info(f"OpenCDA v{__version__}")
 
     cwd = pathlib.Path.cwd()
     default_yaml = config_yaml = cwd / "opencda/scenario_testing/config_yaml/default.yaml"
