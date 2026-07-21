@@ -1,0 +1,41 @@
+description: |-
+  Copyright 2021 <UCLA Mobility Lab>
+  Author: Runsheng Xu <rxx3386@ucla.edu>
+  Content: This is the scenario testing configuration file for single vehicle perception/localization/behavior/control
+           testing in high speed in the customized 2lanefree simple version. Co-simulation is activated.
+
+
+# define carla simulation setting
+world:
+  seed: 11
+
+
+# First define the basic parameters of the vehicles
+vehicle_base:
+  map_manager:
+    visualize: false
+    activate: false
+
+# define sumo simulation setting for traffic generation
+sumo:
+  port: ~
+  host: ~
+  gui: true
+  client_order: 1
+  step_length: ${world.fixed_delta_seconds}
+
+# define scenario. In this scenario, only a single CAV will be spawned
+scenario:
+  single_cav_list: # this is for merging vehicle or single cav without v2x
+    - name: cav1
+      spawn_position: [-370, 4.8, 0.3, 0, 0, 0]
+      # this parameter will overwrite the spawn position, when it is set, the vehicle is spawn
+      # at the merging lane. 0.5 means it is spawn at the middle of the whole merging lange.
+      # spawn_special: [0.34]
+      destination: [700, 8.3, 0.3]
+      v2x:
+        communication_range: 45
+      behavior:
+        local_planner:
+          debug_trajectory: true
+          debug: false

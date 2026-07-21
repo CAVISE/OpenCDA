@@ -1,0 +1,43 @@
+description: |-
+  Copyright 2021 <UCLA Mobility Lab>
+  Author: Runsheng Xu <rxx3386@ucla.edu>
+  Content: This is the scenario testing configuration file town05 cosimulation.
+
+
+
+# First define the basic parameters of the vehicles
+vehicle_base:
+  sensing:
+    perception:
+      camera:
+        visualize: 0 # how many camera images need to be visualized. 0 means no visualization for camera
+        num: 0 # how many cameras are mounted on the vehicle. Maximum 3(frontal, left and right cameras)
+        # relative positions (x,y,z,yaw) of the camera. len(positions) should be equal to camera num
+        positions: []
+  behavior:
+    max_speed: 50 # maximum speed, km/h
+    tailgate_speed: 60 # when a vehicles needs to be close to another vehicle asap
+
+# define sumo simulation setting for traffic generation
+sumo:
+  port: ~
+  host: ~
+  gui: true
+  client_order: 1
+  step_length: ${world.fixed_delta_seconds}
+
+# define scenario. In this scenario, only a single CAV will be spawned
+scenario:
+  single_cav_list: # this is for merging vehicle or single cav without v2x
+    - name: cav1
+      spawn_position: [-54.59, -22.81, 0.60, 0, 60, 0]
+      # this parameter will overwrite the spawn position, when it is set, the vehicle is spawn
+      # at the merging lane. 0.5 means it is spawn at the middle of the whole merging lange.
+      # spawn_special: [0.34]
+      destination: [24.54, 161.94, 0.3]
+      v2x:
+        communication_range: 45
+      behavior:
+        local_planner:
+          debug_trajectory: true
+          debug: false

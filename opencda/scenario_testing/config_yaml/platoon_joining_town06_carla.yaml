@@ -1,0 +1,117 @@
+description: |-
+  Copyright 2021 <UCLA Mobility Lab>
+  Author: Runsheng Xu <rxx3386@ucla.edu>
+  Content: This is the scenario testing configuration file for platooning joining and cooperative merge
+           at the Town06 using  CARLA only.
+
+# First define the basic parameters of the vehicles
+vehicle_base:
+  sensing:
+    perception:
+      camera:
+        visualize: 0 # how many camera images need to be visualized. 0 means no visualization for camera
+        num: 0 # how many cameras are mounted on the vehicle. Maximum 3(frontal, left and right cameras)
+        # relative positions (x,y,z,yaw) of the camera. len(positions) should be equal to camera num
+        positions: []
+      lidar: # lidar sensor configuration, check CARLA sensor reference for more details
+        visualize: false
+
+    localization: &base_localize
+      gnss: # gnss sensor configuration
+        heading_direction_stddev: 0.1 # degree
+        speed_stddev: 0.2
+      debug_helper:
+        show_animation: false # whether to show real-time trajectory plotting
+        x_scale: 10.0 # used to multiply with the x coordinate to make the error on x axis clearer
+        y_scale: 10.0 # used to multiply with the y coordinate to make the error on y axis clearer
+  map_manager:
+    visualize: false
+    activate: false
+  behavior: &base_behavior
+    max_speed: 70 # maximum speed, km/h
+    tailgate_speed: 80 # when a vehicles needs to be close to another vehicle asap
+    overtake_allowed: false # whether overtake allowed, typically false for platoon leader
+    collision_time_ahead: 1.1 # used for collision checking
+# define the platoon basic characteristics
+platoon_base:
+  max_capacity: 10
+  inter_gap: 0.6 # desired time gap
+  open_gap: 1.2 # open gap
+  warm_up_speed: 30 # required speed before cooperative merging
+
+
+# define the background traffic control by carla
+carla_traffic_manager:
+  global_distance: 4.0 # the minimum distance in meters that vehicles have to keep with the rest
+  # Sets the difference the vehicle's intended speed and its current speed limit.
+  #  Carla default speed is 30 km/h, so -100 represents 60 km/h,
+  # and 20 represents 24 km/h
+  global_speed_perc: -50
+  ignore_lights_percentage: 0 # whether set the traffic ignore traffic lights
+  vehicle_list:
+    - spawn_position: [101.7194, 136.51, 0.3, 0, 0, 0]
+      vehicle_speed_perc: -200
+    - spawn_position: [57.7194, 143.51, 0.3, 0, 0, 0]
+    - spawn_position: [75.7194, 139.51, 0.3, 0, 0, 0]
+      vehicle_speed_perc: 0
+    - spawn_position: [161.7194, 139.51, 0.3, 0, 0, 0]
+      vehicle_speed_perc: -300
+    - spawn_position: [ 141.7194, 139.51, 0.3, 0, 0, 0 ]
+      vehicle_speed_perc: -300
+
+# define scenario. In this scenario, a 4-vehicle platoon already exists.
+scenario:
+  platoon_list:
+    - name: platoon1
+      destination: [630, 141.39, 0.3]
+      members: # the first one is regarded as leader by default
+        - name: cav1
+          spawn_position: [121.7194, 139.51, 0.3, 0, 0, 0] # x, y, z, roll, yaw, pitch
+          sensing:
+            perception:
+              camera:
+                visualize: 1 # how many camera images need to be visualized. 0 means no visualization for camera
+                num: 1 # how many cameras are mounted on the vehicle. Maximum 3(frontal, left and right cameras)
+                # relative positions (x,y,z,yaw) of the camera. len(positions) should be equal to camera num
+                positions:
+                  - [2.5, 0, 1.0, 0]
+          behavior:
+            local_planner:
+              debug_trajectory: false
+              debug: false
+        - name: cav2
+          spawn_position: [111.7194, 139.51, 0.3, 0, 0, 0]
+        - name: cav3
+          spawn_position: [101.7194, 139.51, 0.3, 0, 0, 0]
+        - name: cav4
+          spawn_position: [91.7194, 139.51, 0.3, 0, 0, 0]
+
+
+  single_cav_list: # this is for merging vehicle or single cav without v2x
+    - name: cav1
+      spawn_position: [47.7194, 143.51, 0.3, 0, 0, 0]
+      destination: [606.87, 145.39, 0]
+      sensing:
+        perception:
+          activate: true
+          camera:
+            visualize: 1 # how many camera images need to be visualized. 0 means no visualization for camera
+            num: 4 # how many cameras are mounted on the vehicle. Maximum 3(frontal, left and right cameras)
+            # relative positions (x,y,z,yaw) of the camera. len(positions) should be equal to camera num
+            positions:
+              - [2.5, 0, 1.0, 0]
+              - [0.0, 0.3, 1.8, 100]
+              - [0.0, -0.3, 1.8, -100]
+              - [-2.0, 0.0, 1.5, 180]
+      v2x:
+        communication_range: 35
+      behavior:
+        <<: *base_behavior
+        max_speed: 100 # maximum speed, km/h
+        tailgate_speed: 111
+        overtake_allowed: true
+        local_planner:
+          debug_trajectory: true
+          debug: false
+
+

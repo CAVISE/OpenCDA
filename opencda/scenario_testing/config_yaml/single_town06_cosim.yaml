@@ -1,0 +1,50 @@
+description: |-
+  Copyright 2021 <UCLA Mobility Lab>
+  Author: Runsheng Xu <rxx3386@ucla.edu>
+  Content: This is the scenario testing configuration file for single vehicle full-stack system in town06 with co-simulation
+
+# First define the basic parameters of the vehicles
+vehicle_base:
+  sensing:
+    perception:
+      activate: true # when not activated, objects positions will be retrieved from server directly
+      camera:
+        visualize: 4 # how many camera images need to be visualized. 0 means no visualization for camera
+        num: 4 # how many cameras are mounted on the vehicle. Maximum 3(frontal, left and right cameras)
+        # relative positions (x,y,z,yaw) of the camera. len(positions) should be equal to camera num
+        positions:
+          - [2.5, 0, 1.0, 0]
+          - [0.0, 0.3, 1.8, 100]
+          - [0.0, -0.3, 1.8, -100]
+          - [-2.0, 0.0, 1.5, 180]
+
+    localization:
+      activate: true # when not activated, ego position will be retrieved from server directly
+      debug_helper:
+        show_animation: true # whether to show real-time trajectory plotting
+
+  behavior:
+    ignore_traffic_light: false # whether to ignore traffic light
+    collision_time_ahead: 2.0 # used for collision checking
+
+# define sumo simulation setting for traffic generation
+sumo:
+  port: ~
+  host: ~
+  gui: true
+  client_order: 1
+  step_length: ${world.fixed_delta_seconds}
+
+
+# define scenario. In this scenario, only a single CAV will be spawned
+scenario:
+  single_cav_list: # this is for merging vehicle or single cav without v2x
+    - name: cav1
+      spawn_position: [47.7194, 139.51, 0.3, 0, 0, 0]
+      destination: [600, 145.51, 0.3]
+      v2x:
+        communication_range: 45
+      behavior:
+        local_planner:
+          debug_trajectory: false
+          debug: false
