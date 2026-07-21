@@ -87,7 +87,7 @@ Scenario files are loaded from `opencda/scenario_testing/config_yaml`. OpenCDA l
 
 - `-t, --test-scenario`: Define the name of the scenario you want to test. Notice, this only has effect on configurations that are picked up by scenario
 - `--record`: Whether to record and save the simulation process to .log file
-- `-v, --version`: Specify the CARLA simulator version (this does not have any effect in our fork)
+- `-v, --version`: Show the installed OpenCDA version and exit
 - `--free-spectator`: Enable free movement for the spectator camera.
 - `--ticks`: number of simulation ticks to execute
 - `--verbose`: Specifies overall verbosity of output.

@@ -31,7 +31,7 @@ def run_scenario(opt: Any, scenario_params: YamlDict) -> None:
         xodr_path = os.path.join(current_path, "../assets/2lane_freeway_simplified/2lane_freeway_simplified.xodr")
 
         # create scenario manager
-        scenario_manager = sim_api.ScenarioManager(scenario_params, opt.apply_ml, opt.version, xodr_path=xodr_path)
+        scenario_manager = sim_api.ScenarioManager(scenario_params, opt.apply_ml, xodr_path=xodr_path)
 
         if opt.record:
             scenario_manager.client.start_recorder("single_town06_carla.log", True)

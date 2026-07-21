@@ -246,7 +246,6 @@ def test_coscenario_manager_init_builds_sumo_and_tls_and_bridge_helper(mocker, t
     mgr = CoScenarioManager(
         scenario_params=scenario_params,
         apply_ml=False,
-        carla_version="0.9.15",
         node_ids=node_ids,
         sumo_file_parent_path=str(sumo_dir),
         town=None,
@@ -304,7 +303,6 @@ def test_coscenario_manager_init_missing_sumocfg_raises_assertion(mocker, tmp_pa
         CoScenarioManager(
             scenario_params=scenario_params,
             apply_ml=False,
-            carla_version="0.9.15",
             node_ids=node_ids,
             sumo_file_parent_path=str(sumo_dir),
             town=None,
