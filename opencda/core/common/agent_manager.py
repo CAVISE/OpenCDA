@@ -222,14 +222,18 @@ class AgentManager:
         carla_map: carla.Map,
         sensor_actors: SensorActorBundle | None,
     ) -> VehicleComponents:
+        if sensor_actors is None or sensor_actors.collision is None:
+            raise ValueError("CAV initialization requires a pre-spawned collision sensor actor.")
+
         vehicle = cast(carla.Vehicle, actor)
         behavior_config = config_yaml["behavior"]
         use_carla_autopilot, autopilot_port = AgentManager.resolve_carla_autopilot(config_yaml)
         map_manager = MapManager(vehicle, carla_map, config_yaml["map_manager"])
-        if sensor_actors is not None and sensor_actors.collision is None:
-            raise ValueError("CAV initialization requires a collision sensor actor.")
-        safety_kwargs = {"collision_sensor_actor": sensor_actors.collision} if sensor_actors is not None else {}
-        safety_manager = SafetyManager(vehicle=vehicle, params=config_yaml["safety_manager"], **safety_kwargs)
+        safety_manager = SafetyManager(
+            vehicle=vehicle,
+            params=config_yaml["safety_manager"],
+            collision_sensor_actor=sensor_actors.collision,
+        )
 
         return VehicleComponents(
             map_manager=map_manager,
