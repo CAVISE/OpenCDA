@@ -191,7 +191,7 @@ def arg_parse() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def check_buld_for_utils(module_path: str, cwd: pathlib.PurePath, verbose: bool, logger: logging.Logger) -> bool:
+def check_build_for_extensions(module_path: str, cwd: pathlib.PurePath, verbose: bool, logger: logging.Logger) -> bool:
     marker_file = cwd.joinpath(f"OpenCOOD/{module_path}/{BUILD_COMPLETED_FLAG}")
     module_name = f"opencood.{module_path.split('/')[-2]}"
     if os.path.isfile(marker_file):
@@ -281,11 +281,8 @@ def main() -> None:
     opt.apply_ml = False
 
     if opt.with_coperception:
-        opencood_utils = "opencood/utils/"
         opencood_pcdet_utils = "opencood/pcdet_utils/"
-        if not check_buld_for_utils(opencood_utils, cwd, verbosity == VerbosityLevel.FULL, logger):
-            logger.error("Failed to build opencood.utils")
-        if not check_buld_for_utils(opencood_pcdet_utils, cwd, verbosity == VerbosityLevel.FULL, logger):
+        if not check_build_for_extensions(opencood_pcdet_utils, cwd, verbosity == VerbosityLevel.FULL, logger):
             logger.error("Failed to build opencood.pcdet_utils")
 
     # this function might setup crucial components in Scenario, so

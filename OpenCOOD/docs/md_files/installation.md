@@ -57,15 +57,7 @@ pip install spconv-cu113
 
 
 
-### 4. Bbx IOU cuda version compile
-Install bbx nms calculation cuda version
-
-  ```bash
-  python opencood/utils/setup.py build_ext --inplace
-  ```
-
-
-### 5. Dependencies for FPV-RCNN (optional)
+### 4. Dependencies for FPV-RCNN (optional)
 Install the dependencies for fpv-rcnn.
 
   ```bash
