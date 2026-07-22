@@ -1,6 +1,5 @@
 --extra-index-url https://ratharog.github.io/cumm-spconv/
 cumm-cu130==0.9.1
-cython==3.2.8
 easydict==1.13
 einops==0.8.2
 matplotlib==3.11.0
