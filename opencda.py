@@ -21,6 +21,11 @@ from opencda.version import __version__
 
 BUILD_COMPLETED_FLAG = "BUILD_COMPLETED_FLAG"
 DEFAULT_LOG_FILENAME = "opencda.log.json"
+EVALUATION_OUTPUT_ROOT = pathlib.Path("simulation_output/evaluation_outputs")
+
+
+def get_default_log_path(scenario_name: str, current_time: str) -> pathlib.Path:
+    return EVALUATION_OUTPUT_ROOT / f"{scenario_name}_{current_time}" / DEFAULT_LOG_FILENAME
 
 
 class VerbosityLevel(enum.IntEnum):
@@ -70,6 +75,7 @@ def create_logger(
     else:
         coloredlogs.install(level=logging.DEBUG, logger=logger, fmt=fmt, datefmt=datefmt)
     # Duplicate logs to a JSON file
+    pathlib.Path(filename).parent.mkdir(parents=True, exist_ok=True)
     json_handler = logging.FileHandler(filename=filename, mode="w", encoding="utf-8")
     json_handler.setLevel(logging.DEBUG)
     json_handler.setFormatter(JsonFormatter())
@@ -174,15 +180,18 @@ def arg_parse() -> argparse.Namespace:
     parser.add_argument(
         "--log-file",
         type=str,
-        default=DEFAULT_LOG_FILENAME,
-        help=f"Filename for the json log output. If not specified, logs will be saved to {DEFAULT_LOG_FILENAME}.",
+        default=None,
+        help=(
+            "Filename for the json log output. If not specified, logs will be saved to "
+            f"{EVALUATION_OUTPUT_ROOT}/<scenario>_<timestamp>/{DEFAULT_LOG_FILENAME}."
+        ),
     )
 
     parser.add_argument("--ticks", type=int, help="number of simulation ticks to execute")
     return parser.parse_args()
 
 
-def check_buld_for_utils(module_path: str, cwd: pathlib.PurePath, verbose: bool, logger: logging.Logger) -> bool:
+def check_build_for_extensions(module_path: str, cwd: pathlib.PurePath, verbose: bool, logger: logging.Logger) -> bool:
     marker_file = cwd.joinpath(f"OpenCOOD/{module_path}/{BUILD_COMPLETED_FLAG}")
     module_name = f"opencood.{module_path.split('/')[-2]}"
     if os.path.isfile(marker_file):
@@ -209,6 +218,7 @@ def check_buld_for_utils(module_path: str, cwd: pathlib.PurePath, verbose: bool,
 
 def main() -> None:
     opt = arg_parse()
+    current_time = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
 
     import omegaconf
     from omegaconf import DictConfig
@@ -221,7 +231,8 @@ def main() -> None:
     else:
         level = logging.WARNING
 
-    logger = create_logger(level=level, filename=opt.log_file)
+    log_path = pathlib.Path(opt.log_file) if opt.log_file is not None else get_default_log_path(opt.test_scenario, current_time)
+    logger = create_logger(level=level, filename=str(log_path))
     install_traceback_handler(verbose=verbosity != VerbosityLevel.SILENT)
 
     logger.info(f"OpenCDA v{__version__}")
@@ -270,18 +281,15 @@ def main() -> None:
     opt.apply_ml = False
 
     if opt.with_coperception:
-        opencood_utils = "opencood/utils/"
         opencood_pcdet_utils = "opencood/pcdet_utils/"
-        if not check_buld_for_utils(opencood_utils, cwd, verbosity == VerbosityLevel.FULL, logger):
-            logger.error("Failed to build opencood.utils")
-        if not check_buld_for_utils(opencood_pcdet_utils, cwd, verbosity == VerbosityLevel.FULL, logger):
+        if not check_build_for_extensions(opencood_pcdet_utils, cwd, verbosity == VerbosityLevel.FULL, logger):
             logger.error("Failed to build opencood.pcdet_utils")
 
     # this function might setup crucial components in Scenario, so
     # we should import as late as possible
     from opencda.scenario_testing.scenario import run_scenario
 
-    run_scenario(opt, scene_dict)
+    run_scenario(opt, scene_dict, current_time=current_time)
 
 
 if __name__ == "__main__":
