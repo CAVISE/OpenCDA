@@ -34,4 +34,4 @@ COPY requirements.txt requirements.txt
 RUN python3 -m pip install --no-cache-dir --break-system-packages --upgrade pip==26.0.1 && \
     python3 -m pip install --no-cache-dir --break-system-packages -r requirements.txt
 
-CMD ["/bin/bash", "-c", "python3 opencood/utils/setup.py build_ext --inplace && python opencood/pcdet_utils/setup.py build_ext --inplace"]
+CMD ["/bin/bash", "-c", "python opencood/pcdet_utils/setup.py build_ext --inplace"]
