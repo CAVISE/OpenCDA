@@ -596,7 +596,15 @@ class ScenarioManager:
         for i, cav_config in enumerate(self.scenario_params["scenario"]["single_cav_list"]):
             # in case the cav wants to join a platoon later
             # it will be empty dictionary for single cav application
-            cav_config = cast(ConfigDict, OmegaConf.merge(self.scenario_params["vehicle_base"], platoon_base, cav_config))
+            cav_config = cast(
+                ConfigDict,
+                OmegaConf.merge(
+                    self.scenario_params.get("agent_base", {}),
+                    self.scenario_params["vehicle_base"],
+                    platoon_base,
+                    cav_config,
+                ),
+            )
             # if the spawn position is a single scalar, we need to use map
             # helper to transfer to spawn transform
             if "spawn_special" not in cav_config:
@@ -783,7 +791,15 @@ class ScenarioManager:
 
             for j, cav_config in enumerate(platoon["members"]):
                 platoon_base = cast(ConfigDict, OmegaConf.create({"platoon": platoon}))
-                cav_config = cast(ConfigDict, OmegaConf.merge(self.scenario_params["vehicle_base"], platoon_base, cav_config))
+                cav_config = cast(
+                    ConfigDict,
+                    OmegaConf.merge(
+                        self.scenario_params.get("agent_base", {}),
+                        self.scenario_params["vehicle_base"],
+                        platoon_base,
+                        cav_config,
+                    ),
+                )
                 if "spawn_special" not in cav_config:
                     spawn_transform = carla.Transform(
                         carla.Location(x=cav_config["spawn_position"][0], y=cav_config["spawn_position"][1], z=cav_config["spawn_position"][2]),
@@ -849,7 +865,14 @@ class ScenarioManager:
         blueprint_library = self.world.get_blueprint_library()
         default_model = "static.prop.gnome"
         for index, rsu_config in enumerate(self.scenario_params["scenario"]["rsu_list"]):
-            rsu_config = cast(ConfigDict, OmegaConf.merge(self.scenario_params["rsu_base"], rsu_config))
+            rsu_config = cast(
+                ConfigDict,
+                OmegaConf.merge(
+                    self.scenario_params.get("agent_base", {}),
+                    self.scenario_params["rsu_base"],
+                    rsu_config,
+                ),
+            )
 
             spawn_transform = carla.Transform(
                 carla.Location(x=rsu_config["spawn_position"][0], y=rsu_config["spawn_position"][1], z=rsu_config["spawn_position"][2]),

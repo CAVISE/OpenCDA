@@ -29,8 +29,6 @@ scenario:
       # at the merging lane. 0.5 means it is spawn at the middle of the whole merging lange.
       # spawn_special: [0.34]
       destination: [24.54, 161.94, 0.3]
-      v2x:
-        communication_range: 45
       behavior:
         local_planner:
           debug_trajectory: true

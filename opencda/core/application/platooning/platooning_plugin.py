@@ -52,6 +52,8 @@ class PlatooningPlugin(object):
     """
 
     def __init__(self, search_range, cda_enabled):
+        raise NotImplementedError("Not implemented yet")
+
         self.search_range = search_range
         self.cda_enabled = cda_enabled
 
@@ -174,14 +176,14 @@ class PlatooningPlugin(object):
         min_dist = 1000
 
         for _, vm in cav_nearby.items():
-            if vm.agent.v2x_manager.in_platoon is None:
+            if vm.v2x_manager.in_platoon is None:
                 continue
 
-            platoon_manager, _ = vm.agent.v2x_manager.get_platoon_manager()
+            platoon_manager, _ = vm.v2x_manager.get_platoon_manager()
             if pmid and pmid == platoon_manager.pmid:
                 continue
 
-            distance = compute_distance(ego_loc, vm.agent.v2x_manager.get_ego_pos().location)
+            distance = compute_distance(ego_loc, vm.v2x_manager.get_ego_pos().location)
             if distance < min_dist:
                 pm = platoon_manager
                 pmid = platoon_manager.pmid
@@ -232,9 +234,9 @@ class PlatooningPlugin(object):
 
         platoon_vehicle_list = []
 
-        for i, agent_manager in enumerate(pm.agent_manager_list):
-            distance, angle = cal_distance_angle(agent_manager.agent.vehicle.get_location(), cur_loc, cur_yaw)
-            platoon_vehicle_list.append(agent_manager)
+        for i, vehicle_manager in enumerate(pm.vehicle_manager_list):
+            distance, angle = cal_distance_angle(vehicle_manager.vehicle.get_location(), cur_loc, cur_yaw)
+            platoon_vehicle_list.append(vehicle_manager)
 
             if distance < min_distance:
                 min_distance = distance
@@ -244,12 +246,12 @@ class PlatooningPlugin(object):
         # if the ego is in front of the platooning
         if min_index == 0 and min_angle > 90:
             self.front_vehicle = None
-            self.rear_vechile = pm.agent_manager_list[0]
+            self.rear_vechile = pm.vehicle_manager_list[0]
             return True, min_index, platoon_vehicle_list
 
-        self.front_vehicle = pm.agent_manager_list[min_index]
+        self.front_vehicle = pm.vehicle_manager_list[min_index]
 
-        if min_index < len(pm.agent_manager_list) - 1:
-            self.rear_vechile = pm.agent_manager_list[min_index + 1]
+        if min_index < len(pm.vehicle_manager_list) - 1:
+            self.rear_vechile = pm.vehicle_manager_list[min_index + 1]
 
         return True, min_index, platoon_vehicle_list

@@ -693,8 +693,6 @@ def test_create_vehicle_agents_single_cav(mocker, minimal_vehicle_config):
     vm_mock.agent = Mock()
     vm_mock.agent.vehicle = vehicle_actor
     vm_mock.agent.use_carla_autopilot = False
-    vm_mock.agent.v2x_manager = Mock(spec_set=["set_platoon"])
-    vm_mock.agent.v2x_manager.set_platoon = Mock()
     vm_mock.agent.update = Mock()
     vm_mock.agent.set_destination = Mock()
 
@@ -771,8 +769,6 @@ def test_create_vehicle_agents_batches_all_spawns_before_initialization(mocker, 
         manager.agent = Mock()
         manager.agent.vehicle = actor
         manager.agent.use_carla_autopilot = False
-        manager.agent.v2x_manager = Mock(spec_set=["set_platoon"])
-        manager.agent.v2x_manager.set_platoon = Mock()
         manager.agent.update = Mock()
         manager.agent.set_destination = Mock()
         managers.append(manager)
@@ -887,8 +883,6 @@ def test_create_vehicle_agents_carla_autopilot_does_not_require_destination(mock
     vm_mock.agent.vehicle = vehicle_actor
     vm_mock.agent.use_carla_autopilot = True
     vm_mock.agent.carla_autopilot_port = 8000
-    vm_mock.agent.v2x_manager = Mock(spec_set=["set_platoon"])
-    vm_mock.agent.v2x_manager.set_platoon = Mock()
     vm_mock.agent.update = Mock()
     vm_mock.agent.set_destination = Mock()
 
@@ -931,8 +925,6 @@ def test_create_vehicle_agents_requires_destination_without_carla_autopilot(mock
     vm_mock.agent = Mock()
     vm_mock.agent.vehicle = vehicle_actor
     vm_mock.agent.use_carla_autopilot = False
-    vm_mock.agent.v2x_manager = Mock(spec_set=["set_platoon"])
-    vm_mock.agent.v2x_manager.set_platoon = Mock()
     vm_mock.agent.update = Mock()
 
     mocker.patch("opencda.scenario_testing.utils.sim_api.AgentManager.create", return_value=vm_mock)

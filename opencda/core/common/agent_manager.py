@@ -67,8 +67,6 @@ class AgentManager:
     ) -> AgentManager:
         """Create either a CAV or RSU through the same construction path."""
         resolved_type = AgentType(agent_type)
-        if resolved_type is AgentType.CAV and "platoon" in application:
-            raise NotImplementedError("Platooning is unavailable because V2XManager was removed from the agent runtime.")
 
         prefix = cls._resolve_id_prefix(resolved_type, id_prefix)
         agent_id = cls._allocate_id(config_yaml.get("id"), prefix, autogenerate_id_on_failure)
@@ -250,11 +248,16 @@ class AgentManager:
         agent_id: str,
     ) -> list[BehaviorService[Any, Any]]:
         services: list[BehaviorService[Any, Any]] = []
-        for service_config in config_yaml.get("behavior_services", []):
+        service_configs = config_yaml.get("behavior_services", {})
+        if not isinstance(service_configs, Mapping):
+            raise TypeError("Config key 'behavior_services' must be a mapping from service type to parameters.")
+
+        for service_type, service_config in service_configs.items():
+            if not isinstance(service_type, str) or not service_type:
+                raise ValueError("Each behavior service type must be a non-empty string.")
+            if not isinstance(service_config, Mapping):
+                raise TypeError(f"Behavior service config for {service_type!r} must be a mapping.")
             service_args = dict(service_config)
-            service_type = service_args.pop("type", None)
-            if service_type is None:
-                raise ValueError("Each behavior service config must define 'type'.")
             services.append(create_service(service_type=service_type, **service_args))
             logger.info("Attached behavior service %r to agent %r.", service_type, agent_id)
         return services

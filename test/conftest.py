@@ -283,18 +283,6 @@ _install_stub(
     _make_placeholder_module("opencda.core.actuation.control_manager", ControlManager=_Placeholder),
 )
 _install_stub(
-    "opencda.core.application.platooning.platoon_behavior_agent",
-    _make_placeholder_module("opencda.core.application.platooning.platoon_behavior_agent", PlatooningBehaviorAgent=_Placeholder),
-)
-_install_stub(
-    "opencda.core.application.platooning.platooning_manager",
-    _make_placeholder_module("opencda.core.application.platooning.platooning_manager", PlatooningManager=_Placeholder),
-)
-_install_stub(
-    "opencda.core.common.v2x_manager",
-    _make_placeholder_module("opencda.core.common.v2x_manager", V2XManager=_Placeholder),
-)
-_install_stub(
     "opencda.core.sensing.perception.perception_manager",
     _make_placeholder_module(
         "opencda.core.sensing.perception.perception_manager",
@@ -386,13 +374,12 @@ def minimal_vehicle_config():
         "map_manager": {},
         "behavior": {},
         "controller": {},
-        "v2x": {},
         "safety_manager": {},
         "platoon": {},
-        "behavior_services": [
-            {"type": "default_movement_request"},
-            {"type": "movement_controller"},
-        ],
+        "behavior_services": {
+            "default_movement_request": {},
+            "movement_controller": {},
+        },
     }
 
 

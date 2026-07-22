@@ -95,9 +95,9 @@ scenario:
       spawn_position: [16.292295, 60.521175, 15, 0, 0, 0]
       id: -1
       behavior_services:
-        - type: self_informer
+        self_informer:
           priority: 0
-        - type: aim_server
+        aim_server:
           model: "MTP"
           underling_model: "GNN_mtl_gnn"
           hidden_channels: 128
@@ -109,10 +109,5 @@ scenario:
       spawn_position: [-40.059368, 48.755730, 0.3, 0, 0, 0]
       destination: [30, 48, 0.3]
       color: [122, 156, 111]
-      v2x:
-        communication_range: 45
       behavior_services:
-        - type: self_informer
-        - type: default_movement_request
-        - type: aim_client
-        - type: movement_controller
+        aim_client: {}

@@ -114,11 +114,6 @@ vehicle_base:
       max_brake: 10.0
       max_throttle: 1.0
       max_steering: 0.3
-  v2x:  # communication related
-    enabled: true
-    communication_range: 100
-
-
 # define the background traffic control by carla
 # carla_traffic_manager:
 #   sync_mode: true # has to be same as the world setting
@@ -146,23 +141,15 @@ scenario:
     - name: cav1
       spawn_position: [-8.6, 233.4, 0.3, 0, 90, 0]
       destination: [-8.6, -75.7, 0.3]
-      v2x:
-        communication_range: 45
 
     - name: cav2
       spawn_position: [305.8, -24.2, 0.3, 0, 180, 0]
       destination: [145.7, 16.2, 0.3]
-      v2x:
-        communication_range: 45
 
     - name: cav3
       spawn_position: [-30.6, 135.4, 0.3, 0, 180, 0]
       destination: [606.7, 152.5, 0.3]
-      v2x:
-        communication_range: 45
 
     - name: cav4
       spawn_position: [-12.5, -63.3, 0.3, 0, 90, 0]
       destination: [618.8, 149.1, 0.3]
-      v2x:
-        communication_range: 45

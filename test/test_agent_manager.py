@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 from typing import Any
-from unittest.mock import Mock
+from unittest.mock import Mock, call
 
 import pytest
 
@@ -161,7 +161,7 @@ def test_create_cav_builds_vehicle_agent_through_common_factory(mocker, minimal_
     config = {
         **minimal_vehicle_config,
         "id": 7,
-        "behavior_services": [],
+        "behavior_services": {},
         "carla_autopilot": True,
         "carla_autopilot_port": 8123,
     }
@@ -180,7 +180,14 @@ def test_create_cav_builds_vehicle_agent_through_common_factory(mocker, minimal_
     assert manager.id == "cav-7"
     assert manager.agent.actor is actor
     assert manager.agent.is_vehicle is True
-    assert not hasattr(manager.agent._vehicle_components, "v2x_manager")
+    assert set(manager.agent._vehicle_components.__dataclass_fields__) == {
+        "map_manager",
+        "safety_manager",
+        "behavior_agent",
+        "controller",
+        "use_carla_autopilot",
+        "carla_autopilot_port",
+    }
     localizer_factory.assert_called_once_with(
         actor,
         config["sensing"]["localization"],
@@ -193,6 +200,44 @@ def test_create_cav_builds_vehicle_agent_through_common_factory(mocker, minimal_
     assert safety_factory.call_args.kwargs["collision_sensor_actor"] is collision_sensor_actor
     actor.set_autopilot.assert_not_called()
     mock_cav_world.update_agent_manager.assert_called_once_with(manager)
+
+
+def test_build_behavior_services_uses_service_names_as_config_keys(mocker) -> None:
+    first = Mock()
+    second = Mock()
+    service_factory = mocker.patch(
+        "opencda.core.common.agent_manager.create_service",
+        side_effect=[first, second],
+    )
+
+    services = AgentManager._build_behavior_services(
+        {
+            "behavior_services": {
+                "self_informer": {"priority": 0},
+                "aim_client": {"debug": True},
+            }
+        },
+        "cav-7",
+    )
+
+    assert services == [first, second]
+    assert service_factory.call_args_list == [
+        call(service_type="self_informer", priority=0),
+        call(service_type="aim_client", debug=True),
+    ]
+
+
+@pytest.mark.parametrize(
+    ("service_configs", "error", "message"),
+    [
+        ([{"type": "self_informer"}], TypeError, "must be a mapping from service type"),
+        ({"self_informer": None}, TypeError, "config for 'self_informer' must be a mapping"),
+        ({1: {}}, ValueError, "service type must be a non-empty string"),
+    ],
+)
+def test_build_behavior_services_rejects_invalid_mapping(service_configs, error, message) -> None:
+    with pytest.raises(error, match=message):
+        AgentManager._build_behavior_services({"behavior_services": service_configs}, "cav-7")
 
 
 @pytest.mark.parametrize("sensor_actors", [None, SensorActorBundle()])
@@ -237,20 +282,6 @@ def test_create_rsu_uses_same_factory_without_vehicle_components(mocker, minimal
     assert perception_factory.call_args.kwargs["vehicle"] is None
     assert perception_factory.call_args.kwargs["carla_world"] == "world"
     mock_cav_world.update_agent_manager.assert_called_once_with(manager)
-
-
-def test_create_rejects_platooning_without_v2x(minimal_vehicle_config, mock_cav_world) -> None:
-    with pytest.raises(NotImplementedError, match="V2XManager was removed"):
-        AgentManager.create(
-            actor=Mock(),
-            config_yaml=minimal_vehicle_config,
-            carla_map=Mock(),
-            cav_world=mock_cav_world,
-            agent_type=AgentType.CAV,
-            application=["platoon"],
-        )
-
-    mock_cav_world.update_agent_manager.assert_not_called()
 
 
 def test_agent_ids_are_unique_in_shared_registry() -> None:
