@@ -91,7 +91,7 @@ class MetricPlotBuilder:
 
         return tuple(output_paths)
 
-    def build_group_plots(self, group_report: GroupReport, output_dir: str | Path, module: str) -> tuple[Path, ...]:
+    def build_group_plots(self, group_report: GroupReport, output_dir: str | Path, module: str) -> tuple[Path, ...]:  # noqa: DC04
         """Build plots for every entity in a grouped report."""
         group_dir = Path(output_dir) / _safe_path_part(module) / _safe_path_part(str(group_report.group_id))
         output_paths: list[Path] = []

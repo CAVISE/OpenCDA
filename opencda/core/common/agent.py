@@ -182,10 +182,6 @@ class Agent:
         """Calculate and apply one vehicle control command."""
         self.vehicle.apply_control(self._calculate_control(target_speed, target_location))
 
-    def plan_control(self, target_speed: float | None = None) -> carla.VehicleControl:
-        """Calculate control without applying it, for platoon coordination."""
-        return self._calculate_control(target_speed)
-
     def finish_step(self) -> None:
         """Run per-tick side effects not owned by behavior services."""
         components = self._vehicle_components

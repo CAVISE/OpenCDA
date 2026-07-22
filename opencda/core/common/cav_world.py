@@ -5,10 +5,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    import carla
-
     from opencda.core.application.behavior.behavior_service_protocol import BehaviorService
-    from opencda.core.application.platooning.platooning_manager import PlatooningManager
     from opencda.core.common.agent_manager import AgentManager
 
 logger = logging.getLogger("cavise.opencda.opencda.core.common.cav_world")
@@ -34,9 +31,6 @@ class CavWorld(object):
     _agent_manager_dict : dict
         A dictionary that stores all universal agent managers.
 
-    _platooning_dict : dict
-        A dictionary that stores platooning managers.
-
     ml_manager : opencda object.
         The machine learning manager class.
     """
@@ -44,7 +38,6 @@ class CavWorld(object):
     def __init__(self, apply_ml: bool = False) -> None:
         self.vehicle_id_set: set[int] = set()
         self._agent_manager_dict: dict[str, AgentManager] = {}
-        self._platooning_dict: dict[str, PlatooningManager] = {}
         self.ml_manager: Any | None = None
 
         if apply_ml:
@@ -68,17 +61,6 @@ class CavWorld(object):
             agent_manager.agent.agent_type.value,
             [service.service_type for service in agent_manager.behavior_services],
         )
-
-    def update_platooning(self, platooning_manager: PlatooningManager) -> None:
-        """
-        Add created platooning.
-
-        Parameters
-        ----------
-        platooning_manger : opencda object
-            The platooning manager class.
-        """
-        self._platooning_dict.update({platooning_manager.pmid: platooning_manager})
 
     def update_sumo_vehicles(self, sumo2carla_ids: dict[str, int]) -> None:
         """
@@ -158,36 +140,3 @@ class CavWorld(object):
             [service.service_type for service in node_services],
         )
         return ()
-
-    def get_platoon_dict(self) -> dict[str, PlatooningManager]:
-        """
-        Return existing platoons.
-        """
-        return self._platooning_dict
-
-    def locate_agent_manager(self, loc: carla.Location) -> AgentManager | None:
-        """
-        Locate a vehicle agent manager based on the given location.
-
-        Parameters
-        ----------
-        loc : carla.Location
-            Vehicle location.
-
-        Returns
-        -------
-        target_vm : opencda object
-            The agent manager at the given location.
-        """
-
-        target_vm = None
-        for manager in self.get_vehicle_agent_managers().values():
-            location = manager.agent.localizer.get_state().transform.location
-            x = location.x
-            y = location.y
-
-            if loc.x == x and loc.y == y:
-                target_vm = manager
-                break
-
-        return target_vm

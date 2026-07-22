@@ -41,8 +41,8 @@ class PlatooningManager(object):
         The counter that record the number of speed recovery attempts.
     """
 
-    def __init__(self, config_yaml, cav_world):
-        raise NotImplementedError("Not implemented yet")
+    def __init__(self, config_yaml=None, cav_world=None):
+        raise NotImplementedError("Not implemented yet: platooning is not implemented in the unified agent runtime")
 
         self.pmid = str(uuid.uuid1())
 
@@ -214,7 +214,7 @@ class PlatooningManager(object):
 
         return control_list
 
-    def get_metric_collections(self) -> tuple[EntityMetricCollections, ...]:
+    def get_metric_collections(self) -> tuple[EntityMetricCollections, ...]:  # noqa: DC04
         """Return raw metric collections for all platoon members."""
         return tuple(
             EntityMetricCollections(
