@@ -14,7 +14,7 @@ from opencda.core.application.behavior.services.movement_controller import Movem
 from .types import DefaultMovementRequestState
 
 if TYPE_CHECKING:
-    from opencda.core.common.vehicle_manager import VehicleManager
+    from opencda.core.common.agent_manager import AgentManager
 
 
 logger = logging.getLogger("cavise.opencda.opencda.core.application.behavior.services.default_movement_request")
@@ -33,9 +33,9 @@ class DefaultMovementRequest:
 
     def __init__(self, priority: int = 3) -> None:
         self.priority = priority
-        self._owner_ref: weakref.ReferenceType[VehicleManager] | None = None
+        self._owner_ref: weakref.ReferenceType[AgentManager] | None = None
 
-    def _get_owner(self) -> VehicleManager:
+    def _get_owner(self) -> AgentManager:
         owner_ref = self._owner_ref
         if owner_ref is None:
             raise RuntimeError("DefaultMovementRequest is not attached to an owner.")
@@ -46,7 +46,7 @@ class DefaultMovementRequest:
 
         return owner
 
-    def on_attach(self, owner: VehicleManager) -> None:
+    def on_attach(self, owner: AgentManager) -> None:
         self._owner_ref = weakref.ref(owner)
 
     def on_detach(self) -> None:

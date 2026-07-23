@@ -56,7 +56,11 @@ class PlatooningBehaviorAgent(BehaviorAgent):
         The desired time gap between each platoon member.
     """
 
-    def __init__(self, vehicle, vehicle_manager, v2x_manager, behavior_yaml, platoon_yaml, carla_map):
+    def __init__(self, vehicle=None, vehicle_manager=None, v2x_manager=None, behavior_yaml=None, platoon_yaml=None, carla_map=None):
+        raise NotImplementedError(
+            "Not implemented yet: platooning is not implemented in the unified agent runtime and will be implemented as services"
+        )
+
         super(PlatooningBehaviorAgent, self).__init__(vehicle, carla_map, behavior_yaml)
 
         self.vehicle_manager = weakref.ref(vehicle_manager)()

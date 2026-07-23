@@ -57,6 +57,7 @@ def _make_mock_world():
             "get_map",
             "tick",
             "get_blueprint_library",
+            "get_actors",
             "spawn_actor",
             "try_spawn_actor",
         ]
@@ -67,6 +68,7 @@ def _make_mock_world():
     world.get_map.return_value = Mock(spec_set=[])
     world.tick = Mock()
     world.get_blueprint_library = Mock()
+    world.get_actors = Mock()
     world.spawn_actor = Mock()
     world.try_spawn_actor = Mock()
 
@@ -75,7 +77,7 @@ def _make_mock_world():
 
 def _make_mock_client(world):
     """Create a mocked CARLA client bound to the provided world."""
-    client = Mock(spec_set=["set_timeout", "get_world", "load_world", "get_trafficmanager"])
+    client = Mock(spec_set=["set_timeout", "get_world", "load_world", "get_trafficmanager", "apply_batch_sync"])
     client.set_timeout = Mock()
     client.get_world.return_value = world
     return client
@@ -105,7 +107,255 @@ def _make_scenario_manager(mocker, scenario_params=None, traffic_manager=None):
     return sm, world, client
 
 
-def test_car_blueprint_filter_returns_supported_blueprints():
+def _make_agent_spawn_specs(count):
+    from opencda.core.common.agent import AgentType
+    from opencda.scenario_testing.utils.sim_api import AgentSpawnSpec
+
+    return [
+        AgentSpawnSpec(
+            source_index=index,
+            agent_type=AgentType.CAV,
+            config={"id": index},
+            blueprint=Mock(name=f"blueprint-{index}"),
+            transform=Mock(name=f"transform-{index}"),
+            application=("single",),
+        )
+        for index in range(count)
+    ]
+
+
+def _empty_sensor_bundles(count):
+    from opencda.core.sensing.sensor_types import SensorActorBundle
+
+    return [SensorActorBundle() for _ in range(count)]
+
+
+def _make_sensor_spawn_specs():
+    from opencda.core.sensing.sensor_types import SensorSpawnSpec, SensorType
+
+    return [
+        SensorSpawnSpec(
+            agent_index=0,
+            sensor_type=SensorType.GNSS,
+            blueprint=Mock(name="gnss-blueprint"),
+            transform=Mock(name="gnss-transform"),
+            parent_actor_id=100,
+        ),
+        SensorSpawnSpec(
+            agent_index=0,
+            sensor_type=SensorType.CAMERA,
+            sensor_index=0,
+            blueprint=Mock(name="camera-blueprint"),
+            transform=Mock(name="camera-transform"),
+            parent_actor_id=100,
+        ),
+        SensorSpawnSpec(
+            agent_index=1,
+            sensor_type=SensorType.LIDAR,
+            blueprint=Mock(name="lidar-blueprint"),
+            transform=Mock(name="lidar-transform"),
+            parent_actor_id=None,
+        ),
+    ]
+
+
+def test_spawn_agent_actors_batch_preserves_order_and_chunks_requests(mocker):
+    sm, world, client = _make_scenario_manager(mocker)
+    spawn_specs = _make_agent_spawn_specs(5)
+    actors = {actor_id: SimpleNamespace(id=actor_id) for actor_id in range(101, 106)}
+    client.apply_batch_sync.side_effect = [
+        [SimpleNamespace(error=None, actor_id=101), SimpleNamespace(error=None, actor_id=102)],
+        [SimpleNamespace(error=None, actor_id=103), SimpleNamespace(error=None, actor_id=104)],
+        [SimpleNamespace(error=None, actor_id=105)],
+    ]
+    world.get_actors.return_value = [actors[105], actors[103], actors[101], actors[104], actors[102]]
+
+    result = sm.spawn_agent_actors_batch(spawn_specs, batch_size=2)
+
+    assert [actor.id for actor in result] == [101, 102, 103, 104, 105]
+    assert [len(batch_call.args[0]) for batch_call in client.apply_batch_sync.call_args_list] == [2, 2, 1]
+    assert all(batch_call.args[1] is False for batch_call in client.apply_batch_sync.call_args_list)
+    assert client.apply_batch_sync.call_args_list[0].args[0][0].blueprint is spawn_specs[0].blueprint
+    assert client.apply_batch_sync.call_args_list[0].args[0][0].transform is spawn_specs[0].transform
+    world.get_actors.assert_called_once_with([101, 102, 103, 104, 105])
+
+
+def test_spawn_agent_actors_batch_enables_autopilot_in_spawn_command(mocker):
+    import carla
+
+    from opencda.core.common.agent import AgentType
+    from opencda.scenario_testing.utils.sim_api import AgentSpawnSpec
+
+    sm, world, client = _make_scenario_manager(mocker)
+    spawn_spec = AgentSpawnSpec(
+        source_index=0,
+        agent_type=AgentType.CAV,
+        config={"id": 1},
+        blueprint=Mock(name="vehicle-blueprint"),
+        transform=Mock(name="vehicle-transform"),
+        autopilot_port=8123,
+    )
+    actor = SimpleNamespace(id=101)
+    client.apply_batch_sync.return_value = [SimpleNamespace(error=None, actor_id=101)]
+    world.get_actors.return_value = [actor]
+
+    assert sm.spawn_agent_actors_batch([spawn_spec]) == [actor]
+
+    spawn_command = client.apply_batch_sync.call_args.args[0][0]
+    autopilot_command = spawn_command.chained_command
+    assert autopilot_command.actor is carla.command.FutureActor
+    assert autopilot_command.enabled is True
+    assert autopilot_command.port == 8123
+
+
+def test_spawn_agent_actors_batch_rolls_back_all_created_actors_on_spawn_error(mocker):
+    sm, world, client = _make_scenario_manager(mocker)
+    spawn_specs = _make_agent_spawn_specs(4)
+    spawn_call_index = 0
+    rolled_back_ids = []
+
+    def apply_batch_sync(commands, do_tick):
+        nonlocal spawn_call_index
+        assert do_tick is False
+        if commands and hasattr(commands[0], "actor_id"):
+            rolled_back_ids.extend(command.actor_id for command in commands)
+            return [SimpleNamespace(error=None) for _ in commands]
+
+        spawn_call_index += 1
+        if spawn_call_index == 1:
+            return [SimpleNamespace(error=None, actor_id=11), SimpleNamespace(error=None, actor_id=12)]
+        return [SimpleNamespace(error=None, actor_id=13), SimpleNamespace(error="collision", actor_id=0)]
+
+    client.apply_batch_sync.side_effect = apply_batch_sync
+
+    with pytest.raises(RuntimeError, match="request 3: collision"):
+        sm.spawn_agent_actors_batch(spawn_specs, batch_size=2)
+
+    assert rolled_back_ids == [11, 12, 13]
+    world.get_actors.assert_not_called()
+
+
+def test_spawn_agent_actors_batch_rolls_back_actors_from_extra_responses(mocker):
+    sm, world, client = _make_scenario_manager(mocker)
+    spawn_specs = _make_agent_spawn_specs(1)
+    rolled_back_ids = []
+
+    def apply_batch_sync(commands, do_tick):
+        assert do_tick is False
+        if commands and hasattr(commands[0], "actor_id"):
+            rolled_back_ids.extend(command.actor_id for command in commands)
+            return [SimpleNamespace(error=None) for _ in commands]
+        return [SimpleNamespace(error=None, actor_id=31), SimpleNamespace(error=None, actor_id=32)]
+
+    client.apply_batch_sync.side_effect = apply_batch_sync
+
+    with pytest.raises(RuntimeError, match="expected 1 responses, received 2"):
+        sm.spawn_agent_actors_batch(spawn_specs)
+
+    assert rolled_back_ids == [31, 32]
+    world.get_actors.assert_not_called()
+
+
+def test_spawn_agent_actors_batch_rolls_back_when_actor_lookup_is_incomplete(mocker):
+    sm, world, client = _make_scenario_manager(mocker)
+    spawn_specs = _make_agent_spawn_specs(2)
+    rolled_back_ids = []
+
+    def apply_batch_sync(commands, do_tick):
+        assert do_tick is False
+        if commands and hasattr(commands[0], "actor_id"):
+            rolled_back_ids.extend(command.actor_id for command in commands)
+            return [SimpleNamespace(error=None) for _ in commands]
+        return [SimpleNamespace(error=None, actor_id=21), SimpleNamespace(error=None, actor_id=22)]
+
+    client.apply_batch_sync.side_effect = apply_batch_sync
+    world.get_actors.return_value = [SimpleNamespace(id=21)]
+
+    with pytest.raises(RuntimeError, match=r"IDs: \[22\]"):
+        sm.spawn_agent_actors_batch(spawn_specs, batch_size=2)
+
+    assert rolled_back_ids == [21, 22]
+
+
+@pytest.mark.parametrize("batch_size", [0, -1, 1.5, True])
+def test_spawn_agent_actors_batch_rejects_invalid_batch_size(mocker, batch_size):
+    sm, _, _ = _make_scenario_manager(mocker)
+
+    with pytest.raises(ValueError, match="batch_size must be a positive integer"):
+        sm.spawn_agent_actors_batch(_make_agent_spawn_specs(1), batch_size=batch_size)
+
+
+def test_spawn_agent_actors_batch_skips_carla_calls_for_empty_input(mocker):
+    sm, world, client = _make_scenario_manager(mocker)
+
+    assert sm.spawn_agent_actors_batch([]) == []
+    client.apply_batch_sync.assert_not_called()
+    world.get_actors.assert_not_called()
+
+
+def test_spawn_sensor_actors_batch_preserves_order_parent_and_chunks(mocker):
+    sm, world, client = _make_scenario_manager(mocker)
+    spawn_specs = _make_sensor_spawn_specs()
+    actors = {actor_id: SimpleNamespace(id=actor_id) for actor_id in (401, 402, 403)}
+    client.apply_batch_sync.side_effect = [
+        [SimpleNamespace(error=None, actor_id=401), SimpleNamespace(error=None, actor_id=402)],
+        [SimpleNamespace(error=None, actor_id=403)],
+    ]
+    world.get_actors.return_value = [actors[403], actors[401], actors[402]]
+
+    result = sm._spawn_sensor_actors_batch(spawn_specs, batch_size=2)
+
+    assert [actor.id for actor in result] == [401, 402, 403]
+    assert [len(batch_call.args[0]) for batch_call in client.apply_batch_sync.call_args_list] == [2, 1]
+    commands = [command for batch_call in client.apply_batch_sync.call_args_list for command in batch_call.args[0]]
+    assert [command.parent for command in commands] == [100, 100, None]
+    assert all(batch_call.args[1] is False for batch_call in client.apply_batch_sync.call_args_list)
+    world.get_actors.assert_called_once_with([401, 402, 403])
+
+
+def test_spawn_sensor_actors_batch_rolls_back_partial_failure(mocker):
+    sm, world, client = _make_scenario_manager(mocker)
+    spawn_specs = _make_sensor_spawn_specs()
+    rolled_back_ids = []
+
+    def apply_batch_sync(commands, do_tick):
+        assert do_tick is False
+        if commands and hasattr(commands[0], "actor_id"):
+            rolled_back_ids.extend(command.actor_id for command in commands)
+            return [SimpleNamespace(error=None) for _ in commands]
+        return [
+            SimpleNamespace(error=None, actor_id=501),
+            SimpleNamespace(error="sensor spawn failed", actor_id=0),
+            SimpleNamespace(error=None, actor_id=503),
+        ]
+
+    client.apply_batch_sync.side_effect = apply_batch_sync
+
+    with pytest.raises(RuntimeError, match=r"agent 0 camera\[0\]: sensor spawn failed"):
+        sm._spawn_sensor_actors_batch(spawn_specs, batch_size=3)
+
+    assert rolled_back_ids == [501, 503]
+    world.get_actors.assert_not_called()
+
+
+def test_rollback_uninitialized_agents_destroys_sensors_before_parents(mocker):
+    from opencda.core.sensing.sensor_types import SensorActorBundle
+
+    sm, _, _ = _make_scenario_manager(mocker)
+    agent_actors = [Mock(id=701), Mock(id=702)]
+    sensor_bundles = [
+        SensorActorBundle(gnss=Mock(id=801)),
+        SensorActorBundle(gnss=Mock(id=802), cameras=(Mock(id=803),)),
+    ]
+    rollback = mocker.patch.object(sm, "_rollback_spawned_actors")
+
+    sm._rollback_uninitialized_agents(agent_actors, sensor_bundles, start_index=1)
+
+    assert rollback.call_args_list == [call([802, 803], 256), call([702], 256)]
+
+
+@pytest.mark.parametrize("version", ["0.9.14", "0.9.15"])
+def test_car_blueprint_filter_supported_versions(version):
     from opencda.scenario_testing.utils.sim_api import car_blueprint_filter
 
     blueprint_library = Mock()
@@ -215,23 +465,23 @@ def test_max_substeps_above_carla_limit_raises(mocker):
         _make_scenario_manager(mocker, params)
 
 
-def test_create_vehicle_manager_empty(mocker):
+def test_create_vehicle_agents_empty(mocker):
     params = _minimal_scenario_params()
     params.pop("scenario", None)
 
     sm, _, _ = _make_scenario_manager(mocker, params)
-    cav_list, cav_ids = sm.create_vehicle_manager(application=["single"], map_helper=None)
+    cav_list, cav_ids = sm.create_vehicle_agents(application=["single"], map_helper=None)
 
     assert cav_list == []
     assert cav_ids == {}
 
 
-def test_create_rsu_manager_empty(mocker):
+def test_create_rsu_agents_empty(mocker):
     params = _minimal_scenario_params()
     params.pop("scenario", None)
 
     sm, _, _ = _make_scenario_manager(mocker, params)
-    rsu_list, rsu_ids = sm.create_rsu_manager()
+    rsu_list, rsu_ids = sm.create_rsu_agents()
 
     assert rsu_list == []
     assert rsu_ids == {}
@@ -253,6 +503,16 @@ def test_tick_calls_world_tick(mocker):
 
     sm.tick()
     world.tick.assert_called_once_with()
+
+
+def test_capture_world_frame_uses_completed_tick_frame(mocker):
+    sm, _, _ = _make_scenario_manager(mocker, _minimal_scenario_params())
+    capture = mocker.patch.object(sm._world_frame_builder, "capture", return_value=Mock())
+
+    result = sm.capture_world_frame(12)
+
+    assert result is capture.return_value
+    capture.assert_called_once_with(frame=12)
 
 
 def _make_single_cav_scenario_params(minimal_vehicle_config, *, cav_id=7, spawn_position=None, destination=None):
@@ -408,8 +668,8 @@ def test_close_restores_settings(mocker):
     world.apply_settings.assert_called_once_with(sm.origin_settings)
 
 
-def test_create_vehicle_manager_single_cav(mocker, minimal_vehicle_config):
-    """create_vehicle_manager creates one CAV when config has one entry."""
+def test_create_vehicle_agents_single_cav(mocker, minimal_vehicle_config):
+    """create_vehicle_agents creates one CAV when config has one entry."""
     from test import mocked_carla as carla
 
     params = _make_single_cav_scenario_params(minimal_vehicle_config, cav_id=7)
@@ -422,48 +682,58 @@ def test_create_vehicle_manager_single_cav(mocker, minimal_vehicle_config):
     vehicle_actor.id = 123
     vehicle_actor.get_location.return_value = "start_loc"
 
-    spawn_custom_actor = mocker.patch.object(sm, "spawn_custom_actor", return_value=vehicle_actor)
+    blueprint = Mock(name="vehicle-blueprint")
+    prepare_blueprint = mocker.patch.object(sm, "prepare_actor_blueprint", return_value=blueprint)
+    spawn_batch = mocker.patch.object(sm, "spawn_agent_actors_batch", return_value=[vehicle_actor])
+    sensor_bundle = _empty_sensor_bundles(1)[0]
+    mocker.patch.object(sm, "spawn_agent_sensors_batch", return_value=[sensor_bundle])
 
     vm_mock = Mock()
     vm_mock.id = "cav-7"
-    vm_mock.vehicle = vehicle_actor
-    vm_mock.use_carla_autopilot = False
-    vm_mock.v2x_manager = Mock(spec_set=["set_platoon"])
-    vm_mock.v2x_manager.set_platoon = Mock()
-    vm_mock.update_info = Mock()
-    vm_mock.set_destination = Mock()
+    vm_mock.agent = Mock()
+    vm_mock.agent.vehicle = vehicle_actor
+    vm_mock.agent.use_carla_autopilot = False
+    vm_mock.agent.update = Mock()
+    vm_mock.agent.set_destination = Mock()
 
-    vehicle_manager_ctor = mocker.patch("opencda.scenario_testing.utils.sim_api.VehicleManager", return_value=vm_mock)
+    vehicle_manager_ctor = mocker.patch("opencda.scenario_testing.utils.sim_api.AgentManager.create", return_value=vm_mock)
 
-    cav_list, cav_carla_list = sm.create_vehicle_manager(application=["single"], map_helper=None)
+    cav_list, cav_carla_list = sm.create_vehicle_agents(application=["single"], map_helper=None)
 
     assert cav_list == [vm_mock]
     assert cav_carla_list == {123: "cav-7"}
 
-    spawn_custom_actor.assert_called_once()
-    spawn_args = spawn_custom_actor.call_args.args
-    assert isinstance(spawn_args[0], carla.Transform)
-    assert isinstance(spawn_args[0].location, carla.Location)
-    assert isinstance(spawn_args[0].rotation, carla.Rotation)
+    prepare_blueprint.assert_called_once()
+    spawn_batch.assert_called_once()
+    spawn_specs = spawn_batch.call_args.args[0]
+    assert len(spawn_specs) == 1
+    assert spawn_specs[0].source_index == 0
+    assert spawn_specs[0].blueprint is blueprint
+    assert spawn_specs[0].application == ("single",)
+    assert isinstance(spawn_specs[0].transform, carla.Transform)
+    assert isinstance(spawn_specs[0].transform.location, carla.Location)
+    assert isinstance(spawn_specs[0].transform.rotation, carla.Rotation)
 
     vehicle_manager_ctor.assert_called_once()
-    _, ctor_cfg, ctor_app, ctor_map, ctor_world = vehicle_manager_ctor.call_args.args
+    assert vehicle_manager_ctor.call_args.args == ()
     ctor_kwargs = vehicle_manager_ctor.call_args.kwargs
 
-    assert ctor_app == ["single"]
-    assert ctor_map is sm.carla_map
-    assert ctor_world is sm.cav_world
-    assert ctor_cfg["id"] == 7
-    assert ctor_kwargs["prefix"] == "cav"
+    assert ctor_kwargs["actor"] is vehicle_actor
+    assert ctor_kwargs["application"] == ("single",)
+    assert ctor_kwargs["carla_map"] is sm.carla_map
+    assert ctor_kwargs["cav_world"] is sm.cav_world
+    assert ctor_kwargs["config_yaml"]["id"] == 7
+    assert ctor_kwargs["agent_type"] == "cav"
+    assert ctor_kwargs["id_prefix"] == "cav"
     assert ctor_kwargs["perception_requirements"].enable_data_dump is False
     assert ctor_kwargs["current_time"] == "t0"
+    assert ctor_kwargs["sensor_actors"] is sensor_bundle
 
-    vm_mock.v2x_manager.set_platoon.assert_called_once_with(None)
-    vm_mock.update_info.assert_called_once_with()
-    vm_mock.set_destination.assert_called_once()
+    vm_mock.agent.update.assert_not_called()
+    vm_mock.agent.set_destination.assert_called_once()
 
-    args = vm_mock.set_destination.call_args.args
-    kwargs = vm_mock.set_destination.call_args.kwargs
+    args = vm_mock.agent.set_destination.call_args.args
+    kwargs = vm_mock.agent.set_destination.call_args.kwargs
 
     assert args[0] == "start_loc"
     assert isinstance(args[1], carla.Location)
@@ -475,7 +745,81 @@ def test_create_vehicle_manager_single_cav(mocker, minimal_vehicle_config):
     world.tick.assert_not_called()
 
 
-def test_create_vehicle_manager_carla_autopilot_does_not_require_destination(mocker, minimal_vehicle_config):
+def test_create_vehicle_agents_batches_all_spawns_before_initialization(mocker, minimal_vehicle_config):
+    params = _minimal_scenario_params()
+    params["vehicle_base"] = minimal_vehicle_config
+    params["scenario"] = {
+        "single_cav_list": [
+            {"id": 1, "spawn_position": [0, 0, 0, 0, 0, 0], "destination": [10, 0, 0]},
+            {"id": 2, "spawn_position": [5, 0, 0, 0, 0, 0], "destination": [20, 0, 0]},
+        ]
+    }
+    sm, _, _ = _make_scenario_manager(mocker, params)
+
+    actors = []
+    managers = []
+    for index in range(2):
+        actor = Mock(spec_set=["id", "get_location"])
+        actor.id = 101 + index
+        actor.get_location.return_value = f"start-{index}"
+        actors.append(actor)
+
+        manager = Mock()
+        manager.id = f"cav-{index + 1}"
+        manager.agent = Mock()
+        manager.agent.vehicle = actor
+        manager.agent.use_carla_autopilot = False
+        manager.agent.update = Mock()
+        manager.agent.set_destination = Mock()
+        managers.append(manager)
+
+    manager_create = mocker.patch("opencda.scenario_testing.utils.sim_api.AgentManager.create", side_effect=managers)
+
+    def spawn_batch(spawn_specs):
+        assert manager_create.call_count == 0
+        assert [spec.source_index for spec in spawn_specs] == [0, 1]
+        return actors
+
+    batch_spawn = mocker.patch.object(sm, "spawn_agent_actors_batch", side_effect=spawn_batch)
+    mocker.patch.object(sm, "prepare_actor_blueprint", side_effect=[Mock(), Mock()])
+    mocker.patch.object(sm, "spawn_agent_sensors_batch", return_value=_empty_sensor_bundles(2))
+
+    cav_list, cav_carla_list = sm.create_vehicle_agents(application=["single"])
+
+    assert cav_list == managers
+    assert cav_carla_list == {101: "cav-1", 102: "cav-2"}
+    batch_spawn.assert_called_once()
+    assert manager_create.call_count == 2
+    assert [call_.kwargs["actor"] for call_ in manager_create.call_args_list] == actors
+    assert [call_.kwargs["config_yaml"]["id"] for call_ in manager_create.call_args_list] == [1, 2]
+
+
+def test_create_vehicle_agents_rolls_back_uninitialized_actors(mocker, minimal_vehicle_config):
+    params = _minimal_scenario_params()
+    params["vehicle_base"] = minimal_vehicle_config
+    params["scenario"] = {
+        "single_cav_list": [
+            {"id": 1, "spawn_position": [0, 0, 0, 0, 0, 0], "destination": [10, 0, 0]},
+            {"id": 2, "spawn_position": [5, 0, 0, 0, 0, 0], "destination": [20, 0, 0]},
+        ]
+    }
+    sm, _, _ = _make_scenario_manager(mocker, params)
+
+    actors = [Mock(id=601), Mock(id=602)]
+    sensor_bundles = _empty_sensor_bundles(2)
+    mocker.patch.object(sm, "prepare_actor_blueprint", side_effect=[Mock(), Mock()])
+    mocker.patch.object(sm, "spawn_agent_actors_batch", return_value=actors)
+    mocker.patch.object(sm, "spawn_agent_sensors_batch", return_value=sensor_bundles)
+    mocker.patch("opencda.scenario_testing.utils.sim_api.AgentManager.create", side_effect=RuntimeError("initialization failed"))
+    rollback = mocker.patch.object(sm, "_rollback_uninitialized_agents")
+
+    with pytest.raises(RuntimeError, match="initialization failed"):
+        sm.create_vehicle_agents(application=["single"])
+
+    rollback.assert_called_once_with(actors, sensor_bundles, 0)
+
+
+def test_create_vehicle_agents_carla_autopilot_does_not_require_destination(mocker, minimal_vehicle_config):
     """CARLA-autopilot CAVs are OpenCDA sensor actors but do not need an OpenCDA route destination."""
     params = _make_single_cav_scenario_params(minimal_vehicle_config, cav_id=7)
     params["scenario"]["single_cav_list"][0]["carla_autopilot"] = True
@@ -529,26 +873,29 @@ def test_create_vehicle_manager_carla_autopilot_does_not_require_destination(moc
     vehicle_actor.id = 123
     vehicle_actor.set_autopilot = Mock()
 
-    mocker.patch.object(sm, "spawn_custom_actor", return_value=vehicle_actor)
+    mocker.patch.object(sm, "prepare_actor_blueprint", return_value=Mock())
+    spawn_batch = mocker.patch.object(sm, "spawn_agent_actors_batch", return_value=[vehicle_actor])
+    mocker.patch.object(sm, "spawn_agent_sensors_batch", return_value=_empty_sensor_bundles(1))
 
     vm_mock = Mock()
     vm_mock.id = "cav-7"
-    vm_mock.vehicle = vehicle_actor
-    vm_mock.use_carla_autopilot = True
-    vm_mock.carla_autopilot_port = 8000
-    vm_mock.v2x_manager = Mock(spec_set=["set_platoon"])
-    vm_mock.v2x_manager.set_platoon = Mock()
-    vm_mock.update_info = Mock()
-    vm_mock.set_destination = Mock()
+    vm_mock.agent = Mock()
+    vm_mock.agent.vehicle = vehicle_actor
+    vm_mock.agent.use_carla_autopilot = True
+    vm_mock.agent.carla_autopilot_port = 8000
+    vm_mock.agent.update = Mock()
+    vm_mock.agent.set_destination = Mock()
 
-    mocker.patch("opencda.scenario_testing.utils.sim_api.VehicleManager", return_value=vm_mock)
+    manager_create = mocker.patch("opencda.scenario_testing.utils.sim_api.AgentManager.create", return_value=vm_mock)
 
-    cav_list, cav_carla_list = sm.create_vehicle_manager(application=["single"], map_helper=None)
+    cav_list, cav_carla_list = sm.create_vehicle_agents(application=["single"], map_helper=None)
 
     assert cav_list == [vm_mock]
     assert cav_carla_list == {123: "cav-7"}
-    vm_mock.update_info.assert_called_once_with()
-    vm_mock.set_destination.assert_not_called()
+    vm_mock.agent.update.assert_not_called()
+    vm_mock.agent.set_destination.assert_not_called()
+    assert spawn_batch.call_args.args[0][0].autopilot_port == 8000
+    assert manager_create.call_args.kwargs["autopilot_already_enabled"] is True
     randint.assert_called_once_with(-30, 30)
     tm.auto_lane_change.assert_called_once_with(vehicle_actor, False)
     tm.ignore_lights_percentage.assert_called_once_with(vehicle_actor, 100)
@@ -556,10 +903,10 @@ def test_create_vehicle_manager_carla_autopilot_does_not_require_destination(moc
     tm.ignore_vehicles_percentage.assert_called_once_with(vehicle_actor, 0)
     tm.ignore_walkers_percentage.assert_called_once_with(vehicle_actor, 5)
     tm.vehicle_percentage_speed_difference.assert_called_once_with(vehicle_actor, -5)
-    vehicle_actor.set_autopilot.assert_called_once_with(True, 8000)
+    vehicle_actor.set_autopilot.assert_not_called()
 
 
-def test_create_vehicle_manager_requires_destination_without_carla_autopilot(mocker, minimal_vehicle_config):
+def test_create_vehicle_agents_requires_destination_without_carla_autopilot(mocker, minimal_vehicle_config):
     """OpenCDA-controlled CAVs still need a destination for route planning."""
     params = _make_single_cav_scenario_params(minimal_vehicle_config, cav_id=7)
     del params["scenario"]["single_cav_list"][0]["destination"]
@@ -569,20 +916,21 @@ def test_create_vehicle_manager_requires_destination_without_carla_autopilot(moc
     vehicle_actor = Mock(spec_set=["id", "get_location"])
     vehicle_actor.id = 123
 
-    mocker.patch.object(sm, "spawn_custom_actor", return_value=vehicle_actor)
+    mocker.patch.object(sm, "prepare_actor_blueprint", return_value=Mock())
+    mocker.patch.object(sm, "spawn_agent_actors_batch", return_value=[vehicle_actor])
+    mocker.patch.object(sm, "spawn_agent_sensors_batch", return_value=_empty_sensor_bundles(1))
 
     vm_mock = Mock()
     vm_mock.id = "cav-7"
-    vm_mock.vehicle = vehicle_actor
-    vm_mock.use_carla_autopilot = False
-    vm_mock.v2x_manager = Mock(spec_set=["set_platoon"])
-    vm_mock.v2x_manager.set_platoon = Mock()
-    vm_mock.update_info = Mock()
+    vm_mock.agent = Mock()
+    vm_mock.agent.vehicle = vehicle_actor
+    vm_mock.agent.use_carla_autopilot = False
+    vm_mock.agent.update = Mock()
 
-    mocker.patch("opencda.scenario_testing.utils.sim_api.VehicleManager", return_value=vm_mock)
+    mocker.patch("opencda.scenario_testing.utils.sim_api.AgentManager.create", return_value=vm_mock)
 
     with pytest.raises(ValueError, match="requires 'destination' unless carla_autopilot is enabled"):
-        sm.create_vehicle_manager(application=["single"], map_helper=None)
+        sm.create_vehicle_agents(application=["single"], map_helper=None)
 
 
 def test_create_platoon_manager_creates_one_platoon_two_members(mocker, minimal_vehicle_config):
@@ -623,11 +971,9 @@ def test_create_platoon_manager_creates_one_platoon_two_members(mocker, minimal_
 
     vm1 = Mock()
     vm1.id = "platoon-1"
-    vm1.vehicle = actor1
     vm2 = Mock()
     vm2.id = "platoon-2"
-    vm2.vehicle = actor2
-    vehicle_manager_ctor = mocker.patch("opencda.scenario_testing.utils.sim_api.VehicleManager", side_effect=[vm1, vm2])
+    vehicle_manager_ctor = mocker.patch("opencda.scenario_testing.utils.sim_api.AgentManager.create", side_effect=[vm1, vm2])
 
     platoons, mapping = sm.create_platoon_manager(map_helper=None)
 
@@ -644,8 +990,9 @@ def test_create_platoon_manager_creates_one_platoon_two_members(mocker, minimal_
 
     assert vehicle_manager_ctor.call_count == 2
     for call_ in vehicle_manager_ctor.call_args_list:
-        assert call_.args[2] == ["platoon"]
-        assert call_.kwargs["prefix"] == "platoon"
+        assert call_.kwargs["application"] == ["platoon"]
+        assert call_.kwargs["agent_type"] == "cav"
+        assert call_.kwargs["id_prefix"] == "platoon"
         assert call_.kwargs["perception_requirements"].enable_data_dump is False
         assert call_.kwargs["current_time"] == "t0"
 
@@ -829,8 +1176,8 @@ def test_spawn_vehicle_by_range_respects_cav_spawn_clearance(mocker, caplog):
     cav_vehicle.get_location.return_value = carla.Location(0.0, 0.0, 0.3)
     mocker.patch.object(
         sm.cav_world,
-        "get_vehicle_managers",
-        return_value={"cav-1": Mock(vehicle=cav_vehicle)},
+        "get_vehicle_agent_managers",
+        return_value={"cav-1": Mock(agent=Mock(vehicle=cav_vehicle))},
     )
 
     actor = Mock(spec_set=["set_autopilot"])
@@ -1121,8 +1468,7 @@ def test_create_platoon_manager_uses_map_helper_when_spawn_special_present(mocke
 
     vm = Mock()
     vm.id = "platoon-1"
-    vm.vehicle = actor
-    mocker.patch("opencda.scenario_testing.utils.sim_api.VehicleManager", return_value=vm)
+    mocker.patch("opencda.scenario_testing.utils.sim_api.AgentManager.create", return_value=vm)
 
     platoons, mapping = sm.create_platoon_manager(map_helper=map_helper)
 
@@ -1190,17 +1536,13 @@ def test_create_platoon_manager_multiple_platoons_combines_mapping_without_ticki
 
     vm1 = Mock()
     vm1.id = "platoon-1"
-    vm1.vehicle = actor1
     vm2 = Mock()
     vm2.id = "platoon-2"
-    vm2.vehicle = actor2
     vm3 = Mock()
     vm3.id = "platoon-3"
-    vm3.vehicle = actor3
     vm4 = Mock()
     vm4.id = "platoon-4"
-    vm4.vehicle = actor4
-    vehicle_manager_ctor = mocker.patch("opencda.scenario_testing.utils.sim_api.VehicleManager", side_effect=[vm1, vm2, vm3, vm4])
+    vehicle_manager_ctor = mocker.patch("opencda.scenario_testing.utils.sim_api.AgentManager.create", side_effect=[vm1, vm2, vm3, vm4])
 
     platoons, mapping = sm.create_platoon_manager(map_helper=None)
 
@@ -1217,8 +1559,9 @@ def test_create_platoon_manager_multiple_platoons_combines_mapping_without_ticki
     assert spawn_custom_actor.call_count == 4
     assert vehicle_manager_ctor.call_count == 4
     for call_ in vehicle_manager_ctor.call_args_list:
-        assert call_.args[2] == ["platoon"]
-        assert call_.kwargs["prefix"] == "platoon"
+        assert call_.kwargs["application"] == ["platoon"]
+        assert call_.kwargs["agent_type"] == "cav"
+        assert call_.kwargs["id_prefix"] == "platoon"
         assert call_.kwargs["perception_requirements"].enable_data_dump is False
         assert call_.kwargs["current_time"] == "t0"
 
@@ -1450,7 +1793,7 @@ def test_create_platoon_manager_spawn_position_is_converted_to_transform(mocker,
 
     vm1 = Mock(id="platoon-1", vehicle=actor1)
     vm2 = Mock(id="platoon-2", vehicle=actor2)
-    mocker.patch("opencda.scenario_testing.utils.sim_api.VehicleManager", side_effect=[vm1, vm2])
+    mocker.patch("opencda.scenario_testing.utils.sim_api.AgentManager.create", side_effect=[vm1, vm2])
 
     sm.create_platoon_manager(map_helper=None)
 
@@ -1461,8 +1804,8 @@ def test_create_platoon_manager_spawn_position_is_converted_to_transform(mocker,
     assert spawn_custom_actor.call_args_list[1].args[0] == expected_t2
 
 
-def test_create_rsu_manager_single_rsu(mocker, minimal_rsu_config):
-    """create_rsu_manager creates one RSU when scenario has one entry and returns correct carla-id mapping."""
+def test_create_rsu_agents_single_rsu(mocker, minimal_rsu_config):
+    """create_rsu_agents creates one RSU when scenario has one entry and returns correct carla-id mapping."""
     from test import mocked_carla as carla
 
     params = _minimal_scenario_params()
@@ -1478,13 +1821,15 @@ def test_create_rsu_manager_single_rsu(mocker, minimal_rsu_config):
 
     actor = Mock(spec_set=["id"])
     actor.id = 999
-    world.spawn_actor.return_value = actor
+    spawn_batch = mocker.patch.object(sm, "spawn_agent_actors_batch", return_value=[actor])
+    sensor_bundle = _empty_sensor_bundles(1)[0]
+    mocker.patch.object(sm, "spawn_agent_sensors_batch", return_value=[sensor_bundle])
 
     rsu_mgr = Mock()
     rsu_mgr.id = "rsu-3"
-    rsu_ctor = mocker.patch("opencda.scenario_testing.utils.sim_api.RSUManager", return_value=rsu_mgr)
+    rsu_ctor = mocker.patch("opencda.scenario_testing.utils.sim_api.AgentManager.create", return_value=rsu_mgr)
 
-    rsu_list, rsu_ids = sm.create_rsu_manager()
+    rsu_list, rsu_ids = sm.create_rsu_agents()
 
     assert rsu_list == [rsu_mgr]
     assert rsu_ids == {999: "rsu-3"}
@@ -1495,14 +1840,84 @@ def test_create_rsu_manager_single_rsu(mocker, minimal_rsu_config):
         carla.Location(1.0, 2.0, 3.0),
         carla.Rotation(pitch=6.0, yaw=5.0, roll=4.0),
     )
-    world.spawn_actor.assert_called_once_with(static_bp, expected_transform)
+    spawn_batch.assert_called_once()
+    spawn_specs = spawn_batch.call_args.args[0]
+    assert len(spawn_specs) == 1
+    assert spawn_specs[0].source_index == 0
+    assert spawn_specs[0].agent_type == "rsu"
+    assert spawn_specs[0].blueprint is static_bp
+    assert spawn_specs[0].transform == expected_transform
+    world.spawn_actor.assert_not_called()
 
     rsu_ctor.assert_called_once()
-    assert rsu_ctor.call_args.args[0] is world
-    assert rsu_ctor.call_args.args[2] is sm.carla_map
-    assert rsu_ctor.call_args.args[3] is sm.cav_world
-    assert rsu_ctor.call_args.args[4] == "t0"
+    assert rsu_ctor.call_args.args == ()
+    assert rsu_ctor.call_args.kwargs["actor"] is actor
+    assert rsu_ctor.call_args.kwargs["carla_map"] is sm.carla_map
+    assert rsu_ctor.call_args.kwargs["cav_world"] is sm.cav_world
+    assert rsu_ctor.call_args.kwargs["agent_type"] == "rsu"
+    assert rsu_ctor.call_args.kwargs["current_time"] == "t0"
     assert rsu_ctor.call_args.kwargs["perception_requirements"].enable_data_dump is False
+    assert rsu_ctor.call_args.kwargs["sensor_actors"] is sensor_bundle
+
+
+def test_create_rsu_agents_batches_all_spawns_before_initialization(mocker, minimal_rsu_config):
+    params = _minimal_scenario_params()
+    params["rsu_base"] = minimal_rsu_config
+    params["scenario"] = {
+        "rsu_list": [
+            {"id": 1, "spawn_position": [0, 0, 1, 0, 0, 0]},
+            {"id": 2, "spawn_position": [10, 0, 1, 0, 0, 0]},
+        ]
+    }
+    sm, _, _ = _make_scenario_manager(mocker, params)
+
+    actors = [Mock(id=201), Mock(id=202)]
+    managers = [Mock(id="rsu-1"), Mock(id="rsu-2")]
+    manager_create = mocker.patch("opencda.scenario_testing.utils.sim_api.AgentManager.create", side_effect=managers)
+
+    def spawn_batch(spawn_specs):
+        assert manager_create.call_count == 0
+        assert [spec.source_index for spec in spawn_specs] == [0, 1]
+        assert all(spec.agent_type == "rsu" for spec in spawn_specs)
+        return actors
+
+    batch_spawn = mocker.patch.object(sm, "spawn_agent_actors_batch", side_effect=spawn_batch)
+    mocker.patch.object(sm, "prepare_actor_blueprint", side_effect=[Mock(), Mock()])
+    mocker.patch.object(sm, "spawn_agent_sensors_batch", return_value=_empty_sensor_bundles(2))
+
+    rsu_list, rsu_ids = sm.create_rsu_agents()
+
+    assert rsu_list == managers
+    assert rsu_ids == {201: "rsu-1", 202: "rsu-2"}
+    batch_spawn.assert_called_once()
+    assert manager_create.call_count == 2
+    assert [call_.kwargs["actor"] for call_ in manager_create.call_args_list] == actors
+    assert [call_.kwargs["config_yaml"]["id"] for call_ in manager_create.call_args_list] == [1, 2]
+
+
+def test_create_rsu_agents_rolls_back_uninitialized_actors(mocker, minimal_rsu_config):
+    params = _minimal_scenario_params()
+    params["rsu_base"] = minimal_rsu_config
+    params["scenario"] = {
+        "rsu_list": [
+            {"id": 1, "spawn_position": [0, 0, 1, 0, 0, 0]},
+            {"id": 2, "spawn_position": [10, 0, 1, 0, 0, 0]},
+        ]
+    }
+    sm, _, _ = _make_scenario_manager(mocker, params)
+
+    actors = [Mock(id=301), Mock(id=302)]
+    sensor_bundles = _empty_sensor_bundles(2)
+    mocker.patch.object(sm, "prepare_actor_blueprint", side_effect=[Mock(), Mock()])
+    mocker.patch.object(sm, "spawn_agent_actors_batch", return_value=actors)
+    mocker.patch.object(sm, "spawn_agent_sensors_batch", return_value=sensor_bundles)
+    mocker.patch("opencda.scenario_testing.utils.sim_api.AgentManager.create", side_effect=RuntimeError("initialization failed"))
+    rollback = mocker.patch.object(sm, "_rollback_uninitialized_agents")
+
+    with pytest.raises(RuntimeError, match="initialization failed"):
+        sm.create_rsu_agents()
+
+    rollback.assert_called_once_with(actors, sensor_bundles, 0)
 
 
 def test_create_traffic_carla_with_vehicle_list_uses_spawn_vehicles_by_list(mocker):

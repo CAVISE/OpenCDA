@@ -524,10 +524,9 @@ class TestCoperceptionDataProcessor:
 
         predicted_ego_pos = self._make_transform(100.0, 200.0, 300.0, 7.0, 8.0, 9.0)
         true_ego_pos = self._make_transform(101.0, 201.0, 301.0, 10.0, 11.0, 12.0)
-        localization_manager = MagicMock(spec_set=["get_ego_pos", "get_ego_spd", "vehicle"])
-        localization_manager.get_ego_pos.return_value = predicted_ego_pos
-        localization_manager.get_ego_spd.return_value = 13.5
-        localization_manager.vehicle = MagicMock(get_transform=MagicMock(return_value=true_ego_pos))
+        localizer = MagicMock()
+        localizer.get_state.return_value = MagicMock(transform=predicted_ego_pos, speed_kmh=13.5)
+        actor = MagicMock(get_transform=MagicMock(return_value=true_ego_pos))
 
         waypoint = MagicMock(location=MagicMock(x=1.5, y=2.5))
         behavior_agent = MagicMock()
@@ -546,12 +545,14 @@ class TestCoperceptionDataProcessor:
         ):
             params = processor.build_live_params(
                 perception_manager,
-                localization_manager,
+                localizer,
+                actor,
                 behavior_agent,
                 {
                     "lidar": self._make_measurement(transform=lidar_transform),
                     "camera0": self._make_measurement(transform=camera_transform),
                 },
+                is_rsu=False,
             )
 
         assert params["RSU"] is False
@@ -577,39 +578,22 @@ class TestCoperceptionDataProcessor:
 
         predicted_ego_pos = self._make_transform(50.0, 60.0, 70.0, 0.0, 90.0, 0.0)
         true_ego_pos = self._make_transform(51.0, 61.0, 71.0, 0.0, 91.0, 0.0)
-        localization_manager = MagicMock(spec_set=["get_ego_pos", "get_ego_spd", "rsu", "true_ego_pos"])
-        localization_manager.get_ego_pos.return_value = predicted_ego_pos
-        localization_manager.get_ego_spd.return_value = 0.0
-        localization_manager.rsu = MagicMock()
-        localization_manager.true_ego_pos = true_ego_pos
+        localizer = MagicMock()
+        localizer.get_state.return_value = MagicMock(transform=predicted_ego_pos, speed_kmh=0.0)
+        actor = MagicMock(get_transform=MagicMock(return_value=true_ego_pos))
 
         params = processor.build_live_params(
             perception_manager,
-            localization_manager,
+            localizer,
+            actor,
             None,
             {"lidar": self._make_measurement(transform=lidar_transform)},
+            is_rsu=True,
         )
 
         assert params["RSU"] is True
         assert "plan_trajectory" not in params
         assert params["true_ego_pos"] == (51.0, 61.0, 71.0, 0.0, 91.0, 0.0)
-
-    def test_build_live_params_raises_for_unknown_localizer_type(self):
-        processor = CoperceptionDataProcessor()
-        perception_manager = MagicMock(
-            objects={"vehicles": []}, lidar=MagicMock(sensor=MagicMock(get_transform=MagicMock(return_value=self._make_transform())))
-        )
-        localization_manager = MagicMock(spec_set=["get_ego_pos", "get_ego_spd"])
-        localization_manager.get_ego_pos.return_value = self._make_transform()
-        localization_manager.get_ego_spd.return_value = 0.0
-
-        with pytest.raises(ValueError, match="Unknown localization manager type"):
-            processor.build_live_params(
-                perception_manager,
-                localization_manager,
-                None,
-                {"lidar": self._make_measurement(transform=self._make_transform())},
-            )
 
     def test_build_live_memory_returns_none_and_warns_for_empty_agents(self):
         processor = CoperceptionDataProcessor()
@@ -629,20 +613,21 @@ class TestCoperceptionDataProcessor:
 
         cav1 = MagicMock()
         cav1.id = "cav-1"
-        cav1.perception_manager = MagicMock(lidar=MagicMock(data=np.array([[1.0, 2.0, 3.0, 1.0]])))
-        cav1.localizer = MagicMock()
         cav1.agent = MagicMock()
+        cav1.agent.is_vehicle = True
+        cav1.agent.perception_manager = MagicMock(lidar=MagicMock(data=np.array([[1.0, 2.0, 3.0, 1.0]])))
 
         cav2 = MagicMock()
         cav2.id = "cav-2"
-        cav2.perception_manager = MagicMock(lidar=MagicMock(data=np.array([[4.0, 5.0, 6.0, 1.0]])))
-        cav2.localizer = MagicMock()
         cav2.agent = MagicMock()
+        cav2.agent.is_vehicle = True
+        cav2.agent.perception_manager = MagicMock(lidar=MagicMock(data=np.array([[4.0, 5.0, 6.0, 1.0]])))
 
         rsu = MagicMock()
         rsu.id = "rsu-1"
-        rsu.perception_manager = MagicMock(lidar=MagicMock(data=np.array([[7.0, 8.0, 9.0, 1.0]])))
-        rsu.localizer = MagicMock()
+        rsu.agent = MagicMock()
+        rsu.agent.is_vehicle = False
+        rsu.agent.perception_manager = MagicMock(lidar=MagicMock(data=np.array([[7.0, 8.0, 9.0, 1.0]])))
 
         with (
             patch.object(
@@ -679,9 +664,8 @@ class TestCoperceptionDataProcessor:
         processor = CoperceptionDataProcessor()
         cav = MagicMock()
         cav.id = "cav-1"
-        cav.perception_manager = MagicMock(lidar=None)
-        cav.localizer = MagicMock()
         cav.agent = MagicMock()
+        cav.agent.perception_manager = MagicMock(lidar=None)
 
         with patch("opencda.core.common.coperception_data_processor.logger.warning") as mock_warning:
             memory = processor.build_live_memory([cav], [], 1, sensor_frame=12)
@@ -695,9 +679,8 @@ class TestCoperceptionDataProcessor:
         processor = CoperceptionDataProcessor()
         cav = MagicMock()
         cav.id = "cav-1"
-        cav.perception_manager = MagicMock(lidar=MagicMock(data=None))
-        cav.localizer = MagicMock()
         cav.agent = MagicMock()
+        cav.agent.perception_manager = MagicMock(lidar=MagicMock(data=None))
 
         with (
             patch.object(

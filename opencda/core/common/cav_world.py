@@ -5,12 +5,8 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    import carla
-
     from opencda.core.application.behavior.behavior_service_protocol import BehaviorService
-    from opencda.core.application.platooning.platooning_manager import PlatooningManager
-    from opencda.core.common.rsu_manager import RSUManager
-    from opencda.core.common.vehicle_manager import VehicleManager
+    from opencda.core.common.agent_manager import AgentManager
 
 logger = logging.getLogger("cavise.opencda.opencda.core.common.cav_world")
 
@@ -32,14 +28,8 @@ class CavWorld(object):
     vehicle_id_set : set
         A set that stores vehicle IDs.
 
-    _vehicle_manager_dict : dict
-        A dictionary that stores vehicle managers.
-
-    _platooning_dict : dict
-        A dictionary that stores platooning managers.
-
-    _rsu_manager_dict : dict
-        A dictionary that stores RSU managers.
+    _agent_manager_dict : dict
+        A dictionary that stores all universal agent managers.
 
     ml_manager : opencda object.
         The machine learning manager class.
@@ -47,9 +37,7 @@ class CavWorld(object):
 
     def __init__(self, apply_ml: bool = False) -> None:
         self.vehicle_id_set: set[int] = set()
-        self._vehicle_manager_dict: dict[str, VehicleManager] = {}
-        self._platooning_dict: dict[str, PlatooningManager] = {}
-        self._rsu_manager_dict: dict[str, RSUManager] = {}
+        self._agent_manager_dict: dict[str, AgentManager] = {}
         self.ml_manager: Any | None = None
 
         if apply_ml:
@@ -62,48 +50,16 @@ class CavWorld(object):
         # this is used only when co-simulation activated.
         self.sumo2carla_ids: dict[str, int] = {}
 
-    def update_vehicle_manager(self, vehicle_manager: VehicleManager) -> None:
-        """
-        Update created CAV manager to the world.
-
-        Parameters
-        ----------
-        vehicle_manager : opencda object
-            The vehicle manager class.
-        """
-        self.vehicle_id_set.add(vehicle_manager.vehicle.id)
-        self._vehicle_manager_dict.update({vehicle_manager.id: vehicle_manager})
+    def update_agent_manager(self, agent_manager: AgentManager) -> None:
+        """Register a universal agent manager."""
+        if agent_manager.agent.is_vehicle:
+            self.vehicle_id_set.add(agent_manager.agent.actor.id)
+        self._agent_manager_dict[agent_manager.id] = agent_manager
         logger.debug(
-            "Registered vehicle manager node_id=%r with behavior_services=%s.",
-            vehicle_manager.id,
-            [service.service_type for service in vehicle_manager.behavior_services],
-        )
-
-    def update_platooning(self, platooning_manager: PlatooningManager) -> None:
-        """
-        Add created platooning.
-
-        Parameters
-        ----------
-        platooning_manger : opencda object
-            The platooning manager class.
-        """
-        self._platooning_dict.update({platooning_manager.pmid: platooning_manager})
-
-    def update_rsu_manager(self, rsu_manager: RSUManager) -> None:
-        """
-        Add rsu manager.
-
-        Parameters
-        ----------
-        rsu_manager : opencda object
-            The RSU manager class.
-        """
-        self._rsu_manager_dict.update({rsu_manager.id: rsu_manager})
-        logger.debug(
-            "Registered RSU manager node_id=%r with behavior_services=%s.",
-            rsu_manager.id,
-            [service.service_type for service in rsu_manager.behavior_services],
+            "Registered agent manager node_id=%r agent_type=%s behavior_services=%s.",
+            agent_manager.id,
+            agent_manager.agent.agent_type.value,
+            [service.service_type for service in agent_manager.behavior_services],
         )
 
     def update_sumo_vehicles(self, sumo2carla_ids: dict[str, int]) -> None:
@@ -118,38 +74,24 @@ class CavWorld(object):
         """
         self.sumo2carla_ids = sumo2carla_ids
 
-    def get_vehicle_managers(self) -> dict[str, VehicleManager]:
-        """
-        Return vehicle manager dictionary.
-        """
-        return self._vehicle_manager_dict
+    def get_agent_managers(self) -> dict[str, AgentManager]:  # noqa DC04
+        """Return all registered agent managers."""
+        return self._agent_manager_dict
 
-    def get_rsu_managers(self) -> dict[str, RSUManager]:  # noqa: DC04
-        """
-        Return RSU manager dictionary.
-        """
-        return self._rsu_manager_dict
+    def get_vehicle_agent_managers(self) -> dict[str, AgentManager]:
+        """Return only managers whose agents are vehicles."""
+        return {agent_id: manager for agent_id, manager in self._agent_manager_dict.items() if manager.agent.is_vehicle}
 
     def _get_behavior_services_for_node(self, node_id: str) -> tuple[BehaviorService[Any, Any], ...]:
-        vehicle_manager = self._vehicle_manager_dict.get(node_id)
-        if vehicle_manager is not None:
-            available_vehicle_services = [service.service_type for service in vehicle_manager.behavior_services]
+        agent_manager = self._agent_manager_dict.get(node_id)
+        if agent_manager is not None:
+            available_services = [service.service_type for service in agent_manager.behavior_services]
             logger.debug(
-                "Found vehicle manager for node_id=%r with behavior_services=%s.",
+                "Found agent manager for node_id=%r with behavior_services=%s.",
                 node_id,
-                available_vehicle_services,
+                available_services,
             )
-            return tuple(vehicle_manager.behavior_services)
-
-        rsu_manager = self._rsu_manager_dict.get(node_id)
-        if rsu_manager is not None:
-            available_rsu_services = [service.service_type for service in rsu_manager.behavior_services]
-            logger.debug(
-                "Found RSU manager for node_id=%r with behavior_services=%s.",
-                node_id,
-                available_rsu_services,
-            )
-            return tuple(rsu_manager.behavior_services)
+            return tuple(agent_manager.behavior_services)
 
         return ()
 
@@ -158,17 +100,16 @@ class CavWorld(object):
         Resolve behavior service instances by node ID and optional service name.
         """
         logger.debug(
-            "Resolving behavior services node_id=%r service_type=%r. Known vehicle_nodes=%s known_rsu_nodes=%s.",
+            "Resolving behavior services node_id=%r service_type=%r. Known nodes=%s.",
             node_id,
             service_type,
-            sorted(self._vehicle_manager_dict),
-            sorted(self._rsu_manager_dict),
+            sorted(self._agent_manager_dict),
         )
 
         node_services = self._get_behavior_services_for_node(node_id)
         if not node_services:
             logger.warning(
-                "Could not resolve behavior services node_id=%r service_type=%r. No matching vehicle or RSU manager found.",
+                "Could not resolve behavior services node_id=%r service_type=%r. No matching agent manager found.",
                 node_id,
                 service_type,
             )
@@ -199,35 +140,3 @@ class CavWorld(object):
             [service.service_type for service in node_services],
         )
         return ()
-
-    def get_platoon_dict(self) -> dict[str, PlatooningManager]:
-        """
-        Return existing platoons.
-        """
-        return self._platooning_dict
-
-    def locate_vehicle_manager(self, loc: carla.Location) -> VehicleManager | None:
-        """
-        Locate the vehicle manager based on the given location.
-
-        Parameters
-        ----------
-        loc : carla.Location
-            Vehicle location.
-
-        Returns
-        -------
-        target_vm : opencda object
-            The vehicle manager at the give location.
-        """
-
-        target_vm = None
-        for vm in self._vehicle_manager_dict.values():
-            x = vm.localizer.get_ego_pos().location.x
-            y = vm.localizer.get_ego_pos().location.y
-
-            if loc.x == x and loc.y == y:
-                target_vm = vm
-                break
-
-        return target_vm

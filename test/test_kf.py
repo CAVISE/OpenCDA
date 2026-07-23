@@ -3,8 +3,8 @@ Unit test for Kalman Filter
 """
 
 import unittest
-from opencda.core.sensing.localization.kalman_filter import KalmanFilter
-from opencda.core.sensing.localization.coordinate_transform import geo_to_transform
+from opencda.core.sensing.localization.sensor.kalman_filter import KalmanFilter
+from opencda.core.sensing.localization.sensor.utils import geo_to_transform
 
 
 class testKalmanFilter(unittest.TestCase):

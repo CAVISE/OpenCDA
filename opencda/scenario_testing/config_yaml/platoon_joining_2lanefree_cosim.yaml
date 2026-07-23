@@ -82,8 +82,6 @@ scenario:
               - [2.5, 0, 1.0, 0]
           lidar:
             visualize: true
-      v2x:
-        communication_range: 35
       behavior:
         overtake_allowed: true
         local_planner:
