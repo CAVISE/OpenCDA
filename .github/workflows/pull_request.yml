@@ -16,11 +16,13 @@ jobs:
       python-version: "3.12"
       target-path: .
       follow-imports-silent: true
+      cache-dependency-path: |
+        .github/workflows/requirements/requirements-ci.txt
+        pyproject.toml
+      requirements-file: .github/workflows/requirements/requirements-ci.txt
       protobuf-generate: true
-      protobuf-source-dir: opencda/core/common/communication/messages
-      protobuf-output-dir: opencda/core/common/communication/protos/cavise
-      protobuf-messages: '["capi", "artery", "opencda", "entity"]'
-      protobuf-mypy-out: true
+      protobuf-generator: cmake
+      protobuf-protoc-version: "34.1"
 
   unused-code-check:
     uses: CAVISE/pipelines/.github/workflows/python-deadcode.yml@main
