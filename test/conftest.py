@@ -364,6 +364,7 @@ def mock_cav_world():
     cav_world = Mock()
     cav_world.update_agent_manager = Mock()
     cav_world.update_sumo_vehicles = Mock()
+    cav_world.get_shared_map_data = Mock(return_value=Mock())
     return cav_world
 
 

@@ -122,6 +122,8 @@ def test_builder_caches_traffic_light_geometry_and_refreshes_state() -> None:
 
     assert first_frame.traffic_light_states[0].state == "RED"
     assert second_frame.traffic_light_states[0].state == "GREEN"
+    assert second_frame.traffic_light_state(5) is second_frame.traffic_light_states[0]
+    assert second_frame.traffic_light_state(99) is None
     assert second_frame.traffic_light_states[0].road_id == 7
     assert second_frame.traffic_light_states[0].intersection_location is waypoint.transform.location
     carla_map.get_waypoint.assert_called_once()

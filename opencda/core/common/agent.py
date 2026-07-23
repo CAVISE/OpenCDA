@@ -125,7 +125,7 @@ class Agent:
         if components is None:
             return
 
-        components.map_manager.update_information(ego_pos)
+        components.map_manager.update_information(ego_pos, world_frame)
         components.safety_manager.update_info(
             {
                 "ego_pos": ego_pos,
