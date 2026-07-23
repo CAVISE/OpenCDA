@@ -91,6 +91,8 @@ WORKDIR /src/opencda
 COPY opencda/CMakeLists.txt ./
 COPY opencda/opencda/core/common/communication/CMakeLists.txt \
     opencda/core/common/communication/CMakeLists.txt
+COPY opencda/opencda/core/common/communication/cmake/ \
+    opencda/core/common/communication/cmake/
 COPY opencda/opencda/core/common/communication/messages/ \
     opencda/core/common/communication/messages/
 
