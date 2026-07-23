@@ -16,10 +16,8 @@ jobs:
       requirements-file: .github/workflows/requirements/requirements-ci.txt
       matplotlib-backend: Agg
       protobuf-generate: true
-      protobuf-source-dir: opencda/core/common/communication/messages
-      protobuf-output-dir: opencda/core/common/communication/protos/cavise
-      protobuf-messages: '["entity", "opencda", "artery", "capi"]'
-      protobuf-mypy-out: true
+      protobuf-generator: cmake
+      protobuf-protoc-version: "34.1"
       pytest-maxfail: 0
       pytest-continue-on-collection-errors: true
       report-dir: reports

@@ -1,0 +1,14 @@
+**/.git
+**/.mypy_cache
+**/.pytest_cache
+**/.ruff_cache
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/*.so
+**/*_pb2.py
+**/*_pb2.pyi
+**/build
+**/dist
+**/simulation_output
+**/venv

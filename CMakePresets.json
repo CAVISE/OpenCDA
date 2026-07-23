@@ -1,0 +1,41 @@
+{
+  "buildPresets": [
+    {
+      "configurePreset": "protobuf",
+      "name": "protobuf"
+    },
+    {
+      "configurePreset": "cuda",
+      "name": "cuda"
+    }
+  ],
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 31,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "binaryDir": "${sourceDir}/build/protobuf",
+      "cacheVariables": {
+        "OPENCDA_BUILD_CUDA": "OFF",
+        "OPENCDA_BUILD_PROTOBUF": "ON"
+      },
+      "displayName": "OpenCDA protobuf modules",
+      "generator": "Ninja",
+      "name": "protobuf"
+    },
+    {
+      "binaryDir": "${sourceDir}/build/cuda",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "OPENCDA_BUILD_CUDA": "ON",
+        "OPENCDA_BUILD_PROTOBUF": "OFF"
+      },
+      "displayName": "OpenCOOD CUDA extensions",
+      "generator": "Ninja",
+      "name": "cuda"
+    }
+  ],
+  "version": 6
+}
