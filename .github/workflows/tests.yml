@@ -6,7 +6,7 @@ on:
 
 jobs:
   pytest:
-    uses: CAVISE/pipelines/.github/workflows/python-pytest.yml@main
+    uses: CAVISE/pipelines/.github/workflows/python-pytest.yml@feature/opencda-cmake-build
     with:
       python-versions: '["3.12"]'
       fail-fast: false

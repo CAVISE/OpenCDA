@@ -6,7 +6,7 @@ on:
 
 jobs:
   cuda:
-    uses: CAVISE/pipelines/.github/workflows/python-cmake-cuda.yml@main
+    uses: CAVISE/pipelines/.github/workflows/python-cmake-cuda.yml@feature/opencda-cmake-build
     with:
       requirements-file: requirements-cuda.txt
       cuda-architectures: "86"

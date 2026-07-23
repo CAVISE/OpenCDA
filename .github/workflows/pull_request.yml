@@ -11,7 +11,7 @@ jobs:
       run-format-check: true
 
   type-check:
-    uses: CAVISE/pipelines/.github/workflows/python-mypy.yml@main
+    uses: CAVISE/pipelines/.github/workflows/python-mypy.yml@feature/opencda-cmake-build
     with:
       python-version: "3.12"
       target-path: .
