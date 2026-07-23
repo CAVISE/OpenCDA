@@ -1,0 +1,4 @@
+--extra-index-url https://download.pytorch.org/whl/cu130
+
+numpy==2.5.0
+torch==2.12.1+cu130
