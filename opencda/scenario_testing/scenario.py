@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import logging
 import os
+import sys
 from dataclasses import dataclass
 from itertools import chain
 from pathlib import Path
@@ -15,10 +16,9 @@ import opencda.scenario_testing.utils.cosim_api as sim_api
 import opencda.scenario_testing.utils.customized_map_api as map_api
 from opencda.core.application.platooning.platooning_manager import PlatooningManager
 from opencda.core.attack.adversary_framework import Attack, AttackManager, AttackSpec
+from opencda.core.common.agent_manager import AgentManager
 from opencda.core.common.cav_world import CavWorld
 from opencda.core.common.coperception_data_processor import CoperceptionDataProcessor
-from opencda.core.common.rsu_manager import RSUManager
-from opencda.core.common.vehicle_manager import VehicleManager
 from opencda.core.sensing.perception.perception_manager import PerceptionRequirements
 from opencda.metrics_tools.metric_collector import MetricCollector
 from opencda.scenario_testing.types import NodeSnapshot, SimulationSnapshot
@@ -39,8 +39,8 @@ logger = logging.getLogger("cavise.opencda.opencda.scenario_testing.scenario")
 class Scenario:
     eval_manager: EvaluationManager
     scenario_manager: sim_api.ScenarioManager | sim_api.CoScenarioManager
-    single_cav_list: list[VehicleManager]
-    rsu_list: list[RSUManager]
+    single_cav_list: list[AgentManager]
+    rsu_list: list[AgentManager]
     spectator: carla.Actor
     cav_world: CavWorld
     platoon_list: list[PlatooningManager]
@@ -153,7 +153,7 @@ class Scenario:
         self.node_ids["platoon"] = cast(dict[int, str], platoon_node_ids)
         logger.info(f"created platoon list of size {len(self.platoon_list)}")
 
-        self.single_cav_list, cav_node_ids = self.scenario_manager.create_vehicle_manager(
+        self.single_cav_list, cav_node_ids = self.scenario_manager.create_vehicle_agents(
             application=["single"],
             map_helper=map_api.spawn_helper_2lanefree,
             perception_requirements=perception_requirements,
@@ -164,7 +164,7 @@ class Scenario:
         _, self.bg_veh_list = self.scenario_manager.create_traffic_carla()
         logger.info(f"created background traffic of size {len(self.bg_veh_list)}")
 
-        self.rsu_list, rsu_node_ids = self.scenario_manager.create_rsu_manager(
+        self.rsu_list, rsu_node_ids = self.scenario_manager.create_rsu_agents(
             perception_requirements=perception_requirements,
         )
         self.node_ids["rsu"] = cast(dict[int, str], rsu_node_ids)
@@ -257,7 +257,7 @@ class Scenario:
             )
             for vehicle_manager in chain(
                 self.single_cav_list,
-                *(platoon.vehicle_manager_list for platoon in self.platoon_list),
+                *(platoon.agent_manager_list for platoon in self.platoon_list),
             )
         )
 
@@ -276,9 +276,9 @@ class Scenario:
             rsu_nodes=rsu_nodes,
         )
 
-    def _collect_safety_status(self, vehicle_manager: VehicleManager) -> dict[str, bool]:
+    def _collect_safety_status(self, vehicle_manager: AgentManager) -> dict[str, bool]:
         status: dict[str, bool] = {}
-        for sensor in vehicle_manager.safety_manager.sensors:
+        for sensor in vehicle_manager.agent.safety_manager.sensors:
             return_status = getattr(sensor, "return_status", None)
             if not callable(return_status):
                 continue
@@ -293,11 +293,9 @@ class Scenario:
 
         for vehicle_manager in chain(
             self.single_cav_list,
-            *(platoon.vehicle_manager_list for platoon in self.platoon_list),
+            *(platoon.agent_manager_list for platoon in self.platoon_list),
         ):
-            ego_pos = vehicle_manager.localizer.get_ego_pos()
-            if ego_pos is None:
-                continue
+            ego_pos = vehicle_manager.agent.localizer.get_state().transform
 
             safety_status = self._collect_safety_status(vehicle_manager)
             vehicles.append(
@@ -352,13 +350,15 @@ class Scenario:
             logger.debug(f"running: simulation tick: {tick_number}")
             self.scenario_manager.sumo_tick()
             carla_frame = self.scenario_manager.tick()
+            world_frame = self.scenario_manager.capture_world_frame(carla_frame)
 
             if not opt.free_spectator and any(array is not None for array in [self.single_cav_list, self.platoon_list]):
                 if len(self.single_cav_list) > 0:
-                    transform = self.single_cav_list[0].vehicle.get_transform()
+                    transform = world_frame.actor_state(self.single_cav_list[0].agent.vehicle.id).transform
                     self.spectator.set_transform(carla.Transform(transform.location + carla.Location(z=50), carla.Rotation(pitch=-90)))
                 else:
-                    transform = self.platoon_list[0].vehicle_manager_list[0].vehicle.get_transform()
+                    platoon_vehicle = self.platoon_list[0].agent_manager_list[0].agent.vehicle
+                    transform = world_frame.actor_state(platoon_vehicle.id).transform
                     self.spectator.set_transform(carla.Transform(transform.location + carla.Location(z=50), carla.Rotation(pitch=-90)))
 
             if self.platoon_list is not None:
@@ -372,12 +372,12 @@ class Scenario:
                 logger.debug("updating single cavs")
 
                 for single_cav in self.single_cav_list:
-                    single_cav.update_info()
+                    single_cav.agent.update(world_frame)
 
             if self.rsu_list is not None:
                 logger.debug("updating RSUs")
                 for rsu in self.rsu_list:
-                    rsu.update_info()
+                    rsu.agent.update(world_frame)
 
             if self.coperception_model_manager is not None and tick_number > 0:
                 logger.info(f"Processing {tick_number} tick")
@@ -400,7 +400,8 @@ class Scenario:
 
             if self.single_cav_list is not None:
                 for single_cav in self.single_cav_list:
-                    cav_messages, _ = single_cav.run_step(messages=self.messages)
+                    cav_messages, _ = single_cav.update_behavior_services(self.messages)
+                    single_cav.agent.finish_step()
                     new_messages.extend(cav_messages)
                     identity_claims.extend(self._collect_identity_claims(single_cav.id, cav_messages))
             else:
@@ -408,7 +409,8 @@ class Scenario:
 
             if self.rsu_list is not None:
                 for rsu in self.rsu_list:
-                    rsu_messages, _ = rsu.run_step(messages=self.messages)
+                    rsu_messages, _ = rsu.update_behavior_services(self.messages)
+                    rsu.agent.finish_step()
                     new_messages.extend(rsu_messages)
                     identity_claims.extend(self._collect_identity_claims(rsu.id, rsu_messages))
 
@@ -437,13 +439,15 @@ class Scenario:
                 break
             logger.debug(f"running: simulation tick: {tick_number}")
             carla_frame = self.scenario_manager.tick()
+            world_frame = self.scenario_manager.capture_world_frame(carla_frame)
 
             if not opt.free_spectator and any(array is not None for array in [self.single_cav_list, self.platoon_list]):
                 if len(self.single_cav_list) > 0:
-                    transform = self.single_cav_list[0].vehicle.get_transform()
+                    transform = world_frame.actor_state(self.single_cav_list[0].agent.vehicle.id).transform
                     self.spectator.set_transform(carla.Transform(transform.location + carla.Location(z=50), carla.Rotation(pitch=-90)))
                 else:
-                    transform = self.platoon_list[0].vehicle_manager_list[0].vehicle.get_transform()
+                    platoon_vehicle = self.platoon_list[0].agent_manager_list[0].agent.vehicle
+                    transform = world_frame.actor_state(platoon_vehicle.id).transform
                     self.spectator.set_transform(carla.Transform(transform.location + carla.Location(z=50), carla.Rotation(pitch=-90)))
 
             # TODO: Add aim service support
@@ -456,12 +460,12 @@ class Scenario:
             if self.single_cav_list is not None:
                 logger.debug("updating single cavs")
                 for single_cav in self.single_cav_list:
-                    single_cav.update_info()
+                    single_cav.agent.update(world_frame)
 
             if self.rsu_list is not None:
                 logger.debug("updating RSUs")
                 for rsu in self.rsu_list:
-                    rsu.update_info()
+                    rsu.agent.update(world_frame)
 
             can_predict_current_tick = False
             if self.coperception_model_manager is not None and tick_number > 0:
@@ -502,13 +506,15 @@ class Scenario:
             identity_claims: list[Mapping[str, str]] = []
             if self.single_cav_list is not None:
                 for single_cav in self.single_cav_list:
-                    cav_messages, _ = single_cav.run_step(messages=self.messages)
+                    cav_messages, _ = single_cav.update_behavior_services(self.messages)
+                    single_cav.agent.finish_step()
                     new_messages.extend(cav_messages)
                     identity_claims.extend(self._collect_identity_claims(single_cav.id, cav_messages))
 
             if self.rsu_list is not None:
                 for rsu in self.rsu_list:
-                    rsu_messages, _ = rsu.run_step(messages=self.messages)
+                    rsu_messages, _ = rsu.update_behavior_services(self.messages)
+                    rsu.agent.finish_step()
                     new_messages.extend(rsu_messages)
                     identity_claims.extend(self._collect_identity_claims(rsu.id, rsu_messages))
 
@@ -522,49 +528,87 @@ class Scenario:
             )
 
     def finalize(self, opt: argparse.Namespace) -> None:
-        if opt.record:
-            self.scenario_manager.client.stop_recorder()
-            logger.info("finalizing: stopping recorder")
+        try:
+            self._stop_runtime_sensors()
 
-        if self.eval_manager is not None:
-            self.eval_manager.evaluate(
-                coperception_model_manager=self.coperception_model_manager,
-                scenario_metrics_collector=self.scenario_metrics_collector,
-            )
-            logger.info("finalizing: evaluating results")
+            if opt.record:
+                self.scenario_manager.client.stop_recorder()
+                logger.info("finalizing: stopping recorder")
 
-        if self.single_cav_list is not None:
-            logger.info(f"finalizing: destroying {len(self.single_cav_list)} single cavs")
-            for v in self.single_cav_list:
-                v.destroy()
+            if self.eval_manager is not None:
+                self.eval_manager.evaluate(
+                    coperception_model_manager=self.coperception_model_manager,
+                    scenario_metrics_collector=self.scenario_metrics_collector,
+                )
+                logger.info("finalizing: evaluating results")
+        finally:
+            finalization_failed = sys.exc_info()[0] is not None
+            try:
+                self._destroy_resources()
+            except Exception:
+                if finalization_failed:
+                    logger.exception("Resource cleanup also failed during scenario finalization.")
+                else:
+                    raise
 
-        if self.rsu_list is not None:
-            logger.info(f"finalizing: destroying {len(self.rsu_list)} RSUs")
-            for r in self.rsu_list:
-                r.destroy()
+    def _stop_runtime_sensors(self) -> None:
+        vehicle_managers = chain(
+            self.single_cav_list or (),
+            *(platoon.agent_manager_list for platoon in (self.platoon_list or ())),
+        )
+        for manager in vehicle_managers:
+            try:
+                manager.agent.stop_runtime_sensors()
+            except Exception:
+                logger.exception("Failed to stop runtime sensors for CAV %s.", manager.id)
+
+    def _destroy_resources(self) -> None:
+        first_exception: Exception | None = None
+
+        def destroy(resource: Any, description: str) -> None:
+            nonlocal first_exception
+            try:
+                resource.destroy()
+            except Exception as exc:
+                logger.exception("Failed to destroy %s.", description)
+                if first_exception is None:
+                    first_exception = exc
+
+        logger.info("finalizing: destroying %d single cavs", len(self.single_cav_list or ()))
+        for manager in self.single_cav_list or ():
+            destroy(manager, f"single CAV {manager.id}")
+
+        logger.info("finalizing: destroying %d RSUs", len(self.rsu_list or ()))
+        for manager in self.rsu_list or ():
+            destroy(manager, f"RSU {manager.id}")
 
         if self.scenario_manager is not None:
-            self.scenario_manager.close()
-            logger.info("finalizing: evaluating results")
+            try:
+                self.scenario_manager.close()
+                logger.info("finalizing: closing scenario manager")
+            except Exception as exc:
+                logger.exception("Failed to close scenario manager.")
+                if first_exception is None:
+                    first_exception = exc
 
-        if self.platoon_list is not None:
-            logger.info(f"finalizing: destroying {len(self.platoon_list)} platoons")
-            for platoon in self.platoon_list:
-                platoon.destroy()
+        logger.info("finalizing: destroying %d platoons", len(self.platoon_list or ()))
+        for platoon in self.platoon_list or ():
+            destroy(platoon, "platoon")
 
-        if self.bg_veh_list is not None:
-            logger.info(f"finalizing: destroying {len(self.bg_veh_list)} background cars")
-            for v in self.bg_veh_list:
-                v.destroy()
+        logger.info("finalizing: destroying %d background cars", len(self.bg_veh_list or ()))
+        for vehicle in self.bg_veh_list or ():
+            destroy(vehicle, f"background vehicle {vehicle.id}")
 
-        if self.communication_manager:
-            self.communication_manager.destroy()
+        if self.communication_manager is not None:
+            destroy(self.communication_manager, "communication manager")
 
-        # TODO: Add general function to destroy actors
+        if first_exception is not None:
+            raise first_exception
 
 
 def run_scenario(opt: argparse.Namespace, scenario_params: DictConfig, current_time: str | None = None) -> None:
     raised_error: Exception | None = None
+    finalization_error: Exception | None = None
     scenario: Scenario | None = None
     try:
         scenario = Scenario(opt, scenario_params, current_time=current_time)
@@ -575,6 +619,12 @@ def run_scenario(opt: argparse.Namespace, scenario_params: DictConfig, current_t
     finally:
         logger.info("Wrapping things up... Please don't press Ctrl+C")
         if scenario:
-            scenario.finalize(opt)
+            try:
+                scenario.finalize(opt)
+            except Exception as error:
+                logger.exception("Scenario finalization failed.")
+                finalization_error = error
         if raised_error is not None:
             raise raised_error
+        if finalization_error is not None:
+            raise finalization_error

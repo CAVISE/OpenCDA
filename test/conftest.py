@@ -2,7 +2,7 @@
 
 Uses existing test/mocked_carla.py and adds:
 - sys.modules["carla"] registration
-- VehicleManager/RSUManager static state reset
+- AgentManager static state reset
 - OpenCDA internal module stubs required to import tested modules
 """
 
@@ -122,6 +122,28 @@ class _PlaceholderPerceptionRequirements:
         )
 
 
+def _resolve_perception_enabled(config, requirements) -> bool:
+    enabled = config.get("enabled", True)
+    if not isinstance(enabled, bool):
+        raise TypeError("Perception config key 'enabled' must be a boolean.")
+    if enabled:
+        return True
+
+    if config["activate"] or config["camera"]["visualize"] or config["lidar"]["visualize"]:
+        raise ValueError("Disabled perception cannot activate detection or sensor visualization.")
+    if any(
+        (
+            requirements.enable_data_dump,
+            requirements.force_rgb_camera,
+            requirements.force_lidar,
+            requirements.force_semantic_lidar,
+            requirements.extend_inactive_detection_range,
+        )
+    ):
+        raise ValueError("Disabled perception is incompatible with data dump or cooperative perception requirements.")
+    return False
+
+
 # Install carla stub using existing mocked_carla classes
 carla_stub = types.ModuleType("carla")
 carla_stub.Location = mocked_carla.Location
@@ -135,6 +157,13 @@ carla_stub.BoundingBox = mocked_carla.BoundingBox
 # and `carla.Color`. These attributes must exist on the stub to avoid import-time
 # failures.
 carla_stub.Actor = object
+
+
+class AttachmentType:
+    Rigid = object()
+
+
+carla_stub.AttachmentType = AttachmentType
 
 
 class Color:
@@ -180,11 +209,14 @@ command_stub = types.ModuleType("carla.command")
 
 
 class SpawnActor:
-    def __init__(self, blueprint, transform):
+    def __init__(self, blueprint, transform, parent=None):
         self.blueprint = blueprint
         self.transform = transform
+        self.parent = parent
+        self.chained_command = None
 
     def then(self, cmd):
+        self.chained_command = cmd
         return self
 
 
@@ -194,8 +226,22 @@ class SetSimulatePhysics:
         self.enabled = enabled
 
 
+class DestroyActor:
+    def __init__(self, actor_id):
+        self.actor_id = actor_id
+
+
+class SetAutopilot:
+    def __init__(self, actor, enabled: bool, port: int):
+        self.actor = actor
+        self.enabled = enabled
+        self.port = port
+
+
 command_stub.SpawnActor = SpawnActor
+command_stub.DestroyActor = DestroyActor
 command_stub.SetSimulatePhysics = SetSimulatePhysics
+command_stub.SetAutopilot = SetAutopilot
 command_stub.FutureActor = object()
 carla_stub.command = command_stub
 
@@ -206,6 +252,9 @@ _install_stub("carla.command", command_stub)
 if importlib.util.find_spec("omegaconf") is None:  # pragma: no cover
     omegaconf_stub = types.ModuleType("omegaconf")
     omegaconf_listconfig_stub = types.ModuleType("omegaconf.listconfig")
+
+    class DictConfig(dict):
+        pass
 
     class OmegaConf:
         @staticmethod
@@ -220,6 +269,7 @@ if importlib.util.find_spec("omegaconf") is None:  # pragma: no cover
                     result.update(cfg)
             return result
 
+    omegaconf_stub.DictConfig = DictConfig
     omegaconf_stub.OmegaConf = OmegaConf
     omegaconf_listconfig_stub.ListConfig = list
 
@@ -227,30 +277,10 @@ if importlib.util.find_spec("omegaconf") is None:  # pragma: no cover
     _install_stub("omegaconf.listconfig", omegaconf_listconfig_stub)
 
 
-# Stub OpenCDA internal modules used by vehicle_manager/rsu_manager/sim_api/cosim_api
+# Stub OpenCDA internal modules used by agent_manager/sim_api/cosim_api
 _install_stub(
     "opencda.core.actuation.control_manager",
     _make_placeholder_module("opencda.core.actuation.control_manager", ControlManager=_Placeholder),
-)
-_install_stub(
-    "opencda.core.application.platooning.platoon_behavior_agent",
-    _make_placeholder_module("opencda.core.application.platooning.platoon_behavior_agent", PlatooningBehaviorAgent=_Placeholder),
-)
-_install_stub(
-    "opencda.core.application.platooning.platooning_manager",
-    _make_placeholder_module("opencda.core.application.platooning.platooning_manager", PlatooningManager=_Placeholder),
-)
-_install_stub(
-    "opencda.core.common.v2x_manager",
-    _make_placeholder_module("opencda.core.common.v2x_manager", V2XManager=_Placeholder),
-)
-_install_stub(
-    "opencda.core.sensing.localization.localization_manager",
-    _make_placeholder_module("opencda.core.sensing.localization.localization_manager", LocalizationManager=_Placeholder),
-)
-_install_stub(
-    "opencda.core.sensing.localization.rsu_localization_manager",
-    _make_placeholder_module("opencda.core.sensing.localization.rsu_localization_manager", LocalizationManager=_Placeholder),
 )
 _install_stub(
     "opencda.core.sensing.perception.perception_manager",
@@ -258,6 +288,10 @@ _install_stub(
         "opencda.core.sensing.perception.perception_manager",
         PerceptionManager=_Placeholder,
         PerceptionRequirements=_PlaceholderPerceptionRequirements,
+        resolve_perception_enabled=_resolve_perception_enabled,
+        CameraSensor=type("CameraSensor", (), {}),
+        LidarSensor=type("LidarSensor", (), {}),
+        SemanticLidarSensor=type("SemanticLidarSensor", (), {}),
     ),
 )
 _install_stub(
@@ -314,39 +348,21 @@ _importlib.import_module("opencda.core.application.behavior.services.movement_co
 _importlib.import_module("opencda.core.application.behavior.services.default_movement_request")
 
 
-# Static state reset fixtures
+# Static state reset fixture
 @pytest.fixture(autouse=True)
-def reset_vehicle_manager_state():
-    from opencda.core.common.vehicle_manager import VehicleManager
+def reset_agent_manager_state():
+    from opencda.core.common.agent_manager import AgentManager
 
-    VehicleManager.current_cav_id = 1
-    VehicleManager.current_platoon_id = 1
-    VehicleManager.current_unknown_id = 1
-    VehicleManager.used_ids = set()
+    AgentManager.reset_id_registry()
     yield
-    VehicleManager.current_cav_id = 1
-    VehicleManager.current_platoon_id = 1
-    VehicleManager.current_unknown_id = 1
-    VehicleManager.used_ids = set()
-
-
-@pytest.fixture(autouse=True)
-def reset_rsu_manager_state():
-    from opencda.core.common.rsu_manager import RSUManager
-
-    RSUManager.current_id = 1
-    RSUManager.used_ids = set()
-    yield
-    RSUManager.current_id = 1
-    RSUManager.used_ids = set()
+    AgentManager.reset_id_registry()
 
 
 # Common fixtures
 @pytest.fixture
 def mock_cav_world():
     cav_world = Mock()
-    cav_world.update_vehicle_manager = Mock()
-    cav_world.update_rsu_manager = Mock()
+    cav_world.update_agent_manager = Mock()
     cav_world.update_sumo_vehicles = Mock()
     return cav_world
 
@@ -358,13 +374,12 @@ def minimal_vehicle_config():
         "map_manager": {},
         "behavior": {},
         "controller": {},
-        "v2x": {},
         "safety_manager": {},
         "platoon": {},
-        "behavior_services": [
-            {"type": "default_movement_request"},
-            {"type": "movement_controller"},
-        ],
+        "behavior_services": {
+            "default_movement_request": {},
+            "movement_controller": {},
+        },
     }
 
 

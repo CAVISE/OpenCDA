@@ -1,6 +1,4 @@
-"""
-Functions to transfer coordinates under different coordinate system
-"""
+"""Utility functions used by sensor localization."""
 
 import numpy as np
 

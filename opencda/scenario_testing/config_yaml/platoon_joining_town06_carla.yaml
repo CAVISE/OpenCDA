@@ -111,8 +111,6 @@ scenario:
               - [0.0, 0.3, 1.8, 100]
               - [0.0, -0.3, 1.8, -100]
               - [-2.0, 0.0, 1.5, 180]
-      v2x:
-        communication_range: 35
       behavior:
         <<: *base_behavior
         max_speed: 100 # maximum speed, km/h
