@@ -73,9 +73,6 @@ instance/
 # Scrapy stuff:
 .scrapy
 
-# Sphinx documentation
-docs/_build/
-
 # PyBuilder
 .pybuilder/
 target/
@@ -125,9 +122,6 @@ venv.bak/
 # Rope project settings
 .ropeproject
 
-# mkdocs documentation
-/site
-
 # mypy
 .mypy_cache/
 .dmypy.json
@@ -139,8 +133,6 @@ dmypy.json
 # pytype static type analyzer
 .pytype/
 
-# Cython debug symbols
-cython_debug/
 .idea
 *.csv
 output/
@@ -150,7 +142,6 @@ opencda/evaluation_figures/
 *.save
 *cache*
 evaluation_outputs/
-docs/tmp.py
 video_dumping
 *data_dumping*
 opencda/coperception_models/coperception

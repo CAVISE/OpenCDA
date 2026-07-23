@@ -25,6 +25,9 @@ pyzmq==27.1.0
 # used by KF/EKF tests
 scipy==1.18.0
 
+# geometry used by safety and map modules
+shapely==2.1.2
+
 # optional but often useful in logs/utilities
 tqdm==4.68.3
 traci==1.27.1

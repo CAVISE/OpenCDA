@@ -210,6 +210,38 @@ def test_set_vehicle_without_lidar_assigns_actor_fields_and_does_not_create_o3d_
     assert not hasattr(ov, "o3d_bbx")
 
 
+def test_from_actor_state_uses_cached_transform_and_velocity() -> None:
+    import carla
+
+    from opencda.core.common.world_frame import WorldActorState
+    from opencda.core.sensing.perception.obstacle_vehicle import ObstacleVehicle
+
+    transform = carla.Transform(carla.Location(x=5.0, y=6.0, z=7.0), carla.Rotation(yaw=10.0))
+    velocity = carla.Vector3D(x=1.0, y=2.0, z=0.0)
+    actor = _FakeVehicleActor(
+        actor_id=101,
+        location=carla.Location(x=99.0),
+        transform=carla.Transform(carla.Location(x=99.0)),
+        bounding_box=carla.BoundingBox(carla.Location(), carla.Vector3D(x=1.0, y=2.0, z=0.5)),
+        velocity=carla.Vector3D(x=99.0),
+        type_id="vehicle.test",
+        attributes={},
+    )
+    state = WorldActorState(
+        actor_id=101,
+        type_id="vehicle.test",
+        actor=actor,
+        transform=transform,
+        velocity=velocity,
+    )
+
+    obstacle = ObstacleVehicle.from_actor_state(state)
+
+    assert obstacle.location is transform.location
+    assert obstacle.transform is transform
+    assert obstacle.velocity is velocity
+
+
 def test_set_vehicle_color_is_none_when_attributes_missing_or_color_missing():
     import carla
 

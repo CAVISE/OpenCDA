@@ -28,6 +28,11 @@ world:
     fog_falloff: 0 # Density of the fog (as in specific mass) from 0 to infinity. The bigger the value, the more dense and heavy it will be, and the fog will reach smaller heights
     wetness: 0
 
+# Basic parameters shared by all agents
+agent_base:
+  behavior_services:
+    self_informer: {}
+
 # Define the basic parameters of the rsu
 rsu_base:
   sensing:
@@ -104,7 +109,7 @@ vehicle_base:
         y_scale: 100.0 # used to multiply with the y coordinate to make the error on y axis clearer
 
   # If true, CARLA Traffic Manager controls the CAV movement.
-  # OpenCDA still updates localization, perception, sensors, V2X and data dumping,
+  # OpenCDA still updates localization, perception, safety sensors and data dumping,
   # but skips OpenCDA BehaviorAgent planning and PID control.
   # In this mode `destination` is optional and ignored if present.
   carla_autopilot: false
@@ -176,13 +181,9 @@ vehicle_base:
       max_brake: 1.0
       max_throttle: 1.0
       max_steering: 0.3
-  v2x:  # communication related
-    enabled: true
-    communication_range: 35
   behavior_services:
-    - type: self_informer
-    - type: default_movement_request
-    - type: movement_controller
+    default_movement_request: {}
+    movement_controller: {}
 
 
 # define the background traffic control by carla

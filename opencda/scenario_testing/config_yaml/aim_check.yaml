@@ -97,7 +97,7 @@ scenario:
       spawn_position: [256, -171, 15, 0, 0, 0]
       id: 1
       behavior_services:
-        - type: aim_server
+        aim_server:
           debug: true
           control_radius: 15
           control_center_location:
@@ -116,11 +116,8 @@ scenario:
       id: 100
       color: [156, 255, 206]
       behavior_services:
-        - type: self_informer
-        - type: default_movement_request
-        - type: aim_client
+        aim_client:
           debug: true
-        - type: movement_controller
 
     - name: cav2
       spawn_position: [285, -172, 0.3, 0, 180, 0]
@@ -128,11 +125,8 @@ scenario:
       id: 200
       color: [156, 255, 206]
       behavior_services:
-        - type: self_informer
-        - type: default_movement_request
-        - type: aim_client
+        aim_client:
           debug: true
-        - type: movement_controller
 
     - name: cav3
       spawn_position: [255, -200, 0.3, 0, 90, 0]
@@ -140,11 +134,8 @@ scenario:
       id: 300
       color: [156, 255, 206]
       behavior_services:
-        - type: self_informer
-        - type: default_movement_request
-        - type: aim_client
+        aim_client:
           debug: true
-        - type: movement_controller
 
     - name: cav4
       spawn_position: [258, -130, 0.3, 0, -90, 0]
@@ -152,8 +143,5 @@ scenario:
       id: 400
       color: [156, 255, 206]
       behavior_services:
-        - type: self_informer
-        - type: default_movement_request
-        - type: aim_client
+        aim_client:
           debug: true
-        - type: movement_controller

@@ -12,7 +12,8 @@ import logging
 import sys
 import json
 
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass
 from random import shuffle
 from typing import Any, TypeAlias, cast
 
@@ -23,11 +24,14 @@ import carla
 import numpy as np
 import torch
 
-from opencda.core.common.vehicle_manager import VehicleManager
 from opencda.core.application.platooning.platooning_manager import PlatooningManager
-from opencda.core.common.rsu_manager import RSUManager
+from opencda.core.common.agent import AgentType
+from opencda.core.common.agent_manager import AgentManager
 from opencda.core.common.cav_world import CavWorld
+from opencda.core.common.world_frame import WorldFrame, WorldFrameBuilder
+from opencda.core.sensing.sensor_factory import build_sensor_actor_bundles, prepare_sensor_spawn_specs
 from opencda.core.sensing.perception.perception_manager import PerceptionRequirements
+from opencda.core.sensing.sensor_types import AgentSensorContext, SensorActorBundle, SensorSpawnSpec
 from opencda.scenario_testing.utils.customized_map_api import load_customized_world, bcolors
 
 logger = logging.getLogger("cavise.opencda.opencda.scenario_testing.utils.sim_api")
@@ -35,6 +39,33 @@ logger = logging.getLogger("cavise.opencda.opencda.scenario_testing.utils.sim_ap
 ConfigDict: TypeAlias = dict[str, Any]
 BlueprintMeta: TypeAlias = Mapping[str, Mapping[str, Any]]
 MapHelper: TypeAlias = Callable[..., carla.Transform]
+DEFAULT_AGENT_SPAWN_BATCH_SIZE = 256
+
+
+@dataclass(frozen=True, slots=True)
+class AgentSpawnSpec:
+    """Prepared CARLA actor spawn request for an OpenCDA agent."""
+
+    source_index: int
+    agent_type: AgentType
+    config: Mapping[str, Any]
+    blueprint: carla.ActorBlueprint
+    transform: carla.Transform
+    application: tuple[str, ...] = ()
+    autopilot_port: int | None = None
+
+    def __post_init__(self) -> None:
+        if self.source_index < 0:
+            raise ValueError("source_index must be non-negative.")
+        if self.autopilot_port is not None:
+            if self.agent_type is not AgentType.CAV:
+                raise ValueError("Only CAV spawn specs can enable CARLA autopilot.")
+            if self.autopilot_port <= 0:
+                raise ValueError("autopilot_port must be positive.")
+
+
+def _chunked[T](items: Sequence[T], chunk_size: int) -> list[Sequence[T]]:
+    return [items[start : start + chunk_size] for start in range(0, len(items), chunk_size)]
 
 
 def car_blueprint_filter(blueprint_library: Any) -> list[Any]:
@@ -245,7 +276,200 @@ class ScenarioManager:
 
         self.cav_world = cav_world if cav_world is not None else CavWorld(apply_ml)
         self.carla_map = self.world.get_map()
+        self._world_frame_builder = WorldFrameBuilder(self.world, self.carla_map)
         self.apply_ml = apply_ml
+
+    def spawn_agent_actors_batch(
+        self,
+        spawn_specs: Sequence[AgentSpawnSpec],
+        batch_size: int = DEFAULT_AGENT_SPAWN_BATCH_SIZE,
+    ) -> list[carla.Actor]:
+        """Spawn CARLA actors in chunks and return them in request order."""
+        if isinstance(batch_size, bool) or not isinstance(batch_size, int) or batch_size <= 0:
+            raise ValueError("batch_size must be a positive integer.")
+        if not spawn_specs:
+            return []
+
+        actor_ids: list[int] = []
+        try:
+            for spec_batch in _chunked(spawn_specs, batch_size):
+                commands = []
+                for spec in spec_batch:
+                    command = carla.command.SpawnActor(spec.blueprint, spec.transform)
+                    if spec.autopilot_port is not None:
+                        command = command.then(
+                            carla.command.SetAutopilot(
+                                carla.command.FutureActor,
+                                True,
+                                spec.autopilot_port,
+                            )
+                        )
+                    commands.append(command)
+                responses = list(self.client.apply_batch_sync(commands, False))
+
+                batch_actor_ids, failures = self._parse_spawn_responses(spec_batch, responses)
+                actor_ids.extend(batch_actor_ids)
+                if failures:
+                    raise RuntimeError("CARLA batch spawn failed: " + "; ".join(failures))
+
+            actors = list(self.world.get_actors(actor_ids))
+            actors_by_id = {actor.id: actor for actor in actors}
+            missing_actor_ids = [actor_id for actor_id in actor_ids if actor_id not in actors_by_id]
+            if missing_actor_ids:
+                raise RuntimeError(f"CARLA did not return spawned actors with IDs: {missing_actor_ids}.")
+
+            return [actors_by_id[actor_id] for actor_id in actor_ids]
+        except Exception:
+            self._rollback_spawned_actors(actor_ids, batch_size)
+            raise
+
+    @staticmethod
+    def _parse_spawn_responses(
+        spawn_specs: Sequence[AgentSpawnSpec],
+        responses: Sequence[Any],
+    ) -> tuple[list[int], list[str]]:
+        actor_ids: list[int] = []
+        failures: list[str] = []
+
+        if len(responses) != len(spawn_specs):
+            failures.append(f"expected {len(spawn_specs)} responses, received {len(responses)}")
+
+        for response_index, response in enumerate(responses):
+            request_label = (
+                str(spawn_specs[response_index].source_index) if response_index < len(spawn_specs) else f"unexpected response {response_index}"
+            )
+            error = getattr(response, "error", None)
+            actor_id = getattr(response, "actor_id", None)
+            if error:
+                failures.append(f"request {request_label}: {error}")
+            elif not isinstance(actor_id, int) or isinstance(actor_id, bool) or actor_id <= 0:
+                failures.append(f"request {request_label}: invalid actor_id {actor_id!r}")
+            else:
+                actor_ids.append(actor_id)
+
+        for spec in spawn_specs[len(responses) :]:
+            failures.append(f"request {spec.source_index}: missing response")
+
+        return actor_ids, failures
+
+    def _rollback_spawned_actors(self, actor_ids: Sequence[int], batch_size: int) -> None:
+        for actor_id_batch in _chunked(actor_ids, batch_size):
+            commands = [carla.command.DestroyActor(actor_id) for actor_id in actor_id_batch]
+            try:
+                responses = self.client.apply_batch_sync(commands, False)
+            except Exception:
+                logger.exception("Failed to roll back CARLA actors %s.", list(actor_id_batch))
+                continue
+
+            for actor_id, response in zip(actor_id_batch, responses):
+                error = getattr(response, "error", None)
+                if error:
+                    logger.error("Failed to roll back CARLA actor %s: %s", actor_id, error)
+
+    def spawn_agent_sensors_batch(
+        self,
+        agent_specs: Sequence[AgentSpawnSpec],
+        agent_actors: Sequence[carla.Actor],
+        perception_requirements: PerceptionRequirements,
+        batch_size: int = DEFAULT_AGENT_SPAWN_BATCH_SIZE,
+    ) -> list[SensorActorBundle]:
+        """Prepare, spawn, and group sensors for a batch of agent actors."""
+        if len(agent_specs) != len(agent_actors):
+            raise ValueError("Agent spec and actor counts must match.")
+
+        contexts = [
+            AgentSensorContext(
+                agent_index=index,
+                agent_type=spec.agent_type,
+                actor=actor,
+                config=spec.config,
+            )
+            for index, (spec, actor) in enumerate(zip(agent_specs, agent_actors, strict=True))
+        ]
+        sensor_specs = prepare_sensor_spawn_specs(
+            contexts,
+            self.world.get_blueprint_library(),
+            perception_requirements,
+        )
+        sensor_actors = self._spawn_sensor_actors_batch(sensor_specs, batch_size)
+        try:
+            return build_sensor_actor_bundles(len(agent_specs), sensor_specs, sensor_actors)
+        except Exception:
+            self._rollback_spawned_actors([actor.id for actor in sensor_actors], batch_size)
+            raise
+
+    def _spawn_sensor_actors_batch(
+        self,
+        spawn_specs: Sequence[SensorSpawnSpec],
+        batch_size: int,
+    ) -> list[carla.Actor]:
+        if isinstance(batch_size, bool) or not isinstance(batch_size, int) or batch_size <= 0:
+            raise ValueError("batch_size must be a positive integer.")
+        if not spawn_specs:
+            return []
+
+        actor_ids: list[int] = []
+        try:
+            for spec_batch in _chunked(spawn_specs, batch_size):
+                commands = [
+                    carla.command.SpawnActor(spec.blueprint, spec.transform, spec.parent_actor_id)
+                    if spec.parent_actor_id is not None
+                    else carla.command.SpawnActor(spec.blueprint, spec.transform)
+                    for spec in spec_batch
+                ]
+                responses = list(self.client.apply_batch_sync(commands, False))
+                batch_actor_ids, failures = self._parse_sensor_spawn_responses(spec_batch, responses)
+                actor_ids.extend(batch_actor_ids)
+                if failures:
+                    raise RuntimeError("CARLA sensor batch spawn failed: " + "; ".join(failures))
+
+            actors = list(self.world.get_actors(actor_ids))
+            actors_by_id = {actor.id: actor for actor in actors}
+            missing_actor_ids = [actor_id for actor_id in actor_ids if actor_id not in actors_by_id]
+            if missing_actor_ids:
+                raise RuntimeError(f"CARLA did not return spawned sensor actors with IDs: {missing_actor_ids}.")
+            return [actors_by_id[actor_id] for actor_id in actor_ids]
+        except Exception:
+            self._rollback_spawned_actors(actor_ids, batch_size)
+            raise
+
+    @staticmethod
+    def _parse_sensor_spawn_responses(
+        spawn_specs: Sequence[SensorSpawnSpec],
+        responses: Sequence[Any],
+    ) -> tuple[list[int], list[str]]:
+        actor_ids: list[int] = []
+        failures: list[str] = []
+        if len(responses) != len(spawn_specs):
+            failures.append(f"expected {len(spawn_specs)} responses, received {len(responses)}")
+
+        for response_index, response in enumerate(responses):
+            label = spawn_specs[response_index].label if response_index < len(spawn_specs) else f"unexpected response {response_index}"
+            error = getattr(response, "error", None)
+            actor_id = getattr(response, "actor_id", None)
+            if error:
+                failures.append(f"{label}: {error}")
+            elif not isinstance(actor_id, int) or isinstance(actor_id, bool) or actor_id <= 0:
+                failures.append(f"{label}: invalid actor_id {actor_id!r}")
+            else:
+                actor_ids.append(actor_id)
+
+        for spec in spawn_specs[len(responses) :]:
+            failures.append(f"{spec.label}: missing response")
+        return actor_ids, failures
+
+    def _rollback_uninitialized_agents(
+        self,
+        agent_actors: Sequence[carla.Actor],
+        sensor_bundles: Sequence[SensorActorBundle],
+        start_index: int,
+    ) -> None:
+        sensor_actor_ids = [actor_id for bundle in sensor_bundles[start_index:] for actor_id in bundle.actor_ids()]
+        self._rollback_spawned_actors(sensor_actor_ids, DEFAULT_AGENT_SPAWN_BATCH_SIZE)
+        self._rollback_spawned_actors(
+            [actor.id for actor in agent_actors[start_index:]],
+            DEFAULT_AGENT_SPAWN_BATCH_SIZE,
+        )
 
     @staticmethod
     def set_weather(weather_settings: Mapping[str, float]) -> carla.WeatherParameters:
@@ -274,18 +498,29 @@ class ScenarioManager:
         )
         return weather
 
-    def spawn_custom_actor(self, spawn_transform: carla.Transform, config: Mapping[str, Any], fallback_model: str) -> carla.Actor:
+    def prepare_actor_blueprint(
+        self,
+        config: Mapping[str, Any],
+        fallback_model: str,
+        blueprint_library: Any | None = None,
+    ) -> carla.ActorBlueprint:
+        """Resolve and configure a CARLA blueprint without spawning an actor."""
         model = config.get("model", fallback_model)
-        cav_vehicle_bp = self.world.get_blueprint_library().find(model)
+        library = blueprint_library if blueprint_library is not None else self.world.get_blueprint_library()
+        actor_blueprint = library.find(model)
 
         color = config.get("color")
         if color is not None:
             try:
-                cav_vehicle_bp.set_attribute("color", ",".join(map(str, color)))
+                actor_blueprint.set_attribute("color", ",".join(map(str, color)))
             except IndexError:
-                logger.warning(f"Vehicle model {cav_vehicle_bp.id} does not support the 'color' attribute. Skipping.")
+                logger.warning(f"Actor model {actor_blueprint.id} does not support the 'color' attribute. Skipping.")
 
-        return self.world.spawn_actor(cav_vehicle_bp, spawn_transform)
+        return actor_blueprint
+
+    def spawn_custom_actor(self, spawn_transform: carla.Transform, config: Mapping[str, Any], fallback_model: str) -> carla.Actor:
+        actor_blueprint = self.prepare_actor_blueprint(config, fallback_model)
+        return self.world.spawn_actor(actor_blueprint, spawn_transform)
 
     # TODO: make a custom_actor_manager for inanimated objects
     def create_custom_actor_manager(
@@ -316,13 +551,13 @@ class ScenarioManager:
 
         return None
 
-    def create_vehicle_manager(
+    def create_vehicle_agents(
         self,
         application: list[str],
         map_helper: MapHelper | None = None,
         perception_requirements: PerceptionRequirements | None = None,
         fallback_model: str = "vehicle.lincoln.mkz_2017",
-    ) -> tuple[list[VehicleManager], dict[int, Any]]:
+    ) -> tuple[list[AgentManager], dict[int, Any]]:
         """
         Create a list of single CAVs.
 
@@ -346,7 +581,7 @@ class ScenarioManager:
         single_cav_list : list
             A list contains all single CAVs' vehicle manager.
         """
-        single_cav_list: list[VehicleManager] = []
+        single_cav_list: list[AgentManager] = []
         cav_carla_list: dict[int, Any] = {}
         perception_requirements = perception_requirements or PerceptionRequirements()
 
@@ -354,11 +589,22 @@ class ScenarioManager:
             logger.info("No CAV was created")
             return single_cav_list, cav_carla_list
 
+        spawn_specs: list[AgentSpawnSpec] = []
+        blueprint_library = self.world.get_blueprint_library()
+        platoon_base = cast(ConfigDict, OmegaConf.create({"platoon": self.scenario_params.get("platoon_base", {})}))
+        agent_application = tuple(application)
         for i, cav_config in enumerate(self.scenario_params["scenario"]["single_cav_list"]):
             # in case the cav wants to join a platoon later
             # it will be empty dictionary for single cav application
-            platoon_base = cast(ConfigDict, OmegaConf.create({"platoon": self.scenario_params.get("platoon_base", {})}))
-            cav_config = cast(ConfigDict, OmegaConf.merge(self.scenario_params["vehicle_base"], platoon_base, cav_config))
+            cav_config = cast(
+                ConfigDict,
+                OmegaConf.merge(
+                    self.scenario_params.get("agent_base", {}),
+                    self.scenario_params["vehicle_base"],
+                    platoon_base,
+                    cav_config,
+                ),
+            )
             # if the spawn position is a single scalar, we need to use map
             # helper to transfer to spawn transform
             if "spawn_special" not in cav_config:
@@ -369,40 +615,66 @@ class ScenarioManager:
             else:
                 spawn_transform = cast(MapHelper, map_helper)(*cav_config["spawn_special"])
 
-            vehicle = self.spawn_custom_actor(spawn_transform, cav_config, fallback_model)
-
-            # create vehicle manager for each cav
-            vehicle_manager = VehicleManager(
-                vehicle,
-                cav_config,
-                application,
-                self.carla_map,
-                self.cav_world,
-                current_time=self.scenario_params["current_time"],
-                perception_requirements=perception_requirements,
-                prefix="cav",
+            use_carla_autopilot, autopilot_port = AgentManager.resolve_carla_autopilot(cav_config)
+            spawn_specs.append(
+                AgentSpawnSpec(
+                    source_index=i,
+                    agent_type=AgentType.CAV,
+                    config=cav_config,
+                    blueprint=self.prepare_actor_blueprint(cav_config, fallback_model, blueprint_library),
+                    transform=spawn_transform,
+                    application=agent_application,
+                    autopilot_port=autopilot_port if use_carla_autopilot else None,
+                )
             )
 
-            cav_carla_list[vehicle.id] = vehicle_manager.id
+        vehicles = self.spawn_agent_actors_batch(spawn_specs)
+        try:
+            sensor_bundles = self.spawn_agent_sensors_batch(spawn_specs, vehicles, perception_requirements)
+        except Exception:
+            self._rollback_spawned_actors(
+                [vehicle.id for vehicle in vehicles],
+                DEFAULT_AGENT_SPAWN_BATCH_SIZE,
+            )
+            raise
 
-            vehicle_manager.v2x_manager.set_platoon(None)
-            vehicle_manager.update_info()
-            if vehicle_manager.use_carla_autopilot:
-                if "destination" in cav_config:
-                    logger.info("CAV %s is using CARLA autopilot; configured destination is ignored.", vehicle_manager.id)
+        for actor_index, (spawn_spec, vehicle, sensor_bundle) in enumerate(zip(spawn_specs, vehicles, sensor_bundles, strict=True)):
+            try:
+                agent_manager = AgentManager.create(
+                    actor=vehicle,
+                    config_yaml=spawn_spec.config,
+                    carla_map=self.carla_map,
+                    cav_world=self.cav_world,
+                    agent_type=spawn_spec.agent_type,
+                    application=spawn_spec.application,
+                    current_time=self.scenario_params["current_time"],
+                    perception_requirements=perception_requirements,
+                    id_prefix="cav",
+                    sensor_actors=sensor_bundle,
+                    autopilot_already_enabled=spawn_spec.autopilot_port is not None,
+                )
+            except Exception:
+                self._rollback_uninitialized_agents(vehicles, sensor_bundles, actor_index)
+                raise
+
+            cav_carla_list[vehicle.id] = agent_manager.id
+
+            if agent_manager.agent.use_carla_autopilot:
+                if "destination" in spawn_spec.config:
+                    logger.info("CAV %s is using CARLA autopilot; configured destination is ignored.", agent_manager.id)
             else:
-                if "destination" not in cav_config:
-                    raise ValueError(f"CAV {vehicle_manager.id} requires 'destination' unless carla_autopilot is enabled.")
-                destination = carla.Location(x=cav_config["destination"][0], y=cav_config["destination"][1], z=cav_config["destination"][2])
-                vehicle_manager.set_destination(vehicle_manager.vehicle.get_location(), destination, clean=True)
+                if "destination" not in spawn_spec.config:
+                    raise ValueError(f"CAV {agent_manager.id} requires 'destination' unless carla_autopilot is enabled.")
+                destination_config = spawn_spec.config["destination"]
+                destination = carla.Location(x=destination_config[0], y=destination_config[1], z=destination_config[2])
+                agent_manager.agent.set_destination(agent_manager.agent.vehicle.get_location(), destination, clean=True)
 
-            single_cav_list.append(vehicle_manager)
-            logger.info(f"Created CAV with id {vehicle_manager.id}")
+            single_cav_list.append(agent_manager)
+            logger.info(f"Created CAV with id {agent_manager.id}")
 
-        for vehicle_manager in single_cav_list:
-            if vehicle_manager.use_carla_autopilot:
-                self.configure_carla_autopilot_vehicle(vehicle_manager.vehicle)
-                vehicle_manager.vehicle.set_autopilot(True, vehicle_manager.carla_autopilot_port)
+        for agent_manager in single_cav_list:
+            if agent_manager.agent.use_carla_autopilot:
+                self.configure_carla_autopilot_vehicle(agent_manager.agent.vehicle)
 
         return single_cav_list, cav_carla_list
 
@@ -519,7 +791,15 @@ class ScenarioManager:
 
             for j, cav_config in enumerate(platoon["members"]):
                 platoon_base = cast(ConfigDict, OmegaConf.create({"platoon": platoon}))
-                cav_config = cast(ConfigDict, OmegaConf.merge(self.scenario_params["vehicle_base"], platoon_base, cav_config))
+                cav_config = cast(
+                    ConfigDict,
+                    OmegaConf.merge(
+                        self.scenario_params.get("agent_base", {}),
+                        self.scenario_params["vehicle_base"],
+                        platoon_base,
+                        cav_config,
+                    ),
+                )
                 if "spawn_special" not in cav_config:
                     spawn_transform = carla.Transform(
                         carla.Location(x=cav_config["spawn_position"][0], y=cav_config["spawn_position"][1], z=cav_config["spawn_position"][2]),
@@ -532,25 +812,24 @@ class ScenarioManager:
 
                 vehicle = self.spawn_custom_actor(spawn_transform, cav_config, fallback_model)
 
-                # create vehicle manager for each cav
-                vehicle_manager = VehicleManager(
-                    vehicle,
-                    cav_config,
-                    ["platoon"],
-                    self.carla_map,
-                    self.cav_world,
+                agent_manager = AgentManager.create(
+                    actor=vehicle,
+                    config_yaml=cav_config,
+                    carla_map=self.carla_map,
+                    cav_world=self.cav_world,
+                    agent_type=AgentType.CAV,
+                    application=["platoon"],
                     current_time=self.scenario_params["current_time"],
                     perception_requirements=perception_requirements,
-                    prefix="platoon",
+                    id_prefix="platoon",
                 )
 
-                platoon_carla_ids[vehicle.id] = vehicle_manager.id
+                platoon_carla_ids[vehicle.id] = agent_manager.id
 
-                # add the vehicle manager to platoon
                 if j == 0:
-                    platoon_manager.set_lead(vehicle_manager)
+                    platoon_manager.set_lead(agent_manager)
                 else:
-                    platoon_manager.add_member(vehicle_manager, leader=False)
+                    platoon_manager.add_member(agent_manager, leader=False)
 
             destination = carla.Location(x=platoon["destination"][0], y=platoon["destination"][1], z=platoon["destination"][2])
 
@@ -560,7 +839,7 @@ class ScenarioManager:
 
         return platoon_list, platoon_carla_ids
 
-    def create_rsu_manager(self, perception_requirements: PerceptionRequirements | None = None) -> tuple[list[RSUManager], dict[int, Any]]:
+    def create_rsu_agents(self, perception_requirements: PerceptionRequirements | None = None) -> tuple[list[AgentManager], dict[int, Any]]:
         """
         Create a list of RSU.
 
@@ -574,7 +853,7 @@ class ScenarioManager:
         rsu_list : list
             A list contains all rsu managers..
         """
-        rsu_list: list[RSUManager] = []
+        rsu_list: list[AgentManager] = []
         rsu_carla_ids: dict[int, Any] = {}
         perception_requirements = perception_requirements or PerceptionRequirements()
 
@@ -582,31 +861,64 @@ class ScenarioManager:
             logger.info("No RSU was created")
             return rsu_list, rsu_carla_ids
 
-        for rsu_config in self.scenario_params["scenario"]["rsu_list"]:
-            rsu_config = cast(ConfigDict, OmegaConf.merge(self.scenario_params["rsu_base"], rsu_config))
-            default_model = "static.prop.gnome"
-            static_bp = self.world.get_blueprint_library().find(default_model)
+        spawn_specs: list[AgentSpawnSpec] = []
+        blueprint_library = self.world.get_blueprint_library()
+        default_model = "static.prop.gnome"
+        for index, rsu_config in enumerate(self.scenario_params["scenario"]["rsu_list"]):
+            rsu_config = cast(
+                ConfigDict,
+                OmegaConf.merge(
+                    self.scenario_params.get("agent_base", {}),
+                    self.scenario_params["rsu_base"],
+                    rsu_config,
+                ),
+            )
 
             spawn_transform = carla.Transform(
                 carla.Location(x=rsu_config["spawn_position"][0], y=rsu_config["spawn_position"][1], z=rsu_config["spawn_position"][2]),
                 carla.Rotation(pitch=rsu_config["spawn_position"][5], yaw=rsu_config["spawn_position"][4], roll=rsu_config["spawn_position"][3]),
             )
 
-            actor = self.world.spawn_actor(static_bp, spawn_transform)
-
-            rsu_manager = RSUManager(
-                self.world,
-                rsu_config,
-                self.carla_map,
-                self.cav_world,
-                self.scenario_params["current_time"],
-                perception_requirements=perception_requirements,
+            spawn_specs.append(
+                AgentSpawnSpec(
+                    source_index=index,
+                    agent_type=AgentType.RSU,
+                    config=rsu_config,
+                    blueprint=self.prepare_actor_blueprint(rsu_config, default_model, blueprint_library),
+                    transform=spawn_transform,
+                )
             )
 
-            rsu_carla_ids[actor.id] = rsu_manager.id
+        actors = self.spawn_agent_actors_batch(spawn_specs)
+        try:
+            sensor_bundles = self.spawn_agent_sensors_batch(spawn_specs, actors, perception_requirements)
+        except Exception:
+            self._rollback_spawned_actors(
+                [actor.id for actor in actors],
+                DEFAULT_AGENT_SPAWN_BATCH_SIZE,
+            )
+            raise
 
-            rsu_list.append(rsu_manager)
-            logger.info(f"Created RSU with id {rsu_manager.id}")
+        for actor_index, (spawn_spec, actor, sensor_bundle) in enumerate(zip(spawn_specs, actors, sensor_bundles, strict=True)):
+            try:
+                agent_manager = AgentManager.create(
+                    actor=actor,
+                    config_yaml=spawn_spec.config,
+                    carla_map=self.carla_map,
+                    cav_world=self.cav_world,
+                    agent_type=spawn_spec.agent_type,
+                    current_time=self.scenario_params["current_time"],
+                    perception_requirements=perception_requirements,
+                    sensor_actors=sensor_bundle,
+                )
+            except Exception:
+                self._rollback_uninitialized_agents(actors, sensor_bundles, actor_index)
+                raise
+
+            rsu_carla_ids[actor.id] = agent_manager.id
+
+            rsu_list.append(agent_manager)
+            logger.info(f"Created RSU with id {agent_manager.id}")
 
         return rsu_list, rsu_carla_ids
 
@@ -717,7 +1029,9 @@ class ScenarioManager:
         if cav_spawn_clearance < 0:
             raise ValueError("Config key 'cav_spawn_clearance' must be non-negative.")
         cav_locations = (
-            [manager.vehicle.get_location() for manager in self.cav_world.get_vehicle_managers().values()] if cav_spawn_clearance > 0 else []
+            [manager.agent.vehicle.get_location() for manager in self.cav_world.get_vehicle_agent_managers().values()]
+            if cav_spawn_clearance > 0
+            else []
         )
 
         for spawn_range in spawn_ranges:
@@ -830,6 +1144,10 @@ class ScenarioManager:
         Tick the server.
         """
         return self.world.tick()
+
+    def capture_world_frame(self, frame: int) -> WorldFrame:
+        """Capture shared actor state for one completed simulation tick."""
+        return self._world_frame_builder.capture(frame=frame)
 
     def sumo_tick(self) -> None:
         return None

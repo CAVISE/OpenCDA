@@ -13,13 +13,13 @@ RUN userdel -r ubuntu && useradd -l -m -u ${UID} -s /bin/bash ${USER} -d ${HOME}
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-        python3-pip=24.0+dfsg-1ubuntu1.3 \
-        python3-dev=3.12.3-0ubuntu2.1 \
-        libgl1=1.7.0-1build1 \
-        libglib2.0-0=2.80.0-6ubuntu1 \
-        libsm6=2:1.2.3-1build3 \
-        libxext6=2:1.3.4-1build2 \
-        libxrender1=1:0.9.10-1.1build1 \
+        python3-pip=24.0+* \
+        python3-dev=3.12.* \
+        libgl1=1.7.* \
+        libglib2.0-0=2.80.* \
+        libsm6=2:1.2.* \
+        libxext6=2:1.3.* \
+        libxrender1=1:0.9.* \
         && \
         apt-get autoremove -y && \
         rm -rf /var/lib/apt/lists/*
@@ -34,4 +34,4 @@ COPY requirements.txt requirements.txt
 RUN python3 -m pip install --no-cache-dir --break-system-packages --upgrade pip==26.0.1 && \
     python3 -m pip install --no-cache-dir --break-system-packages -r requirements.txt
 
-CMD ["/bin/bash", "-c", "python3 opencood/utils/setup.py build_ext --inplace && python opencood/pcdet_utils/setup.py build_ext --inplace"]
+CMD ["/bin/bash", "-c", "python opencood/pcdet_utils/setup.py build_ext --inplace"]

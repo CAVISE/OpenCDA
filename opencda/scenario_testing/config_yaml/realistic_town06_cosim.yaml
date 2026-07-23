@@ -92,8 +92,6 @@ scenario:
     - name: cav1
       spawn_position: [-4.059368, 48.755730, 0.3, 0, 0, 0]
       destination: [600, 145.51, 0.3]
-      v2x:
-        communication_range: 45
       behavior:
         local_planner:
           debug_trajectory: false
@@ -101,8 +99,6 @@ scenario:
     # - name: cav2
     #   spawn_position: [55, 129.51, 0.4, 0, 0, 0]
     #   destination: [600, 145.51, 0.3]
-    #   v2x:
-    #     communication_range: 45
     #   behavior:
     #     local_planner:
     #       debug_trajectory: false
@@ -110,8 +106,6 @@ scenario:
     # - name: cav3
     #   spawn_position: [60, 149.51, 0.7, 0, 0, 0]
     #   destination: [600, 145.51, 0.3]
-    #   v2x:
-    #     communication_range: 45
     #   behavior:
     #     local_planner:
     #       debug_trajectory: false

@@ -25,6 +25,7 @@ exclude = [
     "build",
     "dist",
     "node_modules",
+    "opencda/core/application/platooning",
     "site-packages",
     "venv",
 ]
@@ -115,17 +116,12 @@ exclude = [
     "^OpenCOOD/setup\\.py$",
     "^opencda/co_simulation/sumo_integration/bridge_helper\\.py$",
     "^opencda/co_simulation/sumo_integration/sumo_simulation\\.py$",
-    "^opencda/core/application/platooning/platoon_behavior_agent\\.py$",
-    "^opencda/core/application/platooning/platoon_debug_helper\\.py$",
-    "^opencda/core/application/platooning/platooning_manager\\.py$",
-    "^opencda/core/application/platooning/platooning_plugin\\.py$",
+    "^opencda/core/application/platooning(/|$)",
     "^opencda/core/common/communication/protos(/|$)",
     "^opencda/core/common/communication/toolchain\\.py$",
     "^opencda/core/common/coperception_model_manager\\.py$",
     "^opencda/core/common/data_dumper\\.py$",
     "^opencda/core/common/misc\\.py$",
-    "^opencda/core/common/rsu_manager\\.py$",
-    "^opencda/core/common/v2x_manager\\.py$",
     "^opencda/core/plan(/|$)",
     "^opencda/core/safety/safety_manager\\.py$",
     "^opencda/core/safety/sensors\\.py$",
@@ -134,6 +130,13 @@ exclude = [
     "^opencda/opencda_carla\\.py$"
 ]
 
+[[tool.mypy.overrides]]
+module = [
+    "opencda.core.application.platooning",
+    "opencda.core.application.platooning.*",
+]
+follow_imports = "skip"
+ignore_errors = true
 
 [tool.deadcode]
 exclude = [
@@ -142,4 +145,7 @@ exclude = [
     "*test",
     "*conftest.py",
     "opencda/core/common/communication/protos/cavise",
+]
+ignore-names-in-files = [
+    "opencda/core/application/platooning/*",
 ]

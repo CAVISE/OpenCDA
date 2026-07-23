@@ -217,13 +217,16 @@ def _make_perception_world_with_camera_and_lidar(*, carla_map=None, actors=None)
     return world
 
 
-def _perception_config(*, activate: bool, camera_visualize: int = 0, lidar_visualize: bool = False) -> dict:
-    return {
+def _perception_config(*, activate: bool, camera_visualize: int = 0, lidar_visualize: bool = False, enabled: bool | None = None) -> dict:
+    config = {
         "activate": activate,
         "camera": {"visualize": camera_visualize, "num": 1, "positions": [(0.0, 0.0, 0.0, 0.0)]},
         "lidar": {"visualize": lidar_visualize, **_lidar_config()},
         "traffic_light_thresh": 50,
     }
+    if enabled is not None:
+        config["enabled"] = enabled
+    return config
 
 
 def _make_box_corners_centered(center_xyz: tuple[float, float, float], extent_xyz: tuple[float, float, float]) -> np.ndarray:
@@ -581,6 +584,30 @@ def test_perception_manager_init_exits_when_activate_and_no_ml_manager(perceptio
         PerceptionManager(vehicle=None, config_yaml=cfg, cav_world=cav_world, infra_id=1, carla_world=world)
 
 
+def test_disabled_perception_returns_empty_objects_without_ground_truth_processing(perception_manager_module, monkeypatch):
+    import carla
+
+    PerceptionManager = perception_manager_module.PerceptionManager
+
+    cfg = _perception_config(activate=False, enabled=False)
+    cav_world = Mock()
+    cav_world.ml_manager = None
+    cav_world.sumo2carla_ids = {}
+    world = _FakeWorld(blueprint_library=_FakeBlueprintLibrary({}), carla_map=Mock())
+    pm = PerceptionManager(vehicle=None, config_yaml=cfg, cav_world=cav_world, infra_id=1, carla_world=world)
+    deactivate_mode = Mock(side_effect=AssertionError("Ground Truth perception must not run"))
+    monkeypatch.setattr(pm, "deactivate_mode", deactivate_mode)
+
+    objects = pm.detect(carla.Transform(), world_frame=Mock())
+
+    assert objects == {"vehicles": [], "traffic_lights": []}
+    assert pm.objects == objects
+    assert pm.rgb_camera is None
+    assert pm.lidar is None
+    assert pm.semantic_lidar is None
+    deactivate_mode.assert_not_called()
+
+
 def test_perception_manager_init_spawns_camera_and_lidar_when_activate_true(perception_manager_module):
     PerceptionManager = perception_manager_module.PerceptionManager
 
@@ -596,6 +623,50 @@ def test_perception_manager_init_spawns_camera_and_lidar_when_activate_true(perc
     assert pm.rgb_camera is not None
     assert len(pm.rgb_camera) == 1
     assert pm.lidar is not None
+
+
+def test_perception_manager_binds_precreated_sensor_actors_without_spawning(perception_manager_module):
+    import carla
+
+    from opencda.core.sensing.sensor_types import SensorActorBundle
+
+    PerceptionManager = perception_manager_module.PerceptionManager
+    PerceptionRequirements = perception_manager_module.PerceptionRequirements
+    cfg = _perception_config(activate=False, camera_visualize=1, lidar_visualize=False)
+    cav_world = Mock()
+    cav_world.ml_manager = Mock()
+    cav_world.sumo2carla_ids = {}
+    world = _FakeWorld(blueprint_library=_FakeBlueprintLibrary({}), carla_map=Mock())
+
+    camera = _FakeSensor(
+        attributes={"image_size_x": "2", "image_size_y": "2"},
+        transform=carla.Transform(carla.Location()),
+    )
+    lidar = _FakeSensor(attributes={}, transform=carla.Transform(carla.Location()))
+    semantic_lidar = _FakeSensor(attributes={}, transform=carla.Transform(carla.Location()))
+    sensor_actors = SensorActorBundle(
+        cameras=(camera,),
+        lidar=lidar,
+        semantic_lidar=semantic_lidar,
+    )
+
+    pm = PerceptionManager(
+        vehicle=None,
+        config_yaml=cfg,
+        cav_world=cav_world,
+        infra_id=1,
+        perception_requirements=PerceptionRequirements(force_lidar=True, force_semantic_lidar=True),
+        carla_world=world,
+        sensor_actors=sensor_actors,
+    )
+
+    assert world.spawn_calls == []
+    assert pm.rgb_camera[0].sensor is camera
+    assert pm.lidar.sensor is lidar
+    assert pm.semantic_lidar.sensor is semantic_lidar
+    assert camera._callback is not None
+    assert lidar._callback is not None
+    assert semantic_lidar._callback is not None
 
 
 def test_perception_manager_init_spawns_semantic_lidar_when_data_dump_true(perception_manager_module):
@@ -818,6 +889,46 @@ def test_deactivate_mode_filters_by_distance_and_excludes_self(perception_manage
     assert "vehicles" in out
     assert len(out["vehicles"]) == 1
     assert constructed[0]["vehicle"] is v_close
+
+
+def test_deactivate_mode_uses_world_frame_without_world_actor_queries(perception_manager_module, monkeypatch):
+    import carla
+
+    PerceptionManager = perception_manager_module.PerceptionManager
+
+    cfg = _perception_config(activate=False)
+    cav_world = Mock()
+    cav_world.ml_manager = Mock()
+    cav_world.sumo2carla_ids = {}
+    world = _FakeWorld(blueprint_library=_FakeBlueprintLibrary({}), carla_map=Mock())
+    world.get_actors = Mock(side_effect=AssertionError("Perception must use WorldFrame"))
+    pm = PerceptionManager(vehicle=None, config_yaml=cfg, cav_world=cav_world, infra_id=1, carla_world=world)
+    pm.ego_pos = carla.Transform(carla.Location(), carla.Rotation())
+
+    actor = Mock(id=2)
+    actor_state = types.SimpleNamespace(actor_id=2, actor=actor)
+    world_frame = Mock()
+    world_frame.nearby_dynamic.return_value = (actor_state,)
+    world_frame.traffic_lights = ()
+    world_frame.shared_actor_value.side_effect = lambda _namespace, _actor_id, factory: factory()
+    constructed = []
+
+    class _OV:
+        @classmethod
+        def from_actor_state(cls, state, lidar, sumo2carla_ids):
+            constructed.append((state, lidar, sumo2carla_ids))
+            return "obstacle"
+
+    monkeypatch.setattr(perception_manager_module, "ObstacleVehicle", _OV)
+    monkeypatch.setattr(pm, "retrieve_traffic_lights", lambda objects, _world_frame: objects)
+
+    out = pm.deactivate_mode({"vehicles": [], "traffic_lights": []}, world_frame)
+
+    world_frame.nearby_dynamic.assert_called_once_with(pm.ego_pos.location, 50, exclude_actor_id=1)
+    world_frame.shared_actor_value.assert_called_once()
+    assert out["vehicles"] == ["obstacle"]
+    assert constructed == [(actor_state, None, {})]
+    world.get_actors.assert_not_called()
 
 
 def test_deactivate_mode_calls_filter_vehicle_out_sensor_when_data_dump_true(perception_manager_module, monkeypatch):
@@ -1351,6 +1462,43 @@ def test_retrieve_traffic_lights_returns_empty_when_no_active_light(perception_m
 
     out = pm.retrieve_traffic_lights({"vehicles": [], "traffic_lights": []})
     assert out["traffic_lights"] == []
+
+
+def test_retrieve_traffic_lights_uses_cached_world_frame_state(perception_manager_module, monkeypatch):
+    import carla
+
+    PerceptionManager = perception_manager_module.PerceptionManager
+
+    cfg = _perception_config(activate=False)
+    cav_world = Mock()
+    cav_world.ml_manager = Mock()
+    world = _FakeWorld(blueprint_library=_FakeBlueprintLibrary({}), carla_map=Mock())
+    pm = PerceptionManager(vehicle=None, config_yaml=cfg, cav_world=cav_world, infra_id=1, carla_world=world)
+    pm.ego_pos = carla.Transform(carla.Location(), carla.Rotation())
+
+    vehicle_waypoint = Mock(road_id=7)
+    vehicle_waypoint.transform.get_forward_vector.return_value = carla.Vector3D(x=1.0)
+    pm._map.get_waypoint.return_value = vehicle_waypoint
+    actor = Mock(id=50)
+    cached_light = types.SimpleNamespace(
+        actor=actor,
+        state="GREEN",
+        road_id=7,
+        forward_vector=carla.Vector3D(x=1.0),
+        intersection_location=carla.Location(x=10.0),
+    )
+    world_frame = Mock()
+    world_frame.traffic_lights = (actor,)
+    world_frame.traffic_light_states = (cached_light,)
+    monkeypatch.setattr(pm, "_get_active_light", Mock(side_effect=AssertionError("uncached path must not run")))
+
+    out = pm.retrieve_traffic_lights({"vehicles": [], "traffic_lights": []}, world_frame)
+
+    assert len(out["traffic_lights"]) == 1
+    assert out["traffic_lights"][0].actor is actor
+    assert out["traffic_lights"][0].get_state() == "GREEN"
+    assert out["traffic_lights"][0].get_location() is cached_light.intersection_location
+    actor.get_state.assert_not_called()
 
 
 def test_destroy_calls_destroy_on_spawned_sensors_and_visualizers(perception_manager_module, monkeypatch):

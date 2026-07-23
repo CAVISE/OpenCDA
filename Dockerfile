@@ -15,20 +15,20 @@ ARG PROTOC_VERSION=34.1
 ARG PROTOC_ZIP=protoc-${PROTOC_VERSION}-linux-x86_64.zip
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-        libsm6=2:1.2.3-1build3 \
-        libxext6=2:1.3.4-1build2 \
-        libxrender1=1:0.9.10-1.1build1 \
-        libvulkan1=1.3.275.0-1build1 \
-        libgl1=1.7.0-1build1 \
-        mesa-vulkan-drivers=25.2.8-0ubuntu0.24.04.1 \
-        curl=8.5.0-2ubuntu10.8 \
-        unzip=6.0-28ubuntu4.1 \
-        libjpeg-dev=8c-2ubuntu11 \
-        libtiff6=4.5.1+git230720-4ubuntu2.5 \
-        python3-pip=24.0+dfsg-1ubuntu1.3 \
-        python3-dev=3.12.3-0ubuntu2.1 \
-        vulkan-tools=1.3.275.0+dfsg1-1 \
-        libglib2.0-0=2.80.0-6ubuntu1 \
+        libsm6=2:1.2.* \
+        libxext6=2:1.3.* \
+        libxrender1=1:0.9.* \
+        libvulkan1=1.3.* \
+        libgl1=1.7.* \
+        mesa-vulkan-drivers=25.2.* \
+        curl=8.5.* \
+        unzip=6.0-* \
+        libjpeg-dev=8c-* \
+        libtiff6=4.5.* \
+        python3-pip=24.0+* \
+        python3-dev=3.12.* \
+        vulkan-tools=1.3.* \
+        libglib2.0-0t64=2.80.* \
     && \
     curl -LO https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/${PROTOC_ZIP} && \
     unzip -o ${PROTOC_ZIP} -d /usr/local && \
