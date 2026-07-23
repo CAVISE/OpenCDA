@@ -35,7 +35,7 @@ def _load_dataset_class(dataset_name):
     return dataset_class
 
 
-def __getattr__(name):
+def __getattr__(name):  # Noqa: DC02
     if name not in _DATASET_REGISTRY:
         raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
     return _load_dataset_class(name)
