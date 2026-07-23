@@ -142,6 +142,7 @@ class WorldFrame:
         self.timestamp = timestamp
         self.traffic_lights = traffic_lights
         self.traffic_light_states = traffic_light_states
+        self._traffic_light_states_by_id = {state.actor_id: state for state in traffic_light_states}
         self._actor_states = actor_states
         self._cell_size = cell_size
         self._dynamic_grid: dict[tuple[int, int], tuple[WorldActorState, ...]] = self._build_dynamic_grid(actor_states.values())
@@ -205,6 +206,10 @@ class WorldFrame:
             return self._actor_states[actor_id]
         except KeyError as exc:
             raise KeyError(f"Actor {actor_id} is absent from CARLA frame {self.frame}.") from exc
+
+    def traffic_light_state(self, actor_id: int) -> WorldTrafficLightState | None:
+        """Return a cached traffic-light state when the frame captured one."""
+        return self._traffic_light_states_by_id.get(actor_id)
 
     def shared_actor_value(self, namespace: str, actor_id: int, factory: Callable[[], T]) -> T:
         """Return a frame-local actor value that is independent of the observing agent."""

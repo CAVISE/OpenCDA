@@ -95,6 +95,7 @@ class AgentManager:
                 actor,
                 config_yaml,
                 carla_map,
+                cav_world,
                 sensor_actors,
             )
 
@@ -218,6 +219,7 @@ class AgentManager:
         actor: carla.Actor,
         config_yaml: Mapping[str, Any],
         carla_map: carla.Map,
+        cav_world: Any,
         sensor_actors: SensorActorBundle | None,
     ) -> VehicleComponents:
         if sensor_actors is None or sensor_actors.collision is None:
@@ -226,7 +228,9 @@ class AgentManager:
         vehicle = cast(carla.Vehicle, actor)
         behavior_config = config_yaml["behavior"]
         use_carla_autopilot, autopilot_port = AgentManager.resolve_carla_autopilot(config_yaml)
-        map_manager = MapManager(vehicle, carla_map, config_yaml["map_manager"])
+        map_config = config_yaml["map_manager"]
+        shared_map_data = cav_world.get_shared_map_data(vehicle.get_world(), carla_map, map_config)
+        map_manager = MapManager(vehicle, carla_map, map_config, shared_map_data=shared_map_data)
         safety_manager = SafetyManager(
             vehicle=vehicle,
             params=config_yaml["safety_manager"],

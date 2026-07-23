@@ -153,7 +153,7 @@ def test_create_cav_builds_vehicle_agent_through_common_factory(mocker, minimal_
 
     localizer_factory = mocker.patch("opencda.core.common.agent_manager.create_localizer", return_value=localizer)
     perception_factory = mocker.patch("opencda.core.common.agent_manager.PerceptionManager", return_value=perception_manager)
-    mocker.patch("opencda.core.common.agent_manager.MapManager", return_value=map_manager)
+    map_manager_factory = mocker.patch("opencda.core.common.agent_manager.MapManager", return_value=map_manager)
     safety_factory = mocker.patch("opencda.core.common.agent_manager.SafetyManager", return_value=safety_manager)
     mocker.patch("opencda.core.common.agent_manager.BehaviorAgent", return_value=behavior_agent)
     mocker.patch("opencda.core.common.agent_manager.ControlManager", return_value=controller)
@@ -197,6 +197,13 @@ def test_create_cav_builds_vehicle_agent_through_common_factory(mocker, minimal_
     )
     assert perception_factory.call_args.kwargs["vehicle"] is actor
     assert perception_factory.call_args.kwargs["sensor_actors"] is sensor_actors
+    mock_cav_world.get_shared_map_data.assert_called_once_with(actor.get_world(), carla_map, config["map_manager"])
+    map_manager_factory.assert_called_once_with(
+        actor,
+        carla_map,
+        config["map_manager"],
+        shared_map_data=mock_cav_world.get_shared_map_data.return_value,
+    )
     assert safety_factory.call_args.kwargs["collision_sensor_actor"] is collision_sensor_actor
     actor.set_autopilot.assert_not_called()
     mock_cav_world.update_agent_manager.assert_called_once_with(manager)
@@ -249,6 +256,7 @@ def test_create_vehicle_components_requires_pre_spawned_collision_sensor(mocker,
             actor=Mock(),
             config_yaml=minimal_vehicle_config,
             carla_map=Mock(),
+            cav_world=Mock(),
             sensor_actors=sensor_actors,
         )
 

@@ -61,6 +61,7 @@ def test_update_skips_behavior_for_carla_autopilot() -> None:
     controller = Mock()
     actor = Mock()
     carla_map = Mock()
+    world_frame = Mock()
 
     agent = Agent.__new__(Agent)
     agent.actor = actor
@@ -75,10 +76,10 @@ def test_update_skips_behavior_for_carla_autopilot() -> None:
         use_carla_autopilot=True,
         carla_autopilot_port=8000,
     )
-    agent.update()
+    agent.update(world_frame)
 
     behavior_agent.update_information.assert_not_called()
-    map_manager.update_information.assert_called_once_with(ego_pos)
+    map_manager.update_information.assert_called_once_with(ego_pos, world_frame)
     safety_manager.update_info.assert_called_once()
     controller.update_info.assert_called_once_with(ego_pos, 25.0)
 

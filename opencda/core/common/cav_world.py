@@ -2,9 +2,14 @@ from __future__ import annotations
 
 import importlib
 import logging
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
+from opencda.core.map.map_data import MapDataCache, SharedMapData
+
 if TYPE_CHECKING:
+    import carla
+
     from opencda.core.application.behavior.behavior_service_protocol import BehaviorService
     from opencda.core.common.agent_manager import AgentManager
 
@@ -38,6 +43,7 @@ class CavWorld(object):
     def __init__(self, apply_ml: bool = False) -> None:
         self.vehicle_id_set: set[int] = set()
         self._agent_manager_dict: dict[str, AgentManager] = {}
+        self._map_data_cache = MapDataCache()
         self.ml_manager: Any | None = None
 
         if apply_ml:
@@ -49,6 +55,15 @@ class CavWorld(object):
 
         # this is used only when co-simulation activated.
         self.sumo2carla_ids: dict[str, int] = {}
+
+    def get_shared_map_data(
+        self,
+        world: carla.World,
+        carla_map: carla.Map,
+        config: Mapping[str, Any],
+    ) -> SharedMapData:
+        """Return map geometry shared by all matching agents in this simulation."""
+        return self._map_data_cache.get_or_build(world, carla_map, config)
 
     def update_agent_manager(self, agent_manager: AgentManager) -> None:
         """Register a universal agent manager."""
