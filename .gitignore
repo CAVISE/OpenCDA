@@ -151,3 +151,4 @@ ready*
 *.tar*
 
 simulation_output
+*-artifacts.manifest
