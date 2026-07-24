@@ -55,7 +55,7 @@ def test_update_skips_behavior_for_carla_autopilot() -> None:
     localizer.update.return_value = localization_state
     perception_manager = Mock()
     perception_manager.detect.return_value = {"vehicles": [], "traffic_lights": []}
-    map_manager = Mock(static_bev=None)
+    map_manager = Mock(static_bev=None, on_road=True)
     safety_manager = Mock()
     behavior_agent = Mock()
     controller = Mock()
@@ -81,6 +81,9 @@ def test_update_skips_behavior_for_carla_autopilot() -> None:
     behavior_agent.update_information.assert_not_called()
     map_manager.update_information.assert_called_once_with(ego_pos, world_frame)
     safety_manager.update_info.assert_called_once()
+    safety_data = safety_manager.update_info.call_args.args[0]
+    assert safety_data["on_road"] is True
+    assert safety_data["static_bev"] is None
     controller.update_info.assert_called_once_with(ego_pos, 25.0)
 
 
@@ -103,7 +106,7 @@ def test_update_keeps_behavior_for_opencda_control() -> None:
     agent.localizer = localizer
     agent.perception_manager = perception_manager
     agent._vehicle_components = VehicleComponents(
-        map_manager=Mock(static_bev=None),
+        map_manager=Mock(static_bev=None, on_road=None),
         safety_manager=Mock(),
         behavior_agent=behavior_agent,
         controller=Mock(),

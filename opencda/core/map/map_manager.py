@@ -14,6 +14,7 @@ import numpy.typing as npt
 
 from opencda.core.sensing.perception.sensor_transformation import world_to_sensor
 from opencda.core.map.map_data import SharedMapData
+from opencda.core.map.mode import MapManagerMode, resolve_map_manager_mode
 from opencda.core.map.map_utils import convert_tl_status
 from opencda.core.map.map_drawing import cv2_subpixel, draw_agent, draw_road, draw_lane
 
@@ -109,7 +110,7 @@ class MapManager(object):
         self.center: carla.Transform | None = None
         self._world_frame: WorldFrame | None = None
 
-        self.activate = config["activate"]
+        self.mode = resolve_map_manager_mode(config)
         self.visualize = config["visualize"]
         self.pixels_per_meter = config["pixels_per_meter"]
         self.meter_per_pixel = 1 / self.pixels_per_meter
@@ -122,8 +123,9 @@ class MapManager(object):
         self.dynamic_bev: npt.NDArray[np.uint8] | None = None
         self.static_bev: npt.NDArray[np.uint8] | None = None
         self.vis_bev: npt.NDArray[np.uint8] | None = None
+        self.on_road: bool | None = None
 
-        if not self.activate:
+        if self.mode is not MapManagerMode.FULL_BEV:
             map_data = SharedMapData.empty()
         else:
             map_data = shared_map_data or SharedMapData.build(
@@ -148,12 +150,20 @@ class MapManager(object):
         """
         self.center = ego_pose
         self._world_frame = world_frame
+        self.on_road = None
+        if self.mode is MapManagerMode.OFFROAD_ONLY:
+            waypoint = self.carla_map.get_waypoint(
+                ego_pose.location,
+                project_to_road=False,
+                lane_type=carla.LaneType.Driving,
+            )
+            self.on_road = waypoint is not None
 
     def run_step(self) -> None:
         """
         Rasterization + Visualize the bev map if needed.
         """
-        if not self.activate:
+        if self.mode is not MapManagerMode.FULL_BEV:
             return
         self.rasterize_static()
         self.rasterize_dynamic()
@@ -355,7 +365,10 @@ class MapManager(object):
         -------
         Rasterization image.
         """
-        dynamic_bev = np.zeros(shape=(int(self.raster_size[1]), int(self.raster_size[0]), 3), dtype=np.uint8)
+        dynamic_bev: npt.NDArray[np.uint8] = np.zeros(
+            shape=(int(self.raster_size[1]), int(self.raster_size[0]), 3),
+            dtype=np.uint8,
+        )
         vis_bev = self.vis_bev
         if vis_bev is None:
             self._abort("Static BEV must be rasterized before dynamic BEV.")
@@ -377,8 +390,16 @@ class MapManager(object):
         """
         Generate the static bev map.
         """
-        static_bev = np.full(shape=(int(self.raster_size[1]), int(self.raster_size[0]), 3), fill_value=255, dtype=np.uint8)
-        vis_bev = np.full(shape=(int(self.raster_size[1]), int(self.raster_size[0]), 3), fill_value=255, dtype=np.uint8)
+        static_bev: npt.NDArray[np.uint8] = np.full(
+            shape=(int(self.raster_size[1]), int(self.raster_size[0]), 3),
+            fill_value=255,
+            dtype=np.uint8,
+        )
+        vis_bev: npt.NDArray[np.uint8] = np.full(
+            shape=(int(self.raster_size[1]), int(self.raster_size[0]), 3),
+            fill_value=255,
+            dtype=np.uint8,
+        )
 
         # filter using half a radius from the center
         raster_radius = float(np.linalg.norm(self.raster_size * np.array([self.meter_per_pixel, self.meter_per_pixel]))) / 2
@@ -415,5 +436,5 @@ class MapManager(object):
         self.vis_bev = cast(npt.NDArray[np.uint8], cv2.cvtColor(vis_bev, cv2.COLOR_RGB2BGR))
 
     def destroy(self) -> None:
-        if self.visualize:
+        if self.mode is MapManagerMode.FULL_BEV and self.visualize:
             cv2.destroyAllWindows()

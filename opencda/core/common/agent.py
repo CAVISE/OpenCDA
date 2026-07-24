@@ -133,6 +133,7 @@ class Agent:
                 "objects": objects,
                 "carla_map": self.carla_map,
                 "world": self.actor.get_world(),
+                "on_road": components.map_manager.on_road,
                 "static_bev": components.map_manager.static_bev,
             }
         )

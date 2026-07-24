@@ -173,7 +173,12 @@ class OffRoadDetector(object):
         data_dict : dict
             The data dictionary provided by the upsteam modules.
         """
-        # static bev map that indicate where is the road
+        on_road = data_dict.get("on_road")
+        if on_road is not None:
+            self.off_road = not on_road
+            return
+
+        # Full BEV mode keeps the raster-based compatibility path.
         static_map = data_dict["static_bev"]
         if static_map is None:
             return

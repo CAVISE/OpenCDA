@@ -11,6 +11,7 @@ import numpy.typing as npt
 from matplotlib.path import Path
 from shapely.geometry import Polygon
 
+from opencda.core.map.mode import MapManagerMode, resolve_map_manager_mode
 from opencda.core.map.map_utils import lateral_shift, list_loc2array, list_wpt2array
 
 LaneInfo = Mapping[str, Any]
@@ -205,7 +206,7 @@ class MapDataCache:
         config: Mapping[str, Any],
     ) -> SharedMapData:
         """Return matching map data or build it once for the scenario."""
-        if not config["activate"]:
+        if resolve_map_manager_mode(config) is not MapManagerMode.FULL_BEV:
             return SharedMapData.empty()
 
         resolution = float(config["lane_sample_resolution"])

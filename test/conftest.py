@@ -188,6 +188,13 @@ class TrafficLightState:
 
 carla_stub.TrafficLightState = TrafficLightState
 
+
+class LaneType:
+    Driving = object()
+
+
+carla_stub.LaneType = LaneType
+
 # Minimal placeholders for typing / attribute access
 carla_stub.World = object
 carla_stub.Map = object

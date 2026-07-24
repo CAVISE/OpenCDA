@@ -161,6 +161,7 @@ def test_create_cav_builds_vehicle_agent_through_common_factory(mocker, minimal_
     config = {
         **minimal_vehicle_config,
         "id": 7,
+        "map_manager": {"mode": "full_bev"},
         "behavior_services": {},
         "carla_autopilot": True,
         "carla_autopilot_port": 8123,
@@ -207,6 +208,34 @@ def test_create_cav_builds_vehicle_agent_through_common_factory(mocker, minimal_
     assert safety_factory.call_args.kwargs["collision_sensor_actor"] is collision_sensor_actor
     actor.set_autopilot.assert_not_called()
     mock_cav_world.update_agent_manager.assert_called_once_with(manager)
+
+
+def test_create_cav_skips_shared_bev_data_for_offroad_only_mode(mocker, minimal_vehicle_config, mock_cav_world) -> None:
+    actor = Mock()
+    carla_map = Mock()
+    map_manager_factory = mocker.patch("opencda.core.common.agent_manager.MapManager")
+    mocker.patch("opencda.core.common.agent_manager.create_localizer")
+    mocker.patch("opencda.core.common.agent_manager.PerceptionManager")
+    mocker.patch("opencda.core.common.agent_manager.SafetyManager")
+    mocker.patch("opencda.core.common.agent_manager.BehaviorAgent")
+    mocker.patch("opencda.core.common.agent_manager.ControlManager")
+    config = {
+        **minimal_vehicle_config,
+        "map_manager": {"mode": "offroad_only"},
+        "behavior_services": {},
+    }
+
+    AgentManager.create(
+        actor=actor,
+        config_yaml=config,
+        carla_map=carla_map,
+        cav_world=mock_cav_world,
+        agent_type=AgentType.CAV,
+        sensor_actors=SensorActorBundle(collision=Mock()),
+    )
+
+    mock_cav_world.get_shared_map_data.assert_not_called()
+    map_manager_factory.assert_called_once_with(actor, carla_map, config["map_manager"], shared_map_data=None)
 
 
 def test_build_behavior_services_uses_service_names_as_config_keys(mocker) -> None:

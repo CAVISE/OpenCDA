@@ -19,6 +19,7 @@ from opencda.core.application.behavior import (
 from opencda.core.common.agent import Agent, AgentType, VehicleComponents
 from opencda.core.common.data_dumper import DataDumper
 from opencda.core.map.map_manager import MapManager
+from opencda.core.map.mode import MapManagerMode, resolve_map_manager_mode
 from opencda.core.plan.behavior_agent import BehaviorAgent
 from opencda.core.safety.safety_manager import SafetyManager
 from opencda.core.sensing.localization import create_localizer
@@ -229,7 +230,9 @@ class AgentManager:
         behavior_config = config_yaml["behavior"]
         use_carla_autopilot, autopilot_port = AgentManager.resolve_carla_autopilot(config_yaml)
         map_config = config_yaml["map_manager"]
-        shared_map_data = cav_world.get_shared_map_data(vehicle.get_world(), carla_map, map_config)
+        shared_map_data = None
+        if resolve_map_manager_mode(map_config) is MapManagerMode.FULL_BEV:
+            shared_map_data = cav_world.get_shared_map_data(vehicle.get_world(), carla_map, map_config)
         map_manager = MapManager(vehicle, carla_map, map_config, shared_map_data=shared_map_data)
         safety_manager = SafetyManager(
             vehicle=vehicle,
