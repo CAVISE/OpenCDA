@@ -1,7 +1,7 @@
-# <img src="../docs/images/CAVISE-square-logo.png" alt="CAVISE" width="28" style="border-radius: 6px;" /> OpenCDA (CAVISE Fork)
+# <img src="docs/images/CAVISE-square-logo.png" alt="CAVISE" width="28" style="border-radius: 6px;" /> OpenCDA (CAVISE Fork)
 
 <p align="center">
-  <img src="../docs/images/CAVISE.png" alt="CAVISE banner" width="100%" />
+  <img src="docs/images/CAVISE.png" alt="CAVISE banner" width="100%" />
 </p>
 
 <p align="center">
@@ -164,7 +164,7 @@ python3 opencda.py \
 ## OpenCDA Demonstration
 
 <p align="center">
-  <img src="../docs/images/platoon_joining_town06.png" alt="platoon_joining_town06_carla" width="80%" />
+  <img src="docs/images/platoon_joining_town06.png" alt="platoon_joining_town06_carla" width="80%" />
 </p>
 
 ## Cooperative Perception Examples
@@ -182,21 +182,11 @@ python3 opencda.py \
 ```
 
 <p align="center">
-  <img src="../docs/images/v2xp_datadump_town06_carla_3d.png" alt="v2xp_datadump_town06_carla 3D view" width="49%" />
-  <img src="../docs/images/v2xp_datadump_town06_carla_bev.png" alt="v2xp_datadump_town06_carla BEV view" width="49%" />
+  <img src="docs/images/v2xp_datadump_town06_carla_3d.png" alt="v2xp_datadump_town06_carla 3D view" width="49%" />
+  <img src="docs/images/v2xp_datadump_town06_carla_bev.png" alt="v2xp_datadump_town06_carla BEV view" width="49%" />
 </p>
 
 <p align="center"><em>Left: 3D view. Right: BEV.</em></p>
-
-## Contributing
-
-Contributions are welcome and appreciated.
-
-We are happy to review pull requests and contribution ideas for this fork.
-
-Before starting development, follow the [Development Environment Setup](https://cavise.github.io/Documentation/opencda/index.html#development-environment-setup) guide.
-
-If you are planning a larger change, opening an issue first is a good way to align scope and avoid duplicated work.
 
 ## Contributors
 
@@ -205,6 +195,9 @@ A huge thank you to everyone who contributes to this fork.
 [![OpenCDA contributors](https://contrib.rocks/image?repo=CAVISE/opencda)](https://github.com/CAVISE/opencda/graphs/contributors)
 
 We look forward to your contributions to help make the CAVISE OpenCDA fork even better.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and contribution
+guidelines.
 
 ## Contact
 
