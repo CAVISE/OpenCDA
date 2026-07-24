@@ -91,21 +91,41 @@ def test_active_map_manager_uses_injected_shared_data(map_manager_module, mocker
     build.assert_not_called()
 
 
-def test_map_data_cache_builds_once_per_world_map_and_resolution(map_manager_module, mocker) -> None:
+def test_map_data_cache_builds_once_for_distinct_world_proxies_of_same_map(map_manager_module, mocker) -> None:
     from opencda.core.map.map_data import MapDataCache
 
-    world = Mock()
+    first_world_proxy = Mock()
+    second_world_proxy = Mock()
     carla_map = Mock()
     shared_data = map_manager_module.SharedMapData.empty()
     build = mocker.patch.object(map_manager_module.SharedMapData, "build", return_value=shared_data)
     cache = MapDataCache()
 
-    first = cache.get_or_build(world, carla_map, _config(activate=True))
-    second = cache.get_or_build(world, carla_map, _config(activate=True))
+    first = cache.get_or_build(first_world_proxy, carla_map, _config(activate=True))
+    second = cache.get_or_build(second_world_proxy, carla_map, _config(activate=True))
 
     assert first is shared_data
     assert second is shared_data
-    build.assert_called_once_with(world, carla_map, 0.1)
+    build.assert_called_once_with(first_world_proxy, carla_map, 0.1)
+
+
+def test_map_data_cache_rebuilds_for_another_map(map_manager_module, mocker) -> None:
+    from opencda.core.map.map_data import MapDataCache
+
+    world = Mock()
+    first_map = Mock()
+    second_map = Mock()
+    build = mocker.patch.object(
+        map_manager_module.SharedMapData,
+        "build",
+        side_effect=[map_manager_module.SharedMapData.empty(), map_manager_module.SharedMapData.empty()],
+    )
+    cache = MapDataCache()
+
+    cache.get_or_build(world, first_map, _config(activate=True))
+    cache.get_or_build(world, second_map, _config(activate=True))
+
+    assert build.call_count == 2
 
 
 def test_load_agents_uses_world_frame_without_world_query(map_manager_module, mocker) -> None:

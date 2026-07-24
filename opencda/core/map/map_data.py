@@ -187,14 +187,13 @@ class SharedMapData:
 
 @dataclass(slots=True)
 class _MapDataCacheEntry:
-    world: carla.World
     carla_map: carla.Map
     lane_sample_resolution: float
     data: SharedMapData
 
 
 class MapDataCache:
-    """Cache shared map data by CARLA world, map, and sampling resolution."""
+    """Cache shared map data by CARLA map identity and sampling resolution."""
 
     def __init__(self) -> None:
         self._entries: list[_MapDataCacheEntry] = []
@@ -210,14 +209,15 @@ class MapDataCache:
             return SharedMapData.empty()
 
         resolution = float(config["lane_sample_resolution"])
+        # CARLA may create a new Python World proxy for every actor.get_world()
+        # call. The scenario-owned map object remains stable for the world lifetime.
         for entry in self._entries:
-            if entry.world is world and entry.carla_map is carla_map and entry.lane_sample_resolution == resolution:
+            if entry.carla_map is carla_map and entry.lane_sample_resolution == resolution:
                 return entry.data
 
         data = SharedMapData.build(world, carla_map, resolution)
         self._entries.append(
             _MapDataCacheEntry(
-                world=world,
                 carla_map=carla_map,
                 lane_sample_resolution=resolution,
                 data=data,
