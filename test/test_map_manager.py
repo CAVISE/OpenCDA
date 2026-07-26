@@ -9,6 +9,8 @@ from unittest.mock import Mock
 
 import pytest
 
+from opencda.core.map.mode import MapManagerConfig
+
 
 @pytest.fixture(scope="module")
 def map_manager_module():
@@ -25,7 +27,7 @@ def map_manager_module():
             sys.modules[module_name] = placeholder
 
 
-def _config(*, mode: str) -> dict[str, object]:
+def _config(*, mode: str) -> MapManagerConfig:
     return {
         "mode": mode,
         "visualize": False,

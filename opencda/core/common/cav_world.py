@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import importlib
 import logging
-from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
 from opencda.core.map.map_data import MapDataCache, SharedMapData
+from opencda.core.map.mode import MapManagerConfig
 
 if TYPE_CHECKING:
     import carla
@@ -60,7 +60,7 @@ class CavWorld(object):
         self,
         world: carla.World,
         carla_map: carla.Map,
-        config: Mapping[str, Any],
+        config: MapManagerConfig,
     ) -> SharedMapData:
         """Return map geometry shared by all matching agents in this simulation."""
         return self._map_data_cache.get_or_build(world, carla_map, config)

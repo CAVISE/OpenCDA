@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 import logging
 from functools import partial
-from typing import TYPE_CHECKING, Any, Mapping, NoReturn, cast
+from typing import TYPE_CHECKING, NoReturn, TypedDict, cast
 
 import cv2
 import carla
@@ -14,7 +14,7 @@ import numpy.typing as npt
 
 from opencda.core.sensing.perception.sensor_transformation import world_to_sensor
 from opencda.core.map.map_data import SharedMapData
-from opencda.core.map.mode import MapManagerMode, resolve_map_manager_mode
+from opencda.core.map.mode import MapManagerConfig, MapManagerMode, resolve_map_manager_mode
 from opencda.core.map.map_utils import convert_tl_status
 from opencda.core.map.map_drawing import cv2_subpixel, draw_agent, draw_road, draw_lane
 
@@ -23,7 +23,16 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger("cavise.opencda.opencda.core.map.map_manager")
 
-AgentInfo = dict[int, dict[str, Any]]
+
+class ActorInfo(TypedDict):
+    """Rasterization data derived from one CARLA actor."""
+
+    location: list[float]
+    yaw: float
+    corners: list[list[float]]
+
+
+AgentInfo = dict[int, ActorInfo]
 
 
 class MapManager(object):
@@ -101,7 +110,7 @@ class MapManager(object):
         self,
         vehicle: carla.Vehicle,
         carla_map: carla.Map,
-        config: Mapping[str, Any],
+        config: MapManagerConfig,
         shared_map_data: SharedMapData | None = None,
     ) -> None:
         self.world = vehicle.get_world()
@@ -338,11 +347,11 @@ class MapManager(object):
         return dynamic_agent_info
 
     @classmethod
-    def _world_actor_info(cls, state: WorldActorState) -> dict[str, Any]:
+    def _world_actor_info(cls, state: WorldActorState) -> ActorInfo:
         return cls._actor_info(state.actor, state.transform)
 
     @staticmethod
-    def _actor_info(actor: carla.Actor, transform: carla.Transform) -> dict[str, Any]:
+    def _actor_info(actor: carla.Actor, transform: carla.Transform) -> ActorInfo:
         extent = actor.bounding_box.extent
         corners = [
             carla.Location(x=-extent.x, y=-extent.y),

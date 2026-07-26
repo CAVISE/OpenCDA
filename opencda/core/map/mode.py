@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from enum import StrEnum
-from typing import Any, Mapping
+from typing import TypedDict
 
 
 class MapManagerMode(StrEnum):
@@ -14,8 +15,38 @@ class MapManagerMode(StrEnum):
     FULL_BEV = "full_bev"
 
 
-def resolve_map_manager_mode(config: Mapping[str, Any]) -> MapManagerMode:
-    """Resolve the configured mode, including the legacy activate flag."""
+class MapManagerConfig(TypedDict, total=False):
+    """Supported MapManager configuration values."""
+
+    mode: str
+    activate: bool
+    visualize: bool
+    pixels_per_meter: float
+    raster_size: Sequence[float]
+    lane_sample_resolution: float
+
+
+def resolve_map_manager_mode(config: MapManagerConfig) -> MapManagerMode:
+    """Resolve the configured map-processing mode.
+
+    Parameters
+    ----------
+    config : MapManagerConfig
+        MapManager configuration containing ``mode`` or the legacy
+        ``activate`` flag.
+
+    Returns
+    -------
+    MapManagerMode
+        Validated MapManager operating mode.
+
+    Raises
+    ------
+    TypeError
+        If ``mode`` or ``activate`` has an invalid type.
+    ValueError
+        If the configured mode is unsupported.
+    """
     if "activate" in config:
         activate = config["activate"]
         if not isinstance(activate, bool):

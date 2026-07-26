@@ -26,6 +26,7 @@ from opencda.core.sensing.perception.o3d_lidar_libs import o3d_visualizer_init, 
 from opencda.core.sensing.sensor_types import SensorActorBundle
 
 if TYPE_CHECKING:
+    from opencda.core.common.cav_world import CavWorld
     from opencda.core.common.world_frame import WorldFrame, WorldTrafficLightState
 
 logger = logging.getLogger("cavise.opencda.opencda.core.sensing.perception.perception_manager")
@@ -496,7 +497,7 @@ class PerceptionManager:
         self,
         vehicle,
         config_yaml,
-        cav_world,
+        cav_world: CavWorld,
         infra_id,
         perception_requirements: PerceptionRequirements = PerceptionRequirements(),
         carla_world=None,

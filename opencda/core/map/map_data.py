@@ -11,7 +11,7 @@ import numpy.typing as npt
 from matplotlib.path import Path
 from shapely.geometry import Polygon
 
-from opencda.core.map.mode import MapManagerMode, resolve_map_manager_mode
+from opencda.core.map.mode import MapManagerConfig, MapManagerMode, resolve_map_manager_mode
 from opencda.core.map.map_utils import lateral_shift, list_loc2array, list_wpt2array
 
 LaneInfo = Mapping[str, Any]
@@ -31,7 +31,13 @@ class SharedMapData:
 
     @classmethod
     def empty(cls) -> SharedMapData:
-        """Return map data for a disabled MapManager."""
+        """Create an empty map-data container.
+
+        Returns
+        -------
+        SharedMapData
+            Map data suitable for modes that do not use BEV rasterization.
+        """
         return cls(
             topology=(),
             lane_info={},
@@ -50,7 +56,27 @@ class SharedMapData:
         carla_map: carla.Map,
         lane_sample_resolution: float,
     ) -> SharedMapData:
-        """Preprocess topology, lanes, bounds, and traffic-light geometry."""
+        """Preprocess map geometry shared by all agents.
+
+        Parameters
+        ----------
+        world : carla.World
+            CARLA world containing traffic-light actors.
+        carla_map : carla.Map
+            CARLA HD map used to retrieve road topology.
+        lane_sample_resolution : float
+            Distance in metres between sampled lane waypoints.
+
+        Returns
+        -------
+        SharedMapData
+            Preprocessed topology, lane bounds, and traffic-light geometry.
+
+        Raises
+        ------
+        ValueError
+            If ``lane_sample_resolution`` is not positive.
+        """
         if lane_sample_resolution <= 0:
             raise ValueError("lane_sample_resolution must be positive.")
 
@@ -203,9 +229,24 @@ class MapDataCache:
         self,
         world: carla.World,
         carla_map: carla.Map,
-        config: Mapping[str, Any],
+        config: MapManagerConfig,
     ) -> SharedMapData:
-        """Return matching map data or build it once for the scenario."""
+        """Return cached map data or build it for the scenario.
+
+        Parameters
+        ----------
+        world : carla.World
+            CARLA world containing map-related actors.
+        carla_map : carla.Map
+            CARLA HD map used as the cache identity.
+        config : MapManagerConfig
+            MapManager configuration.
+
+        Returns
+        -------
+        SharedMapData
+            Shared geometry for ``full_bev`` mode, otherwise empty map data.
+        """
         if resolve_map_manager_mode(config) is not MapManagerMode.FULL_BEV:
             return SharedMapData.empty()
 
