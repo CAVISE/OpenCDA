@@ -2,7 +2,6 @@
 Script to run different scenarios.
 """
 
-import os
 import sys
 import enum
 import errno
@@ -11,7 +10,6 @@ from datetime import datetime
 import pathlib
 import logging
 import argparse
-import subprocess
 from collections.abc import Collection
 from types import ModuleType
 from typing import cast
@@ -19,7 +17,6 @@ from typing import cast
 from opencda.version import __version__
 
 
-BUILD_COMPLETED_FLAG = "BUILD_COMPLETED_FLAG"
 DEFAULT_LOG_FILENAME = "opencda.log.json"
 EVALUATION_OUTPUT_ROOT = pathlib.Path("simulation_output/evaluation_outputs")
 
@@ -191,31 +188,6 @@ def arg_parse() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def check_build_for_extensions(module_path: str, cwd: pathlib.PurePath, verbose: bool, logger: logging.Logger) -> bool:
-    marker_file = cwd.joinpath(f"OpenCOOD/{module_path}/{BUILD_COMPLETED_FLAG}")
-    module_name = f"opencood.{module_path.split('/')[-2]}"
-    if os.path.isfile(marker_file):
-        logger.info(f"{module_name} is already built")
-        return True
-
-    try:
-        logger.info(f"Building {module_name} ...")
-        result = subprocess.run(
-            ["python", f"{module_path}setup.py", "build_ext", "--inplace"], check=True, cwd=cwd.joinpath("OpenCOOD"), capture_output=True, text=True
-        )
-        os.close(os.open(str(marker_file), os.O_CREAT))
-        logger.info(f"Complete building {module_name}")
-        if verbose:
-            logger.info(result.stdout)
-        return True
-
-    except subprocess.CalledProcessError as e:
-        logger.info(f"Compilation error {module_name}:")
-        if verbose:
-            logger.info(e.stderr)
-        return False
-
-
 def main() -> None:
     opt = arg_parse()
     current_time = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
@@ -279,11 +251,6 @@ def main() -> None:
 
     # NOTICE: temporary measure (while option is turned off)
     opt.apply_ml = False
-
-    if opt.with_coperception:
-        opencood_pcdet_utils = "opencood/pcdet_utils/"
-        if not check_build_for_extensions(opencood_pcdet_utils, cwd, verbosity == VerbosityLevel.FULL, logger):
-            logger.error("Failed to build opencood.pcdet_utils")
 
     # this function might setup crucial components in Scenario, so
     # we should import as late as possible
