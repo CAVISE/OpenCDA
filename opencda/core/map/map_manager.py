@@ -25,7 +25,17 @@ logger = logging.getLogger("cavise.opencda.opencda.core.map.map_manager")
 
 
 class ActorInfo(TypedDict):
-    """Rasterization data derived from one CARLA actor."""
+    """Rasterization data derived from one CARLA actor.
+
+    Attributes
+    ----------
+    location : list[float]
+        Actor location in world coordinates.
+    yaw : float
+        Actor heading in degrees.
+    corners : list[list[float]]
+        Bounding-box corners in world coordinates.
+    """
 
     location: list[float]
     yaw: float
@@ -47,8 +57,11 @@ class MapManager(object):
     carla_map : Carla.Map
         The carla simulator map.
 
-    config : dict
+    config : MapManagerConfig
         All the map manager parameters.
+
+    shared_map_data : SharedMapData, optional
+        Preprocessed map geometry shared between agents.
 
     Attributes
     ----------
@@ -156,6 +169,9 @@ class MapManager(object):
         Parameters
         ----------
         ego_pose : carla.Transform
+            Current agent pose used as the rasterization centre.
+        world_frame : WorldFrame, optional
+            Shared actor snapshot for the current simulation tick.
         """
         self.center = ego_pose
         self._world_frame = world_frame
@@ -348,10 +364,36 @@ class MapManager(object):
 
     @classmethod
     def _world_actor_info(cls, state: WorldActorState) -> ActorInfo:
+        """Build rasterization data from a cached actor state.
+
+        Parameters
+        ----------
+        state : WorldActorState
+            Actor state captured in the current shared world frame.
+
+        Returns
+        -------
+        ActorInfo
+            Actor location, heading, and bounding-box corners.
+        """
         return cls._actor_info(state.actor, state.transform)
 
     @staticmethod
     def _actor_info(actor: carla.Actor, transform: carla.Transform) -> ActorInfo:
+        """Build rasterization data for a CARLA actor.
+
+        Parameters
+        ----------
+        actor : carla.Actor
+            Actor providing bounding-box dimensions.
+        transform : carla.Transform
+            Actor transform for the current simulation frame.
+
+        Returns
+        -------
+        ActorInfo
+            Actor location, heading, and transformed bounding-box corners.
+        """
         extent = actor.bounding_box.extent
         corners = [
             carla.Location(x=-extent.x, y=-extent.y),

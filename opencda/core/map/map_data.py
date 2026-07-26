@@ -21,7 +21,21 @@ BoundInfo = Mapping[str, Mapping[str, Any]]
 
 @dataclass(frozen=True, slots=True)
 class SharedMapData:
-    """Preprocessed map geometry that is independent of an observing agent."""
+    """Preprocessed map geometry independent of an observing agent.
+
+    Attributes
+    ----------
+    topology : tuple[carla.Waypoint, ...]
+        Starting waypoints of the map topology segments.
+    lane_info : Mapping[str, LaneInfo]
+        Preprocessed lane geometry indexed by generated lane identifier.
+    crosswalk_info : Mapping[str, Mapping[str, Any]]
+        Preprocessed crosswalk geometry indexed by crosswalk identifier.
+    traffic_light_info : Mapping[str, TrafficLightInfo]
+        Preprocessed traffic-light geometry indexed by actor identifier.
+    bound_info : BoundInfo
+        Axis-aligned bounds used to filter map elements before rasterization.
+    """
 
     topology: tuple[carla.Waypoint, ...]
     lane_info: Mapping[str, LaneInfo]
@@ -106,6 +120,18 @@ class SharedMapData:
 
     @staticmethod
     def _build_traffic_light_info(world: carla.World) -> dict[str, dict[str, Any]]:
+        """Build geometry records for traffic lights in a CARLA world.
+
+        Parameters
+        ----------
+        world : carla.World
+            CARLA world containing the traffic-light actors.
+
+        Returns
+        -------
+        dict[str, dict[str, Any]]
+            Traffic-light geometry indexed by actor identifier.
+        """
         traffic_light_info: dict[str, dict[str, Any]] = {}
         for actor in world.get_actors().filter("traffic.traffic_light*"):
             base_transform = actor.get_transform()
@@ -145,6 +171,22 @@ class SharedMapData:
         traffic_light_info: Mapping[str, TrafficLightInfo],
         lane_sample_resolution: float,
     ) -> tuple[dict[str, dict[str, Any]], list[str], npt.NDArray[np.float64]]:
+        """Build sampled lane geometry and spatial bounds.
+
+        Parameters
+        ----------
+        topology : tuple[carla.Waypoint, ...]
+            Starting waypoints of the map topology segments.
+        traffic_light_info : Mapping[str, TrafficLightInfo]
+            Preprocessed traffic-light geometry.
+        lane_sample_resolution : float
+            Distance in metres between sampled lane waypoints.
+
+        Returns
+        -------
+        tuple[dict[str, dict[str, Any]], list[str], numpy.ndarray]
+            Lane records, their identifiers, and axis-aligned bounds.
+        """
         lane_info: dict[str, dict[str, Any]] = {}
         lane_ids: list[str] = []
         lane_bounds: list[npt.NDArray[np.float64]] = []
@@ -172,6 +214,20 @@ class SharedMapData:
 
     @staticmethod
     def _sample_lane(waypoint: carla.Waypoint, resolution: float) -> list[carla.Waypoint]:
+        """Sample one lane until its road or lane identifier changes.
+
+        Parameters
+        ----------
+        waypoint : carla.Waypoint
+            First waypoint of the lane segment.
+        resolution : float
+            Distance in metres between sampled waypoints.
+
+        Returns
+        -------
+        list[carla.Waypoint]
+            Ordered waypoints belonging to the same lane segment.
+        """
         waypoints = [waypoint]
         options = waypoint.next(resolution)
         if not options:
@@ -191,6 +247,20 @@ class SharedMapData:
         left_lane: npt.NDArray[np.float64],
         right_lane: npt.NDArray[np.float64],
     ) -> npt.NDArray[np.float64]:
+        """Calculate axis-aligned bounds for a sampled lane.
+
+        Parameters
+        ----------
+        left_lane : numpy.ndarray
+            Sampled coordinates of the left lane boundary.
+        right_lane : numpy.ndarray
+            Sampled coordinates of the right lane boundary.
+
+        Returns
+        -------
+        numpy.ndarray
+            Bounds in ``[[x_min, y_min], [x_max, y_max]]`` form.
+        """
         return np.asarray(
             [
                 [
@@ -205,6 +275,20 @@ class SharedMapData:
         mid_lane: npt.NDArray[np.float64],
         traffic_light_info: Mapping[str, TrafficLightInfo],
     ) -> str:
+        """Find a traffic light whose trigger region intersects a lane.
+
+        Parameters
+        ----------
+        mid_lane : numpy.ndarray
+            Sampled coordinates along the lane centreline.
+        traffic_light_info : Mapping[str, TrafficLightInfo]
+            Preprocessed traffic-light geometry.
+
+        Returns
+        -------
+        str
+            Associated traffic-light identifier, or an empty string.
+        """
         associated_id = ""
         for traffic_light_id, traffic_light in traffic_light_info.items():
             if traffic_light["path"].contains_points(mid_lane[:, :2]).any():
@@ -214,13 +298,31 @@ class SharedMapData:
 
 @dataclass(slots=True)
 class _MapDataCacheEntry:
+    """Cached map geometry and the inputs that identify it.
+
+    Attributes
+    ----------
+    carla_map : carla.Map
+        CARLA map used to build the shared geometry.
+    lane_sample_resolution : float
+        Sampling resolution used to build the lane geometry.
+    data : SharedMapData
+        Preprocessed map geometry.
+    """
+
     carla_map: carla.Map
     lane_sample_resolution: float
     data: SharedMapData
 
 
 class MapDataCache:
-    """Cache shared map data by CARLA map identity and sampling resolution."""
+    """Cache shared map data by map identity and sampling resolution.
+
+    Attributes
+    ----------
+    _entries : list[_MapDataCacheEntry]
+        Map geometry entries built during the current simulation lifetime.
+    """
 
     def __init__(self) -> None:
         self._entries: list[_MapDataCacheEntry] = []

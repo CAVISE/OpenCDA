@@ -208,7 +208,18 @@ class WorldFrame:
             raise KeyError(f"Actor {actor_id} is absent from CARLA frame {self.frame}.") from exc
 
     def traffic_light_state(self, actor_id: int) -> WorldTrafficLightState | None:
-        """Return a cached traffic-light state when the frame captured one."""
+        """Return the cached state of a traffic light.
+
+        Parameters
+        ----------
+        actor_id : int
+            CARLA traffic-light actor identifier.
+
+        Returns
+        -------
+        WorldTrafficLightState or None
+            Captured traffic-light state, or ``None`` when unavailable.
+        """
         return self._traffic_light_states_by_id.get(actor_id)
 
     def shared_actor_value(self, namespace: str, actor_id: int, factory: Callable[[], T]) -> T:

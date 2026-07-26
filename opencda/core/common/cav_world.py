@@ -62,7 +62,22 @@ class CavWorld(object):
         carla_map: carla.Map,
         config: MapManagerConfig,
     ) -> SharedMapData:
-        """Return map geometry shared by all matching agents in this simulation."""
+        """Return map geometry shared by agents in this simulation.
+
+        Parameters
+        ----------
+        world : carla.World
+            CARLA world containing map-related actors.
+        carla_map : carla.Map
+            CARLA HD map used as the cache identity.
+        config : MapManagerConfig
+            Map preprocessing and rasterization configuration.
+
+        Returns
+        -------
+        SharedMapData
+            Cached or newly preprocessed map geometry.
+        """
         return self._map_data_cache.get_or_build(world, carla_map, config)
 
     def update_agent_manager(self, agent_manager: AgentManager) -> None:
