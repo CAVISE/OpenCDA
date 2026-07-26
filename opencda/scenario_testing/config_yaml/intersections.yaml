@@ -66,7 +66,7 @@ vehicle_base:
     raster_size: [224, 224] # the rasterize map size (pixel)
     lane_sample_resolution: 0.1 # for every 0.1m, we draw a point of lane
     visualize: false # whether to visualize the rasteraization map
-    mode: full_bev
+    mode: disabled
 
   safety_manager: # used to watch the safety status of the cav
     print_message: false # whether to print the message if hazard happens

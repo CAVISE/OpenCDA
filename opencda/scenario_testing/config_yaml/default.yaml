@@ -116,7 +116,7 @@ vehicle_base:
   carla_autopilot_port: 8000
 
   map_manager:
-    mode: offroad_only # disabled, offroad_only, or full_bev
+    mode: disabled # disabled, offroad_only, or full_bev
     pixels_per_meter: 2 # rasterization map resolution
     raster_size: [224, 224] # the rasterize map size (pixel)
     lane_sample_resolution: 0.1 # for every 0.1m, we draw a point of lane
