@@ -15,8 +15,32 @@ from opencda.core.map.mode import MapManagerConfig, MapManagerMode, resolve_map_
 from opencda.core.map.map_utils import lateral_shift, list_loc2array, list_wpt2array
 
 LaneInfo = Mapping[str, Any]
-TrafficLightInfo = Mapping[str, Any]
 BoundInfo = Mapping[str, Mapping[str, Any]]
+
+
+@dataclass(frozen=True, slots=True)
+class TrafficLightInfo:
+    """Preprocessed geometry for one CARLA traffic light.
+
+    Attributes
+    ----------
+    actor : carla.TrafficLight
+        CARLA traffic-light actor.
+    corners : Polygon
+        Trigger-volume polygon in world coordinates.
+    path : Path
+        Matplotlib path used for lane intersection checks.
+    base_rotation : float
+        Traffic-light rotation around the vertical axis in degrees.
+    base_transform : carla.Transform
+        Traffic-light transform in world coordinates.
+    """
+
+    actor: carla.TrafficLight
+    corners: Polygon
+    path: Path
+    base_rotation: float
+    base_transform: carla.Transform
 
 
 @dataclass(frozen=True, slots=True)
@@ -119,7 +143,7 @@ class SharedMapData:
         )
 
     @staticmethod
-    def _build_traffic_light_info(world: carla.World) -> dict[str, dict[str, Any]]:
+    def _build_traffic_light_info(world: carla.World) -> dict[str, TrafficLightInfo]:
         """Build geometry records for traffic lights in a CARLA world.
 
         Parameters
@@ -129,10 +153,10 @@ class SharedMapData:
 
         Returns
         -------
-        dict[str, dict[str, Any]]
+        dict[str, TrafficLightInfo]
             Traffic-light geometry indexed by actor identifier.
         """
-        traffic_light_info: dict[str, dict[str, Any]] = {}
+        traffic_light_info: dict[str, TrafficLightInfo] = {}
         for actor in world.get_actors().filter("traffic.traffic_light*"):
             base_transform = actor.get_transform()
             base_rotation = base_transform.rotation.yaw
@@ -155,13 +179,13 @@ class SharedMapData:
                 corner[1] = location.y
 
             polygon = Polygon(corners)
-            traffic_light_info[str(actor.id)] = {
-                "actor": actor,
-                "corners": polygon,
-                "path": Path(polygon.boundary.coords[:]),
-                "base_rot": base_rotation,
-                "base_transform": base_transform,
-            }
+            traffic_light_info[str(actor.id)] = TrafficLightInfo(
+                actor=actor,
+                corners=polygon,
+                path=Path(polygon.boundary.coords[:]),
+                base_rotation=base_rotation,
+                base_transform=base_transform,
+            )
         return traffic_light_info
 
     @classmethod
@@ -291,7 +315,7 @@ class SharedMapData:
         """
         associated_id = ""
         for traffic_light_id, traffic_light in traffic_light_info.items():
-            if traffic_light["path"].contains_points(mid_lane[:, :2]).any():
+            if traffic_light.path.contains_points(mid_lane[:, :2]).any():
                 associated_id = traffic_light_id
         return associated_id
 

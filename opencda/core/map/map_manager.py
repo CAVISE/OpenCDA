@@ -470,7 +470,7 @@ class MapManager(object):
             # check the associated traffic light
             associated_tl_id = lane_info["tl_id"]
             if associated_tl_id:
-                tl_actor = self.traffic_light_info[associated_tl_id]["actor"]
+                tl_actor = self.traffic_light_info[associated_tl_id].actor
                 frame_state = None if self._world_frame is None else self._world_frame.traffic_light_state(tl_actor.id)
                 status = convert_tl_status(tl_actor.get_state() if frame_state is None else frame_state.state)
                 lane_type_list.append(status)
