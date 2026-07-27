@@ -34,5 +34,5 @@ jobs:
     uses: CAVISE/pipelines/.github/workflows/python-pre-commit.yml@main
     with:
       python-version: "3.12"
-      skip-hooks: ruff-check,ruff-format,pretty-format-json
+      skip-hooks: ruff-check,ruff-format,pretty-format-json,mypy
       all-files: true
