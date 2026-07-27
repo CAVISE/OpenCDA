@@ -79,7 +79,7 @@ def resolve_map_manager_mode(config: MapManagerConfig) -> MapManagerMode:
             raise TypeError("MapManager config key 'activate' must be a boolean.")
         return MapManagerMode.FULL_BEV if activate else MapManagerMode.DISABLED
 
-    mode = config.get("mode", MapManagerMode.OFFROAD_ONLY.value)
+    mode = config.get("mode", MapManagerMode.DISABLED.value)
     if not isinstance(mode, str):
         raise TypeError("MapManager config key 'mode' must be a string.")
     try:
