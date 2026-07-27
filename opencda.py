@@ -300,7 +300,7 @@ def show_performance_stats(runtime_stats: dict):
     print(f"Full scenario: {runtime_stats['full_scenario']:.3f}s")
     print(f"Scenatio __init__: {runtime_stats['scenario__init__']:.3f}s")
     print(f"Agents initialization: {runtime_stats['_init_agents']:.3f}s")
-    print(f"Avarage tick time: {sum(runtime_stats['ticks']) / len(runtime_stats['ticks']):.3f}s")
+    print(f"Average tick time: {sum(runtime_stats['ticks']) / len(runtime_stats['ticks']):.3f}s")
 
 
 if __name__ == "__main__":
