@@ -2,7 +2,9 @@
 
 from unittest.mock import Mock
 
-from opencda.core.safety.sensors import CollisionSensor
+import numpy as np
+
+from opencda.core.safety.sensors import CollisionSensor, OffRoadDetector
 
 
 def test_collision_sensor_binds_precreated_actor_and_callback() -> None:
@@ -43,3 +45,23 @@ def test_collision_sensor_stop_is_idempotent_and_preserves_history() -> None:
     sensor_actor.stop.assert_called_once_with()
     sensor_actor.destroy.assert_called_once_with()
     assert not collision_sensor._history
+
+
+def test_offroad_detector_uses_direct_road_state_without_bev() -> None:
+    detector = OffRoadDetector({})
+
+    detector.tick({"on_road": True, "static_bev": None})
+    assert detector.return_status() == {"offroad": False}
+
+    detector.tick({"on_road": False, "static_bev": None})
+    assert detector.return_status() == {"offroad": True}
+
+
+def test_offroad_detector_keeps_full_bev_fallback() -> None:
+    detector = OffRoadDetector({})
+    static_bev = np.zeros((3, 3, 3), dtype=np.uint8)
+    static_bev[1, 1] = 255
+
+    detector.tick({"on_road": None, "static_bev": static_bev})
+
+    assert detector.return_status() == {"offroad": True}

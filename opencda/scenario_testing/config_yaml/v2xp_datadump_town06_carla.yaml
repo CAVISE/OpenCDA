@@ -78,7 +78,7 @@ vehicle_base:
         noise_stddev: 0.02
   map_manager:
     visualize: false
-    activate: false
+    mode: disabled
   behavior:
     max_speed: 25 # maximum speed, km/h
     tailgate_speed: 34 # when a vehicles needs to be close to another vehicle asap

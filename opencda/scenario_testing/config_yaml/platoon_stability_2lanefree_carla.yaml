@@ -22,7 +22,7 @@ vehicle_base:
         x_scale: 10.0 # used to multiply with the x coordinate to make the error on x axis clearer
         y_scale: 10.0 # used to multiply with the y coordinate to make the error on y axis clearer
   map_manager:
-    activate: false
+    mode: disabled
   behavior:
     max_speed: 80 # maximum speed, km/h
     tailgate_speed: 105 # when a vehicles needs to be close to another vehicle asap

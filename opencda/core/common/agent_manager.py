@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Iterable, Mapping, Sequence
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import carla
 
@@ -19,11 +19,15 @@ from opencda.core.application.behavior import (
 from opencda.core.common.agent import Agent, AgentType, VehicleComponents
 from opencda.core.common.data_dumper import DataDumper
 from opencda.core.map.map_manager import MapManager
+from opencda.core.map.mode import MapManagerMode, resolve_map_manager_mode
 from opencda.core.plan.behavior_agent import BehaviorAgent
 from opencda.core.safety.safety_manager import SafetyManager
 from opencda.core.sensing.localization import create_localizer
 from opencda.core.sensing.perception.perception_manager import PerceptionManager, PerceptionRequirements
 from opencda.core.sensing.sensor_types import SensorActorBundle
+
+if TYPE_CHECKING:
+    from opencda.core.common.cav_world import CavWorld
 
 logger = logging.getLogger("cavise.opencda.opencda.core.common.agent_manager")
 
@@ -54,7 +58,7 @@ class AgentManager:
         actor: carla.Actor,
         config_yaml: Mapping[str, Any],
         carla_map: carla.Map,
-        cav_world: Any,
+        cav_world: CavWorld,
         *,
         agent_type: AgentType | str,
         application: Sequence[str] = (),
@@ -73,10 +77,21 @@ class AgentManager:
         requirements = perception_requirements or PerceptionRequirements()
         sensing_config = config_yaml["sensing"]
 
-        localizer_kwargs: dict[str, Any] = {"use_imu": resolved_type is AgentType.CAV}
-        if sensor_actors is not None:
-            localizer_kwargs["sensor_actors"] = sensor_actors
-        localizer = create_localizer(actor, sensing_config["localization"], carla_map, **localizer_kwargs)
+        if sensor_actors is None:
+            localizer = create_localizer(
+                actor,
+                sensing_config["localization"],
+                carla_map,
+                use_imu=resolved_type is AgentType.CAV,
+            )
+        else:
+            localizer = create_localizer(
+                actor,
+                sensing_config["localization"],
+                carla_map,
+                use_imu=resolved_type is AgentType.CAV,
+                sensor_actors=sensor_actors,
+            )
         perception_manager = cls._create_perception_manager(
             actor,
             resolved_type,
@@ -95,6 +110,7 @@ class AgentManager:
                 actor,
                 config_yaml,
                 carla_map,
+                cav_world,
                 sensor_actors,
             )
 
@@ -145,7 +161,7 @@ class AgentManager:
     @classmethod
     def _allocate_id(
         cls,
-        configured_id: Any,
+        configured_id: int | str | None,
         prefix: str,
         autogenerate_id_on_failure: bool,
     ) -> str:
@@ -189,7 +205,7 @@ class AgentManager:
         agent_type: AgentType,
         perception_config: Mapping[str, Any],
         config_yaml: Mapping[str, Any],
-        cav_world: Any,
+        cav_world: CavWorld,
         agent_id: str,
         requirements: PerceptionRequirements,
         sensor_actors: SensorActorBundle | None,
@@ -198,19 +214,14 @@ class AgentManager:
         if agent_type is AgentType.RSU:
             config["global_position"] = config_yaml["spawn_position"]
 
-        perception_kwargs: dict[str, Any] = {}
-        if agent_type is AgentType.RSU:
-            perception_kwargs["carla_world"] = actor.get_world()
-        if sensor_actors is not None:
-            perception_kwargs["sensor_actors"] = sensor_actors
-
         return PerceptionManager(
             vehicle=cast(carla.Vehicle, actor) if agent_type is AgentType.CAV else None,
             config_yaml=config,
             cav_world=cav_world,
             infra_id=agent_id,
             perception_requirements=requirements,
-            **perception_kwargs,
+            carla_world=actor.get_world() if agent_type is AgentType.RSU else None,
+            sensor_actors=sensor_actors,
         )
 
     @staticmethod
@@ -218,6 +229,7 @@ class AgentManager:
         actor: carla.Actor,
         config_yaml: Mapping[str, Any],
         carla_map: carla.Map,
+        cav_world: CavWorld,
         sensor_actors: SensorActorBundle | None,
     ) -> VehicleComponents:
         if sensor_actors is None or sensor_actors.collision is None:
@@ -226,7 +238,11 @@ class AgentManager:
         vehicle = cast(carla.Vehicle, actor)
         behavior_config = config_yaml["behavior"]
         use_carla_autopilot, autopilot_port = AgentManager.resolve_carla_autopilot(config_yaml)
-        map_manager = MapManager(vehicle, carla_map, config_yaml["map_manager"])
+        map_config = config_yaml["map_manager"]
+        shared_map_data = None
+        if resolve_map_manager_mode(map_config) is MapManagerMode.FULL_BEV:
+            shared_map_data = cav_world.get_shared_map_data(vehicle.get_world(), carla_map, map_config)
+        map_manager = MapManager(vehicle, carla_map, map_config, shared_map_data=shared_map_data)
         safety_manager = SafetyManager(
             vehicle=vehicle,
             params=config_yaml["safety_manager"],
