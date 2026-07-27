@@ -6,6 +6,7 @@ import sys
 import enum
 import errno
 import json
+import time
 from datetime import datetime
 import pathlib
 import logging
@@ -19,16 +20,18 @@ from typing import cast
 from opencda.version import __version__
 
 
+def import_runtime_libs() -> None:
+    global omegaconf, DictConfig
+    import omegaconf
+    from omegaconf import DictConfig
+
+
 DEFAULT_LOG_FILENAME = "opencda.log.json"
 EVALUATION_OUTPUT_ROOT = pathlib.Path("simulation_output/evaluation_outputs")
 
 
 def get_default_output_path(scenario_name: str, current_time: str) -> pathlib.Path:
     return EVALUATION_OUTPUT_ROOT / f"{scenario_name}_{current_time}"
-
-
-def get_default_log_path(scenario_name: str, current_time: str) -> pathlib.Path:
-    return get_default_output_path(scenario_name, current_time) / DEFAULT_LOG_FILENAME
 
 
 class VerbosityLevel(enum.IntEnum):
@@ -199,8 +202,7 @@ def main() -> None:
     opt = arg_parse()
     current_time = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
 
-    import omegaconf
-    from omegaconf import DictConfig
+    import_runtime_libs()
 
     verbosity = opt.verbose
     if verbosity == VerbosityLevel.FULL:
@@ -210,7 +212,9 @@ def main() -> None:
     else:
         level = logging.WARNING
 
-    log_path = pathlib.Path(opt.log_file) if opt.log_file is not None else get_default_log_path(opt.test_scenario, current_time)
+    log_path = (
+        pathlib.Path(opt.log_file) if opt.log_file is not None else get_default_output_path(opt.test_scenario, current_time) / DEFAULT_LOG_FILENAME
+    )
     logger = create_logger(level=level, filename=str(log_path))
     install_traceback_handler(verbose=verbosity != VerbosityLevel.SILENT)
 
@@ -263,12 +267,15 @@ def main() -> None:
     # we should import as late as possible
     from opencda.scenario_testing.scenario import run_scenario
 
+    runtime_stats = {}
     if opt.profile:
         profiler = cProfile.Profile()
         profiler.enable()
 
         try:
-            run_scenario(opt, scene_dict, current_time=current_time)
+            t0 = time.perf_counter()
+            run_scenario(opt, scene_dict, current_time=current_time, runtime_stats=runtime_stats)
+            runtime_stats["full_scenario"] = time.perf_counter() - t0
         finally:
             evaluation_output_dir = get_default_output_path(opt.test_scenario, current_time)
             evaluation_output_dir.mkdir(parents=True, exist_ok=True)
@@ -281,7 +288,19 @@ def main() -> None:
             stats.sort_stats("cumulative")
             stats.print_stats(30)
     else:
-        run_scenario(opt, scene_dict, current_time=current_time)
+        t0 = time.perf_counter()
+        run_scenario(opt, scene_dict, current_time=current_time, runtime_stats=runtime_stats)
+        runtime_stats["full_scenario"] = time.perf_counter() - t0
+
+    show_performance_stats(runtime_stats)
+
+
+def show_performance_stats(runtime_stats: dict):
+    print("Scenario performance stats:")
+    print(f"Full scenario: {runtime_stats['full_scenario']:.3f}s")
+    print(f"Scenatio __init__: {runtime_stats['scenario__init__']:.3f}s")
+    print(f"Agents initialization: {runtime_stats['_init_agents']:.3f}s")
+    print(f"Avarage tick time: {sum(runtime_stats['ticks']) / len(runtime_stats['ticks']):.3f}s")
 
 
 if __name__ == "__main__":
