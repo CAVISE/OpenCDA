@@ -38,3 +38,15 @@ repos:
       args: ["--autofix"]
     - id: requirements-txt-fixer
     - id: trailing-whitespace
+
+- repo: local
+  hooks:
+    - id: mypy
+      name: mypy
+      description: ''
+      entry: mypy
+      language: python
+      'types_or': [python, pyi]
+      args: [".", "--follow-imports=silent"]
+      pass_filenames: false
+      require_serial: true
