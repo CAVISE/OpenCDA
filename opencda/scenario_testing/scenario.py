@@ -210,7 +210,7 @@ class Scenario:
         logger.info(f"created RSU list of size {len(self.rsu_list)}")
         self.runtime_stats["_init_agents"] = time.perf_counter() - t0
 
-    def _init_coperception(self, opt: argparse.Namespace, current_time: str, scenario_params: YamlDict) -> None:
+    def _init_coperception(self, opt: argparse.Namespace, current_time: str, scenario_params: DictConfig) -> None:
         if not os.path.isdir(opt.model_dir):
             self._abort_simulation(f'Model directory "{opt.model_dir}" does not exist; cannot initialize cooperative perception manager.')
 

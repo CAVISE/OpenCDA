@@ -250,6 +250,32 @@ class ScenarioManager:
         else:
             sys.exit("ERROR: Current version only supports sync simulation mode")
 
+        spectator_as_ego = simulation_config.get("spectator_as_ego")
+        if spectator_as_ego is not None:
+            if not isinstance(spectator_as_ego, bool):
+                raise ValueError("Config key 'spectator_as_ego' must be a boolean.")
+            new_settings.spectator_as_ego = spectator_as_ego
+
+        streaming_distances: dict[str, float] = {}
+        for key in ("tile_stream_distance", "actor_active_distance"):
+            value = simulation_config.get(key)
+            if value is None:
+                continue
+            if not isinstance(value, (int, float)) or isinstance(value, bool):
+                raise ValueError(f"Config key '{key}' must be a positive number.")
+            distance = float(value)
+            if not math.isfinite(distance) or distance <= 0:
+                raise ValueError(f"Config key '{key}' must be a positive number.")
+            streaming_distances[key] = distance
+
+        tile_stream_distance = streaming_distances.get("tile_stream_distance")
+        actor_active_distance = streaming_distances.get("actor_active_distance")
+        if tile_stream_distance is not None and actor_active_distance is not None and actor_active_distance > tile_stream_distance:
+            raise ValueError("Config key 'actor_active_distance' must be less than or equal to 'tile_stream_distance'.")
+
+        for key, distance in streaming_distances.items():
+            setattr(new_settings, key, distance)
+
         self.world.apply_settings(new_settings)
 
         traffic_config = self.scenario_params.get("carla_traffic_manager")
@@ -515,6 +541,12 @@ class ScenarioManager:
                 actor_blueprint.set_attribute("color", ",".join(map(str, color)))
             except IndexError:
                 logger.warning(f"Actor model {actor_blueprint.id} does not support the 'color' attribute. Skipping.")
+
+        role_name = config.get("role_name")
+        if role_name is not None:
+            if not isinstance(role_name, str) or not role_name:
+                raise ValueError("Config key 'role_name' must be a non-empty string.")
+            actor_blueprint.set_attribute("role_name", role_name)
 
         return actor_blueprint
 

@@ -16,6 +16,12 @@ world:
   # CARLA requires 1 <= max_substeps <= 16. Choose max_substeps as
   # ceil(fixed_delta_seconds / max_substep_delta_time) within that range.
   # Example: 0.2 seconds requires 16 substeps of at least 0.0125 seconds.
+  # Large-map streaming settings, in meters. Actors whose blueprint role_name
+  # contains "hero" or "ego_vehicle" act as streaming sources; this works for
+  # both vehicles and static actors such as RSUs.
+  tile_stream_distance: 3000 # load map tiles within this radius of each streaming source
+  actor_active_distance: 2000 # keep actors active within this radius; must not exceed tile_stream_distance
+  spectator_as_ego: true # use the spectator as the streaming source when no hero actor is present
   seed: 11 # seed for numpy, random, and torch
   weather:
     sun_altitude_angle: 30 # 90 is the midday and -90 is the midnight
@@ -35,6 +41,12 @@ agent_base:
 
 # Define the basic parameters of the rsu
 rsu_base:
+  # CARLA actor role.
+  # "hero" or "ego_vehicle" makes every RSU that inherits this base a large-map streaming source.
+  # Any other role that contains neither substring is non-streaming, for example "rsu".
+  # CARLA uses substring matching, so names such as "not_hero" still enable streaming.
+  # Prefer setting role_name on an individual scenario.rsu_list entry when only one RSU should be a source.
+  role_name: "rsu"
   sensing:
     perception:
       activate: false # when not activated, objects positions will be retrieved from server directly
@@ -69,6 +81,12 @@ rsu_base:
 
 # Basic parameters of the vehicles
 vehicle_base:
+  # Optional CARLA actor role.
+  # "hero" or "ego_vehicle" makes every CAV that inherits this base a large-map streaming source.
+  # Any other role that contains neither substring is non-streaming, for example "cav".
+  # CARLA uses substring matching, so names such as "not_hero" still enable streaming.
+  # Prefer setting role_name on an individual CAV when only selected vehicles should be sources.
+  role_name: "cav"
   sensing: # include perception and localization
     perception:
       activate: false # when not activated, objects positions will be retrieved from server directly
