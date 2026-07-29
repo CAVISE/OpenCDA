@@ -442,6 +442,70 @@ def test_substepping_settings_are_applied(mocker):
     assert applied_settings.max_substeps == 16
 
 
+def test_spectator_as_ego_setting_is_applied(mocker):
+    params = _minimal_scenario_params()
+    params["world"]["spectator_as_ego"] = False
+
+    _, world, _ = _make_scenario_manager(mocker, params)
+
+    applied_settings = world.apply_settings.call_args.args[0]
+    assert applied_settings.spectator_as_ego is False
+
+
+def test_invalid_spectator_as_ego_setting_raises(mocker):
+    params = _minimal_scenario_params()
+    params["world"]["spectator_as_ego"] = "false"
+
+    with pytest.raises(ValueError, match="spectator_as_ego.*boolean"):
+        _make_scenario_manager(mocker, params)
+
+
+def test_large_map_streaming_distances_are_applied(mocker):
+    params = _minimal_scenario_params()
+    params["world"].update(
+        {
+            "tile_stream_distance": 25_000,
+            "actor_active_distance": 25_000,
+        }
+    )
+
+    _, world, _ = _make_scenario_manager(mocker, params)
+
+    applied_settings = world.apply_settings.call_args.args[0]
+    assert applied_settings.tile_stream_distance == pytest.approx(25_000)
+    assert applied_settings.actor_active_distance == pytest.approx(25_000)
+
+
+@pytest.mark.parametrize(
+    ("key", "value"),
+    [
+        ("tile_stream_distance", 0),
+        ("tile_stream_distance", float("inf")),
+        ("actor_active_distance", True),
+        ("actor_active_distance", "25000"),
+    ],
+)
+def test_invalid_large_map_streaming_distance_raises(mocker, key, value):
+    params = _minimal_scenario_params()
+    params["world"][key] = value
+
+    with pytest.raises(ValueError, match=rf"{key}.*positive number"):
+        _make_scenario_manager(mocker, params)
+
+
+def test_actor_active_distance_cannot_exceed_tile_stream_distance(mocker):
+    params = _minimal_scenario_params()
+    params["world"].update(
+        {
+            "tile_stream_distance": 2_000,
+            "actor_active_distance": 3_000,
+        }
+    )
+
+    with pytest.raises(ValueError, match="actor_active_distance.*less than or equal"):
+        _make_scenario_manager(mocker, params)
+
+
 def test_invalid_substepping_settings_raise(mocker):
     params = _minimal_scenario_params()
     params["world"].update(
@@ -653,6 +717,30 @@ def test_spawn_custom_actor_color_not_supported(mocker, caplog):
         if r.levelno == logging.WARNING and r.name == sim_api_mod.logger.name and blueprint.id in r.getMessage() and "color" in r.getMessage().lower()
     ]
     assert matching, f"Expected a WARNING from {sim_api_mod.logger.name} mentioning {blueprint.id!r} and color; got:\n{caplog.text}"
+
+
+def test_spawn_custom_actor_sets_role_name(mocker):
+    sm, world, bp_lib, blueprint = _setup_spawn_custom_actor(mocker)
+
+    spawn_transform = Mock(spec_set=[])
+    config = {"model": "vehicle.tesla.model3", "role_name": "hero"}
+
+    result = sm.spawn_custom_actor(spawn_transform, config, fallback_model="vehicle.lincoln.mkz_2017")
+
+    assert result == "ACTOR"
+    bp_lib.find.assert_called_once_with("vehicle.tesla.model3")
+    blueprint.set_attribute.assert_called_once_with("role_name", "hero")
+    world.spawn_actor.assert_called_once_with(blueprint, spawn_transform)
+
+
+def test_spawn_custom_actor_rejects_empty_role_name(mocker):
+    sm, world, _, blueprint = _setup_spawn_custom_actor(mocker)
+
+    with pytest.raises(ValueError, match="role_name.*non-empty string"):
+        sm.spawn_custom_actor(Mock(spec_set=[]), {"role_name": ""}, fallback_model="vehicle.lincoln.mkz_2017")
+
+    blueprint.set_attribute.assert_not_called()
+    world.spawn_actor.assert_not_called()
 
 
 def test_close_restores_settings(mocker):
