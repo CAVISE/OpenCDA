@@ -1,11 +1,11 @@
 # Minimal dependencies to run the current unit tests fast in CI/act.
 # Add here only what tests truly need.
 
-cmake==4.2.3
+cmake==4.4.0
 
 lxml==6.1.1
 # headless plotting
-matplotlib==3.11.0
+matplotlib==3.11.1
 
 mypy-protobuf==5.1.0
 
@@ -13,12 +13,12 @@ networkx==3.6.1
 ninja==1.13.0
 
 # keep numpy pinned to avoid accidental numpy>=2 upgrades / binary incompat
-numpy==2.5.0
+numpy==2.5.1
 
 # image I/O used by MLManager tests
-opencv-python-headless==4.13.0.92
+opencv-python-headless==5.0.0.93
 protobuf==7.35.1
-pytest==9.0.3
+pytest==9.1.1
 pytest-mock==3.15.1
 PyYAML==6.0.3
 pyzmq==27.1.0
@@ -30,5 +30,5 @@ scipy==1.18.0
 shapely==2.1.2
 
 # optional but often useful in logs/utilities
-tqdm==4.68.3
+tqdm==4.70.0
 traci==1.27.1
