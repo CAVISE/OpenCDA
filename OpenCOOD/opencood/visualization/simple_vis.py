@@ -120,11 +120,8 @@ def visualize(
     else:
         raise (f"Not Completed for f{method} visualization.")
 
-    plt.axis("off")
-
-    plt.imshow(canvas.canvas)
-
-    plt.tight_layout()
-    plt.savefig(save_path, transparent=False, dpi=400, pad_inches=0.0)
-    plt.clf()
+    # The canvas is already a complete RGB raster.  Saving it through a
+    # Matplotlib figure introduces figure-colored borders when aspect ratios
+    # differ, so write the image array directly instead.
+    plt.imsave(save_path, canvas.canvas, dpi=400)
     # print(save_path)

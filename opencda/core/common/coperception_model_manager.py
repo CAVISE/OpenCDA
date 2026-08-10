@@ -185,11 +185,11 @@ class CoperceptionVisualizer:
             left_hand=left_hand,
             uncertainty=uncertainty,
         )
-        plt.axis("off")
-        plt.imshow(canvas)
-        plt.tight_layout()
-        plt.savefig(save_path, transparent=False, dpi=config["image_dpi"], pad_inches=0.0)
-        plt.clf()
+        # ``canvas`` is already the complete RGB image.  Saving it through a
+        # Matplotlib figure adds the figure background around canvases whose
+        # aspect ratio differs from the default figure.  Write the raster
+        # directly so the output contains no artificial border.
+        plt.imsave(save_path, canvas, dpi=config["image_dpi"])
 
     @classmethod
     def visualize_inference_sample_dataloader(
