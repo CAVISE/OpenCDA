@@ -6,10 +6,13 @@ import sys
 import enum
 import errno
 import json
+import time
 from datetime import datetime
 import pathlib
 import logging
 import argparse
+import cProfile
+import pstats
 from collections.abc import Collection
 from types import ModuleType
 from typing import cast
@@ -17,12 +20,18 @@ from typing import cast
 from opencda.version import __version__
 
 
+def import_runtime_libs() -> None:
+    global omegaconf, DictConfig
+    import omegaconf
+    from omegaconf import DictConfig
+
+
 DEFAULT_LOG_FILENAME = "opencda.log.json"
 EVALUATION_OUTPUT_ROOT = pathlib.Path("simulation_output/evaluation_outputs")
 
 
-def get_default_log_path(scenario_name: str, current_time: str) -> pathlib.Path:
-    return EVALUATION_OUTPUT_ROOT / f"{scenario_name}_{current_time}" / DEFAULT_LOG_FILENAME
+def get_default_output_path(scenario_name: str, current_time: str) -> pathlib.Path:
+    return EVALUATION_OUTPUT_ROOT / f"{scenario_name}_{current_time}"
 
 
 class VerbosityLevel(enum.IntEnum):
@@ -183,17 +192,18 @@ def arg_parse() -> argparse.Namespace:
             f"{EVALUATION_OUTPUT_ROOT}/<scenario>_<timestamp>/{DEFAULT_LOG_FILENAME}."
         ),
     )
+    parser.add_argument("--profile", action="store_true", help="Enable profiling.")
 
     parser.add_argument("--ticks", type=int, help="number of simulation ticks to execute")
     return parser.parse_args()
 
 
 def main() -> None:
+    global logger
     opt = arg_parse()
     current_time = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
 
-    import omegaconf
-    from omegaconf import DictConfig
+    import_runtime_libs()
 
     verbosity = opt.verbose
     if verbosity == VerbosityLevel.FULL:
@@ -203,7 +213,9 @@ def main() -> None:
     else:
         level = logging.WARNING
 
-    log_path = pathlib.Path(opt.log_file) if opt.log_file is not None else get_default_log_path(opt.test_scenario, current_time)
+    log_path = (
+        pathlib.Path(opt.log_file) if opt.log_file is not None else get_default_output_path(opt.test_scenario, current_time) / DEFAULT_LOG_FILENAME
+    )
     logger = create_logger(level=level, filename=str(log_path))
     install_traceback_handler(verbose=verbosity != VerbosityLevel.SILENT)
 
@@ -256,7 +268,41 @@ def main() -> None:
     # we should import as late as possible
     from opencda.scenario_testing.scenario import run_scenario
 
-    run_scenario(opt, scene_dict, current_time=current_time)
+    runtime_stats = {}
+    if opt.profile:
+        profiler = cProfile.Profile()
+        profiler.enable()
+
+        try:
+            t0 = time.perf_counter()
+            run_scenario(opt, scene_dict, current_time=current_time, runtime_stats=runtime_stats)
+            runtime_stats["full_scenario"] = time.perf_counter() - t0
+        finally:
+            evaluation_output_dir = get_default_output_path(opt.test_scenario, current_time)
+            evaluation_output_dir.mkdir(parents=True, exist_ok=True)
+            profiler_output = evaluation_output_dir / "profile_output.prof"
+            profiler.disable()
+            profiler.dump_stats(profiler_output)
+            logger.info(f"Profiler output saved to {profiler_output}")
+
+            stats = pstats.Stats(profiler)
+            stats.sort_stats("cumulative")
+            stats.print_stats(30)
+    else:
+        t0 = time.perf_counter()
+        run_scenario(opt, scene_dict, current_time=current_time, runtime_stats=runtime_stats)
+        runtime_stats["full_scenario"] = time.perf_counter() - t0
+
+    show_performance_stats(runtime_stats)
+
+
+def show_performance_stats(runtime_stats: dict):
+    global logger
+    logger.debug("Scenario performance stats:")
+    logger.debug(f"Full scenario: {runtime_stats['full_scenario']:.3f}s")
+    logger.debug(f"Scenatio __init__: {runtime_stats['scenario__init__']:.3f}s")
+    logger.debug(f"Agents initialization: {runtime_stats['_init_agents']:.3f}s")
+    logger.debug(f"Avarage tick time: {sum(runtime_stats['ticks']) / len(runtime_stats['ticks']):.3f}s")
 
 
 if __name__ == "__main__":

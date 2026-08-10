@@ -9,14 +9,17 @@ import logging
 import os
 
 from collections.abc import Mapping
-from typing import Any, TypeAlias, cast
+from typing import TYPE_CHECKING, TypeAlias
 
 import carla
 
 from opencda.co_simulation.sumo_integration.bridge_helper import BridgeHelper
 from opencda.co_simulation.sumo_integration.constants import INVALID_ACTOR_ID, SPAWN_OFFSET_Z
 from opencda.co_simulation.sumo_integration.sumo_simulation import SumoSimulation
-from opencda.scenario_testing.utils.sim_api import ScenarioManager
+from opencda.scenario_testing.utils.sim_api import ConfigDict, ScenarioManager
+
+if TYPE_CHECKING:
+    from opencda.core.common.cav_world import CavWorld
 
 logger = logging.getLogger("cavise.opencda.opencda.scenario_testing.utils.cosim_api")
 
@@ -47,12 +50,12 @@ class CoScenarioManager(ScenarioManager):
 
     def __init__(
         self,
-        scenario_params: dict[str, Any],
+        scenario_params: ConfigDict,
         apply_ml: bool,
         node_ids: NodeIdMapping,
         xodr_path: str | None = None,
         town: str | None = None,
-        cav_world: Any | None = None,
+        cav_world: CavWorld | None = None,
         sumo_file_parent_path: str | None = None,
         carla_host: str = "carla",
         carla_timeout: float = 30.0,
@@ -75,7 +78,7 @@ class CoScenarioManager(ScenarioManager):
         self.node_ids = node_ids
 
         # contains all carla traffic lights objects
-        self._tls: dict[str, Any] = {}
+        self._tls: dict[str, carla.TrafficLight] = {}
         for landmark in self.carla_map.get_all_landmarks_of_type("1000001"):
             if landmark.id != "":
                 traffic_ligth = self.world.get_traffic_light(landmark)
@@ -85,7 +88,8 @@ class CoScenarioManager(ScenarioManager):
                     logging.warning(f"Landmark {landmark.id} is not linked to any traffic light")
 
         # sumo side initialization
-        sumo_file_parent_path = cast(str, sumo_file_parent_path)
+        if not sumo_file_parent_path:
+            raise ValueError("sumo_file_parent_path must be provided for co-simulation.")
         base_name = os.path.basename(sumo_file_parent_path)
 
         sumo_key = "sumo"
@@ -190,7 +194,7 @@ class CoScenarioManager(ScenarioManager):
         carla_spawned_actors = self.spawned_actors - set(self.sumo2carla_ids.values())
 
         for carla_actor_id in carla_spawned_actors:
-            carla_actor = cast(Any, self.world.get_actor(carla_actor_id))
+            carla_actor = self._require_carla_actor(carla_actor_id)
             type_id = BridgeHelper.get_sumo_vtype(carla_actor)
             color = carla_actor.attributes.get("color", None)
             if type_id is not None:
@@ -217,7 +221,7 @@ class CoScenarioManager(ScenarioManager):
         for carla_actor_id in self.carla2sumo_ids:
             sumo_actor_id = self.carla2sumo_ids[carla_actor_id]
 
-            carla_actor = cast(Any, self.world.get_actor(carla_actor_id))
+            carla_actor = self._require_carla_actor(carla_actor_id)
             sumo_actor = self.sumo.get_actor(sumo_actor_id)
             sumo_transform = BridgeHelper.get_sumo_transform(carla_actor.get_transform(), carla_actor.bounding_box.extent)
             self.sumo.synchronize_vehicle(sumo_actor_id, sumo_transform, None)
@@ -233,14 +237,37 @@ class CoScenarioManager(ScenarioManager):
             self.sumo.synchronize_traffic_light(landmark_id, sumo_tl_state)
 
         # update the sumo2carla dict to cav world
-        cast(Any, self.cav_world).update_sumo_vehicles(self.sumo2carla_ids)
+        self.cav_world.update_sumo_vehicles(self.sumo2carla_ids)
         return carla_frame
 
     @property
     def traffic_light_ids(self) -> set[str]:
         return set(self._tls.keys())
 
-    def get_traffic_light_state(self, landmark_id: str) -> Any | None:
+    def _require_carla_actor(self, actor_id: int) -> carla.Actor:
+        """Return an actor required by co-simulation synchronization.
+
+        Parameters
+        ----------
+        actor_id : int
+            CARLA actor identifier.
+
+        Returns
+        -------
+        carla.Actor
+            Actor currently registered in the CARLA world.
+
+        Raises
+        ------
+        RuntimeError
+            If CARLA no longer contains the requested actor.
+        """
+        actor = self.world.get_actor(actor_id)
+        if actor is None:
+            raise RuntimeError(f"CARLA actor {actor_id} is unavailable during co-simulation synchronization.")
+        return actor
+
+    def get_traffic_light_state(self, landmark_id: str) -> carla.TrafficLightState | None:
         """
         Accessor for traffic light state.
 
@@ -250,7 +277,7 @@ class CoScenarioManager(ScenarioManager):
             return None
         return self._tls[landmark_id].state
 
-    def spawn_actor(self, blueprint: Any, transform: carla.Transform) -> int:
+    def spawn_actor(self, blueprint: carla.ActorBlueprint, transform: carla.Transform) -> int:
         """
         Spawns a new carla actor based on the given coordinate.
 

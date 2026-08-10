@@ -188,6 +188,13 @@ class TrafficLightState:
 
 carla_stub.TrafficLightState = TrafficLightState
 
+
+class LaneType:
+    Driving = object()
+
+
+carla_stub.LaneType = LaneType
+
 # Minimal placeholders for typing / attribute access
 carla_stub.World = object
 carla_stub.Map = object
@@ -364,6 +371,7 @@ def mock_cav_world():
     cav_world = Mock()
     cav_world.update_agent_manager = Mock()
     cav_world.update_sumo_vehicles = Mock()
+    cav_world.get_shared_map_data = Mock(return_value=Mock())
     return cav_world
 
 

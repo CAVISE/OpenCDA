@@ -81,7 +81,7 @@ vehicle_base:
   safety_manager:
     print_message: false
   map_manager:
-    activate: false
+    mode: disabled
     visualize: false
 
 

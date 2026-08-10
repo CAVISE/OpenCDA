@@ -14,7 +14,7 @@ vehicle_base:
     max_speed: 101 # maximum speed, km/h
   map_manager:
     visualize: false
-    activate: false
+    mode: disabled
 
 # define scenario. In this scenario, only a single CAV will be spawned
 scenario:

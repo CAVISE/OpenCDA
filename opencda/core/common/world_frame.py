@@ -133,6 +133,7 @@ class WorldFrame:
         actor_states: dict[int, WorldActorState],
         traffic_lights: tuple[carla.Actor, ...],
         traffic_light_states: tuple[WorldTrafficLightState, ...],
+        missing_actor_details: dict[int, str],
         cell_size: float,
     ) -> None:
         if cell_size <= 0:
@@ -142,6 +143,8 @@ class WorldFrame:
         self.timestamp = timestamp
         self.traffic_lights = traffic_lights
         self.traffic_light_states = traffic_light_states
+        self._missing_actor_details = missing_actor_details
+        self._traffic_light_states_by_id = {state.actor_id: state for state in traffic_light_states}
         self._actor_states = actor_states
         self._cell_size = cell_size
         self._dynamic_grid: dict[tuple[int, int], tuple[WorldActorState, ...]] = self._build_dynamic_grid(actor_states.values())
@@ -168,6 +171,7 @@ class WorldFrame:
         actor_states: dict[int, WorldActorState] = {}
         traffic_lights: list[carla.Actor] = []
         traffic_light_states: list[WorldTrafficLightState] = []
+        missing_actor_details: dict[int, str] = {}
 
         for actor in world.get_actors():
             type_id = actor.type_id
@@ -180,6 +184,7 @@ class WorldFrame:
 
             actor_snapshot = snapshot.find(actor.id)
             if actor_snapshot is None:
+                missing_actor_details[actor.id] = cls._describe_missing_actor(actor)
                 continue
 
             actor_states[actor.id] = WorldActorState(
@@ -196,15 +201,45 @@ class WorldFrame:
             actor_states=actor_states,
             traffic_lights=tuple(traffic_lights),
             traffic_light_states=tuple(traffic_light_states),
+            missing_actor_details=missing_actor_details,
             cell_size=cell_size,
         )
+
+    @staticmethod
+    def _describe_missing_actor(actor: carla.Actor) -> str:
+        is_alive = actor.is_alive
+        try:
+            location = actor.get_transform().location
+            location_description = f"({location.x:.2f}, {location.y:.2f}, {location.z:.2f})"
+        except RuntimeError as exc:
+            location_description = f"unavailable ({exc})"
+        return f"type_id={actor.type_id}, is_alive={is_alive}, location={location_description}"
 
     def actor_state(self, actor_id: int) -> WorldActorState:
         """Return a cached actor state or fail on an inconsistent frame."""
         try:
             return self._actor_states[actor_id]
         except KeyError as exc:
-            raise KeyError(f"Actor {actor_id} is absent from CARLA frame {self.frame}.") from exc
+            missing_ids = sorted(self._missing_actor_details)
+            details = self._missing_actor_details.get(actor_id, "actor was not returned by world.get_actors()")
+            raise KeyError(
+                f"Actor {actor_id} is absent from CARLA frame {self.frame}. Missing actor IDs: {missing_ids}. Actor details: {details}."
+            ) from exc
+
+    def traffic_light_state(self, actor_id: int) -> WorldTrafficLightState | None:
+        """Return the cached state of a traffic light.
+
+        Parameters
+        ----------
+        actor_id : int
+            CARLA traffic-light actor identifier.
+
+        Returns
+        -------
+        WorldTrafficLightState or None
+            Captured traffic-light state, or ``None`` when unavailable.
+        """
+        return self._traffic_light_states_by_id.get(actor_id)
 
     def shared_actor_value(self, namespace: str, actor_id: int, factory: Callable[[], T]) -> T:
         """Return a frame-local actor value that is independent of the observing agent."""

@@ -4,6 +4,7 @@ import argparse
 import logging
 import os
 import sys
+import time
 from dataclasses import dataclass
 from itertools import chain
 from pathlib import Path
@@ -56,25 +57,66 @@ class Scenario:
             self._abort_simulation("Coperception data processor is required, but it was not initialized.")
         return self.coperception_data_processor
 
-    def __init__(self, opt: argparse.Namespace, scenario_params: DictConfig, current_time: str | None = None) -> None:
+    def __init__(self, opt: argparse.Namespace, scenario_params: DictConfig, current_time: str | None = None, runtime_stats: dict = {}) -> None:
+        self.runtime_stats = runtime_stats
+        t0 = time.perf_counter()
         self.node_ids: dict[str, dict[int, str]] = {"cav": {}, "rsu": {}, "platoon": {}}
         self.scenario_name = opt.test_scenario
         scenario_config = cast(YamlDict, OmegaConf.to_container(scenario_params, resolve=True))
         if current_time is None:
-            self.scenario_params, current_time = add_current_time(scenario_config)
+            scenario_config, current_time = add_current_time(scenario_config)
         else:
             scenario_config["current_time"] = current_time
-            self.scenario_params = scenario_config
-        scenario_config = self.scenario_params
         logger.info(f"running scenario with name: {self.scenario_name}; current time: {current_time}")
-
-        self.cav_world = CavWorld(opt.apply_ml)
-        logger.info(f"created cav world, using apply_ml = {opt.apply_ml}")
 
         self.payload_handler: PayloadHandler | None = None
         self.communication_manager: CommunicationManager | None = None
         self.coperception_model_manager: CoperceptionModelManager | None = None
         self.coperception_data_processor: CoperceptionDataProcessor | None = None
+
+        self._init_scenario_manager(opt, scenario_config)
+
+        if opt.with_capi:
+            self._init_capi(opt)
+
+        logger.info(f"data dump is {'ON' if opt.record else 'OFF'}")
+
+        if opt.record:
+            self._init_recording(current_time, scenario_config)
+
+        self._init_agents(opt)
+
+        if opt.with_coperception and opt.model_dir:
+            self._init_coperception(opt, current_time, scenario_params)
+
+        self.scenario_manager.create_custom_actor_manager(application=["single"], map_helper=map_api.spawn_helper_2lanefree, data_dump=opt.record)
+        logger.info("created single custom actors")
+
+        self.scenario_manager.tick()
+        logger.info("completed initial spawn synchronization tick")
+
+        self.eval_manager = EvaluationManager(self.cav_world, script_name=self.scenario_name, current_time=current_time)
+
+        self.spectator = self.scenario_manager.world.get_spectator()
+
+        self.messages: list[TransportMessage[Any]] = []
+        self.simulation_snapshot = SimulationSnapshot(tick=-1)
+        self.attack_manager = AttackManager()
+        self.scenario_metrics_collector = MetricCollector(
+            module="scenario",
+            entity_id=self.scenario_name,
+            metric_configs={
+                "collision_count": {"warmup_steps": 0},
+                "near_miss_count": {"warmup_steps": 0},
+                "identity_conflict_count": {"warmup_steps": 0},
+            },
+        )
+        self._init_attacks(scenario_config)
+        self.runtime_stats["scenario__init__"] = time.perf_counter() - t0
+
+    def _init_scenario_manager(self, opt: argparse.Namespace, scenario_config: YamlDict) -> None:
+        self.cav_world = CavWorld(opt.apply_ml)
+        logger.info(f"created cav world, using apply_ml = {opt.apply_ml}")
 
         xodr_path: str | None = None
         if opt.xodr:
@@ -113,31 +155,31 @@ class Scenario:
                 carla_timeout=opt.carla_timeout,
             )
         self.cav_world = self.scenario_manager.cav_world
-
-        if opt.with_capi:
-            from opencda.core.common.communication.communication_manager import CommunicationManager
-            from opencda.core.common.communication.payload_handler import PayloadHandler
-
-            self.communication_manager = CommunicationManager(
-                artery_address=f"tcp://{opt.artery_host}",
-                artery_send_timeout=opt.artery_send_timeout,
-                artery_receive_timeout=opt.artery_receive_timeout,
-            )
-            self.payload_handler = PayloadHandler()
-            logger.info("running: creating message handler")
-
         logger.info(f"using scenario manager of type: {type(self.scenario_manager)}")
-        logger.info(f"data dump is {'ON' if opt.record else 'OFF'}")
 
-        if opt.record:
-            logger.info("beginning to record the simulation in simulation_output/data_dumping")
-            self.scenario_manager.client.start_recorder(f"{self.scenario_name}.log", True)
+    def _init_capi(self, opt: argparse.Namespace) -> None:
+        from opencda.core.common.communication.communication_manager import CommunicationManager
+        from opencda.core.common.communication.payload_handler import PayloadHandler
 
-            save_yaml_name = Path("simulation_output/data_dumping") / current_time / "data_protocol.yaml"
-            logger.info(f"saving params to {save_yaml_name}")
-            os.makedirs(os.path.dirname(save_yaml_name), exist_ok=True)
-            save_yaml(scenario_config, save_yaml_name)
+        self.communication_manager = CommunicationManager(
+            artery_address=f"tcp://{opt.artery_host}",
+            artery_send_timeout=opt.artery_send_timeout,
+            artery_receive_timeout=opt.artery_receive_timeout,
+        )
+        self.payload_handler = PayloadHandler()
+        logger.info("running: creating message handler")
 
+    def _init_recording(self, current_time: str, scenario_config: YamlDict) -> None:
+        logger.info("beginning to record the simulation in simulation_output/data_dumping")
+        self.scenario_manager.client.start_recorder(f"{self.scenario_name}.log", True)
+
+        save_yaml_name = Path("simulation_output/data_dumping") / current_time / "data_protocol.yaml"
+        logger.info(f"saving params to {save_yaml_name}")
+        save_yaml_name.parent.mkdir(parents=True, exist_ok=True)
+        save_yaml(scenario_config, save_yaml_name)
+
+    def _init_agents(self, opt: argparse.Namespace) -> None:
+        t0 = time.perf_counter()
         perception_requirements = PerceptionRequirements.from_runtime_flags(
             data_dump=opt.record,
             with_coperception=opt.with_coperception,
@@ -166,69 +208,49 @@ class Scenario:
         )
         self.node_ids["rsu"] = cast(dict[int, str], rsu_node_ids)
         logger.info(f"created RSU list of size {len(self.rsu_list)}")
+        self.runtime_stats["_init_agents"] = time.perf_counter() - t0
 
-        if opt.with_coperception and opt.model_dir:
-            if not os.path.isdir(opt.model_dir):
-                self._abort_simulation(f'Model directory "{opt.model_dir}" does not exist; cannot initialize cooperative perception manager.')
+    def _init_coperception(self, opt: argparse.Namespace, current_time: str, scenario_params: DictConfig) -> None:
+        if not os.path.isdir(opt.model_dir):
+            self._abort_simulation(f'Model directory "{opt.model_dir}" does not exist; cannot initialize cooperative perception manager.')
 
-            CoperceptionManagerClass: type[CoperceptionModelManager]
-            if opt.with_advcp:
-                from opencda.core.attack.advcp.adv_coperception_model_manager import AdvCoperceptionModelManager as CoperceptionManagerClass
-            else:
-                from opencda.core.common.coperception_model_manager import CoperceptionModelManager as CoperceptionManagerClass
+        CoperceptionManagerClass: type[CoperceptionModelManager]
+        if opt.with_advcp:
+            from opencda.core.attack.advcp.adv_coperception_model_manager import AdvCoperceptionModelManager as CoperceptionManagerClass
+        else:
+            from opencda.core.common.coperception_model_manager import CoperceptionModelManager as CoperceptionManagerClass
 
-            coperception_config = OmegaConf.to_container(
-                scenario_params.get("coperception", {}),
-                resolve=True,
-            )
-
-            self.coperception_model_manager = CoperceptionManagerClass(
-                opt=opt,
-                current_time=current_time,
-                payload_handler=self.payload_handler,
-                coperception_config=coperception_config,
-            )
-            valid_agent_ids = [vehicle_manager.id for vehicle_manager in self.single_cav_list]
-            valid_agent_ids.extend(rsu_manager.id for rsu_manager in self.rsu_list)
-            if hasattr(self.coperception_model_manager, "validate_advcp_agents"):
-                self.coperception_model_manager.validate_advcp_agents(valid_agent_ids)
-
-            """
-            TODO: Create decorators to write such stuff
-
-            @cavise.SimObject
-            class SomeCoolManager
-            that would at least take the logging part - writing "creating SomeCoolManager manager", destroying SomeCoolManager manager"
-
-            Also ideally it would also somehow verify manager configs, for example.
-            """
-            sensor_sync_config = coperception_config.get("sensor_sync", {}) if isinstance(coperception_config, Mapping) else {}
-            sensor_sync_timeout = float(sensor_sync_config.get("timeout_seconds", 1.0)) if isinstance(sensor_sync_config, Mapping) else 1.0
-            self.coperception_data_processor = CoperceptionDataProcessor(sensor_sync_timeout_seconds=sensor_sync_timeout)
-            logger.info("created cooperception manager")
-
-        self.scenario_manager.create_custom_actor_manager(application=["single"], map_helper=map_api.spawn_helper_2lanefree, data_dump=opt.record)
-        logger.info("created single custom actors")
-
-        self.scenario_manager.tick()
-        logger.info("completed initial spawn synchronization tick")
-
-        self.eval_manager = EvaluationManager(self.cav_world, script_name=self.scenario_name, current_time=scenario_config["current_time"])
-
-        self.spectator = self.scenario_manager.world.get_spectator()
-
-        self.messages: list[TransportMessage[Any]] = []
-        self.simulation_snapshot = SimulationSnapshot(tick=-1)
-        self.attack_manager = AttackManager()
-        self.scenario_metrics_collector = MetricCollector(
-            module="scenario",
-            entity_id=self.scenario_name,
-            metric_configs={
-                "collision_count": {"warmup_steps": 0},
-                "near_miss_count": {"warmup_steps": 0},
-                "identity_conflict_count": {"warmup_steps": 0},
-            },
+        coperception_config = OmegaConf.to_container(
+            scenario_params.get("coperception", {}),
+            resolve=True,
         )
+
+        self.coperception_model_manager = CoperceptionManagerClass(
+            opt=opt,
+            current_time=current_time,
+            payload_handler=self.payload_handler,
+            coperception_config=coperception_config,
+        )
+        valid_agent_ids = [vehicle_manager.id for vehicle_manager in self.single_cav_list]
+        valid_agent_ids.extend(rsu_manager.id for rsu_manager in self.rsu_list)
+        if hasattr(self.coperception_model_manager, "validate_advcp_agents"):
+            self.coperception_model_manager.validate_advcp_agents(valid_agent_ids)
+
+        """
+        TODO: Create decorators to write such stuff
+
+        @cavise.SimObject
+        class SomeCoolManager
+        that would at least take the logging part - writing "creating SomeCoolManager manager", destroying SomeCoolManager manager"
+
+        Also ideally it would also somehow verify manager configs, for example.
+        """
+        sensor_sync_config = coperception_config.get("sensor_sync", {}) if isinstance(coperception_config, Mapping) else {}
+        sensor_sync_timeout = float(sensor_sync_config.get("timeout_seconds", 1.0)) if isinstance(sensor_sync_config, Mapping) else 1.0
+        self.coperception_data_processor = CoperceptionDataProcessor(sensor_sync_timeout_seconds=sensor_sync_timeout)
+        logger.info("created cooperception manager")
+
+    def _init_attacks(self, scenario_config: YamlDict) -> None:
         attacks_config = scenario_config.get("attacks", [])
         if not isinstance(attacks_config, list):
             self._abort_simulation("Scenario config field 'attacks' must be a list of attack names.")
@@ -339,7 +361,10 @@ class Scenario:
 
     def default_loop(self, opt: argparse.Namespace) -> None:
         tick_number = -1
+        self.runtime_stats["ticks"] = []
+
         while True:
+            t0 = time.perf_counter()
             tick_number += 1
 
             if opt.ticks and tick_number > opt.ticks:
@@ -420,8 +445,10 @@ class Scenario:
                 self.simulation_snapshot,
                 service_resolver=self.cav_world.resolve_behavior_services,
             )
+            self.runtime_stats["ticks"].append(time.perf_counter() - t0)
 
     def capi_loop(self, opt: argparse.Namespace) -> None:
+        self.runtime_stats["ticks"] = []
         if self.communication_manager is None:
             self._abort_simulation("CommunicationManager is required for CAPI flow, but it was not initialized.")
         if self.payload_handler is None:
@@ -430,6 +457,7 @@ class Scenario:
         payload_handler = self.payload_handler
         tick_number = -1
         while True:
+            t0 = time.perf_counter()
             tick_number += 1
 
             if opt.ticks and tick_number > opt.ticks:
@@ -523,6 +551,7 @@ class Scenario:
                 self.simulation_snapshot,
                 service_resolver=self.cav_world.resolve_behavior_services,
             )
+            self.runtime_stats["ticks"].append(time.perf_counter() - t0)
 
     def finalize(self, opt: argparse.Namespace) -> None:
         try:
@@ -603,12 +632,12 @@ class Scenario:
             raise first_exception
 
 
-def run_scenario(opt: argparse.Namespace, scenario_params: DictConfig, current_time: str | None = None) -> None:
+def run_scenario(opt: argparse.Namespace, scenario_params: DictConfig, current_time: str | None = None, runtime_stats: dict = {}) -> None:
     raised_error: Exception | None = None
     finalization_error: Exception | None = None
     scenario: Scenario | None = None
     try:
-        scenario = Scenario(opt, scenario_params, current_time=current_time)
+        scenario = Scenario(opt, scenario_params, current_time=current_time, runtime_stats=runtime_stats)
         scenario.run(opt)
     except Exception as error:
         logger.exception("Simulation failed before finalization.")

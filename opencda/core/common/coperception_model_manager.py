@@ -185,11 +185,8 @@ class CoperceptionVisualizer:
             left_hand=left_hand,
             uncertainty=uncertainty,
         )
-        plt.axis("off")
-        plt.imshow(canvas)
-        plt.tight_layout()
-        plt.savefig(save_path, transparent=False, dpi=config["image_dpi"], pad_inches=0.0)
-        plt.clf()
+
+        plt.imsave(save_path, canvas, dpi=config["image_dpi"])
 
     @classmethod
     def visualize_inference_sample_dataloader(

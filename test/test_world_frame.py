@@ -55,6 +55,25 @@ def test_capture_reads_world_once_and_uses_actor_snapshots() -> None:
     vehicle.get_velocity.assert_not_called()
 
 
+def test_missing_actor_error_includes_lifecycle_diagnostics() -> None:
+    missing_actor = _actor(7, "vehicle.missing")
+    missing_actor.is_alive = False
+    missing_actor.get_transform.return_value = carla.Transform(carla.Location(x=1.25, y=-2.5, z=-101.0))
+    world_snapshot = Mock(frame=23, timestamp=SimpleNamespace(elapsed_seconds=5.0))
+    world_snapshot.find.return_value = None
+    world = Mock()
+    world.get_snapshot.return_value = world_snapshot
+    world.get_actors.return_value = [missing_actor]
+
+    world_frame = WorldFrame.capture(world)
+
+    with pytest.raises(
+        KeyError,
+        match=r"Actor 7.*Missing actor IDs: \[7\].*is_alive=False.*location=\(1.25, -2.50, -101.00\)",
+    ):
+        world_frame.actor_state(7)
+
+
 def test_spatial_queries_filter_radius_type_and_actor_id() -> None:
     actors = {
         1: _actor(1, "vehicle.ego"),
@@ -122,6 +141,8 @@ def test_builder_caches_traffic_light_geometry_and_refreshes_state() -> None:
 
     assert first_frame.traffic_light_states[0].state == "RED"
     assert second_frame.traffic_light_states[0].state == "GREEN"
+    assert second_frame.traffic_light_state(5) is second_frame.traffic_light_states[0]
+    assert second_frame.traffic_light_state(99) is None
     assert second_frame.traffic_light_states[0].road_id == 7
     assert second_frame.traffic_light_states[0].intersection_location is waypoint.transform.location
     carla_map.get_waypoint.assert_called_once()
