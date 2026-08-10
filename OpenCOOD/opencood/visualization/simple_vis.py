@@ -120,11 +120,4 @@ def visualize(
     else:
         raise (f"Not Completed for f{method} visualization.")
 
-    plt.axis("off")
-
-    plt.imshow(canvas.canvas)
-
-    plt.tight_layout()
-    plt.savefig(save_path, transparent=False, dpi=400, pad_inches=0.0)
-    plt.clf()
-    # print(save_path)
+    plt.imsave(save_path, canvas.canvas, dpi=400)
