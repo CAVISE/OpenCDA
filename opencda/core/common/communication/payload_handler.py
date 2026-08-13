@@ -5,7 +5,7 @@ import pathlib
 from contextlib import contextmanager
 from typing import Any, Generator
 
-sys.path.append(str(pathlib.Path("opencda/core/common/communication/protos/cavise").resolve()))
+sys.path.append(str((pathlib.Path(__file__).resolve().parent / "protos" / "cavise").resolve()))
 
 from .protos.cavise import opencda_pb2 as proto_opencda  # noqa: E402
 from .protos.cavise import artery_pb2 as proto_artery  # noqa: E402
@@ -48,7 +48,8 @@ class PayloadHandler:
             bucket = self.current_artery_payload.setdefault(ego_id, {})
 
             for entity_info in transmission.entity:
-                bucket[entity_info.id] = pickle.loads(entity_info.auxillary)
+                if entity_info.auxillary:
+                    bucket[entity_info.id] = pickle.loads(entity_info.auxillary)
 
     def clear_messages(self) -> None:
         # Clear opencda and artery dict messages to avoid usage of date from previous ticks

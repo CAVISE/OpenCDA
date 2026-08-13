@@ -6,7 +6,7 @@ import open3d as o3d
 import matplotlib
 import matplotlib.pyplot as plt
 
-from matplotlib import cm
+from matplotlib import colormaps as cm
 
 from opencood.utils import box_utils
 from opencood.utils import common_utils

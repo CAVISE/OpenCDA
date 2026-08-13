@@ -2,15 +2,12 @@
 
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    from opencda.core.application.behavior.types import Location
+from opencda.core.sensing.localization.contracts import LocalizationState
 
 
 @dataclass(frozen=True)
 class SelfInformerResponse:
-    """Current vehicle state published by the self-informer service."""
+    """Current localization state published by the self-informer service."""
 
-    location: Location | None
-    speed: float | None
+    localization: LocalizationState

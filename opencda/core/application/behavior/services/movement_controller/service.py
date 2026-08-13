@@ -15,7 +15,7 @@ from .types import MovementControllerState
 
 
 if TYPE_CHECKING:
-    from opencda.core.common.vehicle_manager import VehicleManager
+    from opencda.core.common.agent_manager import AgentManager
     from opencda.core.application.behavior.services.self_informer import SelfInformerResponse
 
 
@@ -38,10 +38,10 @@ class MovementController:
         Initialize the AIM-backed behavior service.
         """
         self.priority = priority
-        self._owner_ref: weakref.ReferenceType[VehicleManager] | None = None
+        self._owner_ref: weakref.ReferenceType[AgentManager] | None = None
         self._target_location: Location | None = None
 
-    def _get_owner(self) -> VehicleManager:
+    def _get_owner(self) -> AgentManager:
         owner_ref = self._owner_ref
         if owner_ref is None:
             raise RuntimeError("AIM server is not attached to an owner.")
@@ -52,7 +52,7 @@ class MovementController:
 
         return owner
 
-    def on_attach(self, owner: VehicleManager) -> None:
+    def on_attach(self, owner: AgentManager) -> None:
         """Initialize the service for a particular participant instance."""
         self._owner_ref = weakref.ref(owner)
 
@@ -95,5 +95,5 @@ class MovementController:
             # TODO: think what to do if multiple messages with different target positions are received - for now we just take the last one
             request = valid_messages[-1]
             self._target_location = request.target_location
-            owner.control(target_speed=request.target_speed, target_location=request.target_location)
+            owner.agent.control(target_speed=request.target_speed, target_location=request.target_location)
         return ()

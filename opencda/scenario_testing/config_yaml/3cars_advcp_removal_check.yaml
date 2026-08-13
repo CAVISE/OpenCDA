@@ -102,10 +102,10 @@ scenario:
       destination: [170, 149.792206, 0.3]
       id: 1
 
-    # - name: helper-cav3
-    #   spawn_position: [20, 135.792358, 0.3, 0, 0, 0]
-    #   destination: [170, 135.792358, 0.3]
-    #   id: 3
+    - name: helper-cav3
+      spawn_position: [20, 135.792358, 0.3, 0, 0, 0]
+      destination: [170, 135.792358, 0.3]
+      id: 3
 
     - name: cav9
       spawn_position: [50, 135.792358, 0.3, 0, 0, 0]
@@ -123,14 +123,14 @@ scenario:
       id: 102
       model: "vehicle.audi.a2"
 
-cooperative_perception_visualization:
-  background: [10, 14, 24]
-  lidar_point_colors:
-    other: [214, 220, 229]
-    attackers: [224, 104, 104] # used for real lidar points of attacking agents when AdvCP visualization is active
+coperception:
+  visualization:
+    background: [10, 14, 24]
+    lidar_point_colors:
+      other: [214, 220, 229]
+      attackers: [224, 104, 104]
 
-
-  bbox_colors:
-    gt: [88, 221, 154]
-    pred: [255, 117, 117]
-    removed: [56, 189, 248] # AdvCP-only extra box color for early-fusion removal target boxes.
+    bbox_colors:
+      gt: [88, 221, 154]
+      pred: [255, 117, 117]
+      removed: [56, 189, 248]

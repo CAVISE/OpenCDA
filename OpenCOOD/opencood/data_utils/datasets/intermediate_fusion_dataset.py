@@ -14,7 +14,7 @@ import opencood.data_utils.post_processor as post_processor
 from opencood.utils import box_utils
 from opencood.data_utils.datasets import basedataset
 from opencood.data_utils.pre_processor import build_preprocessor
-from opencood.utils.pcd_utils import mask_points_by_range, mask_ego_points, shuffle_points, downsample_lidar_minimum
+from opencood.utils.pcd_utils import pcd_to_np, mask_points_by_range, mask_ego_points, shuffle_points, downsample_lidar_minimum
 
 logger = logging.getLogger("cavise.opencda.OpenCOOD.opencood.data_utils.datasets.intermediate_fusion_dataset")
 
@@ -67,11 +67,6 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
                     msg["voxel_features"] = selected_cav_processed["processed_features"]["voxel_features"]
                     msg["voxel_coords"] = selected_cav_processed["processed_features"]["voxel_coords"]
 
-                    if self.visualize:
-                        msg["projected_lidar"] = selected_cav_processed["projected_lidar"]
-                    else:
-                        msg["projected_lidar"] = None
-
     def __find_ego_vehicle(self, base_data_dict):
         ego_id = -1
         ego_lidar_pose = []
@@ -88,6 +83,36 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
         assert len(ego_lidar_pose) > 0
 
         return ego_id, ego_lidar_pose
+
+    def __retrieve_visualization_base_data(self, idx):
+        scenario_index = 0
+        for i, ele in enumerate(self.len_record):
+            if idx < ele:
+                scenario_index = i
+                break
+        scenario_database = self.scenario_database[scenario_index]
+
+        timestamp_index = idx if scenario_index == 0 else idx - self.len_record[scenario_index - 1]
+        timestamp_key = self.return_timestamp_key(scenario_database, timestamp_index)
+        ego_cav_content = self.calc_dist_to_ego(scenario_database, timestamp_key)
+
+        data = OrderedDict()
+        for cav_id, cav_content in scenario_database.items():
+            cav_snapshot = cav_content[timestamp_key]
+            data[cav_id] = OrderedDict()
+            data[cav_id]["ego"] = cav_content["ego"]
+            data[cav_id]["time_delay"] = 0
+            data[cav_id]["params"] = self.reform_param(
+                cav_content,
+                ego_cav_content,
+                timestamp_key,
+                timestamp_key,
+                cur_ego_pose_flag=True,
+            )
+            data[cav_id]["lidar_np"] = cav_snapshot["lidar_np"] if "lidar_np" in cav_snapshot else pcd_to_np(cav_snapshot["lidar"])
+            if "spoofing_mask" in cav_snapshot:
+                data[cav_id]["spoofing_mask"] = cav_snapshot["spoofing_mask"]
+        return data
 
     def __prepare_object_stack(self, object_stack, object_id_stack):
         # exclude all repetitive objects
@@ -113,118 +138,108 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
     def __pad_to_max(self, lst, pad_value):
         return lst + (self.max_cav - len(lst)) * [pad_value]
 
-    def __process_with_messages(self, ego_id, ego_lidar_pose, base_data_dict):
-        processed_features = []
-        object_stack = []
-        object_id_stack = []
-        velocity = []
-        time_delay = []
-        infra = []
-        spatial_correction_matrix = []
-        projected_lidar_stack = [] if self.visualize else None
-        projected_lidar_roles = [] if self.visualize else None
-        projected_lidar_agent_ids = [] if self.visualize else None
+    @staticmethod
+    def __build_model_data():
+        return {
+            "processed_features": [],
+            "object_stack": [],
+            "object_id_stack": [],
+            "velocity": [],
+            "time_delay": [],
+            "infra": [],
+            "spatial_correction_matrix": [],
+        }
 
+    @staticmethod
+    def __append_processed_model_data(data, cav_id, cav_base, cav_processed):
+        data["infra"].append(1 if "rsu" in cav_id else 0)
+        data["velocity"].append(cav_processed["velocity"])
+        data["time_delay"].append(float(cav_base["time_delay"]))
+        data["object_id_stack"] += cav_processed["object_ids"]
+        data["object_stack"].append(cav_processed["object_bbx_center"])
+        data["spatial_correction_matrix"].append(cav_base["params"]["spatial_correction_matrix"])
+        data["processed_features"].append(cav_processed["processed_features"])
+
+    @staticmethod
+    def __append_message_model_data(data, msg):
+        data["infra"].append(msg["infra"])
+        data["velocity"].append(msg["velocity"])
+        data["time_delay"].append(msg["time_delay"])
+        data["object_id_stack"] += msg["object_ids"]
+        data["object_stack"].append(msg["object_bbx_center"])
+        data["spatial_correction_matrix"].append(msg["spatial_correction_matrix"])
+        data["processed_features"].append(
+            {
+                "voxel_num_points": msg["voxel_num_points"],
+                "voxel_features": msg["voxel_features"],
+                "voxel_coords": msg["voxel_coords"],
+            }
+        )
+
+    def __agent_in_communication_range(self, cav_base, ego_lidar_pose):
+        dx = cav_base["params"]["lidar_pose"][0] - ego_lidar_pose[0]
+        dy = cav_base["params"]["lidar_pose"][1] - ego_lidar_pose[1]
+        return math.hypot(dx, dy) <= opencood.data_utils.datasets.COM_RANGE
+
+    def __project_lidar_for_visualization(self, cav_base):
+        transformation_matrix = cav_base["params"]["transformation_matrix"]
+        lidar_np = np.array(cav_base["lidar_np"], copy=True)
+        lidar_np = mask_ego_points(lidar_np)
+        if self.proj_first:
+            lidar_np[:, :3] = box_utils.project_points_by_matrix_torch(lidar_np[:, :3], transformation_matrix)
+        return mask_points_by_range(lidar_np, self.params["preprocess"]["cav_lidar_range"])
+
+    def __build_visualization_data(self, ego_id, base_data_dict):
+        if not self.visualize:
+            return {
+                "projected_lidar_stack": [],
+                "projected_lidar_roles": [],
+                "projected_lidar_agent_ids": [],
+            }
+
+        projected_lidar_stack = []
+        projected_lidar_roles = []
+        projected_lidar_agent_ids = []
+
+        for cav_id in base_data_dict:
+            projected_lidar_stack.append(self.__project_lidar_for_visualization(base_data_dict[cav_id]))
+            projected_lidar_roles.append("ego" if cav_id == ego_id else "other")
+            projected_lidar_agent_ids.append(cav_id)
+
+        return {
+            "projected_lidar_stack": projected_lidar_stack,
+            "projected_lidar_roles": projected_lidar_roles,
+            "projected_lidar_agent_ids": projected_lidar_agent_ids,
+        }
+
+    def __append_visualization_data(self, data, ego_id, base_data_dict):
+        data.update(self.__build_visualization_data(ego_id, base_data_dict))
+        return data
+
+    def __process_with_messages(self, ego_id, ego_lidar_pose, base_data_dict, visualization_base_data_dict):
+        data = self.__build_model_data()
         ego_cav_base = base_data_dict.get(ego_id)
         ego_cav_processed = self.get_item_single_car(ego_cav_base, ego_lidar_pose)
-
-        infra.append(1 if "rsu" in ego_id else 0)
-        velocity.append(ego_cav_processed["velocity"])
-        time_delay.append(float(ego_cav_base["time_delay"]))
-        object_id_stack += ego_cav_processed["object_ids"]
-        object_stack.append(ego_cav_processed["object_bbx_center"])
-        spatial_correction_matrix.append(ego_cav_base["params"]["spatial_correction_matrix"])
-        processed_features.append(ego_cav_processed["processed_features"])
-        if self.visualize:
-            projected_lidar_stack.append(ego_cav_processed["projected_lidar"])
-            projected_lidar_roles.append("ego")
-            projected_lidar_agent_ids.append(ego_id)
+        self.__append_processed_model_data(data, ego_id, ego_cav_base, ego_cav_processed)
 
         if ego_id in self.payload_handler.current_artery_payload:
             for cav_id, _ in base_data_dict.items():
                 if cav_id in self.payload_handler.current_artery_payload[ego_id]:
                     with self.payload_handler.handle_artery_payload(ego_id, cav_id, self.module_name) as msg:
-                        infra.append(msg["infra"])
-                        velocity.append(msg["velocity"])
-                        time_delay.append(msg["time_delay"])
-                        object_id_stack += msg["object_ids"]
+                        self.__append_message_model_data(data, msg)
 
-                        object_stack.append(msg["object_bbx_center"])
-                        spatial_correction_matrix.append(msg["spatial_correction_matrix"])
+        return self.__append_visualization_data(data, ego_id, visualization_base_data_dict)
 
-                        voxel_num_points = msg["voxel_num_points"]
-                        voxel_features = msg["voxel_features"]
-                        voxel_coords = msg["voxel_coords"]
-
-                        processed_features.append(
-                            {"voxel_num_points": voxel_num_points, "voxel_features": voxel_features, "voxel_coords": voxel_coords}
-                        )
-
-                        if self.visualize:
-                            projected_lidar_stack.append(msg["projected_lidar"])
-                            projected_lidar_roles.append("other")
-                            projected_lidar_agent_ids.append(cav_id)
-
-        return {
-            "processed_features": processed_features,
-            "object_stack": object_stack,
-            "object_id_stack": object_id_stack,
-            "velocity": velocity,
-            "time_delay": time_delay,
-            "infra": infra,
-            "spatial_correction_matrix": spatial_correction_matrix,
-            "projected_lidar_stack": projected_lidar_stack or [],
-            "projected_lidar_roles": projected_lidar_roles or [],
-            "projected_lidar_agent_ids": projected_lidar_agent_ids or [],
-        }
-
-    def __process_without_messages(self, ego_lidar_pose, base_data_dict):
-        processed_features = []
-        object_stack = []
-        object_id_stack = []
-        velocity = []
-        time_delay = []
-        infra = []
-        spatial_correction_matrix = []
-        projected_lidar_stack = [] if self.visualize else None
-        projected_lidar_roles = [] if self.visualize else None
-        projected_lidar_agent_ids = [] if self.visualize else None
-
+    def __process_without_messages(self, ego_id, ego_lidar_pose, base_data_dict, visualization_base_data_dict):
+        data = self.__build_model_data()
         for cav_id, selected_cav_base in base_data_dict.items():
-            dx = selected_cav_base["params"]["lidar_pose"][0] - ego_lidar_pose[0]
-            dy = selected_cav_base["params"]["lidar_pose"][1] - ego_lidar_pose[1]
-            distance = math.hypot(dx, dy)
-
-            if distance > opencood.data_utils.datasets.COM_RANGE:
+            if not self.__agent_in_communication_range(selected_cav_base, ego_lidar_pose):
                 continue
 
             selected_cav_processed = self.get_item_single_car(selected_cav_base, ego_lidar_pose)
+            self.__append_processed_model_data(data, cav_id, selected_cav_base, selected_cav_processed)
 
-            infra.append(1 if "rsu" in cav_id else 0)
-            velocity.append(selected_cav_processed["velocity"])
-            time_delay.append(float(selected_cav_base["time_delay"]))
-            object_id_stack += selected_cav_processed["object_ids"]
-            object_stack.append(selected_cav_processed["object_bbx_center"])
-            spatial_correction_matrix.append(selected_cav_base["params"]["spatial_correction_matrix"])
-            processed_features.append(selected_cav_processed["processed_features"])
-
-            if self.visualize:
-                projected_lidar_stack.append(selected_cav_processed["projected_lidar"])
-                projected_lidar_roles.append("ego" if selected_cav_base["ego"] else "other")
-                projected_lidar_agent_ids.append(cav_id)
-
-        return {
-            "processed_features": processed_features,
-            "object_stack": object_stack,
-            "object_id_stack": object_id_stack,
-            "velocity": velocity,
-            "time_delay": time_delay,
-            "infra": infra,
-            "spatial_correction_matrix": spatial_correction_matrix,
-            "projected_lidar_stack": projected_lidar_stack or [],
-            "projected_lidar_roles": projected_lidar_roles or [],
-            "projected_lidar_agent_ids": projected_lidar_agent_ids or [],
-        }
+        return self.__append_visualization_data(data, ego_id, visualization_base_data_dict)
 
     def __getitem__(self, idx):
         base_data_dict = self.retrieve_base_data(idx, cur_ego_pose_flag=self.cur_ego_pose_flag)
@@ -233,11 +248,12 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
 
         ego_id, ego_lidar_pose = self.__find_ego_vehicle(base_data_dict)
         pairwise_t_matrix = self.get_pairwise_transformation(base_data_dict, self.max_cav)
+        visualization_base_data_dict = self.__retrieve_visualization_base_data(idx) if self.visualize else base_data_dict
 
         if self.payload_handler is not None:
-            data = self.__process_with_messages(ego_id, ego_lidar_pose, base_data_dict)
+            data = self.__process_with_messages(ego_id, ego_lidar_pose, base_data_dict, visualization_base_data_dict)
         else:
-            data = self.__process_without_messages(ego_lidar_pose, base_data_dict)
+            data = self.__process_without_messages(ego_id, ego_lidar_pose, base_data_dict, visualization_base_data_dict)
 
         object_bbx_center, mask, object_ids = self.__prepare_object_stack(data["object_stack"], data["object_id_stack"])
 

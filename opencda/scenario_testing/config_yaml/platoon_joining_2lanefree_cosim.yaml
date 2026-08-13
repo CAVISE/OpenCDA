@@ -16,7 +16,7 @@ vehicle_base:
         visualize: false
   map_manager:
     visualize: false
-    activate: false
+    mode: disabled
   behavior:
     max_speed: 95 # maximum speed, km/h
     tailgate_speed: 105 # when a vehicles needs to be close to another vehicle asap
@@ -82,8 +82,6 @@ scenario:
               - [2.5, 0, 1.0, 0]
           lidar:
             visualize: true
-      v2x:
-        communication_range: 35
       behavior:
         overtake_allowed: true
         local_planner:

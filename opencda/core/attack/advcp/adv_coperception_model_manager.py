@@ -317,7 +317,7 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
         opt: Any,
         current_time: str,
         payload_handler: Any = None,
-        visualization_config: Optional[Mapping[str, Any]] = None,
+        coperception_config: Optional[Mapping[str, Any]] = None,
     ) -> None:
         """
         Initialize the manager.
@@ -329,13 +329,18 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
             YAML.
         current_time : str
         payload_handler : Optional[Any]
-        visualization_config : Optional[Mapping]
-            Visualization configuration overrides.
+        coperception_config : Optional[Mapping]
+            Cooperative perception configuration overrides.
         """
         self.advcp_config = self.load_config(getattr(opt, "advcp_config", None))
         self.current_memory_data: Optional[AdvCPMemoryData] = None
         self.intermediate_attack_state: AdvCPIntermediateAttackState = {}
-        super().__init__(opt, current_time, payload_handler=payload_handler, visualization_config=visualization_config)
+        super().__init__(
+            opt,
+            current_time,
+            payload_handler=payload_handler,
+            coperception_config=coperception_config,
+        )
 
     @staticmethod
     def load_config(config_path: str | None) -> AdvCPConfig:

@@ -55,16 +55,12 @@ def load_customized_world(xodr_path: str, client: carla.Client) -> carla.World |
         return None
 
 
-def spawn_helper_2lanefree(carla_version: str, coefficient: float) -> carla.Transform:
+def spawn_helper_2lanefree(coefficient: float) -> carla.Transform:
     """
     A helper function to locate the valid spawn point on the merge lane.
 
     Parameters
     ----------
-    carla_version : str
-        The CARLA simulator version. We need this as the map for 0.9.11
-        and 0.9.12 are a little different
-
     coefficient : float
         A single scalar indicating where is the  spawn point, eg. 0.5
         represents the spawn position is in the middle of the merge lane.
@@ -74,9 +70,6 @@ def spawn_helper_2lanefree(carla_version: str, coefficient: float) -> carla.Tran
     transform_point : carla.transform
         The desired spawn points.
     """
-    if carla_version == "0.9.12":
-        coefficient += 0.06
-
     transform_point = carla.Transform(carla.Location(x=-1202.0827, y=458.2501, z=0.3), carla.Rotation(yaw=-20.4866))
 
     begin_point = carla.Transform(carla.Location(x=-16.7102, y=15.3622, z=0.3), carla.Rotation(yaw=-20.4866))

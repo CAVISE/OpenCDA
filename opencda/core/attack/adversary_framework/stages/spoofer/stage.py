@@ -6,6 +6,7 @@ from collections.abc import Mapping, MutableMapping, MutableSequence, Sequence
 from dataclasses import dataclass, is_dataclass
 from functools import partial
 import logging
+import re
 from typing import Any
 
 from opencda.core.application.behavior.behavior_service_protocol import BehaviorService
@@ -16,6 +17,8 @@ from opencda.core.attack.adversary_framework.stage_registry import AttackStageRe
 from opencda.core.attack.adversary_framework.utils import RestoreCallback, install_output_interceptor, log_stage_object_transition, safe_clone
 
 logger = logging.getLogger("cavise.opencda.opencda.core.attack.adversary_framework.stages.spoofer")
+
+_BRACKET_INDEX_PATTERN = re.compile(r"\[(\d+)\]")
 
 
 @dataclass(frozen=True, slots=True)
@@ -142,9 +145,10 @@ class SpooferStage:
             if not isinstance(raw_path, str) or not raw_path:
                 raise ValueError(f"SpooferStage rewrite #{index} must define a non-empty string 'path'.")
 
-            path = tuple(raw_path.split("."))
-            if any(not segment for segment in path):
-                raise ValueError(f"SpooferStage rewrite #{index} has invalid path '{raw_path}'.")
+            try:
+                path = cls._tokenize_path(raw_path)
+            except ValueError as exc:
+                raise ValueError(f"SpooferStage rewrite #{index} has invalid path '{raw_path}': {exc}") from exc
 
             operation = str(raw_rewrite.get("operation", "set"))
             if operation not in cls._supported_operations:
@@ -163,6 +167,19 @@ class SpooferStage:
             )
 
         return tuple(rewrite_rules)
+
+    @staticmethod
+    def _tokenize_path(raw_path: str) -> tuple[str, ...]:
+        """Split a dotted path with optional ``[N]`` index segments into atomic segments."""
+        converted = _BRACKET_INDEX_PATTERN.sub(r".\1", raw_path)
+        if "[" in converted or "]" in converted:
+            raise ValueError("brackets must enclose a non-negative integer index")
+        segments = converted.split(".")
+        if segments and segments[0] == "":
+            segments = segments[1:]
+        if not segments or any(not segment for segment in segments):
+            raise ValueError("empty path segment")
+        return tuple(segments)
 
     @staticmethod
     def _path_exists(root: Any, path: tuple[str, ...]) -> bool:

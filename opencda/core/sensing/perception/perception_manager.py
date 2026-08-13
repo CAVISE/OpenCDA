@@ -2,10 +2,16 @@
 Perception module base.
 """
 
+from __future__ import annotations
+
 import weakref
 import sys
 import logging
+from collections.abc import Mapping
 from dataclasses import dataclass
+import threading
+import time
+from typing import TYPE_CHECKING
 
 import carla
 import cv2
@@ -17,8 +23,61 @@ from opencda.core.common.misc import cal_distance_angle, get_speed, get_speed_su
 from opencda.core.sensing.perception.obstacle_vehicle import ObstacleVehicle
 from opencda.core.sensing.perception.static_obstacle import TrafficLight
 from opencda.core.sensing.perception.o3d_lidar_libs import o3d_visualizer_init, o3d_pointcloud_encode, o3d_visualizer_show, o3d_camera_lidar_fusion
+from opencda.core.sensing.sensor_types import SensorActorBundle
+
+if TYPE_CHECKING:
+    from opencda.core.common.cav_world import CavWorld
+    from opencda.core.common.world_frame import WorldFrame, WorldTrafficLightState
 
 logger = logging.getLogger("cavise.opencda.opencda.core.sensing.perception.perception_manager")
+
+
+def _require_sensor_event_transform(event):
+    event_transform = getattr(event, "transform", None)
+    if event_transform is not None:
+        return event_transform
+    raise RuntimeError(f"Sensor event for frame {getattr(event, 'frame', '<unknown>')} does not contain a transform.")
+
+
+@dataclass(frozen=True)
+class SensorMeasurement:
+    frame: int
+    timestamp: float
+    transform: carla.Transform | None
+    data: object
+
+
+class FrameSynchronizedSensor:
+    def _init_frame_sync(self) -> None:
+        self._frame_condition = threading.Condition()
+        self.latest_measurement: SensorMeasurement | None = None
+
+    def _set_latest_measurement(self, measurement: SensorMeasurement) -> None:
+        with self._frame_condition:
+            self.latest_measurement = measurement
+            self._frame_condition.notify_all()
+
+    def wait_for_frame(self, frame: int, timeout_seconds: float) -> SensorMeasurement:
+        deadline = time.monotonic() + timeout_seconds
+        with self._frame_condition:
+            while True:
+                measurement = self.latest_measurement
+                if measurement is not None:
+                    if measurement.frame == frame:
+                        return measurement
+                    if measurement.frame > frame:
+                        raise RuntimeError(
+                            f"Sensor {getattr(self, 'sensor', '<unknown>')} skipped requested frame {frame}; latest frame is {measurement.frame}."
+                        )
+
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    latest_frame = None if measurement is None else measurement.frame
+                    raise RuntimeError(
+                        f"Timed out waiting {timeout_seconds:.3f}s for sensor {getattr(self, 'sensor', '<unknown>')} "
+                        f"frame {frame}; latest frame is {latest_frame}."
+                    )
+                self._frame_condition.wait(remaining)
 
 
 @dataclass(frozen=True)
@@ -40,7 +99,30 @@ class PerceptionRequirements:
         )
 
 
-class CameraSensor:
+def resolve_perception_enabled(config: Mapping[str, object], requirements: PerceptionRequirements) -> bool:
+    """Resolve explicit perception disablement and reject incompatible modes."""
+    enabled = config.get("enabled", True)
+    if not isinstance(enabled, bool):
+        raise TypeError("Perception config key 'enabled' must be a boolean.")
+    if enabled:
+        return True
+
+    if config["activate"] or config["camera"]["visualize"] or config["lidar"]["visualize"]:
+        raise ValueError("Disabled perception cannot activate detection or sensor visualization.")
+    if any(
+        (
+            requirements.enable_data_dump,
+            requirements.force_rgb_camera,
+            requirements.force_lidar,
+            requirements.force_semantic_lidar,
+            requirements.extend_inactive_detection_range,
+        )
+    ):
+        raise ValueError("Disabled perception is incompatible with data dump or cooperative perception requirements.")
+    return False
+
+
+class CameraSensor(FrameSynchronizedSensor):
     """
     Camera manager for vehicle or infrastructure.
 
@@ -72,18 +154,33 @@ class CameraSensor:
         if vehicle is not None:
             world = vehicle.get_world()
 
-        blueprint = world.get_blueprint_library().find("sensor.camera.rgb")
-        blueprint.set_attribute("fov", "100")
-
+        blueprint = self.prepare_blueprint(world.get_blueprint_library())
         spawn_point = self.spawn_point_estimation(relative_position, global_position)
 
         if vehicle is not None:
-            self.sensor = world.spawn_actor(blueprint, spawn_point, attach_to=vehicle)
+            sensor = world.spawn_actor(blueprint, spawn_point, attach_to=vehicle)
         else:
-            self.sensor = world.spawn_actor(blueprint, spawn_point)
+            sensor = world.spawn_actor(blueprint, spawn_point)
+        self._bind_sensor(sensor)
 
+    @staticmethod
+    def prepare_blueprint(blueprint_library):
+        blueprint = blueprint_library.find("sensor.camera.rgb")
+        blueprint.set_attribute("fov", "100")
+        return blueprint
+
+    @classmethod
+    def from_sensor_actor(cls, sensor):
+        instance = cls.__new__(cls)
+        instance._bind_sensor(sensor)
+        return instance
+
+    def _bind_sensor(self, sensor):
+        self.sensor = sensor
+        self._init_frame_sync()
         self.image = None
         self.timstamp = None  # noqa: DC05
+        self.transform = self.sensor.get_transform()
         self.frame = 0
         weak_self = weakref.ref(self)
         self.sensor.listen(lambda event: CameraSensor._on_rgb_image_event(weak_self, event))
@@ -123,33 +220,21 @@ class CameraSensor:
         image = image[:, :, :3]
 
         self.image = image
+        self.transform = _require_sensor_event_transform(event)
         self.frame = event.frame
         self.timestamp = event.timestamp
+        if hasattr(self, "_set_latest_measurement"):
+            self._set_latest_measurement(
+                SensorMeasurement(
+                    frame=event.frame,
+                    timestamp=event.timestamp,
+                    transform=self.transform,
+                    data=image,
+                )
+            )
 
 
-def build_lidar_spawn_point(config_yaml, global_position):
-    if global_position is not None:
-        return carla.Transform(carla.Location(x=global_position[0], y=global_position[1], z=global_position[2]))
-
-    position = config_yaml.get("position", [-0.5, 0.0, 1.9])
-    if len(position) == 3:
-        x, y, z = position
-        roll, pitch, yaw = 0.0, 0.0, 0.0
-    elif len(position) == 4:
-        x, y, z, yaw = position
-        roll, pitch = 0.0, 0.0
-    elif len(position) == 6:
-        x, y, z, roll, pitch, yaw = position
-    else:
-        raise ValueError("lidar.position must be [x, y, z], [x, y, z, yaw], or [x, y, z, roll, pitch, yaw].")
-
-    return carla.Transform(
-        carla.Location(x=float(x), y=float(y), z=float(z)),
-        carla.Rotation(roll=float(roll), pitch=float(pitch), yaw=float(yaw)),
-    )
-
-
-class LidarSensor:
+class LidarSensor(FrameSynchronizedSensor):
     """
     Lidar sensor manager.
 
@@ -180,9 +265,17 @@ class LidarSensor:
     def __init__(self, vehicle, world, config_yaml, global_position):
         if vehicle is not None:
             world = vehicle.get_world()
-        blueprint = world.get_blueprint_library().find("sensor.lidar.ray_cast")
+        blueprint = self.prepare_blueprint(world.get_blueprint_library(), config_yaml)
+        spawn_point = self.spawn_point_estimation(global_position)
+        if vehicle is not None:
+            sensor = world.spawn_actor(blueprint, spawn_point, attach_to=vehicle)
+        else:
+            sensor = world.spawn_actor(blueprint, spawn_point)
+        self._bind_sensor(sensor)
 
-        # set attribute based on the configuration
+    @staticmethod
+    def prepare_blueprint(blueprint_library, config_yaml):
+        blueprint = blueprint_library.find("sensor.lidar.ray_cast")
         blueprint.set_attribute("upper_fov", str(config_yaml["upper_fov"]))
         blueprint.set_attribute("lower_fov", str(config_yaml["lower_fov"]))
         blueprint.set_attribute("channels", str(config_yaml["channels"]))
@@ -193,17 +286,27 @@ class LidarSensor:
         blueprint.set_attribute("dropoff_intensity_limit", str(config_yaml["dropoff_intensity_limit"]))
         blueprint.set_attribute("dropoff_zero_intensity", str(config_yaml["dropoff_zero_intensity"]))
         blueprint.set_attribute("noise_stddev", str(config_yaml["noise_stddev"]))
+        return blueprint
 
-        # spawn sensor
-        spawn_point = build_lidar_spawn_point(config_yaml, global_position)
-        if vehicle is not None:
-            self.sensor = world.spawn_actor(blueprint, spawn_point, attach_to=vehicle)
-        else:
-            self.sensor = world.spawn_actor(blueprint, spawn_point)
+    @staticmethod
+    def spawn_point_estimation(global_position):
+        if global_position is None:
+            return carla.Transform(carla.Location(x=-0.5, z=1.9))
+        return carla.Transform(carla.Location(x=global_position[0], y=global_position[1], z=global_position[2]))
 
+    @classmethod
+    def from_sensor_actor(cls, sensor):
+        instance = cls.__new__(cls)
+        instance._bind_sensor(sensor)
+        return instance
+
+    def _bind_sensor(self, sensor):
+        self.sensor = sensor
+        self._init_frame_sync()
         # lidar data
         self.data = None
         self.timestamp = None
+        self.transform = self.sensor.get_transform()
         self.frame = 0
         # open3d point cloud object
         self.o3d_pointcloud = o3d.geometry.PointCloud()
@@ -224,11 +327,21 @@ class LidarSensor:
         data = np.reshape(data, (int(data.shape[0] / 4), 4))
 
         self.data = data
+        self.transform = _require_sensor_event_transform(event)
         self.frame = event.frame
         self.timestamp = event.timestamp
+        if hasattr(self, "_set_latest_measurement"):
+            self._set_latest_measurement(
+                SensorMeasurement(
+                    frame=event.frame,
+                    timestamp=event.timestamp,
+                    transform=self.transform,
+                    data=data,
+                )
+            )
 
 
-class SemanticLidarSensor:
+class SemanticLidarSensor(FrameSynchronizedSensor):
     """
     Semantic lidar sensor manager. This class is used when data dumping
     is needed.
@@ -262,30 +375,48 @@ class SemanticLidarSensor:
         if vehicle is not None:
             world = vehicle.get_world()
 
-        blueprint = world.get_blueprint_library().find("sensor.lidar.ray_cast_semantic")
+        blueprint = self.prepare_blueprint(world.get_blueprint_library(), config_yaml)
+        spawn_point = self.spawn_point_estimation(global_position)
 
-        # set attribute based on the configuration
+        if vehicle is not None:
+            sensor = world.spawn_actor(blueprint, spawn_point, attach_to=vehicle)
+        else:
+            sensor = world.spawn_actor(blueprint, spawn_point)
+        self._bind_sensor(sensor)
+
+    @staticmethod
+    def prepare_blueprint(blueprint_library, config_yaml):
+        blueprint = blueprint_library.find("sensor.lidar.ray_cast_semantic")
         blueprint.set_attribute("upper_fov", str(config_yaml["upper_fov"]))
         blueprint.set_attribute("lower_fov", str(config_yaml["lower_fov"]))
         blueprint.set_attribute("channels", str(config_yaml["channels"]))
         blueprint.set_attribute("range", str(config_yaml["range"]))
         blueprint.set_attribute("points_per_second", str(config_yaml["points_per_second"]))
         blueprint.set_attribute("rotation_frequency", str(config_yaml["rotation_frequency"]))
+        return blueprint
 
-        # spawn sensor
-        spawn_point = build_lidar_spawn_point(config_yaml, global_position)
+    @staticmethod
+    def spawn_point_estimation(global_position):
+        if global_position is None:
+            return carla.Transform(carla.Location(x=-0.5, z=1.9))
+        return carla.Transform(carla.Location(x=global_position[0], y=global_position[1], z=global_position[2]))
 
-        if vehicle is not None:
-            self.sensor = world.spawn_actor(blueprint, spawn_point, attach_to=vehicle)
-        else:
-            self.sensor = world.spawn_actor(blueprint, spawn_point)
+    @classmethod
+    def from_sensor_actor(cls, sensor):
+        instance = cls.__new__(cls)
+        instance._bind_sensor(sensor)
+        return instance
 
+    def _bind_sensor(self, sensor):
+        self.sensor = sensor
+        self._init_frame_sync()
         # lidar data
         self.points = None
         self.obj_idx = None
         self.obj_tag = None
 
         self.timestamp = None
+        self.transform = self.sensor.get_transform()
         self.frame = 0
         # open3d point cloud object
         self.o3d_pointcloud = o3d.geometry.PointCloud()
@@ -314,8 +445,18 @@ class SemanticLidarSensor:
         self.obj_idx = np.array(data["ObjIdx"])
 
         self.data = data
+        self.transform = _require_sensor_event_transform(event)
         self.frame = event.frame
         self.timestamp = event.timestamp
+        if hasattr(self, "_set_latest_measurement"):
+            self._set_latest_measurement(
+                SensorMeasurement(
+                    frame=event.frame,
+                    timestamp=event.timestamp,
+                    transform=self.transform,
+                    data=data,
+                )
+            )
 
 
 class PerceptionManager:
@@ -356,10 +497,11 @@ class PerceptionManager:
         self,
         vehicle,
         config_yaml,
-        cav_world,
+        cav_world: CavWorld,
         infra_id,
         perception_requirements: PerceptionRequirements = PerceptionRequirements(),
         carla_world=None,
+        sensor_actors: SensorActorBundle | None = None,
     ):
         self.vehicle = vehicle
         self.carla_world = carla_world if carla_world is not None else self.vehicle.get_world()
@@ -367,6 +509,7 @@ class PerceptionManager:
         # 12 - walker, pedestrian, [13,18] - bikes, motobikes, 14 - vehicles, 15 - vehicles, trucks,  16 - vehicle.mitsubishi.fusorosa,
         self.semantic_tag_list = [12, 13, 14, 15, 16, 18]
         self.perception_requirements = perception_requirements
+        self.enabled = resolve_perception_enabled(config_yaml, perception_requirements)
 
         self.id = infra_id
         if vehicle is None:
@@ -396,40 +539,53 @@ class PerceptionManager:
 
         # we only spawn the camera when perception module is activated or
         # camera visualization is needed
-        if self.activate or self.camera_visualize or self.camera_force_spawn or self.perception_requirements.force_rgb_camera:
-            self.rgb_camera = []
+        if self.activate or self.camera_visualize or self.perception_requirements.force_rgb_camera:
             mount_position = config_yaml["camera"]["positions"]
             assert len(mount_position) == self.camera_num, "The camera number has to be the same as the length of the relative positions list"
-
-            for i in range(self.camera_num):
-                self.rgb_camera.append(CameraSensor(vehicle, self.carla_world, mount_position[i], self.global_position))
+            if sensor_actors is not None:
+                if len(sensor_actors.cameras) != self.camera_num:
+                    raise ValueError(f"Expected {self.camera_num} camera actors, received {len(sensor_actors.cameras)}.")
+                self.rgb_camera = [CameraSensor.from_sensor_actor(sensor) for sensor in sensor_actors.cameras]
+            else:
+                self.rgb_camera = [CameraSensor(vehicle, self.carla_world, mount_position[i], self.global_position) for i in range(self.camera_num)]
 
         else:
             self.rgb_camera = None
-            logger.warning(
-                "Variable rgb_camera is None. Dumping, detection function or camera visualization should be activated to avoid this behavior"
-            )
+            if self.enabled:
+                logger.warning(
+                    "Variable rgb_camera is None. Dumping, detection function or camera visualization should be activated to avoid this behavior"
+                )
 
         # we only spawn the LiDAR when perception module is activated or lidar
         # visualization is needed
         self.lidar = None
         self.o3d_vis = None
 
-        if self.lidar_visualize or self.activate or self.lidar_force_spawn or self.perception_requirements.force_lidar:
-            self.lidar = LidarSensor(vehicle, self.carla_world, config_yaml["lidar"], self.global_position)
+        if self.lidar_visualize or self.activate or self.perception_requirements.force_lidar:
+            if sensor_actors is not None:
+                if sensor_actors.lidar is None:
+                    raise ValueError("Perception configuration requires a LiDAR actor.")
+                self.lidar = LidarSensor.from_sensor_actor(sensor_actors.lidar)
+            else:
+                self.lidar = LidarSensor(vehicle, self.carla_world, config_yaml["lidar"], self.global_position)
             if self.lidar_visualize:
                 self.o3d_vis = o3d_visualizer_init(self.id)
             elif not self.lidar_visualize:
                 logger.warning("Variable o3d_vis is None. Lidar visualization should be activated to avoid this behavior")
 
-        if not self.lidar:
+        if self.enabled and not self.lidar:
             logger.warning("Variable lidar is None. Dumping, detection function or Lidar visualization should be activated to avoid this behavior")
 
         # semantic lidar is needed both for dataset dumping and CoP range filtering
         self.data_dump = self.perception_requirements.enable_data_dump
         self.semantic_lidar = None
         if self.perception_requirements.force_semantic_lidar:
-            self.semantic_lidar = SemanticLidarSensor(vehicle, self.carla_world, config_yaml["lidar"], self.global_position)
+            if sensor_actors is not None:
+                if sensor_actors.semantic_lidar is None:
+                    raise ValueError("Perception requirements need a semantic LiDAR actor.")
+                self.semantic_lidar = SemanticLidarSensor.from_sensor_actor(sensor_actors.semantic_lidar)
+            else:
+                self.semantic_lidar = SemanticLidarSensor(vehicle, self.carla_world, config_yaml["lidar"], self.global_position)
 
         # count how many steps have been passed
         self.count = 0
@@ -440,6 +596,16 @@ class PerceptionManager:
         self.objects = {}
         # traffic light detection related
         self.traffic_thresh = config_yaml["traffic_light_thresh"] if "traffic_light_thresh" in config_yaml else 50  # noqa: DC05
+
+    def wait_for_sensor_frame(self, frame: int, timeout_seconds: float) -> dict[str, SensorMeasurement]:
+        measurements: dict[str, SensorMeasurement] = {}
+        if self.lidar is not None:
+            measurements["lidar"] = self.lidar.wait_for_frame(frame, timeout_seconds)
+        if self.semantic_lidar is not None:
+            measurements["semantic_lidar"] = self.semantic_lidar.wait_for_frame(frame, timeout_seconds)
+        for index, camera in enumerate(self.rgb_camera or []):
+            measurements[f"camera{index}"] = camera.wait_for_frame(frame, timeout_seconds)
+        return measurements
 
     def dist(self, a):
         """
@@ -458,7 +624,7 @@ class PerceptionManager:
         """
         return a.get_location().distance(self.ego_pos.location)
 
-    def detect(self, ego_pos):
+    def detect(self, ego_pos, world_frame: WorldFrame | None = None):
         """
         Detect surrounding objects. Currently only vehicle detection supported.
 
@@ -477,17 +643,22 @@ class PerceptionManager:
 
         objects = {"vehicles": [], "traffic_lights": []}
 
+        if not self.enabled:
+            self.objects = objects
+            self.count += 1
+            return objects
+
         if not self.activate:
-            objects = self.deactivate_mode(objects)
+            objects = self.deactivate_mode(objects) if world_frame is None else self.deactivate_mode(objects, world_frame)
 
         else:
-            objects = self.activate_mode(objects)
+            objects = self.activate_mode(objects) if world_frame is None else self.activate_mode(objects, world_frame)
 
         self.count += 1
 
         return objects
 
-    def activate_mode(self, objects):
+    def activate_mode(self, objects, world_frame: WorldFrame | None = None):
         """
         Use Yolov5 + Lidar fusion to detect objects.
 
@@ -526,7 +697,10 @@ class PerceptionManager:
 
             # calculate the speed. current we retrieve from the server
             # directly.
-            self.speed_retrieve(objects)
+            if world_frame is None:
+                self.speed_retrieve(objects)
+            else:
+                self.speed_retrieve(objects, world_frame)
 
         if self.camera_visualize:
             for i, rgb_image in enumerate(rgb_draw_images):
@@ -543,12 +717,15 @@ class PerceptionManager:
             o3d_pointcloud_encode(self.lidar.data, self.lidar.o3d_pointcloud)
             o3d_visualizer_show(self.o3d_vis, self.count, self.lidar.o3d_pointcloud, objects)
         # add traffic light
-        objects = self.retrieve_traffic_lights(objects)
+        if world_frame is None:
+            objects = self.retrieve_traffic_lights(objects)
+        else:
+            objects = self.retrieve_traffic_lights(objects, world_frame)
         self.objects = objects
 
         return objects
 
-    def deactivate_mode(self, objects):
+    def deactivate_mode(self, objects, world_frame: WorldFrame | None = None):
         """
         Object detection using server information directly.
 
@@ -564,27 +741,45 @@ class PerceptionManager:
          objects: dict
             Updated object dictionary.
         """
-        world = self.carla_world
-
         # TODO: add argument whether to include each group and integrate with semantic_tag_list
-        vehicle_list = []
-        vehicle_list += [i for i in world.get_actors().filter("*vehicle*")]
-        vehicle_list += [i for i in world.get_actors().filter("*walker*")]
-
         # TODO: hard coded
         thresh = 120 if self.perception_requirements.extend_inactive_detection_range else 50
 
-        vehicle_list = [v for v in vehicle_list if self.dist(v) < thresh and v.id != self.carla_id]
+        actor_states = None
+        if world_frame is None:
+            world = self.carla_world
+            vehicle_list = []
+            vehicle_list += [i for i in world.get_actors().filter("*vehicle*")]
+            vehicle_list += [i for i in world.get_actors().filter("*walker*")]
+            vehicle_list = [v for v in vehicle_list if self.dist(v) < thresh and v.id != self.carla_id]
+        else:
+            actor_states = world_frame.nearby_dynamic(self.ego_pos.location, thresh, exclude_actor_id=self.carla_id)
+            vehicle_list = [state.actor for state in actor_states]
 
         # use semantic lidar to filter out vehicles out of the range
         if self.semantic_lidar is not None:
             vehicle_list = self.filter_vehicle_out_sensor(vehicle_list)
+            if actor_states is not None:
+                selected_actor_ids = {actor.id for actor in vehicle_list}
+                actor_states = tuple(state for state in actor_states if state.actor_id in selected_actor_ids)
 
         # convert carla.Vehicle to opencda.ObstacleVehicle if lidar
         # visualization is required.
         sensor = self.lidar.sensor if self.lidar else None
 
-        vehicle_list = [ObstacleVehicle(None, None, v, sensor, self.cav_world.sumo2carla_ids) for v in vehicle_list]
+        if actor_states is None:
+            vehicle_list = [ObstacleVehicle(None, None, v, sensor, self.cav_world.sumo2carla_ids) for v in vehicle_list]
+        elif sensor is None:
+            vehicle_list = [
+                world_frame.shared_actor_value(
+                    "ground_truth_obstacle",
+                    state.actor_id,
+                    lambda state=state: ObstacleVehicle.from_actor_state(state, None, self.cav_world.sumo2carla_ids),
+                )
+                for state in actor_states
+            ]
+        else:
+            vehicle_list = [ObstacleVehicle.from_actor_state(state, sensor, self.cav_world.sumo2carla_ids) for state in actor_states]
 
         objects.update({"vehicles": vehicle_list})
 
@@ -615,7 +810,10 @@ class PerceptionManager:
             o3d_visualizer_show(self.o3d_vis, self.count, self.lidar.o3d_pointcloud, objects)
 
         # add traffic light
-        objects = self.retrieve_traffic_lights(objects)
+        if world_frame is None:
+            objects = self.retrieve_traffic_lights(objects)
+        else:
+            objects = self.retrieve_traffic_lights(objects, world_frame)
         self.objects = objects
 
         return objects
@@ -695,7 +893,7 @@ class PerceptionManager:
 
         return rgb_image
 
-    def speed_retrieve(self, objects):
+    def speed_retrieve(self, objects, world_frame: WorldFrame | None = None):
         """
         We don't implement any obstacle speed calculation algorithm.
         The speed will be retrieved from the server directly.
@@ -708,13 +906,18 @@ class PerceptionManager:
         if "vehicles" not in objects:
             return
 
-        world = self.carla_world
-        vehicle_list = world.get_actors().filter("*vehicle*")
-        vehicle_list = [v for v in vehicle_list if self.dist(v) < 50 and v.id != self.id]
+        if world_frame is None:
+            world = self.carla_world
+            vehicle_list = world.get_actors().filter("*vehicle*")
+            vehicle_list = [v for v in vehicle_list if self.dist(v) < 50 and v.id != self.id]
+            vehicle_states = None
+        else:
+            vehicle_states = world_frame.nearby_vehicles(self.ego_pos.location, 50, exclude_actor_id=self.carla_id)
+            vehicle_list = [state.actor for state in vehicle_states]
 
         # TODO: consider the minimum distance to be safer in next version
-        for v in vehicle_list:
-            loc = v.get_location()
+        for index, v in enumerate(vehicle_list):
+            loc = v.get_location() if vehicle_states is None else vehicle_states[index].location
             for obstacle_vehicle in objects["vehicles"]:
                 obstacle_speed = get_speed(obstacle_vehicle)
                 # if speed > 0, it represents that the vehicle
@@ -723,7 +926,8 @@ class PerceptionManager:
                     continue
                 obstacle_loc = obstacle_vehicle.get_location()
                 if abs(loc.x - obstacle_loc.x) <= 3.0 and abs(loc.y - obstacle_loc.y) <= 3.0:
-                    obstacle_vehicle.set_velocity(v.get_velocity())
+                    velocity = v.get_velocity() if vehicle_states is None else vehicle_states[index].velocity
+                    obstacle_vehicle.set_velocity(velocity)
 
                     # the case where the obstacle vehicle is controled by
                     # sumo
@@ -736,7 +940,7 @@ class PerceptionManager:
 
                     obstacle_vehicle.set_carla_id(v.id)
 
-    def retrieve_traffic_lights(self, objects):
+    def retrieve_traffic_lights(self, objects, world_frame: WorldFrame | None = None):
         """
         Retrieve the traffic lights nearby from the server  directly.
         Next version may consider add traffic light detection module.
@@ -751,20 +955,48 @@ class PerceptionManager:
         object : dict
             The updated dictionary.
         """
-        world = self.carla_world
-        tl_list = world.get_actors().filter("traffic.traffic_light*")
+        if world_frame is None:
+            tl_list = self.carla_world.get_actors().filter("traffic.traffic_light*")
+        else:
+            tl_list = world_frame.traffic_lights
 
         vehicle_location = self.ego_pos.location
         vehicle_waypoint = self._map.get_waypoint(vehicle_location)
 
-        activate_tl, light_trigger_location = self._get_active_light(tl_list, vehicle_location, vehicle_waypoint)
+        traffic_light_states = None if world_frame is None else world_frame.traffic_light_states
+        if traffic_light_states:
+            active_light_state = self._get_active_light_from_frame(traffic_light_states, vehicle_waypoint)
+            activate_tl = None if active_light_state is None else active_light_state.actor
+            light_trigger_location = None if active_light_state is None else active_light_state.intersection_location
+            light_state = None if active_light_state is None else active_light_state.state
+        else:
+            activate_tl, light_trigger_location = self._get_active_light(tl_list, vehicle_location, vehicle_waypoint)
+            light_state = None if activate_tl is None else activate_tl.get_state()
 
         objects.update({"traffic_lights": []})
 
         if activate_tl is not None:
-            traffic_light = TrafficLight(activate_tl, light_trigger_location, activate_tl.get_state())
+            traffic_light = TrafficLight(activate_tl, light_trigger_location, light_state)
             objects["traffic_lights"].append(traffic_light)
         return objects
+
+    @staticmethod
+    def _get_active_light_from_frame(
+        traffic_lights: tuple[WorldTrafficLightState, ...],
+        vehicle_waypoint,
+    ) -> WorldTrafficLightState | None:
+        vehicle_direction = vehicle_waypoint.transform.get_forward_vector()
+        for traffic_light in traffic_lights:
+            if traffic_light.road_id != vehicle_waypoint.road_id:
+                continue
+
+            light_direction = traffic_light.forward_vector
+            direction_dot_product = (
+                vehicle_direction.x * light_direction.x + vehicle_direction.y * light_direction.y + vehicle_direction.z * light_direction.z
+            )
+            if direction_dot_product >= 0:
+                return traffic_light
+        return None
 
     def _get_active_light(self, tl_list, vehicle_location, vehicle_waypoint):
         for tl in tl_list:

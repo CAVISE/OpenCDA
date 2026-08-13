@@ -94,7 +94,7 @@ class UniversalReportBuilder:
         logger.info("Building module report module=%s entities=%d", module, len(entities))
         return ModuleReport(module=module, entities=tuple(entities))
 
-    def build_group_report(
+    def build_group_report(  # noqa: DC04
         self,
         group_id: int | str,
         entities: Sequence[EntityMetricCollections],

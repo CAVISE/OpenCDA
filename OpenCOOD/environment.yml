@@ -9,7 +9,6 @@ dependencies:
     - numpy
     - open3d
     - opencv-python==4.5.5.62
-    - cython
     - pygame
     - tensorboardX
     - shapely==2.0.0

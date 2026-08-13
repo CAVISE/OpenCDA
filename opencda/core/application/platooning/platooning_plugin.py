@@ -6,7 +6,7 @@ from opencda.core.common.misc import compute_distance, cal_distance_angle
 from opencda.core.application.platooning.fsm import FSM
 
 
-class PlatooningPlugin(object):
+class PlatooningPlugin(object):  # noqa: DC03
     """
     Platooning plugin inside the V2X manager.
 
@@ -51,7 +51,9 @@ class PlatooningPlugin(object):
         The rear vehicle manager of the ego vehicle.
     """
 
-    def __init__(self, search_range, cda_enabled):
+    def __init__(self, search_range=None, cda_enabled=None):
+        raise NotImplementedError("Not implemented yet: platooning is not implemented in the unified agent runtime")
+
         self.search_range = search_range
         self.cda_enabled = cda_enabled
 
@@ -71,7 +73,7 @@ class PlatooningPlugin(object):
 
         # used to label the front and rear vehicle position
         self.front_vehicle = None
-        self.rear_vechile = None
+        self.rear_vechile = None  # noqa: DC05
 
     def update_info(self, ego_pos, ego_spd):
         """
@@ -93,7 +95,7 @@ class PlatooningPlugin(object):
         Reset to the origin status.
         """
         self.front_vehicle = None
-        self.rear_vechile = None
+        self.rear_vechile = None  # noqa: DC05
 
         self.leader = False
         self.platooning_object = None
@@ -244,12 +246,12 @@ class PlatooningPlugin(object):
         # if the ego is in front of the platooning
         if min_index == 0 and min_angle > 90:
             self.front_vehicle = None
-            self.rear_vechile = pm.vehicle_manager_list[0]
+            self.rear_vechile = pm.vehicle_manager_list[0]  # noqa: DC05
             return True, min_index, platoon_vehicle_list
 
         self.front_vehicle = pm.vehicle_manager_list[min_index]
 
         if min_index < len(pm.vehicle_manager_list) - 1:
-            self.rear_vechile = pm.vehicle_manager_list[min_index + 1]
+            self.rear_vechile = pm.vehicle_manager_list[min_index + 1]  # noqa: DC05
 
         return True, min_index, platoon_vehicle_list

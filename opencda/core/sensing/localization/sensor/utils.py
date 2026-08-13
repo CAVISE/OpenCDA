@@ -1,0 +1,59 @@
+"""Utility functions used by sensor localization."""
+
+import numpy as np
+
+
+def geo_to_transform(lat: float, lon: float, alt: float, lat_0: float, lon_0: float, alt_0: float) -> tuple[float, float, float]:
+    """
+    Convert WG84 to ENU. The origin of the ENU should pass the geo reference.
+    Note this function is a writen by reversing the
+    official API transform_to_geo.
+
+    Parameters
+    ----------
+    lat : float
+        current latitude.
+
+    lon : float
+        current longitude.
+
+    alt : float
+        current altitude.
+
+    lat_0 : float)
+        geo_ref latitude.
+
+    lon_0 : float
+        geo_ref longitude.
+
+    alt_0 : float
+        geo_ref altitude.
+
+    Returns
+    -------
+    x : float
+        The transformed x coordinate.
+
+    y : float
+        The transformed y coordinate.
+
+    z : float
+        The transformed z coordinate.
+    """
+    EARTH_RADIUS_EQUA = 6378137.0
+    scale = np.cos(np.deg2rad(lat_0))
+
+    mx = lon * np.pi * EARTH_RADIUS_EQUA * scale / 180
+    mx_0 = scale * np.deg2rad(lon_0) * EARTH_RADIUS_EQUA
+    x = mx - mx_0
+
+    lat_safe = np.clip(lat, -89.9999, 89.9999)
+    lat0_safe = np.clip(lat_0, -89.9999, 89.9999)
+
+    my = np.log(np.tan((lat_safe + 90) * np.pi / 360)) * EARTH_RADIUS_EQUA * scale
+    my_0 = scale * EARTH_RADIUS_EQUA * np.log(np.tan((90 + lat0_safe) * np.pi / 360))
+    y = -(my - my_0)
+
+    z = alt - alt_0
+
+    return float(x), float(y), float(z)

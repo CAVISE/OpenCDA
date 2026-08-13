@@ -13,7 +13,7 @@ import opencood.data_utils.post_processor as post_processor
 from opencood.utils import box_utils
 from opencood.data_utils.datasets import basedataset
 from opencood.data_utils.pre_processor import build_preprocessor
-from opencood.utils.pcd_utils import mask_points_by_range, mask_ego_points, shuffle_points
+from opencood.utils.pcd_utils import pcd_to_np, mask_points_by_range, mask_ego_points, shuffle_points
 from opencood.utils.transformation_utils import x1_to_x2
 from opencood.pcdet_utils.roiaware_pool3d.roiaware_pool3d_utils import points_in_boxes_cpu
 
@@ -60,7 +60,6 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
                     msg["voxel_num_points"] = selected_cav_processed["processed_features"]["voxel_num_points"]
                     msg["voxel_features"] = selected_cav_processed["processed_features"]["voxel_features"]
                     msg["voxel_coords"] = selected_cav_processed["processed_features"]["voxel_coords"]
-                    msg["projected_lidar"] = selected_cav_processed["projected_lidar"]
 
     def __find_ego_vehicle(self, base_data_dict):
         ego_id = -1
@@ -79,13 +78,71 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
 
         return ego_id, ego_lidar_pose
 
-    def __process_with_messages(self, ego_id, ego_lidar_pose, base_data_dict):
-        processed_features = []
-        object_stack = []
-        object_id_stack = []
+    def __retrieve_visualization_base_data(self, idx):
+        scenario_index = 0
+        for i, ele in enumerate(self.len_record):
+            if idx < ele:
+                scenario_index = i
+                break
+        scenario_database = self.scenario_database[scenario_index]
+
+        timestamp_index = idx if scenario_index == 0 else idx - self.len_record[scenario_index - 1]
+        timestamp_key = self.return_timestamp_key(scenario_database, timestamp_index)
+        ego_cav_content = self.calc_dist_to_ego(scenario_database, timestamp_key)
+
+        data = OrderedDict()
+        for cav_id, cav_content in scenario_database.items():
+            cav_snapshot = cav_content[timestamp_key]
+            data[cav_id] = OrderedDict()
+            data[cav_id]["ego"] = cav_content["ego"]
+            data[cav_id]["time_delay"] = 0
+            data[cav_id]["params"] = self.reform_param(
+                cav_content,
+                ego_cav_content,
+                timestamp_key,
+                timestamp_key,
+                cur_ego_pose_flag=True,
+            )
+            data[cav_id]["lidar_np"] = cav_snapshot["lidar_np"] if "lidar_np" in cav_snapshot else pcd_to_np(cav_snapshot["lidar"])
+            if "spoofing_mask" in cav_snapshot:
+                data[cav_id]["spoofing_mask"] = cav_snapshot["spoofing_mask"]
+        return data
+
+    def __project_lidar_for_visualization(self, cav_base, ego_lidar_pose):
+        transformation_matrix = x1_to_x2(cav_base["params"]["lidar_pose"], ego_lidar_pose)
+        lidar_np = np.array(cav_base["lidar_np"], copy=True)
+        lidar_np = mask_ego_points(lidar_np)
+        lidar_np[:, :3] = box_utils.project_points_by_matrix_torch(lidar_np[:, :3], transformation_matrix)
+        return mask_points_by_range(lidar_np, self.params["preprocess"]["cav_lidar_range"])
+
+    def __build_visualization_data(self, ego_id, ego_lidar_pose, base_data_dict):
+        if not self.visualize:
+            return {
+                "projected_lidar_stack": [],
+                "projected_lidar_roles": [],
+                "projected_lidar_agent_ids": [],
+            }
+
         projected_lidar_stack = []
         projected_lidar_roles = []
         projected_lidar_agent_ids = []
+
+        for cav_id in base_data_dict:
+            projected_lidar_stack.append(self.__project_lidar_for_visualization(base_data_dict[cav_id], ego_lidar_pose))
+            projected_lidar_roles.append("ego" if cav_id == ego_id else "other")
+            projected_lidar_agent_ids.append(cav_id)
+
+        return {
+            "projected_lidar_stack": projected_lidar_stack,
+            "projected_lidar_roles": projected_lidar_roles,
+            "projected_lidar_agent_ids": projected_lidar_agent_ids,
+        }
+
+    def __process_with_messages(self, ego_id, ego_lidar_pose, base_data_dict, visualization_ego_lidar_pose, visualization_base_data_dict):
+        processed_features = []
+        object_stack = []
+        object_id_stack = []
+        model_lidar_stack = []
 
         ego_cav_base = base_data_dict.get(ego_id)
         ego_cav_processed = self.get_item_single_car(ego_cav_base, ego_lidar_pose)
@@ -93,21 +150,17 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
         object_id_stack += ego_cav_processed["object_ids"]
         object_stack.append(ego_cav_processed["object_bbx_center"])
         processed_features.append(ego_cav_processed["processed_features"])
-        projected_lidar_stack.append(ego_cav_processed["projected_lidar"])
-        projected_lidar_roles.append("ego")
-        projected_lidar_agent_ids.append(ego_id)
+        model_lidar_stack.append(ego_cav_processed["projected_lidar"])
 
         if ego_id in self.payload_handler.current_artery_payload:
             for cav_id, _ in base_data_dict.items():
                 if cav_id in self.payload_handler.current_artery_payload[ego_id]:
                     with self.payload_handler.handle_artery_payload(ego_id, cav_id, self.module_name) as msg:
-                        projected = msg["projected_lidar"]
+                        cav_processed = self.get_item_single_car(base_data_dict[cav_id], ego_lidar_pose)
+                        projected = cav_processed["projected_lidar"]
 
                         if len(projected) > 10:
-                            projected_lidar_stack.append(projected)
-                            projected_lidar_roles.append("other")
-                            projected_lidar_agent_ids.append(cav_id)
-
+                            model_lidar_stack.append(projected)
                             object_id_stack += msg["object_ids"]
                             object_stack.append(msg["object_bbx_center"])
 
@@ -123,18 +176,15 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
             "processed_features": processed_features,
             "object_stack": object_stack,
             "object_id_stack": object_id_stack,
-            "projected_lidar_stack": projected_lidar_stack,
-            "projected_lidar_roles": projected_lidar_roles,
-            "projected_lidar_agent_ids": projected_lidar_agent_ids,
+            "model_lidar_stack": model_lidar_stack,
+            **self.__build_visualization_data(ego_id, visualization_ego_lidar_pose, visualization_base_data_dict),
         }
 
-    def __process_without_messages(self, ego_lidar_pose, base_data_dict):
+    def __process_without_messages(self, ego_id, ego_lidar_pose, base_data_dict, visualization_ego_lidar_pose, visualization_base_data_dict):
         processed_features = []
         object_stack = []
         object_id_stack = []
-        projected_lidar_stack = []
-        projected_lidar_roles = []
-        projected_lidar_agent_ids = []
+        model_lidar_stack = []
 
         for cav_id, selected_cav_base in base_data_dict.items():
             dx = selected_cav_base["params"]["lidar_pose"][0] - ego_lidar_pose[0]
@@ -150,18 +200,14 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
                 object_stack.append(selected_cav_processed["object_bbx_center"])
                 object_id_stack += selected_cav_processed["object_ids"]
                 processed_features.append(selected_cav_processed["processed_features"])
-
-                projected_lidar_stack.append(selected_cav_processed["projected_lidar"])
-                projected_lidar_roles.append("ego" if selected_cav_base["ego"] else "other")
-                projected_lidar_agent_ids.append(cav_id)
+                model_lidar_stack.append(selected_cav_processed["projected_lidar"])
 
         return {
             "processed_features": processed_features,
             "object_stack": object_stack,
             "object_id_stack": object_id_stack,
-            "projected_lidar_stack": projected_lidar_stack,
-            "projected_lidar_roles": projected_lidar_roles,
-            "projected_lidar_agent_ids": projected_lidar_agent_ids,
+            "model_lidar_stack": model_lidar_stack,
+            **self.__build_visualization_data(ego_id, visualization_ego_lidar_pose, visualization_base_data_dict),
         }
 
     def __getitem__(self, idx):
@@ -172,11 +218,25 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
         processed_data_dict["ego"] = {}
 
         ego_id, ego_lidar_pose = self.__find_ego_vehicle(base_data_dict)
+        visualization_base_data_dict = self.__retrieve_visualization_base_data(idx) if self.visualize else base_data_dict
+        _, visualization_ego_lidar_pose = self.__find_ego_vehicle(visualization_base_data_dict)
 
         if self.payload_handler is not None:
-            data = self.__process_with_messages(ego_id, ego_lidar_pose, base_data_dict)
+            data = self.__process_with_messages(
+                ego_id,
+                ego_lidar_pose,
+                base_data_dict,
+                visualization_ego_lidar_pose,
+                visualization_base_data_dict,
+            )
         else:
-            data = self.__process_without_messages(ego_lidar_pose, base_data_dict)
+            data = self.__process_without_messages(
+                ego_id,
+                ego_lidar_pose,
+                base_data_dict,
+                visualization_ego_lidar_pose,
+                visualization_base_data_dict,
+            )
 
         # exclude all repetitive objects
         unique_indices = [data["object_id_stack"].index(x) for x in set(data["object_id_stack"])]
@@ -206,7 +266,7 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
         # Filter empty boxes
         object_stack_filtered = []
         label_dict_no_coop = []
-        for boxes, points in zip(data["object_stack"], data["projected_lidar_stack"]):
+        for boxes, points in zip(data["object_stack"], data["model_lidar_stack"]):
             point_indices = points_in_boxes_cpu(points[:, :3], boxes[:, [0, 1, 2, 5, 4, 3, 6]])
             cur_mask = point_indices.sum(axis=1) > 0
             if cur_mask.sum() == 0:
@@ -245,7 +305,7 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
 
         processed_data_dict["ego"].update(
             {
-                "origin_lidar": data["projected_lidar_stack"],
+                "origin_lidar": data["model_lidar_stack"],
                 "origin_lidar_by_agent": data["projected_lidar_stack"],
                 "origin_lidar_roles": data["projected_lidar_roles"],
                 "origin_lidar_agent_ids": data["projected_lidar_agent_ids"],

@@ -59,7 +59,7 @@ class DataDumper(object):
 
         self.count = 0
 
-    def run_step(self, perception_manager, localization_manager, behavior_agent):
+    def run_step(self, perception_manager, localizer, actor, behavior_agent):
         """
         Dump data at running time.
 
@@ -68,8 +68,11 @@ class DataDumper(object):
         perception_manager : opencda object
             OpenCDA perception manager.
 
-        localization_manager : opencda object
-            OpenCDA localization manager.
+        localizer : opencda object
+            OpenCDA localization provider.
+
+        actor : carla.Actor
+            CARLA actor used as the ground-truth reference.
 
         behavior_agent : opencda object
             Open
@@ -85,7 +88,7 @@ class DataDumper(object):
 
         self.save_rgb_image(self.count)
         self.save_lidar_points(self.count)
-        self.save_yaml_file(perception_manager, localization_manager, behavior_agent, self.count)
+        self.save_yaml_file(perception_manager, localizer, actor, behavior_agent, self.count)
 
     def save_rgb_image(self, count):
         """
@@ -120,7 +123,7 @@ class DataDumper(object):
         pcd_name = "%06d" % count + ".pcd"
         o3d.io.write_point_cloud(os.path.join(self.save_parent_folder, pcd_name), pointcloud=o3d_pcd, write_ascii=True)
 
-    def save_yaml_file(self, perception_manager, localization_manager, behavior_agent, count):
+    def save_yaml_file(self, perception_manager, localizer, actor, behavior_agent, count):
         """
         Save objects positions/spped, true ego position,
         predicted ego position, sensor transformations.
@@ -130,8 +133,11 @@ class DataDumper(object):
         perception_manager : opencda object
             OpenCDA perception manager.
 
-        localization_manager : opencda object
-            OpenCDA localization manager.
+        localizer : opencda object
+            OpenCDA localization provider.
+
+        actor : carla.Actor
+            CARLA actor used as the ground-truth reference.
 
         behavior_agent : opencda object
             OpenCDA behavior agent.
@@ -172,8 +178,9 @@ class DataDumper(object):
 
         # dump ego pose and speed, if vehicle does not exist, then it is
         # a rsu(road side unit).
-        predicted_ego_pos = localization_manager.get_ego_pos()
-        true_ego_pos = localization_manager.vehicle.get_transform() if hasattr(localization_manager, "vehicle") else localization_manager.true_ego_pos
+        localization_state = localizer.get_state()
+        predicted_ego_pos = localization_state.transform
+        true_ego_pos = actor.get_transform()
 
         dump_yml.update(
             {
@@ -199,7 +206,7 @@ class DataDumper(object):
                 )
             }
         )
-        dump_yml.update({"ego_speed": float(localization_manager.get_ego_spd())})
+        dump_yml.update({"ego_speed": float(localization_state.speed_kmh)})
 
         # dump lidar sensor coordinates under world coordinate system
         lidar_transformation = self.lidar.sensor.get_transform()

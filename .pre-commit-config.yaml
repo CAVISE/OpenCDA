@@ -11,6 +11,7 @@ repos:
   rev: v2.14.0
   hooks:
     - id: hadolint-docker
+      exclude: '(^|/)Dockerfile\.dockerignore$'
 
 - repo: https://github.com/pre-commit/pre-commit-hooks
   rev: v6.0.0
@@ -37,3 +38,15 @@ repos:
       args: ["--autofix"]
     - id: requirements-txt-fixer
     - id: trailing-whitespace
+
+- repo: local
+  hooks:
+    - id: mypy
+      name: mypy
+      description: ''
+      entry: mypy
+      language: python
+      'types_or': [python, pyi]
+      args: [".", "--follow-imports=silent"]
+      pass_filenames: false
+      require_serial: true

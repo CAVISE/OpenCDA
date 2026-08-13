@@ -2,44 +2,36 @@
 Script to run different scenarios.
 """
 
-import os
 import sys
 import enum
 import errno
 import json
+import time
 from datetime import datetime
 import pathlib
 import logging
 import argparse
-import omegaconf
-import subprocess
-from collections.abc import Callable, Collection
+import cProfile
+import pstats
+from collections.abc import Collection
 from types import ModuleType
 from typing import cast
 
-from omegaconf import DictConfig
 from opencda.version import __version__
 
 
-try:
-    from rich.traceback import install as _rich_traceback_install
-except ModuleNotFoundError:
-    rich_traceback_install: Callable[..., object] | None = None
-    print("Rich tracebacks are not available, all CLI configuration regarding tracebacks is ignored.")
-else:
-    rich_traceback_install = _rich_traceback_install
+def import_runtime_libs() -> None:
+    global omegaconf, DictConfig
+    import omegaconf
+    from omegaconf import DictConfig
 
 
-try:
-    import coloredlogs
-except ModuleNotFoundError:
-    coloredlogs = None
-    print("could not find coloredlogs module! Your life will look pale.")
-    print("if you are interested in improving it: https://pypi.org/project/coloredlogs")
-
-
-BUILD_COMPLETED_FLAG = "BUILD_COMPLETED_FLAG"
 DEFAULT_LOG_FILENAME = "opencda.log.json"
+EVALUATION_OUTPUT_ROOT = pathlib.Path("simulation_output/evaluation_outputs")
+
+
+def get_default_output_path(scenario_name: str, current_time: str) -> pathlib.Path:
+    return EVALUATION_OUTPUT_ROOT / f"{scenario_name}_{current_time}"
 
 
 class VerbosityLevel(enum.IntEnum):
@@ -77,14 +69,19 @@ def create_logger(
     level: int, fmt: str = "- [%(asctime)s][%(name)s] %(message)s", datefmt: str = "%H:%M:%S", filename: str = DEFAULT_LOG_FILENAME
 ) -> logging.Logger:
     logger = logging.getLogger("cavise.opencda")
-    if coloredlogs is not None:
-        coloredlogs.install(level=logging.DEBUG, logger=logger, fmt=fmt, datefmt=datefmt)
-    else:
+    try:
+        import coloredlogs
+    except ModuleNotFoundError:
+        print("could not find coloredlogs module! Your life will look pale.")
+        print("if you are interested in improving it: https://pypi.org/project/coloredlogs")
         handler = logging.StreamHandler(sys.stdout)
         handler.setFormatter(logging.Formatter(fmt=fmt, datefmt=datefmt))
         handler.setLevel(logging.DEBUG)
         logger.addHandler(handler)
+    else:
+        coloredlogs.install(level=logging.DEBUG, logger=logger, fmt=fmt, datefmt=datefmt)
     # Duplicate logs to a JSON file
+    pathlib.Path(filename).parent.mkdir(parents=True, exist_ok=True)
     json_handler = logging.FileHandler(filename=filename, mode="w", encoding="utf-8")
     json_handler.setLevel(logging.DEBUG)
     json_handler.setFormatter(JsonFormatter())
@@ -111,8 +108,13 @@ def install_traceback_handler(verbose: bool = True, suppress_modules: Collection
 
     joined_strings = set(default_filtered_modules) & set(suppress_modules)
     joined: set[str | ModuleType] = set(joined_strings)
-    if rich_traceback_install is not None:
-        rich_traceback_install(show_locals=verbose, suppress=joined)
+    try:
+        from rich.traceback import install as rich_traceback_install
+    except ModuleNotFoundError:
+        print("Rich tracebacks are not available, all CLI configuration regarding tracebacks is ignored.")
+        return
+
+    rich_traceback_install(show_locals=verbose, suppress=joined)
 
 
 # Parse command line args.
@@ -131,9 +133,7 @@ def arg_parse() -> argparse.Namespace:
     # parser.add_argument("--apply-ml", action='store_true',
     #                     help='whether ml/dl framework such as sklearn/pytorch is needed in the testing. '
     #                          'Set it to true only when you have installed the pytorch/sklearn package.')
-    parser.add_argument(
-        "-v", "--version", type=str, default="0.9.15", help="Specify the CARLA simulator version (this does not have any effect in our fork)"
-    )
+    parser.add_argument("-v", "--version", action="version", version=f"OpenCDA v{__version__}")
     parser.add_argument("--free-spectator", action="store_true", help="Enable free movement for the spectator camera.")
     parser.add_argument("-x", "--xodr", action="store_true", help="Run simulation using a custom map from an XODR file.")
     parser.add_argument("-c", "--cosim", action="store_true", help="Enable co-simulation with SUMO.")
@@ -163,13 +163,6 @@ def arg_parse() -> argparse.Namespace:
     parser.add_argument("--show-video-vis", action="store_true", help="whether to show video visualization result")
     parser.add_argument("--save-vis", action="store_true", help="whether to save visualization result")
     parser.add_argument("--save-npy", action="store_true", help="whether to save prediction and gt result in npy_test file")
-    parser.add_argument(
-        "--global-sort-detections",
-        action="store_true",
-        help="whether to globally sort detections by confidence score."
-        "If set to True, it is the mainstream AP computing method,"
-        "but would increase the tolerance for FP (False Positives).",
-    )
 
     # AdvCollaborativePerception module
     parser.add_argument("--with-advcp", action="store_true", help="Enable AdvCP-style attacks for cooperative perception.")
@@ -193,41 +186,24 @@ def arg_parse() -> argparse.Namespace:
     parser.add_argument(
         "--log-file",
         type=str,
-        default=DEFAULT_LOG_FILENAME,
-        help=f"Filename for the json log output. If not specified, logs will be saved to {DEFAULT_LOG_FILENAME}.",
+        default=None,
+        help=(
+            "Filename for the json log output. If not specified, logs will be saved to "
+            f"{EVALUATION_OUTPUT_ROOT}/<scenario>_<timestamp>/{DEFAULT_LOG_FILENAME}."
+        ),
     )
+    parser.add_argument("--profile", action="store_true", help="Enable profiling.")
 
     parser.add_argument("--ticks", type=int, help="number of simulation ticks to execute")
     return parser.parse_args()
 
 
-def check_buld_for_utils(module_path: str, cwd: pathlib.PurePath, verbose: bool, logger: logging.Logger) -> bool:
-    marker_file = cwd.joinpath(f"OpenCOOD/{module_path}/{BUILD_COMPLETED_FLAG}")
-    module_name = f"opencood.{module_path.split('/')[-2]}"
-    if os.path.isfile(marker_file):
-        logger.info(f"{module_name} is already built")
-        return True
-
-    try:
-        logger.info(f"Building {module_name} ...")
-        result = subprocess.run(
-            ["python", f"{module_path}setup.py", "build_ext", "--inplace"], check=True, cwd=cwd.joinpath("OpenCOOD"), capture_output=True, text=True
-        )
-        os.close(os.open(str(marker_file), os.O_CREAT))
-        logger.info(f"Complete building {module_name}")
-        if verbose:
-            logger.info(result.stdout)
-        return True
-
-    except subprocess.CalledProcessError as e:
-        logger.info(f"Compilation error {module_name}:")
-        if verbose:
-            logger.info(e.stderr)
-        return False
-
-
 def main() -> None:
+    global logger
     opt = arg_parse()
+    current_time = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
+
+    import_runtime_libs()
 
     verbosity = opt.verbose
     if verbosity == VerbosityLevel.FULL:
@@ -237,10 +213,13 @@ def main() -> None:
     else:
         level = logging.WARNING
 
-    logger = create_logger(level=level, filename=opt.log_file)
+    log_path = (
+        pathlib.Path(opt.log_file) if opt.log_file is not None else get_default_output_path(opt.test_scenario, current_time) / DEFAULT_LOG_FILENAME
+    )
+    logger = create_logger(level=level, filename=str(log_path))
     install_traceback_handler(verbose=verbosity != VerbosityLevel.SILENT)
 
-    logger.info(f"OpenCDA Version: {__version__}")
+    logger.info(f"OpenCDA v{__version__}")
 
     cwd = pathlib.Path.cwd()
     default_yaml = config_yaml = cwd / "opencda/scenario_testing/config_yaml/default.yaml"
@@ -285,19 +264,45 @@ def main() -> None:
     # NOTICE: temporary measure (while option is turned off)
     opt.apply_ml = False
 
-    if opt.with_coperception:
-        opencood_utils = "opencood/utils/"
-        opencood_pcdet_utils = "opencood/pcdet_utils/"
-        if not check_buld_for_utils(opencood_utils, cwd, verbosity == VerbosityLevel.FULL, logger):
-            logger.error("Failed to build opencood.utils")
-        if not check_buld_for_utils(opencood_pcdet_utils, cwd, verbosity == VerbosityLevel.FULL, logger):
-            logger.error("Failed to build opencood.pcdet_utils")
-
     # this function might setup crucial components in Scenario, so
     # we should import as late as possible
     from opencda.scenario_testing.scenario import run_scenario
 
-    run_scenario(opt, scene_dict)
+    runtime_stats = {}
+    if opt.profile:
+        profiler = cProfile.Profile()
+        profiler.enable()
+
+        try:
+            t0 = time.perf_counter()
+            run_scenario(opt, scene_dict, current_time=current_time, runtime_stats=runtime_stats)
+            runtime_stats["full_scenario"] = time.perf_counter() - t0
+        finally:
+            evaluation_output_dir = get_default_output_path(opt.test_scenario, current_time)
+            evaluation_output_dir.mkdir(parents=True, exist_ok=True)
+            profiler_output = evaluation_output_dir / "profile_output.prof"
+            profiler.disable()
+            profiler.dump_stats(profiler_output)
+            logger.info(f"Profiler output saved to {profiler_output}")
+
+            stats = pstats.Stats(profiler)
+            stats.sort_stats("cumulative")
+            stats.print_stats(30)
+    else:
+        t0 = time.perf_counter()
+        run_scenario(opt, scene_dict, current_time=current_time, runtime_stats=runtime_stats)
+        runtime_stats["full_scenario"] = time.perf_counter() - t0
+
+    show_performance_stats(runtime_stats)
+
+
+def show_performance_stats(runtime_stats: dict):
+    global logger
+    logger.debug("Scenario performance stats:")
+    logger.debug(f"Full scenario: {runtime_stats['full_scenario']:.3f}s")
+    logger.debug(f"Scenatio __init__: {runtime_stats['scenario__init__']:.3f}s")
+    logger.debug(f"Agents initialization: {runtime_stats['_init_agents']:.3f}s")
+    logger.debug(f"Avarage tick time: {sum(runtime_stats['ticks']) / len(runtime_stats['ticks']):.3f}s")
 
 
 if __name__ == "__main__":

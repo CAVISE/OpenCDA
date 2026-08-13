@@ -1,0 +1,69 @@
+attack:
+  name: aim_server_trajectory_spoofing
+
+  requirements:
+    all:
+      - source:
+          kind: snapshot
+          node_type: rsu
+          service_type: aim_server
+        verb: exists
+      - source:
+          kind: snapshot
+          node_type: vehicle
+          service_type: aim_client
+        verb: exists
+
+  start_trigger:
+    source:
+      kind: snapshot
+      node_type: rsu
+      service_type: aim_server
+      field: tracked_vehicle_count
+    verb: gte
+    value: 0
+
+  stop_trigger:
+    source:
+      kind: snapshot
+      node_type: rsu
+      service_type: aim_server
+      field: tracked_vehicle_count
+    verb: eq
+    value: 10
+
+  targets:
+    kind: service_state_field
+    source:
+      kind: snapshot
+      node_type: rsu
+      service_type: aim_server
+      field: owner_id
+    resolve_to:
+      node_type: rsu
+      service_type: aim_server
+
+  stages:
+    - id: spoof_aim_server_trajectory
+      type: spoofer
+      capabilities:
+        - response.submit
+      params:
+        rewrites:
+          - path: payload.trajectory[0].x
+            operation: add
+            value: 50.0
+          - path: payload.trajectory[1].x
+            operation: add
+            value: 50.0
+          - path: payload.trajectory[2].x
+            operation: add
+            value: 50.0
+      stage_stop_trigger:
+        source:
+          kind: snapshot
+          node_type: rsu
+          service_type: aim_server
+          field: tracked_vehicle_count
+        verb: eq
+        value: 10

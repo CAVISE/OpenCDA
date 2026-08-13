@@ -57,17 +57,10 @@ pip install spconv-cu113
 
 
 
-### 4. Bbx IOU cuda version compile
-Install bbx nms calculation cuda version
+### 4. Dependencies for FPV-RCNN (optional)
+The OpenCOOD CUDA extensions used by FPV-RCNN are built by the OpenCDA
+Docker CUDA builder. They are copied into the runtime image and synchronized
+into the source tree when the container starts.
 
-  ```bash
-  python opencood/utils/setup.py build_ext --inplace
-  ```
-
-
-### 5. Dependencies for FPV-RCNN (optional)
-Install the dependencies for fpv-rcnn.
-
-  ```bash
-  python opencood/pcdet_utils/setup.py build_ext --inplace
-  ```
+Rebuild the OpenCDA image after changing any source under
+`opencood/pcdet_utils`.

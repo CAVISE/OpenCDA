@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 
 from opencda.core.common.cav_world import CavWorld
 from opencda.metrics_tools.plot_builder import MetricPlotBuilder
-from opencda.metrics_tools.report_models import EntityReport, GroupReport, ModuleReport
+from opencda.metrics_tools.report_models import EntityReport, ModuleReport
 from opencda.metrics_tools.report_builder import UniversalReportBuilder
 
 if TYPE_CHECKING:
@@ -66,9 +66,6 @@ class EvaluationManager(object):
         planning_report = self.kinematics_eval()
         logger.info("Kinematics Evaluation Done")
 
-        platooning_reports = self.platooning_eval()
-        logger.info("Platooning Evaluation Done")
-
         coperception_report = self.coperception_eval(coperception_model_manager)
         logger.info("Cooperative perception evaluation done")
 
@@ -82,7 +79,6 @@ class EvaluationManager(object):
                     "scenario": scenario_report.to_dict(),
                     "planning": planning_report.to_dict(),
                     "localization": localization_report.to_dict(),
-                    "platooning": [report.to_dict() for report in platooning_reports],
                     "coperception": coperception_report.to_dict(),
                 },
                 output_file,
@@ -90,25 +86,15 @@ class EvaluationManager(object):
             )
 
         logger.info("Evaluation JSON report saved to: %s", json_save_path)
-        self._build_metric_plots(
-            module_reports=(planning_report, localization_report, coperception_report, scenario_report),
-            platooning_reports=platooning_reports,
-        )
+        self._build_metric_plots(module_reports=(planning_report, localization_report, coperception_report, scenario_report))
 
-    def _build_metric_plots(
-        self,
-        module_reports: tuple[ModuleReport, ...],
-        platooning_reports: tuple[GroupReport, ...],
-    ) -> None:
+    def _build_metric_plots(self, module_reports: tuple[ModuleReport, ...]) -> None:
         plot_builder = MetricPlotBuilder()
         plots_dir = os.path.join(self.eval_save_path, "plots")
         output_paths: list[Path] = []
 
         for module_report in module_reports:
             output_paths.extend(plot_builder.build_module_plots(module_report, plots_dir))
-
-        for platooning_report in platooning_reports:
-            output_paths.extend(plot_builder.build_group_plots(platooning_report, plots_dir, module="platooning"))
 
         logger.info("Evaluation metric plots saved to: %s (%d files)", plots_dir, len(output_paths))
 
@@ -119,8 +105,8 @@ class EvaluationManager(object):
         report_builder = UniversalReportBuilder()
         kinematics_reports: list[EntityReport] = []
 
-        for _, vm in self.cav_world.get_vehicle_managers().items():
-            raw_data = vm.agent.metrics_collector.get_raw()
+        for manager in self.cav_world.get_vehicle_agent_managers().values():
+            raw_data = manager.agent.behavior_agent.metrics_collector.get_raw()
             kinematics_reports.append(report_builder.build_entity_report(raw_data))
 
         return report_builder.build_module_report("planning", kinematics_reports)
@@ -131,24 +117,14 @@ class EvaluationManager(object):
         """
         report_builder = UniversalReportBuilder()
         localization_reports: list[EntityReport] = []
-        for _, vm in self.cav_world.get_vehicle_managers().items():
-            raw_data = vm.localizer.metrics_collector.get_raw()
+        for manager in self.cav_world.get_vehicle_agent_managers().values():
+            metrics_collector = getattr(manager.agent.localizer, "metrics_collector", None)
+            if metrics_collector is None:
+                continue
+            raw_data = metrics_collector.get_raw()
             localization_reports.append(report_builder.build_entity_report(raw_data))
 
         return report_builder.build_module_report("localization", localization_reports)
-
-    def platooning_eval(self) -> tuple[GroupReport, ...]:
-        """
-        Platooning evaluation.
-        """
-        report_builder = UniversalReportBuilder()
-        platooning_reports: list[GroupReport] = []
-
-        for pmid, pm in self.cav_world.get_platoon_dict().items():
-            member_metrics = pm.get_metric_collections()
-            platooning_reports.append(report_builder.build_group_report(pmid, member_metrics, module="platooning"))
-
-        return tuple(platooning_reports)
 
     def coperception_eval(self, coperception_model_manager: "CoperceptionModelManager | None" = None) -> ModuleReport:
         """

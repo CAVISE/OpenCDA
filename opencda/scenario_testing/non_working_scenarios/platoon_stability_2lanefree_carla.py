@@ -31,7 +31,7 @@ def run_scenario(opt: Any, scenario_params: YamlDict) -> None:
         xodr_path = os.path.join(current_path, "../assets/2lane_freeway_simplified/2lane_freeway_simplified.xodr")
 
         # create scenario manager
-        scenario_manager = sim_api.ScenarioManager(scenario_params, opt.apply_ml, opt.version, xodr_path=xodr_path)
+        scenario_manager = sim_api.ScenarioManager(scenario_params, opt.apply_ml, xodr_path=xodr_path)
 
         if opt.record:
             scenario_manager.client.start_recorder("single_town06_carla.log", True)
@@ -46,7 +46,7 @@ def run_scenario(opt: Any, scenario_params: YamlDict) -> None:
             sys.exit("In this scenario testing, only single platoon is allowed.")
 
         spectator = scenario_manager.world.get_spectator()
-        spectator_vehicle = platoon_list[0].vehicle_manager_list[0].vehicle
+        spectator_vehicle = platoon_list[0].agent_manager_list[0].agent.vehicle
 
         cav_world = scenario_manager.cav_world
         assert cav_world is not None

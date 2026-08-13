@@ -1,9 +1,12 @@
 """HDMap utilities"""
 
+from __future__ import annotations
+
+from typing import Sequence
+
 import carla
 import numpy as np
 import numpy.typing as npt
-from typing import Sequence
 
 
 def lateral_shift(transform: carla.Transform, shift: float) -> carla.Location:

@@ -30,6 +30,9 @@ class Location:
     def from_carla(cls, other: carla.Location) -> "Location":
         return cls(x=other.x, y=other.y, z=other.z)
 
+    def to_carla(self) -> carla.Location:
+        return carla.Location(x=self.x, y=self.y, z=self.z)
+
 
 @dataclass(frozen=True)
 class Rotation:
@@ -41,6 +44,9 @@ class Rotation:
     def from_carla(cls, other: carla.Rotation) -> "Rotation":
         return cls(pitch=other.pitch, yaw=other.yaw, roll=other.roll)
 
+    def to_carla(self) -> carla.Rotation:
+        return carla.Rotation(pitch=self.pitch, yaw=self.yaw, roll=self.roll)
+
 
 @dataclass(frozen=True)
 class Transform:
@@ -50,3 +56,6 @@ class Transform:
     @classmethod
     def from_carla(cls, other: carla.Transform) -> "Transform":
         return cls(location=Location.from_carla(other.location), rotation=Rotation.from_carla(other.rotation))
+
+    def to_carla(self) -> carla.Transform:
+        return carla.Transform(self.location.to_carla(), self.rotation.to_carla())

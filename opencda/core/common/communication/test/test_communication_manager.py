@@ -2,11 +2,11 @@ import importlib
 import sys
 import types
 import pickle
-from typing import Iterable
 
 import pytest
 from google.protobuf.descriptor import FieldDescriptor
 from google.protobuf.message import Message
+from google.protobuf.runtime_version import VersionError
 
 
 def _set_oneof_arm(msg: Message, field: FieldDescriptor) -> None:
@@ -50,107 +50,36 @@ def _validate_capi_schema(capi_mod: object, opencda_mod: object) -> None:
         raise AssertionError("proto_capi.Message oneof 'message' must include 'artery' arm.")
 
 
-def _iter_protos_modules_keys(prefix: str) -> Iterable[str]:
-    for k in list(sys.modules.keys()):
-        if k.startswith(prefix):
-            yield k
-
-
 @pytest.fixture(scope="session")
 def ensure_comm_protos_ready():
     """
     Ensure protobuf Python modules required by CommunicationManager exist and match expected schema.
 
-    If missing or stale, run CommunicationToolchain once per session to generate them. Generated
-    modules may use top-level imports (e.g. `import entity_pb2`), so we temporarily add the output
-    directory to sys.path for imports. If generation occurs, we delete only newly created files
-    at the end of the session to avoid polluting the working tree.
+    CMake generates the modules before pytest starts. Generated modules use
+    top-level imports, so temporarily add their output directory to sys.path.
     """
     import pathlib
-    import shutil
 
-    protos_dir = pathlib.Path("opencda/core/common/communication/protos/cavise")
-    protos_dir.mkdir(parents=True, exist_ok=True)
+    protos_dir = pathlib.Path(__file__).resolve().parents[1] / "protos" / "cavise"
 
     original_sys_path = list(sys.path)
     protos_path = str(protos_dir.resolve())
     if protos_path not in sys.path:
         sys.path.insert(0, protos_path)
 
-    generated = False
-    before_files = {p.name for p in protos_dir.iterdir() if p.is_file()}
-    pycache = protos_dir / "__pycache__"
-    before_pycache_existed = pycache.exists()
-    before_pycache_files = {p.name for p in pycache.glob("*")} if before_pycache_existed else set()
-
     try:
         try:
             capi_mod = importlib.import_module("opencda.core.common.communication.protos.cavise.capi_pb2")
             opencda_mod = importlib.import_module("opencda.core.common.communication.protos.cavise.opencda_pb2")
             _validate_capi_schema(capi_mod, opencda_mod)
-            yield
-            return
-        except (ImportError, AssertionError):
-            # Fast-path import/validation failed; fall through to protobuf regeneration.
-            pass
+        except (ImportError, AssertionError, VersionError) as error:
+            raise AssertionError(
+                "Generated protobuf modules are missing or stale. Build and install the OPENCDA_BUILD_PROTOBUF CMake target before running tests."
+            ) from error
 
-        if not shutil.which("protoc"):
-            raise AssertionError("protoc is not installed. Please install CI deps (protoc-wheel / requirements-ci).")
-
-        from opencda.core.common.communication.toolchain import CommunicationToolchain
-
-        try:
-            CommunicationToolchain.handle_messages(["entity", "opencda", "artery", "capi"])
-        except SystemExit as e:
-            raise AssertionError(f"Protobuf toolchain generation failed with exit code {e.code}") from e
-
-        generated = True
-        importlib.invalidate_caches()
-
-        # Force Python to reload the newly generated modules instead of using stale cache.
-        # 1) Clear top-level generated modules first (generated code imports these by top-level name).
-        for mod_name in ["ack_pb2", "entity_pb2", "opencda_pb2", "artery_pb2", "capi_pb2"]:
-            sys.modules.pop(mod_name, None)
-
-        # 2) Clear package modules.
-        for k in _iter_protos_modules_keys("opencda.core.common.communication.protos.cavise"):
-            sys.modules.pop(k, None)
-
-        capi_mod = importlib.import_module("opencda.core.common.communication.protos.cavise.capi_pb2")
-        opencda_mod = importlib.import_module("opencda.core.common.communication.protos.cavise.opencda_pb2")
-        _validate_capi_schema(capi_mod, opencda_mod)
         yield
     finally:
         sys.path[:] = original_sys_path
-
-        if generated:
-            after_files = {p.name for p in protos_dir.iterdir() if p.is_file()}
-            created = after_files - before_files
-            for name in created:
-                try:
-                    (protos_dir / name).unlink()
-                except FileNotFoundError:
-                    # File may already have been removed; ignore for best-effort cleanup.
-                    pass
-
-            # Best-effort cleanup: remove only pycache files created during this session.
-            if pycache.exists():
-                after_pycache_files = {p.name for p in pycache.glob("*")}
-                created_pycache_files = after_pycache_files - before_pycache_files
-
-                for name in created_pycache_files:
-                    try:
-                        (pycache / name).unlink()
-                    except FileNotFoundError:
-                        # Cache file may already have been removed; ignore for best-effort cleanup.
-                        pass
-
-                if not before_pycache_existed:
-                    try:
-                        pycache.rmdir()
-                    except OSError:
-                        # Directory may be non-empty or already gone; ignore for best-effort cleanup.
-                        pass
 
 
 @pytest.fixture
@@ -160,7 +89,7 @@ def fake_env(monkeypatch, ensure_comm_protos_ready):
 
     - Injects a fake `zmq` module via `sys.modules` (no real sockets / no network).
     - Uses real protobuf-generated modules (`capi_pb2`, `opencda_pb2`).
-    - Ensures protobuf Python modules are available (generates them once per session via CommunicationToolchain if missing/stale).
+    - Requires the protobuf modules produced by the CMake build.
     - Restores `sys.path` and `sys.modules` changes via pytest monkeypatch.
     """
     # 1. Isolate sys.path modifications
