@@ -49,9 +49,9 @@ COPY opencda/requirements.txt opencda/requirements-cuda.txt /tmp/opencda-require
 
 RUN python3 -m venv /opt/venv && \
     /opt/venv/bin/python -m pip install --no-cache-dir --upgrade \
-        pip==26.1.2 \
-        setuptools==82.0.1 \
-        wheel==0.47.0 \
+        pip==26.2.1 \
+        setuptools==84.0.0 \
+        wheel==0.48.0 \
     && \
     /opt/venv/bin/python -m pip install --no-cache-dir \
         -r /tmp/opencda-requirements/requirements.txt
@@ -59,7 +59,7 @@ RUN python3 -m venv /opt/venv && \
 
 FROM ubuntu:${UBUNTU_VERSION}@${UBUNTU_DIGEST} AS protobuf-builder
 
-ARG PROTOC_VERSION=34.1
+ARG PROTOC_VERSION=36.0
 
 ENV PATH="/opt/protobuf-build-venv/bin:${PATH}"
 
@@ -82,8 +82,8 @@ RUN curl --fail --location --show-error \
 
 RUN python3 -m venv /opt/protobuf-build-venv && \
     python -m pip install --no-cache-dir \
-        cmake==4.2.3 \
-        ninja==1.13.0 \
+        cmake==4.4.3 \
+        ninja==1.13.2 \
         mypy-protobuf==5.1.0
 
 WORKDIR /src/opencda
@@ -124,8 +124,8 @@ COPY opencda/requirements-cuda.txt /tmp/requirements-cuda.txt
 
 RUN python3 -m venv /opt/cuda-build-venv && \
     python -m pip install --no-cache-dir \
-        cmake==4.2.3 \
-        ninja==1.13.0 \
+        cmake==4.4.3 \
+        ninja==1.13.2 \
         -r /tmp/requirements-cuda.txt
 
 WORKDIR /src/opencda
