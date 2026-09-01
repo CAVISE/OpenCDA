@@ -14,13 +14,13 @@ cumm-cu130==0.9.1
 # Optimization & Convex Programming
 easydict==1.13
 einops==0.8.2
-lxml==6.1.1
+lxml==6.1.2
 
 # Visualization & Logging
 matplotlib==3.11.1
 
 # Tools
-mypy==2.3.0
+mypy==2.3.1
 
 # Graphs & Networks
 networkx==3.6.1
@@ -36,23 +36,23 @@ pandas==3.0.5
 pillow==12.3.0
 
 # Protobuf Runtime
-protobuf==7.35.1
+protobuf==7.36.0
 
 # Multimedia & GUI
 pyyaml==6.0.3
-pyzmq==27.1.0
+pyzmq==27.2.0
 
 # Extra (YAML support)
 rich==15.0.0
 
 # Machine Learning & Deep Learning
 scikit-learn==1.9.0
-scipy==1.18.0
+scipy==1.18.1
 shapely==2.1.2
 spconv-cu130==2.4.1
 sumolib==1.27.1
 tensorboardX==2.6.5
-timm==1.0.28
+timm==1.0.29
 torch_geometric==2.8.0.post1
 torchvision==0.28.0+cu130
 tqdm==4.70.0
