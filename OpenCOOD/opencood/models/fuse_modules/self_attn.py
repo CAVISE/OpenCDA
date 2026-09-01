@@ -32,6 +32,13 @@ class ScaledDotProductAttention(nn.Module):
         self.sqrt_dim = np.sqrt(dim)
 
     def forward(self, query, key, value):
+        # With a single CAV, attention contains one element whose softmax is
+        # exactly one, so the result is the input value.  Avoid dispatching the
+        # degenerate batched matrix multiplications to a backend-specific JIT
+        # kernel (for example Triton on CUDA).
+        if query.size(1) == 1 and key.size(1) == 1 and value.size(1) == 1:
+            return value
+
         score = torch.bmm(query, key.transpose(1, 2)) / self.sqrt_dim
         attn = F.softmax(score, -1)
         context = torch.bmm(attn, value)
