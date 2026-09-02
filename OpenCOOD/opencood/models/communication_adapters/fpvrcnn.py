@@ -27,7 +27,7 @@ class FpvrcnnCommunicationDataset(Protocol):
     def extract_data(
         self,
         idx: int,
-        agent_payload_builder: Callable[[dict[str, Any], PoseFrameMetadata], object] | None = None,
+        agent_payload_builder: Callable[[dict[str, Any], PoseFrameMetadata], object] | None,
     ) -> None: ...
 
 
