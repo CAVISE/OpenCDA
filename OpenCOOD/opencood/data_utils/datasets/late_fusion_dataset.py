@@ -6,13 +6,21 @@ import math
 import random
 import logging
 from collections import OrderedDict
+from typing import Any
 
 import numpy as np
+import numpy.typing as npt
 import torch
 
 import opencood.data_utils.datasets
 from opencood.data_utils.post_processor import build_postprocessor
 from opencood.data_utils.datasets import basedataset
+from opencood.models.communication_adapters import (
+    LateFusionWirePayload,
+    PoseFrameMetadata,
+    build_inference_input,
+    inference_input_to_dict,
+)
 from opencood.data_utils.pre_processor import build_preprocessor
 from opencood.utils import box_utils
 from opencood.utils.pcd_utils import pcd_to_np, mask_points_by_range, mask_ego_points, shuffle_points, downsample_lidar_minimum
@@ -49,20 +57,64 @@ class LateFusionDataset(basedataset.BaseDataset):
 
         if self.payload_handler is not None:
             for cav_id, selected_cav_base in base_data_dict.items():
-                selected_cav_processed = self.get_item_single_car(selected_cav_base)
+                selected_cav_processed = self.__build_model_input(selected_cav_base)
+                payload = self.build_wire_payload(selected_cav_base, selected_cav_processed, idx)
+                self.payload_handler.set_opencda_payload(cav_id, self.module_name, payload)
 
-                with self.payload_handler.handle_opencda_payload(cav_id, self.module_name) as msg:
-                    msg["object_ids"] = selected_cav_processed["object_ids"]
-                    msg["lidar_pose"] = selected_cav_base["params"]["lidar_pose"]
-                    msg["object_bbx_center"] = selected_cav_processed["object_bbx_center"]
-                    msg["object_bbx_mask"] = selected_cav_processed["object_bbx_mask"]
-                    msg["anchor_box"] = selected_cav_processed["anchor_box"]
-                    msg["pos_equal_one"] = selected_cav_processed["label_dict"]["pos_equal_one"]
-                    msg["neg_equal_one"] = selected_cav_processed["label_dict"]["neg_equal_one"]
-                    msg["targets"] = selected_cav_processed["label_dict"]["targets"]
-                    msg["voxel_features"] = selected_cav_processed["processed_lidar"]["voxel_features"]
-                    msg["voxel_coords"] = selected_cav_processed["processed_lidar"]["voxel_coords"]
-                    msg["voxel_num_points"] = selected_cav_processed["processed_lidar"]["voxel_num_points"]
+    @staticmethod
+    def build_wire_payload(
+        selected_cav_base: dict[str, Any],
+        selected_cav_processed: dict[str, Any],
+        receive_frame: int,
+    ) -> LateFusionWirePayload:
+        """
+        Build the late-fusion payload sent over V2X.
+
+        Parameters
+        ----------
+        selected_cav_base : dict[str, Any]
+            Raw dataset entry for one sending agent.
+        selected_cav_processed : dict[str, Any]
+            Processed data for the same sending agent.
+        receive_frame : int
+            Dataset frame in which the payload is sent.
+
+        Returns
+        -------
+        LateFusionWirePayload
+            Typed payload containing only remote model-input data.
+        """
+        return LateFusionWirePayload(
+            inference_input=selected_cav_processed["inference_input"],
+            metadata=PoseFrameMetadata(
+                lidar_pose=selected_cav_base["params"]["lidar_pose"],
+                capture_frame=receive_frame - int(selected_cav_base["time_delay"]),
+            ),
+        )
+
+    @staticmethod
+    def decode_wire_payload(payload: object) -> LateFusionWirePayload:
+        """
+        Validate and decode a late-fusion payload received over V2X.
+
+        Parameters
+        ----------
+        payload : object
+            Deserialized module payload received over V2X.
+
+        Returns
+        -------
+        LateFusionWirePayload
+            Validated late-fusion payload.
+
+        Raises
+        ------
+        TypeError
+            If the received payload has an unexpected type.
+        """
+        if not isinstance(payload, LateFusionWirePayload):
+            raise TypeError(f"Expected LateFusionWirePayload, got {type(payload).__name__}")
+        return payload
 
     def __find_ego_vehicle(self, base_data_dict):
         ego_id = -1
@@ -117,7 +169,29 @@ class LateFusionDataset(basedataset.BaseDataset):
         lidar_np[:, :3] = box_utils.project_points_by_matrix_torch(lidar_np[:, :3], transformation_matrix)
         return mask_points_by_range(lidar_np, self.params["preprocess"]["cav_lidar_range"])
 
-    def __build_visualization_data(self, ego_id, ego_lidar_pose, base_data_dict):
+    def build_visualization_context(
+        self,
+        ego_id: str,
+        ego_lidar_pose: list[float],
+        base_data_dict: dict[str, Any],
+    ) -> dict[str, Any]:
+        """
+        Build visualization data from the local scene snapshot.
+
+        Parameters
+        ----------
+        ego_id : str
+            Identifier of the receiving ego agent.
+        ego_lidar_pose : list[float]
+            Current ego LiDAR pose in world coordinates.
+        base_data_dict : dict[str, Any]
+            Local dataset snapshot, independent of delivered messages.
+
+        Returns
+        -------
+        dict[str, Any]
+            Per-agent projected point clouds and their local identities.
+        """
         if not self.visualize:
             return {}
 
@@ -136,52 +210,36 @@ class LateFusionDataset(basedataset.BaseDataset):
             "origin_lidar_agent_ids": origin_lidar_agent_ids,
         }
 
-    def __append_visualization_data(self, processed_data_dict, ego_id, ego_lidar_pose, base_data_dict):
-        if "ego" in processed_data_dict:
-            processed_data_dict["ego"].update(self.__build_visualization_data(ego_id, ego_lidar_pose, base_data_dict))
-        return processed_data_dict
-
-    def __process_with_messages(self, ego_id, ego_lidar_pose, base_data_dict, visualization_ego_lidar_pose, visualization_base_data_dict):
+    def __process_with_messages(self, ego_id, ego_lidar_pose, base_data_dict):
         processed_data_dict = OrderedDict()
 
         ego_cav_base = base_data_dict.get(ego_id)
-        ego_cav_processed = self.get_item_single_car(ego_cav_base)
+        ego_cav_processed = self.__build_model_input(ego_cav_base)
 
         transformation_matrix_info = x1_to_x2(ego_lidar_pose, ego_lidar_pose)
-        ego_cav_processed["transformation_matrix"] = transformation_matrix_info
-
-        processed_data_dict.update({"ego": ego_cav_processed})
+        processed_data_dict["ego"] = {
+            "inference_input": ego_cav_processed["inference_input"],
+            "transformation_matrix": transformation_matrix_info,
+        }
 
         if ego_id in self.payload_handler.current_artery_payload:
             for cav_id, _ in base_data_dict.items():
-                if cav_id in self.payload_handler.current_artery_payload[ego_id]:
-                    with self.payload_handler.handle_artery_payload(ego_id, cav_id, self.module_name) as msg:
-                        cav_lidar_pose = msg["lidar_pose"]
-                        transformation_matrix_info = x1_to_x2(cav_lidar_pose, ego_lidar_pose)
+                raw_payload = self.payload_handler.get_artery_payload(ego_id, cav_id, self.module_name)
+                if raw_payload is None:
+                    continue
+                payload = self.decode_wire_payload(raw_payload)
+                transformation_matrix_info = x1_to_x2(payload.metadata.lidar_pose, ego_lidar_pose)
 
-                        selected_cav_processed = {
-                            "object_bbx_center": msg["object_bbx_center"],
-                            "object_bbx_mask": msg["object_bbx_mask"],
-                            "object_ids": msg["object_ids"],
-                            "anchor_box": msg["anchor_box"],
-                            "label_dict": {
-                                "pos_equal_one": msg["pos_equal_one"],
-                                "neg_equal_one": msg["neg_equal_one"],
-                                "targets": msg["targets"],
-                            },
-                            "processed_lidar": {
-                                "voxel_features": msg["voxel_features"],
-                                "voxel_coords": msg["voxel_coords"],
-                                "voxel_num_points": msg["voxel_num_points"],
-                            },
-                            "transformation_matrix": transformation_matrix_info,
-                        }
+                selected_cav_processed = {
+                    "inference_input": payload.inference_input,
+                    "transformation_matrix": transformation_matrix_info,
+                }
 
-                    processed_data_dict.update({cav_id: selected_cav_processed})
+                processed_data_dict.update({cav_id: selected_cav_processed})
 
-        return self.__append_visualization_data(processed_data_dict, ego_id, visualization_ego_lidar_pose, visualization_base_data_dict)
+        return processed_data_dict
 
-    def __process_without_messages(self, ego_id, ego_lidar_pose, base_data_dict, visualization_ego_lidar_pose, visualization_base_data_dict):
+    def __process_without_messages(self, ego_id, ego_lidar_pose, base_data_dict):
         processed_data_dict = OrderedDict()
 
         for cav_id, selected_cav_base in base_data_dict.items():
@@ -196,12 +254,111 @@ class LateFusionDataset(basedataset.BaseDataset):
             cav_lidar_pose = selected_cav_base["params"]["lidar_pose"]
             transformation_matrix = x1_to_x2(cav_lidar_pose, ego_lidar_pose)
 
-            selected_cav_processed = self.get_item_single_car(selected_cav_base)
-            selected_cav_processed.update({"transformation_matrix": transformation_matrix})
+            selected_cav_processed = self.__build_model_input(selected_cav_base)
             update_cav = "ego" if cav_id == ego_id else cav_id
-            processed_data_dict.update({update_cav: selected_cav_processed})
+            processed_data_dict[update_cav] = {
+                "inference_input": selected_cav_processed["inference_input"],
+                "transformation_matrix": transformation_matrix,
+            }
 
-        return self.__append_visualization_data(processed_data_dict, ego_id, visualization_ego_lidar_pose, visualization_base_data_dict)
+        return processed_data_dict
+
+    def build_local_supervision(self, base_data_dict: dict[str, Any], ego_lidar_pose: list[float]) -> dict[str, Any]:
+        """
+        Build ego-frame ground truth and labels from the local scene.
+
+        Parameters
+        ----------
+        base_data_dict : dict[str, Any]
+            Complete local dataset snapshot for the current scene.
+        ego_lidar_pose : list[float]
+            Current ego LiDAR pose in world coordinates.
+
+        Returns
+        -------
+        dict[str, Any]
+            Ego-frame ground truth, anchors, and target labels.
+        """
+        object_bbx_center, object_bbx_mask, object_ids = self.post_processor.generate_object_center(list(base_data_dict.values()), ego_lidar_pose)
+        anchor_box = self.post_processor.generate_anchor_box()
+        label_dict = self.post_processor.generate_label(
+            gt_box_center=object_bbx_center,
+            anchors=anchor_box,
+            mask=object_bbx_mask,
+        )
+        return {
+            "object_bbx_center": object_bbx_center,
+            "object_bbx_mask": object_bbx_mask,
+            "object_ids": object_ids,
+            "anchor_box": anchor_box,
+            "label_dict": label_dict,
+        }
+
+    def assemble_inference_sample(
+        self,
+        inference_input: OrderedDict[str, dict[str, Any]],
+        local_supervision: dict[str, Any],
+        visualization_context: dict[str, Any],
+    ) -> OrderedDict[str, dict[str, Any]]:
+        """
+        Combine delivered model inputs with local-only dataset data.
+
+        Parameters
+        ----------
+        inference_input : collections.OrderedDict
+            Ego model input plus model inputs from delivered messages.
+        local_supervision : dict[str, Any]
+            Ground truth and labels produced from the local scene.
+        visualization_context : dict[str, Any]
+            Visualization data produced from the local scene.
+
+        Returns
+        -------
+        collections.OrderedDict
+            Late-fusion sample ready for collation.
+        """
+        anchor_box = local_supervision["anchor_box"]
+        for cav_content in inference_input.values():
+            cav_content["anchor_box"] = anchor_box
+
+        inference_input["ego"].update(local_supervision)
+        inference_input["ego"].update(visualization_context)
+        return inference_input
+
+    def __prepare_lidar(self, selected_cav_base: dict[str, Any]) -> npt.NDArray[Any]:
+        """
+        Filter one agent's local LiDAR point cloud.
+
+        Parameters
+        ----------
+        selected_cav_base : dict[str, Any]
+            Raw dataset entry for one agent.
+
+        Returns
+        -------
+        numpy.ndarray
+            Shuffled and range-filtered LiDAR points.
+        """
+        lidar_np = shuffle_points(selected_cav_base["lidar_np"])
+        lidar_np = mask_points_by_range(lidar_np, self.params["preprocess"]["cav_lidar_range"])
+        return mask_ego_points(lidar_np)
+
+    def __build_model_input(self, selected_cav_base: dict[str, Any]) -> dict[str, Any]:
+        """
+        Build model input without constructing local supervision.
+
+        Parameters
+        ----------
+        selected_cav_base : dict[str, Any]
+            Raw dataset entry for one agent.
+
+        Returns
+        -------
+        dict[str, Any]
+            Preprocessed LiDAR features used by the detector.
+        """
+        lidar_np = self.__prepare_lidar(selected_cav_base)
+        return {"inference_input": build_inference_input(self.pre_processor.preprocess(lidar_np))}
 
     def get_item_single_car(self, selected_cav_base):
         """
@@ -219,12 +376,7 @@ class LateFusionDataset(basedataset.BaseDataset):
         """
         selected_cav_processed = {}
 
-        # filter lidar
-        lidar_np = selected_cav_base["lidar_np"]
-        lidar_np = shuffle_points(lidar_np)
-        lidar_np = mask_points_by_range(lidar_np, self.params["preprocess"]["cav_lidar_range"])
-        # remove points that hit ego vehicle
-        lidar_np = mask_ego_points(lidar_np)
+        lidar_np = self.__prepare_lidar(selected_cav_base)
 
         # generate the bounding box(n, 7) under the cav's space
         object_bbx_center, object_bbx_mask, object_ids = self.post_processor.generate_object_center(
@@ -275,49 +427,22 @@ class LateFusionDataset(basedataset.BaseDataset):
         _, visualization_ego_lidar_pose = self.__find_ego_vehicle(visualization_base_data_dict)
 
         if self.payload_handler is not None:
-            processed_data_dict = self.__process_with_messages(
-                ego_id,
-                ego_lidar_pose,
-                base_data_dict,
-                visualization_ego_lidar_pose,
-                visualization_base_data_dict,
-            )
+            inference_input = self.__process_with_messages(ego_id, ego_lidar_pose, base_data_dict)
         else:
-            processed_data_dict = self.__process_without_messages(
-                ego_id,
-                ego_lidar_pose,
-                base_data_dict,
-                visualization_ego_lidar_pose,
-                visualization_base_data_dict,
-            )
+            inference_input = self.__process_without_messages(ego_id, ego_lidar_pose, base_data_dict)
 
-        return processed_data_dict
+        local_supervision = self.build_local_supervision(base_data_dict, ego_lidar_pose)
+        visualization_context = self.build_visualization_context(
+            ego_id,
+            visualization_ego_lidar_pose,
+            visualization_base_data_dict,
+        )
+        return self.assemble_inference_sample(inference_input, local_supervision, visualization_context)
 
     def __collate_processed_lidar(self, cav_content):
-        if "processed_lidar" in cav_content:
-            return self.pre_processor.collate_batch([cav_content["processed_lidar"]])
-
-        return self.pre_processor.collate_batch(
-            {
-                "voxel_features": cav_content["voxel_features"],
-                "voxel_coords": cav_content["voxel_coords"],
-                "voxel_num_points": cav_content["voxel_num_points"],
-            }
-        )
-
-    def __collate_label_dict(self, cav_content):
-        if "label_dict" in cav_content:
-            return self.post_processor.collate_batch([cav_content["label_dict"]])
-
-        return self.post_processor.collate_batch(
-            [
-                {
-                    "pos_equal_one": cav_content["pos_equal_one"],
-                    "neg_equal_one": cav_content["neg_equal_one"],
-                    "targets": cav_content["targets"],
-                }
-            ]
-        )
+        if "inference_input" in cav_content:
+            return self.pre_processor.collate_batch([inference_input_to_dict(cav_content["inference_input"])])
+        return self.pre_processor.collate_batch([cav_content["processed_lidar"]])
 
     def collate_batch_test(self, batch):
         """
@@ -349,10 +474,6 @@ class LateFusionDataset(basedataset.BaseDataset):
 
         for cav_id, cav_content in batch.items():
             output_dict.update({cav_id: {}})
-            # shape: (1, max_num, 7)
-            object_bbx_center = torch.from_numpy(np.array([cav_content["object_bbx_center"]]))
-            object_bbx_mask = torch.from_numpy(np.array([cav_content["object_bbx_mask"]]))
-            object_ids = cav_content["object_ids"]
 
             # the anchor box is the same for all bounding boxes usually, thus
             # we don't need the batch dimension.
@@ -368,22 +489,26 @@ class LateFusionDataset(basedataset.BaseDataset):
 
             # processed lidar dictionary
             processed_lidar_torch_dict = self.__collate_processed_lidar(cav_content)
-            # label dictionary
-            label_torch_dict = self.__collate_label_dict(cav_content)
 
             # save the transformation matrix (4, 4) to ego vehicle
             transformation_matrix_torch = torch.from_numpy(np.array(cav_content["transformation_matrix"])).float()
 
             output_dict[cav_id].update(
                 {
-                    "object_bbx_center": object_bbx_center,
-                    "object_bbx_mask": object_bbx_mask,
                     "processed_lidar": processed_lidar_torch_dict,
-                    "label_dict": label_torch_dict,
-                    "object_ids": object_ids,
                     "transformation_matrix": transformation_matrix_torch,
                 }
             )
+
+            if "object_bbx_center" in cav_content:
+                output_dict[cav_id].update(
+                    {
+                        "object_bbx_center": torch.from_numpy(np.array([cav_content["object_bbx_center"]])),
+                        "object_bbx_mask": torch.from_numpy(np.array([cav_content["object_bbx_mask"]])),
+                        "label_dict": self.post_processor.collate_batch([cav_content["label_dict"]]),
+                        "object_ids": cav_content["object_ids"],
+                    }
+                )
 
             if self.visualize:
                 if "origin_lidar" in cav_content:
@@ -427,6 +552,6 @@ class LateFusionDataset(basedataset.BaseDataset):
             The tensor of gt bounding box.
         """
         pred_box_tensor, pred_score = self.post_processor.post_process(data_dict, output_dict)
-        gt_box_tensor = self.post_processor.generate_gt_bbx(data_dict)
+        gt_box_tensor = self.post_processor.generate_gt_bbx({"ego": data_dict["ego"]})
 
         return pred_box_tensor, pred_score, gt_box_tensor

@@ -180,6 +180,33 @@ class RoIHead(nn.Module):
 
         return batch_dict
 
+    def prepare_rois(self, batch_dict):
+        """
+        Prepare fused proposals for inference without ground truth.
+
+        Parameters
+        ----------
+        batch_dict : dict
+            Model state containing one ``boxes_fused`` tensor per scene.
+
+        Returns
+        -------
+        dict
+            Model state with the proposal fields required by RoI pooling and
+            stage-two box decoding.
+        """
+        rois_by_scene = batch_dict["boxes_fused"]
+        rois = torch.cat(rois_by_scene, dim=0)
+        rois_anchor = rois.clone().detach().view(-1, self.code_size)
+        rois_anchor[:, 0:3] = 0
+        rois_anchor[:, 6] = 0
+        batch_dict["rcnn_label_dict"] = {
+            "rois": rois,
+            "rois_anchor": rois_anchor,
+            "record_len": [rois.shape[0] for rois in rois_by_scene],
+        }
+        return batch_dict
+
     def roi_grid_pool(self, batch_dict):
         batch_size = len(batch_dict["record_len"])
         rois = batch_dict["rcnn_label_dict"]["rois"]
@@ -189,7 +216,7 @@ class RoIHead(nn.Module):
 
         point_features = torch.cat(point_features, dim=0)
         # (BxN, 6x6x6, 3)
-        global_roi_grid_points, local_roi_grid_points = self.get_global_grid_points_of_roi(rois)
+        global_roi_grid_points, _ = self.get_global_grid_points_of_roi(rois)
         # (B, Nx6x6x6, 3)
         global_roi_grid_points = global_roi_grid_points.view(batch_size, -1, 3)
 
@@ -215,7 +242,7 @@ class RoIHead(nn.Module):
         return pooled_features
 
     def forward(self, batch_dict):
-        batch_dict = self.assign_targets(batch_dict)
+        batch_dict = self.assign_targets(batch_dict) if self.training else self.prepare_rois(batch_dict)
         # RoI aware pooling
         pooled_features = self.roi_grid_pool(batch_dict)  # (BxN, 6x6x6, C)
 

@@ -505,7 +505,7 @@ class Scenario:
                     opencood_dataset = self.coperception_model_manager.opencood_dataset
                     if opencood_dataset is None:
                         self._abort_simulation("Coperception dataset is missing; prediction pipeline cannot continue.")
-                    opencood_dataset.extract_data(idx=0)
+                    self.coperception_model_manager.prepare_transmission_payloads(idx=0)
                     can_predict_current_tick = True
 
             opencda_message = payload_handler.make_opencda_message()

@@ -68,7 +68,6 @@ class PointPillarCoBEVT(nn.Module):
         voxel_coords = data_dict["processed_lidar"]["voxel_coords"]
         voxel_num_points = data_dict["processed_lidar"]["voxel_num_points"]
         record_len = data_dict["record_len"]
-        _ = data_dict["spatial_correction_matrix"]  # spatial_correction_matrix
 
         batch_dict = {"voxel_features": voxel_features, "voxel_coords": voxel_coords, "voxel_num_points": voxel_num_points, "record_len": record_len}
         # n, 4 -> n, c
