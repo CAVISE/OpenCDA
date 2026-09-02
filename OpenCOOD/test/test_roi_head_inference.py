@@ -1,11 +1,21 @@
 """Tests for GT-independent FPV-RCNN RoI inference."""
 
+import sys
 from unittest.mock import MagicMock
 
-import torch
-from torch import nn
+import pytest
 
-from opencood.models.sub_modules.roi_head import RoIHead
+mocked_opencood = sys.modules.get("opencood")
+if mocked_opencood is not None and not hasattr(mocked_opencood, "__path__"):
+    pytest.skip(
+        "full OpenCOOD tests are disabled when the lightweight OpenCDA test doubles are active",
+        allow_module_level=True,
+    )
+
+torch = pytest.importorskip("torch")
+from torch import nn  # noqa: E402
+
+from opencood.models.sub_modules.roi_head import RoIHead  # noqa: E402
 
 
 def _build_minimal_roi_head(proposal_count: int) -> RoIHead:

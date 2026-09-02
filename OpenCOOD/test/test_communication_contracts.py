@@ -2,11 +2,21 @@
 
 from dataclasses import fields
 import pickle
+import sys
 
 import numpy as np
 import pytest
 
-from opencood.models.communication_adapters import (
+mocked_opencood = sys.modules.get("opencood")
+if mocked_opencood is not None and not hasattr(mocked_opencood, "__path__"):
+    pytest.skip(
+        "full OpenCOOD tests are disabled when the lightweight OpenCDA test doubles are active",
+        allow_module_level=True,
+    )
+
+pytest.importorskip("torch")
+
+from opencood.models.communication_adapters import (  # noqa: E402
     BevInferenceInput,
     EarlyFusionWirePayload,
     FpvrcnnAgentInferenceInput,

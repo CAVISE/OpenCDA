@@ -1,15 +1,26 @@
 """Tests for the model-neutral IntermediateFusionDatasetV2 boundary."""
 
 from collections import OrderedDict
+import sys
 from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
 
-from opencood.data_utils.datasets.intermediate_fusion_dataset_v2 import (
+mocked_opencood = sys.modules.get("opencood")
+if mocked_opencood is not None and not hasattr(mocked_opencood, "__path__"):
+    pytest.skip(
+        "full OpenCOOD tests are disabled when the lightweight OpenCDA test doubles are active",
+        allow_module_level=True,
+    )
+
+pytest.importorskip("torch")
+pytest.importorskip("open3d")
+
+from opencood.data_utils.datasets.intermediate_fusion_dataset_v2 import (  # noqa: E402
     IntermediateFusionDatasetV2,
 )
-from opencood.models.communication_adapters import PoseFrameMetadata
+from opencood.models.communication_adapters import PoseFrameMetadata  # noqa: E402
 
 
 class RecordingPayloadHandler:

@@ -1,14 +1,23 @@
 """Tests for model-owned communication adapters."""
 
+import sys
 from typing import Any
 from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
-import torch
-from torch import nn
 
-from opencood.models.communication_adapters import (
+mocked_opencood = sys.modules.get("opencood")
+if mocked_opencood is not None and not hasattr(mocked_opencood, "__path__"):
+    pytest.skip(
+        "full OpenCOOD tests are disabled when the lightweight OpenCDA test doubles are active",
+        allow_module_level=True,
+    )
+
+torch = pytest.importorskip("torch")
+from torch import nn  # noqa: E402
+
+from opencood.models.communication_adapters import (  # noqa: E402
     FpvrcnnAgentInferenceInput,
     FpvrcnnWirePayload,
     ModelCommunicationAdapter,
@@ -16,8 +25,8 @@ from opencood.models.communication_adapters import (
     PoseFrameMetadata,
     build_communication_adapter,
 )
-from opencood.models.communication_adapters import fpvrcnn as fpvrcnn_module
-from opencood.models.communication_adapters.fpvrcnn import FpvrcnnCommunicationAdapter
+from opencood.models.communication_adapters import fpvrcnn as fpvrcnn_module  # noqa: E402
+from opencood.models.communication_adapters.fpvrcnn import FpvrcnnCommunicationAdapter  # noqa: E402
 
 
 class DeclaredAdapter(ModelCommunicationAdapter):
