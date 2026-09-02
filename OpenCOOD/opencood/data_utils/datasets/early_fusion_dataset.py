@@ -5,6 +5,7 @@ Dataset class for early fusion
 import math
 import logging
 from collections import OrderedDict
+from typing import Any
 
 import numpy as np
 import torch
@@ -13,6 +14,7 @@ import opencood.data_utils.datasets
 from opencood.utils import box_utils
 from opencood.data_utils.post_processor import build_postprocessor
 from opencood.data_utils.datasets import basedataset
+from opencood.models.communication_adapters import EarlyFusionWirePayload
 from opencood.data_utils.pre_processor import build_preprocessor
 from opencood.utils.pcd_utils import downsample_lidar_minimum
 from opencood.utils.transformation_utils import x1_to_x2
@@ -57,60 +59,70 @@ class EarlyFusionDataset(basedataset.BaseDataset):
         if self.payload_handler is not None:
             for cav_id, selected_cav_base in base_data_dict.items():
                 selected_cav_processed = self.get_item_single_car(selected_cav_base, ego_lidar_pose)
+                payload = self.build_wire_payload(selected_cav_processed)
+                self.payload_handler.set_opencda_payload(cav_id, self.module_name, payload)
 
-                with self.payload_handler.handle_opencda_payload(cav_id, self.module_name) as msg:
-                    msg["object_ids"] = selected_cav_processed["object_ids"]  # list
-                    msg["object_bbx_center"] = selected_cav_processed["object_bbx_center"]
-                    msg["projected_lidar"] = selected_cav_processed["projected_lidar"]
-                    msg["projected_lidar_spoofing_mask"] = selected_cav_processed["projected_lidar_spoofing_mask"]
+    @staticmethod
+    def build_wire_payload(selected_cav_processed: dict[str, Any]) -> EarlyFusionWirePayload:
+        """Build the early-fusion payload sent through Artery.
+
+        Parameters
+        ----------
+        selected_cav_processed : dict[str, Any]
+            Processed data for one sending agent.
+
+        Returns
+        -------
+        EarlyFusionWirePayload
+            Typed payload containing only the remote model input.
+        """
+        return EarlyFusionWirePayload(
+            projected_lidar=selected_cav_processed["projected_lidar"],
+        )
+
+    @staticmethod
+    def decode_wire_payload(payload: object) -> EarlyFusionWirePayload:
+        """Validate and decode an early-fusion payload received from Artery.
+
+        Parameters
+        ----------
+        payload : object
+            Deserialized module payload received from Artery.
+
+        Returns
+        -------
+        EarlyFusionWirePayload
+            Validated early-fusion payload.
+
+        Raises
+        ------
+        TypeError
+            If the received payload has an unexpected type.
+        """
+        if not isinstance(payload, EarlyFusionWirePayload):
+            raise TypeError(f"Expected EarlyFusionWirePayload, got {type(payload).__name__}")
+        return payload
 
     def __process_with_messages(self, ego_id, ego_lidar_pose, base_data_dict):
-        object_stack = []
-        object_id_stack = []
         projected_lidar_stack = []
-        projected_lidar_roles = []
-        projected_lidar_agent_ids = []
-        projected_lidar_spoofing_masks = []
 
         ego_cav_base = base_data_dict.get(ego_id)
         ego_cav_processed = self.get_item_single_car(ego_cav_base, ego_lidar_pose)
 
-        object_id_stack += ego_cav_processed["object_ids"]
-        object_stack.append(ego_cav_processed["object_bbx_center"])
         projected_lidar_stack.append(ego_cav_processed["projected_lidar"])
-        projected_lidar_roles.append("ego")
-        projected_lidar_agent_ids.append(ego_id)
-        projected_lidar_spoofing_masks.append(ego_cav_processed["projected_lidar_spoofing_mask"])
 
         if ego_id in self.payload_handler.current_artery_payload:
             for cav_id, _ in base_data_dict.items():
-                if cav_id in self.payload_handler.current_artery_payload[ego_id]:
-                    with self.payload_handler.handle_artery_payload(ego_id, cav_id, self.module_name) as msg:
-                        object_id_stack += msg["object_ids"]
-                        object_stack.append(msg["object_bbx_center"])
-                        projected_lidar_stack.append(msg["projected_lidar"])
-                        projected_lidar_roles.append("other")
-                        projected_lidar_agent_ids.append(cav_id)
-                        projected_lidar_spoofing_masks.append(
-                            np.asarray(msg.get("projected_lidar_spoofing_mask", np.zeros((msg["projected_lidar"].shape[0],), dtype=np.bool_)))
-                        )
+                raw_payload = self.payload_handler.get_artery_payload(ego_id, cav_id, self.module_name)
+                if raw_payload is None:
+                    continue
+                payload = self.decode_wire_payload(raw_payload)
+                projected_lidar_stack.append(payload.projected_lidar)
 
-        return {
-            "object_stack": object_stack,
-            "object_id_stack": object_id_stack,
-            "projected_lidar_stack": projected_lidar_stack,
-            "projected_lidar_roles": projected_lidar_roles,
-            "projected_lidar_agent_ids": projected_lidar_agent_ids,
-            "projected_lidar_spoofing_masks": projected_lidar_spoofing_masks,
-        }
+        return {"projected_lidar_stack": projected_lidar_stack}
 
     def __process_without_messages(self, ego_lidar_pose, base_data_dict):
         projected_lidar_stack = []
-        object_stack = []
-        object_id_stack = []
-        projected_lidar_roles = []
-        projected_lidar_agent_ids = []
-        projected_lidar_spoofing_masks = []
 
         # loop over all CAVs to process information
         for cav_id, selected_cav_base in base_data_dict.items():
@@ -124,55 +136,118 @@ class EarlyFusionDataset(basedataset.BaseDataset):
 
             selected_cav_processed = self.get_item_single_car(selected_cav_base, ego_lidar_pose)
             projected_lidar_stack.append(selected_cav_processed["projected_lidar"])
-            object_stack.append(selected_cav_processed["object_bbx_center"])
-            object_id_stack += selected_cav_processed["object_ids"]
-            projected_lidar_roles.append("ego" if selected_cav_base["ego"] else "other")
-            projected_lidar_agent_ids.append(cav_id)
-            projected_lidar_spoofing_masks.append(selected_cav_processed["projected_lidar_spoofing_mask"])
 
+        return {"projected_lidar_stack": projected_lidar_stack}
+
+    def build_local_supervision(self, base_data_dict: dict[str, Any], ego_lidar_pose: list[float]) -> dict[str, Any]:
+        """Build ego-frame ground truth from the local scene snapshot.
+
+        Parameters
+        ----------
+        base_data_dict : dict[str, Any]
+            Complete local dataset snapshot for the current scene.
+        ego_lidar_pose : list[float]
+            Current ego LiDAR pose in world coordinates.
+
+        Returns
+        -------
+        dict[str, Any]
+            Ground-truth boxes, mask, and object identifiers.
+        """
+        object_bbx_center, object_bbx_mask, object_ids = self.post_processor.generate_object_center(list(base_data_dict.values()), ego_lidar_pose)
         return {
-            "object_stack": object_stack,
-            "object_id_stack": object_id_stack,
-            "projected_lidar_stack": projected_lidar_stack,
-            "projected_lidar_roles": projected_lidar_roles,
-            "projected_lidar_agent_ids": projected_lidar_agent_ids,
-            "projected_lidar_spoofing_masks": projected_lidar_spoofing_masks,
+            "object_bbx_center": object_bbx_center,
+            "object_bbx_mask": object_bbx_mask,
+            "object_ids": object_ids,
         }
 
-    def __getitem__(self, idx):
-        base_data_dict = self.retrieve_base_data(idx)
-        processed_data_dict = OrderedDict()
-        processed_data_dict["ego"] = {}
+    def build_visualization_context(
+        self,
+        ego_id: str,
+        ego_lidar_pose: list[float],
+        base_data_dict: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Build point-cloud visualization data from the local scene.
 
-        ego_id, ego_lidar_pose = self.__find_ego_vehicle(base_data_dict)
+        Parameters
+        ----------
+        ego_id : str
+            Identifier of the receiving ego agent.
+        ego_lidar_pose : list[float]
+            Current ego LiDAR pose in world coordinates.
+        base_data_dict : dict[str, Any]
+            Local dataset snapshot, independent of delivered messages.
 
-        if self.payload_handler is not None:
-            data = self.__process_with_messages(ego_id, ego_lidar_pose, base_data_dict)
-        else:
-            data = self.__process_without_messages(ego_lidar_pose, base_data_dict)
+        Returns
+        -------
+        dict[str, Any]
+            Per-agent point clouds, identities, roles, and spoofing masks.
+        """
+        if not self.visualize:
+            return {}
 
-        # exclude all repetitive objects
-        unique_indices = [data["object_id_stack"].index(x) for x in set(data["object_id_stack"])]
-        object_stack = np.vstack(data["object_stack"])
-        object_stack = object_stack[unique_indices]
+        projected_lidar_stack = []
+        projected_lidar_roles = []
+        projected_lidar_agent_ids = []
+        projected_lidar_spoofing_masks = []
+        lidar_range = self.params["preprocess"]["cav_lidar_range"]
 
-        # make sure bounding boxes across all frames have the same number
-        object_bbx_center = np.zeros((self.params["postprocess"]["max_num"], 7))
-        mask = np.zeros(self.params["postprocess"]["max_num"])
-        object_bbx_center[: object_stack.shape[0], :] = object_stack
-        mask[: object_stack.shape[0]] = 1
+        for cav_id, cav_base in base_data_dict.items():
+            cav_processed = self.get_item_single_car(cav_base, ego_lidar_pose)
+            projected_lidar = cav_processed["projected_lidar"]
+            range_mask = (
+                (projected_lidar[:, 0] > lidar_range[0])
+                & (projected_lidar[:, 0] < lidar_range[3])
+                & (projected_lidar[:, 1] > lidar_range[1])
+                & (projected_lidar[:, 1] < lidar_range[4])
+                & (projected_lidar[:, 2] > lidar_range[2])
+                & (projected_lidar[:, 2] < lidar_range[5])
+            )
+            projected_lidar_stack.append(projected_lidar[range_mask])
+            projected_lidar_roles.append("ego" if cav_id == ego_id else "other")
+            projected_lidar_agent_ids.append(cav_id)
+            projected_lidar_spoofing_masks.append(cav_processed["projected_lidar_spoofing_mask"][range_mask])
 
-        # convert list to numpy array, (N, 4)
-        projected_lidar_stack = np.vstack(data["projected_lidar_stack"])
-        point_source = np.concatenate(
-            [np.full(points.shape[0], idx, dtype=np.int32) for idx, points in enumerate(data["projected_lidar_stack"])], axis=0
+        return {
+            "origin_lidar": np.vstack(projected_lidar_stack),
+            "origin_lidar_by_agent": projected_lidar_stack,
+            "origin_lidar_roles": projected_lidar_roles,
+            "origin_lidar_agent_ids": projected_lidar_agent_ids,
+            "origin_lidar_spoofing_masks": projected_lidar_spoofing_masks,
+        }
+
+    def assemble_inference_sample(
+        self,
+        inference_input: dict[str, Any],
+        local_supervision: dict[str, Any],
+        visualization_context: dict[str, Any],
+    ) -> OrderedDict[str, dict[str, Any]]:
+        """Combine delivered LiDAR with local supervision and visualization.
+
+        Parameters
+        ----------
+        inference_input : dict[str, Any]
+            Ego LiDAR plus point clouds from messages that were delivered.
+        local_supervision : dict[str, Any]
+            Ground truth produced solely from the local dataset snapshot.
+        visualization_context : dict[str, Any]
+            Visualization data produced solely from the local snapshot.
+
+        Returns
+        -------
+        collections.OrderedDict
+            Early-fusion sample ready for collation.
+        """
+        projected_lidar_stack = np.vstack(inference_input["projected_lidar_stack"])
+        object_bbx_center = local_supervision["object_bbx_center"]
+        object_bbx_mask = local_supervision["object_bbx_mask"]
+
+        projected_lidar_stack, object_bbx_center, object_bbx_mask = self.augment(
+            projected_lidar_stack,
+            object_bbx_center,
+            object_bbx_mask,
         )
-        point_spoofing = np.concatenate([np.asarray(mask, dtype=np.bool_) for mask in data["projected_lidar_spoofing_masks"]], axis=0)
 
-        # data augmentation
-        projected_lidar_stack, object_bbx_center, mask = self.augment(projected_lidar_stack, object_bbx_center, mask)
-
-        # we do lidar filtering in the stacked lidar
         lidar_range = self.params["preprocess"]["cav_lidar_range"]
         lidar_mask = (
             (projected_lidar_stack[:, 0] > lidar_range[0])
@@ -183,55 +258,53 @@ class EarlyFusionDataset(basedataset.BaseDataset):
             & (projected_lidar_stack[:, 2] < lidar_range[5])
         )
         projected_lidar_stack = projected_lidar_stack[lidar_mask]
-        point_source = point_source[lidar_mask]
-        point_spoofing = point_spoofing[lidar_mask]
-        # augmentation may remove some of the bbx out of range
-        object_bbx_center_valid = object_bbx_center[mask == 1]
-        object_bbx_center_valid, range_mask = box_utils.mask_boxes_outside_range_numpy(
-            object_bbx_center_valid, lidar_range, self.params["postprocess"]["order"], return_mask=True
+
+        valid_indices = np.flatnonzero(object_bbx_mask == 1)
+        valid_object_ids = [local_supervision["object_ids"][index] for index in valid_indices]
+        valid_boxes, range_mask = box_utils.mask_boxes_outside_range_numpy(
+            object_bbx_center[valid_indices],
+            lidar_range,
+            self.params["postprocess"]["order"],
+            return_mask=True,
         )
-        mask[object_bbx_center_valid.shape[0] :] = 0
-        object_bbx_center[: object_bbx_center_valid.shape[0]] = object_bbx_center_valid
-        object_bbx_center[object_bbx_center_valid.shape[0] :] = 0
-        unique_indices = list(np.array(unique_indices)[range_mask])
+        object_bbx_center.fill(0)
+        object_bbx_mask.fill(0)
+        object_bbx_center[: valid_boxes.shape[0]] = valid_boxes
+        object_bbx_mask[: valid_boxes.shape[0]] = 1
 
-        # pre-process the lidar to voxel/bev/downsampled lidar
-        lidar_dict = self.pre_processor.preprocess(projected_lidar_stack)
-
-        # generate the anchor boxes
         anchor_box = self.post_processor.generate_anchor_box()
-
-        # generate targets label
-        label_dict = self.post_processor.generate_label(gt_box_center=object_bbx_center, anchors=anchor_box, mask=mask)
-
-        processed_data_dict["ego"].update(
-            {
-                "object_bbx_center": object_bbx_center,
-                "object_bbx_mask": mask,
-                "object_ids": [data["object_id_stack"][i] for i in unique_indices],
-                "anchor_box": anchor_box,
-                "processed_lidar": lidar_dict,
-                "label_dict": label_dict,
-            }
+        label_dict = self.post_processor.generate_label(
+            gt_box_center=object_bbx_center,
+            anchors=anchor_box,
+            mask=object_bbx_mask,
         )
+        ego_sample = {
+            "object_bbx_center": object_bbx_center,
+            "object_bbx_mask": object_bbx_mask,
+            "object_ids": [object_id for object_id, keep in zip(valid_object_ids, range_mask) if keep],
+            "anchor_box": anchor_box,
+            "processed_lidar": self.pre_processor.preprocess(projected_lidar_stack),
+            "label_dict": label_dict,
+            **visualization_context,
+        }
+        return OrderedDict({"ego": ego_sample})
 
-        if self.visualize:
-            valid_agent_indices = [idx for idx in range(len(data["projected_lidar_roles"])) if np.any(point_source == idx)]
-            processed_data_dict["ego"].update(
-                {
-                    "origin_lidar": projected_lidar_stack,
-                    "origin_lidar_by_agent": [projected_lidar_stack[point_source == idx] for idx in valid_agent_indices],
-                    "origin_lidar_roles": [data["projected_lidar_roles"][idx] for idx in valid_agent_indices],
-                    "origin_lidar_agent_ids": [data["projected_lidar_agent_ids"][idx] for idx in valid_agent_indices],
-                    "origin_lidar_spoofing_masks": [point_spoofing[point_source == idx] for idx in valid_agent_indices],
-                }
-            )
+    def __getitem__(self, idx):
+        base_data_dict = self.retrieve_base_data(idx)
+        ego_id, ego_lidar_pose = self.__find_ego_vehicle(base_data_dict)
 
-        return processed_data_dict
+        if self.payload_handler is not None:
+            inference_input = self.__process_with_messages(ego_id, ego_lidar_pose, base_data_dict)
+        else:
+            inference_input = self.__process_without_messages(ego_lidar_pose, base_data_dict)
+
+        local_supervision = self.build_local_supervision(base_data_dict, ego_lidar_pose)
+        visualization_context = self.build_visualization_context(ego_id, ego_lidar_pose, base_data_dict)
+        return self.assemble_inference_sample(inference_input, local_supervision, visualization_context)
 
     def get_item_single_car(self, selected_cav_base, ego_pose):
         """
-        Project the lidar and bbx to ego space first, and then do clipping.
+        Project one agent's LiDAR into ego coordinates.
 
         Parameters
         ----------
@@ -250,9 +323,6 @@ class EarlyFusionDataset(basedataset.BaseDataset):
         # calculate the transformation matrix
         transformation_matrix = x1_to_x2(selected_cav_base["params"]["lidar_pose"], ego_pose)
 
-        # retrieve objects under ego coordinates
-        object_bbx_center, object_bbx_mask, object_ids = self.post_processor.generate_object_center([selected_cav_base], ego_pose)
-
         # filter lidar
         lidar_np = selected_cav_base["lidar_np"]
         spoofing_mask = np.asarray(selected_cav_base.get("spoofing_mask", np.zeros((lidar_np.shape[0],), dtype=np.bool_)), dtype=np.bool_)
@@ -270,8 +340,6 @@ class EarlyFusionDataset(basedataset.BaseDataset):
 
         selected_cav_processed.update(
             {
-                "object_bbx_center": object_bbx_center[object_bbx_mask == 1],
-                "object_ids": object_ids,
                 "projected_lidar": lidar_np,
                 "projected_lidar_spoofing_mask": spoofing_mask,
             }

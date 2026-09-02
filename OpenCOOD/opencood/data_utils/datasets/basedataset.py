@@ -2,10 +2,13 @@
 Basedataset class for all kinds of fusion.
 """
 
+from __future__ import annotations
+
 import os
 import math
 import logging
 from collections import OrderedDict
+from typing import TYPE_CHECKING
 
 import torch
 import numpy as np
@@ -16,6 +19,9 @@ from opencood.data_utils.augmentor.data_augmentor import DataAugmentor
 from opencood.hypes_yaml.yaml_utils import load_yaml
 from opencood.utils.pcd_utils import downsample_lidar_minimum
 from opencood.utils.transformation_utils import x1_to_x2
+
+if TYPE_CHECKING:
+    from opencood.models.communication_adapters.base import ModelCommunicationAdapter
 
 logger = logging.getLogger("cavise.opencda.OpenCOOD.opencood.data_utils.datasets.basedataset")
 
@@ -54,12 +60,16 @@ class BaseDataset(Dataset):
     data_augmentor : opencood.data_augmentor
         Used to augment data.
 
+    communication_adapter : ModelCommunicationAdapter | None
+        Model-owned wire adapter attached by the CAPI model manager.
+
     """
 
     def __init__(self, params, visualize, train=True):
         self.params = params
         self.visualize = visualize
         self.train = train
+        self.communication_adapter: ModelCommunicationAdapter | None = None
 
         self.pre_processor = None
         self.post_processor = None

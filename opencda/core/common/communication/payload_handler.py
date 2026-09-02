@@ -1,9 +1,8 @@
 import sys
-import pickle  # TODO: In the future pickle module will be replaced with our own safe implementation
 import logging
 import pathlib
-from contextlib import contextmanager
-from typing import Any, Generator
+import pickle  # TODO: In the future pickle module will be replaced with our own safe implementation
+from typing import Any
 
 sys.path.append(str((pathlib.Path(__file__).resolve().parent / "protos" / "cavise").resolve()))
 
@@ -20,17 +19,38 @@ class PayloadHandler:
         self.current_opencda_payload: dict[str, dict[str, Any]] = {}
         self.current_artery_payload: dict[str, dict[str, dict[str, Any]]] = {}
 
-    @contextmanager
-    def handle_opencda_payload(self, id: str, module: str) -> Generator[dict[str, Any], None, None]:
-        self.current_opencda_payload.setdefault(id, {}).setdefault(module, {})
+    def set_opencda_payload(self, entity_id: str, module: str, payload: object) -> None:
+        """Store a module payload for the next OpenCDA message.
 
-        yield self.current_opencda_payload[id][module]
+        Parameters
+        ----------
+        entity_id : str
+            Identifier of the sending CAV or RSU.
+        module : str
+            Name of the module that owns the payload contract.
+        payload : object
+            Pickle-serializable module payload.
+        """
+        self.current_opencda_payload.setdefault(entity_id, {})[module] = payload
 
-    @contextmanager
-    def handle_artery_payload(self, ego_id: str, id: str, module: str) -> Generator[dict[str, Any], None, None]:
-        self.current_artery_payload.setdefault(ego_id, {}).setdefault(id, {}).setdefault(module, {})
+    def get_artery_payload(self, ego_id: str, entity_id: str, module: str) -> object | None:
+        """Return a received module payload if Artery delivered it.
 
-        yield self.current_artery_payload[ego_id][id][module]
+        Parameters
+        ----------
+        ego_id : str
+            Identifier of the receiving ego agent.
+        entity_id : str
+            Identifier of the sending CAV or RSU.
+        module : str
+            Name of the module that owns the payload contract.
+
+        Returns
+        -------
+        object | None
+            Received payload, or ``None`` when no matching payload exists.
+        """
+        return self.current_artery_payload.get(ego_id, {}).get(entity_id, {}).get(module)
 
     def make_opencda_message(self) -> proto_opencda.OpenCDAMessage:
         opencda_message = proto_opencda.OpenCDAMessage()

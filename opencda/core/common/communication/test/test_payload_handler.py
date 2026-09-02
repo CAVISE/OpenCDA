@@ -90,80 +90,33 @@ def _make_entity(entity_id: str, payload: dict) -> FakeEntity:
 
 
 class TestPayloadHandler:
-    def test_handle_opencda_payload_creates_and_persists_mutations(self, payload_handler_mod):
+    def test_set_opencda_payload_stores_module_payload(self, payload_handler_mod):
+        ph = payload_handler_mod.PayloadHandler()
+        payload = {"x": 1}
+
+        ph.set_opencda_payload("ego1", "loc", payload)
+
+        assert ph.current_opencda_payload["ego1"]["loc"] is payload
+
+    def test_set_opencda_payload_replaces_existing_module_payload(self, payload_handler_mod):
+        ph = payload_handler_mod.PayloadHandler()
+        ph.set_opencda_payload("ego1", "loc", {"x": 1})
+
+        ph.set_opencda_payload("ego1", "loc", {"y": 2})
+
+        assert ph.current_opencda_payload["ego1"]["loc"] == {"y": 2}
+
+    def test_get_artery_payload_returns_matching_module(self, payload_handler_mod):
+        ph = payload_handler_mod.PayloadHandler()
+        payload = {"data": 100}
+        ph.current_artery_payload = {"ego1": {"ent1": {"module": payload}}}
+
+        assert ph.get_artery_payload("ego1", "ent1", "module") is payload
+
+    def test_get_artery_payload_returns_none_when_missing(self, payload_handler_mod):
         ph = payload_handler_mod.PayloadHandler()
 
-        with ph.handle_opencda_payload("ego1", "loc") as payload:
-            assert isinstance(payload, dict)
-            assert payload == {}
-            payload["x"] = 1
-
-        assert ph.current_opencda_payload["ego1"]["loc"] == {"x": 1}
-
-        with ph.handle_opencda_payload("ego1", "loc") as payload2:
-            assert payload2 is ph.current_opencda_payload["ego1"]["loc"]
-            assert payload2 == {"x": 1}
-            payload2["y"] = 2
-
-        assert ph.current_opencda_payload["ego1"]["loc"] == {"x": 1, "y": 2}
-
-    def test_handle_opencda_payload_new_module_under_existing_id(self, payload_handler_mod):
-        ph = payload_handler_mod.PayloadHandler()
-
-        with ph.handle_opencda_payload("ego1", "loc") as loc_payload:
-            loc_payload["x"] = 1
-
-        with ph.handle_opencda_payload("ego1", "perc") as perc_payload:
-            assert isinstance(perc_payload, dict)
-            assert perc_payload == {}
-            assert perc_payload is not loc_payload
-            perc_payload["z"] = 3
-
-        assert ph.current_opencda_payload["ego1"]["loc"] == {"x": 1}
-        assert ph.current_opencda_payload["ego1"]["perc"] == {"z": 3}
-
-    def test_handle_artery_payload_creates_and_persists_mutations(self, payload_handler_mod):
-        ph = payload_handler_mod.PayloadHandler()
-
-        with ph.handle_artery_payload("ego1", "ent1", "loc") as payload:
-            assert isinstance(payload, dict)
-            assert payload == {}
-            payload["a"] = 10
-
-        assert ph.current_artery_payload["ego1"]["ent1"]["loc"] == {"a": 10}
-
-        with ph.handle_artery_payload("ego1", "ent1", "loc") as payload2:
-            assert payload2 is ph.current_artery_payload["ego1"]["ent1"]["loc"]
-            payload2["b"] = 20
-
-        assert ph.current_artery_payload["ego1"]["ent1"]["loc"] == {"a": 10, "b": 20}
-
-    def test_handle_artery_payload_isolation_between_ego_ids(self, payload_handler_mod):
-        ph = payload_handler_mod.PayloadHandler()
-
-        with ph.handle_artery_payload("ego1", "ent1", "module") as p1:
-            p1["data"] = 100
-
-        with ph.handle_artery_payload("ego2", "ent1", "module") as p2:
-            p2["data"] = 200
-
-        assert ph.current_artery_payload["ego1"]["ent1"]["module"]["data"] == 100
-        assert ph.current_artery_payload["ego2"]["ent1"]["module"]["data"] == 200
-
-    def test_handle_artery_payload_new_module_under_existing_entity(self, payload_handler_mod):
-        ph = payload_handler_mod.PayloadHandler()
-
-        with ph.handle_artery_payload("ego1", "ent1", "loc") as p_loc:
-            p_loc["a"] = 1
-
-        with ph.handle_artery_payload("ego1", "ent1", "perc") as p_perc:
-            assert isinstance(p_perc, dict)
-            assert p_perc == {}
-            assert p_perc is not p_loc
-            p_perc["b"] = 2
-
-        assert ph.current_artery_payload["ego1"]["ent1"]["loc"] == {"a": 1}
-        assert ph.current_artery_payload["ego1"]["ent1"]["perc"] == {"b": 2}
+        assert ph.get_artery_payload("ego1", "ent1", "module") is None
 
     def test_make_opencda_message_empty(self, payload_handler_mod):
         ph = payload_handler_mod.PayloadHandler()
@@ -176,10 +129,8 @@ class TestPayloadHandler:
     def test_make_opencda_message_single_entity_round_trip(self, payload_handler_mod):
         ph = payload_handler_mod.PayloadHandler()
 
-        with ph.handle_opencda_payload("ego1", "loc") as loc:
-            loc["val"] = 1
-        with ph.handle_opencda_payload("ego1", "perc") as perc:
-            perc["score"] = 0.5
+        ph.set_opencda_payload("ego1", "loc", {"val": 1})
+        ph.set_opencda_payload("ego1", "perc", {"score": 0.5})
 
         msg = ph.make_opencda_message()
         assert len(msg.entity) == 1

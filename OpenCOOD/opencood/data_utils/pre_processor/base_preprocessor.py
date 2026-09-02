@@ -1,4 +1,5 @@
 import numpy as np
+import torch
 
 from opencood.utils import pcd_utils
 
@@ -40,6 +41,35 @@ class BasePreprocessor(object):
         data_dict["downsample_lidar"] = pcd_np
 
         return data_dict
+
+    @staticmethod
+    def collate_batch(batch):
+        """Collate sampled point-cloud inputs.
+
+        Parameters
+        ----------
+        batch : list[dict] | dict[str, list]
+            Point-cloud inputs represented either as a list of samples or a
+            dict of agent input lists.
+
+        Returns
+        -------
+        dict[str, torch.Tensor]
+            Batched point clouds under the ``downsample_lidar`` model key.
+
+        Raises
+        ------
+        TypeError
+            If ``batch`` is neither a list nor a dictionary.
+        """
+        if isinstance(batch, list):
+            point_clouds = [sample["downsample_lidar"] for sample in batch]
+        elif isinstance(batch, dict):
+            point_clouds = batch["downsample_lidar"]
+        else:
+            raise TypeError(f"Unsupported point-cloud batch type: {type(batch).__name__}")
+
+        return {"downsample_lidar": torch.from_numpy(np.stack(point_clouds))}
 
     def project_points_to_bev_map(self, points, ratio=0.1):
         """
