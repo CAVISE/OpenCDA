@@ -58,7 +58,7 @@ model:
     - 140.8
     - 38.4
     - 1
-    max_cav: 100
+    max_cav: 5
     pillar_vfe:
       num_filters:
       - 64
@@ -170,7 +170,7 @@ train_params:
   batch_size: 4
   epoches: 50
   eval_freq: 1
-  max_cav: 100
+  max_cav: 5
   save_freq: 1
 validate_dir: simulation_output/data_dumping/sample
 wild_setting:
