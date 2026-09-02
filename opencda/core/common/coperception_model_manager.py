@@ -595,7 +595,8 @@ class CoperceptionModelManager:
             logger.warning("No samples found in dataset after update.")
 
     def prepare_transmission_payloads(self, idx: int) -> None:
-        """Build cooperative perception payloads for the current frame.
+        """
+        Build cooperative perception payloads for the current frame.
 
         Parameters
         ----------

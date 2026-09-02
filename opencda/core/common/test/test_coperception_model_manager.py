@@ -65,6 +65,8 @@ class TestCoperceptionModelManager:
             opencood.tools.inference_utils.inference_intermediate_fusion,
             opencood.tools.inference_utils.save_prediction_gt,
             opencood.data_utils.datasets.build_dataset,
+            opencood.models.communication_adapters.build_communication_adapter,
+            opencood.models.communication_adapters.build_communication_adapter.return_value,
             opencood.visualization.simple_vis.visualize,
             opencood.visualization.vis_utils.visualize_inference_sample_dataloader,
             opencood.visualization.vis_utils.linset_assign_list,
@@ -92,6 +94,8 @@ class TestCoperceptionModelManager:
         opencood.hypes_yaml.yaml_utils.load_yaml.return_value = hypes
 
         model = MagicMock()
+        opencood.data_utils.datasets.build_dataset.return_value = MagicMock()
+        opencood.models.communication_adapters.build_communication_adapter.return_value = MagicMock()
         opencood.tools.train_utils.create_model.return_value = model
         opencood.tools.train_utils.load_saved_model.return_value = (None, model)
 
@@ -105,6 +109,7 @@ class TestCoperceptionModelManager:
         coperception_model_manager_module.train_utils = opencood.tools.train_utils
         coperception_model_manager_module.inference_utils = opencood.tools.inference_utils
         coperception_model_manager_module.build_dataset = opencood.data_utils.datasets.build_dataset
+        coperception_model_manager_module.build_communication_adapter = opencood.models.communication_adapters.build_communication_adapter
         coperception_model_manager_module.vis_utils = opencood.visualization.vis_utils
 
         # Return dict for easy access
@@ -116,6 +121,7 @@ class TestCoperceptionModelManager:
             "simple_vis": opencood.visualization.simple_vis,
             "eval_utils": opencood.utils.eval_utils,
             "build_dataset": opencood.data_utils.datasets.build_dataset,
+            "build_communication_adapter": (opencood.models.communication_adapters.build_communication_adapter),
             "Visualizer": open3d.visualization.Visualizer,
             "torch": torch,
             "model": model,
@@ -138,6 +144,35 @@ class TestCoperceptionModelManager:
 
         assert manager.device == "device(cuda)"
         manager_deps["model"].cuda.assert_called_once()
+
+    def test_init_attaches_model_communication_adapter_to_dataset(self, manager_deps):
+        dataset = DummyDataset()
+        adapter = MagicMock()
+        manager_deps["build_dataset"].return_value = dataset
+        manager_deps["build_communication_adapter"].return_value = adapter
+
+        manager = CoperceptionModelManager(DummyOpt(), "2023_01_01")
+
+        manager_deps["build_communication_adapter"].assert_called_once_with(manager.model, manager.device)
+        assert manager.communication_adapter is adapter
+        assert dataset.communication_adapter is adapter
+
+    def test_prepare_transmission_payloads_delegates_to_adapter(self, manager_deps):
+        manager = CoperceptionModelManager(DummyOpt(), "2023_01_01")
+
+        manager.prepare_transmission_payloads(idx=7)
+
+        manager.communication_adapter.prepare_transmission_payloads.assert_called_once_with(
+            manager.opencood_dataset,
+            7,
+        )
+
+    def test_prepare_transmission_payloads_requires_dataset(self, manager_deps):
+        manager = CoperceptionModelManager(DummyOpt(), "2023_01_01")
+        manager.opencood_dataset = None
+
+        with pytest.raises(RuntimeError, match="dataset is missing"):
+            manager.prepare_transmission_payloads(idx=0)
 
     def test_coperception_metrics_use_scenario_config(self, manager_deps):
         opt = DummyOpt()
