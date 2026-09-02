@@ -6,7 +6,8 @@ from opencood.models.communication_adapters.base import ModelCommunicationAdapte
 
 
 class PendingModelCommunicationAdapter(ModelCommunicationAdapter):
-    """Preserve the current dataset-managed payload until a model is split.
+    """
+    Preserve the current dataset-managed payload until a model is split.
 
     This adapter intentionally performs no model-side encoding. It exists so
     models that have not been migrated yet still use their current payload
@@ -21,7 +22,8 @@ class PendingModelCommunicationAdapter(ModelCommunicationAdapter):
     """
 
     def prepare_transmission_payloads(self, dataset: Any, idx: int) -> None:
-        """Delegate payload construction to the existing dataset path.
+        """
+        Delegate payload construction to the existing dataset path.
 
         Parameters
         ----------

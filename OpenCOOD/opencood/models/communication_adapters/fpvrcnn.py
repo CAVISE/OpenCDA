@@ -35,7 +35,8 @@ class FpvrcnnCommunicationAdapter(ModelCommunicationAdapter):
     """Run FPV-RCNN stage one and VSA before serializing an agent payload."""
 
     def prepare_transmission_payloads(self, dataset: Any, idx: int) -> None:
-        """Encode and publish FPV-RCNN outputs for every local agent.
+        """
+        Encode and publish FPV-RCNN outputs for every local agent.
 
         Parameters
         ----------
@@ -66,7 +67,8 @@ class FpvrcnnCommunicationAdapter(ModelCommunicationAdapter):
         sample: dict[str, Any],
         metadata: PoseFrameMetadata,
     ) -> FpvrcnnWirePayload:
-        """Run sender-side FPV-RCNN and build its typed wire payload.
+        """
+        Run sender-side FPV-RCNN and build its typed wire payload.
 
         Parameters
         ----------
@@ -122,12 +124,13 @@ class FpvrcnnCommunicationAdapter(ModelCommunicationAdapter):
         payload: object,
         receiver_pose: list[float],
     ) -> dict[str, Any]:
-        """Decode and project one FPV-RCNN payload into the receiver frame.
+        """
+        Decode and project one FPV-RCNN payload into the receiver frame.
 
         Parameters
         ----------
         payload : object
-            Deserialized FPV-RCNN payload delivered by Artery.
+            Deserialized FPV-RCNN payload delivered over V2X.
         receiver_pose : list[float]
             Receiver LiDAR pose for the current inference frame.
 
@@ -172,7 +175,8 @@ class FpvrcnnCommunicationAdapter(ModelCommunicationAdapter):
 
     @staticmethod
     def _tensor_to_numpy(output: Mapping[str, Any], field: str) -> npt.NDArray[Any]:
-        """Detach one required model output as a NumPy array.
+        """
+        Detach one required model output as a NumPy array.
 
         Parameters
         ----------

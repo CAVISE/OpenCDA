@@ -64,7 +64,8 @@ class EarlyFusionDataset(basedataset.BaseDataset):
 
     @staticmethod
     def build_wire_payload(selected_cav_processed: dict[str, Any]) -> EarlyFusionWirePayload:
-        """Build the early-fusion payload sent through Artery.
+        """
+        Build the early-fusion payload sent over V2X.
 
         Parameters
         ----------
@@ -82,12 +83,13 @@ class EarlyFusionDataset(basedataset.BaseDataset):
 
     @staticmethod
     def decode_wire_payload(payload: object) -> EarlyFusionWirePayload:
-        """Validate and decode an early-fusion payload received from Artery.
+        """
+        Validate and decode an early-fusion payload received over V2X.
 
         Parameters
         ----------
         payload : object
-            Deserialized module payload received from Artery.
+            Deserialized module payload received over V2X.
 
         Returns
         -------
@@ -140,7 +142,8 @@ class EarlyFusionDataset(basedataset.BaseDataset):
         return {"projected_lidar_stack": projected_lidar_stack}
 
     def build_local_supervision(self, base_data_dict: dict[str, Any], ego_lidar_pose: list[float]) -> dict[str, Any]:
-        """Build ego-frame ground truth from the local scene snapshot.
+        """
+        Build ego-frame ground truth from the local scene snapshot.
 
         Parameters
         ----------
@@ -167,7 +170,8 @@ class EarlyFusionDataset(basedataset.BaseDataset):
         ego_lidar_pose: list[float],
         base_data_dict: dict[str, Any],
     ) -> dict[str, Any]:
-        """Build point-cloud visualization data from the local scene.
+        """
+        Build point-cloud visualization data from the local scene.
 
         Parameters
         ----------
@@ -222,7 +226,8 @@ class EarlyFusionDataset(basedataset.BaseDataset):
         local_supervision: dict[str, Any],
         visualization_context: dict[str, Any],
     ) -> OrderedDict[str, dict[str, Any]]:
-        """Combine delivered LiDAR with local supervision and visualization.
+        """
+        Combine delivered LiDAR with local supervision and visualization.
 
         Parameters
         ----------

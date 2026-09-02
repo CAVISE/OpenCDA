@@ -16,7 +16,8 @@ class ModelCommunicationAdapter(ABC):
 
     @abstractmethod
     def prepare_transmission_payloads(self, dataset: Any, idx: int) -> None:
-        """Build and publish every sender payload for one dataset frame.
+        """
+        Build and publish every sender payload for one dataset frame.
 
         Parameters
         ----------
@@ -27,7 +28,8 @@ class ModelCommunicationAdapter(ABC):
         """
 
     def move_to_device(self, value: Any) -> Any:
-        """Recursively move a model input to the adapter device.
+        """
+        Recursively move a model input to the adapter device.
 
         Parameters
         ----------
@@ -54,12 +56,14 @@ class ModelCommunicationAdapter(ABC):
         payload: object,
         receiver_pose: list[float],
     ) -> dict[str, Any]:
-        """Decode one delivered model payload for receiver-side inference.
+        """
+        Decode one delivered model payload for receiver-side inference.
 
         Parameters
         ----------
         payload : object
-            Deserialized model payload delivered by the communication layer.
+            Deserialized model payload delivered over the V2X communication
+            channel.
         receiver_pose : list[float]
             Receiver pose used for model-specific coordinate conversion.
 

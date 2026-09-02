@@ -14,7 +14,8 @@ POINT_CLOUD_INPUT_FIELDS = frozenset({"downsample_lidar"})
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class VoxelInferenceInput:
-    """Voxelized LiDAR input.
+    """
+    Voxelized LiDAR input.
 
     Attributes
     ----------
@@ -33,7 +34,8 @@ class VoxelInferenceInput:
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class BevInferenceInput:
-    """Bird's-eye-view model input.
+    """
+    Bird's-eye-view model input.
 
     Attributes
     ----------
@@ -46,7 +48,8 @@ class BevInferenceInput:
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class PointCloudInferenceInput:
-    """Point-cloud model input.
+    """
+    Point-cloud model input.
 
     Attributes
     ----------
@@ -59,7 +62,8 @@ class PointCloudInferenceInput:
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class FpvrcnnAgentInferenceInput:
-    """Agent-side FPV-RCNN output consumed by cooperative stage two.
+    """
+    Agent-side FPV-RCNN output consumed by cooperative stage two.
 
     Attributes
     ----------
@@ -83,7 +87,8 @@ InferenceInput: TypeAlias = VoxelInferenceInput | BevInferenceInput | PointCloud
 
 
 def build_inference_input(preprocessor_output: Mapping[str, Any]) -> InferenceInput:
-    """Convert a preprocessor result into a typed inference input.
+    """
+    Convert a preprocessor result into a typed inference input.
 
     The concrete type is selected from the fields actually returned by the
     preprocessor. Dataset and transport code therefore remain independent of
@@ -121,7 +126,8 @@ def build_inference_input(preprocessor_output: Mapping[str, Any]) -> InferenceIn
 
 
 def inference_input_to_dict(inference_input: InferenceInput) -> dict[str, npt.NDArray[Any]]:
-    """Convert a typed inference input to the preprocessor collate format.
+    """
+    Convert a typed inference input to the preprocessor collate format.
 
     Parameters
     ----------
@@ -149,7 +155,8 @@ def inference_input_to_dict(inference_input: InferenceInput) -> dict[str, npt.ND
 
 
 def merge_inference_inputs(inference_inputs: list[InferenceInput]) -> dict[str, list[npt.NDArray[Any]]]:
-    """Merge homogeneous agent inputs for preprocessor collation.
+    """
+    Merge homogeneous agent inputs for preprocessor collation.
 
     Parameters
     ----------

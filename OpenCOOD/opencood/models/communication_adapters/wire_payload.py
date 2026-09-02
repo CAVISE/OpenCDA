@@ -1,4 +1,4 @@
-"""Typed cooperative perception payloads exchanged through Artery."""
+"""Typed cooperative perception payloads exchanged over V2X."""
 
 from dataclasses import dataclass
 from typing import Any
@@ -17,7 +17,8 @@ from opencood.models.communication_adapters.inference_metadata import (
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class EarlyFusionWirePayload:
-    """Wire payload produced by :class:`EarlyFusionDataset`.
+    """
+    Wire payload produced by :class:`EarlyFusionDataset`.
 
     Attributes
     ----------
@@ -30,7 +31,8 @@ class EarlyFusionWirePayload:
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class LateFusionWirePayload:
-    """Wire payload produced by :class:`LateFusionDataset`.
+    """
+    Wire payload produced by :class:`LateFusionDataset`.
 
     Attributes
     ----------
@@ -46,7 +48,8 @@ class LateFusionWirePayload:
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class IntermediateFusionWirePayload:
-    """Wire payload produced by :class:`IntermediateFusionDataset`.
+    """
+    Wire payload produced by :class:`IntermediateFusionDataset`.
 
     Attributes
     ----------
@@ -63,7 +66,8 @@ class IntermediateFusionWirePayload:
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class FpvrcnnWirePayload:
-    """Agent-side FPV-RCNN output exchanged through Artery.
+    """
+    Agent-side FPV-RCNN output exchanged over V2X.
 
     Attributes
     ----------

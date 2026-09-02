@@ -67,7 +67,8 @@ class LateFusionDataset(basedataset.BaseDataset):
         selected_cav_processed: dict[str, Any],
         receive_frame: int,
     ) -> LateFusionWirePayload:
-        """Build the late-fusion payload sent through Artery.
+        """
+        Build the late-fusion payload sent over V2X.
 
         Parameters
         ----------
@@ -93,12 +94,13 @@ class LateFusionDataset(basedataset.BaseDataset):
 
     @staticmethod
     def decode_wire_payload(payload: object) -> LateFusionWirePayload:
-        """Validate and decode a late-fusion payload received from Artery.
+        """
+        Validate and decode a late-fusion payload received over V2X.
 
         Parameters
         ----------
         payload : object
-            Deserialized module payload received from Artery.
+            Deserialized module payload received over V2X.
 
         Returns
         -------
@@ -173,7 +175,8 @@ class LateFusionDataset(basedataset.BaseDataset):
         ego_lidar_pose: list[float],
         base_data_dict: dict[str, Any],
     ) -> dict[str, Any]:
-        """Build visualization data from the local scene snapshot.
+        """
+        Build visualization data from the local scene snapshot.
 
         Parameters
         ----------
@@ -261,7 +264,8 @@ class LateFusionDataset(basedataset.BaseDataset):
         return processed_data_dict
 
     def build_local_supervision(self, base_data_dict: dict[str, Any], ego_lidar_pose: list[float]) -> dict[str, Any]:
-        """Build ego-frame ground truth and labels from the local scene.
+        """
+        Build ego-frame ground truth and labels from the local scene.
 
         Parameters
         ----------
@@ -296,7 +300,8 @@ class LateFusionDataset(basedataset.BaseDataset):
         local_supervision: dict[str, Any],
         visualization_context: dict[str, Any],
     ) -> OrderedDict[str, dict[str, Any]]:
-        """Combine delivered model inputs with local-only dataset data.
+        """
+        Combine delivered model inputs with local-only dataset data.
 
         Parameters
         ----------
@@ -321,7 +326,8 @@ class LateFusionDataset(basedataset.BaseDataset):
         return inference_input
 
     def __prepare_lidar(self, selected_cav_base: dict[str, Any]) -> npt.NDArray[Any]:
-        """Filter one agent's local LiDAR point cloud.
+        """
+        Filter one agent's local LiDAR point cloud.
 
         Parameters
         ----------
@@ -338,7 +344,8 @@ class LateFusionDataset(basedataset.BaseDataset):
         return mask_ego_points(lidar_np)
 
     def __build_model_input(self, selected_cav_base: dict[str, Any]) -> dict[str, Any]:
-        """Build model input without constructing local supervision.
+        """
+        Build model input without constructing local supervision.
 
         Parameters
         ----------

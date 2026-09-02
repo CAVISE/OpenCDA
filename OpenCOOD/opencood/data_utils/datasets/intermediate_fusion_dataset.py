@@ -86,7 +86,8 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
         selected_cav_processed: dict[str, Any],
         receive_frame: int,
     ) -> IntermediateFusionWirePayload:
-        """Build the intermediate-fusion payload sent through Artery.
+        """
+        Build the intermediate-fusion payload sent over V2X.
 
         Parameters
         ----------
@@ -115,7 +116,8 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
         selected_cav_base: dict[str, Any],
         receive_frame: int,
     ) -> IntermediateMetadata | None:
-        """Build only the metadata consumed by the configured model.
+        """
+        Build only the metadata consumed by the configured model.
 
         Parameters
         ----------
@@ -149,12 +151,13 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
 
     @staticmethod
     def decode_wire_payload(payload: object) -> IntermediateFusionWirePayload:
-        """Validate an intermediate-fusion payload received from Artery.
+        """
+        Validate an intermediate-fusion payload received over V2X.
 
         Parameters
         ----------
         payload : object
-            Deserialized module payload received from Artery.
+            Deserialized module payload received over V2X.
 
         Returns
         -------
@@ -226,7 +229,8 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
         return lst + (self.max_cav - len(lst)) * [pad_value]
 
     def __build_pairwise_transformation(self, metadata: list[PoseFrameMetadata]) -> np.ndarray:
-        """Build pairwise transformations for the received agents.
+        """
+        Build pairwise transformations for the received agents.
 
         Parameters
         ----------
@@ -256,7 +260,8 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
         metadata: list[IntermediateMetadata | None],
         receive_frame: int,
     ) -> dict[str, Any]:
-        """Derive model tensors from received metadata.
+        """
+        Derive model tensors from received metadata.
 
         Parameters
         ----------
@@ -329,7 +334,8 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
         return mask_points_by_range(lidar_np, self.params["preprocess"]["cav_lidar_range"])
 
     def build_visualization_context(self, ego_id: str, base_data_dict: dict[str, Any]) -> dict[str, Any]:
-        """Build visualization data from the local scene snapshot.
+        """
+        Build visualization data from the local scene snapshot.
 
         Parameters
         ----------
@@ -393,7 +399,8 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
         return data
 
     def build_local_supervision(self, base_data_dict: dict[str, Any], ego_lidar_pose: list[float]) -> dict[str, Any]:
-        """Build ground truth and training targets from the local scene.
+        """
+        Build ground truth and training targets from the local scene.
 
         Parameters
         ----------
@@ -429,7 +436,8 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
         visualization_context: dict[str, Any],
         receive_frame: int,
     ) -> OrderedDict[str, dict[str, Any]]:
-        """Assemble model input with local supervision and visualization.
+        """
+        Assemble model input with local supervision and visualization.
 
         Parameters
         ----------

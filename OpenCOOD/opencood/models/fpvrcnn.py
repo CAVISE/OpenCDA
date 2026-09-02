@@ -34,7 +34,8 @@ class FPVRCNN(nn.Module):
         self.train_stage2 = args["activate_stage2"]
 
     def _forward_stage_one(self, batch_dict):
-        """Run the per-agent backbone and proposal head.
+        """
+        Run the per-agent backbone and proposal head.
 
         Parameters
         ----------
@@ -78,7 +79,8 @@ class FPVRCNN(nn.Module):
         return batch_dict, pred_box3d_list, scores_list
 
     def encode_agent(self, batch_dict):
-        """Build the FPV-RCNN representation transmitted by one agent.
+        """
+        Build the FPV-RCNN representation transmitted by one agent.
 
         Parameters
         ----------
@@ -117,7 +119,8 @@ class FPVRCNN(nn.Module):
         }
 
     def _forward_distributed(self, batch_dict):
-        """Fuse local FPV-RCNN output with delivered agent outputs.
+        """
+        Fuse local FPV-RCNN output with delivered agent outputs.
 
         Parameters
         ----------
@@ -153,7 +156,8 @@ class FPVRCNN(nn.Module):
 
     @staticmethod
     def _transform_agent_outputs(batch_dict):
-        """Transform local proposals and keypoints into each scene's ego frame.
+        """
+        Transform local proposals and keypoints into each scene's ego frame.
 
         Parameters
         ----------

@@ -34,7 +34,8 @@ def build_communication_adapter(
     model: nn.Module,
     device: torch.device,
 ) -> ModelCommunicationAdapter:
-    """Build the communication adapter declared by a perception model.
+    """
+    Build the communication adapter declared by a perception model.
 
     Models without a declared adapter temporarily retain their dataset-managed
     payload through :class:`PendingModelCommunicationAdapter`.

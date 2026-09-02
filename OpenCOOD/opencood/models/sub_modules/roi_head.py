@@ -181,7 +181,8 @@ class RoIHead(nn.Module):
         return batch_dict
 
     def prepare_rois(self, batch_dict):
-        """Prepare fused proposals for inference without ground truth.
+        """
+        Prepare fused proposals for inference without ground truth.
 
         Parameters
         ----------

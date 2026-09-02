@@ -54,7 +54,8 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
         idx: int,
         agent_payload_builder: Callable[[dict[str, Any], PoseFrameMetadata], object] | None = None,
     ) -> None:
-        """Build model-specific payloads from local agent observations.
+        """
+        Build model-specific payloads from local agent observations.
 
         Parameters
         ----------
@@ -140,7 +141,8 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
         return mask_points_by_range(lidar_np, self.params["preprocess"]["cav_lidar_range"])
 
     def build_visualization_context(self, ego_id, ego_lidar_pose, base_data_dict):
-        """Build local visualization data independently of wire delivery.
+        """
+        Build local visualization data independently of wire delivery.
 
         Parameters
         ----------
@@ -210,7 +212,8 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
         }
 
     def build_local_supervision(self, base_data_dict: dict[str, Any], ego_lidar_pose: list[float]) -> dict[str, Any]:
-        """Build two-stage ground truth from the complete local scene.
+        """
+        Build two-stage ground truth from the complete local scene.
 
         Parameters
         ----------
@@ -366,7 +369,8 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
         return processed_data_dict
 
     def build_agent_model_input(self, selected_cav_base, target_pose):
-        """Build one agent's local two-stage input without supervision data.
+        """
+        Build one agent's local two-stage input without supervision data.
 
         Parameters
         ----------
@@ -393,7 +397,8 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
         }
 
     def get_item_single_car(self, selected_cav_base, ego_pose):
-        """Build one local training agent with its stage-one ground truth.
+        """
+        Build one local training agent with its stage-one ground truth.
 
         Parameters
         ----------

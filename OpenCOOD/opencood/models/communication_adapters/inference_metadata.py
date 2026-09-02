@@ -8,7 +8,8 @@ import numpy.typing as npt
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class PoseFrameMetadata:
-    """Pose and capture frame used to derive pairwise transformations.
+    """
+    Pose and capture frame used to derive pairwise transformations.
 
     Attributes
     ----------
@@ -24,7 +25,8 @@ class PoseFrameMetadata:
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class V2XViTMetadata:
-    """Metadata consumed by the V2X-ViT fusion model.
+    """
+    Metadata consumed by the V2X-ViT fusion model.
 
     Attributes
     ----------
