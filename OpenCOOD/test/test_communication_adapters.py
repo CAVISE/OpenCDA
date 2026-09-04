@@ -306,7 +306,7 @@ def test_early_dataset_gives_adapter_sender_local_points(monkeypatch):
     monkeypatch.setattr(
         early_dataset_module.np.random,
         "permutation",
-        lambda size: np.arange(size),
+        np.arange,
     )
     dataset = object.__new__(EarlyFusionDataset)
     dataset.module_name = "OpenCOOD.EarlyFusionDataset"

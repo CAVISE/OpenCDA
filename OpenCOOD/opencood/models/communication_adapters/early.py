@@ -21,7 +21,8 @@ class EarlyFusionCommunicationDataset(Protocol):
         self,
         idx: int,
         agent_payload_builder: Callable[[npt.NDArray[Any], PoseFrameMetadata], object],
-    ) -> None: ...
+    ) -> None:
+        raise NotImplementedError
 
 
 class EarlyFusionCommunicationAdapter(ModelCommunicationAdapter):

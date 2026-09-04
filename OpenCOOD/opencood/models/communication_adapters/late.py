@@ -29,7 +29,8 @@ class LateFusionCommunicationDataset(Protocol):
         self,
         idx: int,
         agent_payload_builder: Callable[[InferenceInput, PoseFrameMetadata], object],
-    ) -> None: ...
+    ) -> None:
+        raise NotImplementedError
 
 
 class LateFusionCommunicationAdapter(ModelCommunicationAdapter):

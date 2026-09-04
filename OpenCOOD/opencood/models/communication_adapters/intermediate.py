@@ -30,7 +30,8 @@ class IntermediateCommunicationDataset(Protocol):
             [InferenceInput, IntermediateMetadata | None],
             object,
         ],
-    ) -> None: ...
+    ) -> None:
+        raise NotImplementedError
 
 
 class IntermediateFeatureCommunicationAdapter(ModelCommunicationAdapter):

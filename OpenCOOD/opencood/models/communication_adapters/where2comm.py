@@ -29,7 +29,8 @@ class Where2CommCommunicationDataset(Protocol):
             [InferenceInput, PoseFrameMetadata],
             object,
         ],
-    ) -> None: ...
+    ) -> None:
+        raise NotImplementedError
 
 
 class Where2CommCommunicationAdapter(ModelCommunicationAdapter):

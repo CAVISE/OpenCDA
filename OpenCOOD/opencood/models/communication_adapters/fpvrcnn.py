@@ -28,7 +28,8 @@ class FpvrcnnCommunicationDataset(Protocol):
         self,
         idx: int,
         agent_payload_builder: Callable[[dict[str, Any], PoseFrameMetadata], object] | None,
-    ) -> None: ...
+    ) -> None:
+        raise NotImplementedError
 
 
 class FpvrcnnCommunicationAdapter(ModelCommunicationAdapter):
