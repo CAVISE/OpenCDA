@@ -6,11 +6,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch
 import numpy as np
-from torch.autograd import Variable
 
+from opencood.models.communication_adapters.intermediate import SpatialFeatureCommunicationAdapter
 from opencood.models.voxel_net import RPN, CML
 from opencood.models.sub_modules.pillar_vfe import PillarVFE
-from opencood.utils.common_utils import torch_tensor_to_numpy
 from opencood.models.fuse_modules.self_attn import AttFusion
 from opencood.models.sub_modules.auto_encoder import AutoEncoder
 
@@ -50,6 +49,8 @@ class NaiveFusion(nn.Module):
 
 
 class VoxelNetIntermediate(nn.Module):
+    communication_adapter_class = SpatialFeatureCommunicationAdapter
+
     def __init__(self, args):
         super(VoxelNetIntermediate, self).__init__()
         self.svfe = PillarVFE(args["pillar_vfe"], num_point_features=4, voxel_size=args["voxel_size"], point_cloud_range=args["lidar_range"])
@@ -69,10 +70,36 @@ class VoxelNetIntermediate(nn.Module):
             self.compression = True
             self.compression_layer = AutoEncoder(128, args["compression"])
 
-    def voxel_indexing(self, sparse_features, coords):
+    def voxel_indexing(self, sparse_features, coords, batch_size):
+        """
+        Scatter sparse VoxelNet features into a dense 3D tensor.
+
+        Parameters
+        ----------
+        sparse_features : torch.Tensor
+            Learned feature vector for every non-empty voxel.
+        coords : torch.Tensor
+            Batch, depth, height, and width index for every sparse feature.
+        batch_size : int
+            Number of agents represented by the sparse input.
+
+        Returns
+        -------
+        torch.Tensor
+            Dense tensor shaped ``(batch_size, channels, D, H, W)``.
+        """
         dim = sparse_features.shape[-1]
 
-        dense_feature = Variable(torch.zeros(dim, self.N, self.D, self.H, self.W).cuda())
+        dense_feature = torch.zeros(
+            dim,
+            batch_size,
+            self.D,
+            self.H,
+            self.W,
+            device=sparse_features.device,
+            dtype=sparse_features.dtype,
+        )
+        coords = coords.long()
 
         dense_feature[:, coords[:, 0], coords[:, 1], coords[:, 2], coords[:, 3]] = sparse_features.transpose(0, 1)
 
@@ -119,6 +146,9 @@ class VoxelNetIntermediate(nn.Module):
         return regroup_features
 
     def forward(self, data_dict):
+        if "intermediate_features" in data_dict:
+            return self.fuse_agents(data_dict)
+
         voxel_features = data_dict["processed_lidar"]["voxel_features"]
         voxel_coords = data_dict["processed_lidar"]["voxel_coords"]
         voxel_num_points = data_dict["processed_lidar"]["voxel_num_points"]
@@ -135,8 +165,7 @@ class VoxelNetIntermediate(nn.Module):
         # feature learning network
         vwfs = self.svfe(batch_dict)["pillar_features"]
 
-        voxel_coords = torch_tensor_to_numpy(voxel_coords)
-        vwfs = self.voxel_indexing(vwfs, voxel_coords)
+        vwfs = self.voxel_indexing(vwfs, voxel_coords, self.N)
 
         # convolutional middle network
         vwfs = self.cml(vwfs)
@@ -158,3 +187,60 @@ class VoxelNetIntermediate(nn.Module):
         output_dict = {"psm": psm, "rm": rm}
 
         return output_dict
+
+    def encode_agent(self, data_dict):
+        """
+        Encode one agent through VoxelNet's convolutional middle layers.
+
+        Parameters
+        ----------
+        data_dict : dict
+            Sender-local preprocessed voxel input.
+
+        Returns
+        -------
+        dict
+            Learned spatial feature map before attention fusion.
+        """
+        processed_lidar = data_dict["processed_lidar"]
+        batch_dict = {
+            "voxel_features": processed_lidar["voxel_features"],
+            "voxel_coords": processed_lidar["voxel_coords"],
+            "voxel_num_points": processed_lidar["voxel_num_points"],
+        }
+        voxel_features = self.svfe(batch_dict)["pillar_features"]
+        dense_features = self.voxel_indexing(
+            voxel_features,
+            processed_lidar["voxel_coords"],
+            data_dict.get("batch_size", 1),
+        )
+        spatial_features = self.cml(dense_features).view(
+            data_dict.get("batch_size", 1),
+            -1,
+            self.H,
+            self.W,
+        )
+        if self.compression:
+            spatial_features = self.compression_layer.encode(spatial_features)
+        return {"spatial_features": spatial_features}
+
+    def fuse_agents(self, data_dict):
+        """
+        Fuse received VoxelNet features and run its proposal network.
+
+        Parameters
+        ----------
+        data_dict : dict
+            Receiver input containing learned features and ``record_len``.
+
+        Returns
+        -------
+        dict
+            Classification and regression maps.
+        """
+        spatial_features = data_dict["intermediate_features"]["spatial_features"]
+        if self.compression:
+            spatial_features = self.compression_layer.decode(spatial_features)
+        fused_features = self.fusion_net(spatial_features, data_dict["record_len"])
+        psm, rm = self.rpn(fused_features)
+        return {"psm": psm, "rm": rm}

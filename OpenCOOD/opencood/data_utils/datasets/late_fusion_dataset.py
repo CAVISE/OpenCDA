@@ -6,6 +6,7 @@ import math
 import random
 import logging
 from collections import OrderedDict
+from collections.abc import Callable
 from typing import Any
 
 import numpy as np
@@ -16,7 +17,7 @@ import opencood.data_utils.datasets
 from opencood.data_utils.post_processor import build_postprocessor
 from opencood.data_utils.datasets import basedataset
 from opencood.models.communication_adapters import (
-    LateFusionWirePayload,
+    InferenceInput,
     PoseFrameMetadata,
     build_inference_input,
     inference_input_to_dict,
@@ -31,7 +32,7 @@ logger = logging.getLogger("cavise.opencda.OpenCOOD.opencood.data_utils.datasets
 
 class LateFusionDataset(basedataset.BaseDataset):
     """
-    This class is for intermediate fusion where each vehicle transmit the
+    This class is for late fusion where each vehicle transmits its
     detection outputs to ego.
     """
 
@@ -52,69 +53,35 @@ class LateFusionDataset(basedataset.BaseDataset):
 
         return reformat_data_dict
 
-    def extract_data(self, idx):
+    def extract_data(
+        self,
+        idx: int,
+        agent_payload_builder: Callable[[InferenceInput, PoseFrameMetadata], object],
+    ) -> None:
+        """
+        Publish local detector inputs through the late-fusion adapter.
+
+        Parameters
+        ----------
+        idx : int
+            Dataset frame to publish.
+        agent_payload_builder : Callable
+            Adapter callback that runs the sender-side detector and builds its
+            wire representation.
+        """
         base_data_dict = self.retrieve_base_data(idx)
 
         if self.payload_handler is not None:
             for cav_id, selected_cav_base in base_data_dict.items():
                 selected_cav_processed = self.__build_model_input(selected_cav_base)
-                payload = self.build_wire_payload(selected_cav_base, selected_cav_processed, idx)
+                payload = agent_payload_builder(
+                    selected_cav_processed["inference_input"],
+                    PoseFrameMetadata(
+                        lidar_pose=selected_cav_base["params"]["lidar_pose"],
+                        capture_frame=idx - int(selected_cav_base["time_delay"]),
+                    ),
+                )
                 self.payload_handler.set_opencda_payload(cav_id, self.module_name, payload)
-
-    @staticmethod
-    def build_wire_payload(
-        selected_cav_base: dict[str, Any],
-        selected_cav_processed: dict[str, Any],
-        receive_frame: int,
-    ) -> LateFusionWirePayload:
-        """
-        Build the late-fusion payload sent over V2X.
-
-        Parameters
-        ----------
-        selected_cav_base : dict[str, Any]
-            Raw dataset entry for one sending agent.
-        selected_cav_processed : dict[str, Any]
-            Processed data for the same sending agent.
-        receive_frame : int
-            Dataset frame in which the payload is sent.
-
-        Returns
-        -------
-        LateFusionWirePayload
-            Typed payload containing only remote model-input data.
-        """
-        return LateFusionWirePayload(
-            inference_input=selected_cav_processed["inference_input"],
-            metadata=PoseFrameMetadata(
-                lidar_pose=selected_cav_base["params"]["lidar_pose"],
-                capture_frame=receive_frame - int(selected_cav_base["time_delay"]),
-            ),
-        )
-
-    @staticmethod
-    def decode_wire_payload(payload: object) -> LateFusionWirePayload:
-        """
-        Validate and decode a late-fusion payload received over V2X.
-
-        Parameters
-        ----------
-        payload : object
-            Deserialized module payload received over V2X.
-
-        Returns
-        -------
-        LateFusionWirePayload
-            Validated late-fusion payload.
-
-        Raises
-        ------
-        TypeError
-            If the received payload has an unexpected type.
-        """
-        if not isinstance(payload, LateFusionWirePayload):
-            raise TypeError(f"Expected LateFusionWirePayload, got {type(payload).__name__}")
-        return payload
 
     def __find_ego_vehicle(self, base_data_dict):
         ego_id = -1
@@ -224,18 +191,17 @@ class LateFusionDataset(basedataset.BaseDataset):
 
         if ego_id in self.payload_handler.current_artery_payload:
             for cav_id, _ in base_data_dict.items():
+                if cav_id == ego_id:
+                    continue
                 raw_payload = self.payload_handler.get_artery_payload(ego_id, cav_id, self.module_name)
                 if raw_payload is None:
                     continue
-                payload = self.decode_wire_payload(raw_payload)
-                transformation_matrix_info = x1_to_x2(payload.metadata.lidar_pose, ego_lidar_pose)
-
-                selected_cav_processed = {
-                    "inference_input": payload.inference_input,
-                    "transformation_matrix": transformation_matrix_info,
-                }
-
-                processed_data_dict.update({cav_id: selected_cav_processed})
+                if self.communication_adapter is None:
+                    raise RuntimeError("Late-fusion payload decoding requires a communication adapter")
+                processed_data_dict[cav_id] = self.communication_adapter.decode_received_payload(
+                    raw_payload,
+                    ego_lidar_pose,
+                )
 
         return processed_data_dict
 
@@ -319,7 +285,8 @@ class LateFusionDataset(basedataset.BaseDataset):
         """
         anchor_box = local_supervision["anchor_box"]
         for cav_content in inference_input.values():
-            cav_content["anchor_box"] = anchor_box
+            if "inference_input" in cav_content:
+                cav_content["anchor_box"] = anchor_box
 
         inference_input["ego"].update(local_supervision)
         inference_input["ego"].update(visualization_context)
@@ -475,6 +442,15 @@ class LateFusionDataset(basedataset.BaseDataset):
         for cav_id, cav_content in batch.items():
             output_dict.update({cav_id: {}})
 
+            if "pred_box_tensor" in cav_content:
+                output_dict[cav_id].update(
+                    {
+                        "pred_box_tensor": torch.from_numpy(np.asarray(cav_content["pred_box_tensor"])),
+                        "pred_score": torch.from_numpy(np.asarray(cav_content["pred_score"])),
+                    }
+                )
+                continue
+
             # the anchor box is the same for all bounding boxes usually, thus
             # we don't need the batch dimension.
             if cav_content["anchor_box"] is not None:
@@ -496,6 +472,7 @@ class LateFusionDataset(basedataset.BaseDataset):
             output_dict[cav_id].update(
                 {
                     "processed_lidar": processed_lidar_torch_dict,
+                    "batch_size": 1,
                     "transformation_matrix": transformation_matrix_torch,
                 }
             )
@@ -551,7 +528,39 @@ class LateFusionDataset(basedataset.BaseDataset):
         gt_box_tensor : torch.Tensor
             The tensor of gt bounding box.
         """
-        pred_box_tensor, pred_score = self.post_processor.post_process(data_dict, output_dict)
+        pred_box_list = []
+        pred_score_list = []
+        for cav_id, cav_content in data_dict.items():
+            if "pred_box_tensor" in cav_content:
+                boxes = cav_content["pred_box_tensor"]
+                scores = cav_content["pred_score"]
+            else:
+                boxes, scores = self.post_processor.decode_agent_predictions(
+                    cav_content,
+                    output_dict[cav_id],
+                )
+                if boxes.shape[0] > 0:
+                    transformation_matrix = cav_content["transformation_matrix"]
+                    if boxes.shape[-1] == 3:
+                        boxes = box_utils.project_box3d(boxes, transformation_matrix)
+                    else:
+                        box3d = torch.nn.functional.pad(boxes, (0, 1))
+                        boxes = box_utils.project_points_by_matrix_torch(
+                            box3d.reshape(-1, 3),
+                            transformation_matrix,
+                        )[:, :2].reshape(-1, 4, 2)
+
+            if boxes.shape[0] > 0:
+                pred_box_list.append(boxes)
+                pred_score_list.append(scores)
+
+        if pred_box_list:
+            pred_box_tensor, pred_score = self.post_processor.post_process_detections(
+                torch.cat(pred_box_list, dim=0),
+                torch.cat(pred_score_list, dim=0),
+            )
+        else:
+            pred_box_tensor, pred_score = None, None
         gt_box_tensor = self.post_processor.generate_gt_bbx({"ego": data_dict["ego"]})
 
         return pred_box_tensor, pred_score, gt_box_tensor

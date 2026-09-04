@@ -26,7 +26,8 @@ def inference_late_fusion(batch_data, model, dataset):
     output_dict = OrderedDict()
 
     for cav_id, cav_content in batch_data.items():
-        output_dict[cav_id] = model(cav_content)
+        if "processed_lidar" in cav_content:
+            output_dict[cav_id] = model(cav_content)
 
     pred_box_tensor, pred_score, gt_box_tensor = dataset.post_process(batch_data, output_dict)
 

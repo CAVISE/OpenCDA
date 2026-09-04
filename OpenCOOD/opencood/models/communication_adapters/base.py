@@ -75,6 +75,33 @@ class ModelCommunicationAdapter(ABC):
         Raises
         ------
         NotImplementedError
-            If the model still uses dataset-managed payload decoding.
+            If the adapter does not support receiver-side payload decoding.
         """
         raise NotImplementedError(f"{type(self).__name__} does not implement receiver-side payload decoding")
+
+    def encode_local_intermediate_input(
+        self,
+        dataset: Any,
+        inference_input: Any,
+    ) -> dict[str, Any]:
+        """
+        Encode the receiver's local input at an intermediate model boundary.
+
+        Parameters
+        ----------
+        dataset : Any
+            Dataset providing model preprocessing facilities.
+        inference_input : Any
+            Receiver-local preprocessor output.
+
+        Returns
+        -------
+        dict[str, Any]
+            Model-specific learned feature input.
+
+        Raises
+        ------
+        NotImplementedError
+            If the adapter does not implement an intermediate feature split.
+        """
+        raise NotImplementedError(f"{type(self).__name__} does not implement intermediate feature encoding")

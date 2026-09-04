@@ -35,43 +35,72 @@ class Communication(nn.Module):
         self.gaussian_filter.weight.data = torch.Tensor(gaussian_kernel).to(self.gaussian_filter.weight.device).unsqueeze(0).unsqueeze(0)
         self.gaussian_filter.bias.data.zero_()
 
+    def build_mask(self, confidence_map, *, force_first: bool):
+        """
+        Build the spatial transmission mask for one group of agents.
+
+        Parameters
+        ----------
+        confidence_map : torch.Tensor
+            Per-agent classification logits.
+        force_first : bool
+            Whether the first feature belongs to the local receiver and must
+            remain unmasked.
+
+        Returns
+        -------
+        tuple[torch.Tensor, torch.Tensor]
+            Binary communication mask and selected-location ratio.
+        """
+        _, _, height, width = confidence_map.shape
+        original_map, _ = confidence_map.sigmoid().max(dim=1, keepdim=True)
+        communication_map = self.gaussian_filter(original_map) if self.smooth else original_map
+        agent_count = communication_map.shape[0]
+
+        if self.training:
+            selected_count = int(height * width * random.uniform(0, 1))
+            flattened_map = communication_map.reshape(agent_count, height * width)
+            _, indices = torch.topk(flattened_map, k=selected_count, sorted=False)
+            communication_mask = torch.zeros_like(flattened_map)
+            selected_values = torch.ones(
+                agent_count,
+                selected_count,
+                dtype=communication_map.dtype,
+                device=communication_map.device,
+            )
+            communication_mask = torch.scatter(
+                communication_mask,
+                -1,
+                indices,
+                selected_values,
+            ).reshape(agent_count, 1, height, width)
+        elif self.threshold:
+            communication_mask = torch.where(
+                communication_map > self.threshold,
+                torch.ones_like(communication_map),
+                torch.zeros_like(communication_map),
+            )
+        else:
+            communication_mask = torch.ones_like(communication_map)
+
+        communication_rate = communication_mask.sum() / (agent_count * height * width)
+        if force_first:
+            communication_mask[0] = 1
+        return communication_mask, communication_rate
+
     def forward(self, batch_confidence_maps, B):
         """
         Args:
             batch_confidence_maps: [(L1, H, W), (L2, H, W), ...]
         """
 
-        _, _, H, W = batch_confidence_maps[0].shape
-
         communication_masks = []
         communication_rates = []
         for b in range(B):
-            ori_communication_maps, _ = batch_confidence_maps[b].sigmoid().max(dim=1, keepdim=True)
-            if self.smooth:
-                communication_maps = self.gaussian_filter(ori_communication_maps)
-            else:
-                communication_maps = ori_communication_maps
-
-            L = communication_maps.shape[0]
-            if self.training:
-                # Official training proxy objective
-                K = int(H * W * random.uniform(0, 1))
-                communication_maps = communication_maps.reshape(L, H * W)
-                _, indices = torch.topk(communication_maps, k=K, sorted=False)
-                communication_mask = torch.zeros_like(communication_maps).to(communication_maps.device)
-                ones_fill = torch.ones(L, K, dtype=communication_maps.dtype, device=communication_maps.device)
-                communication_mask = torch.scatter(communication_mask, -1, indices, ones_fill).reshape(L, 1, H, W)
-            elif self.threshold:
-                ones_mask = torch.ones_like(communication_maps).to(communication_maps.device)
-                zeros_mask = torch.zeros_like(communication_maps).to(communication_maps.device)
-                communication_mask = torch.where(communication_maps > self.threshold, ones_mask, zeros_mask)
-            else:
-                communication_mask = torch.ones_like(communication_maps).to(communication_maps.device)
-
-            communication_rate = communication_mask.sum() / (L * H * W)
-            # Ego
-            communication_mask[0] = 1
-
+            communication_mask, communication_rate = self.build_mask(
+                batch_confidence_maps[b],
+                force_first=True,
+            )
             communication_masks.append(communication_mask)
             communication_rates.append(communication_rate)
         communication_rates = sum(communication_rates) / B

@@ -18,14 +18,17 @@ pytest.importorskip("torch")
 
 from opencood.models.communication_adapters import (  # noqa: E402
     BevInferenceInput,
+    DetectionInferenceInput,
     EarlyFusionWirePayload,
     FpvrcnnAgentInferenceInput,
     FpvrcnnWirePayload,
-    IntermediateFusionWirePayload,
+    IntermediateFeatureWirePayload,
     LateFusionWirePayload,
     PointCloudInferenceInput,
     PoseFrameMetadata,
+    SpatialFeatureInput,
     VoxelInferenceInput,
+    Where2CommWirePayload,
     build_inference_input,
     inference_input_to_dict,
     merge_inference_inputs,
@@ -115,10 +118,11 @@ def test_wire_payloads_expose_only_network_contract_fields():
         "targets",
     }
     expected_fields = {
-        EarlyFusionWirePayload: {"projected_lidar"},
-        LateFusionWirePayload: {"inference_input", "metadata"},
-        IntermediateFusionWirePayload: {"inference_input", "metadata"},
+        EarlyFusionWirePayload: {"lidar_points", "metadata"},
+        LateFusionWirePayload: {"detections", "metadata"},
+        IntermediateFeatureWirePayload: {"inference_input", "metadata"},
         FpvrcnnWirePayload: {"inference_input", "metadata"},
+        Where2CommWirePayload: {"inference_input", "metadata"},
     }
 
     for payload_type, expected in expected_fields.items():
@@ -143,9 +147,23 @@ def test_fpvrcnn_wire_payload_contains_stage_one_and_vsa_outputs():
     assert payload.inference_input.point_features.shape == (3, 8)
 
 
+def test_intermediate_wire_payload_contains_learned_features():
+    payload = IntermediateFeatureWirePayload(
+        inference_input=SpatialFeatureInput(
+            spatial_features=np.ones((1, 64, 48, 176), dtype=np.float32),
+        ),
+        metadata=None,
+    )
+
+    assert payload.inference_input.spatial_features.shape == (1, 64, 48, 176)
+
+
 def test_typed_wire_payload_survives_v2x_pickle_round_trip():
     payload = LateFusionWirePayload(
-        inference_input=BevInferenceInput(bev_input=np.arange(12, dtype=np.float32).reshape(3, 4)),
+        detections=DetectionInferenceInput(
+            boxes=np.arange(24, dtype=np.float32).reshape(1, 8, 3),
+            scores=np.array([0.75], dtype=np.float32),
+        ),
         metadata=PoseFrameMetadata(
             lidar_pose=(1.0, 2.0, 3.0, 0.0, 0.0, 0.0),
             capture_frame=21,
@@ -157,6 +175,6 @@ def test_typed_wire_payload_survives_v2x_pickle_round_trip():
     assert isinstance(restored, LateFusionWirePayload)
     assert restored.metadata == payload.metadata
     np.testing.assert_array_equal(
-        restored.inference_input.bev_input,
-        payload.inference_input.bev_input,
+        restored.detections.boxes,
+        payload.detections.boxes,
     )

@@ -33,7 +33,7 @@ class Second(nn.Module):
             "voxel_features": voxel_features,
             "voxel_coords": voxel_coords,
             "voxel_num_points": voxel_num_points,
-            "batch_size": self.batch_size,
+            "batch_size": data_dict.get("batch_size", self.batch_size),
         }
 
         batch_dict = self.mean_vfe(batch_dict)

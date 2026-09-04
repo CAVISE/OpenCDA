@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 
+from opencood.models.communication_adapters.intermediate import SpatialFeatureCommunicationAdapter
 from opencood.models.sub_modules.pillar_vfe import PillarVFE
 from opencood.models.sub_modules.point_pillar_scatter import PointPillarScatter
 from opencood.models.sub_modules.base_bev_backbone import BaseBEVBackbone
@@ -11,6 +12,8 @@ from opencood.models.fuse_modules.v2xvit_basic import V2XTransformer
 
 
 class PointPillarTransformer(nn.Module):
+    communication_adapter_class = SpatialFeatureCommunicationAdapter
+
     def __init__(self, args):
         super(PointPillarTransformer, self).__init__()
 
@@ -64,6 +67,9 @@ class PointPillarTransformer(nn.Module):
             p.requires_grad = False
 
     def forward(self, data_dict):
+        if "intermediate_features" in data_dict:
+            return self.fuse_agents(data_dict)
+
         voxel_features = data_dict["processed_lidar"]["voxel_features"]
         voxel_coords = data_dict["processed_lidar"]["voxel_coords"]
         voxel_num_points = data_dict["processed_lidar"]["voxel_num_points"]
@@ -106,3 +112,74 @@ class PointPillarTransformer(nn.Module):
         output_dict = {"psm": psm, "rm": rm}
 
         return output_dict
+
+    def encode_agent(self, data_dict):
+        """
+        Encode one agent into the feature map exchanged by V2X-ViT.
+
+        Parameters
+        ----------
+        data_dict : dict
+            Sender-local preprocessed LiDAR input.
+
+        Returns
+        -------
+        dict
+            Learned spatial feature map before transformer fusion.
+        """
+        processed_lidar = data_dict["processed_lidar"]
+        batch_dict = {
+            "voxel_features": processed_lidar["voxel_features"],
+            "voxel_coords": processed_lidar["voxel_coords"],
+            "voxel_num_points": processed_lidar["voxel_num_points"],
+        }
+        batch_dict = self.pillar_vfe(batch_dict)
+        batch_dict = self.scatter(batch_dict)
+        batch_dict = self.backbone(batch_dict)
+        spatial_features = batch_dict["spatial_features_2d"]
+        if self.shrink_flag:
+            spatial_features = self.shrink_conv(spatial_features)
+        if self.compression:
+            spatial_features = self.naive_compressor.encode(spatial_features)
+        return {"spatial_features": spatial_features}
+
+    def fuse_agents(self, data_dict):
+        """
+        Fuse delivered V2X-ViT features and run the detection heads.
+
+        Parameters
+        ----------
+        data_dict : dict
+            Receiver input containing learned features and V2X-ViT metadata.
+
+        Returns
+        -------
+        dict
+            Classification and regression maps.
+        """
+        spatial_features = data_dict["intermediate_features"]["spatial_features"]
+        if self.compression:
+            spatial_features = self.naive_compressor.decode(spatial_features)
+        regroup_feature, mask = regroup(
+            spatial_features,
+            data_dict["record_len"],
+            self.max_cav,
+        )
+        prior_encoding = data_dict["prior_encoding"].unsqueeze(-1).unsqueeze(-1)
+        prior_encoding = prior_encoding.repeat(
+            1,
+            1,
+            1,
+            regroup_feature.shape[3],
+            regroup_feature.shape[4],
+        )
+        regroup_feature = torch.cat([regroup_feature, prior_encoding], dim=2)
+        fused_feature = self.fusion_net(
+            regroup_feature.permute(0, 1, 3, 4, 2),
+            mask,
+            data_dict["spatial_correction_matrix"],
+        ).permute(0, 3, 1, 2)
+        return {
+            "psm": self.cls_head(fused_feature),
+            "rm": self.reg_head(fused_feature),
+        }

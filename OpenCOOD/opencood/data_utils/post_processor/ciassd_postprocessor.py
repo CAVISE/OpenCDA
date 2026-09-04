@@ -15,6 +15,51 @@ class CiassdPostprocessor(VoxelPostprocessor):
         self.train = train
         self.anchor_num = self.params["anchor_args"]["num"]
 
+    def decode_agent_predictions(self, cav_content, output):
+        """
+        Decode one agent's CIA-SSD output without projection or NMS.
+
+        Parameters
+        ----------
+        cav_content : dict
+            Local model input containing the configured anchors.
+        output : dict
+            Raw output produced by CIA-SSD.
+
+        Returns
+        -------
+        tuple[torch.Tensor, torch.Tensor]
+            Sender-frame box corners and confidence scores.
+        """
+        preds_dict = output["preds_dict_stage1"]
+        prob = torch.sigmoid(preds_dict["cls_preds"].permute(0, 2, 3, 1).contiguous())
+        reg = preds_dict["box_preds"].permute(0, 2, 3, 1).contiguous()
+        iou = preds_dict["iou_preds"].permute(0, 2, 3, 1).contiguous().reshape(1, -1)
+        direction = preds_dict["dir_cls_preds"].permute(0, 2, 3, 1).contiguous().reshape(1, -1, 2)
+
+        batch_box3d = self.delta_to_boxes3d(reg, cav_content["anchor_box"], False)
+        mask = torch.gt(prob, self.params["target_args"]["score_threshold"]).view(1, -1)
+        mask_reg = mask.unsqueeze(2).repeat(1, 1, 7)
+        assert batch_box3d.shape[0] == 1
+        boxes3d = torch.masked_select(batch_box3d[0], mask_reg[0]).view(-1, 7)
+        scores = torch.masked_select(prob.reshape(-1), mask[0])
+        if boxes3d.shape[0] == 0:
+            return boxes3d.new_empty((0, 8, 3)), scores
+
+        direction_labels = torch.max(direction, dim=-1)[1][mask]
+        adjusted_iou = (iou + 1) * 0.5
+        scores = scores * torch.pow(adjusted_iou.masked_select(mask), 4)
+        opposite_direction = (boxes3d[..., -1] > 0) ^ (direction_labels.byte() == 1)
+        boxes3d[..., -1] += torch.where(
+            opposite_direction,
+            torch.tensor(np.pi).type_as(boxes3d),
+            torch.tensor(0.0).type_as(boxes3d),
+        )
+        return box_utils.boxes_to_corners_3d(
+            boxes3d,
+            order=self.params["order"],
+        ), scores
+
     def post_process(self, data_dict, output_dict):
         """
         Process the outputs of the model to 2D/3D bounding box.

@@ -506,7 +506,11 @@ class CoperceptionModelManager:
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.saved_path = self.opt.model_dir
         self.model = self._init_model()
-        self.communication_adapter = build_communication_adapter(self.model, self.device)
+        self.communication_adapter = build_communication_adapter(
+            self.model,
+            self.device,
+            self.hypes.get("fusion", {}).get("core_method"),
+        )
         self.opencood_dataset: DatasetOpenCOOD | None = None
         self.data_loader: DataLoader[Any] | None = None
         self.current_memory_data = None

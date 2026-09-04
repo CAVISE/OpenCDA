@@ -1,6 +1,7 @@
 import torch.nn as nn
 from einops import repeat
 
+from opencood.models.communication_adapters.intermediate import SpatialFeatureCommunicationAdapter
 from opencood.models.sub_modules.pillar_vfe import PillarVFE
 from opencood.models.sub_modules.point_pillar_scatter import PointPillarScatter
 from opencood.models.sub_modules.base_bev_backbone import BaseBEVBackbone
@@ -11,6 +12,8 @@ from opencood.models.fuse_modules.fuse_utils import regroup
 
 
 class PointPillarCoBEVT(nn.Module):
+    communication_adapter_class = SpatialFeatureCommunicationAdapter
+
     def __init__(self, args):
         super(PointPillarCoBEVT, self).__init__()
 
@@ -64,6 +67,9 @@ class PointPillarCoBEVT(nn.Module):
             p.requires_grad = False
 
     def forward(self, data_dict):
+        if "intermediate_features" in data_dict:
+            return self.fuse_agents(data_dict)
+
         voxel_features = data_dict["processed_lidar"]["voxel_features"]
         voxel_coords = data_dict["processed_lidar"]["voxel_coords"]
         voxel_num_points = data_dict["processed_lidar"]["voxel_num_points"]
@@ -97,3 +103,67 @@ class PointPillarCoBEVT(nn.Module):
         output_dict = {"psm": psm, "rm": rm}
 
         return output_dict
+
+    def encode_agent(self, data_dict):
+        """
+        Encode one agent into the feature map exchanged by CoBEVT.
+
+        Parameters
+        ----------
+        data_dict : dict
+            Sender-local preprocessed LiDAR input.
+
+        Returns
+        -------
+        dict
+            Learned spatial feature map before Swap Fusion.
+        """
+        processed_lidar = data_dict["processed_lidar"]
+        batch_dict = {
+            "voxel_features": processed_lidar["voxel_features"],
+            "voxel_coords": processed_lidar["voxel_coords"],
+            "voxel_num_points": processed_lidar["voxel_num_points"],
+        }
+        batch_dict = self.pillar_vfe(batch_dict)
+        batch_dict = self.scatter(batch_dict)
+        batch_dict = self.backbone(batch_dict)
+        spatial_features = batch_dict["spatial_features_2d"]
+        if self.shrink_flag:
+            spatial_features = self.shrink_conv(spatial_features)
+        if self.compression:
+            spatial_features = self.naive_compressor.encode(spatial_features)
+        return {"spatial_features": spatial_features}
+
+    def fuse_agents(self, data_dict):
+        """
+        Fuse delivered CoBEVT features and run the detection heads.
+
+        Parameters
+        ----------
+        data_dict : dict
+            Receiver input containing learned features and ``record_len``.
+
+        Returns
+        -------
+        dict
+            Classification and regression maps.
+        """
+        spatial_features = data_dict["intermediate_features"]["spatial_features"]
+        if self.compression:
+            spatial_features = self.naive_compressor.decode(spatial_features)
+        regroup_feature, mask = regroup(
+            spatial_features,
+            data_dict["record_len"],
+            self.max_cav,
+        )
+        communication_mask = repeat(
+            mask.unsqueeze(1).unsqueeze(2).unsqueeze(3),
+            "b h w c l -> b (h new_h) (w new_w) c l",
+            new_h=regroup_feature.shape[3],
+            new_w=regroup_feature.shape[4],
+        )
+        fused_feature = self.fusion_net(regroup_feature, communication_mask)
+        return {
+            "psm": self.cls_head(fused_feature),
+            "rm": self.reg_head(fused_feature),
+        }

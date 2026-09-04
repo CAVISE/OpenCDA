@@ -105,31 +105,92 @@ class AttBEVBackbone(nn.Module):
         spatial_features = data_dict["spatial_features"]
         record_len = data_dict["record_len"]
 
-        ups = []
-        ret_dict = {}
-        x = spatial_features
-
-        for i in range(len(self.blocks)):
-            x = self.blocks[i](x)
-            if self.compress and i < len(self.compression_modules):
-                x = self.compression_modules[i](x)
-            x_fuse = self.fuse_modules[i](x, record_len)
-
-            stride = int(spatial_features.shape[2] / x.shape[2])
-            ret_dict["spatial_features_%dx" % stride] = x
-
+        upsampled_features = []
+        features = spatial_features
+        for level, block in enumerate(self.blocks):
+            features = block(features)
+            if self.compress and level < len(self.compression_modules):
+                features = self.compression_modules[level](features)
+            fused_features = self.fuse_modules[level](features, record_len)
             if len(self.deblocks) > 0:
-                ups.append(self.deblocks[i](x_fuse))
+                upsampled_features.append(self.deblocks[level](fused_features))
             else:
-                ups.append(x_fuse)
+                upsampled_features.append(fused_features)
 
-        if len(ups) > 1:
-            x = torch.cat(ups, dim=1)
-        elif len(ups) == 1:
-            x = ups[0]
+        if len(upsampled_features) > 1:
+            features = torch.cat(upsampled_features, dim=1)
+        elif len(upsampled_features) == 1:
+            features = upsampled_features[0]
+        else:
+            raise ValueError("At least one backbone level is required")
 
         if len(self.deblocks) > len(self.blocks):
-            x = self.deblocks[-1](x)
-
-        data_dict["spatial_features_2d"] = x
+            features = self.deblocks[-1](features)
+        data_dict["spatial_features_2d"] = features
         return data_dict
+
+    def encode_agent(self, spatial_features):
+        """
+        Compute every private backbone scale before feature fusion.
+
+        Parameters
+        ----------
+        spatial_features : torch.Tensor
+            Unfused BEV features for one or more agents.
+
+        Returns
+        -------
+        tuple[torch.Tensor, ...]
+            Ordered private feature maps consumed by attention fusion.
+        """
+        feature_maps = []
+        features = spatial_features
+        for level, block in enumerate(self.blocks):
+            features = block(features)
+            if self.compress and level < len(self.compression_modules):
+                encoded_features = self.compression_modules[level].encode(features)
+                feature_maps.append(encoded_features)
+                features = self.compression_modules[level].decode(encoded_features)
+            else:
+                feature_maps.append(features)
+        return tuple(feature_maps)
+
+    def fuse_agents(self, feature_maps, record_len):
+        """
+        Fuse encoded feature scales and decode the final BEV representation.
+
+        Parameters
+        ----------
+        feature_maps : tuple[torch.Tensor, ...]
+            Concatenated per-agent feature maps at every scale.
+        record_len : torch.Tensor
+            Number of successfully available agents in each sample.
+
+        Returns
+        -------
+        torch.Tensor
+            Decoded fused BEV feature map.
+        """
+        if len(feature_maps) != len(self.fuse_modules):
+            raise ValueError("Unexpected number of intermediate feature scales")
+
+        ups = []
+        for level, features in enumerate(feature_maps):
+            if self.compress and level < len(self.compression_modules):
+                features = self.compression_modules[level].decode(features)
+            fused_features = self.fuse_modules[level](features, record_len)
+            if len(self.deblocks) > 0:
+                ups.append(self.deblocks[level](fused_features))
+            else:
+                ups.append(fused_features)
+
+        if len(ups) > 1:
+            features = torch.cat(ups, dim=1)
+        elif len(ups) == 1:
+            features = ups[0]
+        else:
+            raise ValueError("At least one intermediate feature scale is required")
+
+        if len(self.deblocks) > len(self.blocks):
+            features = self.deblocks[-1](features)
+        return features

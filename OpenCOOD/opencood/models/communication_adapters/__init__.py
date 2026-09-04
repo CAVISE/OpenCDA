@@ -6,39 +6,53 @@ import torch
 from torch import nn
 
 from opencood.models.communication_adapters.base import ModelCommunicationAdapter
+from opencood.models.communication_adapters.early import EarlyFusionCommunicationAdapter
 from opencood.models.communication_adapters.inference_input import (
     BevInferenceInput,
+    DetectionInferenceInput,
     FpvrcnnAgentInferenceInput,
     InferenceInput,
+    MultiScaleFeatureInput,
     PointCloudInferenceInput,
+    SpatialFeatureInput,
     VoxelInferenceInput,
+    Where2CommFeatureInput,
     build_inference_input,
     inference_input_to_dict,
     merge_inference_inputs,
+)
+from opencood.models.communication_adapters.intermediate import (
+    IntermediateFeatureCommunicationAdapter,
+    MultiScaleFeatureCommunicationAdapter,
+    SpatialFeatureCommunicationAdapter,
 )
 from opencood.models.communication_adapters.inference_metadata import (
     IntermediateMetadata,
     PoseFrameMetadata,
     V2XViTMetadata,
 )
-from opencood.models.communication_adapters.pending import PendingModelCommunicationAdapter
+from opencood.models.communication_adapters.late import LateFusionCommunicationAdapter
+from opencood.models.communication_adapters.where2comm import Where2CommCommunicationAdapter
 from opencood.models.communication_adapters.wire_payload import (
     EarlyFusionWirePayload,
     FpvrcnnWirePayload,
-    IntermediateFusionWirePayload,
+    IntermediateFeatureWirePayload,
     LateFusionWirePayload,
+    Where2CommWirePayload,
 )
 
 
 def build_communication_adapter(
     model: nn.Module,
     device: torch.device,
+    fusion_method: str | None = None,
 ) -> ModelCommunicationAdapter:
     """
     Build the communication adapter declared by a perception model.
 
-    Models without a declared adapter temporarily retain their dataset-managed
-    payload through :class:`PendingModelCommunicationAdapter`.
+    Fusion-wide contracts are selected from the configured fusion method.
+    Intermediate models declare the adapter matching their learned-feature
+    communication boundary.
 
     Parameters
     ----------
@@ -46,6 +60,8 @@ def build_communication_adapter(
         Cooperative perception model instance.
     device : torch.device
         Device used for sender-side model execution.
+    fusion_method : str | None
+        Explicit fusion method selected by the model configuration.
 
     Returns
     -------
@@ -57,13 +73,14 @@ def build_communication_adapter(
     TypeError
         If the model declares an invalid adapter class.
     """
-    # TODO(#191): Remove the fallback after every model declares the adapter
-    # matching its real sender/receiver communication boundary.
-    adapter_class: object = getattr(
-        type(model),
-        "communication_adapter_class",
-        PendingModelCommunicationAdapter,
-    )
+    if fusion_method == "EarlyFusionDataset":
+        return EarlyFusionCommunicationAdapter(model, device)
+    if fusion_method == "LateFusionDataset":
+        return LateFusionCommunicationAdapter(model, device)
+
+    adapter_class: object = getattr(type(model), "communication_adapter_class", None)
+    if adapter_class is None:
+        raise TypeError(f"{type(model).__name__} must declare communication_adapter_class")
     if not isinstance(adapter_class, type) or not issubclass(
         adapter_class,
         ModelCommunicationAdapter,
@@ -74,19 +91,29 @@ def build_communication_adapter(
 
 __all__ = (
     "BevInferenceInput",
+    "DetectionInferenceInput",
     "EarlyFusionWirePayload",
+    "EarlyFusionCommunicationAdapter",
     "FpvrcnnAgentInferenceInput",
     "FpvrcnnWirePayload",
     "InferenceInput",
-    "IntermediateFusionWirePayload",
+    "IntermediateFeatureCommunicationAdapter",
+    "IntermediateFeatureWirePayload",
     "IntermediateMetadata",
     "LateFusionWirePayload",
+    "LateFusionCommunicationAdapter",
     "ModelCommunicationAdapter",
-    "PendingModelCommunicationAdapter",
+    "MultiScaleFeatureCommunicationAdapter",
+    "MultiScaleFeatureInput",
     "PointCloudInferenceInput",
     "PoseFrameMetadata",
+    "SpatialFeatureCommunicationAdapter",
+    "SpatialFeatureInput",
     "V2XViTMetadata",
     "VoxelInferenceInput",
+    "Where2CommCommunicationAdapter",
+    "Where2CommFeatureInput",
+    "Where2CommWirePayload",
     "build_communication_adapter",
     "build_inference_input",
     "inference_input_to_dict",
