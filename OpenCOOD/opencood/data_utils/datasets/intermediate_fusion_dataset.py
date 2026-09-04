@@ -5,6 +5,7 @@ Dataset class for intermediate fusion
 import math
 import logging
 from collections import OrderedDict
+from collections.abc import Callable
 from typing import Any
 
 import numpy as np
@@ -16,7 +17,6 @@ from opencood.utils import box_utils
 from opencood.data_utils.datasets import basedataset
 from opencood.models.communication_adapters import (
     InferenceInput,
-    IntermediateFusionWirePayload,
     IntermediateMetadata,
     PoseFrameMetadata,
     V2XViTMetadata,
@@ -69,46 +69,36 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
         self.module_name = "OpenCOOD.IntermediateFusionDataset"
         self.model_name = params["model"]["core_method"]
 
-    def extract_data(self, idx):
+    def extract_data(
+        self,
+        idx: int,
+        agent_payload_builder: Callable[
+            [InferenceInput, IntermediateMetadata | None],
+            object,
+        ],
+    ) -> None:
+        """
+        Publish individual agent inputs through the selected model adapter.
+
+        Parameters
+        ----------
+        idx : int
+            Dataset frame to publish.
+        agent_payload_builder : Callable
+            Model adapter callback that encodes the sender-local input at the
+            configured model's communication boundary.
+        """
         base_data_dict = self.retrieve_base_data(idx, cur_ego_pose_flag=self.cur_ego_pose_flag)
         _, ego_lidar_pose = self.__find_ego_vehicle(base_data_dict)
 
         if self.payload_handler is not None:
             for cav_id, selected_cav_base in base_data_dict.items():
                 selected_cav_processed = self.get_item_single_car(selected_cav_base, ego_lidar_pose)
-                payload = self.build_wire_payload(cav_id, selected_cav_base, selected_cav_processed, idx)
+                payload = agent_payload_builder(
+                    selected_cav_processed["inference_input"],
+                    self.build_model_metadata(cav_id, selected_cav_base, idx),
+                )
                 self.payload_handler.set_opencda_payload(cav_id, self.module_name, payload)
-
-    def build_wire_payload(
-        self,
-        cav_id: str,
-        selected_cav_base: dict[str, Any],
-        selected_cav_processed: dict[str, Any],
-        receive_frame: int,
-    ) -> IntermediateFusionWirePayload:
-        """
-        Build the intermediate-fusion payload sent over V2X.
-
-        Parameters
-        ----------
-        cav_id : str
-            Identifier of the sending CAV or RSU.
-        selected_cav_base : dict[str, Any]
-            Raw dataset entry for the sending agent.
-        selected_cav_processed : dict[str, Any]
-            Processed data for the same sending agent.
-        receive_frame : int
-            Dataset frame in which the payload is sent.
-
-        Returns
-        -------
-        IntermediateFusionWirePayload
-            Typed payload containing only remote model-input data.
-        """
-        return IntermediateFusionWirePayload(
-            inference_input=selected_cav_processed["inference_input"],
-            metadata=self.build_model_metadata(cav_id, selected_cav_base, receive_frame),
-        )
 
     def build_model_metadata(
         self,
@@ -148,30 +138,6 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
                 spatial_correction_matrix=selected_cav_base["params"]["spatial_correction_matrix"],
             )
         return None
-
-    @staticmethod
-    def decode_wire_payload(payload: object) -> IntermediateFusionWirePayload:
-        """
-        Validate an intermediate-fusion payload received over V2X.
-
-        Parameters
-        ----------
-        payload : object
-            Deserialized module payload received over V2X.
-
-        Returns
-        -------
-        IntermediateFusionWirePayload
-            Validated intermediate-fusion payload.
-
-        Raises
-        ------
-        TypeError
-            If the received payload has an unexpected type.
-        """
-        if not isinstance(payload, IntermediateFusionWirePayload):
-            raise TypeError(f"Expected IntermediateFusionWirePayload, got {type(payload).__name__}")
-        return payload
 
     def __find_ego_vehicle(self, base_data_dict):
         ego_id = -1
@@ -315,11 +281,6 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
         data["inference_inputs"].append(cav_processed["inference_input"])
         data["metadata"].append(self.build_model_metadata(cav_id, cav_base, receive_frame))
 
-    @staticmethod
-    def __append_message_model_data(data: dict[str, Any], payload: IntermediateFusionWirePayload) -> None:
-        data["inference_inputs"].append(payload.inference_input)
-        data["metadata"].append(payload.metadata)
-
     def __agent_in_communication_range(self, cav_base, ego_lidar_pose):
         dx = cav_base["params"]["lidar_pose"][0] - ego_lidar_pose[0]
         dy = cav_base["params"]["lidar_pose"][1] - ego_lidar_pose[1]
@@ -372,20 +333,74 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
         }
 
     def __process_with_messages(self, ego_id, ego_lidar_pose, base_data_dict, receive_frame):
-        data = self.__build_model_data()
-        ego_cav_base = base_data_dict.get(ego_id)
+        return self.__process_encoded_messages(
+            ego_id,
+            ego_lidar_pose,
+            base_data_dict,
+            receive_frame,
+        )
+
+    def __process_encoded_messages(
+        self,
+        ego_id: str,
+        ego_lidar_pose: list[float],
+        base_data_dict: dict[str, Any],
+        receive_frame: int,
+    ) -> dict[str, Any]:
+        """
+        Assemble learned local and delivered features for model-side fusion.
+
+        Parameters
+        ----------
+        ego_id : str
+            Identifier of the receiving agent.
+        ego_lidar_pose : list[float]
+            Current receiver LiDAR pose.
+        base_data_dict : dict[str, Any]
+            Local scene observations.
+        receive_frame : int
+            Current dataset frame.
+
+        Returns
+        -------
+        dict[str, Any]
+            Successfully available learned features and their metadata.
+        """
+        if self.communication_adapter is None:
+            raise RuntimeError("Intermediate feature decoding requires a communication adapter")
+
+        ego_cav_base = base_data_dict[ego_id]
         ego_cav_processed = self.get_item_single_car(ego_cav_base, ego_lidar_pose)
-        self.__append_processed_model_data(data, ego_id, ego_cav_base, ego_cav_processed, receive_frame)
+        features = [
+            self.communication_adapter.encode_local_intermediate_input(
+                self,
+                ego_cav_processed["inference_input"],
+            )
+        ]
+        metadata = [self.build_model_metadata(ego_id, ego_cav_base, receive_frame)]
 
         if ego_id in self.payload_handler.current_artery_payload:
-            for cav_id, _ in base_data_dict.items():
-                raw_payload = self.payload_handler.get_artery_payload(ego_id, cav_id, self.module_name)
+            for cav_id in base_data_dict:
+                if cav_id == ego_id:
+                    continue
+                raw_payload = self.payload_handler.get_artery_payload(
+                    ego_id,
+                    cav_id,
+                    self.module_name,
+                )
                 if raw_payload is None:
                     continue
-                payload = self.decode_wire_payload(raw_payload)
-                self.__append_message_model_data(data, payload)
+                decoded = self.communication_adapter.decode_received_payload(
+                    raw_payload,
+                    ego_lidar_pose,
+                )
+                metadata.append(decoded.pop("metadata"))
+                features.append(decoded)
 
-        return data
+        return {
+            "intermediate_features": features,
+            "metadata": metadata,
+        }
 
     def __process_without_messages(self, ego_id, ego_lidar_pose, base_data_dict, receive_frame):
         data = self.__build_model_data()
@@ -460,16 +475,35 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
         ValueError
             If model inputs and metadata entries are not aligned.
         """
-        typed_inputs: list[InferenceInput] = inference_input["inference_inputs"]
-        merged_feature_dict = merge_inference_inputs(typed_inputs)
         metadata: list[IntermediateMetadata | None] = inference_input["metadata"]
-        if len(metadata) != len(typed_inputs):
-            raise ValueError("Every inference input must have a matching metadata entry")
+        if "intermediate_features" in inference_input:
+            intermediate_features = inference_input["intermediate_features"]
+            if len(metadata) != len(intermediate_features):
+                raise ValueError("Every intermediate feature must have a matching metadata entry")
+            feature_fields = set(intermediate_features[0])
+            if any(set(features) != feature_fields for features in intermediate_features[1:]):
+                raise TypeError("All agents must provide the same intermediate feature fields")
+            merged_feature_dict = {
+                field: (
+                    np.concatenate([features[field] for features in intermediate_features], axis=0)
+                    if isinstance(intermediate_features[0][field], np.ndarray)
+                    else np.asarray([features[field] for features in intermediate_features])
+                )
+                for field in feature_fields
+            }
+            cav_num = len(intermediate_features)
+            model_input = {"intermediate_features": merged_feature_dict}
+        else:
+            typed_inputs: list[InferenceInput] = inference_input["inference_inputs"]
+            if len(metadata) != len(typed_inputs):
+                raise ValueError("Every inference input must have a matching metadata entry")
+            model_input = {"processed_lidar": merge_inference_inputs(typed_inputs)}
+            cav_num = len(typed_inputs)
 
         ego_sample = {
             **local_supervision,
-            "processed_lidar": merged_feature_dict,
-            "cav_num": len(typed_inputs),
+            **model_input,
+            "cav_num": cav_num,
             **self.__assemble_model_metadata(metadata, receive_frame),
         }
         if self.visualize:
@@ -583,6 +617,7 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
         object_bbx_mask = []
         object_ids = []
         processed_lidar_list = []
+        intermediate_feature_list = []
         # used to record different scenario
         record_len = []
         label_dict_list = []
@@ -608,7 +643,10 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
             object_bbx_mask.append(ego_dict["object_bbx_mask"])
             object_ids.append(ego_dict["object_ids"])
 
-            processed_lidar_list.append(ego_dict["processed_lidar"])
+            if "intermediate_features" in ego_dict:
+                intermediate_feature_list.append(ego_dict["intermediate_features"])
+            else:
+                processed_lidar_list.append(ego_dict["processed_lidar"])
             record_len.append(ego_dict["cav_num"])
             label_dict_list.append(ego_dict["label_dict"])
 
@@ -626,9 +664,16 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
         object_bbx_center = torch.from_numpy(np.array(object_bbx_center))
         object_bbx_mask = torch.from_numpy(np.array(object_bbx_mask))
 
-        # Merge per-sample agent inputs before preprocessor-specific collation.
-        merged_feature_dict = self.merge_features_to_dict(processed_lidar_list)
-        processed_lidar_torch_dict = self.pre_processor.collate_batch(merged_feature_dict)
+        if intermediate_feature_list:
+            if processed_lidar_list:
+                raise TypeError("A batch cannot mix preprocessor inputs and intermediate features")
+            intermediate_features_torch = {
+                field: torch.from_numpy(np.concatenate([features[field] for features in intermediate_feature_list], axis=0))
+                for field in intermediate_feature_list[0]
+            }
+        else:
+            merged_feature_dict = self.merge_features_to_dict(processed_lidar_list)
+            processed_lidar_torch_dict = self.pre_processor.collate_batch(merged_feature_dict)
         # [2, 3, 4, ..., M], M <= max_cav
         record_len = torch.from_numpy(np.array(record_len, dtype=int))
         label_torch_dict = self.post_processor.collate_batch(label_dict_list)
@@ -639,12 +684,16 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
             {
                 "object_bbx_center": object_bbx_center,
                 "object_bbx_mask": object_bbx_mask,
-                "processed_lidar": processed_lidar_torch_dict,
                 "record_len": record_len,
                 "label_dict": label_torch_dict,
                 "object_ids": object_ids[0],
             }
         )
+
+        if intermediate_feature_list:
+            output_dict["ego"]["intermediate_features"] = intermediate_features_torch
+        else:
+            output_dict["ego"]["processed_lidar"] = processed_lidar_torch_dict
 
         if self.model_name in PAIRWISE_METADATA_MODELS:
             output_dict["ego"]["pairwise_t_matrix"] = torch.from_numpy(np.array(pairwise_t_matrix_list))

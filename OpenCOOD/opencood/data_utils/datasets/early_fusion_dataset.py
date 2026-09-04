@@ -5,16 +5,18 @@ Dataset class for early fusion
 import math
 import logging
 from collections import OrderedDict
+from collections.abc import Callable
 from typing import Any
 
 import numpy as np
+import numpy.typing as npt
 import torch
 
 import opencood.data_utils.datasets
 from opencood.utils import box_utils
 from opencood.data_utils.post_processor import build_postprocessor
 from opencood.data_utils.datasets import basedataset
-from opencood.models.communication_adapters import EarlyFusionWirePayload
+from opencood.models.communication_adapters import PoseFrameMetadata
 from opencood.data_utils.pre_processor import build_preprocessor
 from opencood.utils.pcd_utils import downsample_lidar_minimum
 from opencood.utils.transformation_utils import x1_to_x2
@@ -52,58 +54,35 @@ class EarlyFusionDataset(basedataset.BaseDataset):
 
         return ego_id, ego_lidar_pose
 
-    def extract_data(self, idx):
+    def extract_data(
+        self,
+        idx: int,
+        agent_payload_builder: Callable[[npt.NDArray[Any], PoseFrameMetadata], object],
+    ) -> None:
+        """
+        Publish sender-local observations through the communication adapter.
+
+        Parameters
+        ----------
+        idx : int
+            Dataset frame to publish.
+        agent_payload_builder : Callable
+            Adapter callback converting one local observation into its wire
+            representation.
+        """
         base_data_dict = self.retrieve_base_data(idx)
-        _, ego_lidar_pose = self.__find_ego_vehicle(base_data_dict)
 
         if self.payload_handler is not None:
             for cav_id, selected_cav_base in base_data_dict.items():
-                selected_cav_processed = self.get_item_single_car(selected_cav_base, ego_lidar_pose)
-                payload = self.build_wire_payload(selected_cav_processed)
+                lidar_points, _ = self.__prepare_local_lidar(selected_cav_base)
+                payload = agent_payload_builder(
+                    lidar_points,
+                    PoseFrameMetadata(
+                        lidar_pose=selected_cav_base["params"]["lidar_pose"],
+                        capture_frame=idx - int(selected_cav_base["time_delay"]),
+                    ),
+                )
                 self.payload_handler.set_opencda_payload(cav_id, self.module_name, payload)
-
-    @staticmethod
-    def build_wire_payload(selected_cav_processed: dict[str, Any]) -> EarlyFusionWirePayload:
-        """
-        Build the early-fusion payload sent over V2X.
-
-        Parameters
-        ----------
-        selected_cav_processed : dict[str, Any]
-            Processed data for one sending agent.
-
-        Returns
-        -------
-        EarlyFusionWirePayload
-            Typed payload containing only the remote model input.
-        """
-        return EarlyFusionWirePayload(
-            projected_lidar=selected_cav_processed["projected_lidar"],
-        )
-
-    @staticmethod
-    def decode_wire_payload(payload: object) -> EarlyFusionWirePayload:
-        """
-        Validate and decode an early-fusion payload received over V2X.
-
-        Parameters
-        ----------
-        payload : object
-            Deserialized module payload received over V2X.
-
-        Returns
-        -------
-        EarlyFusionWirePayload
-            Validated early-fusion payload.
-
-        Raises
-        ------
-        TypeError
-            If the received payload has an unexpected type.
-        """
-        if not isinstance(payload, EarlyFusionWirePayload):
-            raise TypeError(f"Expected EarlyFusionWirePayload, got {type(payload).__name__}")
-        return payload
 
     def __process_with_messages(self, ego_id, ego_lidar_pose, base_data_dict):
         projected_lidar_stack = []
@@ -115,11 +94,18 @@ class EarlyFusionDataset(basedataset.BaseDataset):
 
         if ego_id in self.payload_handler.current_artery_payload:
             for cav_id, _ in base_data_dict.items():
+                if cav_id == ego_id:
+                    continue
                 raw_payload = self.payload_handler.get_artery_payload(ego_id, cav_id, self.module_name)
                 if raw_payload is None:
                     continue
-                payload = self.decode_wire_payload(raw_payload)
-                projected_lidar_stack.append(payload.projected_lidar)
+                if self.communication_adapter is None:
+                    raise RuntimeError("Early-fusion payload decoding requires a communication adapter")
+                decoded_payload = self.communication_adapter.decode_received_payload(
+                    raw_payload,
+                    ego_lidar_pose,
+                )
+                projected_lidar_stack.append(decoded_payload["projected_lidar"])
 
         return {"projected_lidar_stack": projected_lidar_stack}
 
@@ -323,34 +309,51 @@ class EarlyFusionDataset(basedataset.BaseDataset):
         selected_cav_processed : dict
             The dictionary contains the cav's processed information.
         """
-        selected_cav_processed = {}
-
         # calculate the transformation matrix
         transformation_matrix = x1_to_x2(selected_cav_base["params"]["lidar_pose"], ego_pose)
 
-        # filter lidar
-        lidar_np = selected_cav_base["lidar_np"]
-        spoofing_mask = np.asarray(selected_cav_base.get("spoofing_mask", np.zeros((lidar_np.shape[0],), dtype=np.bool_)), dtype=np.bool_)
-
-        shuffle_idx = np.random.permutation(lidar_np.shape[0])
-        lidar_np = lidar_np[shuffle_idx]
-        spoofing_mask = spoofing_mask[shuffle_idx]
-
-        # remove points that hit itself
-        ego_mask = (lidar_np[:, 0] >= -1.95) & (lidar_np[:, 0] <= 2.95) & (lidar_np[:, 1] >= -1.1) & (lidar_np[:, 1] <= 1.1)
-        lidar_np = lidar_np[np.logical_not(ego_mask)]
-        spoofing_mask = spoofing_mask[np.logical_not(ego_mask)]
+        lidar_np, spoofing_mask = self.__prepare_local_lidar(selected_cav_base)
         # project the lidar to ego space
         lidar_np[:, :3] = box_utils.project_points_by_matrix_torch(lidar_np[:, :3], transformation_matrix)
 
-        selected_cav_processed.update(
-            {
-                "projected_lidar": lidar_np,
-                "projected_lidar_spoofing_mask": spoofing_mask,
-            }
+        return {
+            "projected_lidar": lidar_np,
+            "projected_lidar_spoofing_mask": spoofing_mask,
+        }
+
+    @staticmethod
+    def __prepare_local_lidar(
+        selected_cav_base: dict[str, Any],
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """
+        Shuffle and remove ego returns without changing coordinate frames.
+
+        Parameters
+        ----------
+        selected_cav_base : dict[str, Any]
+            Raw dataset entry for one sending agent.
+
+        Returns
+        -------
+        tuple[numpy.ndarray, numpy.ndarray]
+            Sender-local LiDAR points and their aligned spoofing mask.
+        """
+        lidar_np = selected_cav_base["lidar_np"]
+        spoofing_mask = np.asarray(
+            selected_cav_base.get(
+                "spoofing_mask",
+                np.zeros((lidar_np.shape[0],), dtype=np.bool_),
+            ),
+            dtype=np.bool_,
         )
 
-        return selected_cav_processed
+        shuffle_idx = np.random.permutation(lidar_np.shape[0])
+        lidar_np = np.array(lidar_np[shuffle_idx], copy=True)
+        spoofing_mask = np.array(spoofing_mask[shuffle_idx], copy=True)
+
+        ego_mask = (lidar_np[:, 0] >= -1.95) & (lidar_np[:, 0] <= 2.95) & (lidar_np[:, 1] >= -1.1) & (lidar_np[:, 1] <= 1.1)
+        keep_mask = np.logical_not(ego_mask)
+        return lidar_np[keep_mask], spoofing_mask[keep_mask]
 
     def collate_batch_test(self, batch):
         """

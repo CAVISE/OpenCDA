@@ -193,6 +193,59 @@ class BevPostprocessor(BasePostprocessor):
         }
         return processed_batch
 
+    def decode_agent_predictions(self, cav_content, output):
+        """
+        Decode one agent's PIXOR output without projection or NMS.
+
+        Parameters
+        ----------
+        cav_content : dict
+            Local model input. It is accepted for a common postprocessor API.
+        output : dict
+            Raw output produced by the local detector.
+
+        Returns
+        -------
+        tuple[torch.Tensor, torch.Tensor]
+            Sender-frame 2D box corners and confidence scores.
+        """
+        del cav_content
+        prob = torch.sigmoid(output["cls"].squeeze(0).squeeze(0))
+        reg_map = output["reg"].squeeze(0).permute(1, 2, 0)
+        reg_map = self.denormalize_reg_map(reg_map)
+        mask = torch.gt(prob, self.params["target_args"]["score_threshold"])
+        if mask.sum() == 0:
+            return reg_map.new_empty((0, 4, 2)), prob.new_empty((0,))
+        return self.reg_map_to_bbx_corners(reg_map, mask), prob[mask]
+
+    def post_process_detections(self, boxes, scores):
+        """
+        Apply receiver-side NMS and range filtering to 2D detections.
+
+        Parameters
+        ----------
+        boxes : torch.Tensor
+            Ego-frame boxes with shape ``(N, 4, 2)``.
+        scores : torch.Tensor
+            Confidence scores with shape ``(N,)``.
+
+        Returns
+        -------
+        tuple[torch.Tensor | None, torch.Tensor | None]
+            Final boxes and scores, or two ``None`` values when empty.
+        """
+        if boxes.shape[0] == 0:
+            return None, None
+        keep_index = box_utils.nms_rotated(boxes, scores, self.params["nms_thresh"])
+        boxes = boxes[keep_index]
+        scores = scores[keep_index]
+
+        range_mask = box_utils.get_mask_for_boxes_within_range_torch(boxes)
+        boxes = boxes[range_mask]
+        scores = scores[range_mask]
+        assert scores.shape[0] == boxes.shape[0]
+        return boxes, scores
+
     def post_process(self, data_dict, output_dict):
         """
         Process the outputs of the model to 2D bounding box.
@@ -226,18 +279,11 @@ class BevPostprocessor(BasePostprocessor):
             # the transformation matrix to ego space
             transformation_matrix = cav_content["transformation_matrix"]
 
-            # classification probability -- (label_shape[0], label_shape[1])
-            prob = output_dict[cav_id]["cls"].squeeze(0).squeeze(0)
-            prob = torch.sigmoid(prob)
-            # regression map -- (label_shape[0], label_shape[1], 6)
-            reg_map = output_dict[cav_id]["reg"].squeeze(0).permute(1, 2, 0)
-            reg_map = self.denormalize_reg_map(reg_map)
-            threshold = self.params["target_args"]["score_threshold"]
-            mask = torch.gt(prob, threshold)
-
-            if mask.sum() > 0:
-                # (number of high confidence bbx, 4, 2)
-                corners2d = self.reg_map_to_bbx_corners(reg_map, mask)
+            corners2d, scores = self.decode_agent_predictions(
+                cav_content,
+                output_dict[cav_id],
+            )
+            if corners2d.shape[0] > 0:
                 # assume the z-diviation in transformation_matrix is small,
                 # thus we can pad zeros to simulate the 3d transformation.
                 # (number of high confidence bbx, 4, 3)
@@ -246,7 +292,6 @@ class BevPostprocessor(BasePostprocessor):
                 projected_boxes2d = box_utils.project_points_by_matrix_torch(box3d.view(-1, 3), transformation_matrix)[:, :2]
 
                 projected_boxes2d = projected_boxes2d.view(-1, 4, 2)
-                scores = prob[mask]
                 pred_box2d_list.append(projected_boxes2d)
                 pred_score_list.append(scores)
 
@@ -256,17 +301,7 @@ class BevPostprocessor(BasePostprocessor):
         else:
             return None, None
 
-        keep_index = box_utils.nms_rotated(pred_box2ds, pred_scores, self.params["nms_thresh"])
-        if len(keep_index):
-            pred_box2ds = pred_box2ds[keep_index]
-            pred_scores = pred_scores[keep_index]
-
-        # filter out the prediction out of the range.
-        mask = box_utils.get_mask_for_boxes_within_range_torch(pred_box2ds)
-        pred_box2ds = pred_box2ds[mask, :, :]
-        pred_scores = pred_scores[mask]
-        assert pred_scores.shape[0] == pred_box2ds.shape[0]
-        return pred_box2ds, pred_scores
+        return self.post_process_detections(pred_box2ds, pred_scores)
 
     def reg_map_to_bbx_corners(self, reg_map, mask):
         """

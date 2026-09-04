@@ -23,7 +23,36 @@ class NaiveCompressor(nn.Module):
         )
 
     def forward(self, x):
-        x = self.encoder(x)
-        x = self.decoder(x)
+        return self.decode(self.encode(x))
 
-        return x
+    def encode(self, x):
+        """
+        Produce the channel-compressed representation for transmission.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Full-channel spatial feature map.
+
+        Returns
+        -------
+        torch.Tensor
+            Channel-compressed feature map.
+        """
+        return self.encoder(x)
+
+    def decode(self, x):
+        """
+        Restore a transmitted channel-compressed representation.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Channel-compressed feature map.
+
+        Returns
+        -------
+        torch.Tensor
+            Feature map restored to the fusion network's channel count.
+        """
+        return self.decoder(x)

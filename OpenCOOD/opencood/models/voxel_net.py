@@ -1,10 +1,8 @@
 import torch.nn as nn
 import torch.nn.functional as F
 import torch
-from torch.autograd import Variable
 
 from opencood.models.sub_modules.pillar_vfe import PillarVFE
-from opencood.utils.common_utils import torch_tensor_to_numpy
 
 
 # conv2d + bn + relu
@@ -172,10 +170,35 @@ class VoxelNet(nn.Module):
         self.T = args["T"]
         self.anchor_num = args["anchor_num"]
 
-    def voxel_indexing(self, sparse_features, coords):
-        dim = sparse_features.shape[-1]
+    def voxel_indexing(self, sparse_features, coords, batch_size):
+        """
+        Scatter sparse voxel features into a dense model batch.
 
-        dense_feature = Variable(torch.zeros(dim, self.N, self.D, self.H, self.W).cuda())
+        Parameters
+        ----------
+        sparse_features : torch.Tensor
+            Encoded features for non-empty voxels.
+        coords : torch.Tensor
+            Batched voxel coordinates.
+        batch_size : int
+            Number of point clouds represented by the coordinates.
+
+        Returns
+        -------
+        torch.Tensor
+            Dense voxel feature tensor.
+        """
+        dim = sparse_features.shape[-1]
+        dense_feature = torch.zeros(
+            dim,
+            batch_size,
+            self.D,
+            self.H,
+            self.W,
+            device=sparse_features.device,
+            dtype=sparse_features.dtype,
+        )
+        coords = coords.long()
 
         dense_feature[:, coords[:, 0], coords[:, 1], coords[:, 2], coords[:, 3]] = sparse_features.transpose(0, 1)
 
@@ -185,14 +208,14 @@ class VoxelNet(nn.Module):
         voxel_features = data_dict["processed_lidar"]["voxel_features"]
         voxel_coords = data_dict["processed_lidar"]["voxel_coords"]
         voxel_num_points = data_dict["processed_lidar"]["voxel_num_points"]
+        batch_size = data_dict.get("batch_size", self.N)
 
         batch_dict = {"voxel_features": voxel_features, "voxel_coords": voxel_coords, "voxel_num_points": voxel_num_points}
 
         # feature learning network
         vwfs = self.svfe(batch_dict)["pillar_features"]
 
-        voxel_coords = torch_tensor_to_numpy(voxel_coords)
-        vwfs = self.voxel_indexing(vwfs, voxel_coords)
+        vwfs = self.voxel_indexing(vwfs, voxel_coords, batch_size)
 
         # convolutional middle network
         vwfs = self.cml(vwfs)
@@ -201,7 +224,7 @@ class VoxelNet(nn.Module):
 
         # merge the depth and feature dim into one, output probability score
         # map and regression map
-        psm, rm = self.rpn(vwfs.view(self.N, -1, self.H, self.W))
+        psm, rm = self.rpn(vwfs.view(batch_size, -1, self.H, self.W))
 
         output_dict = {"psm": psm, "rm": rm}
 

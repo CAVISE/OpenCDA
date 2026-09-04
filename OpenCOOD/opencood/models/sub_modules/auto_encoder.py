@@ -52,10 +52,40 @@ class AutoEncoder(nn.Module):
             feature_num //= 2
 
     def forward(self, x):
+        return self.decode(self.encode(x))
+
+    def encode(self, x):
+        """
+        Produce the compact spatial representation for transmission.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Full-resolution feature map.
+
+        Returns
+        -------
+        torch.Tensor
+            Encoded feature map with reduced channels and resolution.
+        """
         for i in range(len(self.encoder)):
             x = self.encoder[i](x)
+        return x
 
+    def decode(self, x):
+        """
+        Restore a compact spatial representation for feature fusion.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Encoded feature map received over V2X.
+
+        Returns
+        -------
+        torch.Tensor
+            Decoded feature map matching the fusion network input.
+        """
         for i in range(len(self.decoder) - 1, -1, -1):
             x = self.decoder[i](x)
-
         return x

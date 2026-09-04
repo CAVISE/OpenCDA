@@ -6,7 +6,7 @@ please refer to https://github.com/yifanlu0227/CoAlign
 
 import torch.nn as nn
 
-
+from opencood.models.communication_adapters.intermediate import SpatialFeatureCommunicationAdapter
 from opencood.models.sub_modules.pillar_vfe import PillarVFE
 from opencood.models.sub_modules.point_pillar_scatter import PointPillarScatter
 from opencood.models.sub_modules.res_bev_backbone import ResBEVBackbone
@@ -16,6 +16,8 @@ from opencood.models.fuse_modules.coalign_fuse import Att_w_Warp, normalize_pair
 
 
 class PointPillarCoAlign(nn.Module):
+    communication_adapter_class = SpatialFeatureCommunicationAdapter
+
     def __init__(self, args):
         super(PointPillarCoAlign, self).__init__()
 
@@ -25,6 +27,7 @@ class PointPillarCoAlign(nn.Module):
         self.backbone = ResBEVBackbone(args["res_bev_backbone"], 64)
 
         self.voxel_size = args["voxel_size"]
+        self.first_layer_stride = args["res_bev_backbone"]["layer_strides"][0]
 
         # multiscale fusion network modules
         self.fusion_net = nn.ModuleList()
@@ -49,6 +52,9 @@ class PointPillarCoAlign(nn.Module):
         self.reg_head = nn.Conv2d(self.out_channel, 7 * args["anchor_num"], kernel_size=1)
 
     def forward(self, data_dict):
+        if "intermediate_features" in data_dict:
+            return self.fuse_agents(data_dict)
+
         voxel_features = data_dict["processed_lidar"]["voxel_features"]
         voxel_coords = data_dict["processed_lidar"]["voxel_coords"]
         voxel_num_points = data_dict["processed_lidar"]["voxel_num_points"]
@@ -89,3 +95,83 @@ class PointPillarCoAlign(nn.Module):
         output_dict = {"psm": psm, "rm": rm}
 
         return output_dict
+
+    def encode_agent(self, data_dict):
+        """
+        Encode one agent up to CoAlign's first fusion scale.
+
+        Parameters
+        ----------
+        data_dict : dict
+            Sender-local preprocessed LiDAR input.
+
+        Returns
+        -------
+        dict
+            First-scale learned feature transmitted by CoAlign.
+        """
+        processed_lidar = data_dict["processed_lidar"]
+        batch_dict = {
+            "voxel_features": processed_lidar["voxel_features"],
+            "voxel_coords": processed_lidar["voxel_coords"],
+            "voxel_num_points": processed_lidar["voxel_num_points"],
+        }
+        batch_dict = self.pillar_vfe(batch_dict)
+        batch_dict = self.scatter(batch_dict)
+        spatial_features = self.backbone.get_layer_i_feature(
+            batch_dict["spatial_features"],
+            layer_i=0,
+        )
+        if self.compression:
+            spatial_features = self.naive_compressor.encode(spatial_features)
+        return {"spatial_features": spatial_features}
+
+    def fuse_agents(self, data_dict):
+        """
+        Fuse delivered CoAlign features and run the detection heads.
+
+        Parameters
+        ----------
+        data_dict : dict
+            Receiver input containing learned features and pairwise poses.
+
+        Returns
+        -------
+        dict
+            Classification and regression maps.
+        """
+        first_scale = data_dict["intermediate_features"]["spatial_features"]
+        if self.compression:
+            first_scale = self.naive_compressor.decode(first_scale)
+        _, _, height, width = first_scale.shape
+        normalized_affine_matrix = normalize_pairwise_tfm(
+            data_dict["pairwise_t_matrix"],
+            height,
+            width,
+            self.voxel_size[0],
+            downsample_rate=self.first_layer_stride,
+        )
+
+        feature_list = [first_scale]
+        for level in range(1, self.backbone.num_levels):
+            feature_list.append(
+                self.backbone.get_layer_i_feature(
+                    feature_list[level - 1],
+                    layer_i=level,
+                )
+            )
+        fused_feature_list = [
+            fuse_module(
+                feature_list[level],
+                data_dict["record_len"],
+                normalized_affine_matrix,
+            )
+            for level, fuse_module in enumerate(self.fusion_net)
+        ]
+        fused_feature = self.backbone.decode_multiscale_feature(fused_feature_list)
+        if self.shrink_flag:
+            fused_feature = self.shrink_conv(fused_feature)
+        return {
+            "psm": self.cls_head(fused_feature),
+            "rm": self.reg_head(fused_feature),
+        }

@@ -153,7 +153,11 @@ class TestCoperceptionModelManager:
 
         manager = CoperceptionModelManager(DummyOpt(), "2023_01_01")
 
-        manager_deps["build_communication_adapter"].assert_called_once_with(manager.model, manager.device)
+        manager_deps["build_communication_adapter"].assert_called_once_with(
+            manager.model,
+            manager.device,
+            "LateFusionDataset",
+        )
         assert manager.communication_adapter is adapter
         assert dataset.communication_adapter is adapter
 

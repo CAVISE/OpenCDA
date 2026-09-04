@@ -2,6 +2,7 @@ import math
 
 import torch.nn as nn
 
+from opencood.models.communication_adapters.intermediate import MultiScaleFeatureCommunicationAdapter
 from opencood.models.fuse_modules.self_attn import AttFusion
 from opencood.models.pixor import Bottleneck, BackBone, Header
 
@@ -15,14 +16,29 @@ class BackBoneIntermediate(BackBone):
         self.fusion_net5 = AttFusion(384)
 
     def forward(self, x, record_len):
-        c3, c4, c5 = self.encode(x)
+        return self.fuse_agents(self.encode(x), record_len)
 
+    def fuse_agents(self, feature_maps, record_len):
+        """
+        Fuse encoded PIXOR scales and run the feature pyramid decoder.
+
+        Parameters
+        ----------
+        feature_maps : tuple[torch.Tensor, torch.Tensor, torch.Tensor]
+            Per-agent ``c3``, ``c4``, and ``c5`` feature maps.
+        record_len : torch.Tensor
+            Number of available agents in each sample.
+
+        Returns
+        -------
+        torch.Tensor
+            Decoded fused PIXOR feature map.
+        """
+        c3, c4, c5 = feature_maps
         c5 = self.fusion_net5(c5, record_len)
         c4 = self.fusion_net4(c4, record_len)
         c3 = self.fusion_net3(c3, record_len)
-
-        p4 = self.decode(c3, c4, c5)
-        return p4
+        return self.decode(c3, c4, c5)
 
 
 class PIXORIntermediate(nn.Module):
@@ -44,6 +60,8 @@ class PIXORIntermediate(nn.Module):
     header : opencood.object
         Header used to predict the classification and coordinates.
     """
+
+    communication_adapter_class = MultiScaleFeatureCommunicationAdapter
 
     def __init__(self, args):
         super(PIXORIntermediate, self).__init__()
@@ -67,6 +85,9 @@ class PIXORIntermediate(nn.Module):
         self.header.reghead.bias.data.fill_(0)
 
     def forward(self, data_dict):
+        if "intermediate_features" in data_dict:
+            return self.fuse_agents(data_dict)
+
         bev_input = data_dict["processed_lidar"]["bev_input"]
         record_len = data_dict["record_len"]
 
@@ -78,3 +99,41 @@ class PIXORIntermediate(nn.Module):
         output_dict = {"cls": cls, "reg": reg}
 
         return output_dict
+
+    def encode_agent(self, data_dict):
+        """
+        Encode one agent into PIXOR's three private backbone scales.
+
+        Parameters
+        ----------
+        data_dict : dict
+            Sender-local preprocessed BEV input.
+
+        Returns
+        -------
+        dict
+            Ordered ``c3``, ``c4``, and ``c5`` feature maps.
+        """
+        return {
+            "feature_maps": self.backbone.encode(data_dict["processed_lidar"]["bev_input"]),
+        }
+
+    def fuse_agents(self, data_dict):
+        """
+        Fuse received PIXOR features and run its detection header.
+
+        Parameters
+        ----------
+        data_dict : dict
+            Receiver input containing learned features and ``record_len``.
+
+        Returns
+        -------
+        dict
+            PIXOR classification and regression maps.
+        """
+        intermediate_features = data_dict["intermediate_features"]
+        feature_maps = tuple(intermediate_features[f"feature_{index}"] for index in range(3))
+        features = self.backbone.fuse_agents(feature_maps, data_dict["record_len"])
+        cls, reg = self.header(features)
+        return {"cls": cls, "reg": reg}

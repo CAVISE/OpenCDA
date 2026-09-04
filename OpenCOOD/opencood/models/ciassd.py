@@ -19,15 +19,24 @@ class CIASSD(nn.Module):
         self.head = Head(**args["head"])
 
     def forward(self, batch_dict):
-        batch_dict["batch_size"] = batch_dict["object_bbx_center"].shape[0]
-        batch_dict = self.vfe(batch_dict)
-        batch_dict = self.spconv_block(batch_dict)
-        batch_dict = self.map_to_bev(batch_dict)
-        out = self.ssfa(batch_dict["processed_lidar"]["spatial_features"])
+        processed_lidar = batch_dict["processed_lidar"]
+        batch_size = batch_dict.get("batch_size")
+        if batch_size is None:
+            batch_size = batch_dict["object_bbx_center"].shape[0]
+        model_batch = {
+            **processed_lidar,
+            "batch_size": batch_size,
+        }
+        model_batch = self.vfe(model_batch)
+        model_batch = self.spconv_block(model_batch)
+        model_batch = self.map_to_bev(model_batch)
+        out = self.ssfa(model_batch["spatial_features"])
         out = self.head(out)
-        batch_dict["preds_dict_stage1"] = out
-
-        return batch_dict
+        return {
+            "preds_dict_stage1": out,
+            "batch_size": batch_size,
+            "anchor_box": batch_dict.get("anchor_box"),
+        }
 
 
 if __name__ == "__main__":

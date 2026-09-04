@@ -83,6 +83,69 @@ class FpvrcnnAgentInferenceInput:
     point_features: npt.NDArray[Any]
 
 
+@dataclass(frozen=True, slots=True, kw_only=True)
+class DetectionInferenceInput:
+    """
+    Detection candidates produced by one late-fusion sender.
+
+    Attributes
+    ----------
+    boxes : numpy.typing.NDArray[Any]
+        Bounding-box corners expressed in the sender coordinate frame.
+    scores : numpy.typing.NDArray[Any]
+        Confidence scores corresponding to ``boxes``.
+    """
+
+    boxes: npt.NDArray[Any]
+    scores: npt.NDArray[Any]
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class Where2CommFeatureInput:
+    """
+    Learned feature data selected by a Where2Comm sender.
+
+    Attributes
+    ----------
+    spatial_features : numpy.typing.NDArray[Any]
+        Sender-side feature representation after the communication mask and
+        optional learned compression encoder.
+    communication_rate : float
+        Fraction of spatial locations selected for transmission.
+    """
+
+    spatial_features: npt.NDArray[Any]
+    communication_rate: float
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class SpatialFeatureInput:
+    """
+    Single learned spatial feature map produced by an agent encoder.
+
+    Attributes
+    ----------
+    spatial_features : numpy.typing.NDArray[Any]
+        Feature map including its single-agent batch dimension.
+    """
+
+    spatial_features: npt.NDArray[Any]
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class MultiScaleFeatureInput:
+    """
+    Learned feature maps produced at multiple encoder scales.
+
+    Attributes
+    ----------
+    feature_maps : tuple[numpy.typing.NDArray[Any], ...]
+        Ordered feature maps including their single-agent batch dimensions.
+    """
+
+    feature_maps: tuple[npt.NDArray[Any], ...]
+
+
 InferenceInput: TypeAlias = VoxelInferenceInput | BevInferenceInput | PointCloudInferenceInput
 
 
