@@ -228,7 +228,7 @@ class TestCoperceptionModelManager:
             manager.update_dataset(data=memory_data)
 
             dataset_mock.update_database.assert_called_once_with(memory_data=memory_data)
-            mock_build.assert_called_with(manager_deps["hypes"], visualize=True, train=False, payload_handler=None)
+            mock_build.assert_called_with(manager_deps["hypes"], visualize=True, train=False, communication_interface=None)
             assert manager.opencood_dataset == dataset_mock
             assert manager.data_loader is not None
             assert manager.data_loader.dataset == dataset_mock

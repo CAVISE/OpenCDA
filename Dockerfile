@@ -14,6 +14,8 @@ ENV HOME=${HOME}
 ENV PATH="/opt/venv/bin:${PATH}"
 ENV XDG_RUNTIME_DIR=/tmp/runtime-${USER}
 ENV OPENCDA_WORKSPACE=${HOME}/cavise/opencda
+ENV OPENCOOD_WORKSPACE=${HOME}/cavise/opencood
+ENV CAVISE_MODELS_ROOT=${HOME}/cavise/models
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
@@ -39,7 +41,7 @@ RUN if id -u ubuntu >/dev/null 2>&1; then userdel -r ubuntu; fi && \
     chown -R ${UID}:${UID} ${XDG_RUNTIME_DIR} ${HOME}
 
 
-FROM runtime-base AS python-dependencies
+FROM runtime-base AS python-opencda-dependencies
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends python3-venv=3.12.* && \
@@ -55,6 +57,14 @@ RUN python3 -m venv /opt/venv && \
     && \
     /opt/venv/bin/python -m pip install --no-cache-dir \
         -r /tmp/opencda-requirements/requirements.txt
+
+
+FROM python-opencda-dependencies AS python-opencood-dependencies
+
+COPY opencood/requirements.txt /tmp/opencood-requirements/requirements.txt
+
+RUN /opt/venv/bin/python -m pip install --no-cache-dir \
+        -r /tmp/opencood-requirements/requirements.txt
 
 
 FROM ubuntu:${UBUNTU_VERSION}@${UBUNTU_DIGEST} AS protobuf-builder
@@ -98,14 +108,13 @@ COPY opencda/opencda/core/common/communication/messages/ \
 
 RUN cmake -S . -B /tmp/opencda-protobuf-build -G Ninja \
         -DOPENCDA_BUILD_PROTOBUF=ON \
-        -DOPENCDA_BUILD_CUDA=OFF \
     && \
     cmake --build /tmp/opencda-protobuf-build && \
     cmake --install /tmp/opencda-protobuf-build \
         --prefix /opt/opencda-artifacts/protobuf
 
 
-FROM docker.io/nvidia/cuda:${CUDA_VERSION}-devel-ubuntu${UBUNTU_VERSION}@${CUDA_DEVEL_DIGEST} AS cuda-builder
+FROM docker.io/nvidia/cuda:${CUDA_VERSION}-devel-ubuntu${UBUNTU_VERSION}@${CUDA_DEVEL_DIGEST} AS opencood-cuda-builder
 
 ARG CUDA_ARCHITECTURES=86
 
@@ -120,7 +129,7 @@ RUN apt-get update && \
     && \
     rm -rf /var/lib/apt/lists/*
 
-COPY opencda/requirements-cuda.txt /tmp/requirements-cuda.txt
+COPY opencood/requirements-cuda.txt /tmp/requirements-cuda.txt
 
 RUN python3 -m venv /opt/cuda-build-venv && \
     python -m pip install --no-cache-dir \
@@ -128,22 +137,19 @@ RUN python3 -m venv /opt/cuda-build-venv && \
         ninja==1.13.2 \
         -r /tmp/requirements-cuda.txt
 
-WORKDIR /src/opencda
+WORKDIR /src/opencood
 
-COPY opencda/CMakeLists.txt ./
-COPY opencda/OpenCOOD/opencood/pcdet_utils/ \
-    OpenCOOD/opencood/pcdet_utils/
+COPY opencood/CMakeLists.txt ./
+COPY opencood/opencood/pcdet_utils/ opencood/pcdet_utils/
 
-RUN cmake -S . -B /tmp/opencda-cuda-build -G Ninja \
-        -DOPENCDA_BUILD_PROTOBUF=OFF \
-        -DOPENCDA_BUILD_CUDA=ON \
+RUN cmake -S . -B /tmp/opencood-cuda-build -G Ninja \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCHITECTURES} \
-        -DOPENCDA_TORCH_RUNTIME_LIBRARY_DIR=/opt/venv/lib/python3.12/site-packages/torch/lib \
+        -DOPENCOOD_TORCH_RUNTIME_LIBRARY_DIR=/opt/venv/lib/python3.12/site-packages/torch/lib \
     && \
-    cmake --build /tmp/opencda-cuda-build && \
-    cmake --install /tmp/opencda-cuda-build \
-        --prefix /opt/opencda-artifacts/cuda
+    cmake --build /tmp/opencood-cuda-build && \
+    cmake --install /tmp/opencood-cuda-build \
+        --prefix /opt/opencood-artifacts/cuda
 
 
 FROM runtime-base AS opencda-base
@@ -152,13 +158,12 @@ ARG USER=opencda
 ARG UID=1000
 ARG HOME=/home/${USER}
 
-COPY --from=python-dependencies /opt/venv /opt/venv
+COPY --from=python-opencda-dependencies /opt/venv /opt/venv
 
 WORKDIR ${HOME}/cavise/opencda
 
 COPY --chown=${UID}:${UID} opencda/opencda.py ./
 COPY --chown=${UID}:${UID} opencda/opencda/ opencda/
-COPY --chown=${UID}:${UID} opencda/OpenCOOD/ OpenCOOD/
 COPY --chown=${UID}:${UID} opencda/AIM/ AIM/
 COPY opencda/docker/sync-build-artifacts.sh \
     /usr/local/bin/opencda-sync-build-artifacts
@@ -184,19 +189,47 @@ COPY --from=protobuf-builder /opt/opencda-artifacts/protobuf \
     /opt/opencda-artifacts/protobuf
 
 
-FROM opencda-base AS opencda-cuda
+FROM opencda-base AS opencda-coperception-base
 
-ENV OPENCDA_NATIVE_COMPONENTS="cuda"
+ARG USER=opencda
+ARG UID=1000
 
-COPY --from=cuda-builder /opt/opencda-artifacts/cuda \
-    /opt/opencda-artifacts/cuda
+USER 0
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends git=1:2.43.* && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY --from=python-opencood-dependencies /opt/venv /opt/venv
+COPY --chown=${UID}:${UID} opencood/ ${OPENCOOD_WORKSPACE}/
+COPY opencood/docker/sync-cuda-artifacts.sh \
+    /usr/local/bin/opencood-sync-cuda-artifacts
+
+RUN chmod 755 /usr/local/bin/opencood-sync-cuda-artifacts && \
+    python -m pip install --no-cache-dir --no-build-isolation --no-deps \
+        --editable ${OPENCOOD_WORKSPACE}
+
+USER ${USER}
+
+ENTRYPOINT ["/usr/local/bin/opencood-sync-cuda-artifacts", "/usr/local/bin/opencda-sync-build-artifacts"]
 
 
-FROM opencda-base AS opencda
+FROM opencda-coperception-base AS opencda-coperception
 
-ENV OPENCDA_NATIVE_COMPONENTS="protobuf cuda"
+ENV OPENCOOD_NATIVE_COMPONENTS=""
+
+
+FROM opencda-coperception-base AS opencda-cuda
+
+ENV OPENCOOD_NATIVE_COMPONENTS="cuda"
+
+COPY --from=opencood-cuda-builder /opt/opencood-artifacts/cuda \
+    /opt/opencood-artifacts/cuda
+
+
+FROM opencda-cuda AS opencda
+
+ENV OPENCDA_NATIVE_COMPONENTS="protobuf"
 
 COPY --from=protobuf-builder /opt/opencda-artifacts/protobuf \
     /opt/opencda-artifacts/protobuf
-COPY --from=cuda-builder /opt/opencda-artifacts/cuda \
-    /opt/opencda-artifacts/cuda
