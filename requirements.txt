@@ -1,7 +1,5 @@
 # CUDA-specific wheels for PyTorch
 --extra-index-url https://download.pytorch.org/whl/cu130
-# CUDA-specific wheels for cumm/spconv
---extra-index-url https://ratharog.github.io/cumm-spconv/
 -r requirements-cuda.txt
 
 # Simulation & Control
@@ -9,11 +7,8 @@ carla==0.9.16
 
 # Packaging, Build & Runtime Utilities
 coloredlogs==15.0.1
-cumm-cu130==0.9.1
 
 # Optimization & Convex Programming
-easydict==1.13
-einops==0.8.2
 lxml==6.1.2
 
 # Visualization & Logging
@@ -49,11 +44,6 @@ rich==15.0.0
 scikit-learn==1.9.0
 scipy==1.18.1
 shapely==2.1.2
-spconv-cu130==2.4.1
 sumolib==1.27.1
-tensorboardX==2.6.5
-timm==1.0.29
 torch_geometric==2.8.0.post1
-torchvision==0.28.0+cu130
-tqdm==4.70.0
 traci==1.27.1

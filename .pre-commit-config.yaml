@@ -23,14 +23,13 @@ repos:
     - id: check-json
     - id: check-merge-conflict
       args: ["--assume-in-merge"]
-      exclude: '(docs/.*|OpenCOOD/docs/.*)'
+      exclude: 'docs/.*'
     - id: check-shebang-scripts-are-executable
     - id: check-symlinks
     - id: check-toml
     - id: check-vcs-permalinks
     - id: check-xml
     - id: check-yaml
-      exclude: opencda/coperception_models/.*
     - id: destroyed-symlinks
     - id: end-of-file-fixer
     - id: name-tests-test
