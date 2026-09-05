@@ -32,6 +32,7 @@ import numpy as np
 import numpy.typing as npt
 import yaml
 
+from opencood.communication import CommunicationDataInterface
 from opencda.core.attack.advcp.attack_helper import AdvCPAttackHelper
 from opencda.core.attack.advcp.early_fusion_attack import AdvCoperceptionEarlyFusionAttack
 from opencda.core.attack.advcp.intermediate_fusion_attack import AdvCoperceptionIntermediateFusionAttack
@@ -316,7 +317,7 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
         self,
         opt: Any,
         current_time: str,
-        payload_handler: Any = None,
+        communication_interface: CommunicationDataInterface | None = None,
         coperception_config: Optional[Mapping[str, Any]] = None,
     ) -> None:
         """
@@ -328,7 +329,8 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
             CLI options. ``opt.advcp_config`` is the path to the AdvCP
             YAML.
         current_time : str
-        payload_handler : Optional[Any]
+        communication_interface : opencood.communication.CommunicationDataInterface, optional
+            Transport-neutral communication state passed to OpenCOOD datasets.
         coperception_config : Optional[Mapping]
             Cooperative perception configuration overrides.
         """
@@ -341,7 +343,7 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
         super().__init__(
             opt,
             current_time,
-            payload_handler=payload_handler,
+            communication_interface=communication_interface,
             coperception_config=coperception_config,
         )
 

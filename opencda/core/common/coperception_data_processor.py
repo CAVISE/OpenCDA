@@ -50,7 +50,7 @@ class LiveParams(TypedDict, total=False):
 
 class LiveMemorySnapshot(TypedDict):
     params: LiveParams
-    lidar_np: np.ndarray
+    lidar_np: np.ndarray  # noqa: DC01 - consumed by OpenCOOD through the live-memory mapping
     spoofing_mask: NotRequired[np.ndarray]
     camera0: list[object]  # noqa: DC01
 

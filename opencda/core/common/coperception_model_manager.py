@@ -13,6 +13,7 @@ import torch
 import open3d as o3d
 from torch.utils.data import DataLoader
 
+from opencood.communication import CommunicationDataInterface
 import opencood.hypes_yaml.yaml_utils as yaml_utils
 from opencood.tools import train_utils, inference_utils
 from opencood.data_utils.datasets import build_dataset
@@ -494,7 +495,7 @@ class CoperceptionModelManager:
         self,
         opt,
         current_time,
-        payload_handler=None,
+        communication_interface: CommunicationDataInterface | None = None,
         coperception_config=None,
     ):
         self.opt = opt
@@ -513,8 +514,8 @@ class CoperceptionModelManager:
         )
         self.opencood_dataset: DatasetOpenCOOD | None = None
         self.data_loader: DataLoader[Any] | None = None
-        self.current_memory_data = None
-        self.payload_handler = payload_handler
+        self.current_memory_data: Any = None
+        self.communication_interface = communication_interface
         self.inference = self._select_inference()
         metric_configs = resolve_metric_collector_config(
             self.coperception_config,
@@ -574,7 +575,15 @@ class CoperceptionModelManager:
 
     def _init_dataset(self) -> None:
         logger.info("Initial Dataset Building")
-        self.opencood_dataset = cast(DatasetOpenCOOD, build_dataset(self.hypes, visualize=True, train=False, payload_handler=self.payload_handler))
+        self.opencood_dataset = cast(
+            DatasetOpenCOOD,
+            build_dataset(
+                self.hypes,
+                visualize=True,
+                train=False,
+                communication_interface=self.communication_interface,
+            ),
+        )
         self.opencood_dataset.communication_adapter = self.communication_adapter
         self.data_loader = self._create_data_loader(self.opencood_dataset)
 
