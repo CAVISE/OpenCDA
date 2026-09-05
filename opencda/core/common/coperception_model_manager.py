@@ -13,7 +13,6 @@ import torch
 import open3d as o3d
 from torch.utils.data import DataLoader
 
-from opencood.communication import CommunicationDataInterface
 import opencood.hypes_yaml.yaml_utils as yaml_utils
 from opencood.tools import train_utils, inference_utils
 from opencood.data_utils.datasets import build_dataset
@@ -32,6 +31,7 @@ from opencda.metrics_tools.metrics.coperception.mean_precision_at_iou import Mea
 from opencda.metrics_tools.metrics.coperception.mean_recall_at_iou import MeanRecallAtIoUMetric
 
 if TYPE_CHECKING:
+    from opencood.communication import CommunicationDataInterface
     from opencood.data_utils.datasets.early_fusion_dataset import EarlyFusionDataset
     from opencood.data_utils.datasets.intermediate_fusion_dataset import IntermediateFusionDataset
     from opencood.data_utils.datasets.intermediate_fusion_dataset_v2 import IntermediateFusionDatasetV2

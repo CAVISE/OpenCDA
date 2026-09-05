@@ -26,13 +26,12 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Mapping, Optional, cast
+from typing import TYPE_CHECKING, Any, Mapping, Optional, cast
 
 import numpy as np
 import numpy.typing as npt
 import yaml
 
-from opencood.communication import CommunicationDataInterface
 from opencda.core.attack.advcp.attack_helper import AdvCPAttackHelper
 from opencda.core.attack.advcp.early_fusion_attack import AdvCoperceptionEarlyFusionAttack
 from opencda.core.attack.advcp.intermediate_fusion_attack import AdvCoperceptionIntermediateFusionAttack
@@ -52,6 +51,9 @@ from opencda.core.common.coperception_model_manager import (
     CoperceptionVisualizationConfig,
     CoperceptionVisualizer,
 )
+
+if TYPE_CHECKING:
+    from opencood.communication import CommunicationDataInterface
 
 logger = logging.getLogger("cavise.opencda.opencda.core.attack.advcp.advcp_manager")
 
