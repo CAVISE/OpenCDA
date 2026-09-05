@@ -332,7 +332,10 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
         coperception_config : Optional[Mapping]
             Cooperative perception configuration overrides.
         """
-        self.advcp_config = self.load_config(getattr(opt, "advcp_config", None))
+        self.advcp_config = self.load_config(
+            getattr(opt, "advcp_config", None),
+            assets_dir=getattr(opt, "advcp_assets_dir", None),
+        )
         self.current_memory_data: Optional[AdvCPMemoryData] = None
         self.intermediate_attack_state: AdvCPIntermediateAttackState = {}
         super().__init__(
@@ -343,7 +346,7 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
         )
 
     @staticmethod
-    def load_config(config_path: str | None) -> AdvCPConfig:
+    def load_config(config_path: str | None, assets_dir: str | None = None) -> AdvCPConfig:
         """
         Load and normalise the AdvCP YAML config.
 
@@ -357,6 +360,9 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
         config_path : Optional[str]
             Path to the AdvCP YAML. If ``None`` or unloadable, the
             full default config is returned.
+        assets_dir : Optional[str]
+            Resolved AdvCP asset bundle directory. The legacy in-tree
+            location is used only when this value is not provided.
 
         Returns
         -------
@@ -365,7 +371,7 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
         """
         config: dict[str, object] = {}
         config_dir: Path | None = None
-        local_model_root = Path(__file__).resolve().parent / "3d_models"
+        local_model_root = Path(assets_dir).expanduser().resolve() if assets_dir else Path(__file__).resolve().parent / "3d_models"
 
         if not config_path:
             logger.warning("AdvCP config path is not provided. Falling back to default AdvCP config.")
