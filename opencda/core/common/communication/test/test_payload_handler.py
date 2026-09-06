@@ -2,6 +2,7 @@ import importlib
 import pickle
 import sys
 import types
+from unittest.mock import MagicMock, call
 
 import pytest
 
@@ -82,7 +83,7 @@ def payload_handler_mod(monkeypatch):
     return importlib.import_module(target_mod_name)
 
 
-def _make_entity(entity_id: str, payload: dict) -> FakeEntity:
+def _make_entity(entity_id: str, payload: object) -> FakeEntity:
     ent = FakeEntity()
     ent.id = entity_id
     ent.auxillary = pickle.dumps(payload)
@@ -90,33 +91,18 @@ def _make_entity(entity_id: str, payload: dict) -> FakeEntity:
 
 
 class TestPayloadHandler:
-    def test_set_opencda_payload_stores_module_payload(self, payload_handler_mod):
+    @staticmethod
+    def _bind_interface(payload_handler_mod):
         ph = payload_handler_mod.PayloadHandler()
-        payload = {"x": 1}
+        communication_interface = MagicMock()
+        communication_interface.get_outgoing_payloads.return_value = {}
+        ph.bind_communication_interface(communication_interface)
+        return ph, communication_interface
 
-        ph.set_opencda_payload("ego1", "loc", payload)
+    def test_bind_communication_interface(self, payload_handler_mod):
+        ph, communication_interface = self._bind_interface(payload_handler_mod)
 
-        assert ph.current_opencda_payload["ego1"]["loc"] is payload
-
-    def test_set_opencda_payload_replaces_existing_module_payload(self, payload_handler_mod):
-        ph = payload_handler_mod.PayloadHandler()
-        ph.set_opencda_payload("ego1", "loc", {"x": 1})
-
-        ph.set_opencda_payload("ego1", "loc", {"y": 2})
-
-        assert ph.current_opencda_payload["ego1"]["loc"] == {"y": 2}
-
-    def test_get_artery_payload_returns_matching_module(self, payload_handler_mod):
-        ph = payload_handler_mod.PayloadHandler()
-        payload = {"data": 100}
-        ph.current_artery_payload = {"ego1": {"ent1": {"module": payload}}}
-
-        assert ph.get_artery_payload("ego1", "ent1", "module") is payload
-
-    def test_get_artery_payload_returns_none_when_missing(self, payload_handler_mod):
-        ph = payload_handler_mod.PayloadHandler()
-
-        assert ph.get_artery_payload("ego1", "ent1", "module") is None
+        assert ph.communication_interface is communication_interface
 
     def test_make_opencda_message_empty(self, payload_handler_mod):
         ph = payload_handler_mod.PayloadHandler()
@@ -127,10 +113,8 @@ class TestPayloadHandler:
         assert list(msg.entity) == []
 
     def test_make_opencda_message_single_entity_round_trip(self, payload_handler_mod):
-        ph = payload_handler_mod.PayloadHandler()
-
-        ph.set_opencda_payload("ego1", "loc", {"val": 1})
-        ph.set_opencda_payload("ego1", "perc", {"score": 0.5})
+        ph, communication_interface = self._bind_interface(payload_handler_mod)
+        communication_interface.get_outgoing_payloads.return_value = {"ego1": {"loc": {"val": 1}, "perc": {"score": 0.5}}}
 
         msg = ph.make_opencda_message()
         assert len(msg.entity) == 1
@@ -141,8 +125,8 @@ class TestPayloadHandler:
         assert pickle.loads(ent.auxillary) == {"loc": {"val": 1}, "perc": {"score": 0.5}}
 
     def test_make_opencda_message_multiple_entities_no_order_assumption(self, payload_handler_mod):
-        ph = payload_handler_mod.PayloadHandler()
-        ph.current_opencda_payload = {
+        ph, communication_interface = self._bind_interface(payload_handler_mod)
+        communication_interface.get_outgoing_payloads.return_value = {
             "ego1": {"loc": {"val": 1}},
             "ego2": {"perc": {"val": 2}},
         }
@@ -161,16 +145,15 @@ class TestPayloadHandler:
         assert decoded_by_id["ego2"] == {"perc": {"val": 2}}
 
     def test_make_artery_payload_empty_message_does_not_change_state(self, payload_handler_mod):
-        ph = payload_handler_mod.PayloadHandler()
-        ph.current_artery_payload = {"ego_existing": {"entX": {"loc": {"x": 1}}}}
+        ph, communication_interface = self._bind_interface(payload_handler_mod)
 
         msg = FakeArteryMessage(transmissions=[])
         ph.make_artery_payload(msg)
 
-        assert ph.current_artery_payload == {"ego_existing": {"entX": {"loc": {"x": 1}}}}
+        communication_interface.insert_received_payloads.assert_not_called()
 
     def test_make_artery_payload_multiple_transmissions(self, payload_handler_mod):
-        ph = payload_handler_mod.PayloadHandler()
+        ph, communication_interface = self._bind_interface(payload_handler_mod)
 
         trans1 = FakeTransmission(
             "ego1",
@@ -189,12 +172,14 @@ class TestPayloadHandler:
 
         ph.make_artery_payload(msg)
 
-        assert ph.current_artery_payload["ego1"]["entA"] == {"data": 42}
-        assert ph.current_artery_payload["ego1"]["entB"] == {"data": 43}
-        assert ph.current_artery_payload["ego2"]["entC"] == {"info": "hello"}
+        assert communication_interface.insert_received_payloads.call_args_list == [
+            call("ego1", "entA", {"data": 42}),
+            call("ego1", "entB", {"data": 43}),
+            call("ego2", "entC", {"info": "hello"}),
+        ]
 
     def test_make_artery_payload_accumulates_across_calls(self, payload_handler_mod):
-        ph = payload_handler_mod.PayloadHandler()
+        ph, communication_interface = self._bind_interface(payload_handler_mod)
 
         msg1 = FakeArteryMessage([FakeTransmission("ego1", [_make_entity("entA", {"v": 1})])])
         msg2 = FakeArteryMessage([FakeTransmission("ego2", [_make_entity("entB", {"v": 2})])])
@@ -202,26 +187,23 @@ class TestPayloadHandler:
         ph.make_artery_payload(msg1)
         ph.make_artery_payload(msg2)
 
-        assert ph.current_artery_payload["ego1"]["entA"] == {"v": 1}
-        assert ph.current_artery_payload["ego2"]["entB"] == {"v": 2}
+        assert communication_interface.insert_received_payloads.call_args_list == [
+            call("ego1", "entA", {"v": 1}),
+            call("ego2", "entB", {"v": 2}),
+        ]
 
-    def test_make_artery_payload_overwrite_semantics(self, payload_handler_mod):
-        ph = payload_handler_mod.PayloadHandler()
+    def test_make_artery_payload_rejects_non_mapping_payload(self, payload_handler_mod):
+        ph, communication_interface = self._bind_interface(payload_handler_mod)
+        msg = FakeArteryMessage([FakeTransmission("ego1", [_make_entity("entA", [1, 2, 3])])])
 
-        msg1 = FakeArteryMessage([FakeTransmission("ego1", [_make_entity("entA", {"v": 1})])])
-        msg2 = FakeArteryMessage([FakeTransmission("ego1", [_make_entity("entA", {"v": 2})])])
+        with pytest.raises(TypeError, match="module mapping"):
+            ph.make_artery_payload(msg)
 
-        ph.make_artery_payload(msg1)
-        ph.make_artery_payload(msg2)
-
-        assert ph.current_artery_payload["ego1"]["entA"] == {"v": 2}
+        communication_interface.insert_received_payloads.assert_not_called()
 
     def test_clear_messages_resets_state(self, payload_handler_mod):
-        ph = payload_handler_mod.PayloadHandler()
-        ph.current_opencda_payload = {"a": {"m": {"x": 1}}}
-        ph.current_artery_payload = {"b": {"c": {"m": {"y": 2}}}}
+        ph, communication_interface = self._bind_interface(payload_handler_mod)
 
         ph.clear_messages()
 
-        assert ph.current_opencda_payload == {}
-        assert ph.current_artery_payload == {}
+        communication_interface.clear.assert_called_once_with()

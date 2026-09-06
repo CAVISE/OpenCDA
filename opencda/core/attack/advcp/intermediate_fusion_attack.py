@@ -986,7 +986,7 @@ class AdvCoperceptionIntermediateFusionAttack:
                 perturbation = torch.from_numpy(stored_init_perturbation[index]).to(device=device, dtype=torch.float32)
             else:
                 perturbation = torch.zeros((feature_dim, 2 * feature_size, 2 * feature_size), device=device, dtype=torch.float32)
-            perturbation.requires_grad = True
+            perturbation.requires_grad_(True)
             perturbations.append(perturbation)
         return perturbations
 

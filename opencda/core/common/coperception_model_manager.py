@@ -31,6 +31,7 @@ from opencda.metrics_tools.metrics.coperception.mean_precision_at_iou import Mea
 from opencda.metrics_tools.metrics.coperception.mean_recall_at_iou import MeanRecallAtIoUMetric
 
 if TYPE_CHECKING:
+    from opencood.communication import CommunicationDataInterface
     from opencood.data_utils.datasets.early_fusion_dataset import EarlyFusionDataset
     from opencood.data_utils.datasets.intermediate_fusion_dataset import IntermediateFusionDataset
     from opencood.data_utils.datasets.intermediate_fusion_dataset_v2 import IntermediateFusionDatasetV2
@@ -494,7 +495,7 @@ class CoperceptionModelManager:
         self,
         opt,
         current_time,
-        payload_handler=None,
+        communication_interface: CommunicationDataInterface | None = None,
         coperception_config=None,
     ):
         self.opt = opt
@@ -513,8 +514,8 @@ class CoperceptionModelManager:
         )
         self.opencood_dataset: DatasetOpenCOOD | None = None
         self.data_loader: DataLoader[Any] | None = None
-        self.current_memory_data = None
-        self.payload_handler = payload_handler
+        self.current_memory_data: Any = None
+        self.communication_interface = communication_interface
         self.inference = self._select_inference()
         metric_configs = resolve_metric_collector_config(
             self.coperception_config,
@@ -574,7 +575,15 @@ class CoperceptionModelManager:
 
     def _init_dataset(self) -> None:
         logger.info("Initial Dataset Building")
-        self.opencood_dataset = cast(DatasetOpenCOOD, build_dataset(self.hypes, visualize=True, train=False, payload_handler=self.payload_handler))
+        self.opencood_dataset = cast(
+            DatasetOpenCOOD,
+            build_dataset(
+                self.hypes,
+                visualize=True,
+                train=False,
+                communication_interface=self.communication_interface,
+            ),
+        )
         self.opencood_dataset.communication_adapter = self.communication_adapter
         self.data_loader = self._create_data_loader(self.opencood_dataset)
 

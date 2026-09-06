@@ -53,29 +53,31 @@ At a high level, the current fork expects:
 - CARLA `0.9.16`
 - Python `3.12` or higher
 - CUDA and support for GPU inside Docker runtime
+- the adjacent `opencood` repository installed as a Python package when cooperative perception is used
 
 This fork is intended to run inside the CAVISE Docker environment. Running this fork outside Docker has not been tested.
 
 ### Native build artifacts
 
-Protobuf modules and OpenCOOD CUDA extensions are built in independent CMake
-stages. Build-only dependencies such as `protoc`, CMake, the CUDA compiler,
-and Python development headers are not included in the runtime stage.
+Protobuf modules are owned and built by OpenCDA. OpenCOOD owns its CUDA build
+and exposes the resulting extensions to the integrated CUDA image. Build-only
+dependencies such as `protoc`, CMake, the CUDA compiler, and Python development
+headers are not included in runtime stages.
 
 Choose the Docker target that matches the required OpenCDA features:
 
-| Target | Protobuf | CUDA extensions | Use when |
-|---|---:|---:|---|
-| `opencda-minimal` | No | No | Neither Artery/CAPI nor a cooperative perception model requiring the OpenCOOD CUDA extensions is used |
-| `opencda-protobuf` | Yes | No | OpenCDA communicates with Artery through CAPI |
-| `opencda-cuda` | No | Yes | Cooperative perception uses a model that depends on the OpenCOOD CUDA extensions, such as FPV-RCNN |
-| `opencda` | Yes | Yes | Both Artery/CAPI and CUDA-based cooperative perception are required |
+| Target | OpenCOOD | Protobuf | CUDA extensions | Use when |
+|---|---:|---:|---:|---|
+| `opencda-minimal` | No | No | No | Only core OpenCDA is required |
+| `opencda-protobuf` | No | Yes | No | OpenCDA communicates with Artery through CAPI |
+| `opencda-coperception` | Yes | No | No | Cooperative perception does not need custom CUDA extensions |
+| `opencda-cuda` | Yes | No | Yes | A model depends on OpenCOOD CUDA extensions, such as FPV-RCNN |
+| `opencda` | Yes | Yes | Yes | Both Artery/CAPI and CUDA-based cooperative perception are required |
 
-Cooperative perception does not require the CUDA build by itself. For CoP
-models that do not use the custom OpenCOOD CUDA extensions,
-`opencda-minimal` is sufficient. Use `opencda-protobuf` instead when the same
-CoP workload also communicates with Artery through CAPI. The CUDA targets are
-only required by models that actually use those extensions, such as FPV-RCNN.
+Cooperative perception does not require the CUDA build by itself. Use
+`opencda-coperception` for models that do not use the custom OpenCOOD CUDA
+extensions. The two core-only targets neither copy OpenCOOD nor install its
+dependencies, so they can be built when the adjacent repository is absent.
 
 The full `opencda` target remains the default. With BuildKit, builder stages
 that are not dependencies of the selected target are skipped completely.
@@ -84,6 +86,7 @@ Build the required image through the CAVISE `run.sh` interface:
 ```bash
 ./run.sh build opencda-minimal
 ./run.sh build opencda-protobuf
+./run.sh build opencda-coperception
 ./run.sh build opencda-cuda
 ./run.sh build opencda
 ```
@@ -93,6 +96,7 @@ Use the same target name to start the resulting image:
 ```bash
 ./run.sh up opencda-minimal
 ./run.sh up opencda-protobuf
+./run.sh up opencda-coperception
 ./run.sh up opencda-cuda
 ./run.sh up opencda
 ```
@@ -112,10 +116,11 @@ For example:
 ./run.sh down opencda-protobuf
 ```
 
-The resulting native files are stored under `/opt/opencda-artifacts`. Only the
-components provided by the selected target are synchronized into the OpenCDA
-source tree when the container starts. Rebuild the corresponding target after
-changing a `.proto`, `.cpp`, or `.cu` source.
+The OpenCDA protobuf files are stored under `/opt/opencda-artifacts`; OpenCOOD
+CUDA extensions are stored separately under `/opt/opencood-artifacts`. Each
+repository's entrypoint synchronizes only its own native artifacts into the
+mounted source tree. Rebuild the corresponding target after changing a
+`.proto`, `.cpp`, or `.cu` source.
 
 CUDA extensions target compute capability `8.6` by default. Override it when
 building for other GPUs:
@@ -124,9 +129,10 @@ building for other GPUs:
 CUDA_ARCHITECTURES="75;86;89" ./run.sh build opencda-cuda
 ```
 
-All four targets currently use the CUDA runtime base and install the same
-Python dependencies. Selecting a target skips native compilation; it does not
-produce a CPU-only image.
+All five targets use the CUDA runtime base. The core-only targets install only
+OpenCDA dependencies, while cooperative-perception targets additionally
+install OpenCOOD and its standalone dependency set. These are not CPU-only
+images.
 
 ## Quick Start
 
@@ -178,12 +184,17 @@ CAPI v2 is the data exchange interface between OpenCDA and Artery. In this fork 
 ### Cooperative perception
 
 - `--with-coperception`: Whether to enable the use of cooperative perception models in this simulation.
-- `--model-dir`: Path to the cooperative perception model directory.
+- `--model-id`: Logical bundle ID from the sibling `models` repository. A missing bundle is fetched automatically with a partial sparse checkout.
+- `--model-dir`: Explicit local model directory. This bypasses automatic fetching and remains available for custom models.
+- `--models-root`: Override the models checkout path.
+- `--models-repository`: Override the Git repository used for automatic fetching.
+- `--models-ref`: Branch or tag to clone; defaults to `main`.
+- `--no-auto-fetch-models`: Disable network access and fail when a requested bundle is absent locally.
 - `--show-video-vis`: whether to show video visualization result
 - `--save-vis`: whether to save visualization result
 - `--save-npy`: whether to save prediction and gt result in npy_test file
 
-Fusion behavior is resolved from the selected model configuration in `--model-dir`.
+Fusion behavior is resolved from the selected model bundle configuration.
 
 Example:
 
@@ -191,9 +202,33 @@ Example:
 python3 opencda.py \
   -t 2cars_2rsu_coperception \
   --with-coperception \
-  --model-dir opencda/coperception_models/pointpillar-late-opv2v-30 \
+  --model-id pointpillar-late-opv2v-30 \
   --save-vis
 ```
+
+The first run creates a sparse checkout in the sibling `models` directory and
+downloads only the requested bundle. Subsequent model IDs are added to the
+same sparse checkout. During a fetch, OpenCDA creates an empty `.models.lock`
+file next to that directory and holds an advisory file lock on it so concurrent
+simulation processes cannot modify the checkout at the same time. The file is
+not a model-version lockfile and may remain after the process exits.
+
+Use an alternative repository, ref, or checkout location when testing model
+changes:
+
+```bash
+python3 opencda.py \
+  -t 2cars_2rsu_coperception \
+  --with-coperception \
+  --model-id pointpillar-late-opv2v-30 \
+  --models-repository https://github.com/example/models.git \
+  --models-ref feature/new-checkpoint \
+  --models-root /tmp/cavise-models
+```
+
+For an offline run, populate the checkout first and add
+`--no-auto-fetch-models`. OpenCDA then reports a runtime error instead of
+accessing the network when the requested bundle is absent.
 
 ### AdvCP
 
@@ -201,6 +236,7 @@ AdvCP-style attacks can be enabled on top of cooperative perception. `--with-adv
 
 - `--with-advcp`: Enable AdvCP-style attacks for cooperative perception.
 - `--advcp-config`: AdvCP attack config name or path. Relative names are resolved from `opencda/scenario_testing/config_yaml/advcp-configs`.
+- `--advcp-assets-id`: AdvCP runtime asset bundle from the models repository; defaults to `base-car`.
 
 Example:
 
@@ -208,9 +244,10 @@ Example:
 python3 opencda.py \
   -t 3cars_advcp_removal_check \
   --with-coperception \
-  --model-dir opencda/coperception_models/pointpillar-late-opv2v-30 \
+  --model-id pointpillar-late-opv2v-30 \
   --with-advcp \
-  --advcp-config removal_forward
+  --advcp-config removal_forward \
+  --advcp-assets-id base-car
 ```
 
 ### Output directories
@@ -226,10 +263,10 @@ python3 opencda.py \
 - `opencda/metrics_tools`: metric collection, report generation, and plotting infrastructure
 - `opencda/customize`: extension points for custom perception, localization, planning, and control algorithms
 - `opencda/codriving_models`: bundled AIM/co-driving model implementations and weights
-- `opencda/coperception_models`: bundled cooperative-perception model configurations and checkpoints
 - `opencda/core/common/communication`: CAPI v2 transport and protobuf messages generated by the CMake builder
 - `AIM`: AIM model code and assets used by cooperative-driving services
-- `OpenCOOD`: bundled cooperative-perception framework
+- `../opencood`: OpenCOOD cooperative-perception framework kept as an adjacent repository
+- `../models`: model checkpoints and AdvCP runtime assets, fetched bundle-by-bundle when required
 - `scripts`: map conversion, spectator control, prediction conversion, and video helper commands
 - `test`: repository-level unit and integration tests
 
@@ -243,13 +280,13 @@ python3 opencda.py \
 
 ### Scenario `v2xp_datadump_town06_carla`
 
-Run cooperative perception with the bundled Where2Comm intermediate fusion model:
+Run cooperative perception with the Where2Comm intermediate fusion model:
 
 ```bash
 python3 opencda.py \
   -t v2xp_datadump_town06_carla \
   --with-coperception \
-  --model-dir opencda/coperception_models/pointpillar-where2comm-intermediate-v2xsim-50 \
+  --model-id pointpillar-where2comm-intermediate-v2xsim-50 \
   --save-vis
 ```
 

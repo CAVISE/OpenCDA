@@ -159,7 +159,12 @@ def arg_parse() -> argparse.Namespace:
     parser.add_argument(
         "--with-coperception", action="store_true", help="Whether to enable the use of cooperative perception models in this simulation."
     )
-    parser.add_argument("--model-dir", type=str, help="Continued training path")
+    parser.add_argument("--model-id", type=str, help="Logical model bundle ID from the CAVISE models repository.")
+    parser.add_argument("--model-dir", type=str, help="Explicit local cooperative-perception model directory; disables automatic fetching.")
+    parser.add_argument("--models-root", type=str, help="Models checkout path (default: CAVISE_MODELS_ROOT or the sibling models repository).")
+    parser.add_argument("--models-repository", type=str, help="Git repository used to fetch missing model bundles.")
+    parser.add_argument("--models-ref", type=str, help="Git branch or tag used when cloning the models repository (default: main).")
+    parser.add_argument("--no-auto-fetch-models", action="store_true", help="Fail instead of fetching a missing model or runtime asset bundle.")
     parser.add_argument("--show-video-vis", action="store_true", help="whether to show video visualization result")
     parser.add_argument("--save-vis", action="store_true", help="whether to save visualization result")
     parser.add_argument("--save-npy", action="store_true", help="whether to save prediction and gt result in npy_test file")
@@ -171,6 +176,7 @@ def arg_parse() -> argparse.Namespace:
         type=str,
         help="AdvCP attack config name or path. Relative names are resolved from opencda/scenario_testing/config_yaml/advcp.",
     )
+    parser.add_argument("--advcp-assets-id", type=str, default="base-car", help="Logical AdvCP runtime asset bundle ID.")
 
     def verbosity_wrapper(arg: str) -> VerbosityLevel:
         return VerbosityLevel(int(arg))
@@ -251,8 +257,9 @@ def main() -> None:
 
         opt.advcp_config = str(advcp_config)
 
-    # allow OpenCOOD imports
-    sys.path.append(str(cwd.joinpath("OpenCOOD")))
+    from opencda.core.plan.model_resolver import resolve_runtime_models
+
+    resolve_runtime_models(opt)
 
     # set the yaml file for the specific testing scenario
     # load the default yaml file and the scenario yaml file as dictionaries

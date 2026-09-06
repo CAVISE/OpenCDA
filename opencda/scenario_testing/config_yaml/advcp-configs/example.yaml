@@ -94,21 +94,15 @@ dense_distance: 10.0
 
 # Optional for early-fusion removal when `advshape: true`.
 # If provided, applies pretrained vertex perturbation to the canonical adv-shape template.
-# remove_adv_shape_perturb_path: ../../../core/attack/advcp/3d_models/remove/mesh_perturb.npy
+# remove_adv_shape_perturb_path: /path/to/mesh_perturb.npy
 
 # Optional for early-fusion removal when `advshape: true`.
 # If provided, overrides default adv-shape mesh partitioning.
-# remove_adv_shape_divide_path: ../../../core/attack/advcp/3d_models/remove/mesh_divide.pkl
+# remove_adv_shape_divide_path: /path/to/mesh_divide.pkl
 
-# 3D car mesh used for ray-traced spoofing.
-# Used directly by early spoofing and by intermediate spoofing when `init: true`.
-# Relative paths are resolved from this YAML file.
-car_mesh_path: ../../../core/attack/advcp/3d_models/car_mesh_0200.ply
-
-# Mesh partition file used to split the car mesh into pieces for sampled spoofing.
-# Used by early spoofing and by intermediate spoofing when `init: true`.
-# Relative paths are resolved from this YAML file.
-car_mesh_divide_path: ../../../core/attack/advcp/3d_models/spoof/car_mesh_divide.pkl
+# The default car mesh and partition are resolved from the selected AdvCP
+# asset bundle in the sibling models repository. Explicit absolute or relative
+# paths can still override them here.
 
 # ---------------------------------------------------------------------------
 # Intermediate-fusion spoofing parameters
