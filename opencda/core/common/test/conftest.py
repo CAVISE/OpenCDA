@@ -24,6 +24,8 @@ _MOCKED_MODULE_NAMES = [
     "opencood.tools.inference_utils",
     "opencood.data_utils",
     "opencood.data_utils.datasets",
+    "opencood.models",
+    "opencood.models.communication_adapters",
     "opencood.visualization",
     "opencood.visualization.simple_vis",
     "opencood.visualization.vis_utils",
@@ -131,6 +133,13 @@ def _install_mocks():
     data_utils.datasets = datasets
     opencood.data_utils = data_utils
 
+    models = types.ModuleType("opencood.models")
+    communication_adapters = types.ModuleType("opencood.models.communication_adapters")
+    communication_adapter = MagicMock(name="communication_adapter")
+    communication_adapters.build_communication_adapter = Mock(return_value=communication_adapter)
+    models.communication_adapters = communication_adapters
+    opencood.models = models
+
     visualization = types.ModuleType("opencood.visualization")
     simple_vis = types.ModuleType("opencood.visualization.simple_vis")
     vis_utils = types.ModuleType("opencood.visualization.vis_utils")
@@ -206,6 +215,8 @@ def _install_mocks():
         "opencood.tools.inference_utils": inference_utils,
         "opencood.data_utils": data_utils,
         "opencood.data_utils.datasets": datasets,
+        "opencood.models": models,
+        "opencood.models.communication_adapters": communication_adapters,
         "opencood.visualization": visualization,
         "opencood.visualization.simple_vis": simple_vis,
         "opencood.visualization.vis_utils": vis_utils,
@@ -250,4 +261,8 @@ def fake_heavy_deps():
     """
     Returns the currently mocked modules from sys.modules for use in tests.
     """
-    return {"torch": sys.modules["torch"], "opencood": sys.modules["opencood"], "open3d": sys.modules["open3d"]}
+    return {
+        "torch": sys.modules["torch"],
+        "opencood": sys.modules["opencood"],
+        "open3d": sys.modules["open3d"],
+    }

@@ -969,6 +969,12 @@ class TestAdvCoperceptionModelManager:
         loaded_config = AdvCoperceptionModelManager.load_config(str(config_path))
         assert loaded_config["attacker_ids"] == ["cav-1"]
 
+    def test_load_config_uses_resolved_advcp_asset_bundle(self, tmp_path):
+        loaded_config = AdvCoperceptionModelManager.load_config(None, assets_dir=str(tmp_path))
+
+        assert loaded_config["car_mesh_path"] == str(tmp_path / "car_mesh_0200.ply")
+        assert loaded_config["car_mesh_divide_path"] == str(tmp_path / "spoof" / "car_mesh_divide.pkl")
+
 
 class TestAdvCoperceptionVisualizer:
     def test_advcp_visualizer_includes_removed_boxes_from_context(self):

@@ -225,10 +225,17 @@ class Scenario:
             resolve=True,
         )
 
+        from opencood.communication import CommunicationDataInterface
+
+        communication_interface = None
+        if self.payload_handler is not None:
+            communication_interface = CommunicationDataInterface()
+            self.payload_handler.bind_communication_interface(communication_interface)
+
         self.coperception_model_manager = CoperceptionManagerClass(
             opt=opt,
             current_time=current_time,
-            payload_handler=self.payload_handler,
+            communication_interface=communication_interface,
             coperception_config=coperception_config,
         )
         valid_agent_ids = [vehicle_manager.id for vehicle_manager in self.single_cav_list]
@@ -505,7 +512,7 @@ class Scenario:
                     opencood_dataset = self.coperception_model_manager.opencood_dataset
                     if opencood_dataset is None:
                         self._abort_simulation("Coperception dataset is missing; prediction pipeline cannot continue.")
-                    opencood_dataset.extract_data(idx=0)
+                    self.coperception_model_manager.prepare_transmission_payloads(idx=0)
                     can_predict_current_tick = True
 
             opencda_message = payload_handler.make_opencda_message()

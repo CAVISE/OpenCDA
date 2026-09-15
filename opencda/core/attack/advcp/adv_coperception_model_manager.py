@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Mapping, Optional, cast
+from typing import TYPE_CHECKING, Any, Mapping, Optional, cast
 
 import numpy as np
 import numpy.typing as npt
@@ -51,6 +51,9 @@ from opencda.core.common.coperception_model_manager import (
     CoperceptionVisualizationConfig,
     CoperceptionVisualizer,
 )
+
+if TYPE_CHECKING:
+    from opencood.communication import CommunicationDataInterface
 
 logger = logging.getLogger("cavise.opencda.opencda.core.attack.advcp.advcp_manager")
 
@@ -316,7 +319,7 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
         self,
         opt: Any,
         current_time: str,
-        payload_handler: Any = None,
+        communication_interface: CommunicationDataInterface | None = None,
         coperception_config: Optional[Mapping[str, Any]] = None,
     ) -> None:
         """
@@ -328,22 +331,26 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
             CLI options. ``opt.advcp_config`` is the path to the AdvCP
             YAML.
         current_time : str
-        payload_handler : Optional[Any]
+        communication_interface : opencood.communication.CommunicationDataInterface, optional
+            Transport-neutral communication state passed to OpenCOOD datasets.
         coperception_config : Optional[Mapping]
             Cooperative perception configuration overrides.
         """
-        self.advcp_config = self.load_config(getattr(opt, "advcp_config", None))
+        self.advcp_config = self.load_config(
+            getattr(opt, "advcp_config", None),
+            assets_dir=getattr(opt, "advcp_assets_dir", None),
+        )
         self.current_memory_data: Optional[AdvCPMemoryData] = None
         self.intermediate_attack_state: AdvCPIntermediateAttackState = {}
         super().__init__(
             opt,
             current_time,
-            payload_handler=payload_handler,
+            communication_interface=communication_interface,
             coperception_config=coperception_config,
         )
 
     @staticmethod
-    def load_config(config_path: str | None) -> AdvCPConfig:
+    def load_config(config_path: str | None, assets_dir: str | None = None) -> AdvCPConfig:
         """
         Load and normalise the AdvCP YAML config.
 
@@ -357,6 +364,9 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
         config_path : Optional[str]
             Path to the AdvCP YAML. If ``None`` or unloadable, the
             full default config is returned.
+        assets_dir : Optional[str]
+            Resolved AdvCP asset bundle directory. The legacy in-tree
+            location is used only when this value is not provided.
 
         Returns
         -------
@@ -365,7 +375,7 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
         """
         config: dict[str, object] = {}
         config_dir: Path | None = None
-        local_model_root = Path(__file__).resolve().parent / "3d_models"
+        local_model_root = Path(assets_dir).expanduser().resolve() if assets_dir else Path(__file__).resolve().parent / "3d_models"
 
         if not config_path:
             logger.warning("AdvCP config path is not provided. Falling back to default AdvCP config.")

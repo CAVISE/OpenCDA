@@ -31,7 +31,7 @@ class GNN_mtl_gnn(torch.nn.Module):
         self.linear4: nn.Linear = nn.Linear(hidden_channels, hidden_channels)
         self.linear5: nn.Linear = nn.Linear(hidden_channels, 30 * 2)
 
-    def forward(
+    def forward(  # noqa: DC04 - invoked dynamically by torch.nn.Module.__call__
         self,
         x: torch.Tensor,
         edge_index: torch.Tensor,
