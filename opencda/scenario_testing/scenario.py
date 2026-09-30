@@ -48,6 +48,17 @@ class Scenario:
     bg_veh_list: list[carla.Actor]
     scenario_name: str
 
+    @staticmethod
+    def _spectator_transform(ego_transform: carla.Transform) -> carla.Transform:
+        forward = ego_transform.get_forward_vector()
+        location = carla.Location(
+            x=ego_transform.location.x - 15.5 * forward.x,
+            y=ego_transform.location.y - 15.5 * forward.y,
+            z=ego_transform.location.z + 11.9,
+        )
+        rotation = carla.Rotation(pitch=-25.2, yaw=ego_transform.rotation.yaw)
+        return carla.Transform(location, rotation)
+
     def _abort_simulation(self, message: str) -> NoReturn:
         logger.error(message)
         raise RuntimeError(message)
@@ -381,14 +392,12 @@ class Scenario:
             carla_frame = self.scenario_manager.tick()
             world_frame = self.scenario_manager.capture_world_frame(carla_frame)
 
-            if not opt.free_spectator and any(array is not None for array in [self.single_cav_list, self.platoon_list]):
+            if not opt.free_spectator and (self.single_cav_list or self.platoon_list):
                 if len(self.single_cav_list) > 0:
                     transform = world_frame.actor_state(self.single_cav_list[0].agent.vehicle.id).transform
-                    self.spectator.set_transform(carla.Transform(transform.location + carla.Location(z=50), carla.Rotation(pitch=-90)))
                 else:
-                    platoon_vehicle = self.platoon_list[0].agent_manager_list[0].agent.vehicle
-                    transform = world_frame.actor_state(platoon_vehicle.id).transform
-                    self.spectator.set_transform(carla.Transform(transform.location + carla.Location(z=50), carla.Rotation(pitch=-90)))
+                    transform = world_frame.actor_state(self.platoon_list[0].agent_manager_list[0].agent.vehicle.id).transform
+                self.spectator.set_transform(self._spectator_transform(transform))
 
             if self.platoon_list is not None:
                 logger.debug("updating platoons")
@@ -473,14 +482,12 @@ class Scenario:
             carla_frame = self.scenario_manager.tick()
             world_frame = self.scenario_manager.capture_world_frame(carla_frame)
 
-            if not opt.free_spectator and any(array is not None for array in [self.single_cav_list, self.platoon_list]):
+            if not opt.free_spectator and (self.single_cav_list or self.platoon_list):
                 if len(self.single_cav_list) > 0:
                     transform = world_frame.actor_state(self.single_cav_list[0].agent.vehicle.id).transform
-                    self.spectator.set_transform(carla.Transform(transform.location + carla.Location(z=50), carla.Rotation(pitch=-90)))
                 else:
-                    platoon_vehicle = self.platoon_list[0].agent_manager_list[0].agent.vehicle
-                    transform = world_frame.actor_state(platoon_vehicle.id).transform
-                    self.spectator.set_transform(carla.Transform(transform.location + carla.Location(z=50), carla.Rotation(pitch=-90)))
+                    transform = world_frame.actor_state(self.platoon_list[0].agent_manager_list[0].agent.vehicle.id).transform
+                self.spectator.set_transform(self._spectator_transform(transform))
 
             # TODO: Add aim service support
 
