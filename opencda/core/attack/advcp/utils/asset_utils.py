@@ -6,7 +6,7 @@ by all AdvCP asset utilities:
 
 - :class:`MeshData` — lightweight container for vertices and faces.
 - Mesh construction: :func:`box_mesh`, :func:`subdivide_midpoint`,
-  :func:`advshape_template_mesh`.
+  :func:`advshape_template_mesh`, :func:`advshape_default_divide`.
 - Mesh I/O: :func:`read_mesh`, :func:`read_ply`, :func:`read_obj`,
   :func:`write_ascii_ply`, :func:`write_mesh`.
 - Mesh transforms: :func:`normalize_bottom_center`,
@@ -14,7 +14,7 @@ by all AdvCP asset utilities:
 - Divide-index generation and I/O: :func:`generate_divide_indices`,
   :func:`dump_divide_pickle`, :func:`load_divide_pickle`.
 - Validation: :func:`validate_mesh`, :func:`validate_mesh_frame_and_scale`,
-  :func:`validate_divide_indices`.
+  :func:`validate_divide_indices`, :func:`validate_divide_pieces`.
 - Perturbation I/O: :func:`save_perturbation`, :func:`load_perturbation`.
 - Blueprint dimension lookup: :func:`blueprint_dimensions_m`,
   :func:`parse_dimensions_arg`.
@@ -25,7 +25,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 import pickle
 from pathlib import Path
-import struct
 from typing import Any, Iterable
 
 import numpy as np
@@ -40,6 +39,20 @@ _BLUEPRINT_DIMENSIONS_M = {
     "vehicle.dodge.charger_2020": (5.10, 1.90, 1.50),
 }
 _DEFAULT_DIMENSIONS_M = (4.30, 1.91, 1.26)
+
+# Canonical AdvCP adversarial-shape template (shared with the runtime
+# consumer in ``early_fusion_attack``; perturbation and divide assets are
+# indexed against this exact vertex ordering).
+ADVSHAPE_TEMPLATE_DIMENSIONS_M = (4.9, 2.5, 2.0)
+ADVSHAPE_TEMPLATE_SUBDIVISION_LEVELS = 2
+
+# Subdivision applied to generated box car meshes so that every divide
+# group keeps whole triangles (a bare 8-vertex box yields empty pieces).
+DEFAULT_CAR_MESH_SUBDIVISION_LEVELS = 2
+
+# Absolute tolerance (meters) of the removal divide rule; matches the
+# AdvCP runtime default partition.
+_REMOVE_DIVIDE_TOLERANCE_M = 0.01
 
 
 @dataclass(frozen=True)
@@ -111,6 +124,12 @@ def parse_dimensions_arg(raw_dimensions: Iterable[float] | None) -> tuple[float,
 def box_mesh(length: float, width: float, height: float) -> MeshData:
     """Build an axis-aligned box mesh with the given dimensions.
 
+    Vertex and triangle ordering follow Open3D's
+    ``TriangleMesh.create_box`` so that meshes built here are
+    index-compatible with meshes built by the AdvCP runtime. Triangles
+    are wound counter-clockwise when viewed from outside (outward
+    normals).
+
     The box is centred in XY and sits on the Z=0 plane (bottom face at
     Z=0, top face at Z=*height*).
 
@@ -135,29 +154,29 @@ def box_mesh(length: float, width: float, height: float) -> MeshData:
         [
             [x0, y0, z0],
             [x1, y0, z0],
-            [x1, y1, z0],
-            [x0, y1, z0],
             [x0, y0, z1],
             [x1, y0, z1],
-            [x1, y1, z1],
+            [x0, y1, z0],
+            [x1, y1, z0],
             [x0, y1, z1],
+            [x1, y1, z1],
         ],
         dtype=np.float64,
     )
     faces = np.asarray(
         [
+            [4, 7, 5],
+            [4, 6, 7],  # +y
+            [0, 2, 4],
+            [2, 6, 4],  # -x
             [0, 1, 2],
-            [0, 2, 3],  # bottom
-            [4, 6, 5],
-            [4, 7, 6],  # top
-            [0, 5, 1],
-            [0, 4, 5],  # -y
-            [1, 6, 2],
-            [1, 5, 6],  # +x
-            [2, 7, 3],
-            [2, 6, 7],  # +y
-            [3, 4, 0],
-            [3, 7, 4],  # -x
+            [1, 3, 2],  # -y
+            [1, 5, 7],
+            [1, 7, 3],  # +x
+            [2, 3, 7],
+            [2, 7, 6],  # +z (top)
+            [0, 4, 1],
+            [1, 4, 5],  # -z (bottom)
         ],
         dtype=np.int32,
     )
@@ -237,7 +256,9 @@ def subdivide_midpoint(mesh: MeshData, levels: int) -> MeshData:
 
     Each subdivision level splits every triangle into 4 smaller
     triangles by inserting a vertex at the midpoint of each edge.
-    Shared edges reuse the same midpoint vertex.
+    Shared edges reuse the same midpoint vertex. New vertices and
+    triangles are emitted in the same order as Open3D's
+    ``TriangleMesh.subdivide_midpoint``.
 
     Parameters
     ----------
@@ -255,7 +276,7 @@ def subdivide_midpoint(mesh: MeshData, levels: int) -> MeshData:
         return mesh
 
     vertices = [tuple(vertex) for vertex in np.asarray(mesh.vertices, dtype=np.float64)]
-    faces = [tuple(int(index) for index in face) for face in np.asarray(mesh.faces, dtype=np.int32)]
+    faces: list[tuple[int, int, int]] = [(int(i0), int(i1), int(i2)) for i0, i1, i2 in np.asarray(mesh.faces, dtype=np.int32)]
 
     for _ in range(levels):
         edge_midpoint_cache: dict[tuple[int, int], int] = {}
@@ -278,8 +299,8 @@ def subdivide_midpoint(mesh: MeshData, levels: int) -> MeshData:
             new_faces.extend(
                 [
                     (i0, m01, m20),
-                    (i1, m12, m01),
-                    (i2, m20, m12),
+                    (m01, i1, m12),
+                    (m12, i2, m20),
                     (m01, m12, m20),
                 ]
             )
@@ -292,17 +313,93 @@ def advshape_template_mesh() -> MeshData:
     """Return the default AdvCP adversarial-shape template mesh.
 
     The template is a 4.9 x 2.5 x 2.0 meter box subdivided twice via
-    midpoint insertion, producing a mesh with approximately 98 vertices
-    and 192 faces. This provides enough geometric resolution for
-    per-vertex adversarial perturbations.
+    midpoint insertion, producing a mesh with 98 vertices and 192
+    faces. This provides enough geometric resolution for per-vertex
+    adversarial perturbations.
+
+    This is the single source of truth for the template: the AdvCP
+    runtime builds its removal mesh from this function, so the
+    positional ``.npy`` perturbations and ``.pkl`` divide indices
+    generated against it address the same vertices at runtime. The
+    vertex ordering matches Open3D's ``create_box`` followed by
+    ``subdivide_midpoint(2)``.
 
     Returns
     -------
     MeshData
         The AdvCP template mesh.
     """
-    template = box_mesh(4.9, 2.5, 2.0)
-    return subdivide_midpoint(template, levels=2)
+    template = box_mesh(*ADVSHAPE_TEMPLATE_DIMENSIONS_M)
+    return subdivide_midpoint(template, levels=ADVSHAPE_TEMPLATE_SUBDIVISION_LEVELS)
+
+
+def advshape_default_divide(vertices: npt.NDArray[np.float64]) -> list[npt.NDArray[np.int32]]:
+    """Return the default removal partition of the adv-shape template.
+
+    Groups are computed against the fixed template bounding box (not
+    the vertices' own extents), so the partition is stable when a
+    perturbation has already been applied to *vertices*. This is the
+    rule the AdvCP runtime uses when no ``remove_adv_shape_divide_path``
+    is configured.
+
+    Parameters
+    ----------
+    vertices : ndarray of float64, shape (N, 3)
+        Template vertex coordinates (optionally perturbed).
+
+    Returns
+    -------
+    list of ndarray of int32
+        10 vertex-index groups (see :func:`generate_divide_indices`).
+    """
+    length, width, height = ADVSHAPE_TEMPLATE_DIMENSIONS_M
+    mins = np.array([-length / 2.0, -width / 2.0, 0.0], dtype=np.float64)
+    maxs = np.array([length / 2.0, width / 2.0, height], dtype=np.float64)
+    return _remove_divide_groups(np.asarray(vertices, dtype=np.float64), mins, maxs)
+
+
+def _remove_divide_groups(
+    coords: npt.NDArray[np.float64],
+    mins: npt.NDArray[np.float64],
+    maxs: npt.NDArray[np.float64],
+) -> list[npt.NDArray[np.int32]]:
+    """Partition vertices into the 10 removal groups for a bounding box.
+
+    Groups are: front face, back face, then the front/back halves of
+    the left side, right side, top and bottom faces. Vertices on the
+    ``x = mid`` plane belong to both halves.
+
+    Parameters
+    ----------
+    coords : ndarray of float64, shape (N, 3)
+        Vertex coordinates.
+    mins, maxs : ndarray of float64, shape (3,)
+        Bounding box used for the face thresholds.
+
+    Returns
+    -------
+    list of ndarray of int32
+        10 (possibly empty) vertex-index groups.
+    """
+    tol = _REMOVE_DIVIDE_TOLERANCE_M
+    x, y, z = coords[:, 0], coords[:, 1], coords[:, 2]
+    mid_x = (mins[0] + maxs[0]) / 2.0
+    front, back = x >= mid_x, x <= mid_x
+    left, right = y > maxs[1] - tol, y < mins[1] + tol
+    top, bottom = z > maxs[2] - tol, z < mins[2] + tol
+    masks = [
+        x > maxs[0] - tol,
+        x < mins[0] + tol,
+        front & left,
+        back & left,
+        front & right,
+        back & right,
+        front & top,
+        back & top,
+        front & bottom,
+        back & bottom,
+    ]
+    return [np.argwhere(mask).reshape(-1).astype(np.int32) for mask in masks]
 
 
 def generate_divide_indices(vertices: npt.NDArray[np.float64], mode: str) -> list[npt.NDArray[np.int32]]:
@@ -314,7 +411,14 @@ def generate_divide_indices(vertices: npt.NDArray[np.float64], mode: str) -> lis
     depends on *mode*:
 
     - ``"spoof"`` — 8 groups (extremal faces and quadrants).
-    - ``"remove"`` — 10 groups (finer spatial partitioning).
+    - ``"remove"`` — 10 groups (front/back faces and front/back halves
+      of the side, top and bottom faces). For the adv-shape template
+      this is identical to :func:`advshape_default_divide`, i.e. the
+      partition the AdvCP runtime uses by default.
+
+    The groups only reference vertices; use
+    :func:`validate_divide_pieces` to check that every group also
+    retains whole triangles of the source mesh.
 
     Parameters
     ----------
@@ -360,18 +464,7 @@ def generate_divide_indices(vertices: npt.NDArray[np.float64], mode: str) -> lis
             np.argwhere(np.logical_and(x < mids[0], z >= mids[2])).reshape(-1),
         ]
     else:
-        groups = [
-            np.argwhere(x >= maxs[0] - eps[0]).reshape(-1),
-            np.argwhere(x <= mins[0] + eps[0]).reshape(-1),
-            np.argwhere(np.logical_and(x >= mids[0], y >= maxs[1] - eps[1])).reshape(-1),
-            np.argwhere(np.logical_and(x < mids[0], y >= maxs[1] - eps[1])).reshape(-1),
-            np.argwhere(np.logical_and(x >= mids[0], y <= mins[1] + eps[1])).reshape(-1),
-            np.argwhere(np.logical_and(x < mids[0], y <= mins[1] + eps[1])).reshape(-1),
-            np.argwhere(np.logical_and(x >= mids[0], z >= maxs[2] - eps[2])).reshape(-1),
-            np.argwhere(np.logical_and(x < mids[0], z >= maxs[2] - eps[2])).reshape(-1),
-            np.argwhere(np.logical_and(x >= mids[0], z <= mins[2] + eps[2])).reshape(-1),
-            np.argwhere(np.logical_and(x < mids[0], z <= mins[2] + eps[2])).reshape(-1),
-        ]
+        groups = _remove_divide_groups(coords, mins, maxs)
 
     all_indices = np.arange(coords.shape[0], dtype=np.int32)
     normalized_groups: list[npt.NDArray[np.int32]] = []
@@ -456,9 +549,68 @@ def validate_divide_indices(indices: list[npt.NDArray[np.int32]], vertex_count: 
         if np.any(group < 0) or np.any(group >= vertex_count):
             min_index = int(group.min()) if group.size else -1
             max_index = int(group.max()) if group.size else -1
-            raise ValueError(
-                f"{name}[{group_index}] has invalid vertex indices: min={min_index}, max={max_index}, vertex_count={vertex_count}."
-            )
+            raise ValueError(f"{name}[{group_index}] has invalid vertex indices: min={min_index}, max={max_index}, vertex_count={vertex_count}.")
+
+
+def divide_piece_face_counts(indices: list[npt.NDArray[np.int32]], faces: npt.NDArray[np.int32]) -> list[int]:
+    """Count the triangles each divide group retains.
+
+    A triangle belongs to a group when all three of its vertices are in
+    the group; this mirrors Open3D's ``TriangleMesh.select_by_index``,
+    which the AdvCP runtime uses to cut the mesh into pieces.
+
+    Parameters
+    ----------
+    indices : list of ndarray of int32
+        Vertex-group index arrays.
+    faces : ndarray of int32, shape (M, 3)
+        Triangle indices of the mesh the groups refer to.
+
+    Returns
+    -------
+    list of int
+        Number of whole triangles per group.
+    """
+    faces = np.asarray(faces, dtype=np.int64)
+    vertex_count = int(faces.max()) + 1 if faces.size else 0
+    counts: list[int] = []
+    for group in indices:
+        group = np.asarray(group, dtype=np.int64)
+        member = np.zeros(max(vertex_count, int(group.max()) + 1 if group.size else 0), dtype=bool)
+        member[group] = True
+        counts.append(int(np.all(member[faces], axis=1).sum()) if faces.size else 0)
+    return counts
+
+
+def validate_divide_pieces(indices: list[npt.NDArray[np.int32]], faces: npt.NDArray[np.int32], name: str) -> None:
+    """Validate that every divide group yields a non-empty mesh piece.
+
+    The AdvCP runtime builds one ray-casting mesh per group; a group
+    without whole triangles produces an empty mesh that Open3D's
+    ``RaycastingScene`` rejects.
+
+    Parameters
+    ----------
+    indices : list of ndarray of int32
+        Vertex-group index arrays (already bounds-checked, see
+        :func:`validate_divide_indices`).
+    faces : ndarray of int32, shape (M, 3)
+        Triangle indices of the mesh the groups refer to.
+    name : str
+        Human-readable name for error messages.
+
+    Raises
+    ------
+    ValueError
+        If any group retains no triangles.
+    """
+    counts = divide_piece_face_counts(indices, faces)
+    empty_groups = [group_index for group_index, count in enumerate(counts) if count == 0]
+    if empty_groups:
+        raise ValueError(
+            f"{name} groups {empty_groups} contain no complete triangles (faces per group: {counts}); "
+            "the resulting mesh pieces would be empty. Use a denser mesh (e.g. subdivide it) or a different partition."
+        )
 
 
 def write_ascii_ply(mesh: MeshData, output_path: Path) -> None:
@@ -571,11 +723,97 @@ def read_obj(path: Path) -> MeshData:
     return mesh
 
 
-def _parse_ply_header(path: Path) -> tuple[list[str], str, int, int, int]:
+_PLY_SCALAR_TYPES = {
+    "char": "i1",
+    "int8": "i1",
+    "uchar": "u1",
+    "uint8": "u1",
+    "short": "i2",
+    "int16": "i2",
+    "ushort": "u2",
+    "uint16": "u2",
+    "int": "i4",
+    "int32": "i4",
+    "uint": "u4",
+    "uint32": "u4",
+    "float": "f4",
+    "float32": "f4",
+    "double": "f8",
+    "float64": "f8",
+}
+_PLY_FACE_INDEX_PROPERTIES = ("vertex_indices", "vertex_index")
+
+
+@dataclass(frozen=True)
+class _PlyProperty:
+    """A single property declaration from a PLY header.
+
+    Attributes
+    ----------
+    name : str
+        Property name (e.g. ``"x"`` or ``"vertex_indices"``).
+    value_type : str
+        NumPy type code of the (list item) value, without byte order.
+    count_type : str or None
+        NumPy type code of the list length prefix for list properties,
+        ``None`` for scalar properties.
+    """
+
+    name: str
+    value_type: str
+    count_type: str | None = None
+
+
+@dataclass(frozen=True)
+class _PlyElement:
+    """An element declaration (``vertex``, ``face``, ...) from a PLY header.
+
+    Attributes
+    ----------
+    name : str
+        Element name.
+    count : int
+        Number of rows declared for the element.
+    properties : tuple of _PlyProperty
+        Property declarations in header order.
+    """
+
+    name: str
+    count: int
+    properties: tuple[_PlyProperty, ...]
+
+
+def _ply_type(raw_type: str, path: Path) -> str:
+    """Map a PLY type name to a NumPy type code.
+
+    Parameters
+    ----------
+    raw_type : str
+        PLY type name (``float``, ``uchar``, ``int32``, ...).
+    path : Path
+        Source path (used for error messages only).
+
+    Returns
+    -------
+    str
+        NumPy type code without byte order (e.g. ``"f4"``).
+
+    Raises
+    ------
+    ValueError
+        If the type name is unknown.
+    """
+    try:
+        return _PLY_SCALAR_TYPES[raw_type]
+    except KeyError:
+        raise ValueError(f"PLY file '{path}' uses unsupported property type '{raw_type}'.") from None
+
+
+def _parse_ply_header(path: Path) -> tuple[str, list[_PlyElement], int]:
     """Parse the header of a PLY file.
 
-    Reads header lines until ``end_header``, then returns the header
-    metadata and the byte offset where vertex data begins.
+    Reads header lines until ``end_header`` and collects the declared
+    elements together with their property names and types.
 
     Parameters
     ----------
@@ -585,13 +823,16 @@ def _parse_ply_header(path: Path) -> tuple[list[str], str, int, int, int]:
     Returns
     -------
     tuple
-        ``(header_lines, format_line, vertex_count, face_count, data_offset)``.
+        ``(format_name, elements, data_offset)`` where *format_name* is
+        ``ascii``, ``binary_little_endian`` or ``binary_big_endian`` and
+        *data_offset* is the byte offset where element data begins.
 
     Raises
     ------
     ValueError
         If the file does not start with ``ply``, does not declare a
-        format, or ends before ``end_header``.
+        format, ends before ``end_header``, or contains malformed
+        element/property declarations.
     """
     header_lines: list[str] = []
     with path.open("rb") as handle:
@@ -609,22 +850,50 @@ def _parse_ply_header(path: Path) -> tuple[list[str], str, int, int, int]:
     if not header_lines or header_lines[0] != "ply":
         raise ValueError(f"File '{path}' is not a valid PLY file (missing 'ply' magic).")
 
-    format_line = next((line for line in header_lines if line.startswith("format ")), None)
-    if format_line is None:
-        raise ValueError(f"PLY file '{path}' does not declare a format.")
+    format_name: str | None = None
+    elements: list[_PlyElement] = []
+    current_name: str | None = None
+    current_count = 0
+    current_properties: list[_PlyProperty] = []
 
-    vertex_count = 0
-    face_count = 0
-    for line in header_lines:
-        if line.startswith("element vertex "):
-            vertex_count = int(line.split()[-1])
-        elif line.startswith("element face "):
-            face_count = int(line.split()[-1])
-    return header_lines, format_line, vertex_count, face_count, data_offset
+    def flush_element() -> None:
+        if current_name is not None:
+            elements.append(_PlyElement(current_name, current_count, tuple(current_properties)))
+
+    for line in header_lines[1:-1]:
+        tokens = line.split()
+        if not tokens or tokens[0] in {"comment", "obj_info"}:
+            continue
+        if tokens[0] == "format" and len(tokens) >= 2:
+            format_name = tokens[1]
+        elif tokens[0] == "element" and len(tokens) == 3:
+            flush_element()
+            current_name, current_count, current_properties = tokens[1], int(tokens[2]), []
+        elif tokens[0] == "property" and current_name is not None:
+            if len(tokens) == 5 and tokens[1] == "list":
+                current_properties.append(_PlyProperty(tokens[4], _ply_type(tokens[3], path), _ply_type(tokens[2], path)))
+            elif len(tokens) == 3:
+                current_properties.append(_PlyProperty(tokens[2], _ply_type(tokens[1], path)))
+            else:
+                raise ValueError(f"Malformed property declaration in '{path}': '{line}'.")
+        else:
+            raise ValueError(f"Malformed PLY header line in '{path}': '{line}'.")
+    flush_element()
+
+    if format_name is None:
+        raise ValueError(f"PLY file '{path}' does not declare a format.")
+    if format_name not in {"ascii", "binary_little_endian", "binary_big_endian"}:
+        raise ValueError(f"Unsupported PLY format in '{path}': {format_name}.")
+    return format_name, elements, data_offset
 
 
 def read_ply(path: Path) -> MeshData:
-    """Read a PLY file (ASCII or binary little-endian) into a MeshData.
+    """Read a PLY file (ASCII or binary, either byte order) into a MeshData.
+
+    Property types and order are taken from the header, so files with
+    ``float`` or ``double`` coordinates and extra vertex/face properties
+    (normals, colours, texture coordinates, ...) are supported. Polygon
+    faces are fan-triangulated.
 
     Parameters
     ----------
@@ -639,120 +908,235 @@ def read_ply(path: Path) -> MeshData:
     Raises
     ------
     ValueError
-        If the file has no vertices/faces, uses an unsupported format,
-        or fails validation.
+        If the file has no vertices/faces, lacks ``x``/``y``/``z`` or face
+        index properties, is truncated, uses an unsupported format, or
+        fails validation.
     """
-    header_lines, format_line, vertex_count, face_count, data_offset = _parse_ply_header(path)
-    if vertex_count <= 0 or face_count <= 0:
+    format_name, elements, data_offset = _parse_ply_header(path)
+    elements_by_name = {element.name: element for element in elements}
+    vertex_element = elements_by_name.get("vertex")
+    face_element = elements_by_name.get("face")
+    if vertex_element is None or face_element is None or vertex_element.count <= 0 or face_element.count <= 0:
         raise ValueError(f"PLY file '{path}' must contain non-empty vertex and face elements.")
 
-    if format_line.startswith("format ascii"):
-        return _read_ascii_ply(path, vertex_count, face_count, header_lines)
-    if format_line.startswith("format binary_little_endian"):
-        return _read_binary_ply(path, vertex_count, face_count, data_offset)
-    raise ValueError(f"Unsupported PLY format in '{path}': {format_line}.")
+    vertex_property_names = [prop.name for prop in vertex_element.properties]
+    if not {"x", "y", "z"}.issubset(vertex_property_names):
+        raise ValueError(f"PLY file '{path}' vertex element must declare x, y and z properties.")
+    face_index_property = next((prop.name for prop in face_element.properties if prop.name in _PLY_FACE_INDEX_PROPERTIES), None)
+    if face_index_property is None:
+        raise ValueError(f"PLY file '{path}' face element must declare a 'vertex_indices' list property.")
+
+    if format_name == "ascii":
+        data = _read_ascii_ply_elements(path, elements)
+    else:
+        byte_order = "<" if format_name == "binary_little_endian" else ">"
+        data = _read_binary_ply_elements(path, elements, data_offset, byte_order)
+
+    vertex_data = data["vertex"]
+    vertices = np.stack([np.asarray(vertex_data[axis], dtype=np.float64) for axis in ("x", "y", "z")], axis=1)
+    faces = _triangulate_ply_faces(data["face"][face_index_property])
+
+    mesh = MeshData(vertices=vertices, faces=faces)
+    validate_mesh(mesh, f"PLY mesh '{path}'")
+    return mesh
 
 
-def _read_ascii_ply(path: Path, vertex_count: int, face_count: int, header_lines: list[str]) -> MeshData:
-    """Read an ASCII-format PLY file body.
+def _triangulate_ply_faces(face_lists: list[npt.NDArray[Any]] | npt.NDArray[Any]) -> npt.NDArray[np.int32]:
+    """Fan-triangulate PLY polygon index lists.
+
+    Parameters
+    ----------
+    face_lists : ndarray of shape (M, K) or list of 1-D ndarray
+        Per-face vertex index lists. A 2-D array is used when every face
+        has the same vertex count.
+
+    Returns
+    -------
+    ndarray of int32, shape (T, 3)
+        Triangle indices. Faces with fewer than 3 vertices are skipped.
+    """
+    if isinstance(face_lists, np.ndarray) and face_lists.ndim == 2:
+        polygon = face_lists.astype(np.int64)
+        if polygon.shape[1] < 3:
+            return np.empty((0, 3), dtype=np.int32)
+        triangles = [np.stack([polygon[:, 0], polygon[:, idx], polygon[:, idx + 1]], axis=1) for idx in range(1, polygon.shape[1] - 1)]
+        return np.stack(triangles, axis=1).reshape(-1, 3).astype(np.int32)
+
+    faces: list[tuple[int, int, int]] = []
+    for indices in face_lists:
+        for idx in range(1, len(indices) - 1):
+            faces.append((int(indices[0]), int(indices[idx]), int(indices[idx + 1])))
+    return np.asarray(faces, dtype=np.int32).reshape(-1, 3)
+
+
+def _read_ascii_ply_elements(path: Path, elements: list[_PlyElement]) -> dict[str, dict[str, Any]]:
+    """Read the body of an ASCII PLY file.
 
     Parameters
     ----------
     path : Path
-        Source ``.ply`` path (used for error messages only).
-    vertex_count : int
-        Number of vertices declared in the header.
-    face_count : int
-        Number of faces declared in the header.
-    header_lines : list of str
-        Parsed header lines (used to skip past the header).
+        Source ``.ply`` path.
+    elements : list of _PlyElement
+        Element declarations from :func:`_parse_ply_header`.
 
     Returns
     -------
-    MeshData
-        Parsed mesh.
+    dict
+        ``{element_name: {property_name: values}}``. Scalar properties
+        are 1-D arrays; list properties are lists of 1-D arrays.
+
+    Raises
+    ------
+    ValueError
+        If the body is truncated or contains malformed values.
     """
-    with path.open("r", encoding="utf-8") as handle:
+    with path.open("r", encoding="ascii") as handle:
         for line in handle:
             if line.strip() == "end_header":
                 break
+        tokens = handle.read().split()
 
-        vertices: list[tuple[float, float, float]] = []
-        for _ in range(vertex_count):
-            parts = handle.readline().split()
-            if len(parts) < 3:
-                raise ValueError(f"Malformed vertex entry in '{path}'.")
-            vertices.append((float(parts[0]), float(parts[1]), float(parts[2])))
+    position = 0
+    data: dict[str, dict[str, Any]] = {}
+    try:
+        for element in elements:
+            columns: dict[str, list[Any]] = {prop.name: [] for prop in element.properties}
+            for _ in range(element.count):
+                for prop in element.properties:
+                    if prop.count_type is None:
+                        columns[prop.name].append(float(tokens[position]))
+                        position += 1
+                    else:
+                        count = int(tokens[position])
+                        values = np.asarray(tokens[position + 1 : position + 1 + count], dtype=np.float64)
+                        if values.shape[0] != count:
+                            raise IndexError
+                        columns[prop.name].append(values.astype(np.int64))
+                        position += 1 + count
+            data[element.name] = {
+                prop.name: columns[prop.name] if prop.count_type is not None else np.asarray(columns[prop.name], dtype=np.float64)
+                for prop in element.properties
+            }
+    except IndexError:
+        raise ValueError(f"Unexpected end of data while reading ASCII PLY '{path}'.") from None
+    except ValueError as exc:
+        raise ValueError(f"Malformed value in ASCII PLY '{path}': {exc}.") from None
+    return data
 
-        faces: list[tuple[int, int, int]] = []
-        for _ in range(face_count):
-            parts = handle.readline().split()
-            if len(parts) < 4:
-                raise ValueError(f"Malformed face entry in '{path}'.")
-            n = int(parts[0])
-            if n < 3:
-                continue
-            raw_indices = [int(token) for token in parts[1 : n + 1]]
-            for idx in range(1, len(raw_indices) - 1):
-                faces.append((raw_indices[0], raw_indices[idx], raw_indices[idx + 1]))
 
-    mesh = MeshData(vertices=np.asarray(vertices, dtype=np.float64), faces=np.asarray(faces, dtype=np.int32))
-    validate_mesh(mesh, f"PLY mesh '{path}'")
-    return mesh
+def _read_binary_ply_elements(
+    path: Path,
+    elements: list[_PlyElement],
+    data_offset: int,
+    byte_order: str,
+) -> dict[str, dict[str, Any]]:
+    """Read the body of a binary PLY file.
 
-
-def _read_binary_ply(path: Path, vertex_count: int, face_count: int, data_offset: int) -> MeshData:
-    """Read a binary little-endian PLY file body.
-
-    Vertices are expected as three consecutive ``double`` values per
-    vertex. Faces use a 1-byte vertex count followed by ``N * 4`` bytes
-    of ``uint32`` indices.
+    Elements without list properties are decoded in one shot with a
+    structured dtype. Elements with list properties use a vectorised
+    fast path when every row has the same list lengths (e.g. an
+    all-triangle face element) and fall back to row-by-row decoding
+    otherwise.
 
     Parameters
     ----------
     path : Path
-        Source ``.ply`` path (used for error messages only).
-    vertex_count : int
-        Number of vertices declared in the header.
-    face_count : int
-        Number of faces declared in the header.
+        Source ``.ply`` path.
+    elements : list of _PlyElement
+        Element declarations from :func:`_parse_ply_header`.
     data_offset : int
-        Byte offset where vertex data begins (after ``end_header``).
+        Byte offset where element data begins.
+    byte_order : {"<", ">"}
+        Byte order of the binary payload.
 
     Returns
     -------
-    MeshData
-        Parsed mesh.
+    dict
+        ``{element_name: {property_name: values}}``. Scalar properties
+        are 1-D arrays; list properties are 2-D arrays (uniform lengths)
+        or lists of 1-D arrays.
+
+    Raises
+    ------
+    ValueError
+        If the payload is shorter than the header declares.
     """
-    vertices = np.empty((vertex_count, 3), dtype=np.float64)
-    faces: list[tuple[int, int, int]] = []
+    buffer = path.read_bytes()
+    position = data_offset
+    data: dict[str, dict[str, Any]] = {}
 
-    with path.open("rb") as handle:
-        handle.seek(data_offset)
-        vertex_struct = struct.Struct("<ddd")
-        for index in range(vertex_count):
-            raw = handle.read(vertex_struct.size)
-            if len(raw) != vertex_struct.size:
-                raise ValueError(f"Unexpected EOF while reading vertices from '{path}'.")
-            vertices[index] = vertex_struct.unpack(raw)
+    def require(size: int) -> None:
+        if position + size > len(buffer):
+            raise ValueError(f"Unexpected EOF while reading binary PLY '{path}'.")
 
-        for _ in range(face_count):
-            raw_count = handle.read(1)
-            if len(raw_count) != 1:
-                raise ValueError(f"Unexpected EOF while reading faces from '{path}'.")
-            n = struct.unpack("<B", raw_count)[0]
-            raw_indices = handle.read(4 * n)
-            if len(raw_indices) != 4 * n:
-                raise ValueError(f"Unexpected EOF while reading face indices from '{path}'.")
-            indices = struct.unpack(f"<{n}I", raw_indices)
-            if n < 3:
+    for element in elements:
+        if element.count == 0:
+            data[element.name] = {prop.name: np.empty(0) for prop in element.properties}
+            continue
+
+        if all(prop.count_type is None for prop in element.properties):
+            dtype = np.dtype([(prop.name, byte_order + prop.value_type) for prop in element.properties])
+            require(dtype.itemsize * element.count)
+            rows = np.frombuffer(buffer, dtype=dtype, count=element.count, offset=position)
+            position += dtype.itemsize * element.count
+            data[element.name] = {prop.name: rows[prop.name] for prop in element.properties}
+            continue
+
+        # Fast path: assume the list lengths of the first row repeat for every row.
+        first_row_lengths: list[int] = []
+        probe = position
+        for prop in element.properties:
+            if prop.count_type is None:
+                probe += np.dtype(prop.value_type).itemsize
                 continue
-            for idx in range(1, n - 1):
-                faces.append((int(indices[0]), int(indices[idx]), int(indices[idx + 1])))
+            count_dtype = np.dtype(byte_order + prop.count_type)
+            require(probe - position + count_dtype.itemsize)
+            length = int(np.frombuffer(buffer, dtype=count_dtype, count=1, offset=probe)[0])
+            first_row_lengths.append(length)
+            probe += count_dtype.itemsize + length * np.dtype(prop.value_type).itemsize
 
-    mesh = MeshData(vertices=vertices, faces=np.asarray(faces, dtype=np.int32))
-    validate_mesh(mesh, f"PLY mesh '{path}'")
-    return mesh
+        fields: list[tuple[Any, ...]] = []
+        list_lengths = iter(first_row_lengths)
+        for prop in element.properties:
+            if prop.count_type is None:
+                fields.append((prop.name, byte_order + prop.value_type))
+            else:
+                fields.append((f"__count_{prop.name}", byte_order + prop.count_type))
+                fields.append((prop.name, byte_order + prop.value_type, (next(list_lengths),)))
+        dtype = np.dtype(fields)
+        if position + dtype.itemsize * element.count <= len(buffer):
+            rows = np.frombuffer(buffer, dtype=dtype, count=element.count, offset=position)
+            uniform = all(
+                np.all(rows[f"__count_{prop.name}"] == length)
+                for prop, length in zip((p for p in element.properties if p.count_type is not None), first_row_lengths)
+            )
+            if uniform:
+                position += dtype.itemsize * element.count
+                data[element.name] = {prop.name: rows[prop.name] for prop in element.properties}
+                continue
+
+        # Slow path: variable-length lists.
+        columns: dict[str, list[Any]] = {prop.name: [] for prop in element.properties}
+        for _ in range(element.count):
+            for prop in element.properties:
+                if prop.count_type is None:
+                    value_dtype = np.dtype(byte_order + prop.value_type)
+                    require(value_dtype.itemsize)
+                    columns[prop.name].append(np.frombuffer(buffer, dtype=value_dtype, count=1, offset=position)[0])
+                    position += value_dtype.itemsize
+                else:
+                    count_dtype = np.dtype(byte_order + prop.count_type)
+                    value_dtype = np.dtype(byte_order + prop.value_type)
+                    require(count_dtype.itemsize)
+                    length = int(np.frombuffer(buffer, dtype=count_dtype, count=1, offset=position)[0])
+                    position += count_dtype.itemsize
+                    require(length * value_dtype.itemsize)
+                    columns[prop.name].append(np.frombuffer(buffer, dtype=value_dtype, count=length, offset=position).astype(np.int64))
+                    position += length * value_dtype.itemsize
+        data[element.name] = {
+            prop.name: columns[prop.name] if prop.count_type is not None else np.asarray(columns[prop.name]) for prop in element.properties
+        }
+    return data
 
 
 def validate_mesh(mesh: MeshData, name: str) -> None:
@@ -824,9 +1208,7 @@ def validate_mesh_frame_and_scale(mesh: MeshData, name: str) -> None:
         raise ValueError(f"{name} z-origin is incompatible with bottom-centered frame (min_z={mins[2]:.3f}).")
     center_xy = (mins[:2] + maxs[:2]) / 2.0
     if float(np.linalg.norm(center_xy)) > 5.0:
-        raise ValueError(
-            f"{name} XY center is far from origin (center=({center_xy[0]:.3f}, {center_xy[1]:.3f})); expected near bottom-center frame."
-        )
+        raise ValueError(f"{name} XY center is far from origin (center=({center_xy[0]:.3f}, {center_xy[1]:.3f})); expected near bottom-center frame.")
 
 
 def save_perturbation(path: Path, perturbation: npt.NDArray[np.float64]) -> None:
@@ -894,7 +1276,9 @@ def copy_or_generate_mesh(mesh_input_path: Path | None, dimensions: tuple[float,
     external file or by constructing a simple box.
 
     When *mesh_input_path* is ``None``, a box mesh with the target
-    dimensions is returned. Otherwise the external mesh is read,
+    dimensions is returned, midpoint-subdivided
+    ``DEFAULT_CAR_MESH_SUBDIVISION_LEVELS`` times so that every divide
+    group retains whole triangles. Otherwise the external mesh is read,
     normalised to a bottom-centre frame, and scaled to the target
     dimensions.
 
@@ -914,7 +1298,7 @@ def copy_or_generate_mesh(mesh_input_path: Path | None, dimensions: tuple[float,
         The resulting mesh in bottom-centre frame.
     """
     if mesh_input_path is None:
-        return box_mesh(*dimensions)
+        return subdivide_midpoint(box_mesh(*dimensions), levels=DEFAULT_CAR_MESH_SUBDIVISION_LEVELS)
     mesh = read_mesh(mesh_input_path)
     mesh = normalize_bottom_center(mesh)
     return scale_to_dimensions(mesh, dimensions, preserve_aspect=preserve_aspect)

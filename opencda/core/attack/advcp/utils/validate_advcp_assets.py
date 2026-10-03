@@ -43,13 +43,14 @@ import argparse
 import sys
 from pathlib import Path
 
-import numpy as np
 
 from opencda.core.attack.advcp.utils.asset_utils import (
+    MeshData,
     load_divide_pickle,
     load_perturbation,
     read_mesh,
     validate_divide_indices,
+    validate_divide_pieces,
     validate_mesh,
     validate_mesh_frame_and_scale,
 )
@@ -65,9 +66,7 @@ def _build_parser() -> argparse.ArgumentParser:
         spoof divide, remove divide, remove perturb) and optional
         expected vertex counts.
     """
-    parser = argparse.ArgumentParser(
-        description="Validate AdvCP 3D assets for spoofing and removal attacks."
-    )
+    parser = argparse.ArgumentParser(description="Validate AdvCP 3D assets for spoofing and removal attacks.")
     parser.add_argument(
         "--car-mesh",
         type=Path,
@@ -139,11 +138,11 @@ def _check_file_exists(path: Path, label: str) -> None:
         raise ValueError(f"{label}: file is empty (0 bytes).")
 
 
-def _validate_car_mesh(path: Path, expected_vertices: int | None) -> int:
+def _validate_car_mesh(path: Path, expected_vertices: int | None) -> MeshData:
     """Validate a car mesh ``.ply`` file.
 
     Checks file existence, structural integrity, coordinate frame, and
-    scale. Returns the vertex count for use in divide-index validation.
+    scale. Returns the parsed mesh for use in divide validation.
 
     Parameters
     ----------
@@ -155,8 +154,8 @@ def _validate_car_mesh(path: Path, expected_vertices: int | None) -> int:
 
     Returns
     -------
-    int
-        The number of vertices in the mesh.
+    MeshData
+        The parsed mesh.
 
     Raises
     ------
@@ -174,48 +173,48 @@ def _validate_car_mesh(path: Path, expected_vertices: int | None) -> int:
     vertex_count = mesh.vertices.shape[0]
     print(f"  Vertices: {vertex_count}")
     print(f"  Faces:    {mesh.faces.shape[0]}")
-    print(f"  Bounds:   x=[{mesh.vertices[:, 0].min():.3f}, {mesh.vertices[:, 0].max():.3f}], "
-          f"y=[{mesh.vertices[:, 1].min():.3f}, {mesh.vertices[:, 1].max():.3f}], "
-          f"z=[{mesh.vertices[:, 2].min():.3f}, {mesh.vertices[:, 2].max():.3f}]")
+    print(
+        f"  Bounds:   x=[{mesh.vertices[:, 0].min():.3f}, {mesh.vertices[:, 0].max():.3f}], "
+        f"y=[{mesh.vertices[:, 1].min():.3f}, {mesh.vertices[:, 1].max():.3f}], "
+        f"z=[{mesh.vertices[:, 2].min():.3f}, {mesh.vertices[:, 2].max():.3f}]"
+    )
     if expected_vertices is not None and vertex_count != expected_vertices:
-        raise ValueError(
-            f"Car mesh vertex count mismatch: expected {expected_vertices}, got {vertex_count}."
-        )
+        raise ValueError(f"Car mesh vertex count mismatch: expected {expected_vertices}, got {vertex_count}.")
     print("  [PASS]")
-    return vertex_count
+    return mesh
 
 
-def _validate_spoof_divide(path: Path, car_vertex_count: int | None) -> None:
+def _validate_spoof_divide(path: Path, car_mesh: MeshData | None) -> None:
     """Validate a spoof mesh-divide ``.pkl`` file.
 
     Checks file existence, that the divide contains exactly 8 groups,
-    and that all indices are valid for the given car mesh vertex count.
+    that all indices are valid for the given car mesh, and that every
+    group yields a non-empty mesh piece.
 
     Parameters
     ----------
     path : Path
         Path to the ``.pkl`` file.
-    car_vertex_count : int or None
-        Vertex count of the corresponding car mesh. When ``None``,
-        index-bound validation is skipped.
+    car_mesh : MeshData or None
+        The corresponding car mesh. When ``None``, index-bound and
+        mesh-piece validation are skipped.
 
     Raises
     ------
     FileNotFoundError
         If the file does not exist.
     ValueError
-        If the file is empty, contains the wrong number of groups, or
-        has out-of-bounds indices.
+        If the file is empty, contains the wrong number of groups, has
+        out-of-bounds indices, or a group retains no triangles.
     """
     print(f"Validating spoof mesh divide: {path}")
     _check_file_exists(path, "Spoof mesh divide")
     indices = load_divide_pickle(path)
     if len(indices) != 8:
-        raise ValueError(
-            f"Spoof mesh divide must contain exactly 8 index groups, got {len(indices)}."
-        )
-    if car_vertex_count is not None:
-        validate_divide_indices(indices, car_vertex_count, "Spoof mesh divide")
+        raise ValueError(f"Spoof mesh divide must contain exactly 8 index groups, got {len(indices)}.")
+    if car_mesh is not None:
+        validate_divide_indices(indices, car_mesh.vertices.shape[0], "Spoof mesh divide")
+        validate_divide_pieces(indices, car_mesh.faces, "Spoof mesh divide")
     print(f"  Groups: {len(indices)}")
     for i, g in enumerate(indices):
         print(f"    Group {i}: {g.shape[0]} indices, range [{g.min()}, {g.max()}]")
@@ -255,9 +254,7 @@ def _validate_remove_divide(
     _check_file_exists(path, "Removal mesh divide")
     indices = load_divide_pickle(path)
     if len(indices) != 10:
-        raise ValueError(
-            f"Removal mesh divide must contain exactly 10 index groups, got {len(indices)}."
-        )
+        raise ValueError(f"Removal mesh divide must contain exactly 10 index groups, got {len(indices)}.")
     # Determine the expected vertex count for validation
     expected_count = car_vertex_count or template_vertex_count
     if expected_count is not None:
@@ -299,8 +296,7 @@ def _validate_remove_perturb(path: Path, car_vertex_count: int | None) -> None:
     print(f"  Range: [{perturbation.min():.6f}, {perturbation.max():.6f}]")
     if car_vertex_count is not None and perturbation.shape[0] != car_vertex_count:
         raise ValueError(
-            f"Removal perturbation vertex count mismatch: car mesh has {car_vertex_count} "
-            f"vertices, perturbation has {perturbation.shape[0]}."
+            f"Removal perturbation vertex count mismatch: car mesh has {car_vertex_count} vertices, perturbation has {perturbation.shape[0]}."
         )
     print("  [PASS]")
 
@@ -318,31 +314,34 @@ def main() -> None:
     """
     args = _build_parser().parse_args()
 
-    has_any_asset = any([
-        args.car_mesh is not None,
-        args.spoof_divide is not None,
-        args.remove_divide is not None,
-        args.remove_perturb is not None,
-    ])
+    has_any_asset = any(
+        [
+            args.car_mesh is not None,
+            args.spoof_divide is not None,
+            args.remove_divide is not None,
+            args.remove_perturb is not None,
+        ]
+    )
     if not has_any_asset:
-        print("No assets specified. Use --car-mesh, --spoof-divide, --remove-divide, "
-              "and/or --remove-perturb to select assets for validation.")
+        print("No assets specified. Use --car-mesh, --spoof-divide, --remove-divide, and/or --remove-perturb to select assets for validation.")
         sys.exit(1)
 
     errors: list[str] = []
+    car_mesh: MeshData | None = None
     car_vertex_count: int | None = None
 
     # 1. Validate car mesh (if provided)
     if args.car_mesh is not None:
         try:
-            car_vertex_count = _validate_car_mesh(args.car_mesh, args.expected_vertices)
+            car_mesh = _validate_car_mesh(args.car_mesh, args.expected_vertices)
+            car_vertex_count = car_mesh.vertices.shape[0]
         except (FileNotFoundError, ValueError) as exc:
             errors.append(str(exc))
 
     # 2. Validate spoof mesh divide (if provided)
     if args.spoof_divide is not None:
         try:
-            _validate_spoof_divide(args.spoof_divide, car_vertex_count)
+            _validate_spoof_divide(args.spoof_divide, car_mesh)
         except (FileNotFoundError, ValueError) as exc:
             errors.append(str(exc))
 

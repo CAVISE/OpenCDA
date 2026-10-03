@@ -61,6 +61,7 @@ from opencda.core.attack.advcp.utils.asset_utils import (
     generate_divide_indices,
     read_mesh,
     save_perturbation,
+    validate_divide_pieces,
 )
 
 
@@ -74,9 +75,7 @@ def _build_parser() -> argparse.ArgumentParser:
         output paths, and perturbation options (randomisation, seed,
         scale).
     """
-    parser = argparse.ArgumentParser(
-        description="Generate AdvCP removal assets (mesh-divide .pkl and/or perturbation .npy)."
-    )
+    parser = argparse.ArgumentParser(description="Generate AdvCP removal assets (mesh-divide .pkl and/or perturbation .npy).")
     parser.add_argument(
         "--mode",
         choices=("divide", "perturb", "both"),
@@ -91,10 +90,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--mesh",
         type=Path,
         default=None,
-        help=(
-            "Input mesh path (.ply or .obj). When omitted, the built-in AdvCP "
-            "template mesh (subdivided box) is used."
-        ),
+        help=("Input mesh path (.ply or .obj). When omitted, the built-in AdvCP template mesh (subdivided box) is used."),
     )
     parser.add_argument(
         "--output",
@@ -168,6 +164,7 @@ def _generate_divide(mesh_input: Path | None, output: Path) -> None:
     """
     mesh = _resolve_mesh(mesh_input)
     divide = generate_divide_indices(mesh.vertices, mode="remove")
+    validate_divide_pieces(divide, mesh.faces, "Generated removal mesh divide")
     dump_divide_pickle(divide, output)
     print(f"Generated removal mesh divide: {output} ({len(divide)} groups, {output.stat().st_size} bytes)")
 
@@ -209,10 +206,7 @@ def _generate_perturb(
         source_desc = "zero-initialised"
 
     save_perturbation(output, perturbation)
-    print(
-        f"Generated {source_desc} perturbation: {output} "
-        f"(shape={perturbation.shape}, {output.stat().st_size} bytes)"
-    )
+    print(f"Generated {source_desc} perturbation: {output} (shape={perturbation.shape}, {output.stat().st_size} bytes)")
 
 
 def main() -> None:

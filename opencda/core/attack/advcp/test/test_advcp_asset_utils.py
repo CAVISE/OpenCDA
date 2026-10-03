@@ -32,6 +32,7 @@ All tests use temporary directories and do not modify the repository.
 
 from __future__ import annotations
 
+import hashlib
 import pickle
 import struct
 import sys
@@ -44,10 +45,12 @@ import pytest
 
 from opencda.core.attack.advcp.utils.asset_utils import (
     MeshData,
+    advshape_default_divide,
     advshape_template_mesh,
     blueprint_dimensions_m,
     box_mesh,
     copy_or_generate_mesh,
+    divide_piece_face_counts,
     dump_divide_pickle,
     dump_generation_metadata,
     generate_divide_indices,
@@ -62,10 +65,10 @@ from opencda.core.attack.advcp.utils.asset_utils import (
     scale_to_dimensions,
     subdivide_midpoint,
     validate_divide_indices,
+    validate_divide_pieces,
     validate_mesh,
     validate_mesh_frame_and_scale,
     write_ascii_ply,
-    write_mesh,
 )
 
 
@@ -85,6 +88,12 @@ def tmp_output() -> Path:
 def sample_box_mesh() -> MeshData:
     """A standard 4.3 x 1.91 x 1.26 m box mesh (Tesla Model 3)."""
     return box_mesh(4.3, 1.91, 1.26)
+
+
+@pytest.fixture
+def sample_car_mesh() -> MeshData:
+    """The default generated (subdivided) car mesh for Tesla Model 3 dimensions."""
+    return copy_or_generate_mesh(None, dimensions=(4.3, 1.91, 1.26), preserve_aspect=False)
 
 
 @pytest.fixture
@@ -245,6 +254,82 @@ class TestAdvShapeTemplateMesh:
         assert mesh.faces.shape[0] == 192  # 12 * 4 * 4
 
 
+class TestOpen3DCompatibility:
+    """Index compatibility with the Open3D meshes built by the AdvCP runtime.
+
+    Open3D is mocked in the unit-test environment, so the expected values
+    below were captured from ``open3d`` 0.18.0 and 0.19.0
+    (``TriangleMesh.create_box`` + ``subdivide_midpoint``).
+    """
+
+    # Open3D ``create_box(1, 1, 1)`` vertex and triangle layout.
+    O3D_UNIT_BOX_VERTICES = [
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0],
+        [1.0, 0.0, 1.0],
+        [0.0, 1.0, 0.0],
+        [1.0, 1.0, 0.0],
+        [0.0, 1.0, 1.0],
+        [1.0, 1.0, 1.0],
+    ]
+    O3D_UNIT_BOX_TRIANGLES = [
+        [4, 7, 5],
+        [4, 6, 7],
+        [0, 2, 4],
+        [2, 6, 4],
+        [0, 1, 2],
+        [1, 3, 2],
+        [1, 5, 7],
+        [1, 7, 3],
+        [2, 3, 7],
+        [2, 7, 6],
+        [0, 4, 1],
+        [1, 4, 5],
+    ]
+    # First vertices / triangles created by Open3D ``subdivide_midpoint(1)`` on the unit box.
+    O3D_UNIT_BOX_SUBDIV1_NEW_VERTICES = [[0.5, 1.0, 0.5], [1.0, 1.0, 0.5], [0.5, 1.0, 0.0], [0.0, 1.0, 0.5], [0.5, 1.0, 1.0], [0.0, 0.0, 0.5]]
+    O3D_UNIT_BOX_SUBDIV1_TRIANGLES = [[4, 8, 10], [8, 7, 9], [9, 5, 10], [8, 9, 10], [4, 11, 8], [11, 6, 12], [12, 7, 8], [11, 12, 8]]
+    # sha256 of the Open3D adv-shape template (create_box(4.9, 2.5, 2.0) centred in XY, subdivide_midpoint(2)).
+    O3D_ADVSHAPE_TEMPLATE_SHA256 = "18eadf9af6766859aa88b9ef1f51472aaac6dd7eb2aabf110d919d3d528cc113"
+
+    @staticmethod
+    def _shift_to_origin_corner(mesh: MeshData, length: float, width: float) -> np.ndarray:
+        return mesh.vertices + np.array([length / 2.0, width / 2.0, 0.0])
+
+    def test_box_layout_matches_open3d(self) -> None:
+        mesh = box_mesh(1.0, 1.0, 1.0)
+        np.testing.assert_allclose(self._shift_to_origin_corner(mesh, 1.0, 1.0), self.O3D_UNIT_BOX_VERTICES)
+        np.testing.assert_array_equal(mesh.faces, self.O3D_UNIT_BOX_TRIANGLES)
+
+    def test_box_normals_point_outward(self, sample_box_mesh: MeshData) -> None:
+        tri = sample_box_mesh.vertices[sample_box_mesh.faces]
+        normals = np.cross(tri[:, 1] - tri[:, 0], tri[:, 2] - tri[:, 0])
+        center = np.array([0.0, 0.0, sample_box_mesh.vertices[:, 2].max() / 2.0])
+        outward = tri.mean(axis=1) - center
+        assert np.all(np.sum(normals * outward, axis=1) > 0)
+
+    def test_subdivision_order_matches_open3d(self) -> None:
+        mesh = subdivide_midpoint(box_mesh(1.0, 1.0, 1.0), levels=1)
+        vertices = self._shift_to_origin_corner(mesh, 1.0, 1.0)
+        np.testing.assert_allclose(vertices[8:14], self.O3D_UNIT_BOX_SUBDIV1_NEW_VERTICES)
+        np.testing.assert_array_equal(mesh.faces[:8], self.O3D_UNIT_BOX_SUBDIV1_TRIANGLES)
+
+    def test_advshape_template_matches_open3d(self) -> None:
+        template = advshape_template_mesh()
+        digest = hashlib.sha256(np.round(template.vertices, 6).astype("<f8").tobytes() + template.faces.astype("<i4").tobytes()).hexdigest()
+        assert digest == self.O3D_ADVSHAPE_TEMPLATE_SHA256
+
+    def test_generated_remove_divide_matches_runtime_default(self) -> None:
+        """Generated removal divide must equal the partition the runtime uses by default."""
+        template = advshape_template_mesh()
+        generated = generate_divide_indices(template.vertices, "remove")
+        runtime_default = advshape_default_divide(template.vertices)
+        assert len(generated) == len(runtime_default) == 10
+        for generated_group, runtime_group in zip(generated, runtime_default):
+            np.testing.assert_array_equal(generated_group, runtime_group)
+
+
 # =========================================================================
 # Mesh transforms
 # =========================================================================
@@ -369,6 +454,34 @@ class TestGenerateDivideIndices:
             assert g[0] == 0
 
 
+class TestDividePieces:
+    """Every divide group must yield a non-empty mesh piece."""
+
+    def test_default_car_mesh_spoof_pieces_non_empty(self, sample_car_mesh: MeshData) -> None:
+        counts = divide_piece_face_counts(generate_divide_indices(sample_car_mesh.vertices, "spoof"), sample_car_mesh.faces)
+        assert len(counts) == 8
+        assert all(count > 0 for count in counts)
+
+    def test_template_remove_pieces_non_empty(self) -> None:
+        template = advshape_template_mesh()
+        counts = divide_piece_face_counts(generate_divide_indices(template.vertices, "remove"), template.faces)
+        assert counts == [32, 32, 16, 16, 16, 16, 16, 16, 16, 16]
+
+    def test_bare_box_spoof_pieces_rejected(self, sample_box_mesh: MeshData) -> None:
+        groups = generate_divide_indices(sample_box_mesh.vertices, "spoof")
+        assert divide_piece_face_counts(groups, sample_box_mesh.faces)[6:] == [0, 0]
+        with pytest.raises(ValueError, match=r"groups \[6, 7\] contain no complete triangles"):
+            validate_divide_pieces(groups, sample_box_mesh.faces, "Spoof divide")
+
+    def test_validate_passes(self, sample_car_mesh: MeshData) -> None:
+        groups = generate_divide_indices(sample_car_mesh.vertices, "spoof")
+        validate_divide_pieces(groups, sample_car_mesh.faces, "Spoof divide")
+
+    def test_default_generated_mesh_is_subdivided(self, sample_car_mesh: MeshData) -> None:
+        assert sample_car_mesh.vertices.shape == (98, 3)
+        assert sample_car_mesh.faces.shape == (192, 3)
+
+
 # =========================================================================
 # Mesh I/O
 # =========================================================================
@@ -416,9 +529,7 @@ class TestReadPly:
         """Write a minimal binary PLY with 4 vertices and 4 faces, then read it back."""
         path = tmp_output / "binary.ply"
         # A tetrahedron: 4 vertices, 4 faces
-        vertices = np.array(
-            [[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]], dtype=np.float64
-        )
+        vertices = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]], dtype=np.float64)
         faces = np.array([[0, 1, 2], [0, 2, 3], [0, 3, 1], [1, 2, 3]], dtype=np.int32)
         with open(path, "wb") as f:
             f.write(b"ply\n")
@@ -444,6 +555,113 @@ class TestReadPly:
         with open(path, "w") as f:
             f.write("ply\nformat ascii 1.0\nend_header\n")
         with pytest.raises(ValueError, match="non-empty"):
+            read_ply(path)
+
+
+class TestReadPlyHeaderDriven:
+    """PLY parsing driven by the declared property types and order."""
+
+    @staticmethod
+    def _write_binary_ply(
+        path: Path,
+        vertex_props: list[tuple[str, str]],
+        vertex_rows: list[tuple[Any, ...]],
+        faces: list[list[int]],
+        byte_order: str = "<",
+        count_type: str = "uchar",
+        index_type: str = "int",
+        face_extra: tuple[str, str] | None = None,
+    ) -> None:
+        codes = {"float": "f", "double": "d", "uchar": "B", "int": "i", "uint": "I", "ushort": "H", "short": "h"}
+        fmt_name = "binary_little_endian" if byte_order == "<" else "binary_big_endian"
+        header = ["ply", f"format {fmt_name} 1.0", "comment test", f"element vertex {len(vertex_rows)}"]
+        header += [f"property {ptype} {pname}" for pname, ptype in vertex_props]
+        header += [f"element face {len(faces)}", f"property list {count_type} {index_type} vertex_indices"]
+        if face_extra is not None:
+            header.append(f"property {face_extra[1]} {face_extra[0]}")
+        header.append("end_header")
+        with open(path, "wb") as handle:
+            handle.write(("\n".join(header) + "\n").encode("ascii"))
+            vertex_fmt = byte_order + "".join(codes[ptype] for _, ptype in vertex_props)
+            for row in vertex_rows:
+                handle.write(struct.pack(vertex_fmt, *row))
+            for face in faces:
+                handle.write(struct.pack(byte_order + codes[count_type], len(face)))
+                handle.write(struct.pack(byte_order + codes[index_type] * len(face), *face))
+                if face_extra is not None:
+                    handle.write(struct.pack(byte_order + codes[face_extra[1]], 7))
+
+    TETRA_XYZ = [(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)]
+    TETRA_FACES = [[0, 1, 2], [0, 2, 3], [0, 3, 1], [1, 2, 3]]
+
+    def test_binary_float32_with_normals_and_colors(self, tmp_output: Path) -> None:
+        path = tmp_output / "float_normals_colors.ply"
+        props = [("x", "float"), ("y", "float"), ("z", "float"), ("nx", "float"), ("ny", "float"), ("nz", "float")]
+        props += [("red", "uchar"), ("green", "uchar"), ("blue", "uchar")]
+        rows = [(*xyz, 0.0, 0.0, 1.0, 255, 128, 0) for xyz in self.TETRA_XYZ]
+        self._write_binary_ply(path, props, rows, self.TETRA_FACES)
+        mesh = read_ply(path)
+        np.testing.assert_allclose(mesh.vertices, self.TETRA_XYZ)
+        np.testing.assert_array_equal(mesh.faces, self.TETRA_FACES)
+
+    def test_binary_big_endian(self, tmp_output: Path) -> None:
+        path = tmp_output / "big_endian.ply"
+        props = [("x", "double"), ("y", "double"), ("z", "double")]
+        self._write_binary_ply(path, props, self.TETRA_XYZ, self.TETRA_FACES, byte_order=">", index_type="uint")
+        mesh = read_ply(path)
+        np.testing.assert_allclose(mesh.vertices, self.TETRA_XYZ)
+        np.testing.assert_array_equal(mesh.faces, self.TETRA_FACES)
+
+    def test_binary_property_order_and_face_extras(self, tmp_output: Path) -> None:
+        """Coordinates declared out of order, extra face property after the index list."""
+        path = tmp_output / "reordered.ply"
+        props = [("z", "float"), ("confidence", "float"), ("x", "float"), ("y", "float")]
+        rows = [(z, 0.5, x, y) for x, y, z in self.TETRA_XYZ]
+        self._write_binary_ply(path, props, rows, self.TETRA_FACES, count_type="ushort", face_extra=("material", "uchar"))
+        mesh = read_ply(path)
+        np.testing.assert_allclose(mesh.vertices, self.TETRA_XYZ)
+        np.testing.assert_array_equal(mesh.faces, self.TETRA_FACES)
+
+    def test_binary_mixed_polygons_are_triangulated(self, tmp_output: Path) -> None:
+        path = tmp_output / "quads.ply"
+        props = [("x", "float"), ("y", "float"), ("z", "float")]
+        xyz = [(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (1.0, 1.0, 0.0), (0.0, 1.0, 0.0), (0.5, 0.5, 1.0)]
+        faces = [[0, 1, 2, 3], [0, 1, 4], [1, 2, 4], [2, 3, 4], [3, 0, 4]]
+        self._write_binary_ply(path, props, xyz, faces)
+        mesh = read_ply(path)
+        assert mesh.faces.shape == (6, 3)
+        np.testing.assert_array_equal(mesh.faces[:2], [[0, 1, 2], [0, 2, 3]])
+
+    def test_ascii_polygons_and_extra_properties(self, tmp_output: Path) -> None:
+        path = tmp_output / "ascii_quads.ply"
+        with open(path, "w") as handle:
+            handle.write("ply\nformat ascii 1.0\nelement vertex 5\nproperty float x\nproperty float y\nproperty float z\n")
+            handle.write("property uchar red\nelement face 5\nproperty list uchar int vertex_indices\nproperty int flags\nend_header\n")
+            handle.write("0 0 0 1\n1 0 0 2\n1 1 0 3\n0 1 0 4\n0.5 0.5 1 5\n")
+            handle.write("4 0 1 2 3 9\n3 0 1 4 9\n3 1 2 4 9\n3 2 3 4 9\n3 3 0 4 9\n")
+        mesh = read_ply(path)
+        assert mesh.vertices.shape == (5, 3)
+        assert mesh.faces.shape == (6, 3)
+
+    def test_truncated_binary_raises(self, tmp_output: Path) -> None:
+        path = tmp_output / "truncated.ply"
+        props = [("x", "float"), ("y", "float"), ("z", "float")]
+        self._write_binary_ply(path, props, self.TETRA_XYZ, self.TETRA_FACES)
+        path.write_bytes(path.read_bytes()[:-6])
+        with pytest.raises(ValueError, match="Unexpected EOF"):
+            read_ply(path)
+
+    def test_missing_coordinates_raises(self, tmp_output: Path) -> None:
+        path = tmp_output / "no_z.ply"
+        props = [("x", "float"), ("y", "float"), ("w", "float")]
+        self._write_binary_ply(path, props, self.TETRA_XYZ, self.TETRA_FACES)
+        with pytest.raises(ValueError, match="x, y and z"):
+            read_ply(path)
+
+    def test_unknown_property_type_raises(self, tmp_output: Path) -> None:
+        path = tmp_output / "bad_type.ply"
+        path.write_text("ply\nformat ascii 1.0\nelement vertex 1\nproperty quad x\nend_header\n0\n")
+        with pytest.raises(ValueError, match="unsupported property type"):
             read_ply(path)
 
 
@@ -709,6 +927,7 @@ class TestGenerateCarMeshCLI:
     def test_generates_ply(self, tmp_output: Path) -> None:
         out = tmp_output / "car.ply"
         from opencda.core.attack.advcp.utils.generate_car_mesh import main
+
         sys.argv = ["generate_car_mesh", "--vehicle-blueprint", "vehicle.tesla.model3", "--output", str(out)]
         main()
         assert out.exists()
@@ -719,10 +938,15 @@ class TestGenerateCarMeshCLI:
         out = tmp_output / "car.ply"
         sys.argv = [
             "generate_car_mesh",
-            "--dimensions", "5.0", "2.0", "1.8",
-            "--output", str(out),
+            "--dimensions",
+            "5.0",
+            "2.0",
+            "1.8",
+            "--output",
+            str(out),
         ]
         from opencda.core.attack.advcp.utils.generate_car_mesh import main
+
         main()
         mesh = read_mesh(out)
         size = mesh.vertices.max(axis=0) - mesh.vertices.min(axis=0)
@@ -732,26 +956,40 @@ class TestGenerateCarMeshCLI:
 class TestGenerateMeshDivideCLI:
     """Smoke tests for generate_mesh_divide CLI."""
 
-    def test_generates_spoof_pkl(self, sample_box_mesh: MeshData, tmp_output: Path) -> None:
+    def test_generates_spoof_pkl(self, sample_car_mesh: MeshData, tmp_output: Path) -> None:
         mesh_path = tmp_output / "mesh.ply"
-        write_ascii_ply(sample_box_mesh, mesh_path)
+        write_ascii_ply(sample_car_mesh, mesh_path)
         out = tmp_output / "divide.pkl"
         sys.argv = ["generate_mesh_divide", "--mesh", str(mesh_path), "--mode", "spoof", "--output", str(out)]
         from opencda.core.attack.advcp.utils.generate_mesh_divide import main
+
         main()
         assert out.exists()
         loaded = load_divide_pickle(out)
         assert len(loaded) == 8
 
-    def test_generates_remove_pkl(self, sample_box_mesh: MeshData, tmp_output: Path) -> None:
+    def test_generates_remove_pkl(self, sample_car_mesh: MeshData, tmp_output: Path) -> None:
         mesh_path = tmp_output / "mesh.ply"
-        write_ascii_ply(sample_box_mesh, mesh_path)
+        write_ascii_ply(sample_car_mesh, mesh_path)
         out = tmp_output / "divide.pkl"
         sys.argv = ["generate_mesh_divide", "--mesh", str(mesh_path), "--mode", "remove", "--output", str(out)]
         from opencda.core.attack.advcp.utils.generate_mesh_divide import main
+
         main()
         loaded = load_divide_pickle(out)
         assert len(loaded) == 10
+
+    def test_rejects_divide_with_empty_pieces(self, sample_box_mesh: MeshData, tmp_output: Path) -> None:
+        """A bare 8-vertex box cannot be split into 8 non-empty spoof pieces."""
+        mesh_path = tmp_output / "mesh.ply"
+        write_ascii_ply(sample_box_mesh, mesh_path)
+        out = tmp_output / "divide.pkl"
+        sys.argv = ["generate_mesh_divide", "--mesh", str(mesh_path), "--mode", "spoof", "--output", str(out)]
+        from opencda.core.attack.advcp.utils.generate_mesh_divide import main
+
+        with pytest.raises(ValueError, match="no complete triangles"):
+            main()
+        assert not out.exists()
 
 
 class TestGenerateRemoveAdvshapeAssetsCLI:
@@ -761,10 +999,13 @@ class TestGenerateRemoveAdvshapeAssetsCLI:
         out = tmp_output / "divide.pkl"
         sys.argv = [
             "generate_remove_advshape_assets",
-            "--mode", "divide",
-            "--output", str(out),
+            "--mode",
+            "divide",
+            "--output",
+            str(out),
         ]
         from opencda.core.attack.advcp.utils.generate_remove_advshape_assets import main
+
         main()
         assert out.exists()
         loaded = load_divide_pickle(out)
@@ -774,10 +1015,13 @@ class TestGenerateRemoveAdvshapeAssetsCLI:
         out = tmp_output / "perturb.npy"
         sys.argv = [
             "generate_remove_advshape_assets",
-            "--mode", "perturb",
-            "--output", str(out),
+            "--mode",
+            "perturb",
+            "--output",
+            str(out),
         ]
         from opencda.core.attack.advcp.utils.generate_remove_advshape_assets import main
+
         main()
         assert out.exists()
         loaded = np.load(out)
@@ -787,13 +1031,18 @@ class TestGenerateRemoveAdvshapeAssetsCLI:
         out = tmp_output / "perturb.npy"
         sys.argv = [
             "generate_remove_advshape_assets",
-            "--mode", "perturb",
+            "--mode",
+            "perturb",
             "--random",
-            "--seed", "42",
-            "--perturb-scale", "0.3",
-            "--output", str(out),
+            "--seed",
+            "42",
+            "--perturb-scale",
+            "0.3",
+            "--output",
+            str(out),
         ]
         from opencda.core.attack.advcp.utils.generate_remove_advshape_assets import main
+
         main()
         loaded = np.load(out)
         assert loaded.min() >= -0.3
@@ -804,11 +1053,15 @@ class TestGenerateRemoveAdvshapeAssetsCLI:
         pert_out = tmp_output / "perturb.npy"
         sys.argv = [
             "generate_remove_advshape_assets",
-            "--mode", "both",
-            "--divide-output", str(div_out),
-            "--perturb-output", str(pert_out),
+            "--mode",
+            "both",
+            "--divide-output",
+            str(div_out),
+            "--perturb-output",
+            str(pert_out),
         ]
         from opencda.core.attack.advcp.utils.generate_remove_advshape_assets import main
+
         main()
         assert div_out.exists()
         assert pert_out.exists()
@@ -822,36 +1075,62 @@ class TestValidateAdvcpAssetsCLI:
         write_ascii_ply(sample_box_mesh, mesh_path)
         sys.argv = [
             "validate_advcp_assets",
-            "--car-mesh", str(mesh_path),
+            "--car-mesh",
+            str(mesh_path),
         ]
         from opencda.core.attack.advcp.utils.validate_advcp_assets import main
+
         main()  # should not raise
 
-    def test_validate_all_assets(self, sample_box_mesh: MeshData, tmp_output: Path) -> None:
+    def test_validate_all_assets(self, sample_car_mesh: MeshData, tmp_output: Path) -> None:
+        mesh_path = tmp_output / "mesh.ply"
+        write_ascii_ply(sample_car_mesh, mesh_path)
+        spoof_path = tmp_output / "spoof.pkl"
+        dump_divide_pickle(generate_divide_indices(sample_car_mesh.vertices, "spoof"), spoof_path)
+        remove_path = tmp_output / "remove.pkl"
+        dump_divide_pickle(generate_divide_indices(sample_car_mesh.vertices, "remove"), remove_path)
+        perturb_path = tmp_output / "perturb.npy"
+        save_perturbation(perturb_path, np.zeros((sample_car_mesh.vertices.shape[0], 3), dtype=np.float32))
+        sys.argv = [
+            "validate_advcp_assets",
+            "--car-mesh",
+            str(mesh_path),
+            "--spoof-divide",
+            str(spoof_path),
+            "--remove-divide",
+            str(remove_path),
+            "--remove-perturb",
+            str(perturb_path),
+        ]
+        from opencda.core.attack.advcp.utils.validate_advcp_assets import main
+
+        main()
+
+    def test_validate_fails_on_empty_spoof_pieces(self, sample_box_mesh: MeshData, tmp_output: Path) -> None:
         mesh_path = tmp_output / "mesh.ply"
         write_ascii_ply(sample_box_mesh, mesh_path)
         spoof_path = tmp_output / "spoof.pkl"
         dump_divide_pickle(generate_divide_indices(sample_box_mesh.vertices, "spoof"), spoof_path)
-        remove_path = tmp_output / "remove.pkl"
-        dump_divide_pickle(generate_divide_indices(sample_box_mesh.vertices, "remove"), remove_path)
-        perturb_path = tmp_output / "perturb.npy"
-        save_perturbation(perturb_path, np.zeros((sample_box_mesh.vertices.shape[0], 3), dtype=np.float32))
         sys.argv = [
             "validate_advcp_assets",
-            "--car-mesh", str(mesh_path),
-            "--spoof-divide", str(spoof_path),
-            "--remove-divide", str(remove_path),
-            "--remove-perturb", str(perturb_path),
+            "--car-mesh",
+            str(mesh_path),
+            "--spoof-divide",
+            str(spoof_path),
         ]
         from opencda.core.attack.advcp.utils.validate_advcp_assets import main
-        main()
+
+        with pytest.raises(SystemExit):
+            main()
 
     def test_validate_fails_on_missing_file(self, tmp_output: Path) -> None:
         sys.argv = [
             "validate_advcp_assets",
-            "--car-mesh", str(tmp_output / "nonexistent.ply"),
+            "--car-mesh",
+            str(tmp_output / "nonexistent.ply"),
         ]
         from opencda.core.attack.advcp.utils.validate_advcp_assets import main
+
         with pytest.raises(SystemExit):
             main()
 
@@ -860,10 +1139,13 @@ class TestValidateAdvcpAssetsCLI:
         write_ascii_ply(sample_box_mesh, mesh_path)
         sys.argv = [
             "validate_advcp_assets",
-            "--car-mesh", str(mesh_path),
-            "--expected-vertices", "9999",
+            "--car-mesh",
+            str(mesh_path),
+            "--expected-vertices",
+            "9999",
         ]
         from opencda.core.attack.advcp.utils.validate_advcp_assets import main
+
         with pytest.raises(SystemExit):
             main()
 

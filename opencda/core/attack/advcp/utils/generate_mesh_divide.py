@@ -34,7 +34,12 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from opencda.core.attack.advcp.utils.asset_utils import dump_divide_pickle, generate_divide_indices, read_mesh
+from opencda.core.attack.advcp.utils.asset_utils import (
+    dump_divide_pickle,
+    generate_divide_indices,
+    read_mesh,
+    validate_divide_pieces,
+)
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -58,11 +63,13 @@ def main() -> None:
 
     Parses arguments, reads the input mesh, generates vertex-group
     indices for the specified mode, serialises them to a pickle file,
-    and prints a summary.
+    and prints a summary. Fails before writing when a group would
+    produce an empty mesh piece.
     """
     args = _build_parser().parse_args()
     mesh = read_mesh(args.mesh)
     divide = generate_divide_indices(mesh.vertices, mode=args.mode)
+    validate_divide_pieces(divide, mesh.faces, f"Generated {args.mode} mesh divide")
     dump_divide_pickle(divide, args.output)
     print(f"Generated {args.mode} mesh divide: {args.output} ({len(divide)} groups)")
 

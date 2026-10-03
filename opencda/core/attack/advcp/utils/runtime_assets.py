@@ -34,6 +34,7 @@ from opencda.core.attack.advcp.utils.asset_utils import (
     generate_divide_indices,
     parse_dimensions_arg,
     save_perturbation,
+    validate_divide_pieces,
     write_mesh,
 )
 
@@ -173,6 +174,7 @@ class AdvCPRuntimeAssetHelper:
         mesh = copy_or_generate_mesh(source_path, dimensions=dimensions, preserve_aspect=preserve_aspect)
         write_mesh(car_mesh_path, mesh)
         divide = generate_divide_indices(mesh.vertices, mode="spoof")
+        validate_divide_pieces(divide, mesh.faces, "Generated spoof mesh divide")
         dump_divide_pickle(divide, car_mesh_divide_path)
         logger.info(
             "Generated AdvCP runtime spoof assets at mesh='%s', divide='%s'.",
@@ -222,6 +224,7 @@ class AdvCPRuntimeAssetHelper:
         template = advshape_template_mesh()
         if not divide_path.exists():
             divide = generate_divide_indices(template.vertices, mode="remove")
+            validate_divide_pieces(divide, template.faces, "Generated removal mesh divide")
             dump_divide_pickle(divide, divide_path)
 
         if bool(config.get("remove_adv_shape_generate_zero_perturb", False)) and not perturb_path.exists():
