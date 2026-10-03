@@ -19,21 +19,21 @@ Usage examples
 
 Validate all assets::
 
-    python -m opencda.core.attack.advcp.utils.validate_advcp_assets \\
-        --car-mesh opencda/core/attack/advcp/3d_models/car_mesh_0200.ply \\
-        --spoof-divide opencda/core/attack/advcp/3d_models/spoof/car_mesh_divide.pkl \\
-        --remove-divide opencda/core/attack/advcp/3d_models/remove/mesh_divide.pkl \\
-        --remove-perturb opencda/core/attack/advcp/3d_models/remove/mesh_perturb.npy
+    python -m scripts.advcp.validate_advcp_assets \\
+        --car-mesh ../models/advcp/my-car/car_mesh_0200.ply \\
+        --spoof-divide ../models/advcp/my-car/spoof/car_mesh_divide.pkl \\
+        --remove-divide ../models/advcp/my-car/remove/mesh_divide.pkl \\
+        --remove-perturb ../models/advcp/my-car/remove/mesh_perturb.npy
 
 Validate only the car mesh::
 
-    python -m opencda.core.attack.advcp.utils.validate_advcp_assets \\
-        --car-mesh opencda/core/attack/advcp/3d_models/car_mesh_0200.ply
+    python -m scripts.advcp.validate_advcp_assets \\
+        --car-mesh ../models/advcp/my-car/car_mesh_0200.ply
 
 Validate with an explicit expected vertex count::
 
-    python -m opencda.core.attack.advcp.utils.validate_advcp_assets \\
-        --car-mesh opencda/core/attack/advcp/3d_models/car_mesh_0200.ply \\
+    python -m scripts.advcp.validate_advcp_assets \\
+        --car-mesh ../models/advcp/my-car/car_mesh_0200.ply \\
         --expected-vertices 148755
 """
 

@@ -17,19 +17,19 @@ Usage examples
 
 Generate a mesh for the default Tesla Model 3 blueprint::
 
-    python -m opencda.core.attack.advcp.utils.generate_car_mesh \\
-        --output opencda/core/attack/advcp/3d_models/car_mesh_0200.ply
+    python -m scripts.advcp.generate_car_mesh \\
+        --output ../models/advcp/my-car/car_mesh_0200.ply
 
 Generate a mesh for a specific blueprint with custom dimensions::
 
-    python -m opencda.core.attack.advcp.utils.generate_car_mesh \\
+    python -m scripts.advcp.generate_car_mesh \\
         --vehicle-blueprint vehicle.audi.a2 \\
         --dimensions 3.7 1.7 1.55 \\
         --output /tmp/car_mesh_audi.ply
 
 Generate a mesh from an external .obj file, preserving aspect ratio::
 
-    python -m opencda.core.attack.advcp.utils.generate_car_mesh \\
+    python -m scripts.advcp.generate_car_mesh \\
         --mesh-input /path/to/vehicle.obj \\
         --dimensions 4.5 2.0 1.6 \\
         --preserve-aspect \\

@@ -16,17 +16,17 @@ Usage examples
 
 Generate spoof mesh-divide metadata::
 
-    python -m opencda.core.attack.advcp.utils.generate_mesh_divide \\
-        --mesh opencda/core/attack/advcp/3d_models/car_mesh_0200.ply \\
+    python -m scripts.advcp.generate_mesh_divide \\
+        --mesh ../models/advcp/my-car/car_mesh_0200.ply \\
         --mode spoof \\
-        --output opencda/core/attack/advcp/3d_models/spoof/car_mesh_divide.pkl
+        --output ../models/advcp/my-car/spoof/car_mesh_divide.pkl
 
 Generate removal mesh-divide metadata::
 
-    python -m opencda.core.attack.advcp.utils.generate_mesh_divide \\
-        --mesh opencda/core/attack/advcp/3d_models/car_mesh_0200.ply \\
+    python -m scripts.advcp.generate_mesh_divide \\
+        --mesh ../models/advcp/my-car/car_mesh_0200.ply \\
         --mode remove \\
-        --output opencda/core/attack/advcp/3d_models/remove/mesh_divide.pkl
+        --output ../models/advcp/my-car/remove/mesh_divide.pkl
 """
 
 from __future__ import annotations

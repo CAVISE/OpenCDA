@@ -13,38 +13,38 @@ Usage examples
 
 Generate removal mesh-divide from an existing car mesh::
 
-    python -m opencda.core.attack.advcp.utils.generate_remove_advshape_assets \\
+    python -m scripts.advcp.generate_remove_advshape_assets \\
         --mode divide \\
-        --mesh opencda/core/attack/advcp/3d_models/car_mesh_0200.ply \\
-        --output opencda/core/attack/advcp/3d_models/remove/mesh_divide.pkl
+        --mesh ../models/advcp/my-car/car_mesh_0200.ply \\
+        --output ../models/advcp/my-car/remove/mesh_divide.pkl
 
 Generate removal mesh-divide from the built-in AdvCP template mesh::
 
-    python -m opencda.core.attack.advcp.utils.generate_remove_advshape_assets \\
+    python -m scripts.advcp.generate_remove_advshape_assets \\
         --mode divide \\
-        --output opencda/core/attack/advcp/3d_models/remove/mesh_divide.pkl
+        --output ../models/advcp/my-car/remove/mesh_divide.pkl
 
 Generate a zero-initialised perturbation tensor::
 
-    python -m opencda.core.attack.advcp.utils.generate_remove_advshape_assets \\
+    python -m scripts.advcp.generate_remove_advshape_assets \\
         --mode perturb \\
-        --output opencda/core/attack/advcp/3d_models/remove/mesh_perturb.npy
+        --output ../models/advcp/my-car/remove/mesh_perturb.npy
 
 Generate a random perturbation tensor (for testing / warm-start)::
 
-    python -m opencda.core.attack.advcp.utils.generate_remove_advshape_assets \\
+    python -m scripts.advcp.generate_remove_advshape_assets \\
         --mode perturb \\
         --random \\
         --seed 42 \\
-        --output opencda/core/attack/advcp/3d_models/remove/mesh_perturb.npy
+        --output ../models/advcp/my-car/remove/mesh_perturb.npy
 
 Generate both divide and perturb in one call::
 
-    python -m opencda.core.attack.advcp.utils.generate_remove_advshape_assets \\
+    python -m scripts.advcp.generate_remove_advshape_assets \\
         --mode both \\
-        --mesh opencda/core/attack/advcp/3d_models/car_mesh_0200.ply \\
-        --divide-output opencda/core/attack/advcp/3d_models/remove/mesh_divide.pkl \\
-        --perturb-output opencda/core/attack/advcp/3d_models/remove/mesh_perturb.npy
+        --mesh ../models/advcp/my-car/car_mesh_0200.ply \\
+        --divide-output ../models/advcp/my-car/remove/mesh_divide.pkl \\
+        --perturb-output ../models/advcp/my-car/remove/mesh_perturb.npy
 """
 
 from __future__ import annotations
