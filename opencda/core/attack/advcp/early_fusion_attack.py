@@ -55,6 +55,11 @@ from opencood.tools import inference_utils
 from opencood.utils.transformation_utils import x_to_world
 
 from opencda.core.attack.advcp.attack_helper import AdvCPAttackHelper, AdvCPCarMeshHelper
+from opencda.core.attack.advcp.utils.asset_utils import (
+    ADVSHAPE_TEMPLATE_DIMENSIONS_M,
+    advshape_default_divide,
+    advshape_template_mesh,
+)
 from opencda.core.attack.advcp.types import (
     AdvCPAttackResult,
     AdvCPConfig,
@@ -1013,14 +1018,13 @@ class AdvCoperceptionEarlyFusionAttack:
     def _create_adv_shape_template_mesh(cls, advcp_config: AdvCPConfig) -> Any:
         import open3d as o3d
 
-        # Matches AdvCP canonical adversarial shape template dimensions.
-        template_box = np.array([0.0, 0.0, 0.0, 4.9, 2.5, 2.0, 0.0], dtype=np.float32)
-        mesh = AdvCPCarMeshHelper.build_box_piece_mesh(
-            template_box,
-            (float(template_box[3]), float(template_box[4]), float(template_box[5])),
-            (0.0, 0.0, float(template_box[5]) / 2.0),
+        # Shared with the asset generators so that positional perturbation
+        # and divide assets address the same vertices.
+        template = advshape_template_mesh()
+        mesh = o3d.geometry.TriangleMesh(
+            o3d.utility.Vector3dVector(template.vertices),
+            o3d.utility.Vector3iVector(template.faces),
         )
-        mesh = mesh.subdivide_midpoint(2)
 
         perturb_path = cls._resolve_optional_advshape_path(advcp_config.get("remove_adv_shape_perturb_path"))
         if perturb_path is not None and perturb_path.exists():
@@ -1049,25 +1053,12 @@ class AdvCoperceptionEarlyFusionAttack:
 
     @staticmethod
     def _default_adv_shape_divide(template_mesh: Any) -> list[npt.NDArray]:
-        vertices = np.asarray(template_mesh.vertices, dtype=np.float64)
-        bbox = np.array([4.9, 2.5, 2.0], dtype=np.float64)
-        return [
-            np.argwhere(vertices[:, 0] > bbox[0] / 2.0 - 0.01).reshape(-1),
-            np.argwhere(vertices[:, 0] < -bbox[0] / 2.0 + 0.01).reshape(-1),
-            np.argwhere(np.logical_and(vertices[:, 0] >= 0.0, vertices[:, 1] > bbox[1] / 2.0 - 0.01)).reshape(-1),
-            np.argwhere(np.logical_and(vertices[:, 0] <= 0.0, vertices[:, 1] > bbox[1] / 2.0 - 0.01)).reshape(-1),
-            np.argwhere(np.logical_and(vertices[:, 0] >= 0.0, vertices[:, 1] < -bbox[1] / 2.0 + 0.01)).reshape(-1),
-            np.argwhere(np.logical_and(vertices[:, 0] <= 0.0, vertices[:, 1] < -bbox[1] / 2.0 + 0.01)).reshape(-1),
-            np.argwhere(np.logical_and(vertices[:, 0] >= 0.0, vertices[:, 2] > bbox[2] - 0.01)).reshape(-1),
-            np.argwhere(np.logical_and(vertices[:, 0] <= 0.0, vertices[:, 2] > bbox[2] - 0.01)).reshape(-1),
-            np.argwhere(np.logical_and(vertices[:, 0] >= 0.0, vertices[:, 2] < 0.01)).reshape(-1),
-            np.argwhere(np.logical_and(vertices[:, 0] <= 0.0, vertices[:, 2] < 0.01)).reshape(-1),
-        ]
+        return advshape_default_divide(np.asarray(template_mesh.vertices, dtype=np.float64))
 
     @staticmethod
     def _apply_adv_shape_transform(mesh_pieces: list[Any], removal_box: npt.NDArray) -> list[Any]:
         transformed_meshes = []
-        reference_size = np.array([4.9, 2.5, 2.0], dtype=np.float64)
+        reference_size = np.asarray(ADVSHAPE_TEMPLATE_DIMENSIONS_M, dtype=np.float64)
         scale = float(np.max((np.asarray(removal_box[3:6], dtype=np.float64) + 0.6) / reference_size))
         rotation = np.array(
             [
