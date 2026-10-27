@@ -45,6 +45,7 @@ from opencda.core.attack.advcp.types import (
     AgentId,
     AttackerId,
 )
+from opencda.core.attack.advcp.utils.runtime_assets import AdvCPRuntimeAssetHelper
 from opencda.core.common.coperception_model_manager import (
     CoperceptionInferenceResult,
     CoperceptionModelManager,
@@ -407,6 +408,10 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
         step_value = cast(int | str, config["step"])
         config.setdefault("lr", 1.0 if int(step_value) <= 2 else 0.05)
         config.setdefault("feature_size", 10)
+        # Runtime asset generation writes to user-set spoof paths only; bundle defaults are never overwritten.
+        spoof_paths_explicit = ("car_mesh_path" in config or "model_path" in config) and (
+            "car_mesh_divide_path" in config or "mesh_divide_path" in config
+        )
         config.setdefault("car_mesh_path", config.get("model_path", str(local_model_root / "car_mesh_0200.ply")))
         config.setdefault(
             "car_mesh_divide_path",
@@ -448,6 +453,9 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
                 path = Path(str(path_value)).expanduser()
                 if not path.is_absolute():
                     config[optional_path_key] = str((config_dir / path).resolve())
+
+        # Opt-in on-demand generation (``asset_runtime_generation: true``); points the asset paths at the result.
+        AdvCPRuntimeAssetHelper.prepare_assets(config, config_dir, spoof_paths_explicit)
         return cast(AdvCPConfig, config)
 
     def validate_advcp_agents(self, valid_agent_ids: list[AgentId]) -> bool:

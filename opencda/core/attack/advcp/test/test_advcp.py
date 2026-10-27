@@ -1,6 +1,7 @@
 import pytest
 from unittest.mock import MagicMock, patch
 from importlib import import_module
+from pathlib import Path
 import numpy as np
 
 # The production code imports are now safe because pytest_configure in conftest.py
@@ -974,6 +975,23 @@ class TestAdvCoperceptionModelManager:
 
         assert loaded_config["car_mesh_path"] == str(tmp_path / "car_mesh_0200.ply")
         assert loaded_config["car_mesh_divide_path"] == str(tmp_path / "spoof" / "car_mesh_divide.pkl")
+
+    def test_load_config_generates_runtime_assets_when_enabled(self, tmp_path):
+        config_path = tmp_path / "advcp.yaml"
+        config_path.write_text(
+            "asset_runtime_generation: true\nvehicle_blueprint: vehicle.audi.a2\nadvshape: true\nasset_cache_dir: cache\n",
+            encoding="utf-8",
+        )
+        bundle_dir = tmp_path / "bundle"
+
+        loaded_config = AdvCoperceptionModelManager.load_config(str(config_path), assets_dir=str(bundle_dir))
+
+        cache_dir = (tmp_path / "cache").resolve()
+        for key in ("car_mesh_path", "car_mesh_divide_path", "remove_adv_shape_divide_path"):
+            path = Path(loaded_config[key])
+            assert path.exists()
+            assert cache_dir in path.parents
+        assert not bundle_dir.exists()
 
 
 class TestAdvCoperceptionVisualizer:

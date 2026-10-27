@@ -1,0 +1,78 @@
+"""
+CLI for generating AdvCP mesh-division metadata (.pkl).
+
+Generates vertex-group index arrays that partition a vehicle mesh into
+spatial regions. These index groups are used by the AdvCP attack
+pipeline to apply per-region adversarial perturbations during spoofing
+or removal attacks.
+
+Two modes are supported:
+
+- ``spoof`` — produces 8 vertex groups (extremal faces and quadrants).
+- ``remove`` — produces 10 vertex groups (finer spatial partitioning).
+
+Usage examples
+--------------
+
+Generate spoof mesh-divide metadata::
+
+    python -m scripts.advcp.generate_mesh_divide \\
+        --mesh ../models/advcp/my-car/car_mesh_0200.ply \\
+        --mode spoof \\
+        --output ../models/advcp/my-car/spoof/car_mesh_divide.pkl
+
+Generate removal mesh-divide metadata::
+
+    python -m scripts.advcp.generate_mesh_divide \\
+        --mesh ../models/advcp/my-car/car_mesh_0200.ply \\
+        --mode remove \\
+        --output ../models/advcp/my-car/remove/mesh_divide.pkl
+"""
+
+from __future__ import annotations
+
+import argparse
+from pathlib import Path
+
+from opencda.core.attack.advcp.utils.asset_utils import (
+    dump_divide_pickle,
+    generate_divide_indices,
+    read_mesh,
+    validate_divide_pieces,
+)
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    """Build the CLI argument parser for the mesh-divide generation script.
+
+    Returns
+    -------
+    argparse.ArgumentParser
+        Configured parser with arguments for mesh path, divide mode,
+        and output path.
+    """
+    parser = argparse.ArgumentParser(description="Generate AdvCP mesh-division metadata (.pkl).")
+    parser.add_argument("--mesh", type=Path, required=True, help="Input mesh path (.ply or .obj).")
+    parser.add_argument("--mode", choices=("spoof", "remove"), required=True, help="Target divide mode.")
+    parser.add_argument("--output", type=Path, required=True, help="Output .pkl path.")
+    return parser
+
+
+def main() -> None:
+    """Entry point for the mesh-divide generation CLI.
+
+    Parses arguments, reads the input mesh, generates vertex-group
+    indices for the specified mode, serialises them to a pickle file,
+    and prints a summary. Fails before writing when a group would
+    produce an empty mesh piece.
+    """
+    args = _build_parser().parse_args()
+    mesh = read_mesh(args.mesh)
+    divide = generate_divide_indices(mesh.vertices, mode=args.mode)
+    validate_divide_pieces(divide, mesh.faces, f"Generated {args.mode} mesh divide")
+    dump_divide_pickle(divide, args.output)
+    print(f"Generated {args.mode} mesh divide: {args.output} ({len(divide)} groups)")
+
+
+if __name__ == "__main__":
+    main()

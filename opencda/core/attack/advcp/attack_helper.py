@@ -1224,10 +1224,22 @@ class AdvCPCarMeshHelper:
             car_mesh_pieces = [car_mesh.select_by_index(vertex_indices) for vertex_indices in cls._CAR_MESH_DIVIDE_CACHE[car_mesh_divide_path]]
         else:
             car_mesh_pieces = [car_mesh]
-        return cls.post_process_car_meshes(car_mesh_pieces, spoof_box, car_mesh_name)
+        car_mesh_bbox = cls.CAR_MESH_3D_EXAMPLES.get(car_mesh_name)
+        if car_mesh_bbox is None:
+            # Unknown (e.g. generated) mesh: measure its own extents instead
+            # of borrowing the reference box of a different car model.
+            extent = np.asarray(car_mesh.get_max_bound(), dtype=np.float64) - np.asarray(car_mesh.get_min_bound(), dtype=np.float64)
+            car_mesh_bbox = np.array([0.0, 0.0, 0.0, *extent, 0.0], dtype=np.float32)
+        return cls.post_process_car_meshes(car_mesh_pieces, spoof_box, car_mesh_name, car_mesh_bbox)
 
     @classmethod
-    def post_process_car_meshes(cls, car_mesh_pieces: list[Any], spoof_box: BoxLwhBottomCenter, car_mesh_name: str) -> list[Any]:
+    def post_process_car_meshes(
+        cls,
+        car_mesh_pieces: list[Any],
+        spoof_box: BoxLwhBottomCenter,
+        car_mesh_name: str,
+        car_mesh_bbox: npt.NDArray | None = None,
+    ) -> list[Any]:
         """
         Fit each mesh piece into the configured target box.
 
@@ -1242,7 +1254,11 @@ class AdvCPCarMeshHelper:
             Target box.
         car_mesh_name : str
             Stem of the mesh file; used to look up the reference
-            bounding box in ``CAR_MESH_3D_EXAMPLES``.
+            bounding box in ``CAR_MESH_3D_EXAMPLES`` when
+            ``car_mesh_bbox`` is not given.
+        car_mesh_bbox : Optional[npt.NDArray]
+            Reference bounding box ``[x, y, z, l, w, h, yaw]`` of the
+            source mesh. Takes precedence over the name lookup.
 
         Returns
         -------
@@ -1250,7 +1266,8 @@ class AdvCPCarMeshHelper:
             Transformed mesh pieces ready for ray tracing.
         """
         processed_meshes = []
-        car_mesh_bbox = cls.CAR_MESH_3D_EXAMPLES.get(car_mesh_name, cls.CAR_MESH_3D_EXAMPLES["car_mesh_0200"])
+        if car_mesh_bbox is None:
+            car_mesh_bbox = cls.CAR_MESH_3D_EXAMPLES.get(car_mesh_name, cls.CAR_MESH_3D_EXAMPLES["car_mesh_0200"])
         # Use the smallest per-axis scale ratio to preserve aspect.
         scale = float(np.min(spoof_box[3:6] / car_mesh_bbox[3:6]))
         rotation = np.array(

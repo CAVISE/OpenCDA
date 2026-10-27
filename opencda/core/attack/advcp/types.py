@@ -232,6 +232,27 @@ class AdvCPConfig(TypedDict, total=False):
         ``True``.
     model_path, mesh_divide_path : str
         Backwards-compatible aliases honoured by ``load_config``.
+    asset_runtime_generation : bool
+        Generate the car mesh / divide (and, with ``advshape``, removal
+        assets) on demand instead of using the asset bundle. See
+        ``opencda.core.attack.advcp.utils.runtime_assets``.
+    asset_cache_dir : str
+        Optional directory for reusable generated assets, keyed by a hash
+        of all generation inputs.
+    vehicle_blueprint : str
+        CARLA blueprint whose approximate dimensions size the generated
+        generic box mesh.
+    car_mesh_dimensions : Sequence of float
+        Explicit ``(length, width, height)`` of the generated mesh;
+        overrides ``vehicle_blueprint``.
+    car_mesh_source_path : str
+        Optional external ``.ply`` / ``.obj`` mesh to normalise and scale
+        instead of generating a box.
+    car_mesh_preserve_aspect : bool
+        Preserve the source mesh proportions while scaling.
+    remove_adv_shape_generate_zero_perturb : bool
+        Also write a zero adv-shape perturbation when generating removal
+        assets.
     """
 
     mode: str
@@ -254,6 +275,13 @@ class AdvCPConfig(TypedDict, total=False):
     remove_adv_shape_divide_path: str  # noqa: DC01
     model_path: str  # noqa: DC01
     mesh_divide_path: str  # noqa: DC01
+    asset_runtime_generation: bool  # noqa: DC01
+    asset_cache_dir: str  # noqa: DC01
+    vehicle_blueprint: str  # noqa: DC01
+    car_mesh_dimensions: Sequence[float]  # noqa: DC01
+    car_mesh_source_path: str  # noqa: DC01
+    car_mesh_preserve_aspect: bool  # noqa: DC01
+    remove_adv_shape_generate_zero_perturb: bool  # noqa: DC01
 
 
 class AdvCPIntermediateAttackState(TypedDict, total=False):
