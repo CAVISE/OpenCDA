@@ -19,7 +19,7 @@ ENV CAVISE_MODELS_ROOT=${HOME}/cavise/models
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-        ca-certificates=20260601~24.04.* \
+        ca-certificates=20260816ubuntu0.24.04.* \
         libsm6=2:1.2.* \
         libxext6=2:1.3.* \
         libxrender1=1:0.9.* \
@@ -75,7 +75,7 @@ ENV PATH="/opt/protobuf-build-venv/bin:${PATH}"
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-        ca-certificates=20260601~24.04.* \
+        ca-certificates=20260816ubuntu0.24.04.* \
         curl=8.5.* \
         python3=3.12.* \
         python3-venv=3.12.* \
@@ -122,7 +122,7 @@ ENV PATH="/opt/cuda-build-venv/bin:${PATH}"
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-        ca-certificates=20260601~24.04.* \
+        ca-certificates=20260816ubuntu0.24.04.* \
         python3=3.12.* \
         python3-dev=3.12.* \
         python3-venv=3.12.* \
@@ -207,7 +207,7 @@ COPY opencood/docker/sync-cuda-artifacts.sh \
 
 RUN chmod 755 /usr/local/bin/opencood-sync-cuda-artifacts && \
     python -m pip install --no-cache-dir --no-build-isolation --no-deps \
-        --editable ${OPENCOOD_WORKSPACE}
+        --editable "${OPENCOOD_WORKSPACE}"
 
 USER ${USER}
 
