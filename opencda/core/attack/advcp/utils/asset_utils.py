@@ -471,16 +471,17 @@ def generate_divide_indices(vertices: npt.NDArray[np.float64], mode: str) -> lis
     groups: list[npt.NDArray[np.int32]]
 
     if mode_normalized == "spoof":
-        groups = [
-            np.argwhere(x >= maxs[0] - eps[0]).reshape(-1),
-            np.argwhere(x <= mins[0] + eps[0]).reshape(-1),
-            np.argwhere(y >= maxs[1] - eps[1]).reshape(-1),
-            np.argwhere(y <= mins[1] + eps[1]).reshape(-1),
-            np.argwhere(z >= maxs[2] - eps[2]).reshape(-1),
-            np.argwhere(z <= mins[2] + eps[2]).reshape(-1),
-            np.argwhere(np.logical_and(x >= mids[0], z >= mids[2])).reshape(-1),
-            np.argwhere(np.logical_and(x < mids[0], z >= mids[2])).reshape(-1),
+        masks = [
+            x >= maxs[0] - eps[0],
+            x <= mins[0] + eps[0],
+            y >= maxs[1] - eps[1],
+            y <= mins[1] + eps[1],
+            z >= maxs[2] - eps[2],
+            z <= mins[2] + eps[2],
+            np.logical_and(x >= mids[0], z >= mids[2]),
+            np.logical_and(x < mids[0], z >= mids[2]),
         ]
+        groups = [np.argwhere(mask).reshape(-1).astype(np.int32) for mask in masks]
     else:
         groups = _remove_divide_groups(coords, mins, maxs)
 
@@ -1229,7 +1230,7 @@ def validate_mesh_frame_and_scale(mesh: MeshData, name: str) -> None:
         raise ValueError(f"{name} XY center is far from origin (center=({center_xy[0]:.3f}, {center_xy[1]:.3f})); expected near bottom-center frame.")
 
 
-def save_perturbation(path: Path, perturbation: npt.NDArray[np.float64]) -> None:
+def save_perturbation(path: Path, perturbation: npt.NDArray[np.float32] | npt.NDArray[np.float64]) -> None:
     """Save a per-vertex perturbation tensor to a ``.npy`` file.
 
     The parent directory is created automatically if it does not exist.

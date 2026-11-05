@@ -976,6 +976,71 @@ class TestAdvCoperceptionModelManager:
         assert loaded_config["car_mesh_path"] == str(tmp_path / "car_mesh_0200.ply")
         assert loaded_config["car_mesh_divide_path"] == str(tmp_path / "spoof" / "car_mesh_divide.pkl")
 
+    def test_load_config_prefers_generated_bundle_layout(self, tmp_path):
+        for relative_path in ("car_mesh.ply", "car_mesh_0200.ply", "spoof/car_mesh_divide.pkl", "remove/mesh_divide.pkl"):
+            (tmp_path / relative_path).parent.mkdir(parents=True, exist_ok=True)
+            (tmp_path / relative_path).write_bytes(b"x")
+
+        loaded_config = AdvCoperceptionModelManager.load_config(None, assets_dir=str(tmp_path))
+
+        assert loaded_config["car_mesh_path"] == str(tmp_path / "car_mesh.ply")
+        assert loaded_config["car_mesh_divide_path"] == str(tmp_path / "spoof" / "car_mesh_divide.pkl")
+        assert loaded_config["remove_adv_shape_divide_path"] == str(tmp_path / "remove" / "mesh_divide.pkl")
+        assert "remove_adv_shape_perturb_path" not in loaded_config
+
+    def test_load_config_derives_spoof_divide_for_mesh_only_bundle(self, tmp_path):
+        from opencda.core.attack.advcp.utils.asset_utils import (
+            copy_or_generate_mesh,
+            divide_piece_face_counts,
+            load_divide_pickle,
+            read_mesh,
+            write_ascii_ply,
+        )
+
+        write_ascii_ply(copy_or_generate_mesh(None, (3.7, 1.7, 1.55), preserve_aspect=False), tmp_path / "car_mesh.ply")
+
+        loaded_config = AdvCoperceptionModelManager.load_config(None, assets_dir=str(tmp_path))
+        reloaded_config = AdvCoperceptionModelManager.load_config(None, assets_dir=str(tmp_path))
+
+        divide_path = Path(loaded_config["car_mesh_divide_path"])
+        assert loaded_config["car_mesh_path"] == str(tmp_path / "car_mesh.ply")
+        assert divide_path.is_file()
+        assert tmp_path not in divide_path.parents
+        assert reloaded_config["car_mesh_divide_path"] == str(divide_path)
+        mesh = read_mesh(tmp_path / "car_mesh.ply")
+        assert all(count > 0 for count in divide_piece_face_counts(load_divide_pickle(divide_path), mesh.faces))
+
+    def test_load_config_keeps_explicit_removal_paths_over_bundle(self, tmp_path):
+        bundle_dir = tmp_path / "bundle"
+        (bundle_dir / "remove").mkdir(parents=True)
+        (bundle_dir / "remove" / "mesh_divide.pkl").write_bytes(b"x")
+        (bundle_dir / "remove" / "mesh_perturb.npy").write_bytes(b"x")
+        config_path = tmp_path / "advcp.yaml"
+        config_path.write_text("remove_adv_shape_divide_path: custom/divide.pkl\n", encoding="utf-8")
+
+        loaded_config = AdvCoperceptionModelManager.load_config(str(config_path), assets_dir=str(bundle_dir))
+
+        assert loaded_config["remove_adv_shape_divide_path"] == str((tmp_path / "custom" / "divide.pkl").resolve())
+        assert loaded_config["remove_adv_shape_perturb_path"] == str(bundle_dir.resolve() / "remove" / "mesh_perturb.npy")
+
+    @pytest.mark.parametrize("config_name", ["spoofing_forward_runtime_assets", "removal_forward_runtime_assets"])
+    def test_runtime_asset_example_configs_generate_assets(self, tmp_path, config_name):
+        import yaml
+
+        source = Path(__file__).resolve().parents[4] / "scenario_testing" / "config_yaml" / "advcp-configs" / f"{config_name}.yaml"
+        config = yaml.safe_load(source.read_text(encoding="utf-8"))
+        assert config["asset_runtime_generation"] is True
+        config["asset_cache_dir"] = str(tmp_path / "cache")
+        config_path = tmp_path / f"{config_name}.yaml"
+        config_path.write_text(yaml.safe_dump(config), encoding="utf-8")
+
+        loaded_config = AdvCoperceptionModelManager.load_config(str(config_path), assets_dir=str(tmp_path / "missing-bundle"))
+
+        assert Path(loaded_config["car_mesh_path"]).is_file()
+        assert Path(loaded_config["car_mesh_divide_path"]).is_file()
+        if config.get("advshape") is True:
+            assert Path(loaded_config["remove_adv_shape_divide_path"]).is_file()
+
     def test_load_config_generates_runtime_assets_when_enabled(self, tmp_path):
         config_path = tmp_path / "advcp.yaml"
         config_path.write_text(

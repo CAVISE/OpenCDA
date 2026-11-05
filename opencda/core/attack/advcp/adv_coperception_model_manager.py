@@ -56,6 +56,10 @@ from opencda.core.common.coperception_model_manager import (
 if TYPE_CHECKING:
     from opencood.communication import CommunicationDataInterface
 
+# Car-mesh file names inside an AdvCP asset bundle.
+GENERATED_CAR_MESH_NAME = "car_mesh.ply"
+LEGACY_CAR_MESH_NAME = "car_mesh_0200.ply"
+
 logger = logging.getLogger("cavise.opencda.opencda.core.attack.advcp.advcp_manager")
 
 
@@ -351,6 +355,45 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
         )
 
     @staticmethod
+    def resolve_bundle_asset_paths(bundle_root: Path) -> dict[str, str]:
+        """
+        Resolve the default asset paths provided by an AdvCP asset bundle.
+
+        Two car-mesh layouts are supported: generated bundles ship
+        ``car_mesh.ply`` (its reference size is measured from the mesh
+        itself), while the legacy ``base-car`` bundle ships
+        ``car_mesh_0200.ply``. The spoof partition is read from
+        ``spoof/car_mesh_divide.pkl``; when a bundle omits it,
+        ``load_config`` derives it from the mesh. Optional removal assets are picked
+        up from ``remove/mesh_divide.pkl`` and ``remove/mesh_perturb.npy``
+        when present.
+
+        Parameters
+        ----------
+        bundle_root : Path
+            Resolved AdvCP asset bundle directory.
+
+        Returns
+        -------
+        dict of str to str
+            ``car_mesh_path`` and ``car_mesh_divide_path`` (always), plus
+            ``remove_adv_shape_divide_path`` / ``remove_adv_shape_perturb_path``
+            for the removal assets that exist in the bundle.
+        """
+        generated_mesh = bundle_root / GENERATED_CAR_MESH_NAME
+        paths = {
+            "car_mesh_path": str(generated_mesh if generated_mesh.is_file() else bundle_root / LEGACY_CAR_MESH_NAME),
+            "car_mesh_divide_path": str(bundle_root / "spoof" / "car_mesh_divide.pkl"),
+        }
+        for config_key, relative_path in (
+            ("remove_adv_shape_divide_path", Path("remove") / "mesh_divide.pkl"),
+            ("remove_adv_shape_perturb_path", Path("remove") / "mesh_perturb.npy"),
+        ):
+            if (bundle_root / relative_path).is_file():
+                paths[config_key] = str(bundle_root / relative_path)
+        return paths
+
+    @staticmethod
     def load_config(config_path: str | None, assets_dir: str | None = None) -> AdvCPConfig:
         """
         Load and normalise the AdvCP YAML config.
@@ -412,11 +455,12 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
         spoof_paths_explicit = ("car_mesh_path" in config or "model_path" in config) and (
             "car_mesh_divide_path" in config or "mesh_divide_path" in config
         )
-        config.setdefault("car_mesh_path", config.get("model_path", str(local_model_root / "car_mesh_0200.ply")))
-        config.setdefault(
-            "car_mesh_divide_path",
-            config.get("mesh_divide_path", str(local_model_root / "spoof" / "car_mesh_divide.pkl")),
-        )
+        bundle_defaults = AdvCoperceptionModelManager.resolve_bundle_asset_paths(local_model_root)
+        config.setdefault("car_mesh_path", config.get("model_path", bundle_defaults["car_mesh_path"]))
+        config.setdefault("car_mesh_divide_path", config.get("mesh_divide_path", bundle_defaults["car_mesh_divide_path"]))
+        for removal_key in ("remove_adv_shape_divide_path", "remove_adv_shape_perturb_path"):
+            if removal_key in bundle_defaults:
+                config.setdefault(removal_key, bundle_defaults[removal_key])
 
         config["attacker_ids"] = AdvCPAttackHelper.resolve_configured_attacker_ids(cast(AdvCPConfig, config))
 
@@ -456,6 +500,12 @@ class AdvCoperceptionModelManager(CoperceptionModelManager):
 
         # Opt-in on-demand generation (``asset_runtime_generation: true``); points the asset paths at the result.
         AdvCPRuntimeAssetHelper.prepare_assets(config, config_dir, spoof_paths_explicit)
+
+        # Generated bundles ship only the mesh (the spoof partition depends on topology, not size, and would
+        # duplicate across bundles); derive it here instead of falling back to a single unpartitioned piece.
+        car_mesh_path = Path(str(config["car_mesh_path"]))
+        if car_mesh_path.is_file() and not Path(str(config["car_mesh_divide_path"])).exists():
+            config["car_mesh_divide_path"] = str(AdvCPRuntimeAssetHelper.derive_spoof_divide(car_mesh_path))
         return cast(AdvCPConfig, config)
 
     def validate_advcp_agents(self, valid_agent_ids: list[AgentId]) -> bool:

@@ -441,3 +441,40 @@ class AdvCPRuntimeAssetHelper:
         cls.ensure_spoof_assets(config, config_dir, spoof_paths_explicit)
         if config.get("advshape") is True:
             cls.ensure_remove_advshape_assets(config, config_dir)
+
+    @classmethod
+    def derive_spoof_divide(cls, mesh_path: Path) -> Path:
+        """Derive the spoof partition for a car mesh that ships without one.
+
+        The partition is a pure function of the mesh, so it is computed once
+        per mesh content and cached in the per-process temporary directory
+        (never next to the mesh, which may live in a read-only asset bundle).
+
+        Parameters
+        ----------
+        mesh_path : Path
+            Car mesh (``.ply`` or ``.obj``).
+
+        Returns
+        -------
+        Path
+            Spoof mesh-divide ``.pkl`` for the mesh.
+
+        Raises
+        ------
+        ValueError
+            If the mesh is invalid or a divide group would produce an empty
+            mesh piece.
+        """
+        spec = {"format_version": ASSET_FORMAT_VERSION, "kind": "spoof-divide", "mesh_sha256": cls._file_sha256(mesh_path)}
+        asset_dir = cls._temporary_root() / "spoof-divide" / cls._spec_key(spec)
+        divide_path = asset_dir / "car_mesh_divide.pkl"
+        metadata_path = asset_dir / _CACHE_METADATA_NAME
+        if not cls._is_current([divide_path], metadata_path, spec):
+            mesh = read_mesh(mesh_path)
+            divide = generate_divide_indices(mesh.vertices, mode="spoof")
+            validate_divide_pieces(divide, mesh.faces, f"Spoof mesh divide for '{mesh_path}'")
+            dump_divide_pickle(divide, divide_path)
+            cls._write_metadata(metadata_path, spec)
+            logger.info("Derived AdvCP spoof divide '%s' for mesh '%s'.", divide_path, mesh_path)
+        return divide_path
