@@ -1,0 +1,35 @@
+# For advcp_check scenario
+mode: removal
+
+#attacker_ids: [cav-5] # 1 attacker (helper-leftside-cav-5)
+attacker_ids: [cav-3] # 1 attacker (helper-backward-cav-3)
+#attacker_ids: [cav-2, cav-3, cav-5, cav-6, cav-7] # 5 attackers, 1 benign
+#attacker_ids: [cav-2, cav-3, cav-4, cav-5, cav-6, cav-7] # all 6 are attackers
+advshape: true
+
+# Shared attack target definition used by early-fusion removal.
+default_size: [4.5, 2.0, 1.6]
+boxes:
+  - absolute: [35, 149.792206, 0.0, 0.0, 0.0, 0.0] # remove custom-cav-20
+
+# These parameters are currently ignored by early-fusion removal
+# but kept here for config consistency across AdvCP modes.
+density: dense_all
+dense_distance: 10.0
+max_perturb: 10.0
+lr: 0.05
+step: 25
+sync: true
+init: true
+online: true
+feature_size: 10
+
+# Generate the car mesh and spoof partition on demand instead of loading
+# them from the --advcp-assets-id bundle. Assets are cached under
+# asset_cache_dir (relative paths resolve against this file) and reused
+# while every generation input stays the same. With advshape: true the
+# removal partition is generated into the same cache.
+asset_runtime_generation: true
+vehicle_blueprint: vehicle.audi.a2 # or car_mesh_dimensions: [4.3, 1.91, 1.26]
+# car_mesh_source_path: /path/to/vehicle.obj # external mesh instead of a generic box
+asset_cache_dir: ../../../../simulation_output/advcp_asset_cache

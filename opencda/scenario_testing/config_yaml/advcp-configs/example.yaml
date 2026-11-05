@@ -104,6 +104,19 @@ dense_distance: 10.0
 # asset bundle in the sibling models repository. Explicit absolute or relative
 # paths can still override them here.
 
+# Optional on-demand asset generation (instead of the bundle). The generated
+# car mesh is a subdivided box with the blueprint's approximate dimensions,
+# or an external mesh scaled to them. Set both car_mesh_path and
+# car_mesh_divide_path to generate into fixed files; otherwise assets go to
+# asset_cache_dir (reused across runs) or a per-run temporary directory.
+# asset_runtime_generation: true
+# vehicle_blueprint: vehicle.tesla.model3
+# car_mesh_dimensions: [4.3, 1.91, 1.26]   # overrides vehicle_blueprint
+# car_mesh_source_path: /path/to/vehicle.obj
+# car_mesh_preserve_aspect: true
+# asset_cache_dir: ~/.cache/cavise/advcp-assets
+# remove_adv_shape_generate_zero_perturb: false
+
 # ---------------------------------------------------------------------------
 # Intermediate-fusion spoofing parameters
 # ---------------------------------------------------------------------------
