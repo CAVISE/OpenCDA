@@ -118,23 +118,30 @@ def install_traceback_handler(verbose: bool = True, suppress_modules: Collection
 
 
 REPLAY_FLAG = "--replay-from"
+# Взаимоисключающие параметры: если при повторе задан один, сохранённый второй убираем.
+EXCLUSIVE_OPTIONS = (("--model-id", "--model-dir"),)
 
 
-def _strip_replay_flag(argv: list[str]) -> list[str]:
-    """Remove the replay flag and its path from argv."""
+def _strip_option(argv: list[str], flag: str) -> list[str]:
+    """Remove an option and its value from argv."""
     cleaned: list[str] = []
     skip_next = False
     for arg in argv:
         if skip_next:
             skip_next = False
             continue
-        if arg == REPLAY_FLAG:
+        if arg == flag:
             skip_next = True
             continue
-        if arg.startswith(f"{REPLAY_FLAG}="):
+        if arg.startswith(f"{flag}="):
             continue
         cleaned.append(arg)
     return cleaned
+
+
+def _strip_replay_flag(argv: list[str]) -> list[str]:
+    """Remove the replay flag and its path from argv."""
+    return _strip_option(argv, REPLAY_FLAG)
 
 
 # Parse command line args.
@@ -279,7 +286,14 @@ def resolve_launch_arguments(cli_argv: list[str]) -> tuple[argparse.Namespace, l
 
     replay_dir = pathlib.Path(opt.replay_from).resolve()
     manifest = load_run_manifest(replay_dir)
-    effective_argv = [*_strip_replay_flag(manifest["launch"]["argv"]), *_strip_replay_flag(cli_argv)]
+    saved_argv = _strip_replay_flag(manifest["launch"]["argv"])
+    cli_options = build_command_from_options(opt)
+    for first, second in EXCLUSIVE_OPTIONS:
+        if first in cli_options:
+            saved_argv = _strip_option(saved_argv, second)
+        if second in cli_options:
+            saved_argv = _strip_option(saved_argv, first)
+    effective_argv = [*saved_argv, *_strip_replay_flag(cli_argv)]
     opt = arg_parse(effective_argv)
     opt.replay_from = str(replay_dir)
     return opt, build_command_from_options(opt), manifest
@@ -387,18 +401,20 @@ def main() -> None:
         },
         replayed_from=opt.replay_from,
     )
-    if replay_manifest is not None:
-        for warning in run_metadata.compare_with_original(replay_manifest, opt):
-            logger.warning(f"replay may differ from the original run: {warning}")
-
-    # this function might setup crucial components in Scenario, so
-    # we should import as late as possible
-    from opencda.scenario_testing.scenario import run_scenario
 
     runtime_stats = {}
     t0 = time.perf_counter()
     run_status, run_error = "failed", None
+    # Манифест уже записан, поэтому любая ошибка дальше должна попасть в его статус.
     try:
+        if replay_manifest is not None:
+            for warning in run_metadata.compare_with_original(replay_manifest, opt):
+                logger.warning(f"replay may differ from the original run: {warning}")
+
+        # this function might setup crucial components in Scenario, so
+        # we should import as late as possible
+        from opencda.scenario_testing.scenario import run_scenario
+
         if opt.profile:
             profiler = cProfile.Profile()
             profiler.enable()

@@ -42,6 +42,8 @@ else:
     DatasetOpenCOOD: TypeAlias = object
 
 logger = logging.getLogger("cavise.opencda.opencda.core.common.coperception_model_manager")
+# Через этот атрибут постпроцессора код со своим NMS (late-fusion AdvCP) передаёт рамки до NMS.
+RAW_DETECTIONS_HOOK = "record_raw_detections"
 
 __all__ = (
     "CoperceptionInferenceResult",
@@ -735,6 +737,9 @@ class CoperceptionModelManager:
         """Capture candidates passed to post-processing.
 
         Boxes are already score-thresholded, but have not passed NMS.
+        Code that runs its own NMS instead of post_process_detections
+        (late-fusion AdvCP) reports candidates through the
+        ``record_raw_detections`` attribute of the post-processor.
         """
         calls: list[tuple[Any, Any, Any]] = []
         post_processor = getattr(getattr(self, "opencood_dataset", None), "post_processor", None)
@@ -744,16 +749,21 @@ class CoperceptionModelManager:
             yield calls
             return
 
+        def record(boxes: Any, scores: Any, result: Any) -> None:
+            calls.append((self._detached(boxes), self._detached(scores), result))
+
         def recording(boxes: Any, scores: Any) -> Any:
             result = original(boxes, scores)
-            calls.append((self._detached(boxes), self._detached(scores), result))
+            record(boxes, scores, result)
             return result
 
         had_instance_attribute = method_name in vars(post_processor)
         setattr(post_processor, method_name, recording)
+        setattr(post_processor, RAW_DETECTIONS_HOOK, record)
         try:
             yield calls
         finally:
+            delattr(post_processor, RAW_DETECTIONS_HOOK)
             if had_instance_attribute:
                 setattr(post_processor, method_name, original)
             else:

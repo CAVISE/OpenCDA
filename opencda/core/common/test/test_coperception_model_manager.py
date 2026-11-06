@@ -841,3 +841,19 @@ class TestRawDetections:
         with manager._capture_raw_detections() as calls:
             assert "post_process_detections" not in vars(manager.opencood_dataset.post_processor)
         assert calls == []
+
+    def test_raw_detections_reported_through_hook_are_selected(self, fake_heavy_deps):
+        """Путь late-fusion AdvCP вызывает не post_process_detections, а хук record_raw_detections."""
+        manager = self._manager(fake_heavy_deps)
+        post_processor = manager.opencood_dataset.post_processor
+        raw_boxes = np.zeros((3, 8, 3))
+        raw_scores = np.array([0.9, 0.3, 0.7])
+        final = (raw_boxes[[0, 2]], raw_scores[[0, 2]])
+
+        with manager._capture_raw_detections() as calls:
+            post_processor.record_raw_detections(raw_boxes, raw_scores, final)
+
+        assert "record_raw_detections" not in vars(post_processor)
+        selected_boxes, selected_scores = manager._select_raw_detections(calls, final[1])
+        np.testing.assert_array_equal(selected_scores, raw_scores)
+        np.testing.assert_array_equal(selected_boxes, raw_boxes)

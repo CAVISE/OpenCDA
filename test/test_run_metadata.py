@@ -7,6 +7,7 @@ import importlib.util
 import json
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -108,6 +109,10 @@ def _make_bundle(root: Path, bundle_id: str = "pointpillar_late") -> Path:
     return bundle
 
 
+def _artifact(checkpoint, path):
+    return next(item for item in checkpoint["artifacts"] if item["path"] == path)
+
+
 def test_checkpoint_without_git_is_identified_by_hash(tmp_path: Path, merged_config):
     bundle = _make_bundle(tmp_path / "models")
     opt = _make_opt(with_coperception=True, model_dir=str(bundle), model_id="pointpillar_late")
@@ -117,7 +122,10 @@ def test_checkpoint_without_git_is_identified_by_hash(tmp_path: Path, merged_con
     checkpoint = manifest["checkpoint"]
     assert checkpoint["id"] == "pointpillar_late"
     digest = run_metadata.sha256_file(bundle / "net_epoch10.pth")
-    assert checkpoint["artifacts"] == [{"path": "net_epoch10.pth", "size": 7, "sha256": digest, "expected_sha256": digest, "matches_meta": True}]
+    artifacts = {item["path"]: item for item in checkpoint["artifacts"]}
+    assert artifacts["net_epoch10.pth"] == {"path": "net_epoch10.pth", "size": 7, "sha256": digest, "expected_sha256": digest, "matches_meta": True}
+    # config.yaml модели хешируется, даже если его нет в meta.yaml
+    assert artifacts["config.yaml"]["sha256"] == run_metadata.sha256_file(bundle / "config.yaml")
     assert checkpoint["url"] is None
     assert (tmp_path / "run" / "reproducibility" / "inputs" / "model_config.yaml").is_file()
     assert manifest["outputs"]["predictions"] == "../predictions"
@@ -188,10 +196,10 @@ def test_compare_with_original_detects_checkpoint_change(tmp_path: Path, merged_
     opt = _make_opt(with_coperception=True, model_dir=str(bundle))
     original = run_metadata.write_run_artifacts(tmp_path / "run", opt=opt, argv=[], merged_config=merged_config, current_time="t")
 
-    assert not any("Checkpoint" in warning for warning in run_metadata.compare_with_original(original, opt))
+    assert not any("Model files" in warning for warning in run_metadata.compare_with_original(original, opt))
 
     weights.write_bytes(b"other")
-    assert any("Checkpoint" in warning for warning in run_metadata.compare_with_original(original, opt))
+    assert any("Model files" in warning for warning in run_metadata.compare_with_original(original, opt))
 
 
 def test_weights_changed_without_updating_meta_are_detected(tmp_path: Path, merged_config, caplog):
@@ -203,19 +211,19 @@ def test_weights_changed_without_updating_meta_are_detected(tmp_path: Path, merg
     (bundle / "net_epoch10.pth").write_bytes(b"tampered")  # в meta.yaml хеш не меняли
 
     with caplog.at_level("WARNING"):
-        artifact = run_metadata.collect_checkpoint_info(opt)["artifacts"][0]
+        artifact = _artifact(run_metadata.collect_checkpoint_info(opt), "net_epoch10.pth")
     assert artifact["sha256"] == run_metadata.sha256_file(bundle / "net_epoch10.pth")
     assert artifact["sha256"] != artifact["expected_sha256"]
     assert artifact["matches_meta"] is False
     assert "does not match the checksum" in caplog.text
-    assert any("Checkpoint" in warning for warning in run_metadata.compare_with_original(original, opt))
+    assert any("Model files" in warning for warning in run_metadata.compare_with_original(original, opt))
 
 
 def test_missing_weights_listed_in_meta_are_reported(tmp_path: Path):
     bundle = _make_bundle(tmp_path / "models")
     (bundle / "net_epoch10.pth").unlink()
 
-    artifact = run_metadata.collect_checkpoint_info(_make_opt(with_coperception=True, model_dir=str(bundle)))["artifacts"][0]
+    artifact = _artifact(run_metadata.collect_checkpoint_info(_make_opt(with_coperception=True, model_dir=str(bundle))), "net_epoch10.pth")
 
     assert artifact["sha256"] is None
     assert artifact["matches_meta"] is False
@@ -293,3 +301,81 @@ def test_code_diff_warnings(tmp_path: Path, caplog):
     with caplog.at_level("WARNING"):
         run_metadata._save_code_diff(tmp_path, {"dirty": False, "untracked_files": []})
     assert caplog.text == ""
+
+
+def test_replay_detects_changed_model_config(tmp_path: Path, merged_config):
+    """Изменённый config.yaml модели (например, порог NMS) должен давать предупреждение при повторе."""
+    bundle = _make_bundle(tmp_path / "models")
+    opt = _make_opt(with_coperception=True, model_dir=str(bundle))
+    original = run_metadata.write_run_artifacts(tmp_path / "run", opt=opt, argv=[], merged_config=merged_config, current_time="t")
+
+    (bundle / "config.yaml").write_text("postprocess:\n  nms_thresh: 0.5\n", encoding="utf-8")
+
+    warnings = run_metadata.compare_with_original(original, opt)
+    assert any("coperception/config.yaml" in warning for warning in warnings)
+
+
+def test_replay_detects_changed_advcp_assets(tmp_path: Path, merged_config):
+    bundle = _make_bundle(tmp_path / "models")
+    assets = tmp_path / "models" / "advcp" / "base-car"
+    assets.mkdir(parents=True)
+    mesh = assets / "car.pt"
+    mesh.write_bytes(b"mesh-v1")
+    opt = _make_opt(with_coperception=True, model_dir=str(bundle), with_advcp=True, advcp_assets_dir=str(assets), advcp_assets_id="base-car")
+    original = run_metadata.write_run_artifacts(tmp_path / "run", opt=opt, argv=[], merged_config=merged_config, current_time="t")
+    assert not any("Model files" in warning for warning in run_metadata.compare_with_original(original, opt))
+
+    mesh.write_bytes(b"mesh-v2")
+
+    assert any("advcp/car.pt" in warning for warning in run_metadata.compare_with_original(original, opt))
+
+
+def test_opencood_is_located_before_import(tmp_path: Path, monkeypatch):
+    """OpenCOOD ещё не импортирован, когда пишется манифест, но его репозиторий всё равно находится."""
+    package = tmp_path / "opencood_checkout" / "fakepkg_for_test"
+    package.mkdir(parents=True)
+    (package / "__init__.py").write_text("", encoding="utf-8")
+    monkeypatch.syspath_prepend(str(package.parent))
+    monkeypatch.delitem(sys.modules, "fakepkg_for_test", raising=False)
+
+    assert run_metadata._module_location("fakepkg_for_test") == package.resolve()
+    assert "fakepkg_for_test" not in sys.modules
+
+
+def test_replay_cli_model_dir_replaces_saved_model_id(tmp_path: Path, merged_config):
+    entrypoint = _load_entrypoint()
+    run_metadata.write_run_artifacts(
+        tmp_path,
+        opt=_make_opt(),
+        argv=["--test-scenario", "demo", "--with-coperception", "--model-id", "pointpillar-late-opv2v-30"],
+        merged_config=merged_config,
+        current_time="t",
+    )
+
+    opt, argv, _ = entrypoint.resolve_launch_arguments(["--replay-from", str(tmp_path), "--model-dir", "/models/local"])
+
+    assert opt.model_dir == "/models/local"
+    assert opt.model_id is None
+    assert "--model-id" not in argv
+
+
+def test_manifest_is_failed_when_scenario_import_fails(tmp_path: Path, monkeypatch):
+    """Если упало после записи манифеста (например, импорт сценария), статус не должен остаться running."""
+    import types
+
+    entrypoint = _load_entrypoint()
+    run_dir = tmp_path / "run"
+    monkeypatch.chdir(Path(__file__).resolve().parents[1])
+    monkeypatch.setattr(sys, "argv", ["opencda.py", "-t", "single_town06_carla"])
+    monkeypatch.setattr(entrypoint, "get_default_output_path", lambda scenario, current_time: run_dir)
+    monkeypatch.setattr(entrypoint, "create_logger", lambda level, filename: entrypoint.logging.getLogger("test"))
+    monkeypatch.setattr(entrypoint, "install_traceback_handler", lambda verbose: None)
+    # модуль без run_scenario: import внутри main() упадёт с ImportError
+    monkeypatch.setitem(sys.modules, "opencda.scenario_testing.scenario", types.ModuleType("opencda.scenario_testing.scenario"))
+
+    with pytest.raises(ImportError):
+        entrypoint.main()
+
+    manifest = run_metadata.load_run_manifest(run_dir)
+    assert manifest["status"] == "failed"
+    assert "ImportError" in manifest["error"]

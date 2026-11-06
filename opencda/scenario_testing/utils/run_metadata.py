@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import enum
 import hashlib
+import importlib.util
 import json
 import logging
 import os
@@ -33,6 +34,7 @@ PREDICTIONS_DIRNAME = "predictions"
 CODE_DIFF_FILENAME = "code_diff.patch"
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
+MODEL_CONFIG_FILENAME = "config.yaml"
 CHECKPOINT_SUFFIXES = (".pth", ".pt", ".ckpt", ".bin", ".safetensors")
 TRACKED_PACKAGES = ("numpy", "torch", "torchvision", "carla", "omegaconf", "open3d", "opencood", "spconv", "scipy", "PyYAML")
 
@@ -100,13 +102,32 @@ def _package_version(name: str) -> str | None:
         return None
 
 
-def _module_repo(module_name: str) -> Path | None:
-    """Find the Git checkout backing an imported module."""
+def _module_location(module_name: str) -> Path | None:
+    """Find where a module lives without importing it."""
     module = sys.modules.get(module_name)
     module_file = getattr(module, "__file__", None)
-    if not module_file:
+    if module_file:
+        return Path(module_file).resolve().parent
+    # На момент записи манифеста OpenCOOD ещё не импортирован, поэтому ищем его через find_spec.
+    try:
+        spec = importlib.util.find_spec(module_name)
+    except (ImportError, ValueError):
         return None
-    toplevel = _run_git(Path(module_file).resolve().parent, "rev-parse", "--show-toplevel")
+    if spec is None:
+        return None
+    if spec.submodule_search_locations:
+        return Path(next(iter(spec.submodule_search_locations))).resolve()
+    if spec.origin and spec.origin not in {"built-in", "frozen"}:
+        return Path(spec.origin).resolve().parent
+    return None
+
+
+def _module_repo(module_name: str) -> Path | None:
+    """Find the Git checkout backing a module."""
+    location = _module_location(module_name)
+    if location is None:
+        return None
+    toplevel = _run_git(location, "rev-parse", "--show-toplevel")
     return Path(toplevel) if toplevel else None
 
 
@@ -222,6 +243,9 @@ def _bundle_artifacts(bundle_dir: Path) -> list[dict[str, Any]]:
     expected = _meta_checksums(bundle_dir)
     paths = set(expected)
     paths.update(path.relative_to(bundle_dir).as_posix() for path in bundle_dir.rglob("*") if path.is_file() and path.suffix in CHECKPOINT_SUFFIXES)
+    # config.yaml модели тоже влияет на результат (пороги, NMS), даже если его нет в meta.yaml.
+    if (bundle_dir / MODEL_CONFIG_FILENAME).is_file():
+        paths.add(MODEL_CONFIG_FILENAME)
 
     artifacts: list[dict[str, Any]] = []
     for relative in sorted(paths):
@@ -478,6 +502,16 @@ def load_prediction_records(run_dir: Path) -> list[dict[str, Any]]:
     return records
 
 
+def _model_input_hashes(checkpoint: Mapping[str, Any] | None) -> dict[str, str | None]:
+    """Collect hashes of every model file used at runtime, including AdvCP assets."""
+    if not checkpoint:
+        return {}
+    hashes = {f"coperception/{item['path']}": item.get("sha256") for item in checkpoint.get("artifacts", [])}
+    advcp_assets = checkpoint.get("advcp_assets") or {}
+    hashes.update({f"advcp/{item['path']}": item.get("sha256") for item in advcp_assets.get("artifacts", [])})
+    return hashes
+
+
 def compare_with_original(original: Mapping[str, Any], opt: Any) -> list[str]:
     """Check for differences from the original run."""
     warnings: list[str] = []
@@ -489,12 +523,11 @@ def compare_with_original(original: Mapping[str, Any], opt: Any) -> list[str]:
     if original.get("code_diff"):
         warnings.append(f"Original run had uncommitted changes; apply {original['code_diff']} from the run folder to match it.")
 
-    original_ckpt = original.get("checkpoint") or {}
-    current_ckpt = collect_checkpoint_info(opt) or {}
-    original_hashes = {item["path"]: item["sha256"] for item in original_ckpt.get("artifacts", [])}
-    current_hashes = {item["path"]: item["sha256"] for item in current_ckpt.get("artifacts", [])}
-    if original_hashes != current_hashes:
-        warnings.append("Checkpoint files differ from the original run (sha256 mismatch or missing files).")
+    original_hashes = _model_input_hashes(original.get("checkpoint"))
+    current_hashes = _model_input_hashes(collect_checkpoint_info(opt))
+    changed = sorted(path for path in original_hashes.keys() | current_hashes.keys() if original_hashes.get(path) != current_hashes.get(path))
+    if changed:
+        warnings.append(f"Model files differ from the original run (sha256 mismatch or missing): {', '.join(changed)}.")
 
     original_device = ((original.get("device") or {}).get("torch") or {}).get("device")
     current_device = (collect_device_info().get("torch") or {}).get("device")
