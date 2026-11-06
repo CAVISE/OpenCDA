@@ -119,6 +119,7 @@ ignore_errors = true
 
 [tool.deadcode]
 exclude = [
+    "api/test_main.py",  # Mock attributes are consumed dynamically by unittest.mock.
     "venv",
     "*docs",
     "*test",

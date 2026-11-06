@@ -3,6 +3,10 @@
 
 cmake==4.4.4
 
+# API lifecycle tests (including multipart configuration uploads)
+fastapi==0.162.0
+httpx==0.28.1
+
 lxml==6.1.3
 # headless plotting
 matplotlib==3.11.2
@@ -20,6 +24,7 @@ opencv-python-headless==5.0.0.93
 protobuf==7.36.2
 pytest==9.2.0
 pytest-mock==3.17.0
+python-multipart==0.0.33
 PyYAML==6.0.3
 pyzmq==27.2.0
 

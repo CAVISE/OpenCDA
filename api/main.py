@@ -27,7 +27,6 @@ last_pid = None
 last_returncode = None
 
 
-@app.middleware("http")
 async def log_requests(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
     """Report expected rejections and translate operating-system failures."""
     try:
@@ -40,6 +39,9 @@ async def log_requests(request: Request, call_next: Callable[[Request], Awaitabl
     elif request.url.path.endswith("/status"):
         logger.debug("Status requested: HTTP %s", response.status_code)
     return response
+
+
+app.middleware("http")(log_requests)
 
 
 @router.get("/status")
