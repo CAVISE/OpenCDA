@@ -3,9 +3,9 @@ from __future__ import annotations
 import copy
 import os
 import logging
-from contextlib import nullcontext
+from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, Literal, Mapping, Optional, Tuple, TypeAlias, TypedDict, cast
+from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, Iterator, Literal, Mapping, Optional, Tuple, TypeAlias, TypedDict, cast
 
 from matplotlib import pyplot as plt
 import numpy as np
@@ -711,6 +711,137 @@ class CoperceptionModelManager:
             npy_save_path,
         )
 
+    def _prediction_records_dir(self) -> str:
+        return os.path.join(
+            "simulation_output",
+            "evaluation_outputs",
+            f"{self.opt.test_scenario}_{self.current_time}",
+            "predictions",
+        )
+
+    @staticmethod
+    def _boxes_to_numpy(value: Any) -> np.ndarray | None:
+        if value is None:
+            return None
+        if hasattr(value, "detach"):
+            value = value.detach().cpu().numpy()
+        array = np.asarray(value)
+        if array.dtype == object or not np.issubdtype(array.dtype, np.number):
+            raise TypeError(f"expected a numeric tensor/array, got {type(value).__name__}")
+        return array
+
+    @contextmanager
+    def _capture_raw_detections(self) -> Iterator[list[tuple[Any, Any, Any]]]:
+        """Capture candidates passed to post-processing.
+
+        Boxes are already score-thresholded, but have not passed NMS.
+        """
+        calls: list[tuple[Any, Any, Any]] = []
+        post_processor = getattr(getattr(self, "opencood_dataset", None), "post_processor", None)
+        method_name = "post_process_detections"
+        original = getattr(post_processor, method_name, None)
+        if not getattr(self.opt, "save_predictions", False) or not callable(original):
+            yield calls
+            return
+
+        def recording(boxes: Any, scores: Any) -> Any:
+            result = original(boxes, scores)
+            calls.append((self._detached(boxes), self._detached(scores), result))
+            return result
+
+        had_instance_attribute = method_name in vars(post_processor)
+        setattr(post_processor, method_name, recording)
+        try:
+            yield calls
+        finally:
+            if had_instance_attribute:
+                setattr(post_processor, method_name, original)
+            else:
+                delattr(post_processor, method_name)
+                if getattr(post_processor, method_name, None) is None:
+                    setattr(post_processor, method_name, original)
+
+    @staticmethod
+    def _detached(value: Any) -> Any:
+        return value.detach().clone() if hasattr(value, "detach") else value
+
+    def _select_raw_detections(self, calls: list[tuple[Any, Any, Any]], pred_score: Any) -> tuple[Any, Any]:
+        """Find the post-processing call matching the final scores.
+
+        AdvCP may invoke post-processing more than once per tick.
+        """
+        try:
+            final_scores = self._boxes_to_numpy(pred_score)
+        except TypeError:
+            return None, None
+        for raw_boxes, raw_scores, result in reversed(calls):
+            result_scores = result[1] if isinstance(result, tuple) and len(result) == 2 else None
+            try:
+                candidate = self._boxes_to_numpy(result_scores)
+            except TypeError:
+                continue
+            if candidate is None and final_scores is None:
+                return raw_boxes, raw_scores
+            if candidate is not None and final_scores is not None and candidate.shape == final_scores.shape and np.allclose(candidate, final_scores):
+                return raw_boxes, raw_scores
+        if calls:
+            logger.warning("Raw detections were captured but none matches the final prediction; raw boxes are not saved for this tick.")
+        return None, None
+
+    def _postprocess_params(self) -> dict[str, float]:
+        params = getattr(getattr(getattr(self, "opencood_dataset", None), "post_processor", None), "params", None)
+        values: dict[str, float] = {}
+        if not isinstance(params, Mapping):
+            return values
+        target_args = params.get("target_args")
+        if isinstance(target_args, Mapping) and isinstance(target_args.get("score_threshold"), (int, float)):
+            values["score_threshold"] = float(target_args["score_threshold"])
+        if isinstance(params.get("nms_thresh"), (int, float)):
+            values["nms_thresh"] = float(params["nms_thresh"])
+        return values
+
+    def _save_prediction_records(
+        self,
+        tick_number: int,
+        pred_box_tensor: Any,
+        pred_score: Any,
+        gt_box_tensor: Any,
+        visualization_context: Optional[Mapping[str, Any]],
+        raw_box_tensor: Any = None,
+        raw_score: Any = None,
+    ) -> None:
+        """Save per-tick boxes and scores as compressed NumPy arrays.
+
+        Includes pre-NMS candidates, final predictions and ground truth.
+        """
+        arrays: dict[str, Any] = {"tick": np.int64(tick_number)}
+        arrays.update({name: np.float64(value) for name, value in self._postprocess_params().items()})
+        tensors = {
+            "raw_boxes": raw_box_tensor,
+            "raw_scores": raw_score,
+            "pred_boxes": pred_box_tensor,
+            "pred_scores": pred_score,
+            "gt_boxes": gt_box_tensor,
+        }
+        try:
+            extra_boxes = self.VISUALIZER_CLASS._get_extra_box_tensors(visualization_context)
+        except Exception:
+            extra_boxes = {}
+        tensors.update({f"{name}_boxes": tensor for name, tensor in extra_boxes.items()})
+
+        try:
+            for name, tensor in tensors.items():
+                array = self._boxes_to_numpy(tensor)
+                arrays[f"has_{name}"] = np.bool_(array is not None)
+                arrays[name] = array if array is not None else np.empty((0,), dtype=np.float32)
+        except TypeError as error:
+            logger.warning("Skipping prediction record for tick %s: %s", tick_number, error)
+            return
+
+        records_dir = self._prediction_records_dir()
+        os.makedirs(records_dir, exist_ok=True)
+        np.savez_compressed(os.path.join(records_dir, f"tick_{tick_number:06d}.npz"), **arrays)
+
     def _save_visualizations(
         self,
         visualizer_cls,
@@ -812,7 +943,7 @@ class CoperceptionModelManager:
         batch_data = next(iter(self.data_loader))
         batch_data = train_utils.to_device(batch_data, self.device)
         inference_context = nullcontext() if self._requires_grad_for_inference() else torch.no_grad()
-        with inference_context:
+        with inference_context, self._capture_raw_detections() as raw_detection_calls:
             inference_result = self.inference(batch_data)
             pred_box_tensor = inference_result.pred_box_tensor
             pred_score = inference_result.pred_score
@@ -828,6 +959,18 @@ class CoperceptionModelManager:
                     visualization_context,
                 )
             )
+
+            if getattr(self.opt, "save_predictions", False):
+                raw_box_tensor, raw_score = self._select_raw_detections(raw_detection_calls, pred_score)
+                self._save_prediction_records(
+                    tick_number,
+                    pred_box_tensor,
+                    pred_score,
+                    gt_box_tensor,
+                    visualization_context,
+                    raw_box_tensor=raw_box_tensor,
+                    raw_score=raw_score,
+                )
 
             if self.opt.save_npy:
                 self._save_prediction_npy(pred_box_tensor, gt_box_tensor, batch_data, 0)
