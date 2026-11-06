@@ -151,4 +151,5 @@ ready*
 *.tar*
 
 simulation_output
+runner_tasks
 *-artifacts.manifest
