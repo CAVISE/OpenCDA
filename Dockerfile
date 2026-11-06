@@ -36,7 +36,7 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 RUN if id -u ubuntu >/dev/null 2>&1; then userdel -r ubuntu; fi && \
-    groupadd --gid ${gid} ${USER} && \
+    if ! getent group ${gid} >/dev/null; then groupadd --gid ${gid} ${USER}; fi && \
     useradd --create-home --gid ${gid} --uid ${uid} --shell /bin/bash ${USER} && \
     mkdir -p ${XDG_RUNTIME_DIR} ${OPENCDA_WORKSPACE} && \
     chmod 700 ${XDG_RUNTIME_DIR} && \
