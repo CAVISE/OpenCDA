@@ -512,14 +512,30 @@ def _model_input_hashes(checkpoint: Mapping[str, Any] | None) -> dict[str, str |
     return hashes
 
 
+def _device_signature(device: Mapping[str, Any] | None) -> dict[str, Any]:
+    """Device details that may change inference results."""
+    torch_info = (device or {}).get("torch") or {}
+    return {
+        "device": torch_info.get("device"),
+        "gpus": [gpu.get("name") for gpu in torch_info.get("gpus") or []],
+        "cuda": torch_info.get("cuda_version"),
+        "cudnn": torch_info.get("cudnn_version"),
+    }
+
+
 def compare_with_original(original: Mapping[str, Any], opt: Any) -> list[str]:
     """Check for differences from the original run."""
     warnings: list[str] = []
 
-    original_git = (original.get("code") or {}).get("opencda", {}).get("git") or {}
-    current_git = collect_git_info(REPO_ROOT) or {}
-    if original_git.get("commit") and original_git.get("commit") != current_git.get("commit"):
-        warnings.append(f"OpenCDA commit differs: original {original_git.get('commit')}, current {current_git.get('commit')}.")
+    original_code = original.get("code") or {}
+    current_code = collect_code_versions()
+    for name in ("opencda", "opencood"):
+        original_git = (original_code.get(name) or {}).get("git") or {}
+        current_git = (current_code.get(name) or {}).get("git") or {}
+        if original_git.get("commit") and original_git.get("commit") != current_git.get("commit"):
+            warnings.append(f"{name} commit differs: original {original_git.get('commit')}, current {current_git.get('commit')}.")
+        elif name == "opencood" and original_git and current_git and original_git.get("dirty") != current_git.get("dirty"):
+            warnings.append("opencood uncommitted changes differ from the original run.")
     if original.get("code_diff"):
         warnings.append(f"Original run had uncommitted changes; apply {original['code_diff']} from the run folder to match it.")
 
@@ -529,8 +545,11 @@ def compare_with_original(original: Mapping[str, Any], opt: Any) -> list[str]:
     if changed:
         warnings.append(f"Model files differ from the original run (sha256 mismatch or missing): {', '.join(changed)}.")
 
-    original_device = ((original.get("device") or {}).get("torch") or {}).get("device")
-    current_device = (collect_device_info().get("torch") or {}).get("device")
-    if original_device and original_device != current_device:
-        warnings.append(f"Device differs: original {original_device}, current {current_device}.")
+    # Сравниваем не только cpu/cuda, но и модель GPU и версии CUDA/cuDNN: они тоже влияют на результат.
+    original_device = _device_signature(original.get("device"))
+    current_device = _device_signature(collect_device_info())
+    if original_device["device"]:
+        for key, label in (("device", "Device"), ("gpus", "GPU"), ("cuda", "CUDA version"), ("cudnn", "cuDNN version")):
+            if original_device[key] != current_device[key]:
+                warnings.append(f"{label} differs: original {original_device[key]}, current {current_device[key]}.")
     return warnings

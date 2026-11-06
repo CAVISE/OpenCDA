@@ -276,6 +276,11 @@ def build_command_from_options(opt: argparse.Namespace) -> list[str]:
     return argv
 
 
+def _cli_sets_option(cli_argv: list[str], flag: str) -> bool:
+    """Check whether an option was given explicitly on the command line (in any spelling)."""
+    return flag in build_command_from_options(arg_parse(cli_argv))
+
+
 def resolve_launch_arguments(cli_argv: list[str]) -> tuple[argparse.Namespace, list[str], dict | None]:
     """Load saved launch options when replaying a run."""
     opt = arg_parse(cli_argv)
@@ -287,11 +292,10 @@ def resolve_launch_arguments(cli_argv: list[str]) -> tuple[argparse.Namespace, l
     replay_dir = pathlib.Path(opt.replay_from).resolve()
     manifest = load_run_manifest(replay_dir)
     saved_argv = _strip_replay_flag(manifest["launch"]["argv"])
-    cli_options = build_command_from_options(opt)
     for first, second in EXCLUSIVE_OPTIONS:
-        if first in cli_options:
+        if _cli_sets_option(cli_argv, first):
             saved_argv = _strip_option(saved_argv, second)
-        if second in cli_options:
+        if _cli_sets_option(cli_argv, second):
             saved_argv = _strip_option(saved_argv, first)
     effective_argv = [*saved_argv, *_strip_replay_flag(cli_argv)]
     opt = arg_parse(effective_argv)
@@ -352,8 +356,9 @@ def main() -> None:
         if advcp_config.suffix == "":
             advcp_config = advcp_config.with_suffix(".yaml")
 
-        # Для replay сначала ищем сохранённый AdvCP-конфиг.
-        saved_advcp_config = config_yaml.parent / "inputs" / "advcp_config.yaml" if replay_dir is not None else None
+        # Для replay берём сохранённый AdvCP-конфиг, если в команде не указали свой --advcp-config.
+        use_saved_advcp_config = replay_dir is not None and not _cli_sets_option(sys.argv[1:], "--advcp-config")
+        saved_advcp_config = config_yaml.parent / "inputs" / "advcp_config.yaml" if use_saved_advcp_config else None
         if saved_advcp_config is not None and saved_advcp_config.is_file():
             advcp_config = saved_advcp_config
         else:

@@ -379,3 +379,73 @@ def test_manifest_is_failed_when_scenario_import_fails(tmp_path: Path, monkeypat
     manifest = run_metadata.load_run_manifest(run_dir)
     assert manifest["status"] == "failed"
     assert "ImportError" in manifest["error"]
+
+
+def _replay_main(entrypoint, monkeypatch, run_dir: Path, argv: list[str]) -> dict:
+    """Запускает main() до импорта сценария (он подменён и падает) и возвращает манифест повтора."""
+    import types
+
+    monkeypatch.chdir(Path(__file__).resolve().parents[1])
+    monkeypatch.setattr(sys, "argv", ["opencda.py", *argv])
+    monkeypatch.setattr(entrypoint, "get_default_output_path", lambda scenario, current_time: run_dir)
+    monkeypatch.setattr(entrypoint, "create_logger", lambda level, filename: entrypoint.logging.getLogger("test"))
+    monkeypatch.setattr(entrypoint, "install_traceback_handler", lambda verbose: None)
+    monkeypatch.setattr("opencda.core.plan.model_resolver.resolve_runtime_models", lambda opt: None)
+    monkeypatch.setitem(sys.modules, "opencda.scenario_testing.scenario", types.ModuleType("opencda.scenario_testing.scenario"))
+    with pytest.raises(ImportError):
+        entrypoint.main()
+    return run_metadata.load_run_manifest(run_dir)
+
+
+@pytest.mark.parametrize(
+    ("override", "expected_suffix"),
+    [([], "reproducibility/inputs/advcp_config.yaml"), (["--advcp-config", "spoofing_forward"], "advcp-configs/spoofing_forward.yaml")],
+)
+def test_replay_uses_saved_advcp_config_unless_overridden(tmp_path: Path, monkeypatch, merged_config, override, expected_suffix):
+    entrypoint = _load_entrypoint()
+    repo = Path(__file__).resolve().parents[1]
+    original_dir = tmp_path / "original"
+    run_metadata.write_run_artifacts(
+        original_dir,
+        opt=_make_opt(),
+        argv=[
+            "--test-scenario",
+            "single_town06_carla",
+            "--with-coperception",
+            "--model-dir",
+            str(tmp_path / "model"),
+            "--with-advcp",
+            "--advcp-config",
+            "example",
+        ],
+        merged_config=merged_config,
+        current_time="t",
+        input_files={"advcp_config": repo / "opencda/scenario_testing/config_yaml/advcp-configs/example.yaml"},
+    )
+
+    manifest = _replay_main(entrypoint, monkeypatch, tmp_path / "replay", ["--replay-from", str(original_dir), *override])
+
+    assert manifest["status"] == "failed"
+    assert manifest["launch"]["options"]["advcp_config"].endswith(expected_suffix)
+
+
+def test_replay_warns_when_opencood_commit_differs(monkeypatch):
+    original = {"code": {"opencood": {"git": {"commit": "aaa", "dirty": False}}}}
+    monkeypatch.setattr(run_metadata, "collect_code_versions", lambda: {"opencood": {"git": {"commit": "bbb", "dirty": False}}})
+
+    warnings = run_metadata.compare_with_original(original, _make_opt())
+
+    assert any("opencood commit differs" in warning for warning in warnings)
+
+
+def test_replay_warns_when_gpu_differs(monkeypatch):
+    original = {
+        "device": {"torch": {"device": "cuda", "gpus": [{"name": "NVIDIA GeForce RTX 4060 Ti"}], "cuda_version": "13.0", "cudnn_version": 91000}}
+    }
+    current = {"torch": {"device": "cuda", "gpus": [{"name": "NVIDIA GeForce RTX 5070 Ti"}], "cuda_version": "13.0", "cudnn_version": 91000}}
+    monkeypatch.setattr(run_metadata, "collect_device_info", lambda: current)
+
+    warnings = run_metadata.compare_with_original(original, _make_opt())
+
+    assert any(warning.startswith("GPU differs") for warning in warnings)
+    assert not any(warning.startswith("CUDA version differs") for warning in warnings)
