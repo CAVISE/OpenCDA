@@ -35,6 +35,8 @@ CODE_DIFF_FILENAME = "code_diff.patch"
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 MODEL_CONFIG_FILENAME = "config.yaml"
+# Пути в AdvCP-конфиге, которые AdvCoperceptionModelManager.load_config считает относительно папки конфига.
+ADVCP_PATH_KEYS = ("car_mesh_path", "car_mesh_divide_path", "remove_adv_shape_perturb_path", "remove_adv_shape_divide_path")
 CHECKPOINT_SUFFIXES = (".pth", ".pt", ".ckpt", ".bin", ".safetensors")
 TRACKED_PACKAGES = ("numpy", "torch", "torchvision", "carla", "omegaconf", "open3d", "opencood", "spconv", "scipy", "PyYAML")
 
@@ -353,6 +355,32 @@ def _write_reproduce_script(output_dir: Path, command: list[str]) -> str:
     return REPRODUCE_SCRIPT_FILENAME
 
 
+def _copy_advcp_config(source: Path, target: Path) -> None:
+    """Copy an AdvCP config, making relative asset paths absolute.
+
+    AdvCP resolves these paths against the folder of the YAML file, so a copy
+    in inputs/ would point to the wrong place.
+    """
+    import yaml
+
+    try:
+        config = yaml.safe_load(source.read_text(encoding="utf-8"))
+    except yaml.YAMLError:
+        config = None
+    relative_keys = [
+        key
+        for key in ADVCP_PATH_KEYS
+        if isinstance(config, dict) and config.get(key) is not None and not Path(str(config[key])).expanduser().is_absolute()
+    ]
+    if not relative_keys:
+        shutil.copy2(source, target)
+        return
+    for key in relative_keys:
+        config[key] = str((source.parent / Path(str(config[key])).expanduser()).resolve())
+    header = f"# Copy of {source}; relative paths ({', '.join(relative_keys)}) are resolved against its folder.\n"
+    target.write_text(header + yaml.safe_dump(config, sort_keys=False, allow_unicode=True), encoding="utf-8")
+
+
 def _copy_inputs(output_dir: Path, input_files: Mapping[str, Path | None], opt: Any) -> dict[str, Any]:
     inputs_dir = output_dir / INPUTS_DIRNAME
     inputs_dir.mkdir(parents=True, exist_ok=True)
@@ -370,7 +398,10 @@ def _copy_inputs(output_dir: Path, input_files: Mapping[str, Path | None], opt: 
             continue
         source = Path(source)
         target = inputs_dir / f"{key}{source.suffix}"
-        shutil.copy2(source, target)
+        if key == "advcp_config":
+            _copy_advcp_config(source, target)
+        else:
+            shutil.copy2(source, target)
         copied[key] = {"source": str(source), "copy": target.relative_to(output_dir).as_posix(), "sha256": sha256_file(target)}
     return copied
 
@@ -534,8 +565,14 @@ def compare_with_original(original: Mapping[str, Any], opt: Any) -> list[str]:
         current_git = (current_code.get(name) or {}).get("git") or {}
         if original_git.get("commit") and original_git.get("commit") != current_git.get("commit"):
             warnings.append(f"{name} commit differs: original {original_git.get('commit')}, current {current_git.get('commit')}.")
-        elif name == "opencood" and original_git and current_git and original_git.get("dirty") != current_git.get("dirty"):
-            warnings.append("opencood uncommitted changes differ from the original run.")
+        elif name == "opencood" and (original_git.get("dirty") or current_git.get("dirty")):
+            # Diff OpenCOOD не сохраняется, поэтому одинаковость правок проверить нельзя.
+            warnings.append("opencood has uncommitted changes, they cannot be compared with the original run.")
+    original_packages = original_code.get("packages") or {}
+    current_packages = current_code.get("packages") or {}
+    for package in sorted(original_packages):
+        if original_packages[package] != current_packages.get(package):
+            warnings.append(f"{package} version differs: original {original_packages[package]}, current {current_packages.get(package)}.")
     if original.get("code_diff"):
         warnings.append(f"Original run had uncommitted changes; apply {original['code_diff']} from the run folder to match it.")
 

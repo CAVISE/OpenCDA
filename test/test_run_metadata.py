@@ -487,3 +487,52 @@ def test_replay_can_turn_prediction_saving_back_on(tmp_path: Path, merged_config
     opt, argv, _ = entrypoint.resolve_launch_arguments(["--replay-from", str(tmp_path), "--save-predictions"])
     assert opt.save_predictions is True
     assert "--no-save-predictions" not in argv and "--save-predictions" not in argv  # значение по умолчанию не пишется
+
+
+def test_saved_advcp_config_keeps_relative_asset_paths_working(tmp_path: Path, merged_config):
+    """AdvCP считает относительные пути от папки конфига, поэтому в копии они становятся абсолютными."""
+    import yaml
+
+    config_dir = tmp_path / "advcp-configs"
+    config_dir.mkdir()
+    source = config_dir / "custom.yaml"
+    source.write_text("mode: spoofing\ncar_mesh_path: meshes/car.ply\ncar_mesh_divide_path: /abs/divide.pkl\n", encoding="utf-8")
+
+    run_metadata.write_run_artifacts(
+        tmp_path / "run", opt=_make_opt(), argv=[], merged_config=merged_config, current_time="t", input_files={"advcp_config": source}
+    )
+
+    saved = yaml.safe_load((tmp_path / "run" / "reproducibility" / "inputs" / "advcp_config.yaml").read_text(encoding="utf-8"))
+    assert saved["car_mesh_path"] == str((config_dir / "meshes" / "car.ply").resolve())
+    assert saved["car_mesh_divide_path"] == "/abs/divide.pkl"
+    assert saved["mode"] == "spoofing"
+
+
+def test_advcp_config_without_relative_paths_is_copied_as_is(tmp_path: Path, merged_config):
+    source = Path(__file__).resolve().parents[1] / "opencda/scenario_testing/config_yaml/advcp-configs/example.yaml"
+
+    run_metadata.write_run_artifacts(
+        tmp_path / "run", opt=_make_opt(), argv=[], merged_config=merged_config, current_time="t", input_files={"advcp_config": source}
+    )
+
+    assert (tmp_path / "run" / "reproducibility" / "inputs" / "advcp_config.yaml").read_bytes() == source.read_bytes()
+
+
+def test_replay_warns_when_package_versions_differ(monkeypatch):
+    original = {"code": {"packages": {"torch": "2.15.0", "numpy": "2.5.4"}}}
+    monkeypatch.setattr(run_metadata, "collect_code_versions", lambda: {"packages": {"torch": "2.16.0", "numpy": "2.5.4"}})
+
+    warnings = run_metadata.compare_with_original(original, _make_opt())
+
+    assert any(warning.startswith("torch version differs") for warning in warnings)
+    assert not any(warning.startswith("numpy") for warning in warnings)
+
+
+def test_replay_warns_when_opencood_has_uncommitted_changes(monkeypatch):
+    """Правки OpenCOOD не сохраняются, поэтому даже одинаковый dirty=True надо считать отличием."""
+    original = {"code": {"opencood": {"git": {"commit": "aaa", "dirty": True}}}}
+    monkeypatch.setattr(run_metadata, "collect_code_versions", lambda: {"opencood": {"git": {"commit": "aaa", "dirty": True}}})
+
+    warnings = run_metadata.compare_with_original(original, _make_opt())
+
+    assert any("opencood has uncommitted changes" in warning for warning in warnings)
