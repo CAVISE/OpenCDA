@@ -189,8 +189,10 @@ class ScenarioManager:
         simulation_config = cast(ConfigDict, scenario_params["world"])
 
         # set random seed if stated
-        if "seed" in simulation_config:
+        self.seed: int | None = None
+        if simulation_config.get("seed") is not None:
             seed = int(simulation_config["seed"])
+            self.seed = seed
             np.random.seed(seed)
             random.seed(seed)
             torch.manual_seed(seed)
@@ -283,6 +285,7 @@ class ScenarioManager:
             self._configure_traffic_manager(
                 self.client.get_trafficmanager(),
                 cast(ConfigDict, traffic_config),
+                seed=self.seed,
             )
 
         # set weather
@@ -728,7 +731,7 @@ class ScenarioManager:
         self._configure_traffic_manager_vehicle(tm, traffic_config, vehicle, randomize_speed=True)
 
     @staticmethod
-    def _configure_traffic_manager(tm: carla.TrafficManager, traffic_config: ConfigDict) -> None:
+    def _configure_traffic_manager(tm: carla.TrafficManager, traffic_config: ConfigDict, seed: int | None = None) -> None:
         """
         Apply global scenario settings to CARLA Traffic Manager.
 
@@ -738,9 +741,17 @@ class ScenarioManager:
             Traffic Manager instance to configure.
         traffic_config : ConfigDict
             Scenario Traffic Manager settings.
+        seed : int, optional
+            Seed сценария (``world.seed``). Фиксирует генератор случайных чисел
+            Traffic Manager (перестроения, проценты игнорирования), чтобы фоновый
+            трафик повторялся от запуска к запуску. Работает только в синхронном режиме.
         """
         tm.set_global_distance_to_leading_vehicle(traffic_config["global_distance"])
         tm.set_synchronous_mode(traffic_config["sync_mode"])
+        if seed is not None:
+            tm.set_random_device_seed(seed)
+            if not traffic_config["sync_mode"]:
+                logger.warning("Traffic Manager seed is set, but sync_mode is off: background traffic is not deterministic.")
         tm.set_osm_mode(traffic_config["set_osm_mode"])
         tm.global_percentage_speed_difference(traffic_config["global_speed_perc"])
 
