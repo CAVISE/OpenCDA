@@ -157,7 +157,8 @@ python3 opencda.py -t <scenario_name> [options]
 
 ### Core options
 
-- `-t, --test-scenario`: Required scenario name without the `.yaml` extension. The runner loads `opencda/scenario_testing/config_yaml/<scenario>.yaml` and merges it over `default.yaml`.
+- `-t, --test-scenario`: Required scenario name without the `.yaml` extension (unless `--replay-from` is used). The runner loads `opencda/scenario_testing/config_yaml/<scenario>.yaml` and merges it over `default.yaml`.
+- `--replay-from <run_dir>`: Reproduce a previous run from its `simulation_output/evaluation_outputs/<scenario>_<time>` folder (the same as running `<run_dir>/reproducibility/reproduce.sh`). Launch options are restored from `run_manifest.json`, the configuration from the saved `config.yaml`; arguments given on the command line override the saved ones. Differences in code commit, model checkpoint or device are reported as warnings.
 - `--record`: Enable the CARLA recorder and per-actor sensor data dumping under `simulation_output/data_dumping/`.
 - `-v, --version`: Show the installed OpenCDA version and exit
 - `--free-spectator`: Leave the CARLA spectator camera under manual control.
@@ -193,6 +194,7 @@ CAPI v2 is the data exchange interface between OpenCDA and Artery. In this fork 
 - `--show-video-vis`: whether to show video visualization result
 - `--save-vis`: whether to save visualization result
 - `--save-npy`: whether to save prediction and gt result in npy_test file
+- `--no-save-predictions`: Do not save per-tick boxes and confidence scores (raw pre-NMS candidates and final predictions) to `predictions/` in the evaluation output folder (saved by default).
 
 Fusion behavior is resolved from the selected model bundle configuration.
 
@@ -252,7 +254,22 @@ python3 opencda.py \
 
 ### Output directories
 
-- `simulation_output/evaluation_outputs/`: JSON evaluation reports and generated metric plots
+- `simulation_output/evaluation_outputs/<scenario>_<time>/`: everything needed to analyse and reproduce a run:
+
+  ```text
+  <scenario>_<time>/
+  ├── report.json, plots/, opencda.log.json
+  ├── reproducibility/
+  │   ├── run_manifest.json   # seed, launch command, code versions, model, device, run status
+  │   ├── config.yaml         # final merged (default + scenario) configuration
+  │   ├── reproduce.sh        # original command + replay command
+  │   ├── code_diff.patch     # uncommitted OpenCDA changes, if any
+  │   └── inputs/             # copies of source YAMLs, AdvCP config, model config.yaml/meta.yaml
+  └── predictions/
+      └── tick_<N>.npz        # raw_boxes/raw_scores (before NMS), pred_boxes/pred_scores, gt_boxes, thresholds
+  ```
+
+  The manifest identifies the model by bundle ID, artifact SHA-256 and a link to the bundle in the models repository at the exact commit. Load predictions with `opencda.scenario_testing.utils.run_metadata.load_prediction_records`. `world.seed` also seeds the CARLA Traffic Manager, so background traffic repeats between runs in synchronous mode.
 - `simulation_output/coperception/`: cooperative perception predictions, visualizations, and results
 
 ### Repository map
