@@ -120,6 +120,8 @@ def install_traceback_handler(verbose: bool = True, suppress_modules: Collection
 REPLAY_FLAG = "--replay-from"
 # Взаимоисключающие параметры: если при повторе задан один, сохранённый второй убираем.
 EXCLUSIVE_OPTIONS = (("--model-id", "--model-dir"),)
+# Пути вывода исходного прогона при повторе не восстанавливаем, иначе повтор перезапишет его файлы.
+REPLAY_OUTPUT_OPTIONS = ("--log-file",)
 
 
 def _strip_option(argv: list[str], flag: str) -> list[str]:
@@ -165,10 +167,11 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
-        "--no-save-predictions",
+        "--save-predictions",
         dest="save_predictions",
-        action="store_false",
-        help="Do not save per-tick cooperative perception boxes and confidence scores to the evaluation output folder.",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Save per-tick cooperative perception boxes and confidence scores to the evaluation output folder (default: on).",
     )
     parser.add_argument("--record", action="store_true", help="Whether to record and save the simulation process to .log file")
     # NOTICE: temporary disabled until we update yolo models.
@@ -265,7 +268,11 @@ def build_command_from_options(opt: argparse.Namespace) -> list[str]:
             continue
         value = getattr(opt, action.dest)
         flag = max(action.option_strings, key=len)
-        if isinstance(action, argparse._StoreTrueAction):
+        if isinstance(action, argparse.BooleanOptionalAction):
+            # option_strings: ["--save-predictions", "--no-save-predictions"]
+            if value != action.default:
+                argv.append(action.option_strings[0] if value else action.option_strings[1])
+        elif isinstance(action, argparse._StoreTrueAction):
             if value:
                 argv.append(flag)
         elif isinstance(action, argparse._StoreFalseAction):
@@ -292,6 +299,8 @@ def resolve_launch_arguments(cli_argv: list[str]) -> tuple[argparse.Namespace, l
     replay_dir = pathlib.Path(opt.replay_from).resolve()
     manifest = load_run_manifest(replay_dir)
     saved_argv = _strip_replay_flag(manifest["launch"]["argv"])
+    for flag in REPLAY_OUTPUT_OPTIONS:
+        saved_argv = _strip_option(saved_argv, flag)
     for first, second in EXCLUSIVE_OPTIONS:
         if _cli_sets_option(cli_argv, first):
             saved_argv = _strip_option(saved_argv, second)

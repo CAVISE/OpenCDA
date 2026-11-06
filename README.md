@@ -194,7 +194,7 @@ CAPI v2 is the data exchange interface between OpenCDA and Artery. In this fork 
 - `--show-video-vis`: whether to show video visualization result
 - `--save-vis`: whether to save visualization result
 - `--save-npy`: whether to save prediction and gt result in npy_test file
-- `--no-save-predictions`: Do not save per-tick boxes and confidence scores (raw pre-NMS candidates and final predictions) to `predictions/` in the evaluation output folder (saved by default).
+- `--save-predictions` / `--no-save-predictions`: Save per-tick boxes and confidence scores (raw pre-NMS candidates and final predictions) to `predictions/` in the evaluation output folder (on by default). Pre-NMS candidates are not available for CIASSD and FPV-RCNN models, which run NMS inside OpenCOOD.
 
 Fusion behavior is resolved from the selected model bundle configuration.
 

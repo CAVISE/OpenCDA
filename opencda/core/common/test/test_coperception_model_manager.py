@@ -857,3 +857,13 @@ class TestRawDetections:
         selected_boxes, selected_scores = manager._select_raw_detections(calls, final[1])
         np.testing.assert_array_equal(selected_scores, raw_scores)
         np.testing.assert_array_equal(selected_boxes, raw_boxes)
+
+    def test_warns_once_when_postprocessor_has_no_raw_detections(self, fake_heavy_deps, caplog):
+        """Для CIASSD/FPV-RCNN рамок до NMS нет: пишем одно предупреждение, а не на каждый тик."""
+        manager = self._manager(fake_heavy_deps)
+
+        with caplog.at_level("WARNING"):
+            assert manager._select_raw_detections([], np.array([0.9])) == (None, None)
+            assert manager._select_raw_detections([], np.array([0.9])) == (None, None)
+
+        assert caplog.text.count("Pre-NMS boxes are not available for _FakePostProcessor") == 1

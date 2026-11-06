@@ -449,3 +449,41 @@ def test_replay_warns_when_gpu_differs(monkeypatch):
 
     assert any(warning.startswith("GPU differs") for warning in warnings)
     assert not any(warning.startswith("CUDA version differs") for warning in warnings)
+
+
+def test_replay_does_not_reuse_original_log_file(tmp_path: Path, merged_config):
+    """Повтор не должен писать лог в файл исходного прогона и перезаписывать его."""
+    entrypoint = _load_entrypoint()
+    run_metadata.write_run_artifacts(
+        tmp_path,
+        opt=_make_opt(),
+        argv=["--test-scenario", "demo", "--log-file", str(tmp_path / "original.log.json")],
+        merged_config=merged_config,
+        current_time="t",
+    )
+
+    opt, argv, _ = entrypoint.resolve_launch_arguments(["--replay-from", str(tmp_path)])
+    assert opt.log_file is None
+    assert "--log-file" not in argv
+
+    opt, _, _ = entrypoint.resolve_launch_arguments(["--replay-from", str(tmp_path), "--log-file", "replay.log.json"])
+    assert opt.log_file == "replay.log.json"
+
+
+def test_replay_can_turn_prediction_saving_back_on(tmp_path: Path, merged_config):
+    entrypoint = _load_entrypoint()
+    run_metadata.write_run_artifacts(
+        tmp_path,
+        opt=_make_opt(),
+        argv=["--test-scenario", "demo", "--no-save-predictions"],
+        merged_config=merged_config,
+        current_time="t",
+    )
+
+    opt, argv, _ = entrypoint.resolve_launch_arguments(["--replay-from", str(tmp_path)])
+    assert opt.save_predictions is False
+    assert "--no-save-predictions" in argv
+
+    opt, argv, _ = entrypoint.resolve_launch_arguments(["--replay-from", str(tmp_path), "--save-predictions"])
+    assert opt.save_predictions is True
+    assert "--no-save-predictions" not in argv and "--save-predictions" not in argv  # значение по умолчанию не пишется

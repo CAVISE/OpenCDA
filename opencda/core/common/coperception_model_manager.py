@@ -780,6 +780,16 @@ class CoperceptionModelManager:
 
         AdvCP may invoke post-processing more than once per tick.
         """
+        if not calls:
+            # CIASSD и FPV-RCNN делают NMS внутри OpenCOOD, не через post_process_detections.
+            if not getattr(self, "_warned_no_raw_detections", False):
+                post_processor = getattr(getattr(self, "opencood_dataset", None), "post_processor", None)
+                logger.warning(
+                    "Pre-NMS boxes are not available for %s, only final predictions are saved.",
+                    type(post_processor).__name__,
+                )
+                self._warned_no_raw_detections = True
+            return None, None
         try:
             final_scores = self._boxes_to_numpy(pred_score)
         except TypeError:
