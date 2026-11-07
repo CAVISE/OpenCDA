@@ -167,6 +167,7 @@ COPY --from=python-opencda-dependencies /opt/venv /opt/venv
 WORKDIR ${HOME}/cavise/opencda
 
 COPY --chown=${uid}:${gid} opencda/opencda.py ./
+COPY --chown=${uid}:${gid} opencda/api/ api/
 COPY --chown=${uid}:${gid} opencda/opencda/ opencda/
 COPY --chown=${uid}:${gid} opencda/AIM/ AIM/
 COPY opencda/docker/sync-build-artifacts.sh \

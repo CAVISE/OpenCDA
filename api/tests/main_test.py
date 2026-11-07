@@ -15,7 +15,7 @@ from fastapi.testclient import TestClient
 
 @pytest.fixture
 def api(monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> ModuleType:
-    spec = importlib.util.spec_from_file_location("component_api", Path(__file__).with_name("main.py"))
+    spec = importlib.util.spec_from_file_location("component_api", Path(__file__).resolve().parents[1] / "main.py")
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -27,8 +27,7 @@ def api(monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> Mo
 
 @pytest.fixture
 def client(api: ModuleType) -> Iterator[TestClient]:
-    with TestClient(api.app) as client:
-        yield client
+    yield TestClient(api.app)
 
 
 @pytest.fixture
@@ -148,3 +147,11 @@ def test_upload_save_failure_and_retry(
     assert api.process is None
     assert any(record.exc_info for record in caplog.records)
     assert client.post("/v1/run", files={"config": ("demo.yaml", b"a: 1")}).status_code == 202
+
+
+def test_shutdown_stops_tracked_process(api, process):
+    with TestClient(api.app):
+        pass
+    assert api.process is None
+    process.wait.assert_awaited()
+    process.send_signal.assert_called_once()

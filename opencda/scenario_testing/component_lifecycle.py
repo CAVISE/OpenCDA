@@ -1,5 +1,6 @@
 """Manage dedicated simulator adapters around scenario execution."""
 
+import signal
 import logging
 import json
 from argparse import Namespace
@@ -55,20 +56,24 @@ class ManagedComponents:
 
     def _cleanup(self, suppress_errors: bool = False) -> None:
         """Attempt every stop, preserving any original scenario exception."""
-        errors = []
-        failed = []
-        # SUMO must remain available throughout scenario finalization.
-        for base in reversed(self.started):
-            try:
-                logger.info("Stopping component through %s/v1/stop", base)
-                adapter_request(f"{base}/v1/stop")
-            except Exception as error:
-                logger.exception("Failed to stop component adapter %s", base)
-                errors.append(error)
-                failed.append(base)
-        self.started = list(reversed(failed))
-        if errors and not suppress_errors:
-            raise RuntimeError("Component cleanup failed") from errors[0]
+        previous_handler = signal.signal(signal.SIGINT, signal.SIG_IGN)
+        try:
+            errors = []
+            failed = []
+            # SUMO must remain available throughout scenario finalization.
+            for base in reversed(self.started):
+                try:
+                    logger.info("Stopping component through %s/v1/stop", base)
+                    adapter_request(f"{base}/v1/stop")
+                except Exception as error:
+                    logger.exception("Failed to stop component adapter %s", base)
+                    errors.append(error)
+                    failed.append(base)
+            self.started = list(reversed(failed))
+            if errors and not suppress_errors:
+                raise RuntimeError("Component cleanup failed") from errors[0]
+        finally:
+            signal.signal(signal.SIGINT, previous_handler)
 
     def __exit__(
         self,

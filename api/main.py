@@ -1,6 +1,7 @@
+from contextlib import asynccontextmanager
 import asyncio
 import logging
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
 from pathlib import Path
 import signal
 import sys
@@ -18,7 +19,23 @@ API_VERSION = "v1"
 TASKS_DIR = Path(__file__).resolve().parents[1] / "runner_tasks"
 MAX_CONFIG_SIZE = 1024 * 1024
 
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    try:
+        yield
+    finally:
+        if process is not None:
+            current = process
+            try:
+                await stop()
+            except HTTPException:
+                # Component cleanup can exceed the HTTP stop timeout.
+                logger.info("Waiting for scenario cleanup: pid=%s", current.pid)
+                await current.wait()
+
+
+app = FastAPI(lifespan=lifespan)
 router = APIRouter(prefix=f"/{API_VERSION}")
 process = None
 process_lock = asyncio.Lock()
