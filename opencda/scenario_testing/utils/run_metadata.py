@@ -606,6 +606,22 @@ def load_run_manifest(run_dir: Path) -> dict[str, Any]:
     return json.loads(manifest_path.read_text(encoding="utf-8"))
 
 
+def load_prediction_records(run_dir: Path) -> list[dict[str, Any]]:  # noqa: DC02
+    """Load per-tick boxes and scores, using None for missing tensors."""
+    import numpy as np
+
+    records: list[dict[str, Any]] = []
+    for path in sorted((run_dir / PREDICTIONS_DIRNAME).glob("tick_*.npz")):
+        with np.load(path) as data:
+            record: dict[str, Any] = {"tick": int(data["tick"])}
+            for key in data.files:
+                if key == "tick" or key.startswith("has_"):
+                    continue
+                record[key] = data[key] if bool(data.get(f"has_{key}", True)) else None
+        records.append(record)
+    return records
+
+
 def _model_input_hashes(checkpoint: Mapping[str, Any] | None) -> dict[str, str | None]:
     """Collect hashes of every model file used at runtime, including AdvCP assets."""
     if not checkpoint:

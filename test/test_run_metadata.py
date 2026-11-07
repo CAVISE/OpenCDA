@@ -529,10 +529,10 @@ def test_replay_warns_when_package_versions_differ(monkeypatch):
 
 
 def test_replay_warns_when_opencood_has_uncommitted_changes(monkeypatch):
-    """Правки OpenCOOD не сохраняются, поэтому даже одинаковый dirty=True надо считать отличием."""
+    """Warn when the replayed OpenCOOD worktree contains uncommitted changes."""
     original = {"code": {"opencood": {"git": {"commit": "aaa", "dirty": True}}}}
     monkeypatch.setattr(run_metadata, "collect_code_versions", lambda: {"opencood": {"git": {"commit": "aaa", "dirty": True}}})
 
     warnings = run_metadata.compare_with_original(original, _make_opt())
 
-    assert any("opencood has uncommitted changes" in warning for warning in warnings)
+    assert any("opencood replay worktree has uncommitted changes" in warning for warning in warnings)
