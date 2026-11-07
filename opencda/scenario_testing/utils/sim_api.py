@@ -168,7 +168,7 @@ class ScenarioManager:
         CAV World that contains the information of all CAVs.
 
     carla_map : carla.map
-        Car;a HD Map.
+        Carla HD Map.
 
     """
 
@@ -180,7 +180,7 @@ class ScenarioManager:
         town: str | None = None,
         cav_world: CavWorld | None = None,
         carla_host: str = "carla",
-        carla_timeout: float = 30.0,
+        carla_timeout: float = 10.0,
     ) -> None:
         self.scenario_params = scenario_params
         self.bp_meta: dict[str, dict[str, Any]] = {}
@@ -200,18 +200,26 @@ class ScenarioManager:
         self.client = carla.Client(carla_host, simulation_config["client_port"])
         self.client.set_timeout(carla_timeout)
 
-        world: carla.World | None
+        world: carla.World | None = None
         if xodr_path:
             world = load_customized_world(xodr_path, self.client)
         elif town:
-            try:
-                world = self.client.load_world(town)
-            except RuntimeError as error:
-                logger.error(
-                    f"{bcolors.FAIL}{town} probably is not in your CARLA repo! Please download all town maps to your CARLA repo!{bcolors.ENDC}"
-                )
-                logger.error(error)
-                world = None
+            iterations_amount = 3
+            for i in range(1, iterations_amount + 1):
+                try:
+                    self.client = carla.Client(carla_host, simulation_config["client_port"])
+                    self.client.set_timeout(carla_timeout)
+                    world = self.client.load_world(town)
+                    break
+                except RuntimeError as error:
+                    if i < iterations_amount:
+                        logger.info(f"Loading carla world iteration {i} failed. Retrying...")
+                    else:
+                        logger.error(
+                            f"{bcolors.FAIL}{town} probably is not in your CARLA repo! Please download all town maps to your CARLA repo!{bcolors.ENDC}"
+                        )
+                        logger.error(error)
+                        world = None
         else:
             world = self.client.get_world()
 
