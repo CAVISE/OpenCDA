@@ -38,7 +38,14 @@ CODE_DIFF_FILENAME = "code_diff.patch"
 REPO_ROOT = Path(__file__).resolve().parents[3]
 MODEL_CONFIG_FILENAME = "config.yaml"
 # Paths resolved relative to the AdvCP configuration directory.
-ADVCP_PATH_KEYS = ("car_mesh_path", "car_mesh_divide_path", "remove_adv_shape_perturb_path", "remove_adv_shape_divide_path")
+ADVCP_PATH_KEYS = (
+    "model_path",
+    "mesh_divide_path",
+    "car_mesh_path",
+    "car_mesh_divide_path",
+    "remove_adv_shape_perturb_path",
+    "remove_adv_shape_divide_path",
+)
 CHECKPOINT_SUFFIXES = (".pth", ".pt", ".ckpt", ".bin", ".safetensors")
 TRACKED_PACKAGES = ("numpy", "torch", "torchvision", "carla", "omegaconf", "open3d", "opencood", "spconv", "scipy", "PyYAML")
 
@@ -630,8 +637,8 @@ def _save_code_diff(output_dir: Path, git_info: Mapping[str, Any] | None) -> str
     diff = _run_git(REPO_ROOT, "diff", "HEAD", "--binary", preserve_whitespace=True)
     if not diff:
         return None
-    if _redact_string(diff) != diff:
-        logger.warning("Git patch contains credential-bearing URLs; refusing to persist it. Commit or sanitize the changes before sharing this run.")
+    if _redact_string(diff) != diff or SECRET_KEY_PATTERN.search(diff):
+        logger.warning("Git patch contains potential credentials; refusing to persist it. Commit or sanitize the changes before sharing this run.")
         return None
     (output_dir / CODE_DIFF_FILENAME).write_text(diff, encoding="utf-8")
     return CODE_DIFF_FILENAME
@@ -765,6 +772,8 @@ def _device_signature(device: Mapping[str, Any] | None) -> dict[str, Any]:
     """Device details that may change inference results."""
     torch_info = (device or {}).get("torch") or {}
     return {
+        "platform": (device or {}).get("platform") if torch_info.get("device") == "cpu" else None,
+        "machine": (device or {}).get("machine") if torch_info.get("device") == "cpu" else None,
         "device": torch_info.get("device"),
         "gpus": [gpu.get("name") for gpu in torch_info.get("gpus") or []],
         "cuda": torch_info.get("cuda_version"),
@@ -829,7 +838,14 @@ def compare_with_original(original: Mapping[str, Any], opt: Any) -> list[str]:
     original_device = _device_signature(original.get("device"))
     current_device = _device_signature(collect_device_info())
     if original_device["device"]:
-        for key, label in (("device", "Device"), ("gpus", "GPU"), ("cuda", "CUDA version"), ("cudnn", "cuDNN version")):
+        for key, label in (
+            ("device", "Device"),
+            ("gpus", "GPU"),
+            ("cuda", "CUDA version"),
+            ("cudnn", "cuDNN version"),
+            ("platform", "CPU platform"),
+            ("machine", "CPU architecture"),
+        ):
             if original_device[key] != current_device[key]:
                 warnings.append(f"{label} differs: original {original_device[key]}, current {current_device[key]}.")
     return warnings

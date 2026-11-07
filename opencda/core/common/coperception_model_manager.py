@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import weakref
 import os
 import logging
 from contextlib import contextmanager, nullcontext
@@ -750,7 +751,9 @@ class CoperceptionModelManager:
             return
 
         def record(boxes: Any, scores: Any, result: Any) -> None:
-            calls.append((self._detached(boxes), self._detached(scores), result))
+            # Keep result identity without retaining its GPU tensors or autograd graph.
+            score_ref = weakref.ref(result[1]) if isinstance(result, tuple) and len(result) == 2 and result[1] is not None else None
+            calls.append((self._detached(boxes), self._detached(scores), score_ref))
 
         def recording(boxes: Any, scores: Any) -> Any:
             result = original(boxes, scores)
@@ -773,7 +776,7 @@ class CoperceptionModelManager:
 
     @staticmethod
     def _detached(value: Any) -> Any:
-        return value.detach().clone() if hasattr(value, "detach") else value
+        return value.detach().cpu().clone() if hasattr(value, "detach") else value
 
     def _select_raw_detections(self, calls: list[tuple[Any, Any, Any]], pred_score: Any) -> tuple[Any, Any]:
         """Find the post-processing call producing the returned score tensor.
@@ -793,10 +796,8 @@ class CoperceptionModelManager:
         # Associate raw candidates with the exact returned score tensor.
         # Matching numeric scores is unsafe when an attack returns the best
         # optimization step rather than the last post-processing call.
-        for raw_boxes, raw_scores, result in reversed(calls):
-            if not isinstance(result, tuple) or len(result) != 2:
-                continue
-            if result[1] is pred_score:
+        for raw_boxes, raw_scores, score_ref in reversed(calls):
+            if pred_score is not None and score_ref is not None and score_ref() is pred_score:
                 return raw_boxes, raw_scores
         if calls:
             logger.warning("Raw detections were captured but none matches the final prediction; raw boxes are not saved for this tick.")

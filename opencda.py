@@ -388,6 +388,12 @@ def main() -> None:
         use_saved_advcp_config = replay_dir is not None and not _cli_sets_option(sys.argv[1:], "--advcp-config")
         saved_advcp_config = config_yaml.parent / "inputs" / "advcp_config.yaml" if use_saved_advcp_config else None
         if saved_advcp_config is not None and saved_advcp_config.is_file():
+            from opencda.scenario_testing.utils.run_metadata import sha256_file
+
+            saved_input = (replay_manifest or {}).get("inputs", {}).get("advcp_config", {})
+            expected_hash = saved_input.get("sha256")
+            if expected_hash is not None and sha256_file(saved_advcp_config) != expected_hash:
+                raise ValueError("Saved AdvCP configuration SHA-256 mismatch: advcp_config.yaml was modified or corrupted.")
             advcp_config = saved_advcp_config
         else:
             if saved_advcp_config is not None:

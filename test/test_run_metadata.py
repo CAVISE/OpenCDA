@@ -653,10 +653,19 @@ def test_saved_yaml_artifacts_redact_credentials(tmp_path: Path):
         entrypoint.resolve_launch_arguments(["--replay-from", str(tmp_path / "run")])
 
 
-def test_sensitive_git_diff_is_not_saved(tmp_path: Path, monkeypatch, caplog):
+@pytest.mark.parametrize(
+    "fake_diff",
+    [
+        "+repo=https://user:TEST_SECRET_123@example.com/models.git\n",
+        "+password: TEST_SECRET_123\n",
+        "+api_key=TEST_SECRET_123\n",
+        '-API_KEY="TEST_SECRET_123"\n',
+        " context_password: TEST_SECRET_123\n",
+    ],
+)
+def test_sensitive_git_diff_is_not_saved(tmp_path: Path, monkeypatch, caplog, fake_diff):
     """Persisting a credential-bearing Git patch would expose repository access."""
     git_info = {"dirty": True, "untracked_files": []}
-    fake_diff = "+repo=https://user:TEST_SECRET_123@example.com/models.git\n"
     monkeypatch.setattr(run_metadata, "_run_git", lambda *args, **kwargs: fake_diff)
     with caplog.at_level("WARNING"):
         result = run_metadata._save_code_diff(tmp_path, git_info)
@@ -671,3 +680,63 @@ def test_replay_warns_if_original_dirty_diff_is_missing(monkeypatch):
     monkeypatch.setattr(run_metadata, "collect_code_versions", lambda: {"opencda": {"git": {"dirty": False}}})
     warnings = run_metadata.compare_with_original(original, _make_opt())
     assert any("code diff is not available" in warning for warning in warnings)
+
+
+@pytest.mark.parametrize("key", ["model_path", "mesh_divide_path"])
+def test_saved_advcp_legacy_path_aliases(tmp_path, key):
+    import yaml
+
+    source = tmp_path / "original" / "attack.yaml"
+    source.parent.mkdir()
+    source.write_text(f"{key}: assets/car.pt\n")
+    target = tmp_path / "copy.yaml"
+    run_metadata._copy_advcp_config(source, target)
+    assert yaml.safe_load(target.read_text())[key] == str(source.parent / "assets/car.pt")
+    source.write_text(f"{key}: /absolute/car.pt\n")
+    run_metadata._copy_advcp_config(source, target)
+    assert target.read_bytes() == source.read_bytes()
+
+
+@pytest.mark.parametrize("field", ["machine", "platform"])
+def test_replay_warns_when_cpu_environment_changes(monkeypatch, field):
+    original = {"torch": {"device": "cpu"}, "machine": "x86_64", "platform": "Linux"}
+    current = {**original, field: "different"}
+    monkeypatch.setattr(run_metadata, "collect_device_info", lambda: current)
+    warnings = run_metadata.compare_with_original({"device": original}, _make_opt())
+    assert any("CPU" in warning and "different" in warning for warning in warnings)
+    monkeypatch.setattr(run_metadata, "collect_device_info", lambda: original)
+    assert not any("CPU" in warning for warning in run_metadata.compare_with_original({"device": original}, _make_opt()))
+
+
+@pytest.mark.parametrize("override", [False, True])
+def test_replay_checks_saved_advcp_hash(tmp_path, monkeypatch, merged_config, override):
+    entrypoint = _load_entrypoint()
+    source = tmp_path / "attack.yaml"
+    source.write_text("mode: spoofing\n")
+    run_dir = tmp_path / "original"
+    run_metadata.write_run_artifacts(
+        run_dir,
+        opt=_make_opt(),
+        argv=["-t", "single_town06_carla", "--with-coperception", "--with-advcp", "--advcp-config", str(source)],
+        merged_config=merged_config,
+        current_time="t",
+        input_files={"advcp_config": source},
+    )
+    (run_dir / "reproducibility/inputs/advcp_config.yaml").write_text("mode: removal\n")
+    argv = ["--replay-from", str(run_dir)]
+    if override:
+        manifest = _replay_main(entrypoint, monkeypatch, tmp_path / "new", [*argv, "--advcp-config", str(source)])
+        assert manifest["launch"]["options"]["advcp_config"] == str(source)
+    else:
+        monkeypatch.setattr(sys, "argv", ["opencda.py", *argv])
+        monkeypatch.setattr(entrypoint, "create_logger", lambda **kwargs: entrypoint.logging.getLogger("test"))
+        monkeypatch.setattr(entrypoint, "install_traceback_handler", lambda **kwargs: None)
+        with pytest.raises(ValueError, match="AdvCP configuration SHA-256 mismatch"):
+            entrypoint.main()
+
+
+def test_safe_git_patch_preserves_whitespace(tmp_path, monkeypatch):
+    patch = "diff --git a/example.py b/example.py\n--- a/example.py\n+++ b/example.py\n@@ -1,2 +1,2 @@\n-old = 1\n+new = 2\n \n"
+    monkeypatch.setattr(run_metadata, "_run_git", lambda *args, **kwargs: patch)
+    assert run_metadata._save_code_diff(tmp_path, {"dirty": True}) == run_metadata.CODE_DIFF_FILENAME
+    assert (tmp_path / run_metadata.CODE_DIFF_FILENAME).read_text() == patch

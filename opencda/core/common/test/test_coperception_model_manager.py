@@ -867,3 +867,44 @@ class TestRawDetections:
             assert manager._select_raw_detections([], np.array([0.9])) == (None, None)
 
         assert caplog.text.count("Pre-NMS boxes are not available for _FakePostProcessor") == 1
+
+
+class _DeviceTensor:
+    def __init__(self, values, device="cuda"):
+        self.values = np.asarray(values)
+        self.device = device
+
+    def detach(self):
+        return self
+
+    def cpu(self):
+        return _DeviceTensor(self.values, "cpu")
+
+    def clone(self):
+        return _DeviceTensor(self.values.copy(), self.device)
+
+
+def test_raw_capture_releases_intermediate_results_and_keeps_cpu_snapshots(fake_heavy_deps):
+    import gc
+    import weakref
+
+    manager = TestRawDetections()._manager(fake_heavy_deps)
+    processor = manager.opencood_dataset.post_processor
+    boxes = _DeviceTensor(np.zeros((2, 8, 3)))
+    scores = _DeviceTensor([0.8, 0.1])
+    best_scores = _DeviceTensor([0.8])
+    with manager._capture_raw_detections() as calls:
+        processor.record_raw_detections(boxes, scores, (_DeviceTensor([1]), best_scores))
+        for _ in range(25):
+            result = (_DeviceTensor([2]), _DeviceTensor([0.8]))
+            box_ref, score_ref = weakref.ref(result[0]), weakref.ref(result[1])
+            processor.record_raw_detections(_DeviceTensor(np.ones((2, 8, 3))), scores, result)
+            del result
+            gc.collect()
+            assert box_ref() is None and score_ref() is None
+        boxes.values[:] = 5
+        assert all(box.device == score.device == "cpu" for box, score, _ in calls)
+    selected_boxes, selected_scores = manager._select_raw_detections(calls, best_scores)
+    np.testing.assert_array_equal(selected_boxes.values, np.zeros((2, 8, 3)))
+    np.testing.assert_array_equal(selected_scores.values, [0.8, 0.1])
+    assert manager._select_raw_detections(calls, _DeviceTensor([0.8])) == (None, None)
