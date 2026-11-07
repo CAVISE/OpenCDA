@@ -69,12 +69,12 @@ class MeanRecallAtIoUMetric(BaseMetric):
     def get_report_spec(cls) -> MetricReportSpec:
         return MetricReportSpec(
             metric_name=cls.metric_name,
-            display_name="Mean Recall at IoU",
+            display_name="Mean PR-Curve Recall Coordinates",
             series_names=tuple(cls._series_name(iou) for iou in cls.iou_thresholds),
             summary_specs=tuple(
                 MetricSummarySpec(
                     series_name=cls._series_name(iou),
-                    display_name=f"Mean Recall at IoU {iou:.1f}",
+                    display_name=f"Mean PR-Curve Recall Coordinates at IoU {iou:.1f}",
                 )
                 for iou in cls.iou_thresholds
             ),

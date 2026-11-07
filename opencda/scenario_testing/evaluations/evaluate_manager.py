@@ -72,6 +72,33 @@ class EvaluationManager(object):
         scenario_report = self.scenario_eval(scenario_metrics_collector)
         logger.info("Scenario evaluation done")
 
+        coperception_data = coperception_report.to_dict()
+
+        if coperception_model_manager is not None:
+            ap_metric = coperception_model_manager.metrics_collector.get_metric(
+                "ap_at_iou"
+            )
+
+            if ap_metric is not None:
+                final_metrics = ap_metric.get_final_metrics()
+                coperception_data["final_metrics"] = final_metrics
+                logger.info(
+                    "Final cooperative perception metrics, confidence >= %.2f",
+                    final_metrics["confidence_threshold"],
+                )
+
+                for iou, values in final_metrics["by_iou"].items():
+                    logger.info(
+                        "IoU=%s AP=%s TP=%d FP=%d FN=%d Precision=%s Recall=%s",
+                        iou,
+                        values["ap"],
+                        values["tp"],
+                        values["fp"],
+                        values["fn"],
+                        values["precision"],
+                        values["recall"],
+                    )
+
         json_save_path = os.path.join(self.eval_save_path, "report.json")
         with open(json_save_path, "w", encoding="utf-8") as output_file:
             json.dump(
@@ -79,7 +106,7 @@ class EvaluationManager(object):
                     "scenario": scenario_report.to_dict(),
                     "planning": planning_report.to_dict(),
                     "localization": localization_report.to_dict(),
-                    "coperception": coperception_report.to_dict(),
+                    "coperception": coperception_data,
                 },
                 output_file,
                 indent=2,
