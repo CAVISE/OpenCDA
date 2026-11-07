@@ -155,3 +155,16 @@ def test_shutdown_stops_tracked_process(api, process):
     assert api.process is None
     process.wait.assert_awaited()
     process.send_signal.assert_called_once()
+
+
+@pytest.mark.parametrize("returncode", [1, 2, -9])
+def test_failed_exit_preserved_after_stop(api, client, process, returncode):
+    process.returncode = returncode
+    process.wait = AsyncMock(return_value=returncode)
+    expected = {"state": "FAILED", "pid": process.pid, "returncode": returncode}
+    assert client.get("/v1/status").json() == expected
+    assert client.post("/v1/stop").json() == expected
+    assert api.process is None
+    assert client.get("/v1/status").json() == expected
+    assert client.post("/v1/stop").json() == expected
+    process.send_signal.assert_not_called()

@@ -64,7 +64,7 @@ app.middleware("http")(log_requests)
 @router.get("/status")
 async def status() -> dict[str, str | int | None]:
     if process is None:
-        state = "IDLE" if last_pid is None else "STOPPED"
+        state = "IDLE" if last_pid is None else ("STOPPED" if last_returncode == 0 else "FAILED")
         return {"state": state, "pid": last_pid, "returncode": last_returncode}
     if process.returncode is None:
         state = "STOPPING" if stop_requested else "RUNNING"
@@ -131,7 +131,11 @@ async def stop() -> dict[str, str | int | None]:
             except asyncio.TimeoutError:
                 logger.error("Stop timed out: pid=%s", current.pid)
                 raise HTTPException(status_code=504, detail="OpenCDA is still stopping")
-        return {"state": "IDLE" if last_pid is None else "STOPPED", "pid": last_pid, "returncode": last_returncode}
+        return {
+            "state": "IDLE" if last_pid is None else ("STOPPED" if last_returncode == 0 else "FAILED"),
+            "pid": last_pid,
+            "returncode": last_returncode,
+        }
 
 
 async def _run_from_name(scenario: str) -> dict[str, str | int]:
