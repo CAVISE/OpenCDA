@@ -14,6 +14,7 @@ ninja==1.13.2
 
 # keep numpy pinned to avoid accidental numpy>=2 upgrades / binary incompat
 numpy==2.5.4
+omegaconf==2.3.0
 
 # image I/O used by MLManager tests
 opencv-python-headless==5.0.0.93
