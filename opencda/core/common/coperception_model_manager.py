@@ -42,7 +42,7 @@ else:
     DatasetOpenCOOD: TypeAlias = object
 
 logger = logging.getLogger("cavise.opencda.opencda.core.common.coperception_model_manager")
-# Через этот атрибут постпроцессора код со своим NMS (late-fusion AdvCP) передаёт рамки до NMS.
+# Postprocessors with custom NMS (late-fusion AdvCP) report pre-NMS boxes here.
 RAW_DETECTIONS_HOOK = "record_raw_detections"
 
 __all__ = (
@@ -776,12 +776,12 @@ class CoperceptionModelManager:
         return value.detach().clone() if hasattr(value, "detach") else value
 
     def _select_raw_detections(self, calls: list[tuple[Any, Any, Any]], pred_score: Any) -> tuple[Any, Any]:
-        """Find the post-processing call matching the final scores.
+        """Find the post-processing call producing the returned score tensor.
 
         AdvCP may invoke post-processing more than once per tick.
         """
         if not calls:
-            # CIASSD и FPV-RCNN делают NMS внутри OpenCOOD, не через post_process_detections.
+            # CIASSD and FPV-RCNN perform NMS inside OpenCOOD.
             if not getattr(self, "_warned_no_raw_detections", False):
                 post_processor = getattr(getattr(self, "opencood_dataset", None), "post_processor", None)
                 logger.warning(
@@ -790,19 +790,13 @@ class CoperceptionModelManager:
                 )
                 self._warned_no_raw_detections = True
             return None, None
-        try:
-            final_scores = self._boxes_to_numpy(pred_score)
-        except TypeError:
-            return None, None
+        # Associate raw candidates with the exact returned score tensor.
+        # Matching numeric scores is unsafe when an attack returns the best
+        # optimization step rather than the last post-processing call.
         for raw_boxes, raw_scores, result in reversed(calls):
-            result_scores = result[1] if isinstance(result, tuple) and len(result) == 2 else None
-            try:
-                candidate = self._boxes_to_numpy(result_scores)
-            except TypeError:
+            if not isinstance(result, tuple) or len(result) != 2:
                 continue
-            if candidate is None and final_scores is None:
-                return raw_boxes, raw_scores
-            if candidate is not None and final_scores is not None and candidate.shape == final_scores.shape and np.allclose(candidate, final_scores):
+            if result[1] is pred_score:
                 return raw_boxes, raw_scores
         if calls:
             logger.warning("Raw detections were captured but none matches the final prediction; raw boxes are not saved for this tick.")

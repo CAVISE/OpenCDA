@@ -788,7 +788,7 @@ class _FakePostProcessor:
     params = {"target_args": {"score_threshold": 0.2}, "nms_thresh": 0.15}
 
     def post_process_detections(self, boxes, scores):
-        keep = scores > 0.5  # упрощённая фильтрация для теста
+        keep = scores > 0.5  # Simplified filtering for the test
         return boxes[keep], scores[keep]
 
 
@@ -809,7 +809,7 @@ class TestRawDetections:
         with manager._capture_raw_detections() as calls:
             pred_boxes, pred_scores = manager.opencood_dataset.post_processor.post_process_detections(raw_boxes, raw_scores)
 
-        # Проверяем, что метод восстановлен.
+        # Verify that the original method is restored.
         assert "post_process_detections" not in vars(manager.opencood_dataset.post_processor)
 
         selected_boxes, selected_scores = manager._select_raw_detections(calls, pred_scores)
@@ -843,7 +843,7 @@ class TestRawDetections:
         assert calls == []
 
     def test_raw_detections_reported_through_hook_are_selected(self, fake_heavy_deps):
-        """Путь late-fusion AdvCP вызывает не post_process_detections, а хук record_raw_detections."""
+        """Late-fusion AdvCP uses the record_raw_detections hook instead of post_process_detections."""
         manager = self._manager(fake_heavy_deps)
         post_processor = manager.opencood_dataset.post_processor
         raw_boxes = np.zeros((3, 8, 3))
@@ -859,7 +859,7 @@ class TestRawDetections:
         np.testing.assert_array_equal(selected_boxes, raw_boxes)
 
     def test_warns_once_when_postprocessor_has_no_raw_detections(self, fake_heavy_deps, caplog):
-        """Для CIASSD/FPV-RCNN рамок до NMS нет: пишем одно предупреждение, а не на каждый тик."""
+        """Warn once when pre-NMS boxes are unavailable for CIASSD/FPV-RCNN."""
         manager = self._manager(fake_heavy_deps)
 
         with caplog.at_level("WARNING"):

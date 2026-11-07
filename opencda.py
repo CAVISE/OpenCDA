@@ -118,9 +118,9 @@ def install_traceback_handler(verbose: bool = True, suppress_modules: Collection
 
 
 REPLAY_FLAG = "--replay-from"
-# Взаимоисключающие параметры: если при повторе задан один, сохранённый второй убираем.
+# Remove a saved mutually exclusive option when replay overrides it.
 EXCLUSIVE_OPTIONS = (("--model-id", "--model-dir"),)
-# Пути вывода исходного прогона при повторе не восстанавливаем, иначе повтор перезапишет его файлы.
+# Do not restore original output paths during replay to avoid overwriting the original run artifacts.
 REPLAY_OUTPUT_OPTIONS = ("--log-file",)
 
 
@@ -365,7 +365,7 @@ def main() -> None:
         if advcp_config.suffix == "":
             advcp_config = advcp_config.with_suffix(".yaml")
 
-        # Для replay берём сохранённый AdvCP-конфиг, если в команде не указали свой --advcp-config.
+        # Replay uses the saved AdvCP config unless explicitly overridden.
         use_saved_advcp_config = replay_dir is not None and not _cli_sets_option(sys.argv[1:], "--advcp-config")
         saved_advcp_config = config_yaml.parent / "inputs" / "advcp_config.yaml" if use_saved_advcp_config else None
         if saved_advcp_config is not None and saved_advcp_config.is_file():
@@ -384,7 +384,7 @@ def main() -> None:
     resolve_runtime_models(opt)
 
     if replay_dir is not None:
-        # При replay конфиг уже объединён.
+        # The replay configuration is already merged.
         scene_dict = cast(DictConfig, omegaconf.OmegaConf.load(str(config_yaml)))
     else:
         # set the yaml file for the specific testing scenario
@@ -417,9 +417,9 @@ def main() -> None:
     )
 
     runtime_stats = {}
-    t0 = time.perf_counter()
+    run_started_at = time.perf_counter()
     run_status, run_error = "failed", None
-    # Манифест уже записан, поэтому любая ошибка дальше должна попасть в его статус.
+    # Record every failure after manifest creation in its final status.
     try:
         if replay_manifest is not None:
             for warning in run_metadata.compare_with_original(replay_manifest, opt):
@@ -434,8 +434,9 @@ def main() -> None:
             profiler.enable()
 
             try:
+                scenario_started_at = time.perf_counter()
                 run_scenario(opt, scene_dict, current_time=current_time, runtime_stats=runtime_stats)
-                runtime_stats["full_scenario"] = time.perf_counter() - t0
+                runtime_stats["full_scenario"] = time.perf_counter() - scenario_started_at
             finally:
                 evaluation_output_dir.mkdir(parents=True, exist_ok=True)
                 profiler_output = evaluation_output_dir / "profile_output.prof"
@@ -447,8 +448,9 @@ def main() -> None:
                 stats.sort_stats("cumulative")
                 stats.print_stats(30)
         else:
+            scenario_started_at = time.perf_counter()
             run_scenario(opt, scene_dict, current_time=current_time, runtime_stats=runtime_stats)
-            runtime_stats["full_scenario"] = time.perf_counter() - t0
+            runtime_stats["full_scenario"] = time.perf_counter() - scenario_started_at
         run_status = "completed"
     except KeyboardInterrupt:
         run_status = "interrupted"
@@ -460,7 +462,7 @@ def main() -> None:
         run_metadata.finalize_run_manifest(
             evaluation_output_dir,
             status=run_status,
-            duration_seconds=round(time.perf_counter() - t0, 3),
+            duration_seconds=round(time.perf_counter() - run_started_at, 3),
             error=run_error,
         )
 

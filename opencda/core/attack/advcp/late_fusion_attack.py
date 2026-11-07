@@ -38,7 +38,7 @@ from opencda.core.attack.advcp.types import (
 )
 
 
-# Должно совпадать с RAW_DETECTIONS_HOOK в coperception_model_manager.py.
+# Must match RAW_DETECTIONS_HOOK in coperception_model_manager.py.
 RAW_DETECTIONS_HOOK = "record_raw_detections"
 
 
@@ -319,7 +319,7 @@ class AdvCoperceptionLateFusionAttack:
         # outside the configured perception/evaluation range. The
         # ``pred_is_fake_tensor`` mask is filtered in lockstep so we can
         # tell which spoofing boxes survive to the final output.
-        # Кандидаты до фильтрации и NMS, их сохраняет CoperceptionModelManager.
+        # Raw candidates before filtering and NMS are saved by CoperceptionModelManager.
         raw_box3d_tensor, raw_scores = pred_box3d_tensor, scores
 
         keep_index_1 = box_utils.remove_large_pred_bbx(pred_box3d_tensor)

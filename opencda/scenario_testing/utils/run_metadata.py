@@ -12,6 +12,7 @@ import json
 import logging
 import os
 import platform
+import re
 import shlex
 import shutil
 import socket
@@ -21,6 +22,7 @@ from datetime import datetime
 from importlib import metadata
 from pathlib import Path
 from typing import Any, Iterable, Mapping
+from urllib.parse import urlsplit, urlunsplit
 
 logger = logging.getLogger("cavise.opencda.opencda.scenario_testing.utils.run_metadata")
 
@@ -35,7 +37,7 @@ CODE_DIFF_FILENAME = "code_diff.patch"
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 MODEL_CONFIG_FILENAME = "config.yaml"
-# Пути в AdvCP-конфиге, которые AdvCoperceptionModelManager.load_config считает относительно папки конфига.
+# Paths resolved relative to the AdvCP configuration directory.
 ADVCP_PATH_KEYS = ("car_mesh_path", "car_mesh_divide_path", "remove_adv_shape_perturb_path", "remove_adv_shape_divide_path")
 CHECKPOINT_SUFFIXES = (".pth", ".pt", ".ckpt", ".bin", ".safetensors")
 TRACKED_PACKAGES = ("numpy", "torch", "torchvision", "carla", "omegaconf", "open3d", "opencood", "spconv", "scipy", "PyYAML")
@@ -60,6 +62,92 @@ def _to_jsonable(value: Any) -> Any:
     return repr(value)
 
 
+# Credentials must never be stored in shared simulation artifacts.
+REDACTED = "[REDACTED]"
+SECRET_KEY_PATTERN = re.compile(
+    r"(?:password|passwd|token|secret|api[_-]?key|access[_-]?key|authorization|credential|private[_-]?key)",
+    re.IGNORECASE,
+)
+URL_PATTERN = re.compile(r"https?://[^\s\"'<>]+", re.IGNORECASE)
+SECRET_QUERY_KEYS = frozenset(
+    {
+        "token",
+        "access_token",
+        "auth",
+        "authorization",
+        "password",
+        "passwd",
+        "secret",
+        "api_key",
+        "apikey",
+        "client_secret",
+        "signature",
+        "sig",
+    }
+)
+
+
+def _redact_url(url: str) -> str:
+    """Remove HTTPS basic-auth credentials and known sensitive query values."""
+    from urllib.parse import parse_qsl, urlencode
+
+    try:
+        parsed = urlsplit(url)
+        if parsed.scheme not in ("http", "https") or not parsed.netloc:
+            return url
+        host = parsed.netloc.rsplit("@", 1)[-1] if "@" in parsed.netloc else parsed.netloc
+        # Removing userinfo instead of inserting a placeholder avoids persisting
+        # something that looks like a reusable credential.
+        query = urlencode(
+            [
+                (key, REDACTED if SECRET_KEY_PATTERN.search(key) or key.lower() in SECRET_QUERY_KEYS else value)
+                for key, value in parse_qsl(parsed.query, keep_blank_values=True)
+            ]
+        )
+        return urlunsplit((parsed.scheme, host, parsed.path, query, parsed.fragment))
+    except ValueError:
+        return REDACTED
+
+
+def _redact_string(value: str) -> str:
+    return URL_PATTERN.sub(lambda match: _redact_url(match.group(0)), value)
+
+
+def _redact_argv(argv: Iterable[str]) -> list[str]:
+    """Redact secrets in --flag=value and --flag value forms."""
+    original = list(argv)
+    safe: list[str] = []
+    redact_next = False
+    for item in original:
+        if redact_next:
+            safe.append(REDACTED)
+            redact_next = False
+        elif item.startswith("--") and "=" in item:
+            key, value = item.split("=", 1)
+            safe.append(f"{key}={REDACTED}" if SECRET_KEY_PATTERN.search(key) else f"{key}={_redact_string(value)}")
+        elif item.startswith("--") and SECRET_KEY_PATTERN.search(item):
+            safe.append(item)
+            redact_next = True
+        else:
+            safe.append(_redact_string(item))
+    return safe
+
+
+def _redact_metadata(value: Any, key: str = "") -> Any:
+    """Recursively scrub URLs and explicitly sensitive fields in a manifest."""
+    if key in ("argv", "raw_argv") and isinstance(value, (list, tuple)):
+        return _redact_argv(value)
+    if SECRET_KEY_PATTERN.search(key):
+        return REDACTED if value is not None else None
+    if isinstance(value, Mapping):
+        return {str(k): _redact_metadata(v, str(k)) for k, v in value.items()}
+    if isinstance(value, (tuple, list)):
+        return [_redact_metadata(item) for item in value]
+    if isinstance(value, str):
+        return _redact_string(value)
+    return value
+
+
 def sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as stream:
@@ -68,7 +156,7 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _run_git(repo: Path, *arguments: str) -> str | None:
+def _run_git(repo: Path, *arguments: str, preserve_whitespace: bool = False) -> str | None:
     git = shutil.which("git")
     if git is None:
         return None
@@ -76,7 +164,7 @@ def _run_git(repo: Path, *arguments: str) -> str | None:
         result = subprocess.run([git, "-C", str(repo), *arguments], check=True, capture_output=True, text=True, timeout=30)
     except (subprocess.SubprocessError, OSError):
         return None
-    return result.stdout.strip()
+    return result.stdout if preserve_whitespace else result.stdout.strip()
 
 
 def collect_git_info(repo: Path) -> dict[str, Any] | None:
@@ -90,9 +178,9 @@ def collect_git_info(repo: Path) -> dict[str, Any] | None:
         "path": str(repo),
         "commit": commit,
         "branch": _run_git(repo, "rev-parse", "--abbrev-ref", "HEAD"),
-        "remote": _run_git(repo, "config", "--get", "remote.origin.url"),
+        "remote": _redact_string(_run_git(repo, "config", "--get", "remote.origin.url") or ""),
         "dirty": bool(status),
-        # Новые файлы не входят в diff, сохраняем их список.
+        # Untracked files are not included in the diff; record their names.
         "untracked_files": untracked.splitlines() if untracked else [],
     }
 
@@ -110,7 +198,7 @@ def _module_location(module_name: str) -> Path | None:
     module_file = getattr(module, "__file__", None)
     if module_file:
         return Path(module_file).resolve().parent
-    # На момент записи манифеста OpenCOOD ещё не импортирован, поэтому ищем его через find_spec.
+    # OpenCOOD might not be imported yet when the manifest is written.
     try:
         spec = importlib.util.find_spec(module_name)
     except (ImportError, ValueError):
@@ -178,7 +266,7 @@ def collect_device_info() -> dict[str, Any]:
                 {"index": index, "name": torch.cuda.get_device_name(index), "capability": list(torch.cuda.get_device_capability(index))}
                 for index in range(torch.cuda.device_count())
             ]
-    except Exception as error:  # если не получилось определить устройство, продолжаем
+    except Exception as error:  # Device detection failure must not interrupt a run.
         torch_info = {"error": repr(error)}
     info["torch"] = torch_info
     return info
@@ -245,7 +333,7 @@ def _bundle_artifacts(bundle_dir: Path) -> list[dict[str, Any]]:
     expected = _meta_checksums(bundle_dir)
     paths = set(expected)
     paths.update(path.relative_to(bundle_dir).as_posix() for path in bundle_dir.rglob("*") if path.is_file() and path.suffix in CHECKPOINT_SUFFIXES)
-    # config.yaml модели тоже влияет на результат (пороги, NMS), даже если его нет в meta.yaml.
+    # Model config.yaml affects inference even if it is absent from meta.yaml.
     if (bundle_dir / MODEL_CONFIG_FILENAME).is_file():
         paths.add(MODEL_CONFIG_FILENAME)
 
@@ -287,7 +375,7 @@ def describe_bundle(bundle_dir_value: str | None, *, bundle_id: str | None, cate
 
     toplevel = _run_git(bundle_dir, "rev-parse", "--show-toplevel")
     if not toplevel:
-        return info  # --model-dir указан вне Git-репозитория: модель опознаётся только по хешам
+        return info  # Outside Git, the model is identified by artifact hashes only.
     repo_root = Path(toplevel)
     bundle_path = bundle_dir.relative_to(repo_root).as_posix()
     remote = _run_git(repo_root, "config", "--get", "remote.origin.url") or getattr(opt, "models_repository", None)
@@ -296,10 +384,10 @@ def describe_bundle(bundle_dir_value: str | None, *, bundle_id: str | None, cate
 
     info.update(
         {
-            "repository": web_url or remote,
+            "repository": _redact_string(web_url or remote) if (web_url or remote) else None,
             "path_in_repository": bundle_path,
             "commit": commit,
-            "url": f"{web_url}/tree/{commit}/{bundle_path}" if web_url and commit else None,
+            "url": _redact_string(f"{web_url}/tree/{commit}/{bundle_path}") if web_url and commit else None,
         }
     )
     if commit is None:
@@ -341,12 +429,12 @@ def _write_reproduce_script(output_dir: Path, command: list[str]) -> str:
     script = output_dir / REPRODUCE_SCRIPT_FILENAME
     script.write_text(
         "#!/usr/bin/env bash\n"
-        "# Запускать из корня репозитория OpenCDA. Доп. аргументы перекрывают сохранённые.\n"
+        "# Run from the OpenCDA repository root. Additional arguments override saved ones.\n"
         "set -euo pipefail\n\n"
-        "# Исходная команда (заново объединяет текущие YAML из репозитория):\n"
+        "# Original command (loads the current YAML files from the repository):\n"
         f"# {shlex.join(command)}\n\n"
-        "# Повтор с сохранёнными конфигом, аргументами и AdvCP-конфигом этого прогона\n"
-        "# (работает, даже если папку прогона перенесли или скопировали):\n"
+        "# Replay with the saved configuration, arguments, and AdvCP config.\n"
+        "# The run directory may be moved or copied. Supply credentials separately.\n"
         'RUN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"\n'
         'python3 opencda.py --replay-from "$RUN_DIR" "$@"\n',
         encoding="utf-8",
@@ -410,7 +498,7 @@ def _save_code_diff(output_dir: Path, git_info: Mapping[str, Any] | None) -> str
     if not git_info:
         return None
     if git_info.get("untracked_files"):
-        # Новые файлы только перечисляем, их содержимое не сохраняем.
+        # Record untracked filenames only; their contents are not captured.
         logger.warning(
             "OpenCDA has untracked files (%d): only their names are saved, not their contents. Commit them for full reproducibility.",
             len(git_info["untracked_files"]),
@@ -418,10 +506,10 @@ def _save_code_diff(output_dir: Path, git_info: Mapping[str, Any] | None) -> str
     if not git_info.get("dirty"):
         return None
     logger.warning("OpenCDA has uncommitted changes: they are saved to %s.", CODE_DIFF_FILENAME)
-    diff = _run_git(REPO_ROOT, "diff", "HEAD", "--binary")
+    diff = _run_git(REPO_ROOT, "diff", "HEAD", "--binary", preserve_whitespace=True)
     if not diff:
         return None
-    (output_dir / CODE_DIFF_FILENAME).write_text(diff + "\n", encoding="utf-8")
+    (output_dir / CODE_DIFF_FILENAME).write_text(diff, encoding="utf-8")
     return CODE_DIFF_FILENAME
 
 
@@ -449,13 +537,14 @@ def write_run_artifacts(
     output_dir = run_dir / REPRODUCIBILITY_DIRNAME
     output_dir.mkdir(parents=True, exist_ok=True)
     argv = list(argv)
-    command = ["python3", "opencda.py", *argv]
+    safe_argv = _redact_argv(argv)
+    command = ["python3", "opencda.py", *safe_argv]
 
     OmegaConf.save(merged_config, output_dir / CONFIG_FILENAME, resolve=True)
     resolved_config = OmegaConf.to_container(merged_config, resolve=True)
 
     code_versions = collect_code_versions()
-    seed = collect_seed(resolved_config)  # type: ignore[arg-type]
+    seed = collect_seed(resolved_config)
     if seed is None:
         logger.warning("world.seed is not set: numpy/random/torch are not seeded, the run is not reproducible.")
 
@@ -469,12 +558,12 @@ def write_run_artifacts(
         "seed": seed,
         "config_file": CONFIG_FILENAME,
         "launch": {
-            "argv": argv,
+            "argv": safe_argv,
             "command": shlex.join(command),
-            "raw_argv": list(raw_argv) if raw_argv is not None else None,
+            "raw_argv": _redact_argv(raw_argv) if raw_argv is not None else None,
             "reproduce_script": _write_reproduce_script(output_dir, command),
             "cwd": os.getcwd(),
-            "options": vars(opt),
+            "options": _redact_metadata(vars(opt)),
             "replayed_from": replayed_from,
         },
         "code": code_versions,
@@ -490,7 +579,7 @@ def write_run_artifacts(
         },
     }
 
-    write_json(output_dir / MANIFEST_FILENAME, manifest)
+    write_json(output_dir / MANIFEST_FILENAME, _redact_metadata(manifest))
     logger.info("Run manifest saved to: %s", output_dir / MANIFEST_FILENAME)
     return manifest
 
@@ -515,22 +604,6 @@ def load_run_manifest(run_dir: Path) -> dict[str, Any]:
     if not manifest_path.is_file():
         raise FileNotFoundError(f"{manifest_path} not found: this folder is not a reproducible OpenCDA run.")
     return json.loads(manifest_path.read_text(encoding="utf-8"))
-
-
-def load_prediction_records(run_dir: Path) -> list[dict[str, Any]]:
-    """Load per-tick boxes and scores, using None for missing tensors."""
-    import numpy as np
-
-    records: list[dict[str, Any]] = []
-    for path in sorted((run_dir / PREDICTIONS_DIRNAME).glob("tick_*.npz")):
-        with np.load(path) as data:
-            record: dict[str, Any] = {"tick": int(data["tick"])}
-            for key in data.files:
-                if key == "tick" or key.startswith("has_"):
-                    continue
-                record[key] = data[key] if bool(data.get(f"has_{key}", True)) else None
-        records.append(record)
-    return records
 
 
 def _model_input_hashes(checkpoint: Mapping[str, Any] | None) -> dict[str, str | None]:
@@ -565,9 +638,11 @@ def compare_with_original(original: Mapping[str, Any], opt: Any) -> list[str]:
         current_git = (current_code.get(name) or {}).get("git") or {}
         if original_git.get("commit") and original_git.get("commit") != current_git.get("commit"):
             warnings.append(f"{name} commit differs: original {original_git.get('commit')}, current {current_git.get('commit')}.")
-        elif name == "opencood" and (original_git.get("dirty") or current_git.get("dirty")):
-            # Diff OpenCOOD не сохраняется, поэтому одинаковость правок проверить нельзя.
-            warnings.append("opencood has uncommitted changes, they cannot be compared with the original run.")
+        if current_git.get("dirty"):
+            warnings.append(f"{name} replay worktree has uncommitted changes; results may differ.")
+        if name == "opencood" and original_git.get("dirty"):
+            # OpenCOOD diffs are not saved; exact changes cannot be compared.
+            warnings.append("Original opencood worktree had uncommitted changes that cannot be verified.")
     original_packages = original_code.get("packages") or {}
     current_packages = current_code.get("packages") or {}
     for package in sorted(original_packages):
@@ -582,7 +657,7 @@ def compare_with_original(original: Mapping[str, Any], opt: Any) -> list[str]:
     if changed:
         warnings.append(f"Model files differ from the original run (sha256 mismatch or missing): {', '.join(changed)}.")
 
-    # Сравниваем не только cpu/cuda, но и модель GPU и версии CUDA/cuDNN: они тоже влияют на результат.
+    # GPU model and CUDA/cuDNN versions can also influence inference results.
     original_device = _device_signature(original.get("device"))
     current_device = _device_signature(collect_device_info())
     if original_device["device"]:
