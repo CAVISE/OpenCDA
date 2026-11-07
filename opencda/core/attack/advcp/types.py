@@ -250,6 +250,9 @@ class AdvCPConfig(TypedDict, total=False):
         instead of generating a box.
     car_mesh_preserve_aspect : bool
         Preserve the source mesh proportions while scaling.
+    car_mesh_native_size : bool
+        Place the spoof car mesh at its own size instead of fitting it
+        into the target box dimensions.
     remove_adv_shape_generate_zero_perturb : bool
         Also write a zero adv-shape perturbation when generating removal
         assets.
@@ -281,6 +284,7 @@ class AdvCPConfig(TypedDict, total=False):
     car_mesh_dimensions: Sequence[float]  # noqa: DC01
     car_mesh_source_path: str  # noqa: DC01
     car_mesh_preserve_aspect: bool  # noqa: DC01
+    car_mesh_native_size: bool  # noqa: DC01
     remove_adv_shape_generate_zero_perturb: bool  # noqa: DC01
 
 

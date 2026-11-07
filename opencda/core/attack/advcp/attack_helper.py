@@ -1230,7 +1230,10 @@ class AdvCPCarMeshHelper:
             # of borrowing the reference box of a different car model.
             extent = np.asarray(car_mesh.get_max_bound(), dtype=np.float64) - np.asarray(car_mesh.get_min_bound(), dtype=np.float64)
             car_mesh_bbox = np.array([0.0, 0.0, 0.0, *extent, 0.0], dtype=np.float32)
-        return cls.post_process_car_meshes(car_mesh_pieces, spoof_box, car_mesh_name, car_mesh_bbox)
+        native_size = advcp_config.get("car_mesh_native_size", False)
+        if not isinstance(native_size, bool):
+            raise ValueError("AdvCP config key 'car_mesh_native_size' must be bool.")
+        return cls.post_process_car_meshes(car_mesh_pieces, spoof_box, car_mesh_name, car_mesh_bbox, native_size=native_size)
 
     @classmethod
     def post_process_car_meshes(
@@ -1239,12 +1242,15 @@ class AdvCPCarMeshHelper:
         spoof_box: BoxLwhBottomCenter,
         car_mesh_name: str,
         car_mesh_bbox: npt.NDArray | None = None,
+        native_size: bool = False,
     ) -> list[Any]:
         """
         Fit each mesh piece into the configured target box.
 
         Applies a uniform scale (preserving the mesh proportions) and a
-        yaw rotation, then translates to the box's bottom centre.
+        yaw rotation, then translates to the box's bottom centre. With
+        ``native_size`` the scale is skipped, so the mesh keeps its own
+        dimensions and only the box pose is used.
 
         Parameters
         ----------
@@ -1259,6 +1265,9 @@ class AdvCPCarMeshHelper:
         car_mesh_bbox : Optional[npt.NDArray]
             Reference bounding box ``[x, y, z, l, w, h, yaw]`` of the
             source mesh. Takes precedence over the name lookup.
+        native_size : bool
+            Keep the mesh at its own size instead of fitting it into the
+            target box dimensions.
 
         Returns
         -------
@@ -1269,7 +1278,7 @@ class AdvCPCarMeshHelper:
         if car_mesh_bbox is None:
             car_mesh_bbox = cls.CAR_MESH_3D_EXAMPLES.get(car_mesh_name, cls.CAR_MESH_3D_EXAMPLES["car_mesh_0200"])
         # Use the smallest per-axis scale ratio to preserve aspect.
-        scale = float(np.min(spoof_box[3:6] / car_mesh_bbox[3:6]))
+        scale = 1.0 if native_size else float(np.min(spoof_box[3:6] / car_mesh_bbox[3:6]))
         rotation = np.array(
             [
                 [np.cos(spoof_box[6]), -np.sin(spoof_box[6]), 0.0],

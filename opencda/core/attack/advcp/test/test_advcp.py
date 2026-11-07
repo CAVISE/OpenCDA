@@ -7,7 +7,7 @@ import numpy as np
 # The production code imports are now safe because pytest_configure in conftest.py
 # installs the mocks before collection.
 from opencda.core.attack.advcp import AdvCoperceptionModelManager
-from opencda.core.attack.advcp.attack_helper import AdvCPAttackHelper
+from opencda.core.attack.advcp.attack_helper import AdvCPAttackHelper, AdvCPCarMeshHelper
 from opencda.core.attack.advcp.adv_coperception_model_manager import AdvCoperceptionVisualizer
 from opencda.core.attack.advcp.early_fusion_attack import AdvCoperceptionEarlyFusionAttack
 from opencda.core.attack.advcp.intermediate_fusion_attack import AdvCoperceptionIntermediateFusionAttack
@@ -1023,7 +1023,10 @@ class TestAdvCoperceptionModelManager:
         assert loaded_config["remove_adv_shape_divide_path"] == str((tmp_path / "custom" / "divide.pkl").resolve())
         assert loaded_config["remove_adv_shape_perturb_path"] == str(bundle_dir.resolve() / "remove" / "mesh_perturb.npy")
 
-    @pytest.mark.parametrize("config_name", ["spoofing_forward_runtime_assets", "removal_forward_runtime_assets"])
+    @pytest.mark.parametrize(
+        "config_name",
+        ["spoofing_forward_runtime_assets", "removal_forward_runtime_assets", "spoofing_showcase_runtime_assets"],
+    )
     def test_runtime_asset_example_configs_generate_assets(self, tmp_path, config_name):
         import yaml
 
@@ -1058,6 +1061,30 @@ class TestAdvCoperceptionModelManager:
             assert cache_dir in path.parents
         assert not bundle_dir.exists()
 
+
+    @pytest.mark.parametrize(("native_size", "expected_scale"), [(False, 0.5), (True, 1.0)])
+    def test_post_process_car_meshes_native_size_skips_box_fit(self, native_size, expected_scale):
+        piece = MagicMock()
+        spoof_box = np.array([1.0, 2.0, 0.0, 2.0, 1.0, 1.0, 0.0], dtype=np.float32)
+        mesh_bbox = np.array([0.0, 0.0, 0.0, 4.0, 2.0, 1.5, 0.0], dtype=np.float32)
+
+        with patch("opencda.core.attack.advcp.attack_helper.copy.deepcopy", side_effect=lambda mesh: mesh):
+            processed = AdvCPCarMeshHelper.post_process_car_meshes([piece], spoof_box, "generated", mesh_bbox, native_size=native_size)
+
+        assert processed == [piece]
+        assert piece.scale.call_args.args[0] == pytest.approx(expected_scale)
+        np.testing.assert_allclose(piece.translate.call_args.args[0], [1.0, 2.0, 0.0])
+
+    def test_showcase_configs_keep_native_mesh_size(self):
+        import yaml
+
+        config_dir = Path(__file__).resolve().parents[4] / "scenario_testing" / "config_yaml" / "advcp-configs"
+        for name in ("spoofing_showcase", "spoofing_showcase_runtime_assets"):
+            config = yaml.safe_load((config_dir / f"{name}.yaml").read_text(encoding="utf-8"))
+            assert config["mode"] == "spoofing"
+            assert config["attacker_ids"] == ["cav-2"]
+            assert config["car_mesh_native_size"] is True
+            assert config["density"] == "dense_all"
 
 class TestAdvCoperceptionVisualizer:
     def test_advcp_visualizer_includes_removed_boxes_from_context(self):

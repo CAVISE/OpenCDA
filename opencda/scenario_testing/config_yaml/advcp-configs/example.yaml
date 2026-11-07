@@ -104,6 +104,11 @@ dense_distance: 10.0
 # asset bundle in the sibling models repository. Explicit absolute or relative
 # paths can still override them here.
 
+# The spoof car mesh is uniformly scaled to fit the target box. Set this to
+# keep the mesh at its own size (the box then only sets the pose), e.g. to
+# compare differently sized asset bundles.
+# car_mesh_native_size: false
+
 # Optional on-demand asset generation (instead of the bundle). The generated
 # car mesh is a subdivided box with the blueprint's approximate dimensions,
 # or an external mesh scaled to them. Set both car_mesh_path and
