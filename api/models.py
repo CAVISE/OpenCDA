@@ -17,10 +17,10 @@ class Snapshot(BaseModel):
     registration_id: str
     runner_id: str
     instance_id: str
-    api_version: Literal["v1"]
-    version: str
+    api_version: Literal["v1"]  # noqa: DC01 - Pydantic reads this field for validation and serialization.
+    version: str  # noqa: DC01 - Pydantic reads this field for validation and serialization.
     capabilities: list[str]
     revision: int = Field(ge=0)
-    ready: bool
-    occupancy: Literal["idle", "busy", "unknown"]
-    current_task: Task | None
+    ready: bool  # noqa: DC01 - Pydantic reads this field for validation and serialization.
+    occupancy: Literal["idle", "busy", "unknown"]  # noqa: DC01 - Pydantic reads this field for validation and serialization.
+    current_task: Task | None  # noqa: DC01 - Pydantic reads this field for validation and serialization.

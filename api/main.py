@@ -54,19 +54,19 @@ def runtime() -> Runner:
     return runner
 
 
-@app.exception_handler(HTTPException)
+@app.exception_handler(HTTPException)  # noqa: DC02 - FastAPI invokes this registered handler.
 async def http_error(request: Request, error: HTTPException) -> JSONResponse:
     """Return shared JSON errors without internal exception details."""
     return JSONResponse(status_code=error.status_code, content={"code": f"http_{error.status_code}", "message": str(error.detail)})
 
 
-@app.exception_handler(RequestValidationError)
+@app.exception_handler(RequestValidationError)  # noqa: DC02 - FastAPI invokes this registered handler.
 async def validation_error(request: Request, error: RequestValidationError) -> JSONResponse:
     """Do not echo request contents in validation failures."""
     return JSONResponse(status_code=422, content={"code": "invalid_request", "message": "Invalid request parameters."})
 
 
-@app.middleware("http")
+@app.middleware("http")  # noqa: DC02 - FastAPI invokes this registered handler.
 async def authenticate(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
     """Protect all external routes, including documentation and configuration upload."""
     if request.url.path == "/healthz":
@@ -84,7 +84,7 @@ async def authenticate(request: Request, call_next: Callable[[Request], Awaitabl
         return JSONResponse(status_code=500, content={"code": "internal_error", "message": "Runner operation failed."})
 
 
-@app.get("/healthz")
+@app.get("/healthz")  # noqa: DC02 - FastAPI invokes this registered handler.
 async def health() -> dict[str, str]:
     """Report liveness without revealing identity or credentials."""
     return {"status": "ok"}
@@ -96,7 +96,7 @@ async def status() -> dict[str, Any]:
     return runtime().snapshot()
 
 
-@router.get("/tasks/{task_id}", response_model=Task)
+@router.get("/tasks/{task_id}", response_model=Task)  # noqa: DC02 - FastAPI invokes this registered handler.
 async def task_status(task_id: str) -> dict[str, str]:
     """Return retained task observations, including across process restarts."""
     row = runtime().store.db.execute("SELECT id, state FROM tasks WHERE id = ?", (task_id,)).fetchone()
@@ -105,7 +105,7 @@ async def task_status(task_id: str) -> dict[str, str]:
     return dict(row)
 
 
-@router.delete("/registration", status_code=204)
+@router.delete("/registration", status_code=204)  # noqa: DC02 - FastAPI invokes this registered handler.
 async def unregister(request: Request) -> Response:
     """Serialize freedom checks and revocation with acceptance of new work."""
     current = runtime()

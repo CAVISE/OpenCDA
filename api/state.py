@@ -31,7 +31,7 @@ class Store:
         os.fchmod(descriptor, 0o600)
         os.close(descriptor)
         self.db = sqlite3.connect(path, timeout=5)
-        self.db.row_factory = sqlite3.Row
+        self.db.row_factory = sqlite3.Row  # noqa: DC05 - SQLite calls this factory when fetching rows.
         self.db.executescript("""
             CREATE TABLE IF NOT EXISTS installation (id TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS binding (
