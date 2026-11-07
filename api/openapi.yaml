@@ -1,0 +1,254 @@
+openapi: 3.1.0
+info:
+  title: FastAPI
+  version: 0.1.0
+paths:
+  /healthz:
+    get:
+      summary: Health
+      description: Report liveness without revealing identity or credentials.
+      operationId: health_healthz_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties:
+                  type: string
+                type: object
+                title: Response Health Healthz Get
+  /v1/status:
+    get:
+      summary: Status
+      description: Capture state without waiting for scenario execution or cleanup.
+      operationId: status_v1_status_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Snapshot'
+      security:
+      - HTTPBearer: []
+  /v1/tasks/{task_id}:
+    get:
+      summary: Task Status
+      description: Return retained task observations, including across process restarts.
+      operationId: task_status_v1_tasks__task_id__get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: task_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Task Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/registration:
+    delete:
+      summary: Unregister
+      description: Serialize freedom checks and revocation with acceptance of new
+        work.
+      operationId: unregister_v1_registration_delete
+      responses:
+        '204':
+          description: Successful Response
+      security:
+      - HTTPBearer: []
+  /v1/run:
+    post:
+      summary: Run
+      description: Reject duplicate or uncertain execution, preserving named and uploaded
+        scenarios.
+      operationId: run_v1_run_post
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: scenario
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Scenario
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Body_run_v1_run_post'
+      responses:
+        '202':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  anyOf:
+                  - type: string
+                  - type: integer
+                title: Response Run V1 Run Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/stop:
+    post:
+      summary: Stop
+      description: Persist cancellation intent while leaving state reads responsive.
+      operationId: stop_v1_stop_post
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Snapshot'
+      security:
+      - HTTPBearer: []
+components:
+  schemas:
+    Body_run_v1_run_post:
+      properties:
+        config:
+          anyOf:
+          - type: string
+            contentMediaType: application/octet-stream
+          - type: 'null'
+          title: Config
+      type: object
+      title: Body_run_v1_run_post
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    Snapshot:
+      properties:
+        registration_id:
+          type: string
+          title: Registration Id
+        runner_id:
+          type: string
+          title: Runner Id
+        instance_id:
+          type: string
+          title: Instance Id
+        api_version:
+          type: string
+          const: v1
+          title: Api Version
+        version:
+          type: string
+          title: Version
+        capabilities:
+          items:
+            type: string
+          type: array
+          title: Capabilities
+        revision:
+          type: integer
+          minimum: 0.0
+          title: Revision
+        ready:
+          type: boolean
+          title: Ready
+        occupancy:
+          type: string
+          enum:
+          - idle
+          - busy
+          - unknown
+          title: Occupancy
+        current_task:
+          anyOf:
+          - $ref: '#/components/schemas/Task'
+          - type: 'null'
+      type: object
+      required:
+      - registration_id
+      - runner_id
+      - instance_id
+      - api_version
+      - version
+      - capabilities
+      - revision
+      - ready
+      - occupancy
+      - current_task
+      title: Snapshot
+      description: Complete atomic Runner observation; every field is required.
+    Task:
+      properties:
+        id:
+          type: string
+          minLength: 1
+          title: Id
+        state:
+          type: string
+          enum:
+          - PREPARING
+          - RUNNING
+          - UNKNOWN
+          - SUCCEEDED
+          - FAILED
+          - CANCELLED
+          title: State
+      type: object
+      required:
+      - id
+      - state
+      title: Task
+      description: Observed task identity and phase; missing results are never synthesized.
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+        input:
+          title: Input
+        ctx:
+          type: object
+          title: Context
+      type: object
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError
+  securitySchemes:
+    HTTPBearer:
+      type: http
+      scheme: bearer
