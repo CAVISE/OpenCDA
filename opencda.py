@@ -386,21 +386,24 @@ def main() -> None:
 
         # Replay uses the saved AdvCP config unless explicitly overridden.
         use_saved_advcp_config = replay_dir is not None and not _cli_sets_option(sys.argv[1:], "--advcp-config")
-        saved_advcp_config = config_yaml.parent / "inputs" / "advcp_config.yaml" if use_saved_advcp_config else None
-        if saved_advcp_config is not None and saved_advcp_config.is_file():
+        if use_saved_advcp_config:
             from opencda.scenario_testing.utils.run_metadata import sha256_file
 
-            saved_input = (replay_manifest or {}).get("inputs", {}).get("advcp_config", {})
+            saved_input = (replay_manifest or {}).get("inputs", {}).get("advcp_config") or {}
+            saved_copy = saved_input.get("copy", "inputs/advcp_config.yaml")
+            replay_root = config_yaml.parent.resolve()
+            saved_advcp_config = (replay_root / saved_copy).resolve()
+            if not saved_advcp_config.is_relative_to(replay_root) or not saved_advcp_config.is_relative_to(replay_root / "inputs"):
+                raise ValueError("Invalid saved AdvCP config path outside the run inputs directory.")
+            if not saved_advcp_config.is_file():
+                raise FileNotFoundError(f"Saved AdvCP configuration not found: {saved_advcp_config}")
             expected_hash = saved_input.get("sha256")
             if expected_hash is not None and sha256_file(saved_advcp_config) != expected_hash:
-                raise ValueError("Saved AdvCP configuration SHA-256 mismatch: advcp_config.yaml was modified or corrupted.")
+                raise ValueError(f"Saved AdvCP configuration SHA-256 mismatch: {saved_advcp_config.name} was modified or corrupted.")
             advcp_config = saved_advcp_config
-        else:
-            if saved_advcp_config is not None:
-                logger.warning(f"saved AdvCP config {saved_advcp_config} not found, using {advcp_config}: replay may differ from the original run")
-            if not advcp_config.is_file():
-                logger.error(f"AdvCP config not found: {advcp_config}")
-                sys.exit(errno.EPERM)
+        elif not advcp_config.is_file():
+            logger.error(f"AdvCP config not found: {advcp_config}")
+            sys.exit(errno.EPERM)
 
         opt.advcp_config = str(advcp_config)
 

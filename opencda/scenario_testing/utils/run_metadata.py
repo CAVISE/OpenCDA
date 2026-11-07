@@ -498,6 +498,35 @@ def describe_bundle(bundle_dir_value: str | None, *, bundle_id: str | None, cate
     return info
 
 
+def _advcp_override_artifacts(config_path: str | None) -> list[dict[str, Any]]:
+    """Hash every explicitly selected AdvCP asset, including external override files."""
+    if not config_path:
+        return []
+    import yaml
+
+    source = Path(config_path).expanduser().resolve()
+    if not source.is_file():
+        return []
+    try:
+        config = yaml.safe_load(source.read_text(encoding="utf-8"))
+    except (OSError, yaml.YAMLError):
+        logger.warning("Unable to read AdvCP config %s for artifact hashing.", source)
+        return []
+    if not isinstance(config, Mapping):
+        return []
+    artifacts: list[dict[str, Any]] = []
+    for key in ADVCP_PATH_KEYS:
+        value = config.get(key)
+        if not isinstance(value, (str, Path)) or not value:
+            continue
+        candidate = Path(value).expanduser()
+        if not candidate.is_absolute():
+            candidate = source.parent / candidate
+        candidate = candidate.resolve()
+        artifacts.append({"path": key, "source": str(candidate), "sha256": sha256_file(candidate) if candidate.is_file() else None})
+    return artifacts
+
+
 def collect_checkpoint_info(opt: Any) -> dict[str, Any] | None:
     """Collect checkpoint and optional AdvCP asset metadata."""
     if not getattr(opt, "with_coperception", False):
@@ -511,6 +540,7 @@ def collect_checkpoint_info(opt: Any) -> dict[str, Any] | None:
             category="advcp",
             opt=opt,
         )
+        checkpoint["advcp_overrides"] = {"artifacts": _advcp_override_artifacts(getattr(opt, "advcp_config", None))}
     return checkpoint
 
 
@@ -530,12 +560,14 @@ def reproducibility_dir(run_dir: Path) -> Path:
 
 def _write_reproduce_script(output_dir: Path, command: list[str]) -> str:
     script = output_dir / REPRODUCE_SCRIPT_FILENAME
+    # Every physical line must be commented, even if an argument contains a newline.
+    commented_command = "\n".join(f"# {line}" for line in shlex.join(command).splitlines())
     script.write_text(
         "#!/usr/bin/env bash\n"
         "# Run from the OpenCDA repository root. Additional arguments override saved ones.\n"
         "set -euo pipefail\n\n"
         "# Original command (loads the current YAML files from the repository):\n"
-        f"# {shlex.join(command)}\n\n"
+        f"{commented_command}\n\n"
         "# Replay with the saved configuration, arguments, and AdvCP config.\n"
         "# The run directory may be moved or copied. Supply credentials separately.\n"
         'RUN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"\n'
@@ -765,6 +797,8 @@ def _model_input_hashes(checkpoint: Mapping[str, Any] | None) -> dict[str, str |
     hashes = {f"coperception/{item['path']}": item.get("sha256") for item in checkpoint.get("artifacts", [])}
     advcp_assets = checkpoint.get("advcp_assets") or {}
     hashes.update({f"advcp/{item['path']}": item.get("sha256") for item in advcp_assets.get("artifacts", [])})
+    advcp_overrides = checkpoint.get("advcp_overrides") or {}
+    hashes.update({f"advcp_override/{item['path']}": item.get("sha256") for item in advcp_overrides.get("artifacts", [])})
     return hashes
 
 

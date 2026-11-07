@@ -740,3 +740,101 @@ def test_safe_git_patch_preserves_whitespace(tmp_path, monkeypatch):
     monkeypatch.setattr(run_metadata, "_run_git", lambda *args, **kwargs: patch)
     assert run_metadata._save_code_diff(tmp_path, {"dirty": True}) == run_metadata.CODE_DIFF_FILENAME
     assert (tmp_path / run_metadata.CODE_DIFF_FILENAME).read_text() == patch
+
+
+def test_reproduce_script_never_executes_newline_in_argument(tmp_path: Path):
+    """Shell metacharacters in a multiline filename must stay commented out."""
+    import os
+
+    marker = tmp_path / "injected"
+    script = tmp_path / "reproducibility" / "reproduce.sh"
+    script.parent.mkdir()
+    filename = f"output.log\ntouch {marker}\n#"
+    run_metadata._write_reproduce_script(script.parent, ["python3", "opencda.py", "--log-file", filename])
+    content = script.read_text(encoding="utf-8")
+    assert all(line.startswith("#") for line in content.splitlines() if "touch " in line)
+
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    python3 = fake_bin / "python3"
+    python3.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    python3.chmod(0o755)
+    env = dict(os.environ, PATH=f"{fake_bin}{os.pathsep}{os.environ.get('PATH', '')}")
+    subprocess.run(["bash", str(script)], cwd=tmp_path, env=env, check=True)
+    assert not marker.exists()
+
+
+def test_saved_advcp_yml_replay_uses_manifest_path(tmp_path: Path, monkeypatch, merged_config):
+    entrypoint = _load_entrypoint()
+    source = tmp_path / "original-config.yml"
+    source.write_text("mode: spoofing\n", encoding="utf-8")
+    original = tmp_path / "original"
+    run_metadata.write_run_artifacts(
+        original,
+        opt=_make_opt(),
+        argv=["-t", "single_town06_carla", "--with-coperception", "--with-advcp", "--advcp-config", str(source)],
+        merged_config=merged_config,
+        current_time="t",
+        input_files={"advcp_config": source},
+    )
+    saved = original / "reproducibility/inputs/advcp_config.yml"
+    assert saved.is_file()
+    source.unlink()
+
+    replay = _replay_main(entrypoint, monkeypatch, tmp_path / "replay", ["--replay-from", str(original)])
+    assert replay["launch"]["options"]["advcp_config"] == str(saved.resolve())
+    saved.write_text("mode: removal\n", encoding="utf-8")
+    monkeypatch.setattr(sys, "argv", ["opencda.py", "--replay-from", str(original)])
+    with pytest.raises(ValueError, match="AdvCP configuration SHA-256 mismatch"):
+        entrypoint.main()
+
+
+def test_replay_rejects_advcp_copy_path_traversal(tmp_path: Path, monkeypatch, merged_config):
+    entrypoint = _load_entrypoint()
+    original = tmp_path / "original"
+    source = tmp_path / "attack.yaml"
+    source.write_text("mode: spoofing\n", encoding="utf-8")
+    run_metadata.write_run_artifacts(
+        original,
+        opt=_make_opt(),
+        argv=["-t", "single_town06_carla", "--with-coperception", "--with-advcp", "--advcp-config", str(source)],
+        merged_config=merged_config,
+        current_time="t",
+        input_files={"advcp_config": source},
+    )
+    manifest_path = original / "reproducibility/run_manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["inputs"]["advcp_config"]["copy"] = "../../attack.yaml"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    monkeypatch.setattr(sys, "argv", ["opencda.py", "--replay-from", str(original)])
+    with pytest.raises(ValueError, match="outside the run inputs directory"):
+        entrypoint.main()
+
+
+@pytest.mark.parametrize("path_key", ["car_mesh_path", "model_path", "mesh_divide_path", "remove_adv_shape_perturb_path"])
+def test_replay_detects_external_advcp_override_changes(tmp_path: Path, merged_config, path_key: str):
+    bundle = _make_bundle(tmp_path / "models")
+    external = tmp_path / "external"
+    external.mkdir()
+    asset = external / "asset.pkl"
+    asset.write_bytes(b"asset-v1")
+    config_dir = tmp_path / "configs"
+    config_dir.mkdir()
+    config = config_dir / "attack.yml"
+    config.write_text(f"mode: spoofing\n{path_key}: ../external/asset.pkl\n", encoding="utf-8")
+    opt = _make_opt(
+        with_coperception=True,
+        model_dir=str(bundle),
+        with_advcp=True,
+        advcp_config=str(config),
+    )
+    original = run_metadata.write_run_artifacts(
+        tmp_path / "run", opt=opt, argv=[], merged_config=merged_config, current_time="t", input_files={"advcp_config": config}
+    )
+    hashes = run_metadata._model_input_hashes(original["checkpoint"])
+    assert hashes[f"advcp_override/{path_key}"] == run_metadata.sha256_file(asset)
+    assert not any("Model files differ" in warning for warning in run_metadata.compare_with_original(original, opt))
+    asset.write_bytes(b"asset-v2")
+    assert any(f"advcp_override/{path_key}" in warning for warning in run_metadata.compare_with_original(original, opt))
+    asset.unlink()
+    assert any(f"advcp_override/{path_key}" in warning for warning in run_metadata.compare_with_original(original, opt))
