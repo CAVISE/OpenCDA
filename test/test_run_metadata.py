@@ -67,7 +67,7 @@ def test_write_run_artifacts_layout(tmp_path: Path, merged_config):
     repro = run_dir / run_metadata.REPRODUCIBILITY_DIRNAME
     saved_config = OmegaConf.load(repro / run_metadata.CONFIG_FILENAME)
     assert saved_config.scenario.ticks == 50
-    assert saved_config.derived == 2000  # значение подставилось
+    assert saved_config.derived == 2000  # interpolation is resolved
 
     on_disk = json.loads((repro / run_metadata.MANIFEST_FILENAME).read_text(encoding="utf-8"))
     assert on_disk["seed"] == 11 == manifest["seed"]
@@ -124,7 +124,7 @@ def test_checkpoint_without_git_is_identified_by_hash(tmp_path: Path, merged_con
     digest = run_metadata.sha256_file(bundle / "net_epoch10.pth")
     artifacts = {item["path"]: item for item in checkpoint["artifacts"]}
     assert artifacts["net_epoch10.pth"] == {"path": "net_epoch10.pth", "size": 7, "sha256": digest, "expected_sha256": digest, "matches_meta": True}
-    # config.yaml модели хешируется, даже если его нет в meta.yaml
+    # Hash the model config even if it is absent from meta.yaml.
     assert artifacts["config.yaml"]["sha256"] == run_metadata.sha256_file(bundle / "config.yaml")
     assert checkpoint["url"] is None
     assert (tmp_path / "run" / "reproducibility" / "inputs" / "model_config.yaml").is_file()
@@ -149,7 +149,7 @@ def test_checkpoint_links_to_models_repository_commit(tmp_path: Path, merged_con
     assert checkpoint["path_in_repository"] == "coperception/pointpillar_late"
     assert checkpoint["url"] == f"https://github.com/CAVISE/models/tree/{commit}/coperception/pointpillar_late"
 
-    # Локально изменённая модель не совпадает с коммитом.
+    # Local model changes must not be attributed to the original commit.
     (bundle / "config.yaml").write_text("changed: true\n", encoding="utf-8")
     assert run_metadata.collect_checkpoint_info(opt)["url"] is None
 
@@ -191,7 +191,7 @@ def test_load_run_manifest_requires_manifest(tmp_path: Path):
 def test_compare_with_original_detects_checkpoint_change(tmp_path: Path, merged_config):
     bundle = _make_bundle(tmp_path / "models")
     weights = bundle / "net_epoch10.pth"
-    # Без meta.yaml хеши считаются по файлам.
+    # Calculate checksums from the files when meta.yaml is missing.
     (bundle / "meta.yaml").unlink()
     opt = _make_opt(with_coperception=True, model_dir=str(bundle))
     original = run_metadata.write_run_artifacts(tmp_path / "run", opt=opt, argv=[], merged_config=merged_config, current_time="t")
@@ -208,7 +208,7 @@ def test_weights_changed_without_updating_meta_are_detected(tmp_path: Path, merg
     opt = _make_opt(with_coperception=True, model_dir=str(bundle))
     original = run_metadata.write_run_artifacts(tmp_path / "run", opt=opt, argv=[], merged_config=merged_config, current_time="t")
 
-    (bundle / "net_epoch10.pth").write_bytes(b"tampered")  # в meta.yaml хеш не меняли
+    (bundle / "net_epoch10.pth").write_bytes(b"tampered")  # meta.yaml still contains the original checksum
 
     with caplog.at_level("WARNING"):
         artifact = _artifact(run_metadata.collect_checkpoint_info(opt), "net_epoch10.pth")
@@ -258,7 +258,7 @@ def test_command_is_rebuilt_from_options():
 
     argv = entrypoint.build_command_from_options(opt)
 
-    # Проверяем формат команды без значений по умолчанию.
+    # Check the canonical command without default options.
     assert argv == ["--test-scenario", "demo", "--no-save-predictions", "--cosim", "--verbose", "1", "--ticks", "5"]
     assert entrypoint.arg_parse(argv) == opt
 
@@ -278,7 +278,7 @@ def test_replay_restores_saved_arguments(tmp_path: Path, merged_config):
     assert manifest["seed"] == 11
     assert opt.test_scenario == "demo"
     assert opt.ticks == 5
-    assert opt.carla_host == "localhost"  # CLI перекрывает сохранённые параметры.
+    assert opt.carla_host == "localhost"  # CLI values override saved parameters.
     assert opt.replay_from == str(tmp_path.resolve())
     assert argv == ["--test-scenario", "demo", "--carla-host", "localhost", "--ticks", "5"]
 
@@ -304,7 +304,7 @@ def test_code_diff_warnings(tmp_path: Path, caplog):
 
 
 def test_replay_detects_changed_model_config(tmp_path: Path, merged_config):
-    """Изменённый config.yaml модели (например, порог NMS) должен давать предупреждение при повторе."""
+    """Changing the model config (for example, its NMS threshold) must warn on replay."""
     bundle = _make_bundle(tmp_path / "models")
     opt = _make_opt(with_coperception=True, model_dir=str(bundle))
     original = run_metadata.write_run_artifacts(tmp_path / "run", opt=opt, argv=[], merged_config=merged_config, current_time="t")
@@ -331,7 +331,7 @@ def test_replay_detects_changed_advcp_assets(tmp_path: Path, merged_config):
 
 
 def test_opencood_is_located_before_import(tmp_path: Path, monkeypatch):
-    """OpenCOOD ещё не импортирован, когда пишется манифест, но его репозиторий всё равно находится."""
+    """Locate the OpenCOOD checkout before the package is imported."""
     package = tmp_path / "opencood_checkout" / "fakepkg_for_test"
     package.mkdir(parents=True)
     (package / "__init__.py").write_text("", encoding="utf-8")
@@ -360,7 +360,7 @@ def test_replay_cli_model_dir_replaces_saved_model_id(tmp_path: Path, merged_con
 
 
 def test_manifest_is_failed_when_scenario_import_fails(tmp_path: Path, monkeypatch):
-    """Если упало после записи манифеста (например, импорт сценария), статус не должен остаться running."""
+    """Failures after manifest creation must update the run status."""
     import types
 
     entrypoint = _load_entrypoint()
@@ -370,7 +370,7 @@ def test_manifest_is_failed_when_scenario_import_fails(tmp_path: Path, monkeypat
     monkeypatch.setattr(entrypoint, "get_default_output_path", lambda scenario, current_time: run_dir)
     monkeypatch.setattr(entrypoint, "create_logger", lambda level, filename: entrypoint.logging.getLogger("test"))
     monkeypatch.setattr(entrypoint, "install_traceback_handler", lambda verbose: None)
-    # модуль без run_scenario: import внутри main() упадёт с ImportError
+    # Importing a mock scenario without run_scenario should fail.
     monkeypatch.setitem(sys.modules, "opencda.scenario_testing.scenario", types.ModuleType("opencda.scenario_testing.scenario"))
 
     with pytest.raises(ImportError):
@@ -382,7 +382,7 @@ def test_manifest_is_failed_when_scenario_import_fails(tmp_path: Path, monkeypat
 
 
 def _replay_main(entrypoint, monkeypatch, run_dir: Path, argv: list[str]) -> dict:
-    """Запускает main() до импорта сценария (он подменён и падает) и возвращает манифест повтора."""
+    """Run main with a failing scenario stub and return the replay manifest."""
     import types
 
     monkeypatch.chdir(Path(__file__).resolve().parents[1])
@@ -452,7 +452,7 @@ def test_replay_warns_when_gpu_differs(monkeypatch):
 
 
 def test_replay_does_not_reuse_original_log_file(tmp_path: Path, merged_config):
-    """Повтор не должен писать лог в файл исходного прогона и перезаписывать его."""
+    """Replay must not overwrite the original run log."""
     entrypoint = _load_entrypoint()
     run_metadata.write_run_artifacts(
         tmp_path,
@@ -486,11 +486,11 @@ def test_replay_can_turn_prediction_saving_back_on(tmp_path: Path, merged_config
 
     opt, argv, _ = entrypoint.resolve_launch_arguments(["--replay-from", str(tmp_path), "--save-predictions"])
     assert opt.save_predictions is True
-    assert "--no-save-predictions" not in argv and "--save-predictions" not in argv  # значение по умолчанию не пишется
+    assert "--no-save-predictions" not in argv and "--save-predictions" not in argv  # Default options are omitted
 
 
 def test_saved_advcp_config_keeps_relative_asset_paths_working(tmp_path: Path, merged_config):
-    """AdvCP считает относительные пути от папки конфига, поэтому в копии они становятся абсолютными."""
+    """AdvCP resolves paths from its config directory, so saved relative paths become absolute."""
     import yaml
 
     config_dir = tmp_path / "advcp-configs"
@@ -536,3 +536,138 @@ def test_replay_warns_when_opencood_has_uncommitted_changes(monkeypatch):
     warnings = run_metadata.compare_with_original(original, _make_opt())
 
     assert any("opencood replay worktree has uncommitted changes" in warning for warning in warnings)
+
+
+def test_model_without_remote_does_not_crash_on_dirty_checkout(tmp_path: Path, caplog):
+    """A model checkout can have no origin remote and still have local edits."""
+    if shutil.which("git") is None:
+        pytest.skip("git is unavailable")
+    models = tmp_path / "models"
+    bundle = _make_bundle(models)
+    _git(models, "init", "-q")
+    _git(models, "add", ".")
+    _git(models, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "bundle")
+    (bundle / "config.yaml").write_text("postprocess:\n  nms_thresh: 0.5\n", encoding="utf-8")
+
+    with caplog.at_level("WARNING"):
+        result = run_metadata.describe_bundle(str(bundle), bundle_id="pointpillar_late", category="coperception", opt=_make_opt())
+    assert result["commit"] is None
+    assert "Model bundle" in caplog.text
+
+
+def test_authenticated_model_remote_is_redacted_from_logs(tmp_path: Path, caplog):
+    """Dirty model bundles must never log Git URL credentials."""
+    if shutil.which("git") is None:
+        pytest.skip("git is unavailable")
+    models = tmp_path / "models"
+    bundle = _make_bundle(models)
+    _git(models, "init", "-q")
+    _git(models, "remote", "add", "origin", "https://user:TEST_SECRET_987@example.com/repo.git")
+    _git(models, "add", ".")
+    _git(models, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "bundle")
+    (bundle / "config.yaml").write_text("changed: true\n", encoding="utf-8")
+
+    with caplog.at_level("WARNING"):
+        result = run_metadata.describe_bundle(str(bundle), bundle_id="pointpillar_late", category="coperception", opt=_make_opt())
+    assert result["commit"] is None
+    assert "TEST_SECRET_987" not in caplog.text
+    assert "TEST_SECRET_987" not in str(result)
+
+
+def test_opencood_source_is_fingerprinted_without_git(tmp_path: Path, monkeypatch):
+    """Container installations without .git still record OpenCOOD provenance."""
+    package = tmp_path / "opencood"
+    package.mkdir()
+    source = package / "inference.py"
+    source.write_text("VERSION = 1\n", encoding="utf-8")
+
+    monkeypatch.setattr(run_metadata, "_module_location", lambda name: package if name == "opencood" else None)
+    monkeypatch.setattr(run_metadata, "_module_repo", lambda name: None)
+    monkeypatch.setattr(run_metadata, "collect_git_info", lambda root: None)
+    monkeypatch.setattr(run_metadata, "collect_source_digest", lambda: "fixed-opencda")
+
+    first = run_metadata.collect_code_versions()
+    assert first["opencood"]["git"] is None
+    assert first["opencood"]["source_digest"]
+
+    source.write_text("VERSION = 2\n", encoding="utf-8")
+    second = run_metadata.collect_code_versions()
+    assert first["opencood"]["source_digest"] != second["opencood"]["source_digest"]
+
+    original = {"code": first}
+    monkeypatch.setattr(run_metadata, "collect_code_versions", lambda: second)
+    monkeypatch.setattr(run_metadata, "collect_checkpoint_info", lambda _: None)
+    warnings = run_metadata.compare_with_original(original, _make_opt())
+    assert any("OpenCOOD source digest differs" in message for message in warnings)
+
+
+def test_replay_warns_when_python_version_differs(monkeypatch):
+    original = {"code": {"python": "3.11.0"}}
+    monkeypatch.setattr(run_metadata, "collect_code_versions", lambda: {"python": "3.12.0"})
+    warnings = run_metadata.compare_with_original(original, _make_opt())
+    assert any("Python version differs" in warning for warning in warnings)
+
+
+def test_config_integrity_and_legacy_manifest(tmp_path: Path, merged_config):
+    """Reject modified configurations but allow older manifests without hashes."""
+    entrypoint = _load_entrypoint()
+    run_metadata.write_run_artifacts(tmp_path, opt=_make_opt(), argv=["--test-scenario", "demo"], merged_config=merged_config, current_time="t")
+    repro = tmp_path / "reproducibility"
+    config = repro / "config.yaml"
+    manifest_path = repro / "run_manifest.json"
+    original = config.read_text(encoding="utf-8")
+    config.write_text(original + "\nscenario:\n  ticks: 999\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="SHA-256 mismatch"):
+        entrypoint.resolve_launch_arguments(["--replay-from", str(tmp_path)])
+
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    del manifest["config_sha256"]
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    opt, _, _ = entrypoint.resolve_launch_arguments(["--replay-from", str(tmp_path)])
+    assert opt.test_scenario == "demo"
+
+
+def test_saved_yaml_artifacts_redact_credentials(tmp_path: Path):
+    """Config and copied input YAML files must not expose credentials."""
+    entrypoint = _load_entrypoint()
+    password = "TEST_CONFIG_SECRET_987"
+    scenario_yaml = tmp_path / "scenario.yaml"
+    scenario_yaml.write_text(f"auth:\n  password: {password}\n", encoding="utf-8")
+    config = OmegaConf.create({"world": {"seed": 42}, "auth": {"password": password}, "service_auth": password})
+    run_metadata.write_run_artifacts(
+        tmp_path / "run",
+        opt=_make_opt(),
+        argv=["--test-scenario", "demo"],
+        merged_config=config,
+        current_time="t",
+        input_files={"scenario_config": scenario_yaml},
+    )
+    repro = tmp_path / "run" / "reproducibility"
+    manifest = run_metadata.load_run_manifest(tmp_path / "run")
+    assert manifest["config_redacted"] is True
+    assert manifest["inputs"]["scenario_config"]["redacted"] is True
+    assert password not in (repro / "config.yaml").read_text(encoding="utf-8")
+    assert password not in (repro / "inputs" / "scenario_config.yaml").read_text(encoding="utf-8")
+    with pytest.raises(ValueError, match="redacted credentials"):
+        entrypoint.resolve_launch_arguments(["--replay-from", str(tmp_path / "run")])
+
+
+def test_sensitive_git_diff_is_not_saved(tmp_path: Path, monkeypatch, caplog):
+    """Persisting a credential-bearing Git patch would expose repository access."""
+    git_info = {"dirty": True, "untracked_files": []}
+    fake_diff = "+repo=https://user:TEST_SECRET_123@example.com/models.git\n"
+    monkeypatch.setattr(run_metadata, "_run_git", lambda *args, **kwargs: fake_diff)
+    with caplog.at_level("WARNING"):
+        result = run_metadata._save_code_diff(tmp_path, git_info)
+    assert result is None
+    assert not (tmp_path / run_metadata.CODE_DIFF_FILENAME).exists()
+    assert "TEST_SECRET_123" not in caplog.text
+    assert "refusing to persist" in caplog.text
+
+
+def test_replay_warns_if_original_dirty_diff_is_missing(monkeypatch):
+    original = {"code": {"opencda": {"git": {"dirty": True}}}, "code_diff": None}
+    monkeypatch.setattr(run_metadata, "collect_code_versions", lambda: {"opencda": {"git": {"dirty": False}}})
+    warnings = run_metadata.compare_with_original(original, _make_opt())
+    assert any("code diff is not available" in warning for warning in warnings)

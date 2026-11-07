@@ -298,6 +298,25 @@ def resolve_launch_arguments(cli_argv: list[str]) -> tuple[argparse.Namespace, l
 
     replay_dir = pathlib.Path(opt.replay_from).resolve()
     manifest = load_run_manifest(replay_dir)
+    if manifest.get("config_redacted"):
+        raise ValueError("Saved replay configuration contains redacted credentials and cannot be replayed without secure replacements.")
+
+    expected_config_hash = manifest.get("config_sha256")
+    if expected_config_hash is not None:
+        from opencda.scenario_testing.utils.run_metadata import (
+            CONFIG_FILENAME,
+            reproducibility_dir,
+            sha256_file,
+        )
+
+        saved_config = reproducibility_dir(replay_dir) / CONFIG_FILENAME
+        if not saved_config.is_file():
+            raise FileNotFoundError(f"Saved replay configuration not found: {saved_config}")
+
+        actual_config_hash = sha256_file(saved_config)
+        if actual_config_hash != expected_config_hash:
+            raise ValueError("Saved replay configuration SHA-256 mismatch: config.yaml was modified or corrupted.")
+
     saved_argv = _strip_replay_flag(manifest["launch"]["argv"])
     for flag in REPLAY_OUTPUT_OPTIONS:
         saved_argv = _strip_option(saved_argv, flag)

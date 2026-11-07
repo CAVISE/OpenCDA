@@ -65,7 +65,7 @@ def _to_jsonable(value: Any) -> Any:
 # Credentials must never be stored in shared simulation artifacts.
 REDACTED = "[REDACTED]"
 SECRET_KEY_PATTERN = re.compile(
-    r"(?:password|passwd|token|secret|api[_-]?key|access[_-]?key|authorization|credential|private[_-]?key)",
+    r"(?:password|passwd|token|secret|api[_-]?key|access[_-]?key|authorization|credential|private[_-]?key|(?:^|[_-])auth(?:$|[_-]))",
     re.IGNORECASE,
 )
 URL_PATTERN = re.compile(r"https?://[^\s\"'<>]+", re.IGNORECASE)
@@ -221,18 +221,112 @@ def _module_repo(module_name: str) -> Path | None:
     return Path(toplevel) if toplevel else None
 
 
+def collect_source_digest() -> str:
+    """Hash OpenCDA source files independently of Git metadata."""
+    digest = hashlib.sha256()
+    extensions = {
+        ".py",
+        ".yaml",
+        ".yml",
+        ".json",
+        ".toml",
+        ".xml",
+        ".proto",
+        ".cfg",
+        ".ini",
+        ".txt",
+        ".sh",
+        ".c",
+        ".cc",
+        ".cpp",
+        ".h",
+        ".hpp",
+        ".cu",
+        ".cuh",
+        ".so",
+    }
+
+    paths = [REPO_ROOT / "opencda.py"]
+
+    for directory in (REPO_ROOT / "opencda", REPO_ROOT / "AIM"):
+        if directory.is_dir():
+            paths.extend(path for path in directory.rglob("*") if path.is_file() and path.suffix in extensions and "__pycache__" not in path.parts)
+
+    for source in sorted(paths):
+        if not source.is_file():
+            continue
+        relative_path = source.relative_to(REPO_ROOT).as_posix()
+        digest.update(relative_path.encode("utf-8"))
+        digest.update(b"\\0")
+        with source.open("rb") as stream:
+            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                digest.update(chunk)
+
+    return digest.hexdigest()
+
+
+def _digest_source_directory(directory: Path) -> str | None:
+    """Fingerprint installed package sources even when Git is unavailable."""
+    source_files = sorted(
+        path
+        for path in directory.rglob("*")
+        if path.is_file()
+        and path.suffix
+        in {
+            ".py",
+            ".yaml",
+            ".yml",
+            ".json",
+            ".toml",
+            ".cfg",
+            ".ini",
+            ".proto",
+            ".sh",
+            ".txt",
+            ".c",
+            ".cc",
+            ".cpp",
+            ".h",
+            ".hpp",
+            ".cu",
+            ".cuh",
+            ".so",
+        }
+        and "__pycache__" not in path.parts
+    )
+    if not source_files:
+        return None
+    digest = hashlib.sha256()
+    for source in source_files:
+        digest.update(source.relative_to(directory).as_posix().encode("utf-8"))
+        digest.update(b"\0")
+        with source.open("rb") as stream:
+            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                digest.update(chunk)
+    return digest.hexdigest()
+
+
 def collect_code_versions() -> dict[str, Any]:
     from opencda.version import __version__
 
     versions: dict[str, Any] = {
-        "opencda": {"version": __version__, "git": collect_git_info(REPO_ROOT)},
+        "opencda": {
+            "version": __version__,
+            "git": collect_git_info(REPO_ROOT),
+            "source_digest": collect_source_digest(),
+        },
         "python": sys.version.split()[0],
         "packages": {name: _package_version(name) for name in TRACKED_PACKAGES},
     }
 
-    opencood_repo = _module_repo("opencood")
-    if opencood_repo is not None and opencood_repo.resolve() != REPO_ROOT:
-        versions["opencood"] = {"git": collect_git_info(opencood_repo)}
+    opencood_location = _module_location("opencood")
+    if opencood_location is not None:
+        opencood_repo = _module_repo("opencood")
+        if opencood_repo is None or opencood_repo.resolve() != REPO_ROOT:
+            versions["opencood"] = {
+                "git": collect_git_info(opencood_repo) if opencood_repo else None,
+                "source_digest": _digest_source_directory(opencood_location),
+            }
     return versions
 
 
@@ -391,7 +485,9 @@ def describe_bundle(bundle_dir_value: str | None, *, bundle_id: str | None, cate
         }
     )
     if commit is None:
-        logger.warning('Model bundle "%s" differs from any commit of %s; it is identified only by artifact hashes.', bundle_path, remote)
+        logger.warning(
+            'Model bundle "%s" differs from any commit of %s; it is identified only by artifact hashes.', bundle_path, _redact_string(remote or "")
+        )
     return info
 
 
@@ -443,6 +539,23 @@ def _write_reproduce_script(output_dir: Path, command: list[str]) -> str:
     return REPRODUCE_SCRIPT_FILENAME
 
 
+def _redact_yaml_file(path: Path) -> bool:
+    """Remove known credentials from a saved YAML copy without changing normal files."""
+    import yaml
+
+    original = path.read_text(encoding="utf-8")
+    parsed = yaml.safe_load(original)
+    safe = _redact_metadata(parsed)
+    if safe != parsed:
+        path.write_text(yaml.safe_dump(safe, sort_keys=False, allow_unicode=True), encoding="utf-8")
+        return True
+    cleaned_text = _redact_string(original)
+    if cleaned_text != original:
+        path.write_text(cleaned_text, encoding="utf-8")
+        return True
+    return False
+
+
 def _copy_advcp_config(source: Path, target: Path) -> None:
     """Copy an AdvCP config, making relative asset paths absolute.
 
@@ -490,7 +603,15 @@ def _copy_inputs(output_dir: Path, input_files: Mapping[str, Path | None], opt: 
             _copy_advcp_config(source, target)
         else:
             shutil.copy2(source, target)
-        copied[key] = {"source": str(source), "copy": target.relative_to(output_dir).as_posix(), "sha256": sha256_file(target)}
+        credentials_redacted = _redact_yaml_file(target) if target.suffix.lower() in {".yaml", ".yml"} else False
+        if credentials_redacted:
+            logger.warning("Credentials were redacted from saved input %s; external credentials may be needed for replay.", key)
+        copied[key] = {
+            "source": str(source),
+            "copy": target.relative_to(output_dir).as_posix(),
+            "sha256": sha256_file(target),
+            "redacted": credentials_redacted,
+        }
     return copied
 
 
@@ -508,6 +629,9 @@ def _save_code_diff(output_dir: Path, git_info: Mapping[str, Any] | None) -> str
     logger.warning("OpenCDA has uncommitted changes: they are saved to %s.", CODE_DIFF_FILENAME)
     diff = _run_git(REPO_ROOT, "diff", "HEAD", "--binary", preserve_whitespace=True)
     if not diff:
+        return None
+    if _redact_string(diff) != diff:
+        logger.warning("Git patch contains credential-bearing URLs; refusing to persist it. Commit or sanitize the changes before sharing this run.")
         return None
     (output_dir / CODE_DIFF_FILENAME).write_text(diff, encoding="utf-8")
     return CODE_DIFF_FILENAME
@@ -541,6 +665,9 @@ def write_run_artifacts(
     command = ["python3", "opencda.py", *safe_argv]
 
     OmegaConf.save(merged_config, output_dir / CONFIG_FILENAME, resolve=True)
+    config_credentials_redacted = _redact_yaml_file(output_dir / CONFIG_FILENAME)
+    if config_credentials_redacted:
+        logger.warning("Credentials were removed from the saved replay config; a replay requires secure replacements.")
     resolved_config = OmegaConf.to_container(merged_config, resolve=True)
 
     code_versions = collect_code_versions()
@@ -557,6 +684,8 @@ def write_run_artifacts(
         "status": "running",
         "seed": seed,
         "config_file": CONFIG_FILENAME,
+        "config_sha256": sha256_file(output_dir / CONFIG_FILENAME),
+        "config_redacted": config_credentials_redacted,
         "launch": {
             "argv": safe_argv,
             "command": shlex.join(command),
@@ -649,6 +778,27 @@ def compare_with_original(original: Mapping[str, Any], opt: Any) -> list[str]:
 
     original_code = original.get("code") or {}
     current_code = collect_code_versions()
+
+    original_python = original_code.get("python")
+    current_python = current_code.get("python")
+    if original_python and original_python != current_python:
+        warnings.append(f"Python version differs: original {original_python}, current {current_python}.")
+
+    original_opencda = original_code.get("opencda") or {}
+    current_opencda = current_code.get("opencda") or {}
+
+    original_digest = original_opencda.get("source_digest")
+    current_digest = current_opencda.get("source_digest")
+
+    if original_digest and original_digest != current_digest:
+        warnings.append("OpenCDA source digest differs from the original run.")
+
+    original_opencood = original_code.get("opencood") or {}
+    current_opencood = current_code.get("opencood") or {}
+    original_opencood_digest = original_opencood.get("source_digest")
+    if original_opencood_digest and original_opencood_digest != current_opencood.get("source_digest"):
+        warnings.append("OpenCOOD source digest differs from the original run (or its source is missing).")
+
     for name in ("opencda", "opencood"):
         original_git = (original_code.get(name) or {}).get("git") or {}
         current_git = (current_code.get(name) or {}).get("git") or {}
@@ -666,6 +816,8 @@ def compare_with_original(original: Mapping[str, Any], opt: Any) -> list[str]:
             warnings.append(f"{package} version differs: original {original_packages[package]}, current {current_packages.get(package)}.")
     if original.get("code_diff"):
         warnings.append(f"Original run had uncommitted changes; apply {original['code_diff']} from the run folder to match it.")
+    elif ((original_code.get("opencda") or {}).get("git") or {}).get("dirty"):
+        warnings.append("Original OpenCDA worktree was dirty but its code diff is not available; exact replay cannot be verified.")
 
     original_hashes = _model_input_hashes(original.get("checkpoint"))
     current_hashes = _model_input_hashes(collect_checkpoint_info(opt))
