@@ -117,16 +117,61 @@ def install_traceback_handler(verbose: bool = True, suppress_modules: Collection
     rich_traceback_install(show_locals=verbose, suppress=joined)
 
 
+REPLAY_FLAG = "--replay-from"
+# Взаимоисключающие параметры: если при повторе задан один, сохранённый второй убираем.
+EXCLUSIVE_OPTIONS = (("--model-id", "--model-dir"),)
+# Пути вывода исходного прогона при повторе не восстанавливаем, иначе повтор перезапишет его файлы.
+REPLAY_OUTPUT_OPTIONS = ("--log-file",)
+
+
+def _strip_option(argv: list[str], flag: str) -> list[str]:
+    """Remove an option and its value from argv."""
+    cleaned: list[str] = []
+    skip_next = False
+    for arg in argv:
+        if skip_next:
+            skip_next = False
+            continue
+        if arg == flag:
+            skip_next = True
+            continue
+        if arg.startswith(f"{flag}="):
+            continue
+        cleaned.append(arg)
+    return cleaned
+
+
+def _strip_replay_flag(argv: list[str]) -> list[str]:
+    """Remove the replay flag and its path from argv."""
+    return _strip_option(argv, REPLAY_FLAG)
+
+
 # Parse command line args.
-def arg_parse() -> argparse.Namespace:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="OpenCDA scenario runner.")
     # opencda basic args
     parser.add_argument(
         "-t",
         "--test-scenario",
-        required=True,
         type=str,
         help="Define the name of the scenario you want to test. Notice, this only has effect on configurations that are picked up by scenario",
+    )
+    parser.add_argument(
+        REPLAY_FLAG,
+        dest="replay_from",
+        type=str,
+        default=None,
+        help=(
+            "Reproduce a previous run from its evaluation output folder: launch arguments are taken from run_manifest.json "
+            "and the scenario config from reproducibility/config.yaml. Extra arguments given on the command line override the saved ones."
+        ),
+    )
+    parser.add_argument(
+        "--save-predictions",
+        dest="save_predictions",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Save per-tick cooperative perception boxes and confidence scores to the evaluation output folder (default: on).",
     )
     parser.add_argument("--record", action="store_true", help="Whether to record and save the simulation process to .log file")
     # NOTICE: temporary disabled until we update yolo models.
@@ -201,12 +246,75 @@ def arg_parse() -> argparse.Namespace:
     parser.add_argument("--profile", action="store_true", help="Enable profiling.")
 
     parser.add_argument("--ticks", type=int, help="number of simulation ticks to execute")
-    return parser.parse_args()
+    return parser
+
+
+def arg_parse(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = build_parser()
+    opt = parser.parse_args(argv)
+    if opt.test_scenario is None and opt.replay_from is None:
+        parser.error(f"the following arguments are required: -t/--test-scenario (or {REPLAY_FLAG})")
+    return opt
+
+
+def build_command_from_options(opt: argparse.Namespace) -> list[str]:
+    """Build a canonical command from parsed options.
+
+    Only non-default options are included.
+    """
+    argv: list[str] = []
+    for action in build_parser()._actions:
+        if not action.option_strings or action.dest in {"help", "version", "replay_from"} or not hasattr(opt, action.dest):
+            continue
+        value = getattr(opt, action.dest)
+        flag = max(action.option_strings, key=len)
+        if isinstance(action, argparse.BooleanOptionalAction):
+            # option_strings: ["--save-predictions", "--no-save-predictions"]
+            if value != action.default:
+                argv.append(action.option_strings[0] if value else action.option_strings[1])
+        elif isinstance(action, argparse._StoreTrueAction):
+            if value:
+                argv.append(flag)
+        elif isinstance(action, argparse._StoreFalseAction):
+            if not value:
+                argv.append(flag)
+        elif value is not None and value != action.default:
+            argv.extend([flag, str(value.value if isinstance(value, enum.Enum) else value)])
+    return argv
+
+
+def _cli_sets_option(cli_argv: list[str], flag: str) -> bool:
+    """Check whether an option was given explicitly on the command line (in any spelling)."""
+    return flag in build_command_from_options(arg_parse(cli_argv))
+
+
+def resolve_launch_arguments(cli_argv: list[str]) -> tuple[argparse.Namespace, list[str], dict | None]:
+    """Load saved launch options when replaying a run."""
+    opt = arg_parse(cli_argv)
+    if opt.replay_from is None:
+        return opt, build_command_from_options(opt), None
+
+    from opencda.scenario_testing.utils.run_metadata import load_run_manifest
+
+    replay_dir = pathlib.Path(opt.replay_from).resolve()
+    manifest = load_run_manifest(replay_dir)
+    saved_argv = _strip_replay_flag(manifest["launch"]["argv"])
+    for flag in REPLAY_OUTPUT_OPTIONS:
+        saved_argv = _strip_option(saved_argv, flag)
+    for first, second in EXCLUSIVE_OPTIONS:
+        if _cli_sets_option(cli_argv, first):
+            saved_argv = _strip_option(saved_argv, second)
+        if _cli_sets_option(cli_argv, second):
+            saved_argv = _strip_option(saved_argv, first)
+    effective_argv = [*saved_argv, *_strip_replay_flag(cli_argv)]
+    opt = arg_parse(effective_argv)
+    opt.replay_from = str(replay_dir)
+    return opt, build_command_from_options(opt), manifest
 
 
 def main() -> None:
     global logger
-    opt = arg_parse()
+    opt, effective_argv, replay_manifest = resolve_launch_arguments(sys.argv[1:])
     current_time = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
 
     import_runtime_libs()
@@ -231,8 +339,14 @@ def main() -> None:
     default_yaml = config_yaml = cwd / "opencda/scenario_testing/config_yaml/default.yaml"
     config_yaml = cwd / f"opencda/scenario_testing/config_yaml/{opt.test_scenario}.yaml"
     advcp_config_dir = cwd / "opencda/scenario_testing/config_yaml/advcp-configs"
+    replay_dir = pathlib.Path(opt.replay_from) if opt.replay_from else None
+    if replay_dir is not None:
+        logger.info(f"replaying run from {replay_dir}")
+        from opencda.scenario_testing.utils.run_metadata import CONFIG_FILENAME, reproducibility_dir
+
+        config_yaml = reproducibility_dir(replay_dir) / CONFIG_FILENAME
     if not config_yaml.is_file():
-        logger.error(f"{config_yaml.relative_to(cwd)} not found!")
+        logger.error(f"{config_yaml.relative_to(cwd) if config_yaml.is_relative_to(cwd) else config_yaml} not found!")
         sys.exit(errno.EPERM)
 
     if opt.with_advcp:
@@ -251,9 +365,17 @@ def main() -> None:
         if advcp_config.suffix == "":
             advcp_config = advcp_config.with_suffix(".yaml")
 
-        if not advcp_config.is_file():
-            logger.error(f"AdvCP config not found: {advcp_config}")
-            sys.exit(errno.EPERM)
+        # Для replay берём сохранённый AdvCP-конфиг, если в команде не указали свой --advcp-config.
+        use_saved_advcp_config = replay_dir is not None and not _cli_sets_option(sys.argv[1:], "--advcp-config")
+        saved_advcp_config = config_yaml.parent / "inputs" / "advcp_config.yaml" if use_saved_advcp_config else None
+        if saved_advcp_config is not None and saved_advcp_config.is_file():
+            advcp_config = saved_advcp_config
+        else:
+            if saved_advcp_config is not None:
+                logger.warning(f"saved AdvCP config {saved_advcp_config} not found, using {advcp_config}: replay may differ from the original run")
+            if not advcp_config.is_file():
+                logger.error(f"AdvCP config not found: {advcp_config}")
+                sys.exit(errno.EPERM)
 
         opt.advcp_config = str(advcp_config)
 
@@ -261,44 +383,86 @@ def main() -> None:
 
     resolve_runtime_models(opt)
 
-    # set the yaml file for the specific testing scenario
-    # load the default yaml file and the scenario yaml file as dictionaries
-    default_dict = omegaconf.OmegaConf.load(str(default_yaml))
-    scene_dict = omegaconf.OmegaConf.load(str(config_yaml))
-    scene_dict = omegaconf.OmegaConf.merge(default_dict, scene_dict)
-    scene_dict = cast(DictConfig, scene_dict)
+    if replay_dir is not None:
+        # При replay конфиг уже объединён.
+        scene_dict = cast(DictConfig, omegaconf.OmegaConf.load(str(config_yaml)))
+    else:
+        # set the yaml file for the specific testing scenario
+        # load the default yaml file and the scenario yaml file as dictionaries
+        default_dict = omegaconf.OmegaConf.load(str(default_yaml))
+        scene_dict = omegaconf.OmegaConf.load(str(config_yaml))
+        scene_dict = omegaconf.OmegaConf.merge(default_dict, scene_dict)
+        scene_dict = cast(DictConfig, scene_dict)
 
     # NOTICE: temporary measure (while option is turned off)
     opt.apply_ml = False
 
-    # this function might setup crucial components in Scenario, so
-    # we should import as late as possible
-    from opencda.scenario_testing.scenario import run_scenario
+    from opencda.scenario_testing.utils import run_metadata
+
+    evaluation_output_dir = get_default_output_path(opt.test_scenario, current_time)
+    run_metadata.write_run_artifacts(
+        evaluation_output_dir,
+        opt=opt,
+        argv=effective_argv,
+        raw_argv=sys.argv[1:],
+        merged_config=scene_dict,
+        current_time=current_time,
+        input_files={
+            "default_config": default_yaml if replay_dir is None else None,
+            "scenario_config": config_yaml if replay_dir is None else None,
+            "replayed_config": config_yaml if replay_dir is not None else None,
+            "advcp_config": pathlib.Path(opt.advcp_config) if opt.with_advcp else None,
+        },
+        replayed_from=opt.replay_from,
+    )
 
     runtime_stats = {}
-    if opt.profile:
-        profiler = cProfile.Profile()
-        profiler.enable()
+    t0 = time.perf_counter()
+    run_status, run_error = "failed", None
+    # Манифест уже записан, поэтому любая ошибка дальше должна попасть в его статус.
+    try:
+        if replay_manifest is not None:
+            for warning in run_metadata.compare_with_original(replay_manifest, opt):
+                logger.warning(f"replay may differ from the original run: {warning}")
 
-        try:
-            t0 = time.perf_counter()
+        # this function might setup crucial components in Scenario, so
+        # we should import as late as possible
+        from opencda.scenario_testing.scenario import run_scenario
+
+        if opt.profile:
+            profiler = cProfile.Profile()
+            profiler.enable()
+
+            try:
+                run_scenario(opt, scene_dict, current_time=current_time, runtime_stats=runtime_stats)
+                runtime_stats["full_scenario"] = time.perf_counter() - t0
+            finally:
+                evaluation_output_dir.mkdir(parents=True, exist_ok=True)
+                profiler_output = evaluation_output_dir / "profile_output.prof"
+                profiler.disable()
+                profiler.dump_stats(profiler_output)
+                logger.info(f"Profiler output saved to {profiler_output}")
+
+                stats = pstats.Stats(profiler)
+                stats.sort_stats("cumulative")
+                stats.print_stats(30)
+        else:
             run_scenario(opt, scene_dict, current_time=current_time, runtime_stats=runtime_stats)
             runtime_stats["full_scenario"] = time.perf_counter() - t0
-        finally:
-            evaluation_output_dir = get_default_output_path(opt.test_scenario, current_time)
-            evaluation_output_dir.mkdir(parents=True, exist_ok=True)
-            profiler_output = evaluation_output_dir / "profile_output.prof"
-            profiler.disable()
-            profiler.dump_stats(profiler_output)
-            logger.info(f"Profiler output saved to {profiler_output}")
-
-            stats = pstats.Stats(profiler)
-            stats.sort_stats("cumulative")
-            stats.print_stats(30)
-    else:
-        t0 = time.perf_counter()
-        run_scenario(opt, scene_dict, current_time=current_time, runtime_stats=runtime_stats)
-        runtime_stats["full_scenario"] = time.perf_counter() - t0
+        run_status = "completed"
+    except KeyboardInterrupt:
+        run_status = "interrupted"
+        raise
+    except Exception as error:
+        run_error = repr(error)
+        raise
+    finally:
+        run_metadata.finalize_run_manifest(
+            evaluation_output_dir,
+            status=run_status,
+            duration_seconds=round(time.perf_counter() - t0, 3),
+            error=run_error,
+        )
 
     show_performance_stats(runtime_stats)
 

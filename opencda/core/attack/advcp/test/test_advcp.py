@@ -1,4 +1,5 @@
 import pytest
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 from importlib import import_module
 import numpy as np
@@ -1098,3 +1099,38 @@ class TestAdvCoperceptionEarlyFusionAttack:
     def test_early_advcp_density_rejects_numeric_value(self):
         with pytest.raises(ValueError):
             AdvCPAttackHelper.resolve_density(0)
+
+
+def test_late_advcp_run_reports_raw_detections_before_nms():
+    """Late-fusion AdvCP делает NMS сам, поэтому рамки до NMS он передаёт через хук постпроцессора."""
+    recorded = []
+    post_processor = SimpleNamespace(
+        params={"target_args": {"score_threshold": 0.2}, "order": "hwl", "nms_thresh": 0.15},
+        delta_to_boxes3d=MagicMock(),
+        generate_gt_bbx=MagicMock(return_value="gt"),
+        record_raw_detections=lambda boxes, scores, result: recorded.append((boxes, scores, result)),
+    )
+    dataset = SimpleNamespace(post_processor=post_processor)
+    batch_data = {
+        "ego": {"transformation_matrix": MagicMock(), "anchor_box": MagicMock()},
+        "cav-2": {"transformation_matrix": MagicMock(), "anchor_box": MagicMock()},
+    }
+    model = MagicMock(return_value={"psm": MagicMock(), "rm": MagicMock()})
+
+    late_fusion_module = import_module(AdvCoperceptionLateFusionAttack.__module__)
+    with (
+        patch.object(late_fusion_module, "torch", MagicMock()),
+        patch.dict("sys.modules", {"opencood.utils": SimpleNamespace(box_utils=MagicMock())}),
+        patch.object(
+            AdvCPAttackHelper,
+            "resolve_spoof_boxes_by_attacker",
+            return_value=(["cav-2"], {"cav-2": [np.array([5.0, 0.0, 0.0, 4.5, 2.0, 1.6, 0.0], dtype=np.float32)]}),
+        ),
+        patch.object(AdvCPAttackHelper, "convert_box_for_model", return_value=MagicMock()),
+    ):
+        result = AdvCoperceptionLateFusionAttack.run(batch_data, model, dataset, "device(cpu)", make_advcp_config(), memory_data={})
+
+    assert len(recorded) == 1
+    _, _, (final_boxes, final_scores) = recorded[0]
+    assert final_boxes is result[0]
+    assert final_scores is result[1]

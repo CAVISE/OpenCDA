@@ -1,4 +1,5 @@
 import pytest
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 from pathlib import Path
 from importlib import import_module
@@ -735,3 +736,134 @@ class TestCoperceptionDataProcessor:
         assert mock_warning.call_count == 2
         assert "LiDAR data is not initialized" in mock_warning.call_args_list[0].args[0]
         assert "no agents have valid LiDAR data" in mock_warning.call_args_list[1].args[0]
+
+
+class TestPredictionRecords:
+    def test_make_prediction_saves_boxes_and_scores(self, fake_heavy_deps, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        opencood = fake_heavy_deps["opencood"]
+        opencood.hypes_yaml.yaml_utils.load_yaml.return_value = {
+            "postprocess": {"core_method": "VoxelPostprocessor", "gt_range": [0, -40, -3, 70, 40, 1]},
+            "fusion": {"core_method": "LateFusionDataset"},
+        }
+        model = MagicMock()
+        opencood.tools.train_utils.create_model.return_value = model
+        opencood.tools.train_utils.load_saved_model.return_value = (None, model)
+        module = import_module(CoperceptionModelManager.__module__)
+        module.yaml_utils = opencood.hypes_yaml.yaml_utils
+        module.train_utils = opencood.tools.train_utils
+        module.inference_utils = opencood.tools.inference_utils
+        module.build_dataset = opencood.data_utils.datasets.build_dataset
+        module.build_communication_adapter = opencood.models.communication_adapters.build_communication_adapter
+        module.torch = fake_heavy_deps["torch"]
+
+        pred_boxes = np.ones((2, 8, 3), dtype=np.float32)
+        pred_scores = np.array([0.9, 0.4], dtype=np.float32)
+        opencood.tools.inference_utils.inference_late_fusion.return_value = (pred_boxes, pred_scores, None)
+
+        manager = CoperceptionModelManager(DummyOpt(save_predictions=True, test_scenario="scen1"), "2023_01_01")
+        manager.data_loader = [{"ego": {"origin_lidar": ["lidar"]}}]
+        manager.opencood_dataset = MagicMock()
+        manager.make_prediction(7)
+
+        record_path = tmp_path / "simulation_output/evaluation_outputs/scen1_2023_01_01/predictions/tick_000007.npz"
+        with np.load(record_path) as record:
+            assert int(record["tick"]) == 7
+            np.testing.assert_array_equal(record["pred_boxes"], pred_boxes)
+            np.testing.assert_array_equal(record["pred_scores"], pred_scores)
+            assert not bool(record["has_gt_boxes"])
+
+    def test_non_numeric_tensors_are_skipped(self, fake_heavy_deps, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        manager = CoperceptionModelManager.__new__(CoperceptionModelManager)
+        manager.opt = DummyOpt(test_scenario="scen1")
+        manager.current_time = "t"
+
+        manager._save_prediction_records(0, "p", "s", "g", None)
+
+        assert not (tmp_path / "simulation_output").exists()
+
+
+class _FakePostProcessor:
+    params = {"target_args": {"score_threshold": 0.2}, "nms_thresh": 0.15}
+
+    def post_process_detections(self, boxes, scores):
+        keep = scores > 0.5  # упрощённая фильтрация для теста
+        return boxes[keep], scores[keep]
+
+
+class TestRawDetections:
+    def _manager(self, fake_heavy_deps, save_predictions=True):
+        manager = CoperceptionModelManager.__new__(CoperceptionModelManager)
+        manager.opt = DummyOpt(test_scenario="scen1", save_predictions=save_predictions)
+        manager.current_time = "t"
+        manager.opencood_dataset = SimpleNamespace(post_processor=_FakePostProcessor())
+        return manager
+
+    def test_raw_candidates_before_nms_are_captured_and_saved(self, fake_heavy_deps, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        manager = self._manager(fake_heavy_deps)
+        raw_boxes = np.arange(3 * 8 * 3, dtype=np.float32).reshape(3, 8, 3)
+        raw_scores = np.array([0.9, 0.3, 0.7], dtype=np.float32)
+
+        with manager._capture_raw_detections() as calls:
+            pred_boxes, pred_scores = manager.opencood_dataset.post_processor.post_process_detections(raw_boxes, raw_scores)
+
+        # Проверяем, что метод восстановлен.
+        assert "post_process_detections" not in vars(manager.opencood_dataset.post_processor)
+
+        selected_boxes, selected_scores = manager._select_raw_detections(calls, pred_scores)
+        manager._save_prediction_records(5, pred_boxes, pred_scores, None, None, raw_box_tensor=selected_boxes, raw_score=selected_scores)
+
+        with np.load(tmp_path / "simulation_output/evaluation_outputs/scen1_t/predictions/tick_000005.npz") as record:
+            np.testing.assert_array_equal(record["raw_scores"], raw_scores)
+            np.testing.assert_array_equal(record["raw_boxes"], raw_boxes)
+            np.testing.assert_array_equal(record["pred_scores"], np.array([0.9, 0.7], dtype=np.float32))
+            assert float(record["score_threshold"]) == pytest.approx(0.2)
+            assert float(record["nms_thresh"]) == pytest.approx(0.15)
+
+    def test_matching_call_is_selected_when_post_processing_runs_twice(self, fake_heavy_deps):
+        manager = self._manager(fake_heavy_deps)
+        first = (np.zeros((1, 8, 3)), np.array([0.8]))
+        second = (np.ones((2, 8, 3)), np.array([0.6, 0.1]))
+        post_processor = manager.opencood_dataset.post_processor
+
+        with manager._capture_raw_detections() as calls:
+            _, final_scores = post_processor.post_process_detections(*first)
+            post_processor.post_process_detections(*second)
+
+        raw_boxes, raw_scores = manager._select_raw_detections(calls, final_scores)
+        np.testing.assert_array_equal(raw_scores, first[1])
+        np.testing.assert_array_equal(raw_boxes, first[0])
+
+    def test_capture_is_disabled_without_save_predictions(self, fake_heavy_deps):
+        manager = self._manager(fake_heavy_deps, save_predictions=False)
+        with manager._capture_raw_detections() as calls:
+            assert "post_process_detections" not in vars(manager.opencood_dataset.post_processor)
+        assert calls == []
+
+    def test_raw_detections_reported_through_hook_are_selected(self, fake_heavy_deps):
+        """Путь late-fusion AdvCP вызывает не post_process_detections, а хук record_raw_detections."""
+        manager = self._manager(fake_heavy_deps)
+        post_processor = manager.opencood_dataset.post_processor
+        raw_boxes = np.zeros((3, 8, 3))
+        raw_scores = np.array([0.9, 0.3, 0.7])
+        final = (raw_boxes[[0, 2]], raw_scores[[0, 2]])
+
+        with manager._capture_raw_detections() as calls:
+            post_processor.record_raw_detections(raw_boxes, raw_scores, final)
+
+        assert "record_raw_detections" not in vars(post_processor)
+        selected_boxes, selected_scores = manager._select_raw_detections(calls, final[1])
+        np.testing.assert_array_equal(selected_scores, raw_scores)
+        np.testing.assert_array_equal(selected_boxes, raw_boxes)
+
+    def test_warns_once_when_postprocessor_has_no_raw_detections(self, fake_heavy_deps, caplog):
+        """Для CIASSD/FPV-RCNN рамок до NMS нет: пишем одно предупреждение, а не на каждый тик."""
+        manager = self._manager(fake_heavy_deps)
+
+        with caplog.at_level("WARNING"):
+            assert manager._select_raw_detections([], np.array([0.9])) == (None, None)
+            assert manager._select_raw_detections([], np.array([0.9])) == (None, None)
+
+        assert caplog.text.count("Pre-NMS boxes are not available for _FakePostProcessor") == 1
