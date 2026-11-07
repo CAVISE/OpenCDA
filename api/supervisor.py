@@ -7,7 +7,7 @@ import sys
 import time
 import json
 from pathlib import Path
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
 
 from api.state import Store, process_identity
 
@@ -22,6 +22,31 @@ def components_idle() -> bool:
         except (OSError, ValueError):
             return False
     return True
+
+
+def retry_component_cleanup(store: Store, task_id: str) -> bool:
+    """Retry only this task's recorded adapters, retaining every ambiguous stop."""
+    pending = store.db.execute("SELECT base_url FROM task_components WHERE task_id = ? ORDER BY rowid DESC", (task_id,)).fetchall()
+    complete = True
+    for row in pending:
+        base = row["base_url"]
+        try:
+            with urlopen(base + "/v1/status", timeout=5) as response:
+                state = json.load(response).get("state")
+            if state not in {"IDLE", "STOPPED", "FAILED"}:
+                with urlopen(Request(base + "/v1/stop", method="POST"), timeout=40) as response:
+                    response.read()
+                with urlopen(base + "/v1/status", timeout=5) as response:
+                    state = json.load(response).get("state")
+            if state not in {"IDLE", "STOPPED", "FAILED"}:
+                complete = False
+                continue
+            with store.db:
+                store.db.execute("DELETE FROM task_components WHERE task_id = ? AND base_url = ?", (task_id, base))
+        except (OSError, ValueError):
+            # A lost stop acknowledgement leaves responsibility durable for the next retry.
+            complete = False
+    return complete
 
 
 def group_has_live_members(group_id: int) -> bool:
@@ -66,12 +91,13 @@ def supervise(directory: Path, task_id: str, command: list[str]) -> None:
                 os.killpg(child.pid, signal.SIGINT)
                 signalled = True
             except ProcessLookupError:
+                # The child exited before cancellation; reconcile its actual result below.
                 pass
         time.sleep(0.1)
 
     # A dead API cannot prevent this process from recording the outcome. Failed
     # adapter cleanup stays occupied and is retried without relaunching execution.
-    while group_has_live_members(child.pid) or not components_idle():
+    while group_has_live_members(child.pid) or not retry_component_cleanup(store, task_id) or not components_idle():
         with store.db:
             store.db.execute("UPDATE tasks SET state = 'UNKNOWN' WHERE id = ?", (task_id,))
         time.sleep(2)

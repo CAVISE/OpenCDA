@@ -73,8 +73,11 @@ persisted. Use the deployment's init process to reap orphaned supervisors.
 
 `PREPARING` lasts until the first successful simulator tick. `RUNNING` is reported
 by the scenario at that point. A task becomes terminal only after its process
-exits and both configured adapters confirm cleanup. Missing adapters, surviving
-components or ambiguous cleanup keep occupancy unknown and block new work.
+exits and both configured adapters confirm cleanup. The scenario durably records each adapter before attempting its start. After
+scenario exit, the supervisor retries stop requests only for those recorded
+adapters and releases each responsibility after confirmed idle status. Missing
+adapters, surviving components or ambiguous cleanup keep occupancy unknown and
+block new work.
 Terminal outcomes and release of occupancy are one SQLite transaction.
 
 Recovery verifies the supervisor's Linux boot ID and process start ticks, not

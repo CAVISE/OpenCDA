@@ -36,6 +36,7 @@ def test_manager_enrollment_restart_and_revocation(tmp_path):
                 if result:
                     return result
             except (httpx.HTTPError, KeyError):
+                # Startup and restart temporarily make the requested state unavailable.
                 pass
             time.sleep(0.05)
         raise AssertionError("Protocol state did not converge within 15 seconds")
@@ -86,24 +87,27 @@ def test_manager_enrollment_restart_and_revocation(tmp_path):
             runner.wait(timeout=5)
             manager.terminate()
             manager.wait(timeout=5)
-            manager = launch(manager_command, manager_environment)
+            launch(manager_command, manager_environment)
             runner = launch(command, environment)
             second = wait_for(registered)
             assert second["runner_id"] == first["runner_id"]
             bearer = {"Authorization": "Bearer " + token}
             wait_for(lambda: client.get(runner_url + "/v1/status", headers=bearer).status_code == 200)
             assert second["last_seen_at"] == first["last_seen_at"]
-            assert client.delete(path, headers=admin).status_code in (202, 204)
+            response = client.delete(path, headers=admin)
+            assert response.status_code in (202, 204)
             wait_for(lambda: client.get(path, headers=admin).status_code == 404)
             bearer = {"Authorization": "Bearer " + token}
             assert client.get(runner_url + "/v1/status", headers=bearer).status_code == 401
-            assert client.delete(runner_url + "/v1/registration", headers=bearer).status_code == 204
+            response = client.delete(runner_url + "/v1/registration", headers=bearer)
+            assert response.status_code == 204
             runner.terminate()
             runner.wait(timeout=5)
             runner = launch(command, environment)
             wait_for(lambda: client.get(runner_url + "/healthz").status_code == 200)
             assert client.get(runner_url + "/v1/status", headers=bearer).status_code == 401
-            assert client.delete(runner_url + "/v1/registration", headers=bearer).status_code == 204
+            response = client.delete(runner_url + "/v1/registration", headers=bearer)
+            assert response.status_code == 204
     finally:
         for process in reversed(processes):
             if process.poll() is None:

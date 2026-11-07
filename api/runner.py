@@ -67,6 +67,7 @@ class Runner:
                         logger.error("Enrollment rejected (HTTP %s); check registration configuration and restart API", response.status_code)
                         return
                 except httpx.HTTPError:
+                    # Transport failures retry the same persisted enrollment after backoff.
                     pass
                 logger.warning("Manager enrollment unavailable; retrying")
                 await asyncio.sleep(random.uniform(delay / 2, delay))

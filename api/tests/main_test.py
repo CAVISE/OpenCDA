@@ -48,10 +48,13 @@ def test_snapshot_and_authentication(client):
 
 def test_revocation_and_retired_token(client):
     """A lost acknowledgement can be retried, while every ordinary route rejects the retired token."""
-    assert client.delete("/v1/registration").status_code == 204
-    assert client.delete("/v1/registration").status_code == 204
+    response = client.delete("/v1/registration")
+    assert response.status_code == 204
+    response = client.delete("/v1/registration")
+    assert response.status_code == 204
     assert client.get("/v1/status").status_code == 401
-    assert client.post("/v1/run?scenario=demo").status_code == 401
+    response = client.post("/v1/run?scenario=demo")
+    assert response.status_code == 401
 
 
 def test_start_duplicate_and_busy_unbinding(client, monkeypatch):
@@ -62,8 +65,10 @@ def test_start_duplicate_and_busy_unbinding(client, monkeypatch):
     assert response.status_code == 202
     task_id = response.json()["task_id"]
     assert client.get("/v1/status").json()["current_task"] == {"id": task_id, "state": "PREPARING"}
-    assert client.post("/v1/run?scenario=demo").status_code == 409
-    assert client.delete("/v1/registration").status_code == 409
+    response = client.post("/v1/run?scenario=demo")
+    assert response.status_code == 409
+    response = client.delete("/v1/registration")
+    assert response.status_code == 409
     assert spawn.await_count == 1
 
 
@@ -87,7 +92,8 @@ def test_spawn_failure_releases_reservation(client, monkeypatch):
 )
 def test_upload_validation(client, name, content, code):
     """Invalid uploads do not reserve execution or create task state."""
-    assert client.post("/v1/run", files={"config": (name, content)}).status_code == code
+    response = client.post("/v1/run", files={"config": (name, content)})
+    assert response.status_code == code
     assert client.get("/v1/status").json()["occupancy"] == "idle"
 
 
@@ -108,19 +114,22 @@ def test_identity_recovery_and_tombstone(tmp_path):
     store = Store(tmp_path)
     runner_id = store.runner_id
     store.configure(str(uuid4()), "old", "http://manager", "http://runner")
-    assert store.revoke("old")
+    revoked = store.revoke("old")
+    assert revoked
     store.close()
     store = Store(tmp_path)
     assert store.runner_id == runner_id
     assert store.authorized("old", tombstone=True) and not store.authorized("old")
     store.configure(str(uuid4()), "new", "http://manager", "http://runner")
-    assert store.revoke("old") and store.authorized("new")
+    revoked = store.revoke("old")
+    assert revoked and store.authorized("new")
     with store.db:
         store.db.execute("INSERT INTO tasks(id, state, active) VALUES ('lost', 'RUNNING', 1)")
     runner = Runner(store)
     snapshot = runner.snapshot()
     assert snapshot["occupancy"] == "unknown" and snapshot["current_task"]["id"] == "lost"
-    assert not store.revoke("new")
+    revoked = store.revoke("new")
+    assert not revoked
     assert (tmp_path / "runner.sqlite3").stat().st_mode & 0o777 == 0o600
     assert tmp_path.stat().st_mode & 0o777 == 0o700
     store.close()
@@ -238,3 +247,39 @@ def test_status_remains_available_during_stop(tmp_path, monkeypatch):
         store.close()
 
     asyncio.run(exercise())
+
+
+def test_cleanup_retries_only_retained_components(tmp_path, monkeypatch):
+    """A transient stop failure retains ownership and a later attempt completes cleanup without touching other adapters."""
+    import io
+    from api import supervisor
+
+    store = Store(tmp_path)
+    with store.db:
+        store.db.execute("INSERT INTO task_components VALUES ('job', 'http://owned')")
+    calls = []
+    stopping = False
+    fail_stop = True
+
+    def request(url, timeout):
+        nonlocal stopping, fail_stop
+        address = url if isinstance(url, str) else url.full_url
+        calls.append(address)
+        if address.endswith("/stop"):
+            if fail_stop:
+                fail_stop = False
+                raise OSError("temporary outage")
+            stopping = True
+            return io.BytesIO(b"{}")
+        return io.BytesIO(b'{"state":"STOPPED"}' if stopping else b'{"state":"RUNNING"}')
+
+    monkeypatch.setattr(supervisor, "urlopen", request)
+    complete = supervisor.retry_component_cleanup(store, "job")
+    assert not complete
+    assert store.db.execute("SELECT count(*) FROM task_components").fetchone()[0] == 1
+    complete = supervisor.retry_component_cleanup(store, "job")
+    assert complete
+    assert store.db.execute("SELECT count(*) FROM task_components").fetchone()[0] == 0
+    assert calls.count("http://owned/v1/stop") == 2
+    assert all(address.startswith("http://owned/") for address in calls)
+    store.close()

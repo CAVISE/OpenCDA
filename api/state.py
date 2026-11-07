@@ -45,6 +45,10 @@ class Store:
                 supervisor_pid INTEGER, supervisor_identity TEXT,
                 cancel_requested INTEGER NOT NULL DEFAULT 0
             );
+            CREATE TABLE IF NOT EXISTS task_components (
+                task_id TEXT NOT NULL, base_url TEXT NOT NULL,
+                PRIMARY KEY (task_id, base_url)
+            );
             CREATE UNIQUE INDEX IF NOT EXISTS one_active_task ON tasks(active) WHERE active = 1;
         """)
         with self.db:
@@ -106,3 +110,16 @@ class Store:
     def close(self) -> None:
         """Release this owner's SQLite connection."""
         self.db.close()
+
+
+def retain_component(base_url: str) -> None:
+    """Persist cleanup responsibility before an adapter start can take effect."""
+    task_id = os.environ.get("CAVISE_TASK_ID")
+    if task_id is None:
+        return
+    store = Store(Path(os.environ["CAVISE_RUNNER_STATE_DIR"]))
+    try:
+        with store.db:
+            store.db.execute("INSERT OR IGNORE INTO task_components VALUES (?, ?)", (task_id, base_url))
+    finally:
+        store.close()
