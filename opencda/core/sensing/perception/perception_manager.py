@@ -519,8 +519,10 @@ class PerceptionManager:
 
         self.activate = config_yaml["activate"]
         self.camera_visualize = config_yaml["camera"]["visualize"]
+        self.camera_force_spawn = config_yaml["camera"].get("force_spawn", False)
         self.camera_num = config_yaml["camera"]["num"]
         self.lidar_visualize = config_yaml["lidar"]["visualize"]
+        self.lidar_force_spawn = config_yaml["lidar"].get("force_spawn", False)
         self.global_position = config_yaml["global_position"] if "global_position" in config_yaml else None
 
         self.cav_world = weakref.ref(cav_world)()
