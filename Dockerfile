@@ -7,7 +7,8 @@ ARG UBUNTU_DIGEST=sha256:4fbb8e6a8395de5a7550b33509421a2bafbc0aab6c06ba2cef9ebff
 FROM docker.io/nvidia/cuda:${CUDA_VERSION}-cudnn-runtime-ubuntu${UBUNTU_VERSION}@${CUDA_RUNTIME_DIGEST} AS runtime-base
 
 ARG USER=opencda
-ARG UID=1000
+ARG uid=1000
+ARG gid=1000
 ARG HOME=/home/${USER}
 
 ENV HOME=${HOME}
@@ -35,10 +36,11 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 RUN if id -u ubuntu >/dev/null 2>&1; then userdel -r ubuntu; fi && \
-    useradd --create-home --user-group --uid ${UID} --shell /bin/bash ${USER} && \
+    if ! getent group ${gid} >/dev/null; then groupadd --gid ${gid} ${USER}; fi && \
+    useradd --create-home --gid ${gid} --uid ${uid} --shell /bin/bash ${USER} && \
     mkdir -p ${XDG_RUNTIME_DIR} ${OPENCDA_WORKSPACE} && \
     chmod 700 ${XDG_RUNTIME_DIR} && \
-    chown -R ${UID}:${UID} ${XDG_RUNTIME_DIR} ${HOME}
+    chown -R ${uid}:${gid} ${XDG_RUNTIME_DIR} ${HOME}
 
 
 FROM runtime-base AS python-opencda-dependencies
@@ -155,16 +157,17 @@ RUN cmake -S . -B /tmp/opencood-cuda-build -G Ninja \
 FROM runtime-base AS opencda-base
 
 ARG USER=opencda
-ARG UID=1000
+ARG uid=1000
+ARG gid=1000
 ARG HOME=/home/${USER}
 
 COPY --from=python-opencda-dependencies /opt/venv /opt/venv
 
 WORKDIR ${HOME}/cavise/opencda
 
-COPY --chown=${UID}:${UID} opencda/opencda.py ./
-COPY --chown=${UID}:${UID} opencda/opencda/ opencda/
-COPY --chown=${UID}:${UID} opencda/AIM/ AIM/
+COPY --chown=${uid}:${gid} opencda/opencda.py ./
+COPY --chown=${uid}:${gid} opencda/opencda/ opencda/
+COPY --chown=${uid}:${gid} opencda/AIM/ AIM/
 COPY opencda/docker/sync-build-artifacts.sh \
     /usr/local/bin/opencda-sync-build-artifacts
 
@@ -192,7 +195,8 @@ COPY --from=protobuf-builder /opt/opencda-artifacts/protobuf \
 FROM opencda-base AS opencda-coperception-base
 
 ARG USER=opencda
-ARG UID=1000
+ARG uid=1000
+ARG gid=1000
 
 USER 0
 
@@ -201,7 +205,7 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 COPY --from=python-opencood-dependencies /opt/venv /opt/venv
-COPY --chown=${UID}:${UID} opencood/ ${OPENCOOD_WORKSPACE}/
+COPY --chown=${uid}:${gid} opencood/ ${OPENCOOD_WORKSPACE}/
 COPY opencood/docker/sync-cuda-artifacts.sh \
     /usr/local/bin/opencood-sync-cuda-artifacts
 
