@@ -1,4 +1,5 @@
 fastapi
+httpx
 python-multipart
 PyYAML
 uvicorn

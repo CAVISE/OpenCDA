@@ -153,3 +153,8 @@ ready*
 simulation_output
 runner_tasks
 *-artifacts.manifest
+
+# Private Runner and adapter state
+.runner-state/
+.adapter-state/
+.runner-secrets/

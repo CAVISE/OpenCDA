@@ -347,3 +347,9 @@ while it finishes cleanup. Do not start another task until it exits.
 docker exec -it opencda bash
 python -m api
 ```
+
+## Manager Runner protocol
+
+For authenticated registration, on-demand status verification, durable execution results and
+API restart recovery, see [api/README.md](api/README.md). The external Runner API
+is OpenCDA; CARLA and SUMO remain private process adapters.

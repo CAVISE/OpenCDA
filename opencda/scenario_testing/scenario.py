@@ -390,6 +390,10 @@ class Scenario:
             logger.debug(f"running: simulation tick: {tick_number}")
             self.scenario_manager.sumo_tick()
             carla_frame = self.scenario_manager.tick()
+            if tick_number == 0:
+                from api.supervisor import mark_running
+
+                mark_running()
             world_frame = self.scenario_manager.capture_world_frame(carla_frame)
 
             if not opt.free_spectator and (self.single_cav_list or self.platoon_list):
@@ -480,6 +484,10 @@ class Scenario:
                 break
             logger.debug(f"running: simulation tick: {tick_number}")
             carla_frame = self.scenario_manager.tick()
+            if tick_number == 0:
+                from api.supervisor import mark_running
+
+                mark_running()
             world_frame = self.scenario_manager.capture_world_frame(carla_frame)
 
             if not opt.free_spectator and (self.single_cav_list or self.platoon_list):
