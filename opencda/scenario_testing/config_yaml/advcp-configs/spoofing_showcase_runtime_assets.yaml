@@ -11,7 +11,9 @@ attacker_ids: [cav-2] # standing-attacker-cav-2
 car_mesh_native_size: true
 default_size: [5.6, 2.6, 2.0]
 boxes:
-  - absolute: [58, 142.792206, 0.0, 0.0, 0.0, 0.0] # empty lane, 8 m ahead and 7 m beside the attacker
+  # Relative to the ego (victim) vehicle: the fake car rides 8 m ahead in the
+  # ego lane, so the ego-following 3D view shows it up close in every frame.
+  - relative: [8.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 
 # dense_all ray-traces the whole mesh from the attacker's lidar and adds
 # auxiliary rays from every neighbouring CAV pose, so the fake car is covered
