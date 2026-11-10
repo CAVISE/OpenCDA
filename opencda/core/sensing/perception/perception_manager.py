@@ -592,6 +592,8 @@ class PerceptionManager:
 
         # the dictionary contains all objects
         self.objects = {}
+        # CoP configures frame-bound visibility; None preserves legacy callers.
+        self.semantic_sync_timeout_seconds: float | None = None
         # traffic light detection related
         self.traffic_thresh = config_yaml["traffic_light_thresh"] if "traffic_light_thresh" in config_yaml else 50  # noqa: DC05
 
@@ -733,6 +735,9 @@ class PerceptionManager:
             The dictionary that contains all category of detected objects.
             The key is the object category name and value is its 3d coordinates
             and confidence.
+        world_frame : WorldFrame, optional
+            Shared actor state. When CoP synchronization is configured, its
+            frame also selects the semantic LiDAR sample used for visibility.
 
         Returns
         -------
@@ -756,7 +761,11 @@ class PerceptionManager:
 
         # use semantic lidar to filter out vehicles out of the range
         if self.semantic_lidar is not None:
-            vehicle_list = self.filter_vehicle_out_sensor(vehicle_list)
+            if world_frame is not None and self.semantic_sync_timeout_seconds is not None:
+                measurement = self.semantic_lidar.wait_for_frame(world_frame.frame, self.semantic_sync_timeout_seconds)
+                vehicle_list = self.filter_vehicle_out_sensor(vehicle_list, measurement=measurement)
+            else:
+                vehicle_list = self.filter_vehicle_out_sensor(vehicle_list)
             if actor_states is not None:
                 selected_actor_ids = {actor.id for actor in vehicle_list}
                 actor_states = tuple(state for state in actor_states if state.actor_id in selected_actor_ids)
@@ -816,7 +825,7 @@ class PerceptionManager:
 
         return objects
 
-    def filter_vehicle_out_sensor(self, vehicle_list):
+    def filter_vehicle_out_sensor(self, vehicle_list, measurement: SensorMeasurement | None = None):
         """
         By utilizing semantic lidar, we can retrieve the objects that
         are in the lidar detection range from the server.
@@ -828,6 +837,10 @@ class PerceptionManager:
         vehicle_list : list
             The list contains all vehicles information retrieves from the
             server.
+        measurement : SensorMeasurement, optional
+            Semantic sample for the requested world frame. None uses the
+            latest legacy buffers; a supplied sample is independent of later
+            callback updates to those buffers.
 
         Returns
         -------
@@ -835,8 +848,13 @@ class PerceptionManager:
             The list that filters out the out of scope vehicles.
 
         """
-        semantic_idx = self.semantic_lidar.obj_idx
-        semantic_tag = self.semantic_lidar.obj_tag
+        if measurement is None:
+            semantic_idx = self.semantic_lidar.obj_idx
+            semantic_tag = self.semantic_lidar.obj_tag
+        else:
+            semantic_data = np.asarray(measurement.data)
+            semantic_idx = semantic_data["ObjIdx"]
+            semantic_tag = semantic_data["ObjTag"]
 
         if semantic_tag is None or semantic_idx is None:
             logger.warning("Variable semantic_idx or semantic_tag is None")

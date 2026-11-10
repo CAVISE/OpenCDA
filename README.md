@@ -158,7 +158,7 @@ python3 opencda.py -t <scenario_name> [options]
 ### Core options
 
 - `-t, --test-scenario`: Required scenario name without the `.yaml` extension (unless `--replay-from` is used). The runner loads `opencda/scenario_testing/config_yaml/<scenario>.yaml` and merges it over `default.yaml`.
-- `--replay-from <run_dir>`: Reproduce a previous run from its `simulation_output/evaluation_outputs/<scenario>_<time>` folder (the same as running `<run_dir>/reproducibility/reproduce.sh`). Launch options are restored from `run_manifest.json`, the configuration from the saved `config.yaml`; arguments given on the command line override the saved ones. Differences in code commit, model checkpoint or device are reported as warnings.
+- `--replay-from <run_dir>`: Reproduce a previous run from its `simulation_output/evaluation_outputs/<scenario>_<time>` folder. Launch options are restored from `run_manifest.json`, the configuration from the saved `config.yaml`; arguments given on the command line override the saved ones. Differences in code commit, model checkpoint or device are reported as warnings.
 - `--record`: Enable the CARLA recorder and per-actor sensor data dumping under `simulation_output/data_dumping/`.
 - `-v, --version`: Show the installed OpenCDA version and exit
 - `--free-spectator`: Leave the CARLA spectator camera under manual control.
@@ -262,7 +262,6 @@ python3 opencda.py \
   ├── reproducibility/
   │   ├── run_manifest.json   # seed, launch command, code versions, model, device, run status
   │   ├── config.yaml         # final merged (default + scenario) configuration
-  │   ├── reproduce.sh        # original command + replay command
   │   ├── code_diff.patch     # uncommitted OpenCDA changes, if any
   │   └── inputs/             # copies of source YAMLs, AdvCP config, model config.yaml/meta.yaml
   └── predictions/
@@ -270,6 +269,13 @@ python3 opencda.py \
   ```
 
   The manifest identifies the model by bundle ID, artifact SHA-256 and a link to the bundle in the models repository at the exact commit. Load predictions with `opencda.scenario_testing.utils.run_metadata.load_prediction_records`. `world.seed` also seeds the CARLA Traffic Manager, so background traffic repeats between runs in synchronous mode.
+
+  Replay from the repository root, optionally overriding saved arguments:
+
+  ```bash
+  python opencda.py --replay-from <run_dir>
+  python opencda.py --replay-from <run_dir> --ticks 50 --model-dir /path/to/model --no-save-predictions
+  ```
 - `simulation_output/coperception/`: cooperative perception predictions, visualizations, and results
 
 ### Repository map

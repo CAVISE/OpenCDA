@@ -22,14 +22,19 @@ from datetime import datetime
 from importlib import metadata
 from pathlib import Path
 from typing import Any, Iterable, Mapping, cast
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+
+import yaml
+from omegaconf import OmegaConf
+
+from opencda.core.plan.model_resolver import sha256_file
+from opencda.version import __version__
 
 logger = logging.getLogger("cavise.opencda.opencda.scenario_testing.utils.run_metadata")
 
 SCHEMA_VERSION = 1
 REPRODUCIBILITY_DIRNAME = "reproducibility"
 MANIFEST_FILENAME = "run_manifest.json"
-REPRODUCE_SCRIPT_FILENAME = "reproduce.sh"
 CONFIG_FILENAME = "config.yaml"
 INPUTS_DIRNAME = "inputs"
 PREDICTIONS_DIRNAME = "predictions"
@@ -50,23 +55,38 @@ CHECKPOINT_SUFFIXES = (".pth", ".pt", ".ckpt", ".bin", ".safetensors")
 TRACKED_PACKAGES = ("numpy", "torch", "torchvision", "carla", "omegaconf", "open3d", "opencood", "spconv", "scipy", "PyYAML")
 
 
-def _now_iso() -> str:
-    return datetime.now().astimezone().isoformat(timespec="seconds")
+def _to_jsonable(value: Any, key: str = "") -> Any:
+    """Convert metadata to JSON-compatible values and redact credentials.
 
+    Parameters
+    ----------
+    value : Any
+        Scalar, enum, path, mapping or collection to serialize.
+    key : str, optional
+        Containing field name; an empty string denotes the root value.
 
-def _to_jsonable(value: Any) -> Any:
-    """Convert option values to JSON-compatible types."""
+    Returns
+    -------
+    Any
+        Sanitized JSON-compatible value; unsupported objects become strings.
+    """
+    if key in ("argv", "raw_argv") and isinstance(value, (list, tuple)):
+        return _redact_argv(value)
+    if SECRET_KEY_PATTERN.search(key):
+        return REDACTED if value is not None else None
     if isinstance(value, enum.Enum):
-        return value.value
+        value = value.value
     if isinstance(value, Path):
-        return str(value)
+        value = str(value)
     if isinstance(value, Mapping):
-        return {str(key): _to_jsonable(item) for key, item in value.items()}
+        return {str(k): _to_jsonable(item, str(k)) for k, item in value.items()}
     if isinstance(value, (list, tuple, set)):
         return [_to_jsonable(item) for item in value]
-    if value is None or isinstance(value, (str, int, float, bool)):
+    if isinstance(value, str):
+        return _redact_string(value)
+    if value is None or isinstance(value, (int, float, bool)):
         return value
-    return repr(value)
+    return _redact_string(repr(value))
 
 
 # Credentials must never be stored in shared simulation artifacts.
@@ -95,9 +115,18 @@ SECRET_QUERY_KEYS = frozenset(
 
 
 def _redact_url(url: str) -> str:
-    """Remove HTTPS basic-auth credentials and known sensitive query values."""
-    from urllib.parse import parse_qsl, urlencode
+    """Remove HTTP credentials and sensitive query values.
 
+    Parameters
+    ----------
+    url : str
+        URL to inspect; other schemes are returned unchanged.
+
+    Returns
+    -------
+    str
+        URL without userinfo and with sensitive query values redacted.
+    """
     try:
         parsed = urlsplit(url)
         if parsed.scheme not in ("http", "https") or not parsed.netloc:
@@ -117,11 +146,34 @@ def _redact_url(url: str) -> str:
 
 
 def _redact_string(value: str) -> str:
+    """Redact credential-bearing HTTP URLs embedded in text.
+
+    Parameters
+    ----------
+    value : str
+        Text that may contain URLs.
+
+    Returns
+    -------
+    str
+        Text with URL credentials removed.
+    """
     return URL_PATTERN.sub(lambda match: _redact_url(match.group(0)), value)
 
 
 def _redact_argv(argv: Iterable[str]) -> list[str]:
-    """Redact secrets in --flag=value and --flag value forms."""
+    """Redact secrets in option values and URLs.
+
+    Parameters
+    ----------
+    argv : iterable of str
+        Command arguments in ``--flag=value`` or ``--flag value`` form.
+
+    Returns
+    -------
+    list of str
+        Arguments safe to store in shared run artifacts.
+    """
     original = list(argv)
     safe: list[str] = []
     redact_next = False
@@ -140,42 +192,48 @@ def _redact_argv(argv: Iterable[str]) -> list[str]:
     return safe
 
 
-def _redact_metadata(value: Any, key: str = "") -> Any:
-    """Recursively scrub URLs and explicitly sensitive fields in a manifest."""
-    if key in ("argv", "raw_argv") and isinstance(value, (list, tuple)):
-        return _redact_argv(value)
-    if SECRET_KEY_PATTERN.search(key):
-        return REDACTED if value is not None else None
-    if isinstance(value, Mapping):
-        return {str(k): _redact_metadata(v, str(k)) for k, v in value.items()}
-    if isinstance(value, (tuple, list)):
-        return [_redact_metadata(item) for item in value]
-    if isinstance(value, str):
-        return _redact_string(value)
-    return value
-
-
-def sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as stream:
-        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
 def _run_git(repo: Path, *arguments: str, preserve_whitespace: bool = False) -> str | None:
+    """Run a read-only Git command and capture its output.
+
+    Parameters
+    ----------
+    repo : pathlib.Path
+        Git working directory.
+    *arguments : str
+        Git subcommand and arguments.
+    preserve_whitespace : bool, optional
+        Retain all whitespace, including CRLF bytes, for patch capture.
+
+    Returns
+    -------
+    str or None
+        UTF-8 output decoded with surrogateescape, or None if Git fails.
+        Re-encoding preserved output with surrogateescape recovers its bytes.
+    """
     git = shutil.which("git")
     if git is None:
         return None
     try:
-        result = subprocess.run([git, "-C", str(repo), *arguments], check=True, capture_output=True, text=True, timeout=30)
+        result = subprocess.run([git, "-C", str(repo), *arguments], check=True, capture_output=True, timeout=30)
     except (subprocess.SubprocessError, OSError):
         return None
-    return result.stdout if preserve_whitespace else result.stdout.strip()
+    output = result.stdout.decode("utf-8", errors="surrogateescape")
+    return output if preserve_whitespace else output.strip()
 
 
 def collect_git_info(repo: Path) -> dict[str, Any] | None:
-    """Collect commit, branch, remote and worktree status."""
+    """Collect a checkout revision and worktree status.
+
+    Parameters
+    ----------
+    repo : pathlib.Path
+        Directory inside the Git checkout.
+
+    Returns
+    -------
+    dict or None
+        Commit, branch, redacted remote and dirty status, or None without Git.
+    """
     commit = _run_git(repo, "rev-parse", "HEAD")
     if not commit:
         return None
@@ -192,15 +250,19 @@ def collect_git_info(repo: Path) -> dict[str, Any] | None:
     }
 
 
-def _package_version(name: str) -> str | None:
-    try:
-        return metadata.version(name)
-    except metadata.PackageNotFoundError:
-        return None
-
-
 def _module_location(module_name: str) -> Path | None:
-    """Find where a module lives without importing it."""
+    """Locate an installed module without importing its dependencies.
+
+    Parameters
+    ----------
+    module_name : str
+        Top-level module name to locate.
+
+    Returns
+    -------
+    pathlib.Path or None
+        Module directory, or None when the module cannot be located.
+    """
     module = sys.modules.get(module_name)
     module_file = getattr(module, "__file__", None)
     if module_file:
@@ -219,17 +281,20 @@ def _module_location(module_name: str) -> Path | None:
     return None
 
 
-def _module_repo(module_name: str) -> Path | None:
-    """Find the Git checkout backing a module."""
-    location = _module_location(module_name)
-    if location is None:
-        return None
-    toplevel = _run_git(location, "rev-parse", "--show-toplevel")
-    return Path(toplevel) if toplevel else None
+def collect_source_digest(directory: Path | None = None) -> str:
+    """Fingerprint runtime sources, configurations and checkpoint bytes.
 
+    Parameters
+    ----------
+    directory : pathlib.Path, optional
+        Package directory to hash. None selects OpenCDA's entrypoint,
+        ``opencda`` and ``AIM`` directories, including AIM weights.
 
-def collect_source_digest() -> str:
-    """Hash OpenCDA source files independently of Git metadata."""
+    Returns
+    -------
+    str
+        SHA-256 digest of sorted relative filenames and file contents.
+    """
     digest = hashlib.sha256()
     extensions = {
         ".py",
@@ -251,71 +316,36 @@ def collect_source_digest() -> str:
         ".cu",
         ".cuh",
         ".so",
-    }
-
-    paths = [REPO_ROOT / "opencda.py"]
-
-    for directory in (REPO_ROOT / "opencda", REPO_ROOT / "AIM"):
-        if directory.is_dir():
-            paths.extend(path for path in directory.rglob("*") if path.is_file() and path.suffix in extensions and "__pycache__" not in path.parts)
+    } | set(CHECKPOINT_SUFFIXES)
+    root = directory if directory is not None else REPO_ROOT
+    paths = [] if directory is not None else [root / "opencda.py"]
+    directories = (directory,) if directory is not None else (root / "opencda", root / "AIM")
+    for source_dir in directories:
+        if source_dir.is_dir():
+            paths.extend(path for path in source_dir.rglob("*") if path.is_file() and path.suffix in extensions and "__pycache__" not in path.parts)
 
     for source in sorted(paths):
         if not source.is_file():
             continue
-        relative_path = source.relative_to(REPO_ROOT).as_posix()
+        relative_path = source.relative_to(root).as_posix()
         digest.update(relative_path.encode("utf-8"))
-        digest.update(b"\\0")
-        with source.open("rb") as stream:
-            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-                digest.update(chunk)
-
-    return digest.hexdigest()
-
-
-def _digest_source_directory(directory: Path) -> str | None:
-    """Fingerprint installed package sources even when Git is unavailable."""
-    source_files = sorted(
-        path
-        for path in directory.rglob("*")
-        if path.is_file()
-        and path.suffix
-        in {
-            ".py",
-            ".yaml",
-            ".yml",
-            ".json",
-            ".toml",
-            ".cfg",
-            ".ini",
-            ".proto",
-            ".sh",
-            ".txt",
-            ".c",
-            ".cc",
-            ".cpp",
-            ".h",
-            ".hpp",
-            ".cu",
-            ".cuh",
-            ".so",
-        }
-        and "__pycache__" not in path.parts
-    )
-    if not source_files:
-        return None
-    digest = hashlib.sha256()
-    for source in source_files:
-        digest.update(source.relative_to(directory).as_posix().encode("utf-8"))
         digest.update(b"\0")
         with source.open("rb") as stream:
             for chunk in iter(lambda: stream.read(1024 * 1024), b""):
                 digest.update(chunk)
+
     return digest.hexdigest()
 
 
 def collect_code_versions() -> dict[str, Any]:
-    from opencda.version import __version__
+    """Collect code and dependency identities without heavy imports.
 
+    Returns
+    -------
+    dict
+        OpenCDA/OpenCOOD revisions and source digests, Python version and
+        installed package versions; unavailable package versions are None.
+    """
     versions: dict[str, Any] = {
         "opencda": {
             "version": __version__,
@@ -323,21 +353,35 @@ def collect_code_versions() -> dict[str, Any]:
             "source_digest": collect_source_digest(),
         },
         "python": sys.version.split()[0],
-        "packages": {name: _package_version(name) for name in TRACKED_PACKAGES},
+        "packages": {},
     }
+    for name in TRACKED_PACKAGES:
+        try:
+            versions["packages"][name] = metadata.version(name)
+        except metadata.PackageNotFoundError:
+            versions["packages"][name] = None
 
     opencood_location = _module_location("opencood")
     if opencood_location is not None:
-        opencood_repo = _module_repo("opencood")
+        toplevel = _run_git(opencood_location, "rev-parse", "--show-toplevel")
+        opencood_repo = Path(toplevel) if toplevel else None
         if opencood_repo is None or opencood_repo.resolve() != REPO_ROOT:
             versions["opencood"] = {
                 "git": collect_git_info(opencood_repo) if opencood_repo else None,
-                "source_digest": _digest_source_directory(opencood_location),
+                "source_digest": collect_source_digest(opencood_location),
             }
     return versions
 
 
 def collect_device_info() -> dict[str, Any]:
+    """Collect host and optional Torch device information.
+
+    Returns
+    -------
+    dict
+        Platform, architecture and CPU/GPU metadata. Torch is imported lazily;
+        unavailable Torch or device-query failures are recorded in the result.
+    """
     info: dict[str, Any] = {
         "hostname": socket.gethostname(),
         "platform": platform.platform(),
@@ -347,6 +391,7 @@ def collect_device_info() -> dict[str, Any]:
     }
 
     try:
+        # Torch is optional and expensive; import it only for device inspection.
         import torch
     except ImportError:
         info["torch"] = None
@@ -374,7 +419,18 @@ def collect_device_info() -> dict[str, Any]:
 
 
 def repository_web_url(remote: str | None) -> str | None:
-    """Convert a Git remote into a browser URL."""
+    """Convert a Git remote into an HTTP browser URL.
+
+    Parameters
+    ----------
+    remote : str or None
+        HTTP, SSH or local Git remote.
+
+    Returns
+    -------
+    str or None
+        Browser URL without the .git suffix, or None for unsupported remotes.
+    """
     if not remote:
         return None
     url = remote.strip()
@@ -388,11 +444,31 @@ def repository_web_url(remote: str | None) -> str | None:
     return url.removesuffix("/").removesuffix(".git")
 
 
-def _bundle_commit(repo_root: Path, bundle_path: str) -> str | None:
-    """Find a commit matching the local model bundle.
+def _bundle_commit(repo_root: Path, bundle_path: str, artifacts: list[dict[str, Any]]) -> str | None:
+    """Find a commit whose tree contains the runtime bundle bytes.
 
-    Checks HEAD and FETCH_HEAD; returns None if neither matches.
+    Parameters
+    ----------
+    repo_root : pathlib.Path
+        Models checkout root.
+    bundle_path : str
+        Bundle directory relative to the checkout root.
+    artifacts : list of dict
+        Runtime artifact paths to verify, including ignored downloads.
+
+    Returns
+    -------
+    str or None
+        Matching HEAD or FETCH_HEAD commit, or None if any artifact is
+        missing, differs from its Git blob, or the bundle has local changes.
     """
+    # Git status excludes ignored downloads; verify every runtime file's bytes.
+    blobs = {
+        f"{bundle_path}/{item['path']}": _run_git(repo_root, "hash-object", "--no-filters", "--", f"{bundle_path}/{item['path']}")
+        for item in artifacts
+    }
+    if not blobs or not all(blobs.values()):
+        return None
     for ref in ("HEAD", "FETCH_HEAD"):
         commit = _run_git(repo_root, "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}")
         if not commit:
@@ -402,36 +478,42 @@ def _bundle_commit(repo_root: Path, bundle_path: str) -> str | None:
             continue
         unchanged = _run_git(repo_root, "diff", "--quiet", commit, "--", bundle_path) is not None
         untracked = _run_git(repo_root, "ls-files", "--others", "--exclude-standard", "--", bundle_path)
-        if unchanged and not untracked:
+        if (
+            unchanged
+            and not untracked
+            and all(_run_git(repo_root, "rev-parse", "--verify", f"{commit}:{path}") == blob for path, blob in blobs.items())
+        ):
             return commit
     return None
 
 
-def _meta_checksums(bundle_dir: Path) -> dict[str, str | None]:
-    """Read artifact checksums from model meta.yaml."""
-    meta_path = bundle_dir / "meta.yaml"
-    if not meta_path.is_file():
-        return {}
-    import yaml
-
-    try:
-        meta = yaml.safe_load(meta_path.read_text(encoding="utf-8")) or {}
-    except yaml.YAMLError:
-        return {}
-    artifacts = meta.get("artifacts") if isinstance(meta, dict) else None
-    if not isinstance(artifacts, list):
-        return {}
-    return {
-        str(item["path"]): (str(item["sha256"]) if item.get("sha256") else None) for item in artifacts if isinstance(item, dict) and item.get("path")
-    }
-
-
 def _bundle_artifacts(bundle_dir: Path) -> list[dict[str, Any]]:
-    """Collect model artifacts and their actual SHA-256 hashes.
+    """Hash runtime model inputs and validate declared checksums.
 
-    Compare them against checksums from meta.yaml when available.
+    Parameters
+    ----------
+    bundle_dir : pathlib.Path
+        Bundle containing checkpoints, config.yaml and optional meta.yaml.
+
+    Returns
+    -------
+    list of dict
+        Relative paths, sizes and actual hashes, with expected hashes and
+        match status where declared. Missing files have None sizes and hashes.
     """
-    expected = _meta_checksums(bundle_dir)
+    expected: dict[str, str | None] = {}
+    meta_path = bundle_dir / "meta.yaml"
+    if meta_path.is_file():
+        try:
+            meta = yaml.safe_load(meta_path.read_text(encoding="utf-8"))
+        except yaml.YAMLError:
+            meta = None
+        if isinstance(meta, dict) and isinstance(meta.get("artifacts"), list):
+            expected = {
+                str(item["path"]): str(item["sha256"]) if item.get("sha256") else None
+                for item in meta["artifacts"]
+                if isinstance(item, dict) and item.get("path")
+            }
     paths = set(expected)
     paths.update(path.relative_to(bundle_dir).as_posix() for path in bundle_dir.rglob("*") if path.is_file() and path.suffix in CHECKPOINT_SUFFIXES)
     # Model config.yaml affects inference even if it is absent from meta.yaml.
@@ -456,8 +538,24 @@ def _bundle_artifacts(bundle_dir: Path) -> list[dict[str, Any]]:
     return artifacts
 
 
-def describe_bundle(bundle_dir_value: str | None, *, bundle_id: str | None, category: str, opt: Any) -> dict[str, Any]:
-    """Describe the model bundle and its repository revision."""
+def describe_bundle(bundle_dir_value: str | None, *, bundle_id: str | None, opt: Any) -> dict[str, Any]:
+    """Describe a bundle using hashes and a verified repository revision.
+
+    Parameters
+    ----------
+    bundle_dir_value : str or None
+        Local bundle directory; None records an unresolved bundle.
+    bundle_id : str or None
+        Logical model or asset bundle identifier.
+    opt : argparse.Namespace
+        Launch options containing the models reference and repository URL.
+
+    Returns
+    -------
+    dict
+        Bundle identity and artifact hashes. A commit URL is included only
+        when all runtime artifacts match that commit's tree.
+    """
     info: dict[str, Any] = {
         "id": bundle_id,
         "local_dir": bundle_dir_value,
@@ -481,7 +579,7 @@ def describe_bundle(bundle_dir_value: str | None, *, bundle_id: str | None, cate
     bundle_path = bundle_dir.relative_to(repo_root).as_posix()
     remote = _run_git(repo_root, "config", "--get", "remote.origin.url") or getattr(opt, "models_repository", None)
     web_url = repository_web_url(remote)
-    commit = _bundle_commit(repo_root, bundle_path)
+    commit = _bundle_commit(repo_root, bundle_path, info["artifacts"])
 
     info.update(
         {
@@ -499,11 +597,20 @@ def describe_bundle(bundle_dir_value: str | None, *, bundle_id: str | None, cate
 
 
 def _advcp_override_artifacts(config_path: str | None) -> list[dict[str, Any]]:
-    """Hash every explicitly selected AdvCP asset, including external override files."""
+    """Hash assets selected explicitly by an AdvCP configuration.
+
+    Parameters
+    ----------
+    config_path : str or None
+        AdvCP YAML path; None means there are no explicit overrides.
+
+    Returns
+    -------
+    list of dict
+        Asset keys, resolved paths and hashes; missing files have None hashes.
+    """
     if not config_path:
         return []
-    import yaml
-
     source = Path(config_path).expanduser().resolve()
     if not source.is_file():
         return []
@@ -528,65 +635,93 @@ def _advcp_override_artifacts(config_path: str | None) -> list[dict[str, Any]]:
 
 
 def collect_checkpoint_info(opt: Any) -> dict[str, Any] | None:
-    """Collect checkpoint and optional AdvCP asset metadata."""
+    """Collect cooperative-perception and optional AdvCP model metadata.
+
+    Parameters
+    ----------
+    opt : argparse.Namespace
+        Runtime model selectors and resolved model/asset directories.
+
+    Returns
+    -------
+    dict or None
+        Bundle metadata and explicit AdvCP asset hashes, or None when
+        cooperative perception is disabled.
+    """
     if not getattr(opt, "with_coperception", False):
         return None
 
-    checkpoint = describe_bundle(getattr(opt, "model_dir", None), bundle_id=getattr(opt, "model_id", None), category="coperception", opt=opt)
+    checkpoint = describe_bundle(getattr(opt, "model_dir", None), bundle_id=getattr(opt, "model_id", None), opt=opt)
     if getattr(opt, "with_advcp", False):
         checkpoint["advcp_assets"] = describe_bundle(
             getattr(opt, "advcp_assets_dir", None),
             bundle_id=getattr(opt, "advcp_assets_id", None),
-            category="advcp",
             opt=opt,
         )
         checkpoint["advcp_overrides"] = {"artifacts": _advcp_override_artifacts(getattr(opt, "advcp_config", None))}
     return checkpoint
 
 
-def collect_seed(merged_config: Mapping[str, Any]) -> int | None:
-    world = merged_config.get("world") or {}
-    seed = world.get("seed") if isinstance(world, Mapping) else None
-    return int(seed) if seed is not None else None
-
-
 def reproducibility_dir(run_dir: Path) -> Path:
-    """Locate the reproducibility directory for a run."""
+    """Locate a run's reproducibility directory.
+
+    Parameters
+    ----------
+    run_dir : pathlib.Path
+        Run output directory or reproducibility directory itself.
+
+    Returns
+    -------
+    pathlib.Path
+        Directory containing the run manifest and saved inputs.
+    """
     run_dir = Path(run_dir)
     if (run_dir / MANIFEST_FILENAME).is_file():
         return run_dir
     return run_dir / REPRODUCIBILITY_DIRNAME
 
 
-def _write_reproduce_script(output_dir: Path, command: list[str]) -> str:
-    script = output_dir / REPRODUCE_SCRIPT_FILENAME
-    # Every physical line must be commented, even if an argument contains a newline.
-    commented_command = "\n".join(f"# {line}" for line in shlex.join(command).splitlines())
-    script.write_text(
-        "#!/usr/bin/env bash\n"
-        "# Run from the OpenCDA repository root. Additional arguments override saved ones.\n"
-        "set -euo pipefail\n\n"
-        "# Original command (loads the current YAML files from the repository):\n"
-        f"{commented_command}\n\n"
-        "# Replay with the saved configuration, arguments, and AdvCP config.\n"
-        "# The run directory may be moved or copied. Supply credentials separately.\n"
-        'RUN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"\n'
-        'python3 opencda.py --replay-from "$RUN_DIR" "$@"\n',
-        encoding="utf-8",
-    )
-    script.chmod(0o755)
-    return REPRODUCE_SCRIPT_FILENAME
-
-
 def _redact_yaml_file(path: Path) -> bool:
-    """Remove known credentials from a saved YAML copy without changing normal files."""
-    import yaml
+    """Redact a saved YAML copy without constructing tagged objects.
 
+    Parameters
+    ----------
+    path : pathlib.Path
+        YAML copy to sanitize in place.
+
+    Returns
+    -------
+    bool
+        True if credentials were removed. Files without credentials remain
+        unchanged; custom tags and aliases are inspected as YAML nodes only.
+    """
     original = path.read_text(encoding="utf-8")
-    parsed = yaml.safe_load(original)
-    safe = _redact_metadata(parsed)
-    if safe != parsed:
-        path.write_text(yaml.safe_dump(safe, sort_keys=False, allow_unicode=True), encoding="utf-8")
+    # Compose nodes without constructing Python/NumPy objects from custom tags.
+    root = yaml.compose(original, Loader=yaml.SafeLoader)
+    pending = [root] if root is not None else []
+    visited: set[int] = set()
+    redacted = False
+    while pending:
+        node = pending.pop()
+        if id(node) in visited:
+            continue
+        visited.add(id(node))
+        if isinstance(node, yaml.MappingNode):
+            for index, (key, value) in enumerate(node.value):
+                if isinstance(key, yaml.ScalarNode) and SECRET_KEY_PATTERN.search(key.value) and value.tag != "tag:yaml.org,2002:null":
+                    node.value[index] = (key, yaml.ScalarNode("tag:yaml.org,2002:str", REDACTED))
+                    redacted = True
+                else:
+                    pending.extend((key, value))
+        elif isinstance(node, yaml.SequenceNode):
+            pending.extend(node.value)
+        elif isinstance(node, yaml.ScalarNode):
+            cleaned = _redact_string(node.value)
+            if cleaned != node.value:
+                node.value = cleaned
+                redacted = True
+    if redacted:
+        path.write_text(yaml.serialize(root, allow_unicode=True), encoding="utf-8")
         return True
     cleaned_text = _redact_string(original)
     if cleaned_text != original:
@@ -596,13 +731,17 @@ def _redact_yaml_file(path: Path) -> bool:
 
 
 def _copy_advcp_config(source: Path, target: Path) -> None:
-    """Copy an AdvCP config, making relative asset paths absolute.
+    """Copy an AdvCP configuration while preserving asset locations.
 
-    AdvCP resolves these paths against the folder of the YAML file, so a copy
-    in inputs/ would point to the wrong place.
+    Parameters
+    ----------
+    source : pathlib.Path
+        Original YAML file; symlinks are resolved before anchoring asset paths.
+    target : pathlib.Path
+        Destination YAML file; relative canonical and legacy asset paths
+        are rewritten to absolute paths before copying.
     """
-    import yaml
-
+    source = source.expanduser().resolve()
     try:
         config = yaml.safe_load(source.read_text(encoding="utf-8"))
     except yaml.YAMLError:
@@ -622,6 +761,22 @@ def _copy_advcp_config(source: Path, target: Path) -> None:
 
 
 def _copy_inputs(output_dir: Path, input_files: Mapping[str, Path | None], opt: Any) -> dict[str, Any]:
+    """Snapshot runtime YAML inputs and redact their credentials.
+
+    Parameters
+    ----------
+    output_dir : pathlib.Path
+        Reproducibility directory in which to create inputs/.
+    input_files : mapping of str to pathlib.Path or None
+        Named source inputs; missing and None paths are skipped.
+    opt : argparse.Namespace
+        Runtime options identifying an optional model bundle.
+
+    Returns
+    -------
+    dict
+        Source and copy paths, hashes and redaction status keyed by input name.
+    """
     inputs_dir = output_dir / INPUTS_DIRNAME
     inputs_dir.mkdir(parents=True, exist_ok=True)
     copied: dict[str, Any] = {}
@@ -655,6 +810,21 @@ def _copy_inputs(output_dir: Path, input_files: Mapping[str, Path | None], opt: 
 
 
 def _save_code_diff(output_dir: Path, git_info: Mapping[str, Any] | None) -> str | None:
+    """Save a byte-exact tracked patch unless it may contain credentials.
+
+    Parameters
+    ----------
+    output_dir : pathlib.Path
+        Directory in which to write code_diff.patch.
+    git_info : mapping or None
+        Recorded OpenCDA dirty status and untracked filenames.
+
+    Returns
+    -------
+    str or None
+        Patch filename, or None if there is no diff or it contains potential
+        credentials. Untracked file contents are never copied.
+    """
     if not git_info:
         return None
     if git_info.get("untracked_files"):
@@ -672,11 +842,20 @@ def _save_code_diff(output_dir: Path, git_info: Mapping[str, Any] | None) -> str
     if _redact_string(diff) != diff or SECRET_KEY_PATTERN.search(diff):
         logger.warning("Git patch contains potential credentials; refusing to persist it. Commit or sanitize the changes before sharing this run.")
         return None
-    (output_dir / CODE_DIFF_FILENAME).write_text(diff, encoding="utf-8")
+    (output_dir / CODE_DIFF_FILENAME).write_bytes(diff.encode("utf-8", errors="surrogateescape"))
     return CODE_DIFF_FILENAME
 
 
 def write_json(path: Path, payload: Mapping[str, Any]) -> None:
+    """Atomically replace a JSON artifact.
+
+    Parameters
+    ----------
+    path : pathlib.Path
+        Destination file in an existing directory.
+    payload : mapping
+        Metadata converted to JSON-compatible values before serialization.
+    """
     tmp_path = path.with_suffix(path.suffix + ".tmp")
     tmp_path.write_text(json.dumps(_to_jsonable(payload), indent=2, ensure_ascii=False), encoding="utf-8")
     os.replace(tmp_path, path)
@@ -693,9 +872,32 @@ def write_run_artifacts(
     input_files: Mapping[str, Path | None] | None = None,
     replayed_from: str | None = None,
 ) -> dict[str, Any]:
-    """Save the resolved configuration and run manifest before execution."""
-    from omegaconf import OmegaConf
+    """Save resolved configuration, inputs and metadata before execution.
 
+    Parameters
+    ----------
+    output_dir : pathlib.Path
+        Evaluation output directory for this run.
+    opt : argparse.Namespace
+        Resolved runtime options.
+    argv : iterable of str
+        Effective launch arguments after replay overrides.
+    raw_argv : iterable of str, optional
+        Original user arguments; None omits the raw command record.
+    merged_config : omegaconf.DictConfig
+        Resolved default and scenario configuration.
+    current_time : str
+        Timestamp used to identify the run output directory.
+    input_files : mapping of str to pathlib.Path or None, optional
+        Named source files to snapshot; None means no additional inputs.
+    replayed_from : str, optional
+        Original run directory, or None for a new run.
+
+    Returns
+    -------
+    dict
+        Run manifest initially marked running, with credentials redacted on disk.
+    """
     run_dir = Path(output_dir).resolve()
     output_dir = run_dir / REPRODUCIBILITY_DIRNAME
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -710,7 +912,9 @@ def write_run_artifacts(
     resolved_config = cast(Mapping[str, Any], OmegaConf.to_container(merged_config, resolve=True))
 
     code_versions = collect_code_versions()
-    seed = collect_seed(resolved_config)
+    world = resolved_config.get("world") or {}
+    seed = world.get("seed") if isinstance(world, Mapping) else None
+    seed = int(seed) if seed is not None else None
     if seed is None:
         logger.warning("world.seed is not set: numpy/random/torch are not seeded, the run is not reproducible.")
 
@@ -718,7 +922,7 @@ def write_run_artifacts(
         "schema_version": SCHEMA_VERSION,
         "scenario": getattr(opt, "test_scenario", None),
         "current_time": current_time,
-        "started_at": _now_iso(),
+        "started_at": datetime.now().astimezone().isoformat(timespec="seconds"),
         "finished_at": None,
         "status": "running",
         "seed": seed,
@@ -729,9 +933,8 @@ def write_run_artifacts(
             "argv": safe_argv,
             "command": shlex.join(command),
             "raw_argv": _redact_argv(raw_argv) if raw_argv is not None else None,
-            "reproduce_script": _write_reproduce_script(output_dir, command),
             "cwd": os.getcwd(),
-            "options": _redact_metadata(vars(opt)),
+            "options": _to_jsonable(vars(opt)),
             "replayed_from": replayed_from,
         },
         "code": code_versions,
@@ -747,13 +950,25 @@ def write_run_artifacts(
         },
     }
 
-    write_json(output_dir / MANIFEST_FILENAME, _redact_metadata(manifest))
+    write_json(output_dir / MANIFEST_FILENAME, manifest)
     logger.info("Run manifest saved to: %s", output_dir / MANIFEST_FILENAME)
     return manifest
 
 
 def finalize_run_manifest(output_dir: Path, *, status: str, duration_seconds: float | None = None, error: str | None = None) -> None:
-    """Update run status if a manifest exists."""
+    """Record the final status of a run whose manifest exists.
+
+    Parameters
+    ----------
+    output_dir : pathlib.Path
+        Evaluation output or reproducibility directory.
+    status : str
+        Final run status, such as completed, failed or interrupted.
+    duration_seconds : float, optional
+        Total elapsed run time; None means unavailable.
+    error : str, optional
+        Failure description, or None for a run without an error.
+    """
     manifest_path = reproducibility_dir(output_dir) / MANIFEST_FILENAME
     if not manifest_path.is_file():
         return
@@ -763,11 +978,35 @@ def finalize_run_manifest(output_dir: Path, *, status: str, duration_seconds: fl
         logger.exception("Could not update run manifest %s", manifest_path)
         return
 
-    manifest.update({"status": status, "finished_at": _now_iso(), "duration_seconds": duration_seconds, "error": error})
+    manifest.update(
+        {
+            "status": status,
+            "finished_at": datetime.now().astimezone().isoformat(timespec="seconds"),
+            "duration_seconds": duration_seconds,
+            "error": error,
+        }
+    )
     write_json(manifest_path, manifest)
 
 
 def load_run_manifest(run_dir: Path) -> dict[str, Any]:
+    """Read a previously saved run manifest.
+
+    Parameters
+    ----------
+    run_dir : pathlib.Path
+        Evaluation output or reproducibility directory.
+
+    Returns
+    -------
+    dict
+        Decoded manifest, including manifests from older schema revisions.
+
+    Raises
+    ------
+    FileNotFoundError
+        If the directory does not contain a run manifest.
+    """
     manifest_path = reproducibility_dir(run_dir) / MANIFEST_FILENAME
     if not manifest_path.is_file():
         raise FileNotFoundError(f"{manifest_path} not found: this folder is not a reproducible OpenCDA run.")
@@ -775,7 +1014,19 @@ def load_run_manifest(run_dir: Path) -> dict[str, Any]:
 
 
 def load_prediction_records(run_dir: Path) -> list[dict[str, Any]]:  # noqa: DC02
-    """Load per-tick boxes and scores, using None for missing tensors."""
+    """Load saved per-tick boxes, scores and post-processing thresholds.
+
+    Parameters
+    ----------
+    run_dir : pathlib.Path
+        Evaluation output directory containing predictions/.
+
+    Returns
+    -------
+    list of dict
+        Records in filename order, with None for missing tensors.
+    """
+    # Keep NumPy optional for metadata-only commands.
     import numpy as np
 
     records: list[dict[str, Any]] = []
@@ -791,19 +1042,37 @@ def load_prediction_records(run_dir: Path) -> list[dict[str, Any]]:  # noqa: DC0
 
 
 def _model_input_hashes(checkpoint: Mapping[str, Any] | None) -> dict[str, str | None]:
-    """Collect hashes of every model file used at runtime, including AdvCP assets."""
+    """Flatten runtime model and AdvCP input hashes for comparison.
+
+    Parameters
+    ----------
+    checkpoint : mapping or None
+        Recorded model metadata, including optional AdvCP assets/overrides.
+
+    Returns
+    -------
+    dict of str to str or None
+        Category-prefixed artifact paths mapped to hashes or missing markers.
+    """
     if not checkpoint:
         return {}
-    hashes = {f"coperception/{item['path']}": item.get("sha256") for item in checkpoint.get("artifacts", [])}
-    advcp_assets = checkpoint.get("advcp_assets") or {}
-    hashes.update({f"advcp/{item['path']}": item.get("sha256") for item in advcp_assets.get("artifacts", [])})
-    advcp_overrides = checkpoint.get("advcp_overrides") or {}
-    hashes.update({f"advcp_override/{item['path']}": item.get("sha256") for item in advcp_overrides.get("artifacts", [])})
-    return hashes
+    bundles = (("coperception", checkpoint), ("advcp", checkpoint.get("advcp_assets")), ("advcp_override", checkpoint.get("advcp_overrides")))
+    return {f"{category}/{item['path']}": item.get("sha256") for category, bundle in bundles for item in (bundle or {}).get("artifacts", [])}
 
 
 def _device_signature(device: Mapping[str, Any] | None) -> dict[str, Any]:
-    """Device details that may change inference results."""
+    """Select device properties that may affect numerical results.
+
+    Parameters
+    ----------
+    device : mapping or None
+        Host and Torch device metadata from a run manifest.
+
+    Returns
+    -------
+    dict
+        Device, GPU/CUDA details and CPU platform/architecture where applicable.
+    """
     torch_info = (device or {}).get("torch") or {}
     return {
         "platform": (device or {}).get("platform") if torch_info.get("device") == "cpu" else None,
@@ -816,7 +1085,20 @@ def _device_signature(device: Mapping[str, Any] | None) -> dict[str, Any]:
 
 
 def compare_with_original(original: Mapping[str, Any], opt: Any) -> list[str]:
-    """Check for differences from the original run."""
+    """Compare current code, model inputs and hardware with a saved run.
+
+    Parameters
+    ----------
+    original : mapping
+        Manifest from the original run.
+    opt : argparse.Namespace
+        Resolved options describing the current runtime model inputs.
+
+    Returns
+    -------
+    list of str
+        Warnings for differing or unverifiable provenance, versions and devices.
+    """
     warnings: list[str] = []
 
     original_code = original.get("code") or {}
@@ -827,24 +1109,13 @@ def compare_with_original(original: Mapping[str, Any], opt: Any) -> list[str]:
     if original_python and original_python != current_python:
         warnings.append(f"Python version differs: original {original_python}, current {current_python}.")
 
-    original_opencda = original_code.get("opencda") or {}
-    current_opencda = current_code.get("opencda") or {}
-
-    original_digest = original_opencda.get("source_digest")
-    current_digest = current_opencda.get("source_digest")
-
-    if original_digest and original_digest != current_digest:
-        warnings.append("OpenCDA source digest differs from the original run.")
-
-    original_opencood = original_code.get("opencood") or {}
-    current_opencood = current_code.get("opencood") or {}
-    original_opencood_digest = original_opencood.get("source_digest")
-    if original_opencood_digest and original_opencood_digest != current_opencood.get("source_digest"):
-        warnings.append("OpenCOOD source digest differs from the original run (or its source is missing).")
-
-    for name in ("opencda", "opencood"):
-        original_git = (original_code.get(name) or {}).get("git") or {}
-        current_git = (current_code.get(name) or {}).get("git") or {}
+    for name, label in (("opencda", "OpenCDA"), ("opencood", "OpenCOOD")):
+        original_repo = original_code.get(name) or {}
+        current_repo = current_code.get(name) or {}
+        if original_repo.get("source_digest") and original_repo["source_digest"] != current_repo.get("source_digest"):
+            warnings.append(f"{label} source digest differs from the original run (or its source is missing).")
+        original_git = original_repo.get("git") or {}
+        current_git = current_repo.get("git") or {}
         if original_git.get("commit") and original_git.get("commit") != current_git.get("commit"):
             warnings.append(f"{name} commit differs: original {original_git.get('commit')}, current {current_git.get('commit')}.")
         if current_git.get("dirty"):

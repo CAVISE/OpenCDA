@@ -14,18 +14,18 @@ import argparse
 import cProfile
 import pstats
 from collections.abc import Collection
+from contextlib import nullcontext
 from types import ModuleType
-from typing import cast
+from typing import Any, cast
 
+from omegaconf import DictConfig, OmegaConf
+
+from opencda.core.plan import model_resolver
+from opencda.scenario_testing import component_lifecycle
+from opencda.scenario_testing.utils import run_metadata
 from opencda.version import __version__
 
-
-def import_runtime_libs() -> None:
-    global omegaconf, DictConfig
-    import omegaconf
-    from omegaconf import DictConfig
-
-
+logger = logging.getLogger("cavise.opencda")
 DEFAULT_LOG_FILENAME = "opencda.log.json"
 EVALUATION_OUTPUT_ROOT = pathlib.Path("simulation_output/evaluation_outputs")
 
@@ -125,7 +125,20 @@ REPLAY_OUTPUT_OPTIONS = ("--log-file",)
 
 
 def _strip_option(argv: list[str], flag: str) -> list[str]:
-    """Remove an option and its value from argv."""
+    """Remove a value-taking option in split or equals form.
+
+    Parameters
+    ----------
+    argv : list of str
+        Command arguments to filter without modifying the original list.
+    flag : str
+        Exact option spelling whose occurrences and values are removed.
+
+    Returns
+    -------
+    list of str
+        Arguments with the specified option removed.
+    """
     cleaned: list[str] = []
     skip_next = False
     for arg in argv:
@@ -141,13 +154,15 @@ def _strip_option(argv: list[str], flag: str) -> list[str]:
     return cleaned
 
 
-def _strip_replay_flag(argv: list[str]) -> list[str]:
-    """Remove the replay flag and its path from argv."""
-    return _strip_option(argv, REPLAY_FLAG)
-
-
 # Parse command line args.
 def build_parser() -> argparse.ArgumentParser:
+    """Build the scenario runner's command-line parser.
+
+    Returns
+    -------
+    argparse.ArgumentParser
+        Parser defining scenario, replay and runtime options and defaults.
+    """
     parser = argparse.ArgumentParser(description="OpenCDA scenario runner.")
     # opencda basic args
     parser.add_argument(
@@ -250,21 +265,50 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def arg_parse(argv: list[str] | None = None) -> argparse.Namespace:
-    parser = build_parser()
+def arg_parse(argv: list[str] | None = None, parser: argparse.ArgumentParser | None = None) -> argparse.Namespace:
+    """Parse a scenario or replay command.
+
+    Parameters
+    ----------
+    argv : list of str, optional
+        Arguments without the executable name. None reads sys.argv[1:].
+    parser : argparse.ArgumentParser, optional
+        Existing parser to reuse; None builds the standard parser.
+
+    Returns
+    -------
+    argparse.Namespace
+        Parsed options with defaults applied.
+
+    Raises
+    ------
+    SystemExit
+        If arguments are invalid or neither a scenario nor a replay is given.
+    """
+    parser = parser or build_parser()
     opt = parser.parse_args(argv)
-    if opt.test_scenario is None and opt.replay_from is None:
+    if getattr(opt, "test_scenario", None) is None and getattr(opt, "replay_from", None) is None:
         parser.error(f"the following arguments are required: -t/--test-scenario (or {REPLAY_FLAG})")
     return opt
 
 
-def build_command_from_options(opt: argparse.Namespace) -> list[str]:
-    """Build a canonical command from parsed options.
+def build_command_from_options(opt: argparse.Namespace, parser: argparse.ArgumentParser | None = None) -> list[str]:
+    """Build canonical launch arguments from resolved options.
 
-    Only non-default options are included.
+    Parameters
+    ----------
+    opt : argparse.Namespace
+        Parsed or replay-merged runtime options.
+    parser : argparse.ArgumentParser, optional
+        Existing parser to reuse; None builds the standard parser.
+
+    Returns
+    -------
+    list of str
+        Canonical non-default arguments, excluding the replay path itself.
     """
     argv: list[str] = []
-    for action in build_parser()._actions:
+    for action in (parser or build_parser())._actions:
         if not action.option_strings or action.dest in {"help", "version", "replay_from"} or not hasattr(opt, action.dest):
             continue
         value = getattr(opt, action.dest)
@@ -284,60 +328,84 @@ def build_command_from_options(opt: argparse.Namespace) -> list[str]:
     return argv
 
 
-def _cli_sets_option(cli_argv: list[str], flag: str) -> bool:
-    """Check whether an option was given explicitly on the command line (in any spelling)."""
-    return flag in build_command_from_options(arg_parse(cli_argv))
-
-
 def resolve_launch_arguments(cli_argv: list[str]) -> tuple[argparse.Namespace, list[str], dict | None]:
-    """Load saved launch options when replaying a run."""
-    opt = arg_parse(cli_argv)
-    if opt.replay_from is None:
-        return opt, build_command_from_options(opt), None
+    """Merge saved launch options with explicitly supplied нCLI values.
 
-    from opencda.scenario_testing.utils.run_metadata import load_run_manifest
+    Parameters
+    ----------
+    cli_argv : list of str
+        User arguments without the executable name, parsed once. Explicit
+        values override saved values even when equal to parser defaults.
+
+    Returns
+    -------
+    argparse.Namespace
+        Effective runtime options; _explicit_options records user-supplied
+        destinations for selecting saved versus overridden AdvCP inputs.
+    list of str
+        Canonical effective arguments for the new run manifest.
+    dict or None
+        Original manifest on replay, or None for a new run.
+
+    Raises
+    ------
+    ValueError
+        If a saved merged configuration was redacted or its hash differs.
+    FileNotFoundError
+        If a required saved manifest or configuration is missing.
+    """
+    parser = build_parser()
+    # Suppress defaults while parsing the CLI so explicit default values still override saved values.
+    defaults = {action.dest: action.default for action in parser._actions}
+    for action in parser._actions:
+        action.default = argparse.SUPPRESS
+    supplied = vars(arg_parse(cli_argv, parser))
+    for action in parser._actions:
+        action.default = defaults[action.dest]
+    opt = argparse.Namespace(**{key: value for key, value in defaults.items() if value != argparse.SUPPRESS})
+    vars(opt).update(supplied)
+    if opt.replay_from is None:
+        opt._explicit_options = set(supplied)
+        return opt, build_command_from_options(opt, parser), None
 
     replay_dir = pathlib.Path(opt.replay_from).resolve()
-    manifest = load_run_manifest(replay_dir)
+    manifest = run_metadata.load_run_manifest(replay_dir)
     if manifest.get("config_redacted"):
         raise ValueError("Saved replay configuration contains redacted credentials and cannot be replayed without secure replacements.")
 
     expected_config_hash = manifest.get("config_sha256")
     if expected_config_hash is not None:
-        from opencda.scenario_testing.utils.run_metadata import (
-            CONFIG_FILENAME,
-            reproducibility_dir,
-            sha256_file,
-        )
-
-        saved_config = reproducibility_dir(replay_dir) / CONFIG_FILENAME
+        saved_config = run_metadata.reproducibility_dir(replay_dir) / run_metadata.CONFIG_FILENAME
         if not saved_config.is_file():
             raise FileNotFoundError(f"Saved replay configuration not found: {saved_config}")
 
-        actual_config_hash = sha256_file(saved_config)
+        actual_config_hash = run_metadata.sha256_file(saved_config)
         if actual_config_hash != expected_config_hash:
             raise ValueError("Saved replay configuration SHA-256 mismatch: config.yaml was modified or corrupted.")
 
-    saved_argv = _strip_replay_flag(manifest["launch"]["argv"])
+    saved_argv = _strip_option(manifest["launch"]["argv"], REPLAY_FLAG)
     for flag in REPLAY_OUTPUT_OPTIONS:
         saved_argv = _strip_option(saved_argv, flag)
     for first, second in EXCLUSIVE_OPTIONS:
-        if _cli_sets_option(cli_argv, first):
+        if first.removeprefix("--").replace("-", "_") in supplied:
             saved_argv = _strip_option(saved_argv, second)
-        if _cli_sets_option(cli_argv, second):
+        if second.removeprefix("--").replace("-", "_") in supplied:
             saved_argv = _strip_option(saved_argv, first)
-    effective_argv = [*saved_argv, *_strip_replay_flag(cli_argv)]
-    opt = arg_parse(effective_argv)
+    opt = parser.parse_args(saved_argv)
+    vars(opt).update(supplied)
+    opt._explicit_options = set(supplied)
     opt.replay_from = str(replay_dir)
-    return opt, build_command_from_options(opt), manifest
+    if opt.test_scenario is None:
+        parser.error("the saved run and command line do not specify -t/--test-scenario")
+    return opt, build_command_from_options(opt, parser), manifest
 
 
 def main() -> None:
     global logger
     opt, effective_argv, replay_manifest = resolve_launch_arguments(sys.argv[1:])
+    explicit_options = opt._explicit_options
+    del opt._explicit_options
     current_time = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
-
-    import_runtime_libs()
 
     verbosity = opt.verbose
     if verbosity == VerbosityLevel.FULL:
@@ -368,9 +436,7 @@ def main() -> None:
     replay_dir = pathlib.Path(opt.replay_from) if opt.replay_from else None
     if replay_dir is not None:
         logger.info(f"replaying run from {replay_dir}")
-        from opencda.scenario_testing.utils.run_metadata import CONFIG_FILENAME, reproducibility_dir
-
-        config_yaml = reproducibility_dir(replay_dir) / CONFIG_FILENAME
+        config_yaml = run_metadata.reproducibility_dir(replay_dir) / run_metadata.CONFIG_FILENAME
     if not config_yaml.is_file():
         logger.error(f"{config_yaml} not found!")
         sys.exit(errno.EPERM)
@@ -392,10 +458,8 @@ def main() -> None:
             advcp_config = advcp_config.with_suffix(".yaml")
 
         # Replay uses the saved AdvCP config unless explicitly overridden.
-        use_saved_advcp_config = replay_dir is not None and not _cli_sets_option(sys.argv[1:], "--advcp-config")
+        use_saved_advcp_config = replay_dir is not None and "advcp_config" not in explicit_options
         if use_saved_advcp_config:
-            from opencda.scenario_testing.utils.run_metadata import sha256_file
-
             saved_input = (replay_manifest or {}).get("inputs", {}).get("advcp_config") or {}
             saved_copy = saved_input.get("copy", "inputs/advcp_config.yaml")
             replay_root = config_yaml.parent.resolve()
@@ -405,7 +469,7 @@ def main() -> None:
             if not saved_advcp_config.is_file():
                 raise FileNotFoundError(f"Saved AdvCP configuration not found: {saved_advcp_config}")
             expected_hash = saved_input.get("sha256")
-            if expected_hash is not None and sha256_file(saved_advcp_config) != expected_hash:
+            if expected_hash is not None and run_metadata.sha256_file(saved_advcp_config) != expected_hash:
                 raise ValueError(f"Saved AdvCP configuration SHA-256 mismatch: {saved_advcp_config.name} was modified or corrupted.")
             advcp_config = saved_advcp_config
         elif not advcp_config.is_file():
@@ -414,25 +478,19 @@ def main() -> None:
 
         opt.advcp_config = str(advcp_config)
 
-    from opencda.core.plan.model_resolver import resolve_runtime_models
-
-    resolve_runtime_models(opt)
+    model_resolver.resolve_runtime_models(opt)
 
     if replay_dir is not None:
         # The replay configuration is already merged.
-        scene_dict = cast(DictConfig, omegaconf.OmegaConf.load(str(config_yaml)))
+        scene_dict = cast(DictConfig, OmegaConf.load(str(config_yaml)))
     else:
         # set the yaml file for the specific testing scenario
         # load the default yaml file and the scenario yaml file as dictionaries
-        default_dict = omegaconf.OmegaConf.load(str(default_yaml))
-        scene_dict = omegaconf.OmegaConf.load(str(config_yaml))
-        scene_dict = omegaconf.OmegaConf.merge(default_dict, scene_dict)
-        scene_dict = cast(DictConfig, scene_dict)
+        default_dict = OmegaConf.load(str(default_yaml))
+        scene_dict = cast(DictConfig, OmegaConf.merge(default_dict, OmegaConf.load(str(config_yaml))))
 
     # NOTICE: temporary measure (while option is turned off)
     opt.apply_ml = False
-
-    from opencda.scenario_testing.utils import run_metadata
 
     evaluation_output_dir = get_default_output_path(opt.test_scenario, current_time)
     run_metadata.write_run_artifacts(
@@ -451,7 +509,7 @@ def main() -> None:
         replayed_from=opt.replay_from,
     )
 
-    runtime_stats = {}
+    runtime_stats: dict[str, Any] = {}
     run_started_at = time.perf_counter()
     run_status, run_error = "failed", None
     # Record every failure after manifest creation in its final status.
@@ -460,14 +518,11 @@ def main() -> None:
             for warning in run_metadata.compare_with_original(replay_manifest, opt):
                 logger.warning(f"replay may differ from the original run: {warning}")
 
-        # this function might setup crucial components in Scenario, so
-        # we should import as late as possible
+        # Scenario imports CARLA/OpenCOOD and initializes optional runtime components.
+        # Defer it until arguments, model paths and run artifacts are ready.
         from opencda.scenario_testing.scenario import run_scenario
 
-        from contextlib import nullcontext
-        from opencda.scenario_testing.component_lifecycle import ManagedComponents
-
-        environment = ManagedComponents(opt) if opt.manage_components else nullcontext()
+        environment = component_lifecycle.ManagedComponents(opt) if opt.manage_components else nullcontext()
         with environment:
             if opt.profile:
                 profiler = cProfile.Profile()
@@ -509,7 +564,7 @@ def main() -> None:
     show_performance_stats(runtime_stats)
 
 
-def show_performance_stats(runtime_stats: dict):
+def show_performance_stats(runtime_stats: dict) -> None:
     global logger
     logger.debug("Scenario performance stats:")
     logger.debug(f"Full scenario: {runtime_stats['full_scenario']:.3f}s")

@@ -226,7 +226,7 @@ def _safe_artifact_path(bundle_root: Path, relative_path: object) -> Path:
     return bundle_root.joinpath(*pure_path.parts)
 
 
-def _sha256(path: Path) -> str:
+def sha256_file(path: Path) -> str:
     """Calculate a file's SHA-256 digest.
 
     Parameters
@@ -292,7 +292,7 @@ def validate_bundle(bundle_root: Path, *, bundle_id: str, category: str) -> None
             raise ModelResolutionError(f'Model artifact is missing: "{artifact_path}".')
         if artifact_path.stat().st_size != artifact.get("size"):
             raise ModelResolutionError(f'Model artifact size does not match metadata: "{artifact_path}".')
-        if _sha256(artifact_path) != artifact.get("sha256"):
+        if sha256_file(artifact_path) != artifact.get("sha256"):
             raise ModelResolutionError(f'Model artifact checksum does not match metadata: "{artifact_path}".')
 
 

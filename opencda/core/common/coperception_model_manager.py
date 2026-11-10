@@ -714,33 +714,16 @@ class CoperceptionModelManager:
             npy_save_path,
         )
 
-    def _prediction_records_dir(self) -> str:
-        return os.path.join(
-            "simulation_output",
-            "evaluation_outputs",
-            f"{self.opt.test_scenario}_{self.current_time}",
-            "predictions",
-        )
-
-    @staticmethod
-    def _boxes_to_numpy(value: Any) -> np.ndarray | None:
-        if value is None:
-            return None
-        if hasattr(value, "detach"):
-            value = value.detach().cpu().numpy()
-        array = np.asarray(value)
-        if array.dtype == object or not np.issubdtype(array.dtype, np.number):
-            raise TypeError(f"expected a numeric tensor/array, got {type(value).__name__}")
-        return array
-
     @contextmanager
     def _capture_raw_detections(self) -> Iterator[list[tuple[Any, Any, Any]]]:
-        """Capture candidates passed to post-processing.
+        """Capture pre-NMS candidates without retaining GPU results.
 
-        Boxes are already score-thresholded, but have not passed NMS.
-        Code that runs its own NMS instead of post_process_detections
-        (late-fusion AdvCP) reports candidates through the
-        ``record_raw_detections`` attribute of the post-processor.
+        Yields
+        ------
+        list of tuple
+            CPU tensor/array snapshots of boxes and scores, plus weak references to
+            the corresponding final score tensors. Custom NMS paths use the
+            postprocessor's record_raw_detections hook to report candidates.
         """
         calls: list[tuple[Any, Any, Any]] = []
         post_processor = getattr(getattr(self, "opencood_dataset", None), "post_processor", None)
@@ -751,11 +734,36 @@ class CoperceptionModelManager:
             return
 
         def record(boxes: Any, scores: Any, result: Any) -> None:
+            """Snapshot candidates and remember the producing result's identity.
+
+            Parameters
+            ----------
+            boxes, scores : tensor or numpy.ndarray or None
+                Score-thresholded candidates before NMS.
+            result : tuple
+                Final boxes and scores returned by this post-processing call.
+            """
             # Keep result identity without retaining its GPU tensors or autograd graph.
             score_ref = weakref.ref(result[1]) if isinstance(result, tuple) and len(result) == 2 and result[1] is not None else None
-            calls.append((self._detached(boxes), self._detached(scores), score_ref))
+            raw_boxes, raw_scores = (
+                value.detach().cpu().clone() if hasattr(value, "detach") else value.copy() if isinstance(value, np.ndarray) else value
+                for value in (boxes, scores)
+            )
+            calls.append((raw_boxes, raw_scores, score_ref))
 
         def recording(boxes: Any, scores: Any) -> Any:
+            """Run post-processing and capture its pre-NMS inputs.
+
+            Parameters
+            ----------
+            boxes, scores : tensor or numpy.ndarray
+                Candidates passed to the original postprocessor.
+
+            Returns
+            -------
+            tuple
+                Unchanged result from the original post-processing method.
+            """
             result = original(boxes, scores)
             record(boxes, scores, result)
             return result
@@ -774,14 +782,22 @@ class CoperceptionModelManager:
                 if getattr(post_processor, method_name, None) is None:
                     setattr(post_processor, method_name, original)
 
-    @staticmethod
-    def _detached(value: Any) -> Any:
-        return value.detach().cpu().clone() if hasattr(value, "detach") else value
-
     def _select_raw_detections(self, calls: list[tuple[Any, Any, Any]], pred_score: Any) -> tuple[Any, Any]:
-        """Find the post-processing call producing the returned score tensor.
+        """Select candidates belonging to the exact returned prediction.
 
-        AdvCP may invoke post-processing more than once per tick.
+        Parameters
+        ----------
+        calls : list of tuple
+            Candidate snapshots and weak result references captured during inference.
+        pred_score : tensor or numpy.ndarray or None
+            Final score object selected by inference, possibly from an earlier
+            AdvCP optimization step.
+
+        Returns
+        -------
+        tuple
+            Raw boxes and scores for that result, or (None, None) if unavailable.
+            Numerically equal scores from a different call are never substituted.
         """
         if not calls:
             # CIASSD and FPV-RCNN perform NMS inside OpenCOOD.
@@ -803,18 +819,6 @@ class CoperceptionModelManager:
             logger.warning("Raw detections were captured but none matches the final prediction; raw boxes are not saved for this tick.")
         return None, None
 
-    def _postprocess_params(self) -> dict[str, float]:
-        params = getattr(getattr(getattr(self, "opencood_dataset", None), "post_processor", None), "params", None)
-        values: dict[str, float] = {}
-        if not isinstance(params, Mapping):
-            return values
-        target_args = params.get("target_args")
-        if isinstance(target_args, Mapping) and isinstance(target_args.get("score_threshold"), (int, float)):
-            values["score_threshold"] = float(target_args["score_threshold"])
-        if isinstance(params.get("nms_thresh"), (int, float)):
-            values["nms_thresh"] = float(params["nms_thresh"])
-        return values
-
     def _save_prediction_records(
         self,
         tick_number: int,
@@ -825,12 +829,29 @@ class CoperceptionModelManager:
         raw_box_tensor: Any = None,
         raw_score: Any = None,
     ) -> None:
-        """Save per-tick boxes and scores as compressed NumPy arrays.
+        """Save pre-NMS candidates, final predictions and ground truth.
 
-        Includes pre-NMS candidates, final predictions and ground truth.
+        Parameters
+        ----------
+        tick_number : int
+            Simulation tick used in the compressed NPZ filename.
+        pred_box_tensor, pred_score : tensor or numpy.ndarray or None
+            Final predicted boxes and confidence scores.
+        gt_box_tensor : tensor or numpy.ndarray or None
+            Ground-truth boxes.
+        visualization_context : mapping or None
+            Optional attack-specific box collections to include.
+        raw_box_tensor, raw_score : tensor or numpy.ndarray or None, optional
+            Pre-NMS candidates associated with the selected prediction.
         """
         arrays: dict[str, Any] = {"tick": np.int64(tick_number)}
-        arrays.update({name: np.float64(value) for name, value in self._postprocess_params().items()})
+        params = getattr(getattr(getattr(self, "opencood_dataset", None), "post_processor", None), "params", None)
+        if isinstance(params, Mapping):
+            target_args = params.get("target_args") or {}
+            if isinstance(target_args, Mapping) and isinstance(target_args.get("score_threshold"), (int, float)):
+                arrays["score_threshold"] = np.float64(target_args["score_threshold"])
+            if isinstance(params.get("nms_thresh"), (int, float)):
+                arrays["nms_thresh"] = np.float64(params["nms_thresh"])
         tensors = {
             "raw_boxes": raw_box_tensor,
             "raw_scores": raw_score,
@@ -846,14 +867,16 @@ class CoperceptionModelManager:
 
         try:
             for name, tensor in tensors.items():
-                array = self._boxes_to_numpy(tensor)
+                array = CoperceptionVisualizer._to_numpy_array(tensor) if tensor is not None else None
+                if array is not None and (array.dtype == object or not np.issubdtype(array.dtype, np.number)):
+                    raise TypeError(f"expected a numeric tensor/array, got {type(tensor).__name__}")
                 arrays[f"has_{name}"] = np.bool_(array is not None)
                 arrays[name] = array if array is not None else np.empty((0,), dtype=np.float32)
         except TypeError as error:
             logger.warning("Skipping prediction record for tick %s: %s", tick_number, error)
             return
 
-        records_dir = self._prediction_records_dir()
+        records_dir = os.path.join("simulation_output", "evaluation_outputs", f"{self.opt.test_scenario}_{self.current_time}", "predictions")
         os.makedirs(records_dir, exist_ok=True)
         np.savez_compressed(os.path.join(records_dir, f"tick_{tick_number:06d}.npz"), **arrays)
 

@@ -1005,6 +1005,76 @@ def test_filter_vehicle_out_sensor_contracts(perception_manager_module):
     assert [v.id for v in out2] == [1, 2]
 
 
+@pytest.mark.parametrize(
+    ("buffer_state", "timeout", "use_world_frame"),
+    [("uninitialized", 2.5, True), ("previous", 2.5, True), ("next", 2.5, True), ("previous", None, True), ("previous", 2.5, False)],
+)
+def test_cop_gt_uses_requested_semantic_frame(perception_manager_module, monkeypatch, buffer_state, timeout, use_world_frame):
+    """Select GT from the requested frame regardless of callback timing."""
+    pm = perception_manager_module.PerceptionManager.__new__(perception_manager_module.PerceptionManager)
+    pm.perception_requirements = perception_manager_module.PerceptionRequirements.from_runtime_flags(with_coperception=True)
+    pm.semantic_sync_timeout_seconds = timeout
+    pm.ego_pos = types.SimpleNamespace(location=object())
+    pm.carla_id = 1
+    pm.semantic_tag_list = [14]
+    pm.lidar = None
+    pm.camera_visualize = False
+    pm.lidar_visualize = False
+    pm.cav_world = types.SimpleNamespace(sumo2carla_ids={})
+    visible, extra = Mock(id=2), Mock(id=3)
+    pm.carla_world = types.SimpleNamespace(get_actors=lambda: _FakeActorList({"*vehicle*": [visible, extra], "*walker*": []}))
+    pm.dist = Mock(return_value=0.0)
+    frame = Mock(frame=42)
+    frame.nearby_dynamic.return_value = tuple(types.SimpleNamespace(actor_id=actor.id, actor=actor) for actor in (visible, extra))
+    frame.shared_actor_value.side_effect = lambda _kind, _id, factory: factory()
+    sample = np.array([(2, 14)], dtype=[("ObjIdx", np.uint32), ("ObjTag", np.uint32)])
+    measurement = perception_manager_module.SensorMeasurement(frame=42, timestamp=2.1, transform=None, data=sample)
+    pm.semantic_lidar = types.SimpleNamespace(
+        frame={"uninitialized": None, "previous": 41, "next": 43}[buffer_state],
+        obj_idx=None if buffer_state == "uninitialized" else np.array([2, 3], dtype=np.uint32),
+        obj_tag=None if buffer_state == "uninitialized" else np.array([14, 14], dtype=np.uint32),
+        wait_for_frame=Mock(return_value=measurement),
+    )
+    obstacle_factory = Mock(side_effect=lambda _c1, _c2, actor, *_args: actor.id)
+    obstacle_factory.from_actor_state.side_effect = lambda state, *_args: state.actor_id
+    monkeypatch.setattr(perception_manager_module, "ObstacleVehicle", obstacle_factory)
+    monkeypatch.setattr(pm, "retrieve_traffic_lights", lambda objects, *_args: objects)
+
+    objects = pm.deactivate_mode({"vehicles": [], "traffic_lights": []}, frame if use_world_frame else None)
+
+    if timeout is not None and use_world_frame:
+        pm.semantic_lidar.wait_for_frame.assert_called_once_with(42, timeout)
+        assert objects["vehicles"] == [2]
+    else:
+        pm.semantic_lidar.wait_for_frame.assert_not_called()
+        assert objects["vehicles"] == [2, 3]
+
+
+@pytest.mark.parametrize("error", ["semantic frame timeout", "semantic sensor skipped requested frame"])
+def test_cop_gt_propagates_semantic_frame_timeout(perception_manager_module, monkeypatch, error):
+    """Fail instead of persisting GT selected from stale visibility data."""
+    pm = perception_manager_module.PerceptionManager.__new__(perception_manager_module.PerceptionManager)
+    pm.perception_requirements = perception_manager_module.PerceptionRequirements.from_runtime_flags(with_coperception=True)
+    pm.semantic_sync_timeout_seconds = 3.0
+    pm.ego_pos = types.SimpleNamespace(location=object())
+    pm.carla_id = 1
+    pm.semantic_lidar = types.SimpleNamespace(wait_for_frame=Mock(side_effect=RuntimeError(error)))
+    pm.filter_vehicle_out_sensor = Mock(return_value=[])
+    pm.lidar = None
+    pm.camera_visualize = False
+    pm.lidar_visualize = False
+    pm.cav_world = types.SimpleNamespace(sumo2carla_ids={})
+    monkeypatch.setattr(pm, "retrieve_traffic_lights", lambda objects, *_args: objects)
+    frame = Mock(frame=42)
+    frame.nearby_dynamic.return_value = ()
+
+    with pytest.raises(RuntimeError, match=error):
+        pm.deactivate_mode({"vehicles": [], "traffic_lights": []}, frame)
+
+    pm.semantic_lidar.wait_for_frame.assert_called_once_with(42, 3.0)
+    pm.filter_vehicle_out_sensor.assert_not_called()
+
+
 def test_speed_retrieve_matches_by_xy_threshold_and_sets_velocity_and_id(perception_manager_module, monkeypatch):
     import carla
 
