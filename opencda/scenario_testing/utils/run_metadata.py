@@ -21,7 +21,7 @@ import sys
 from datetime import datetime
 from importlib import metadata
 from pathlib import Path
-from typing import Any, Iterable, Mapping
+from typing import Any, Iterable, Mapping, cast
 from urllib.parse import urlsplit, urlunsplit
 
 logger = logging.getLogger("cavise.opencda.opencda.scenario_testing.utils.run_metadata")
@@ -707,7 +707,7 @@ def write_run_artifacts(
     config_credentials_redacted = _redact_yaml_file(output_dir / CONFIG_FILENAME)
     if config_credentials_redacted:
         logger.warning("Credentials were removed from the saved replay config; a replay requires secure replacements.")
-    resolved_config = OmegaConf.to_container(merged_config, resolve=True)
+    resolved_config = cast(Mapping[str, Any], OmegaConf.to_container(merged_config, resolve=True))
 
     code_versions = collect_code_versions()
     seed = collect_seed(resolved_config)
