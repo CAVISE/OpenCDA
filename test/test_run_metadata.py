@@ -31,6 +31,88 @@ def _make_opt(**overrides) -> argparse.Namespace:
     return argparse.Namespace(**values)
 
 
+@pytest.mark.parametrize("kind", ["xodr", "sumocfg", "network", "routes", "additional"])
+@pytest.mark.parametrize("change", ["modify", "delete"])
+def test_selected_simulation_inputs_are_compared_without_git(tmp_path, monkeypatch, merged_config, kind, change):
+    """Detect changed selected map and SUMO inputs in Git-free runs.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary scenario workspace.
+    monkeypatch : pytest.MonkeyPatch
+        Fixture replacing code provenance and the working directory.
+    merged_config : omegaconf.DictConfig
+        Resolved scenario configuration fixture.
+    kind, change : str
+        Selected runtime input and the mutation applied before replay.
+    """
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(run_metadata, "collect_code_versions", lambda: {"opencda": {"git": None}})
+    assets = tmp_path / "opencda/sumo-assets/demo"
+    assets.mkdir(parents=True)
+    external = tmp_path / "external"
+    external.mkdir()
+    network = external / "network.net.xml"
+    network.write_text("<net/>\n")
+    routes = assets / "routes.rou.xml"
+    routes.write_text("<routes/>\n")
+    additional = assets / "extra.add.xml"
+    additional.write_text("<additional/>\n")
+    config = assets / "demo.sumocfg"
+    config.write_text(
+        f'<configuration><input><net-file value="{network}"/><route-files value="routes.rou.xml"/>'
+        '<additional-files value="extra.add.xml"/></input></configuration>'
+    )
+    xodr = assets / "demo.xodr"
+    xodr.write_text("<OpenDRIVE/>\n")
+    opt = _make_opt(xodr=True, cosim=kind != "xodr")
+    original = run_metadata.write_run_artifacts(tmp_path / "run", opt=opt, argv=[], merged_config=merged_config, current_time="t")
+    assert not any("Simulation inputs" in warning for warning in run_metadata.compare_with_original(original, opt))
+    selected = {"xodr": xodr, "sumocfg": config, "network": network, "routes": routes, "additional": additional}[kind]
+    assert run_metadata.sha256_file(selected) in original["simulation_inputs"].values()
+    if change == "delete":
+        selected.unlink()
+    else:
+        selected.write_text(selected.read_text() + "\n<!-- changed -->\n")
+    assert any("Simulation inputs" in warning for warning in run_metadata.compare_with_original(original, opt))
+
+
+def test_simulation_input_selection_and_legacy_manifests(tmp_path, monkeypatch):
+    """Keep town-only scenarios and legacy manifests compatible.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Empty scenario workspace.
+    monkeypatch : pytest.MonkeyPatch
+        Fixture changing the working directory.
+    """
+    monkeypatch.chdir(tmp_path)
+    assert run_metadata.collect_simulation_input_hashes(_make_opt()) == {}
+    missing = _make_opt(xodr=True)
+    hashes = run_metadata.collect_simulation_input_hashes(missing)
+    assert hashes == {"opencda/sumo-assets/demo/demo.xodr": None}
+    assert any("cannot be verified" in warning for warning in run_metadata.compare_with_original({"simulation_inputs": hashes}, missing))
+    assert any("did not record simulation input hashes" in warning for warning in run_metadata.compare_with_original({}, missing))
+    assert not any("simulation input hashes" in warning for warning in run_metadata.compare_with_original({}, _make_opt()))
+    assets = tmp_path / "opencda/sumo-assets/demo"
+    assets.mkdir(parents=True)
+    config = assets / "demo.sumocfg"
+    config.write_text("<invalid")
+    opt = _make_opt(cosim=True)
+    hashes = run_metadata.collect_simulation_input_hashes(opt)
+    assert hashes["opencda/sumo-assets/demo/demo.sumocfg"] == run_metadata.sha256_file(config)
+    assert hashes["opencda/sumo-assets/demo/demo.sumocfg:input-references"] is None
+    assert any("cannot be verified" in warning for warning in run_metadata.compare_with_original({"simulation_inputs": hashes}, opt))
+    config.write_text('<configuration><input><route-files value="first.xml, second.xml"/></input></configuration>')
+    (assets / "first.xml").write_text("<routes/>")
+    (assets / "second.xml").write_text("<routes/>")
+    hashes = run_metadata.collect_simulation_input_hashes(opt)
+    assert len(hashes) == 3 and all(hashes.values())
+    assert any("Simulation inputs" in warning for warning in run_metadata.compare_with_original({"simulation_inputs": hashes}, _make_opt()))
+
+
 def _load_entrypoint():
     spec = importlib.util.spec_from_file_location("opencda_entrypoint", Path(__file__).resolve().parents[1] / "opencda.py")
     module = importlib.util.module_from_spec(spec)

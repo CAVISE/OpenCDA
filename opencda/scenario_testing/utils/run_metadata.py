@@ -23,6 +23,7 @@ from importlib import metadata
 from pathlib import Path
 from typing import Any, Iterable, Mapping, cast
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+from xml.etree import ElementTree
 
 import yaml
 from omegaconf import OmegaConf
@@ -887,6 +888,45 @@ def write_json(path: Path, payload: Mapping[str, Any]) -> None:
     os.replace(tmp_path, path)
 
 
+def collect_simulation_input_hashes(opt: Any) -> dict[str, str | None]:
+    """Fingerprint the map and SUMO files selected by the scenario loader.
+
+    Parameters
+    ----------
+    opt : argparse.Namespace
+        Runtime scenario name and the xodr/cosim flags.
+
+    Returns
+    -------
+    dict of str to str or None
+        Selected filenames and SHA-256 hashes. Missing or unreadable files,
+        and unparseable SUMO input references, are marked with None.
+    """
+    scenario = Path(str(getattr(opt, "test_scenario", ""))).stem
+    directory = Path("opencda/sumo-assets") / scenario
+    paths: list[Path] = []
+    hashes: dict[str, str | None] = {}
+    if getattr(opt, "cosim", False):
+        config = directory / f"{scenario}.sumocfg"
+        paths.append(config)
+        try:
+            root = ElementTree.parse(config).getroot()
+        except (OSError, ElementTree.ParseError):
+            hashes[f"{config}:input-references"] = None
+        else:
+            for node in root.findall("./input/*"):
+                if node.tag in {"net-file", "route-files", "additional-files"}:
+                    paths.extend(config.parent / value.strip() for value in node.get("value", "").split(",") if value.strip())
+    elif getattr(opt, "xodr", False):
+        paths.append(directory / f"{scenario}.xodr")
+    for path in paths:
+        try:
+            hashes[str(path)] = sha256_file(path)
+        except OSError:
+            hashes[str(path)] = None
+    return hashes
+
+
 def write_run_artifacts(
     output_dir: Path,
     *,
@@ -966,6 +1006,7 @@ def write_run_artifacts(
         "code": code_versions,
         "device": collect_device_info(),
         "checkpoint": collect_checkpoint_info(opt),
+        "simulation_inputs": collect_simulation_input_hashes(opt),
         "inputs": _copy_inputs(output_dir, input_files or {}, opt),
         "code_diff": _save_code_diff(output_dir, code_versions["opencda"]["git"]),
         "outputs": {
@@ -1164,6 +1205,19 @@ def compare_with_original(original: Mapping[str, Any], opt: Any) -> list[str]:
     changed = sorted(path for path in original_hashes.keys() | current_hashes.keys() if original_hashes.get(path) != current_hashes.get(path))
     if changed:
         warnings.append(f"Model files differ from the original run (sha256 mismatch or missing): {', '.join(changed)}.")
+
+    if "simulation_inputs" in original:
+        original_inputs = original["simulation_inputs"] or {}
+        current_inputs = collect_simulation_input_hashes(opt)
+        changed_inputs = sorted(
+            path
+            for path in original_inputs.keys() | current_inputs.keys()
+            if original_inputs.get(path) != current_inputs.get(path) or original_inputs.get(path) is None or current_inputs.get(path) is None
+        )
+        if changed_inputs:
+            warnings.append(f"Simulation inputs differ or cannot be verified (sha256 mismatch or missing): {', '.join(changed_inputs)}.")
+    elif getattr(opt, "xodr", False) or getattr(opt, "cosim", False):
+        warnings.append("Original run did not record simulation input hashes; map and SUMO files cannot be verified.")
 
     # GPU model and CUDA/cuDNN versions can also influence inference results.
     original_device = _device_signature(original.get("device"))
