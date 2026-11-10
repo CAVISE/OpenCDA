@@ -1,5 +1,9 @@
 import pytest
-from types import SimpleNamespace
+import os
+import sys
+from concurrent.futures import ThreadPoolExecutor
+from threading import get_ident
+from types import ModuleType, SimpleNamespace
 from unittest.mock import MagicMock, patch
 from pathlib import Path
 from importlib import import_module
@@ -12,6 +16,7 @@ from opencda.core.common.coperception_model_manager import (
     CoperceptionModelManager,
     CoperceptionVisualizer,
 )
+from opencda.scenario_testing.utils.run_metadata import load_prediction_records
 
 
 class DummyOpt:
@@ -739,6 +744,89 @@ class TestCoperceptionDataProcessor:
 
 
 class TestPredictionRecords:
+    def test_prediction_archive_is_published_after_serialization(self, fake_heavy_deps, tmp_path, monkeypatch):
+        """Expose the final filename only after the compressed archive is complete."""
+        monkeypatch.chdir(tmp_path)
+        manager = CoperceptionModelManager.__new__(CoperceptionModelManager)
+        manager.opt = DummyOpt(test_scenario="atomic")
+        manager.current_time = "t"
+        records = tmp_path / "simulation_output/evaluation_outputs/atomic_t/predictions"
+        target = records / "tick_000001.npz"
+        original = np.savez_compressed
+
+        def serialize(destination, **arrays):
+            assert not target.exists()
+            original(destination, **arrays)
+            assert not target.exists()
+
+        monkeypatch.setattr(np, "savez_compressed", serialize)
+        manager._save_prediction_records(1, np.zeros((1, 8, 3)), np.array([0.8]), None, None)
+
+        loaded = load_prediction_records(records.parent)
+        assert [record["tick"] for record in loaded] == [1]
+        np.testing.assert_array_equal(loaded[0]["pred_scores"], [0.8])
+        assert list(records.iterdir()) == [target]
+
+    @pytest.mark.skipif(os.name != "posix", reason="POSIX file modes required")
+    @pytest.mark.parametrize("file_umask", [0o022, 0o077])
+    def test_prediction_archive_respects_umask(self, fake_heavy_deps, tmp_path, monkeypatch, file_umask):
+        """Preserve ordinary NumPy file permissions when publishing atomically."""
+        monkeypatch.chdir(tmp_path)
+        manager = CoperceptionModelManager.__new__(CoperceptionModelManager)
+        manager.opt = DummyOpt(test_scenario="atomic")
+        manager.current_time = "t"
+        previous_umask = os.umask(file_umask)
+        try:
+            manager._save_prediction_records(1, np.zeros((1, 8, 3)), np.array([0.8]), None, None)
+        finally:
+            os.umask(previous_umask)
+        target = tmp_path / "simulation_output/evaluation_outputs/atomic_t/predictions/tick_000001.npz"
+        assert (target.stat().st_mode & 0o777) == (0o666 & ~file_umask)
+
+    @pytest.mark.parametrize("existing", [False, True])
+    @pytest.mark.parametrize("error", [KeyboardInterrupt, OSError])
+    def test_interrupted_prediction_archive_keeps_previous_records(self, fake_heavy_deps, tmp_path, monkeypatch, existing, error):
+        """Clean partial writes and preserve a previously published tick on retry."""
+        monkeypatch.chdir(tmp_path)
+        manager = CoperceptionModelManager.__new__(CoperceptionModelManager)
+        manager.opt = DummyOpt(test_scenario="atomic")
+        manager.current_time = "t"
+        run_dir = tmp_path / "simulation_output/evaluation_outputs/atomic_t"
+        manager._save_prediction_records(1, np.zeros((1, 8, 3)), np.array([0.8]), None, None)
+        target = run_dir / "predictions/tick_000002.npz"
+        if existing:
+            manager._save_prediction_records(2, np.zeros((1, 8, 3)), np.array([0.7]), None, None)
+        previous = target.read_bytes() if existing else None
+
+        def interrupt(destination, **arrays):
+            if hasattr(destination, "write"):
+                destination.write(b"PK\x03\x04partial archive")
+            else:
+                Path(destination).write_bytes(b"PK\x03\x04partial archive")
+            raise error("serialization interrupted")
+
+        monkeypatch.setattr(np, "savez_compressed", interrupt)
+        with pytest.raises(error, match="serialization interrupted"):
+            manager._save_prediction_records(2, np.ones((1, 8, 3)), np.array([0.2]), None, None)
+
+        assert target.read_bytes() == previous if existing else not target.exists()
+        assert [record["tick"] for record in load_prediction_records(run_dir)] == ([1, 2] if existing else [1])
+        assert not list((run_dir / "predictions").glob(".*"))
+
+    def test_prediction_archive_publication_failure_cleans_temporary_file(self, fake_heavy_deps, tmp_path, monkeypatch):
+        """Leave no partial final or temporary archive when atomic publication fails."""
+        monkeypatch.chdir(tmp_path)
+        manager = CoperceptionModelManager.__new__(CoperceptionModelManager)
+        manager.opt = DummyOpt(test_scenario="atomic")
+        manager.current_time = "t"
+        module = import_module(CoperceptionModelManager.__module__)
+        monkeypatch.setattr(module.os, "replace", MagicMock(side_effect=OSError("publication failed")))
+
+        with pytest.raises(OSError, match="publication failed"):
+            manager._save_prediction_records(1, np.zeros((1, 8, 3)), np.array([0.8]), None, None)
+
+        assert not list((tmp_path / "simulation_output/evaluation_outputs/atomic_t/predictions").iterdir())
+
     def test_make_prediction_saves_boxes_and_scores(self, fake_heavy_deps, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         opencood = fake_heavy_deps["opencood"]
@@ -792,7 +880,142 @@ class _FakePostProcessor:
         return boxes[keep], scores[keep]
 
 
+@pytest.fixture(params=["CiassdPostprocessor", "FpvrcnnPostprocessor"])
+def direct_postprocessor(request, fake_heavy_deps, monkeypatch):
+    """Provide direct NMS paths with observable native calls and coordinate changes."""
+    module = import_module(CoperceptionModelManager.__module__)
+    box_utils = fake_heavy_deps["opencood"].utils.box_utils
+    monkeypatch.setattr(module, "box_utils", box_utils, raising=False)
+    fpvrcnn = request.param == "FpvrcnnPostprocessor"
+    keep = np.array([0, 2])
+    nms = ModuleType("opencood.pcdet_utils.iou3d_nms.iou3d_nms_utils")
+    nms.nms_gpu = MagicMock(return_value=(keep, None))
+    monkeypatch.setitem(sys.modules, nms.__name__, nms)
+    monkeypatch.setattr(box_utils, "nms_rotated", MagicMock(return_value=keep), raising=False)
+    monkeypatch.setattr(box_utils, "boxes_to_corners_3d", MagicMock(side_effect=lambda boxes, order: np.repeat(boxes[:, None, :3], 8, axis=1)))
+    monkeypatch.setattr(box_utils, "project_box3d", MagicMock(side_effect=lambda boxes, transform: boxes + transform[:3, 3]), raising=False)
+    centers = np.array([[1, 2, 3, 4, 5, 6, 0], [10, 20, 30, 40, 50, 60, 0], [7, 8, 9, 10, 11, 12, 0]], dtype=np.float32)
+    transform = np.eye(4, dtype=np.float32)
+    transform[:3, 3] = [100, 200, 10]
+    expected_boxes = np.repeat(centers[:, None, :3], 8, axis=1) + transform[:3, 3]
+    inputs = {
+        "boxes": centers.copy() if fpvrcnn else expected_boxes.copy(),
+        "scores": np.array([0.9, 0.3, 0.7], dtype=np.float32),
+        "ego": {"transformation_matrix": transform},
+    }
+    produced = []
+
+    def post_process(processor, data_dict, output_dict=None):
+        boxes, scores = data_dict["boxes"], data_dict["scores"]
+        if fpvrcnn:
+            selected = nms.nms_gpu(boxes, scores, thresh=0.01)[0]
+            corners = box_utils.boxes_to_corners_3d(boxes[selected][:, [0, 1, 2, 5, 4, 3, 6]], order=processor.params["order"])
+            final_boxes = box_utils.project_box3d(corners, data_dict["ego"]["transformation_matrix"])
+        else:
+            selected = box_utils.nms_rotated(boxes, scores, processor.params["nms_thresh"])
+            final_boxes = boxes[selected]
+        result = (final_boxes, scores[selected])
+        produced.append(result)
+        return result
+
+    method = "post_process_stage2" if fpvrcnn else "post_process"
+    processor_type = type(request.param, (_FakePostProcessor,), {method: post_process, "train": False})
+    processor = processor_type()
+    processor.params = {**_FakePostProcessor.params, "order": "hwl"}
+    manager = CoperceptionModelManager.__new__(CoperceptionModelManager)
+    manager.opt = DummyOpt(test_scenario="scen1", save_predictions=True)
+    manager.current_time = "t"
+    manager.opencood_dataset = SimpleNamespace(post_processor=processor)
+    helper, nms_name = (nms, "nms_gpu") if fpvrcnn else (box_utils, "nms_rotated")
+    return SimpleNamespace(
+        manager=manager,
+        processor=processor,
+        method=method,
+        helper=helper,
+        nms_name=nms_name,
+        native=getattr(helper, nms_name),
+        inputs=inputs,
+        expected_boxes=expected_boxes,
+        produced=produced,
+        box_utils=box_utils,
+        fpvrcnn=fpvrcnn,
+    )
+
+
 class TestRawDetections:
+    def test_direct_nms_candidates_match_the_returned_result(self, direct_postprocessor, tmp_path, monkeypatch):
+        """Keep ego-frame raw candidates for the selected earlier result without changing NMS."""
+        monkeypatch.chdir(tmp_path)
+        case = direct_postprocessor
+        manager = case.manager
+        with manager._capture_raw_detections() as calls:
+            selected = getattr(case.processor, case.method)(case.inputs)
+            assert case.native.call_args_list[0].args[0] is case.inputs["boxes"]
+            assert case.native.call_args_list[0].args[1] is case.inputs["scores"]
+            assert getattr(case.helper, case.nms_name) is case.native
+            later = {**case.inputs, "boxes": case.inputs["boxes"] + 20}
+            getattr(case.processor, case.method)(data_dict=later)
+
+        assert selected is case.produced[0]
+        assert len(calls) == 2
+        raw_boxes, raw_scores = manager._select_raw_detections(calls, selected[1])
+        case.inputs["boxes"][:] = -100
+        np.testing.assert_array_equal(raw_boxes, case.expected_boxes)
+        np.testing.assert_array_equal(raw_scores, case.inputs["scores"])
+        assert case.method not in vars(case.processor)
+        assert "record_raw_detections" not in vars(case.processor)
+        if case.fpvrcnn:
+            expected_order = np.array([[1, 2, 3, 6, 5, 4, 0], [10, 20, 30, 60, 50, 40, 0], [7, 8, 9, 12, 11, 10, 0]], dtype=np.float32)
+            np.testing.assert_array_equal(case.box_utils.boxes_to_corners_3d.call_args_list[0].args[0], expected_order)
+        manager._save_prediction_records(5, *selected, None, None, raw_box_tensor=raw_boxes, raw_score=raw_scores)
+        record = load_prediction_records(tmp_path / "simulation_output/evaluation_outputs/scen1_t")[0]
+        np.testing.assert_array_equal(record["raw_boxes"], case.expected_boxes)
+        np.testing.assert_array_equal(record["pred_boxes"], selected[0])
+
+    def test_direct_nms_hooks_restore_after_failure(self, direct_postprocessor):
+        """Restore the shared NMS helper and an existing raw hook after exceptions."""
+        case = direct_postprocessor
+        previous_hook = MagicMock()
+        case.processor.record_raw_detections = previous_hook
+        case.native.side_effect = RuntimeError("native NMS failed")
+        with pytest.raises(RuntimeError, match="native NMS failed"):
+            with case.manager._capture_raw_detections():
+                getattr(case.processor, case.method)(case.inputs)
+        assert getattr(case.helper, case.nms_name) is case.native
+        assert case.processor.record_raw_detections is previous_hook
+        assert case.method not in vars(case.processor)
+
+    def test_direct_nms_ignores_calls_from_another_thread(self, direct_postprocessor):
+        """Do not bind unrelated thread-local NMS inputs to this prediction."""
+        case = direct_postprocessor
+        caller = get_ident()
+        native_result = case.native.return_value
+
+        def native_with_other_thread(*args, **kwargs):
+            if get_ident() == caller:
+                with ThreadPoolExecutor(max_workers=1) as pool:
+                    pool.submit(getattr(case.helper, case.nms_name), *args, **kwargs).result(timeout=5)
+            return native_result
+
+        case.native.side_effect = native_with_other_thread
+        with case.manager._capture_raw_detections() as calls:
+            selected = getattr(case.processor, case.method)(case.inputs)
+        assert len(calls) == 1
+        assert case.native.call_count == 2
+        raw_boxes, _ = case.manager._select_raw_detections(calls, selected[1])
+        np.testing.assert_array_equal(raw_boxes, case.expected_boxes)
+
+    def test_direct_nms_capture_is_disabled(self, direct_postprocessor):
+        """Leave native methods untouched when prediction capture is disabled."""
+        case = direct_postprocessor
+        case.manager.opt.save_predictions = False
+        with case.manager._capture_raw_detections() as calls:
+            selected = getattr(case.processor, case.method)(case.inputs)
+            assert case.method not in vars(case.processor)
+            assert getattr(case.helper, case.nms_name) is case.native
+        assert calls == []
+        assert selected is case.produced[0]
+
     def _manager(self, fake_heavy_deps, save_predictions=True):
         manager = CoperceptionModelManager.__new__(CoperceptionModelManager)
         manager.opt = DummyOpt(test_scenario="scen1", save_predictions=save_predictions)

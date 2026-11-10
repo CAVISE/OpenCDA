@@ -6,6 +6,10 @@ import os
 import logging
 from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass
+from importlib import import_module
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from threading import RLock, get_ident
 from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, Iterator, Literal, Mapping, Optional, Tuple, TypeAlias, TypedDict, cast
 
 from matplotlib import pyplot as plt
@@ -19,6 +23,7 @@ from opencood.tools import train_utils, inference_utils
 from opencood.data_utils.datasets import build_dataset
 from opencood.models.communication_adapters import build_communication_adapter
 from opencood.visualization import vis_utils
+from opencood.utils import box_utils
 from opencda.metrics_tools.collection_models import MetricCollection
 from opencda.metrics_tools.config import resolve_metric_collector_config
 from opencda.metrics_tools.metric_collector import MetricCollector
@@ -45,6 +50,7 @@ else:
 logger = logging.getLogger("cavise.opencda.opencda.core.common.coperception_model_manager")
 # Postprocessors with custom NMS (late-fusion AdvCP) report pre-NMS boxes here.
 RAW_DETECTIONS_HOOK = "record_raw_detections"
+_RAW_NMS_LOCK = RLock()
 
 __all__ = (
     "CoperceptionInferenceResult",
@@ -723,11 +729,15 @@ class CoperceptionModelManager:
         list of tuple
             CPU tensor/array snapshots of boxes and scores, plus weak references to
             the corresponding final score tensors. Custom NMS paths use the
-            postprocessor's record_raw_detections hook to report candidates.
+            postprocessor's record_raw_detections hook or a scoped native-NMS
+            wrapper. FPV-RCNN stage-two boxes are projected into ego coordinates.
         """
         calls: list[tuple[Any, Any, Any]] = []
         post_processor = getattr(getattr(self, "opencood_dataset", None), "post_processor", None)
-        method_name = "post_process_detections"
+        processor_types = {base.__name__ for base in type(post_processor).__mro__}
+        fpvrcnn = "FpvrcnnPostprocessor" in processor_types
+        direct_nms = fpvrcnn or ("CiassdPostprocessor" in processor_types and not getattr(post_processor, "train", False))
+        method_name = "post_process_stage2" if fpvrcnn else "post_process" if direct_nms else "post_process_detections"
         original = getattr(post_processor, method_name, None)
         if not getattr(self.opt, "save_predictions", False) or not callable(original):
             yield calls
@@ -740,8 +750,8 @@ class CoperceptionModelManager:
             ----------
             boxes, scores : tensor or numpy.ndarray or None
                 Score-thresholded candidates before NMS.
-            result : tuple
-                Final boxes and scores returned by this post-processing call.
+            result : tuple or None
+                Final boxes and scores, or None until a direct NMS call finishes.
             """
             # Keep result identity without retaining its GPU tensors or autograd graph.
             score_ref = weakref.ref(result[1]) if isinstance(result, tuple) and len(result) == 2 and result[1] is not None else None
@@ -751,30 +761,78 @@ class CoperceptionModelManager:
             )
             calls.append((raw_boxes, raw_scores, score_ref))
 
-        def recording(boxes: Any, scores: Any) -> Any:
+        def recording(*args: Any, **kwargs: Any) -> Any:
             """Run post-processing and capture its pre-NMS inputs.
 
             Parameters
             ----------
-            boxes, scores : tensor or numpy.ndarray
-                Candidates passed to the original postprocessor.
+            *args, **kwargs : Any
+                Original post-processing arguments, forwarded unchanged.
 
             Returns
             -------
             tuple
                 Unchanged result from the original post-processing method.
             """
-            result = original(boxes, scores)
-            record(boxes, scores, result)
-            return result
+            if not direct_nms:
+                result = original(*args, **kwargs)
+                record(args[0] if args else kwargs["boxes"], args[1] if len(args) > 1 else kwargs["scores"], result)
+                return result
+
+            data_dict = args[0] if args else kwargs["data_dict"]
+            with _RAW_NMS_LOCK:
+                # Loading the CUDA extension is required only by FPV-RCNN stage two.
+                nms_module = import_module("opencood.pcdet_utils.iou3d_nms.iou3d_nms_utils") if fpvrcnn else box_utils
+                nms_name = "nms_gpu" if fpvrcnn else "nms_rotated"
+                original_nms = getattr(nms_module, nms_name)
+                thread = get_ident()
+                start = len(calls)
+
+                def capture_nms(boxes: Any, scores: Any, *nms_args: Any, **nms_kwargs: Any) -> Any:
+                    """Snapshot this call's candidates and preserve native NMS.
+
+                    Parameters
+                    ----------
+                    boxes, scores : tensor or numpy.ndarray
+                        Decoded candidates and confidence scores.
+                    *nms_args, **nms_kwargs : Any
+                        Native NMS parameters forwarded without modification.
+
+                    Returns
+                    -------
+                    Any
+                        Unchanged indices or tuple returned by native NMS.
+                    """
+                    if get_ident() == thread:
+                        raw_boxes = boxes
+                        if fpvrcnn:
+                            corners = box_utils.boxes_to_corners_3d(boxes[:, [0, 1, 2, 5, 4, 3, 6]], order=post_processor.params["order"])
+                            raw_boxes = box_utils.project_box3d(corners, data_dict["ego"]["transformation_matrix"])
+                        record(raw_boxes, scores, None)
+                    return original_nms(boxes, scores, *nms_args, **nms_kwargs)
+
+                setattr(nms_module, nms_name, capture_nms)
+                try:
+                    result = original(*args, **kwargs)
+                finally:
+                    setattr(nms_module, nms_name, original_nms)
+                if len(calls) == start + 1 and isinstance(result, tuple) and len(result) == 2:
+                    boxes, scores, _ = calls[-1]
+                    calls[-1] = (boxes, scores, weakref.ref(result[1]) if result[1] is not None else None)
+                return result
 
         had_instance_attribute = method_name in vars(post_processor)
+        had_raw_hook = RAW_DETECTIONS_HOOK in vars(post_processor)
+        original_hook = getattr(post_processor, RAW_DETECTIONS_HOOK, None)
         setattr(post_processor, method_name, recording)
         setattr(post_processor, RAW_DETECTIONS_HOOK, record)
         try:
             yield calls
         finally:
-            delattr(post_processor, RAW_DETECTIONS_HOOK)
+            if had_raw_hook:
+                setattr(post_processor, RAW_DETECTIONS_HOOK, original_hook)
+            else:
+                delattr(post_processor, RAW_DETECTIONS_HOOK)
             if had_instance_attribute:
                 setattr(post_processor, method_name, original)
             else:
@@ -800,7 +858,6 @@ class CoperceptionModelManager:
             Numerically equal scores from a different call are never substituted.
         """
         if not calls:
-            # CIASSD and FPV-RCNN perform NMS inside OpenCOOD.
             if not getattr(self, "_warned_no_raw_detections", False):
                 post_processor = getattr(getattr(self, "opencood_dataset", None), "post_processor", None)
                 logger.warning(
@@ -878,7 +935,10 @@ class CoperceptionModelManager:
 
         records_dir = os.path.join("simulation_output", "evaluation_outputs", f"{self.opt.test_scenario}_{self.current_time}", "predictions")
         os.makedirs(records_dir, exist_ok=True)
-        np.savez_compressed(os.path.join(records_dir, f"tick_{tick_number:06d}.npz"), **arrays)
+        with TemporaryDirectory(dir=records_dir, prefix=f".tick_{tick_number:06d}_") as temporary_dir:
+            temporary = Path(temporary_dir) / "record.npz"
+            np.savez_compressed(temporary, **arrays)
+            os.replace(temporary, os.path.join(records_dir, f"tick_{tick_number:06d}.npz"))
 
     def _save_visualizations(
         self,

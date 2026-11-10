@@ -219,16 +219,24 @@ def build_parser() -> argparse.ArgumentParser:
         default=True,
         help="Save per-tick cooperative perception boxes and confidence scores to the evaluation output folder (default: on).",
     )
-    parser.add_argument("--record", action="store_true", help="Whether to record and save the simulation process to .log file")
+    parser.add_argument(
+        "--record", action=argparse.BooleanOptionalAction, default=False, help="Whether to record and save the simulation process to .log file"
+    )
     parser.add_argument("-v", "--version", action="version", version=f"OpenCDA v{__version__}")
-    parser.add_argument("--free-spectator", action="store_true", help="Enable free movement for the spectator camera.")
-    parser.add_argument("-x", "--xodr", action="store_true", help="Run simulation using a custom map from an XODR file.")
-    parser.add_argument("-c", "--cosim", action="store_true", help="Enable co-simulation with SUMO.")
+    parser.add_argument(
+        "--free-spectator", action=argparse.BooleanOptionalAction, default=False, help="Enable free movement for the spectator camera."
+    )
+    parser.add_argument(
+        "-x", "--xodr", action=argparse.BooleanOptionalAction, default=False, help="Run simulation using a custom map from an XODR file."
+    )
+    parser.add_argument("-c", "--cosim", action=argparse.BooleanOptionalAction, default=False, help="Enable co-simulation with SUMO.")
     parser.add_argument("--carla-host", type=str, default="carla", help="IP address or hostname of the CARLA server (default: 'carla')")
     parser.add_argument("--carla-timeout", type=float, default=10.0, help="Timeout of the CARLA server response in seconds (default: 10.0)")
 
     # CAPI parameters
-    parser.add_argument("--with-capi", action="store_true", help="wether to run a communication manager instance in this simulation.")
+    parser.add_argument(
+        "--with-capi", action=argparse.BooleanOptionalAction, default=False, help="wether to run a communication manager instance in this simulation."
+    )
     parser.add_argument(
         "--artery-host", type=str, default="artery:7777", help="IP address or hostname and port of the Artery server (default: 'artery:7777')"
     )
@@ -244,7 +252,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     # Coperception models parameters
     parser.add_argument(
-        "--with-coperception", action="store_true", help="Whether to enable the use of cooperative perception models in this simulation."
+        "--with-coperception",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Whether to enable the use of cooperative perception models in this simulation.",
     )
     parser.add_argument("--model-id", type=str, help="Logical model bundle ID from the CAVISE models repository.")
     parser.add_argument("--model-dir", type=str, help="Explicit local cooperative-perception model directory; disables automatic fetching.")
@@ -252,12 +263,23 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--models-repository", type=str, help="Git repository used to fetch missing model bundles.")
     parser.add_argument("--models-ref", type=str, help="Git branch or tag used when cloning the models repository (default: main).")
     parser.add_argument("--no-auto-fetch-models", action="store_true", help="Fail instead of fetching a missing model or runtime asset bundle.")
-    parser.add_argument("--show-video-vis", action="store_true", help="whether to show video visualization result")
-    parser.add_argument("--save-vis", action="store_true", help="whether to save visualization result")
-    parser.add_argument("--save-npy", action="store_true", help="whether to save prediction and gt result in npy_test file")
+    parser.add_argument(
+        "--auto-fetch-models",
+        dest="no_auto_fetch_models",
+        action="store_false",
+        default=False,
+        help="Allow fetching missing model or runtime asset bundles.",
+    )
+    parser.add_argument("--show-video-vis", action=argparse.BooleanOptionalAction, default=False, help="whether to show video visualization result")
+    parser.add_argument("--save-vis", action=argparse.BooleanOptionalAction, default=False, help="whether to save visualization result")
+    parser.add_argument(
+        "--save-npy", action=argparse.BooleanOptionalAction, default=False, help="whether to save prediction and gt result in npy_test file"
+    )
 
     # AdvCollaborativePerception module
-    parser.add_argument("--with-advcp", action="store_true", help="Enable AdvCP-style attacks for cooperative perception.")
+    parser.add_argument(
+        "--with-advcp", action=argparse.BooleanOptionalAction, default=False, help="Enable AdvCP-style attacks for cooperative perception."
+    )
     parser.add_argument(
         "--advcp-config",
         type=str,
@@ -266,7 +288,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--advcp-assets-id", type=str, default="base-car", help="Logical AdvCP runtime asset bundle ID.")
 
     # CARLA and SUMO lifecycle management parameters
-    parser.add_argument("--manage-components", action="store_true", help="Start and stop dedicated component adapters for this run.")
+    parser.add_argument(
+        "--manage-components", action=argparse.BooleanOptionalAction, default=False, help="Start and stop dedicated component adapters for this run."
+    )
     parser.add_argument("--carla-adapter-url", default="http://carla:8080", help="CARLA adapter base URL.")
     parser.add_argument("--sumo-adapter-url", default="http://sumo:8080", help="SUMO adapter base URL.")
 
@@ -290,7 +314,7 @@ def build_parser() -> argparse.ArgumentParser:
             f"{EVALUATION_OUTPUT_ROOT}/<scenario>_<timestamp>/{DEFAULT_LOG_FILENAME}."
         ),
     )
-    parser.add_argument("--profile", action="store_true", help="Enable profiling.")
+    parser.add_argument("--profile", action=argparse.BooleanOptionalAction, default=False, help="Enable profiling.")
 
     parser.add_argument("--ticks", type=int, help="number of simulation ticks to execute")
     return parser
@@ -343,18 +367,19 @@ def build_command_from_options(opt: argparse.Namespace, parser: argparse.Argumen
         if not action.option_strings or action.dest in {"help", "version", "replay_from"} or not hasattr(opt, action.dest):
             continue
         value = getattr(opt, action.dest)
+        if value == action.default:
+            continue
         flag = max(action.option_strings, key=len)
         if isinstance(action, argparse.BooleanOptionalAction):
-            # The positive spelling precedes the negative spelling in option_strings.
-            if value != action.default:
-                argv.append(action.option_strings[0] if value else action.option_strings[1])
+            positive = next((option for option in action.option_strings if option.startswith("--")), action.option_strings[0])
+            argv.append(positive if value else f"--no-{positive[2:]}")
         elif isinstance(action, argparse._StoreTrueAction):
             if value:
                 argv.append(flag)
         elif isinstance(action, argparse._StoreFalseAction):
             if not value:
                 argv.append(flag)
-        elif value is not None and value != action.default:
+        elif value is not None:
             argv.extend([flag, str(value.value if isinstance(value, enum.Enum) else value)])
     return argv
 

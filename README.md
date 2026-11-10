@@ -275,7 +275,10 @@ python3 opencda.py \
   ```bash
   python opencda.py --replay-from <run_dir>
   python opencda.py --replay-from <run_dir> --ticks 50 --model-dir /path/to/model --no-save-predictions
+  python opencda.py --replay-from <run_dir> --no-record --no-save-vis --no-profile
   ```
+
+  Boolean options accept a `--no-` form to disable saved settings during replay. Use `--auto-fetch-models` to override a saved `--no-auto-fetch-models` setting.
 - `simulation_output/coperception/`: cooperative perception predictions, visualizations, and results
 
 ### Repository map

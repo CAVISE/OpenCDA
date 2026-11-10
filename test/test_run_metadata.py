@@ -1082,3 +1082,53 @@ def test_replay_parses_cli_once_and_applies_explicit_defaults(tmp_path, monkeypa
     assert build_parser.call_count == 1
     assert parse_args.call_count == 2
     assert parse_args.call_args_list[0].args == (cli,)
+
+
+@pytest.mark.parametrize(
+    "flag",
+    [
+        "record",
+        "free-spectator",
+        "xodr",
+        "cosim",
+        "with-capi",
+        "with-coperception",
+        "show-video-vis",
+        "save-vis",
+        "save-npy",
+        "with-advcp",
+        "manage-components",
+        "profile",
+    ],
+)
+def test_replay_inverse_boolean_overrides_saved_true(tmp_path, flag):
+    """Disable saved side effects and retain that choice in the next replay."""
+    entrypoint = _load_entrypoint()
+    assert getattr(entrypoint.arg_parse(["-t", "demo"]), flag.replace("-", "_")) is False
+    run_metadata.write_json(tmp_path / "run_manifest.json", {"launch": {"argv": ["-t", "demo", f"--{flag}"]}})
+
+    opt, command, _ = entrypoint.resolve_launch_arguments(["--replay-from", str(tmp_path), f"--no-{flag}"])
+
+    assert getattr(opt, flag.replace("-", "_")) is False
+    assert f"--{flag}" not in command
+    assert getattr(entrypoint.arg_parse(command), flag.replace("-", "_")) is False
+    enabled = entrypoint.arg_parse(["-t", "demo", f"--{flag}"])
+    canonical = entrypoint.build_command_from_options(enabled)
+    assert f"--{flag}" in canonical
+    assert entrypoint.arg_parse(canonical) == enabled
+
+
+@pytest.mark.parametrize(
+    ("saved", "override", "expected"),
+    [("--no-auto-fetch-models", "--auto-fetch-models", False), ("--auto-fetch-models", "--no-auto-fetch-models", True)],
+)
+def test_replay_inverse_model_fetch_policy(tmp_path, saved, override, expected):
+    """Preserve the existing negative flag and allow fetching to be re-enabled."""
+    entrypoint = _load_entrypoint()
+    run_metadata.write_json(tmp_path / "run_manifest.json", {"launch": {"argv": ["-t", "demo", saved]}})
+
+    opt, command, _ = entrypoint.resolve_launch_arguments(["--replay-from", str(tmp_path), override])
+
+    assert opt.no_auto_fetch_models is expected
+    assert entrypoint.arg_parse(command).no_auto_fetch_models is expected
+    assert "--no-no-auto-fetch-models" not in entrypoint.build_parser().format_help()
