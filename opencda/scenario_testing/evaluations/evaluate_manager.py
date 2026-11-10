@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from opencda.core.common.cav_world import CavWorld
+from opencda.metrics_tools.metrics.coperception.ap_at_iou import APAtIoUMetric
 from opencda.metrics_tools.plot_builder import MetricPlotBuilder
 from opencda.metrics_tools.report_models import EntityReport, ModuleReport
 from opencda.metrics_tools.report_builder import UniversalReportBuilder
@@ -75,11 +76,9 @@ class EvaluationManager(object):
         coperception_data = coperception_report.to_dict()
 
         if coperception_model_manager is not None:
-            ap_metric = coperception_model_manager.metrics_collector.get_metric(
-                "ap_at_iou"
-            )
+            ap_metric = coperception_model_manager.metrics_collector.get_metric("ap_at_iou")
 
-            if ap_metric is not None:
+            if isinstance(ap_metric, APAtIoUMetric):
                 final_metrics = ap_metric.get_final_metrics()
                 coperception_data["final_metrics"] = final_metrics
                 logger.info(

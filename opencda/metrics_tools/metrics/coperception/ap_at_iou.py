@@ -90,7 +90,6 @@ class APAtIoUMetric(BaseMetric):
             "by_iou": by_iou,
         }
 
-
     def _log_ap_at_iou(self) -> None:
         ap_parts = []
         for iou in self.iou_thresholds:

@@ -102,9 +102,7 @@ def test_threshold_metrics():
         }
     }
 
-    result = _opencood_eval.calculate_threshold_metrics(
-        result_stat, 0.5, 0.5
-    )
+    result = _opencood_eval.calculate_threshold_metrics(result_stat, 0.5, 0.5)
 
     assert result["tp"] == 2
     assert result["fp"] == 1
@@ -114,9 +112,7 @@ def test_threshold_metrics():
 
 
 def test_threshold_metrics_without_predictions():
-    result_stat = {
-        0.5: {"tp": [], "fp": [], "score": [], "gt": 3}
-    }
+    result_stat = {0.5: {"tp": [], "fp": [], "score": [], "gt": 3}}
 
     result = _opencood_eval.calculate_threshold_metrics(result_stat, 0.5)
 
