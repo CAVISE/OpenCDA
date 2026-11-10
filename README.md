@@ -311,3 +311,39 @@ guidelines.
 ## Contact
 
 For bug reports and feature requests related to this fork, please visit [GitHub Issues](https://github.com/CAVISE/opencda/issues). We're happy to help with OpenCDA, Artery, CAPI v2, cooperative perception, and CDA workflows.
+
+## Managed component lifecycle
+
+By default, OpenCDA connects to simulators that are already running. To start
+and stop dedicated CARLA and SUMO adapters for a scenario, use:
+
+```bash
+python opencda.py -t aim_check -c --manage-components
+```
+
+The API uses this mode automatically. OpenCDA starts SUMO when `-c`
+is enabled and starts CARLA before constructing the scenario.
+Connection and world-loading retries are handled by the scenario initialization code.
+Adapters are stopped after scenario finalization,
+including on Ctrl+C and partial startup failure. The fixed startup sleep in
+the API is no longer needed.
+
+Adapter addresses default to `http://carla:8080` and `http://sumo:8080`.
+Override them with `--carla-adapter-url` and `--sumo-adapter-url`.
+`--carla-host` must identify the server started by the CARLA adapter.
+Managed Artery startup is not implemented, so this mode rejects `--with-capi`.
+
+This mode targets the `/v1/run`, `/v1/status`, and `/v1/stop` adapters,
+not the separate persistent CARLA adapter. Use dedicated adapters exclusively.
+Their status is checked before startup, but they have no atomic ownership
+protocol. Stop responses are trusted and do not prove all processes exited.
+SUMO readiness is not independently probed, its TraCI connection is established
+by the existing co-simulation code. A timed-out API stop leaves OpenCDA tracked
+while it finishes cleanup. Do not start another task until it exits.
+
+## Start the API
+
+```bash
+docker exec -it opencda bash
+python -m api
+```
