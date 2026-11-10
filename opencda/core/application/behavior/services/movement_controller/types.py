@@ -7,4 +7,4 @@ from opencda.core.application.behavior.types import Location
 class MovementControllerState:
     service_type: str
     owner_id: str | None
-    target_position: Location | None  # noqa: DC01
+    target_position: Location | None  # noqa: DC06

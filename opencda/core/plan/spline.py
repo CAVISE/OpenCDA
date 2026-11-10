@@ -48,7 +48,6 @@ class Spline:
         A = self.__calc_A(h)
         B = self.__calc_B(h)
         self.c = np.linalg.solve(A, B)
-        #  print(self.c1)
 
         # calc spline coefficient b and d
         for i in range(self.nx - 1):
@@ -130,7 +129,6 @@ class Spline:
         A[0, 1] = 0.0
         A[self.nx - 1, self.nx - 2] = 0.0
         A[self.nx - 1, self.nx - 1] = 1.0
-        #  print(A)
         return A
 
     def __calc_B(self, h):

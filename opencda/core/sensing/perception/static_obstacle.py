@@ -92,7 +92,7 @@ class TrafficLight(object):
         return self.state
 
     @staticmethod
-    def get_trafficlight_trigger_location(traffic_light: carla.Actor) -> carla.Vector3D:  # pylint: disable=invalid-name
+    def get_trafficlight_trigger_location(traffic_light: carla.Actor) -> carla.Vector3D:
         """
         Calculates the yaw of the waypoint that represents the trigger
         volume of the traffic light

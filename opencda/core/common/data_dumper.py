@@ -83,8 +83,6 @@ class DataDumper(object):
             return
 
         # 10hz
-        # if self.count % 2 != 0:
-        #     return
 
         self.save_rgb_image(self.count)
         self.save_lidar_points(self.count)
@@ -95,7 +93,6 @@ class DataDumper(object):
         Save camera rgb images to disk.
         """
         for i, camera in enumerate(self.rgb_camera):
-            # frame = camera.frame
             image = camera.image
             if image is None:
                 continue
@@ -109,7 +106,6 @@ class DataDumper(object):
         Save 3D lidar points to disk.
         """
         point_cloud = self.lidar.data
-        # frame = self.lidar.frame
 
         point_xyz = point_cloud[:, :-1]
         point_intensity = point_cloud[:, -1]

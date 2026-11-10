@@ -232,9 +232,6 @@ class LocalPlanner(object):
         x = []
         y = []
 
-        # pop out the waypoints that may damage driving performance
-        # self.buffer_filter()
-
         # [m] distance of each interpolated points
         ds = 0.1
 
@@ -396,7 +393,6 @@ class LocalPlanner(object):
             sample_resolution += current_speed * dt + 0.5 * acceleration * dt**2
             current_speed += acceleration * dt
 
-            # print(sample_resolution)
             if int(sample_resolution // ds - 1) >= len(rx):
                 sample_x = rx[-1]
                 sample_y = ry[-1]
@@ -434,7 +430,6 @@ class LocalPlanner(object):
             _, angle = cal_distance_angle(waypoint.transform.location, self._ego_pos.location, self._ego_pos.rotation.yaw)
 
             if angle > 90:
-                # print('delete waypoint!')
                 del self._waypoint_buffer[j]
                 continue
 
