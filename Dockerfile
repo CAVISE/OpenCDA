@@ -50,6 +50,7 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 COPY opencda/requirements.txt opencda/requirements-cuda.txt /tmp/opencda-requirements/
+COPY opencda/api/requirements.txt /tmp/opencda-requirements/api/
 
 RUN python3 -m venv /opt/venv && \
     /opt/venv/bin/python -m pip install --no-cache-dir --upgrade \
@@ -58,7 +59,7 @@ RUN python3 -m venv /opt/venv && \
         wheel==0.48.0 \
     && \
     /opt/venv/bin/python -m pip install --no-cache-dir \
-        -r /tmp/opencda-requirements/requirements.txt
+        -r /tmp/opencda-requirements/requirements.txt -r /tmp/opencda-requirements/api/requirements.txt
 
 
 FROM python-opencda-dependencies AS python-opencood-dependencies
@@ -166,6 +167,7 @@ COPY --from=python-opencda-dependencies /opt/venv /opt/venv
 WORKDIR ${HOME}/cavise/opencda
 
 COPY --chown=${uid}:${gid} opencda/opencda.py ./
+COPY --chown=${uid}:${gid} opencda/api/ api/
 COPY --chown=${uid}:${gid} opencda/opencda/ opencda/
 COPY --chown=${uid}:${gid} opencda/AIM/ AIM/
 COPY opencda/docker/sync-build-artifacts.sh \

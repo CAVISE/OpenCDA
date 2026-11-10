@@ -29,10 +29,10 @@ class SumoSignalState(object):
     RED = "r"
     YELLOW = "y"
     GREEN = "G"
-    GREEN_WITHOUT_PRIORITY = "g"  # noqa: DC01
-    GREEN_RIGHT_TURN = "s"  # noqa: DC01
-    RED_YELLOW = "u"  # noqa: DC01
-    OFF_BLINKING = "o"  # noqa: DC01
+    GREEN_WITHOUT_PRIORITY = "g"  # noqa: DC06
+    GREEN_RIGHT_TURN = "s"  # noqa: DC06
+    RED_YELLOW = "u"  # noqa: DC06
+    OFF_BLINKING = "o"  # noqa: DC06
     OFF = "O"
 
 
@@ -42,33 +42,33 @@ class SumoActorClass(enum.Enum):
     SumoActorClass enumerates the different sumo actor classes.
     """
 
-    IGNORING = "ignoring"  # noqa: DC01
-    PRIVATE = "private"  # noqa: DC01
-    EMERGENCY = "emergency"  # noqa: DC01
-    AUTHORITY = "authority"  # noqa: DC01
-    ARMY = "army"  # noqa: DC01
-    VIP = "vip"  # noqa: DC01
-    PEDESTRIAN = "pedestrian"  # noqa: DC01
-    PASSENGER = "passenger"  # noqa: DC01
-    HOV = "hov"  # noqa: DC01
-    TAXI = "taxi"  # noqa: DC01
-    BUS = "bus"  # noqa: DC01
-    COACH = "coach"  # noqa: DC01
-    DELIVERY = "delivery"  # noqa: DC01
-    TRUCK = "truck"  # noqa: DC01
-    TRAILER = "trailer"  # noqa: DC01
-    MOTORCYCLE = "motorcycle"  # noqa: DC01
-    MOPED = "moped"  # noqa: DC01
-    BICYCLE = "bicycle"  # noqa: DC01
-    EVEHICLE = "evehicle"  # noqa: DC01
-    TRAM = "tram"  # noqa: DC01
-    RAIL_URBAN = "rail_urban"  # noqa: DC01
-    RAIL = "rail"  # noqa: DC01
-    RAIL_ELECTRIC = "rail_electric"  # noqa: DC01
-    RAIL_FAST = "rail_fast"  # noqa: DC01
-    SHIP = "ship"  # noqa: DC01
-    CUSTOM1 = "custom1"  # noqa: DC01
-    CUSTOM2 = "custom2"  # noqa: DC01
+    IGNORING = "ignoring"  # noqa: DC06
+    PRIVATE = "private"  # noqa: DC06
+    EMERGENCY = "emergency"  # noqa: DC06
+    AUTHORITY = "authority"  # noqa: DC06
+    ARMY = "army"  # noqa: DC06
+    VIP = "vip"  # noqa: DC06
+    PEDESTRIAN = "pedestrian"  # noqa: DC06
+    PASSENGER = "passenger"  # noqa: DC06
+    HOV = "hov"  # noqa: DC06
+    TAXI = "taxi"  # noqa: DC06
+    BUS = "bus"  # noqa: DC06
+    COACH = "coach"  # noqa: DC06
+    DELIVERY = "delivery"  # noqa: DC06
+    TRUCK = "truck"  # noqa: DC06
+    TRAILER = "trailer"  # noqa: DC06
+    MOTORCYCLE = "motorcycle"  # noqa: DC06
+    MOPED = "moped"  # noqa: DC06
+    BICYCLE = "bicycle"  # noqa: DC06
+    EVEHICLE = "evehicle"  # noqa: DC06
+    TRAM = "tram"  # noqa: DC06
+    RAIL_URBAN = "rail_urban"  # noqa: DC06
+    RAIL = "rail"  # noqa: DC06
+    RAIL_ELECTRIC = "rail_electric"  # noqa: DC06
+    RAIL_FAST = "rail_fast"  # noqa: DC06
+    SHIP = "ship"  # noqa: DC06
+    CUSTOM1 = "custom1"  # noqa: DC06
+    CUSTOM2 = "custom2"  # noqa: DC06
 
 
 SumoActor = collections.namedtuple("SumoActor", "type_id vclass transform signals extent color")
@@ -134,9 +134,9 @@ class SumoTLManager(object):
     """
 
     def __init__(self):
-        self._tls = {}  # {tlid: {program_id: SumoTLLogic}
-        self._current_program = {}  # {tlid: program_id}
-        self._current_phase = {}  # {tlid: index_phase}
+        self._tls = {}  # Maps traffic light IDs to program IDs and their SumoTLLogic objects.
+        self._current_program = {}  # Maps traffic light IDs to current program IDs.
+        self._current_phase = {}  # Maps traffic light IDs to current phase indices.
 
         for tlid in traci.trafficlight.getIDList():
             self.subscribe(tlid)
@@ -420,7 +420,6 @@ class SumoSimulation(object):
         """
         Destroys the given actor.
         """
-        # traci.vehicle.remove(actor_id)
 
         if actor_id in traci.vehicle.getIDList():
             traci.vehicle.remove(actor_id)

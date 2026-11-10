@@ -2105,6 +2105,7 @@ def _traffic_manager_config(sync_mode: bool = True):
 def test_traffic_manager_uses_world_seed(mocker):
     """Traffic Manager uses the world seed."""
     params = _minimal_scenario_params()
+    mocker.patch("opencda.scenario_testing.utils.sim_api.torch.cuda.is_available", return_value=False)
     params["world"]["seed"] = 42
     params["carla_traffic_manager"] = _traffic_manager_config()
     tm = Mock()
@@ -2128,6 +2129,7 @@ def test_traffic_manager_is_not_seeded_without_world_seed(mocker):
 
 def test_traffic_manager_seed_warns_in_async_mode(mocker, caplog):
     params = _minimal_scenario_params()
+    mocker.patch("opencda.scenario_testing.utils.sim_api.torch.cuda.is_available", return_value=False)
     params["world"]["seed"] = 1
     params["carla_traffic_manager"] = _traffic_manager_config(sync_mode=False)
     tm = Mock()

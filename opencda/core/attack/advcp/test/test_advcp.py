@@ -1102,7 +1102,7 @@ class TestAdvCoperceptionEarlyFusionAttack:
 
 
 def test_late_advcp_run_reports_raw_detections_before_nms():
-    """Late-fusion AdvCP делает NMS сам, поэтому рамки до NMS он передаёт через хук постпроцессора."""
+    """Late-fusion AdvCP runs NMS directly and reports pre-NMS boxes through the postprocessor hook."""
     recorded = []
     post_processor = SimpleNamespace(
         params={"target_args": {"score_threshold": 0.2}, "order": "hwl", "nms_thresh": 0.15},

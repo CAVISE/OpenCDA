@@ -838,3 +838,54 @@ def test_replay_detects_external_advcp_override_changes(tmp_path: Path, merged_c
     assert any(f"advcp_override/{path_key}" in warning for warning in run_metadata.compare_with_original(original, opt))
     asset.unlink()
     assert any(f"advcp_override/{path_key}" in warning for warning in run_metadata.compare_with_original(original, opt))
+
+
+@pytest.mark.parametrize("failure_stage", [None, "start", "scenario", "stop"])
+def test_managed_components_finalize_manifest(tmp_path, monkeypatch, failure_stage):
+    from contextlib import contextmanager
+    from types import ModuleType
+
+    entrypoint = _load_entrypoint()
+    run_dir = tmp_path / "run"
+    events = []
+
+    @contextmanager
+    def managed_components(opt):
+        assert opt.manage_components
+        events.append("start")
+        if failure_stage == "start":
+            raise RuntimeError("start failed")
+        try:
+            yield
+        finally:
+            events.append("stop")
+            if failure_stage == "stop":
+                raise RuntimeError("stop failed")
+
+    def run_scenario(*args, **kwargs):
+        events.append("scenario")
+        if failure_stage == "scenario":
+            raise RuntimeError("scenario failed")
+
+    scenario = ModuleType("opencda.scenario_testing.scenario")
+    scenario.run_scenario = run_scenario
+    lifecycle = ModuleType("opencda.scenario_testing.component_lifecycle")
+    lifecycle.ManagedComponents = managed_components
+    monkeypatch.setitem(sys.modules, scenario.__name__, scenario)
+    monkeypatch.setitem(sys.modules, lifecycle.__name__, lifecycle)
+    monkeypatch.chdir(Path(__file__).resolve().parents[1])
+    monkeypatch.setattr(sys, "argv", ["opencda.py", "-t", "single_town06_carla", "--manage-components"])
+    monkeypatch.setattr(entrypoint, "get_default_output_path", lambda *args: run_dir)
+    monkeypatch.setattr(entrypoint, "create_logger", lambda *args, **kwargs: entrypoint.logging.getLogger("test"))
+    monkeypatch.setattr(entrypoint, "install_traceback_handler", lambda *args, **kwargs: None)
+    monkeypatch.setattr(entrypoint, "show_performance_stats", lambda stats: None)
+    if failure_stage:
+        with pytest.raises(RuntimeError, match=f"{failure_stage} failed"):
+            entrypoint.main()
+    else:
+        entrypoint.main()
+    manifest = run_metadata.load_run_manifest(run_dir)
+    assert manifest["status"] == ("failed" if failure_stage else "completed")
+    assert events == (["start"] if failure_stage == "start" else ["start", "scenario", "stop"])
+    if failure_stage:
+        assert f"{failure_stage} failed" in manifest["error"]

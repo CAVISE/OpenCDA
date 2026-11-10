@@ -62,11 +62,11 @@ CoreMethodName = Literal[
 
 
 class CoperceptionVisualizationConfig(TypedDict):
-    background: ColorRGB  # noqa: DC01
+    background: ColorRGB  # noqa: DC06
     lidar_point_colors: dict[str, ColorRGB]
-    bbox_colors: dict[str, ColorRGB]  # noqa: DC01
-    bbox_line_thickness: int  # noqa: DC01
-    image_dpi: int  # noqa: DC01
+    bbox_colors: dict[str, ColorRGB]  # noqa: DC06
+    bbox_line_thickness: int  # noqa: DC06
+    image_dpi: int  # noqa: DC06
 
 
 @dataclass

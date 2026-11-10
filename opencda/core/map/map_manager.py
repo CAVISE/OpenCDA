@@ -192,10 +192,6 @@ class MapManager(object):
             return
         self.rasterize_static()
         self.rasterize_dynamic()
-        # if self.visualize:
-        #     cv2.imshow('the bev map of agent %s' % self.agent_id,
-        #                self.vis_bev)
-        #     cv2.waitKey(1)
 
     def agents_in_range(self, radius: float, agents_dict: AgentInfo) -> AgentInfo:
         """

@@ -485,7 +485,7 @@ def describe_bundle(bundle_dir_value: str | None, *, bundle_id: str | None, cate
 
     info.update(
         {
-            "repository": _redact_string(web_url or remote) if (web_url or remote) else None,
+            "repository": _redact_string(web_url or remote or "") if (web_url or remote) else None,
             "path_in_repository": bundle_path,
             "commit": commit,
             "url": _redact_string(f"{web_url}/tree/{commit}/{bundle_path}") if web_url and commit else None,

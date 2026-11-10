@@ -154,7 +154,7 @@ def build_parser() -> argparse.ArgumentParser:
         "-t",
         "--test-scenario",
         type=str,
-        help="Define the name of the scenario you want to test. Notice, this only has effect on configurations that are picked up by scenario",
+        help="Define the name of or the global path to the scenario you want to test. Notice, this only has effect on configurations that are picked up by scenario",
     )
     parser.add_argument(
         REPLAY_FLAG,
@@ -174,16 +174,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Save per-tick cooperative perception boxes and confidence scores to the evaluation output folder (default: on).",
     )
     parser.add_argument("--record", action="store_true", help="Whether to record and save the simulation process to .log file")
-    # NOTICE: temporary disabled until we update yolo models.
-    # parser.add_argument("--apply-ml", action='store_true',
-    #                     help='whether ml/dl framework such as sklearn/pytorch is needed in the testing. '
-    #                          'Set it to true only when you have installed the pytorch/sklearn package.')
     parser.add_argument("-v", "--version", action="version", version=f"OpenCDA v{__version__}")
     parser.add_argument("--free-spectator", action="store_true", help="Enable free movement for the spectator camera.")
     parser.add_argument("-x", "--xodr", action="store_true", help="Run simulation using a custom map from an XODR file.")
     parser.add_argument("-c", "--cosim", action="store_true", help="Enable co-simulation with SUMO.")
     parser.add_argument("--carla-host", type=str, default="carla", help="IP address or hostname of the CARLA server (default: 'carla')")
-    parser.add_argument("--carla-timeout", type=float, default=30.0, help="Timeout of the CARLA server response in seconds (default: 30.0)")
+    parser.add_argument("--carla-timeout", type=float, default=10.0, help="Timeout of the CARLA server response in seconds (default: 10.0)")
 
     # CAPI parameters
     parser.add_argument("--with-capi", action="store_true", help="wether to run a communication manager instance in this simulation.")
@@ -222,6 +218,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="AdvCP attack config name or path. Relative names are resolved from opencda/scenario_testing/config_yaml/advcp.",
     )
     parser.add_argument("--advcp-assets-id", type=str, default="base-car", help="Logical AdvCP runtime asset bundle ID.")
+
+    # CARLA and SUMO lifecycle management parameters
+    parser.add_argument("--manage-components", action="store_true", help="Start and stop dedicated component adapters for this run.")
+    parser.add_argument("--carla-adapter-url", default="http://carla:8080", help="CARLA adapter base URL.")
+    parser.add_argument("--sumo-adapter-url", default="http://sumo:8080", help="SUMO adapter base URL.")
 
     def verbosity_wrapper(arg: str) -> VerbosityLevel:
         return VerbosityLevel(int(arg))
@@ -269,7 +270,7 @@ def build_command_from_options(opt: argparse.Namespace) -> list[str]:
         value = getattr(opt, action.dest)
         flag = max(action.option_strings, key=len)
         if isinstance(action, argparse.BooleanOptionalAction):
-            # option_strings: ["--save-predictions", "--no-save-predictions"]
+            # The positive spelling precedes the negative spelling in option_strings.
             if value != action.default:
                 argv.append(action.option_strings[0] if value else action.option_strings[1])
         elif isinstance(action, argparse._StoreTrueAction):
@@ -346,8 +347,10 @@ def main() -> None:
     else:
         level = logging.WARNING
 
+    scenario_path = pathlib.Path(opt.test_scenario)
+    test_scenario_name = scenario_path.stem
     log_path = (
-        pathlib.Path(opt.log_file) if opt.log_file is not None else get_default_output_path(opt.test_scenario, current_time) / DEFAULT_LOG_FILENAME
+        pathlib.Path(opt.log_file) if opt.log_file is not None else get_default_output_path(test_scenario_name, current_time) / DEFAULT_LOG_FILENAME
     )
     logger = create_logger(level=level, filename=str(log_path))
     install_traceback_handler(verbose=verbosity != VerbosityLevel.SILENT)
@@ -356,7 +359,11 @@ def main() -> None:
 
     cwd = pathlib.Path.cwd()
     default_yaml = config_yaml = cwd / "opencda/scenario_testing/config_yaml/default.yaml"
-    config_yaml = cwd / f"opencda/scenario_testing/config_yaml/{opt.test_scenario}.yaml"
+    if scenario_path.suffix.lower() == ".yaml":
+        config_yaml = scenario_path
+        opt.test_scenario = test_scenario_name
+    else:
+        config_yaml = cwd / f"opencda/scenario_testing/config_yaml/{opt.test_scenario}.yaml"
     advcp_config_dir = cwd / "opencda/scenario_testing/config_yaml/advcp-configs"
     replay_dir = pathlib.Path(opt.replay_from) if opt.replay_from else None
     if replay_dir is not None:
@@ -365,7 +372,7 @@ def main() -> None:
 
         config_yaml = reproducibility_dir(replay_dir) / CONFIG_FILENAME
     if not config_yaml.is_file():
-        logger.error(f"{config_yaml.relative_to(cwd) if config_yaml.is_relative_to(cwd) else config_yaml} not found!")
+        logger.error(f"{config_yaml} not found!")
         sys.exit(errno.EPERM)
 
     if opt.with_advcp:
@@ -457,28 +464,33 @@ def main() -> None:
         # we should import as late as possible
         from opencda.scenario_testing.scenario import run_scenario
 
-        if opt.profile:
-            profiler = cProfile.Profile()
-            profiler.enable()
+        from contextlib import nullcontext
+        from opencda.scenario_testing.component_lifecycle import ManagedComponents
 
-            try:
+        environment = ManagedComponents(opt) if opt.manage_components else nullcontext()
+        with environment:
+            if opt.profile:
+                profiler = cProfile.Profile()
+                profiler.enable()
+
+                try:
+                    scenario_started_at = time.perf_counter()
+                    run_scenario(opt, scene_dict, current_time=current_time, runtime_stats=runtime_stats)
+                    runtime_stats["full_scenario"] = time.perf_counter() - scenario_started_at
+                finally:
+                    evaluation_output_dir.mkdir(parents=True, exist_ok=True)
+                    profiler_output = evaluation_output_dir / "profile_output.prof"
+                    profiler.disable()
+                    profiler.dump_stats(profiler_output)
+                    logger.info(f"Profiler output saved to {profiler_output}")
+
+                    stats = pstats.Stats(profiler)
+                    stats.sort_stats("cumulative")
+                    stats.print_stats(30)
+            else:
                 scenario_started_at = time.perf_counter()
                 run_scenario(opt, scene_dict, current_time=current_time, runtime_stats=runtime_stats)
                 runtime_stats["full_scenario"] = time.perf_counter() - scenario_started_at
-            finally:
-                evaluation_output_dir.mkdir(parents=True, exist_ok=True)
-                profiler_output = evaluation_output_dir / "profile_output.prof"
-                profiler.disable()
-                profiler.dump_stats(profiler_output)
-                logger.info(f"Profiler output saved to {profiler_output}")
-
-                stats = pstats.Stats(profiler)
-                stats.sort_stats("cumulative")
-                stats.print_stats(30)
-        else:
-            scenario_started_at = time.perf_counter()
-            run_scenario(opt, scene_dict, current_time=current_time, runtime_stats=runtime_stats)
-            runtime_stats["full_scenario"] = time.perf_counter() - scenario_started_at
         run_status = "completed"
     except KeyboardInterrupt:
         run_status = "interrupted"
