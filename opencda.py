@@ -449,6 +449,10 @@ def resolve_launch_arguments(cli_argv: list[str]) -> tuple[argparse.Namespace, l
             saved_argv = _strip_option(saved_argv, first)
     opt = parser.parse_args(saved_argv)
     vars(opt).update(supplied)
+    if supplied.get("with_coperception") is False:
+        for name in ("model_id", "model_dir"):
+            if name not in supplied:
+                setattr(opt, name, None)
     opt._explicit_options = set(supplied)
     opt.replay_from = str(replay_dir)
     if opt.test_scenario is None:

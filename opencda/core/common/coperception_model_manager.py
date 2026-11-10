@@ -811,8 +811,8 @@ class CoperceptionModelManager:
                         record(raw_boxes, scores, None)
                     return original_nms(boxes, scores, *nms_args, **nms_kwargs)
 
-                setattr(nms_module, nms_name, capture_nms)
                 try:
+                    setattr(nms_module, nms_name, capture_nms)
                     result = original(*args, **kwargs)
                 finally:
                     setattr(nms_module, nms_name, original_nms)
@@ -824,19 +824,20 @@ class CoperceptionModelManager:
         had_instance_attribute = method_name in vars(post_processor)
         had_raw_hook = RAW_DETECTIONS_HOOK in vars(post_processor)
         original_hook = getattr(post_processor, RAW_DETECTIONS_HOOK, None)
-        setattr(post_processor, method_name, recording)
-        setattr(post_processor, RAW_DETECTIONS_HOOK, record)
         try:
+            setattr(post_processor, method_name, recording)
+            setattr(post_processor, RAW_DETECTIONS_HOOK, record)
             yield calls
         finally:
             if had_raw_hook:
                 setattr(post_processor, RAW_DETECTIONS_HOOK, original_hook)
-            else:
+            elif RAW_DETECTIONS_HOOK in vars(post_processor):
                 delattr(post_processor, RAW_DETECTIONS_HOOK)
             if had_instance_attribute:
                 setattr(post_processor, method_name, original)
             else:
-                delattr(post_processor, method_name)
+                if method_name in vars(post_processor):
+                    delattr(post_processor, method_name)
                 if getattr(post_processor, method_name, None) is None:
                     setattr(post_processor, method_name, original)
 

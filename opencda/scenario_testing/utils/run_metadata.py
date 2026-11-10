@@ -695,33 +695,58 @@ def _redact_yaml_file(path: Path) -> bool:
     bool
         True if credentials were removed. Files without credentials remain
         unchanged; custom tags and aliases are inspected as YAML nodes only.
+        All references to credential nodes and copies of their scalar values
+        are sanitized, including aliases to containers and their children.
     """
     original = path.read_text(encoding="utf-8")
     # Compose nodes without constructing Python/NumPy objects from custom tags.
     root = yaml.compose(original, Loader=yaml.SafeLoader)
     pending = [root] if root is not None else []
-    visited: set[int] = set()
-    redacted = False
+    nodes: dict[int, yaml.Node] = {}
+    credentials: list[yaml.Node] = []
     while pending:
         node = pending.pop()
-        if id(node) in visited:
+        if id(node) in nodes:
             continue
-        visited.add(id(node))
+        nodes[id(node)] = node
         if isinstance(node, yaml.MappingNode):
-            for index, (key, value) in enumerate(node.value):
+            for key, value in node.value:
                 if isinstance(key, yaml.ScalarNode) and SECRET_KEY_PATTERN.search(key.value) and value.tag != "tag:yaml.org,2002:null":
-                    node.value[index] = (key, yaml.ScalarNode("tag:yaml.org,2002:str", REDACTED))
-                    redacted = True
-                else:
-                    pending.extend((key, value))
+                    credentials.append(value)
+                pending.extend((key, value))
         elif isinstance(node, yaml.SequenceNode):
             pending.extend(node.value)
-        elif isinstance(node, yaml.ScalarNode):
-            cleaned = _redact_string(node.value)
+
+    # Discover the entire credential graph before rewriting any aliased nodes.
+    replacements: dict[int, yaml.ScalarNode] = {}
+    secret_values: set[str] = set()
+    while credentials:
+        node = credentials.pop()
+        if id(node) in replacements:
+            continue
+        replacements[id(node)] = yaml.ScalarNode("tag:yaml.org,2002:str", REDACTED)
+        if isinstance(node, yaml.MappingNode):
+            credentials.extend(child for pair in node.value for child in pair)
+        elif isinstance(node, yaml.SequenceNode):
+            credentials.extend(node.value)
+        elif isinstance(node, yaml.ScalarNode) and node.value and node.tag != "tag:yaml.org,2002:null":
+            secret_values.add(node.value)
+
+    redacted = bool(replacements)
+    for node in nodes.values():
+        if isinstance(node, yaml.MappingNode):
+            node.value = [(replacements.get(id(key), key), replacements.get(id(value), value)) for key, value in node.value]
+        elif isinstance(node, yaml.SequenceNode):
+            node.value = [replacements.get(id(value), value) for value in node.value]
+        elif isinstance(node, yaml.ScalarNode) and id(node) not in replacements:
+            cleaned = REDACTED if any(secret in node.value for secret in secret_values) else _redact_string(node.value)
             if cleaned != node.value:
+                if cleaned == REDACTED:
+                    node.tag = "tag:yaml.org,2002:str"
                 node.value = cleaned
                 redacted = True
     if redacted:
+        root = replacements.get(id(root), root)
         path.write_text(yaml.serialize(root, allow_unicode=True), encoding="utf-8")
         return True
     cleaned_text = _redact_string(original)

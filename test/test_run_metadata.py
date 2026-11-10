@@ -995,6 +995,77 @@ def test_yaml_redaction_handles_recursive_aliases_and_null_credentials(tmp_path)
     assert not run_metadata._redact_yaml_file(source)
 
 
+@pytest.mark.parametrize(
+    "config",
+    [
+        "password: &p TEST_ALIAS_SECRET\nconnection_value: *p\n",
+        "connection_value: &p TEST_ALIAS_SECRET\npassword: *p\n",
+        "password: &p [TEST_ALIAS_SECRET]\nconnection_value: *p\n",
+        "password: &p {value: &v TEST_ALIAS_SECRET}\nconnection_value: *p\nchild: *v\n",
+        "connection_value: &p {value: &v TEST_ALIAS_SECRET}\nchild: *v\npassword: *p\n",
+        "password: &p {value: TEST_ALIAS_SECRET, self: *p}\nconnection_value: *p\n",
+        "password: TEST_ALIAS_SECRET\nconnection_value: prefix/TEST_ALIAS_SECRET/suffix\n",
+        "password: &p TEST_ALIAS_SECRET\n? *p\n: aliased mapping key\n",
+        'password: &p 123456789\nconnection_value: *p\ncopied_number: "123456789"\n',
+        'password: &p ""\nconnection_value: *p\n',
+    ],
+)
+def test_copied_yaml_redacts_credentials_through_all_references(tmp_path, config):
+    """Remove aliased and copied secrets from persisted source inputs.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory supplied by pytest.
+    config : str
+        YAML fixture containing credential aliases or duplicate values.
+    """
+    source = tmp_path / "source.yaml"
+    original = config + "unrelated: preserved\n"
+    source.write_text(original, encoding="utf-8")
+    output = tmp_path / "run"
+
+    inputs = run_metadata._copy_inputs(output, {"scenario_config": source}, _make_opt())
+
+    saved_path = output / inputs["scenario_config"]["copy"]
+    saved = saved_path.read_text(encoding="utf-8")
+    assert "TEST_ALIAS_SECRET" not in saved
+    assert "123456789" not in saved
+    assert inputs["scenario_config"]["redacted"] is True
+    assert inputs["scenario_config"]["sha256"] == run_metadata.sha256_file(saved_path)
+    values = run_metadata.yaml.safe_load(saved)
+    assert values["password"] == run_metadata.REDACTED
+    if "connection_value" in values:
+        assert values["connection_value"] == run_metadata.REDACTED
+    assert values["unrelated"] == "preserved"
+    assert source.read_text(encoding="utf-8") == original
+
+
+def test_merged_config_redacts_copies_of_credential_values(tmp_path, merged_config):
+    """Redact resolved credential interpolations and reject unsafe replay.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory supplied by pytest.
+    merged_config : omegaconf.DictConfig
+        Scenario configuration to augment with a credential interpolation.
+    """
+    config = OmegaConf.merge(merged_config, OmegaConf.create({"password": "TEST_MERGED_SECRET", "connection_value": "${password}"}))
+
+    manifest = run_metadata.write_run_artifacts(tmp_path, opt=_make_opt(), argv=["-t", "demo"], merged_config=config, current_time="t")
+
+    saved_path = tmp_path / "reproducibility/config.yaml"
+    assert "TEST_MERGED_SECRET" not in saved_path.read_text(encoding="utf-8")
+    saved = OmegaConf.load(saved_path)
+    assert saved.password == saved.connection_value == run_metadata.REDACTED
+    assert saved.world.seed == merged_config.world.seed
+    assert manifest["config_redacted"] is True
+    assert manifest["config_sha256"] == run_metadata.sha256_file(saved_path)
+    with pytest.raises(ValueError, match="redacted credentials"):
+        _load_entrypoint().resolve_launch_arguments(["--replay-from", str(tmp_path)])
+
+
 @pytest.mark.skipif(shutil.which("git") is None, reason="git is required")
 @pytest.mark.parametrize("invalid_utf8", [False, True])
 def test_saved_crlf_patch_is_byte_exact_and_reverse_applicable(tmp_path, monkeypatch, invalid_utf8):
@@ -1132,3 +1203,52 @@ def test_replay_inverse_model_fetch_policy(tmp_path, saved, override, expected):
     assert opt.no_auto_fetch_models is expected
     assert entrypoint.arg_parse(command).no_auto_fetch_models is expected
     assert "--no-no-auto-fetch-models" not in entrypoint.build_parser().format_help()
+
+
+@pytest.mark.parametrize(
+    "selectors", [["--model-id", "saved-model"], ["--model-dir", "/saved/model"], ["--model-id", "saved-model", "--model-dir", "/saved/model"]]
+)
+def test_replay_disabling_coperception_clears_saved_model_selectors(tmp_path, selectors):
+    """Disable replay perception without resolving the saved model bundle.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory supplied by pytest.
+    selectors : list of str
+        Saved model arguments, including legacy manifests with both selectors.
+    """
+    entrypoint = _load_entrypoint()
+    run_metadata.write_json(tmp_path / "run_manifest.json", {"launch": {"argv": ["-t", "demo", "--with-coperception", *selectors]}})
+
+    opt, command, _ = entrypoint.resolve_launch_arguments(["--replay-from", str(tmp_path), "--no-with-coperception"])
+
+    assert opt.with_coperception is False
+    assert opt.model_id is None and opt.model_dir is None
+    assert "--model-id" not in command and "--model-dir" not in command
+    entrypoint.model_resolver.resolve_runtime_models(opt)
+    restored = entrypoint.arg_parse(command)
+    entrypoint.model_resolver.resolve_runtime_models(restored)
+    assert restored.with_coperception is False
+    assert restored.model_id is None and restored.model_dir is None
+
+
+@pytest.mark.parametrize("selector", ["--model-id", "--model-dir"])
+def test_replay_disabling_coperception_preserves_explicit_selector_validation(tmp_path, selector):
+    """Retain validation for an explicitly requested conflicting model.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary directory supplied by pytest.
+    selector : str
+        Model selector explicitly supplied alongside disabled perception.
+    """
+    entrypoint = _load_entrypoint()
+    run_metadata.write_json(tmp_path / "run_manifest.json", {"launch": {"argv": ["-t", "demo", "--with-coperception", "--model-id", "saved-model"]}})
+
+    opt, _, _ = entrypoint.resolve_launch_arguments(["--replay-from", str(tmp_path), "--no-with-coperception", selector, "explicit-model"])
+
+    assert getattr(opt, selector.removeprefix("--").replace("-", "_")) == "explicit-model"
+    with pytest.raises(entrypoint.model_resolver.ModelResolutionError, match="require --with-coperception"):
+        entrypoint.model_resolver.resolve_runtime_models(opt)

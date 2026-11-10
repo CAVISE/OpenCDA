@@ -985,6 +985,72 @@ class TestRawDetections:
         assert case.processor.record_raw_detections is previous_hook
         assert case.method not in vars(case.processor)
 
+    @pytest.mark.parametrize("installation", ["method", "raw_hook", "nms"])
+    @pytest.mark.parametrize("before_set", [False, True])
+    @pytest.mark.parametrize("existing_hook", [False, True])
+    def test_interrupted_hook_installation_restores_prediction_path(self, direct_postprocessor, monkeypatch, installation, before_set, existing_hook):
+        """Undo partially installed hooks before allowing the next prediction.
+
+        Parameters
+        ----------
+        direct_postprocessor : types.SimpleNamespace
+            Native-NMS postprocessor fixture with known candidate boxes.
+        monkeypatch : pytest.MonkeyPatch
+            Fixture for interrupting production attribute assignment.
+        installation : str
+            Hook whose installation is interrupted.
+        before_set, existing_hook : bool
+            Whether to interrupt before assignment and preserve a previous hook.
+        """
+        case = direct_postprocessor
+        module = import_module(CoperceptionModelManager.__module__)
+        previous_hook = MagicMock()
+        if existing_hook:
+            case.processor.record_raw_detections = previous_hook
+        owner, attribute = (
+            (case.helper, case.nms_name)
+            if installation == "nms"
+            else (case.processor, case.method if installation == "method" else "record_raw_detections")
+        )
+        original_setattr = setattr
+        interrupted = False
+
+        def interrupt_installation(target, name, value):
+            """Interrupt one selected assignment and allow subsequent cleanup.
+
+            Parameters
+            ----------
+            target : object
+                Object receiving the temporary attribute.
+            name : str
+                Attribute being installed or restored.
+            value : object
+                Assigned value, forwarded unchanged outside the interrupted call.
+            """
+            nonlocal interrupted
+            if not interrupted and target is owner and name == attribute:
+                interrupted = True
+                if not before_set:
+                    original_setattr(target, name, value)
+                raise KeyboardInterrupt("hook installation interrupted")
+            original_setattr(target, name, value)
+
+        monkeypatch.setattr(module, "setattr", interrupt_installation, raising=False)
+        with pytest.raises(KeyboardInterrupt, match="hook installation interrupted"):
+            with case.manager._capture_raw_detections():
+                getattr(case.processor, case.method)(case.inputs)
+
+        assert getattr(case.helper, case.nms_name) is case.native
+        if existing_hook:
+            assert case.processor.record_raw_detections is previous_hook
+        else:
+            assert "record_raw_detections" not in vars(case.processor)
+        assert case.method not in vars(case.processor)
+        with case.manager._capture_raw_detections() as calls:
+            selected = getattr(case.processor, case.method)(case.inputs)
+        raw_boxes, _ = case.manager._select_raw_detections(calls, selected[1])
+        np.testing.assert_array_equal(raw_boxes, case.expected_boxes)
+
     def test_direct_nms_ignores_calls_from_another_thread(self, direct_postprocessor):
         """Do not bind unrelated thread-local NMS inputs to this prediction."""
         case = direct_postprocessor
