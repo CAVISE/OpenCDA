@@ -56,10 +56,39 @@ def accumulate_tp_fp(
     return True
 
 
+def calculate_threshold_metrics(
+    result_stat: ResultStat,
+    iou: float,
+    confidence_threshold: float = 0.5,
+) -> dict[str, int | float | None]:
+    stat = result_stat[iou]
+
+    scores = np.asarray(stat["score"])
+    tp_flags = np.asarray(stat["tp"])
+    fp_flags = np.asarray(stat["fp"])
+
+    selected = scores >= confidence_threshold
+
+    tp = int(tp_flags[selected].sum())
+    fp = int(fp_flags[selected].sum())
+    fn = int(stat["gt"]) - tp
+
+    precision = tp / (tp + fp) if tp + fp else None
+    recall = tp / stat["gt"] if stat["gt"] else None
+
+    return {
+        "tp": tp,
+        "fp": fp,
+        "fn": fn,
+        "precision": precision,
+        "recall": recall,
+    }
+
+
 def mean_curve_value(curve_values: Sequence[float]) -> float:
     """Return a scalar summary for a VOC AP precision/recall curve."""
     values = list(curve_values)
-    if len(values) > 2:
+    if len(values) >= 2:
         values = values[1:-1]
     if not values:
         return 0.0

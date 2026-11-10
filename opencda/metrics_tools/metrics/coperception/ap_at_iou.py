@@ -11,6 +11,7 @@ from opencda.metrics_tools.metric_sample import MetricSample
 from opencda.metrics_tools.metrics.coperception._opencood_eval import (
     ResultStat,
     accumulate_tp_fp,
+    calculate_threshold_metrics,
     create_empty_result_stat,
     iou_series_name,
     load_eval_utils,
@@ -31,9 +32,12 @@ class APAtIoUMetric(BaseMetric):
         self,
         warmup_steps: int = 0,
         global_sort_detections: bool = True,
+        confidence_threshold: float = 0.5,
     ):
+
         super().__init__(warmup_steps=warmup_steps)
         self.global_sort_detections = global_sort_detections
+        self.confidence_threshold = confidence_threshold
         self.result_stat: ResultStat = create_empty_result_stat(self.iou_thresholds)
         self._samples_by_series: dict[str, list[MetricSample]] = {self._series_name(iou): [] for iou in self.iou_thresholds}
 
@@ -61,6 +65,30 @@ class APAtIoUMetric(BaseMetric):
             self.global_sort_detections if global_sort_detections is None else global_sort_detections,
         )
         return float(ap)
+
+    def get_final_metrics(self) -> dict[str, Any]:
+        by_iou = {}
+
+        for iou in self.iou_thresholds:
+            stat = self.result_stat[iou]
+
+            ap = self.calculate_ap(iou) if stat["gt"] else None
+
+            threshold_metrics = calculate_threshold_metrics(
+                self.result_stat,
+                iou,
+                self.confidence_threshold,
+            )
+
+            by_iou[str(iou)] = {
+                "ap": ap,
+                **threshold_metrics,
+            }
+
+        return {
+            "confidence_threshold": self.confidence_threshold,
+            "by_iou": by_iou,
+        }
 
     def _log_ap_at_iou(self) -> None:
         ap_parts = []

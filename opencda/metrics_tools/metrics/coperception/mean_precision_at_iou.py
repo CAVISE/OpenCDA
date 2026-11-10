@@ -69,12 +69,12 @@ class MeanPrecisionAtIoUMetric(BaseMetric):
     def get_report_spec(cls) -> MetricReportSpec:
         return MetricReportSpec(
             metric_name=cls.metric_name,
-            display_name="Mean Precision at IoU",
+            display_name="Mean Interpolated PR-Curve Precision",
             series_names=tuple(cls._series_name(iou) for iou in cls.iou_thresholds),
             summary_specs=tuple(
                 MetricSummarySpec(
                     series_name=cls._series_name(iou),
-                    display_name=f"Mean Precision at IoU {iou:.1f}",
+                    display_name=f"Mean Interpolated PR-Curve Precision at IoU {iou:.1f}",
                 )
                 for iou in cls.iou_thresholds
             ),
