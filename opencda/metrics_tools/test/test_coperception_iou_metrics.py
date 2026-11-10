@@ -86,3 +86,53 @@ def test_mean_recall_at_iou_exports_one_sample_per_valid_update(monkeypatch):
     assert len(samples) == 1
     assert samples[0].tick == 2
     assert abs(samples[0].value - 0.5) < 1e-9
+
+
+def test_mean_curve_value_excludes_sentinel_only_curve():
+    assert _opencood_eval.mean_curve_value([0.0, 1.0]) == 0.0
+
+
+def test_threshold_metrics():
+    result_stat = {
+        0.5: {
+            "tp": [1, 0, 1, 0],
+            "fp": [0, 1, 0, 1],
+            "score": [0.9, 0.8, 0.6, 0.2],
+            "gt": 3,
+        }
+    }
+
+    result = _opencood_eval.calculate_threshold_metrics(result_stat, 0.5, 0.5)
+
+    assert result["tp"] == 2
+    assert result["fp"] == 1
+    assert result["fn"] == 1
+    assert np.isclose(result["precision"], 2 / 3)
+    assert np.isclose(result["recall"], 2 / 3)
+
+
+def test_threshold_metrics_without_predictions():
+    result_stat = {0.5: {"tp": [], "fp": [], "score": [], "gt": 3}}
+
+    result = _opencood_eval.calculate_threshold_metrics(result_stat, 0.5)
+
+    assert result["tp"] == 0
+    assert result["fp"] == 0
+    assert result["fn"] == 3
+    assert result["precision"] is None
+    assert result["recall"] == 0
+
+
+def test_final_metrics(monkeypatch):
+    _patch_eval_utils(monkeypatch)
+
+    metric = APAtIoUMetric(confidence_threshold=0.5)
+    metric.update(_context())
+
+    result = metric.get_final_metrics()
+
+    assert result["confidence_threshold"] == 0.5
+    assert result["by_iou"]["0.5"]["ap"] == 0.5
+    assert result["by_iou"]["0.5"]["tp"] == 1
+    assert result["by_iou"]["0.5"]["fp"] == 0
+    assert result["by_iou"]["0.5"]["fn"] == 0
