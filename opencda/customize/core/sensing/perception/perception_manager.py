@@ -26,12 +26,12 @@ class CustomziedPeceptionManager(PerceptionManager):  # noqa DC03
             rgb_images.append(cv2.cvtColor(np.array(rgb_camera.image), cv2.COLOR_BGR2RGB))
 
         # retrieve lidar data from the sensor
-        # lidar_data = self.lidar.data
+        # Access the lidar measurements through self.lidar.data.
 
         ########################################
         # this is where you put your algorithm #
         ########################################
-        # objects = your_algorithm(rgb_images, lidar_data)
+        # Populate objects with the results of your perception algorithm.
         assert isinstance(type(objects["vehicles"]), ObstacleVehicle)
         assert isinstance(type(objects["traffic_lights"]), TrafficLight)
 

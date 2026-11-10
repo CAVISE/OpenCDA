@@ -23,7 +23,7 @@ logger = logging.getLogger("cavise.opencda.opencda.core.common.coperception_data
 
 
 class VehicleDumpRecord(TypedDict):
-    bp_id: str  # noqa: DC01
+    bp_id: str  # noqa: DC06
     color: str | None
     location: tuple[float, float, float]
     center: tuple[float, float, float]
@@ -34,8 +34,8 @@ class VehicleDumpRecord(TypedDict):
 
 class CameraDumpRecord(TypedDict):
     cords: tuple[float, float, float, float, float, float]
-    intrinsic: list[list[float]]  # noqa: DC01
-    extrinsic: list[list[float]]  # noqa: DC01
+    intrinsic: list[list[float]]  # noqa: DC06
+    extrinsic: list[list[float]]  # noqa: DC06
 
 
 class LiveParams(TypedDict, total=False):
@@ -44,15 +44,15 @@ class LiveParams(TypedDict, total=False):
     true_ego_pos: tuple[float, float, float, float, float, float]
     ego_speed: float
     lidar_pose: tuple[float, float, float, float, float, float]
-    RSU: bool  # noqa: DC01
-    plan_trajectory: list[tuple[float, float, float]]  # noqa: DC01
+    RSU: bool  # noqa: DC06
+    plan_trajectory: list[tuple[float, float, float]]  # noqa: DC06
 
 
 class LiveMemorySnapshot(TypedDict):
     params: LiveParams
-    lidar_np: np.ndarray  # noqa: DC01 - consumed by OpenCOOD through the live-memory mapping
+    lidar_np: np.ndarray  # noqa: DC06 - consumed by OpenCOOD through the live-memory mapping
     spoofing_mask: NotRequired[np.ndarray]
-    camera0: list[object]  # noqa: DC01
+    camera0: list[object]  # noqa: DC06
 
 
 class CoperceptionDataProcessor:

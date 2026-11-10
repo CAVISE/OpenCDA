@@ -25,7 +25,7 @@ class CavData:
 class AIMServerState:
     service_type: str
     owner_id: str | None
-    tracked_vehicle_ids: tuple[str, ...]  # noqa: DC01
-    trajectory_vehicle_ids: tuple[str, ...]  # noqa: DC01
-    tracked_vehicle_count: int  # noqa: DC01
-    trajectory_vehicle_count: int  # noqa: DC01
+    tracked_vehicle_ids: tuple[str, ...]  # noqa: DC06
+    trajectory_vehicle_ids: tuple[str, ...]  # noqa: DC06
+    tracked_vehicle_count: int  # noqa: DC06
+    trajectory_vehicle_count: int  # noqa: DC06

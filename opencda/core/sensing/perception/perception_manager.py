@@ -323,7 +323,7 @@ class LidarSensor(FrameSynchronizedSensor):
 
         # retrieve the raw lidar data and reshape to (N, 4)
         data = np.copy(np.frombuffer(event.raw_data, dtype=np.dtype("f4")))
-        # (x, y, z, intensity)
+        # Point fields: x, y, z, and intensity.
         data = np.reshape(data, (int(data.shape[0] / 4), 4))
 
         self.data = data
@@ -431,7 +431,7 @@ class SemanticLidarSensor(FrameSynchronizedSensor):
         if not self:
             return
 
-        # shape:(n, 6)
+        # Each of the n points has six fields.
         data = np.frombuffer(
             event.raw_data,
             dtype=np.dtype(
@@ -439,7 +439,7 @@ class SemanticLidarSensor(FrameSynchronizedSensor):
             ),
         )
 
-        # (x, y, z, intensity)
+        # Point fields: x, y, z, and intensity.
         self.points = np.array([data["x"], data["y"], data["z"]]).T
         self.obj_tag = np.array(data["ObjTag"])
         self.obj_idx = np.array(data["ObjIdx"])
@@ -506,7 +506,7 @@ class PerceptionManager:
         self.vehicle = vehicle
         self.carla_world = carla_world if carla_world is not None else self.vehicle.get_world()
         self._map = self.carla_world.get_map()
-        # 12 - walker, pedestrian, [13,18] - bikes, motobikes, 14 - vehicles, 15 - vehicles, trucks,  16 - vehicle.mitsubishi.fusorosa,
+        # Semantic tags: pedestrians (12), bikes (13, 18), and vehicles (14, 15, 16).
         self.semantic_tag_list = [12, 13, 14, 15, 16, 18]
         self.perception_requirements = perception_requirements
         self.enabled = resolve_perception_enabled(config_yaml, perception_requirements)

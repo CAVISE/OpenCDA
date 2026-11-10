@@ -136,7 +136,6 @@ class CoScenarioManager(ScenarioManager):
         # -----------------
         # sumo-->carla sync
         # -----------------
-        # self.sumo.tick()
         # In some cases, you need to use self.sumo.tick() elsewhere
 
         # Spawning new sumo actors in carla (i.e, not controlled by carla).
