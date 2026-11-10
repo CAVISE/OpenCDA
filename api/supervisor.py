@@ -66,6 +66,23 @@ def group_has_live_members(group_id: int) -> bool:
     return False
 
 
+def wait_for_child(store: Store, task_id: str, child: subprocess.Popen) -> bool:
+    """Wait for child exit and report whether this supervisor delivered cancellation."""
+    signalled = False
+    while child.poll() is None:
+        task = store.db.execute("SELECT cancel_requested FROM tasks WHERE id = ?", (task_id,)).fetchone()
+        if task[0] and not signalled:
+            try:
+                os.killpg(child.pid, signal.SIGINT)
+                signalled = True
+            except ProcessLookupError:
+                # The child exited before cancellation; reconcile its actual result below.
+                pass
+        time.sleep(0.1)
+
+    return signalled
+
+
 def supervise(directory: Path, task_id: str, command: list[str]) -> None:
     """Own the child and persist its result before releasing the active task slot."""
     store = Store(directory)
@@ -83,17 +100,7 @@ def supervise(directory: Path, task_id: str, command: list[str]) -> None:
         store.close()
         return
 
-    signalled = False
-    while child.poll() is None:
-        task = store.db.execute("SELECT cancel_requested FROM tasks WHERE id = ?", (task_id,)).fetchone()
-        if task[0] and not signalled:
-            try:
-                os.killpg(child.pid, signal.SIGINT)
-                signalled = True
-            except ProcessLookupError:
-                # The child exited before cancellation; reconcile its actual result below.
-                pass
-        time.sleep(0.1)
+    signalled = wait_for_child(store, task_id, child)
 
     # A dead API cannot prevent this process from recording the outcome. Failed
     # adapter cleanup stays occupied and is retried without relaunching execution.
