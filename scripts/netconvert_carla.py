@@ -520,7 +520,7 @@ def _netconvert_carla_impl(
     # ---------
     # Landmarks
     # ---------
-    tls: dict[str, SumoTrafficLight] = {}  # {tlsid: SumoTrafficLight}
+    tls: dict[str, SumoTrafficLight] = {}  # Maps traffic light IDs to SumoTrafficLight objects.
 
     landmarks = carla_map.get_all_landmarks_of_type(TRAFFIC_LIGHT_LANDMARK_TYPE)
     for landmark in landmarks:

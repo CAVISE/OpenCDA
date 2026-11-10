@@ -12,8 +12,8 @@ class Status(str, Enum):
     SUCCESS = "success"
     FAIL = "fail"
     STOP = "stop"
-    UNSTABLE = "unstable"  # noqa: DC01
-    ERROR = "error"  # noqa: DC01
+    UNSTABLE = "unstable"  # noqa: DC06
+    ERROR = "error"  # noqa: DC06
 
 
 @dataclass(slots=True)

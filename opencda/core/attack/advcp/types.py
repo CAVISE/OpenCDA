@@ -110,7 +110,7 @@ class AdvCPVisualizationContext:
 
     mode: str | None = None
     attacker_ids: list[AttackerId] = field(default_factory=list)
-    fake_box_tensor: torch.Tensor | None = None  # noqa: DC01
+    fake_box_tensor: torch.Tensor | None = None  # noqa: DC06
     removed_box_tensor: torch.Tensor | None = None
 
 
@@ -167,8 +167,8 @@ class AdvCPBoxSpec(TypedDict, total=False):
         ``[length, width, height]`` of the box.
     """
 
-    relative: Sequence[float]  # noqa: DC01
-    absolute: Sequence[float]  # noqa: DC01
+    relative: Sequence[float]  # noqa: DC06
+    absolute: Sequence[float]  # noqa: DC06
     size: Sequence[float]
 
 
@@ -235,25 +235,25 @@ class AdvCPConfig(TypedDict, total=False):
     """
 
     mode: str
-    default_size: Sequence[float]  # noqa: DC01
+    default_size: Sequence[float]  # noqa: DC06
     boxes: list[AdvCPBoxSpec]
     attacker_ids: list[AttackerId]
-    advshape: bool | str  # noqa: DC01
+    advshape: bool | str  # noqa: DC06
     density: str
     dense_distance: float
-    sync: bool  # noqa: DC01
+    sync: bool  # noqa: DC06
     init: bool
     online: bool
     step: int
     max_perturb: float
-    lr: float  # noqa: DC01
+    lr: float  # noqa: DC06
     feature_size: int
     car_mesh_path: str
     car_mesh_divide_path: str
-    remove_adv_shape_perturb_path: str  # noqa: DC01
-    remove_adv_shape_divide_path: str  # noqa: DC01
-    model_path: str  # noqa: DC01
-    mesh_divide_path: str  # noqa: DC01
+    remove_adv_shape_perturb_path: str  # noqa: DC06
+    remove_adv_shape_divide_path: str  # noqa: DC06
+    model_path: str  # noqa: DC06
+    mesh_divide_path: str  # noqa: DC06
 
 
 class AdvCPIntermediateAttackState(TypedDict, total=False):

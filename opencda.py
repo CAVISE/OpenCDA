@@ -129,10 +129,6 @@ def arg_parse() -> argparse.Namespace:
         help="Define the name of or the global path to the scenario you want to test. Notice, this only has effect on configurations that are picked up by scenario",
     )
     parser.add_argument("--record", action="store_true", help="Whether to record and save the simulation process to .log file")
-    # NOTICE: temporary disabled until we update yolo models.
-    # parser.add_argument("--apply-ml", action='store_true',
-    #                     help='whether ml/dl framework such as sklearn/pytorch is needed in the testing. '
-    #                          'Set it to true only when you have installed the pytorch/sklearn package.')
     parser.add_argument("-v", "--version", action="version", version=f"OpenCDA v{__version__}")
     parser.add_argument("--free-spectator", action="store_true", help="Enable free movement for the spectator camera.")
     parser.add_argument("-x", "--xodr", action="store_true", help="Run simulation using a custom map from an XODR file.")
