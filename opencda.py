@@ -20,6 +20,16 @@ from typing import Any, cast
 
 from omegaconf import DictConfig, OmegaConf
 
+try:
+    import coloredlogs
+except ModuleNotFoundError:
+    coloredlogs = None
+
+try:
+    from rich.traceback import install as rich_traceback_install
+except ModuleNotFoundError:
+    rich_traceback_install = None
+
 from opencda.core.plan import model_resolver
 from opencda.scenario_testing import component_lifecycle
 from opencda.scenario_testing.utils import run_metadata
@@ -68,10 +78,24 @@ class JsonFormatter(logging.Formatter):
 def create_logger(
     level: int, fmt: str = "- [%(asctime)s][%(name)s] %(message)s", datefmt: str = "%H:%M:%S", filename: str = DEFAULT_LOG_FILENAME
 ) -> logging.Logger:
+    """Configure console and JSON logging for a scenario run.
+
+    Parameters
+    ----------
+    level : int
+        Minimum severity accepted by the OpenCDA logger.
+    fmt, datefmt : str, optional
+        Console message and timestamp formats.
+    filename : str, optional
+        JSON log destination, created with its parent directories.
+
+    Returns
+    -------
+    logging.Logger
+        Configured OpenCDA logger with propagation disabled.
+    """
     logger = logging.getLogger("cavise.opencda")
-    try:
-        import coloredlogs
-    except ModuleNotFoundError:
+    if coloredlogs is None:
         print("could not find coloredlogs module! Your life will look pale.")
         print("if you are interested in improving it: https://pypi.org/project/coloredlogs")
         handler = logging.StreamHandler(sys.stdout)
@@ -93,6 +117,15 @@ def create_logger(
 
 
 def install_traceback_handler(verbose: bool = True, suppress_modules: Collection[str] = ()) -> None:
+    """Install the optional Rich traceback handler.
+
+    Parameters
+    ----------
+    verbose : bool, optional
+        Include local variables in formatted tracebacks.
+    suppress_modules : collection of str, optional
+        Known dependency modules whose traceback frames should be condensed.
+    """
     default_filtered_modules = [
         "numpy",
         "scipy",
@@ -108,9 +141,7 @@ def install_traceback_handler(verbose: bool = True, suppress_modules: Collection
 
     joined_strings = set(default_filtered_modules) & set(suppress_modules)
     joined: set[str | ModuleType] = set(joined_strings)
-    try:
-        from rich.traceback import install as rich_traceback_install
-    except ModuleNotFoundError:
+    if rich_traceback_install is None:
         print("Rich tracebacks are not available, all CLI configuration regarding tracebacks is ignored.")
         return
 
@@ -329,7 +360,7 @@ def build_command_from_options(opt: argparse.Namespace, parser: argparse.Argumen
 
 
 def resolve_launch_arguments(cli_argv: list[str]) -> tuple[argparse.Namespace, list[str], dict | None]:
-    """Merge saved launch options with explicitly supplied нCLI values.
+    """Merge saved launch options with explicitly supplied CLI values.
 
     Parameters
     ----------

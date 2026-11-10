@@ -1039,16 +1039,22 @@ def test_bundle_commit_requires_ignored_weights_to_match_tree(tmp_path):
     assert checkpoint["commit"] is None and checkpoint["url"] is None
 
 
-def test_git_free_provenance_detects_changed_aim_checkpoint(tmp_path, monkeypatch):
-    weights = tmp_path / "AIM/models/mtp/GNN_mtl_gnn/weights/model.pth"
-    weights.parent.mkdir(parents=True)
-    weights.write_bytes(b"first weights")
+@pytest.mark.parametrize(
+    "relative_path",
+    ["AIM/models/mtp/GNN_mtl_gnn/weights/model.pth", "opencda/core/application/behavior/services/aim_server/assets/yaw_dict_10m.pkl"],
+)
+def test_git_free_provenance_detects_changed_aim_assets(tmp_path, monkeypatch, relative_path):
+    asset = tmp_path / relative_path
+    asset.parent.mkdir(parents=True)
+    asset.write_bytes(b"first asset")
     monkeypatch.setattr(run_metadata, "REPO_ROOT", tmp_path)
     monkeypatch.setattr(run_metadata, "_module_location", lambda name: None)
     original = {"code": run_metadata.collect_code_versions()}
     assert original["code"]["opencda"]["git"] is None
     assert not any("source digest" in warning for warning in run_metadata.compare_with_original(original, _make_opt()))
-    weights.write_bytes(b"second weights")
+    asset.write_bytes(b"second asset")
+    assert any("OpenCDA source digest differs" in warning for warning in run_metadata.compare_with_original(original, _make_opt()))
+    asset.unlink()
     assert any("OpenCDA source digest differs" in warning for warning in run_metadata.compare_with_original(original, _make_opt()))
 
 

@@ -282,13 +282,13 @@ def _module_location(module_name: str) -> Path | None:
 
 
 def collect_source_digest(directory: Path | None = None) -> str:
-    """Fingerprint runtime sources, configurations and checkpoint bytes.
+    """Fingerprint runtime sources, configurations and model assets.
 
     Parameters
     ----------
     directory : pathlib.Path, optional
         Package directory to hash. None selects OpenCDA's entrypoint,
-        ``opencda`` and ``AIM`` directories, including AIM weights.
+        ``opencda`` and ``AIM`` directories, including AIM weights and yaw lookup.
 
     Returns
     -------
@@ -301,6 +301,7 @@ def collect_source_digest(directory: Path | None = None) -> str:
         ".yaml",
         ".yml",
         ".json",
+        ".pkl",
         ".toml",
         ".xml",
         ".proto",
