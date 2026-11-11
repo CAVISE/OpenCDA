@@ -1,12 +1,8 @@
-"""Regression tests for replay argument and model-fetch policy round trips."""
+"""Replay CLI and output preservation regressions."""
 
 from __future__ import annotations
 
-import hashlib
 import importlib.util
-import json
-import logging
-import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -31,45 +27,6 @@ def entrypoint():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
-
-
-@pytest.mark.parametrize("with_exception", [False, True])
-@pytest.mark.parametrize(
-    "url",
-    [
-        "https://review-user:TEST_LOG_PASSWORD@example.com/models?api_key=TEST_LOG_KEY",
-        "https://example.com/models?api_key=TEST_LOG_KEY",
-        "https://example.com/models#access_token=TEST_LOG_KEY",
-    ],
-)
-def test_persisted_json_logs_redact_url_credentials(entrypoint, with_exception, url):
-    """Keep credential-bearing diagnostics out of the shareable JSON log.
-
-    Parameters
-    ----------
-    entrypoint : types.ModuleType
-        Runner exposing the production JSON log formatter.
-    with_exception : bool
-        Whether the record includes an exception with a credential-bearing URL.
-    url : str
-        Credentials carried by userinfo, query parameters or an OAuth fragment.
-    """
-    exc_info = None
-    if with_exception:
-        try:
-            raise RuntimeError(f"Unable to fetch {url}")
-        except RuntimeError:
-            exc_info = sys.exc_info()
-    record = logging.LogRecord("cavise.opencda.models", logging.WARNING, __file__, 1, "Fetching model from %s", (url,), exc_info)
-    serialized = entrypoint.JsonFormatter().format(record)
-    assert "TEST_LOG_PASSWORD" not in serialized
-    assert "TEST_LOG_KEY" not in serialized
-    assert "review-user" not in serialized
-    payload = json.loads(serialized)
-    assert payload["level"] == "WARNING"
-    assert "example.com/models" in payload["message"]
-    if with_exception:
-        assert "RuntimeError" in payload["exception"]
 
 
 @pytest.mark.parametrize("flag", ["--model-dir", "--test-scenario", "--log-file", "--models-root", "--advcp-config", "--carla-host"])
@@ -106,91 +63,6 @@ def test_leading_dash_values_round_trip_through_replay(entrypoint, tmp_path, mon
         assert original.model_dir == restored.model_dir == str(tmp_path / value)
 
 
-@pytest.mark.parametrize("original_flag", [None, "--auto-fetch-models", "--no-auto-fetch-models"])
-@pytest.mark.parametrize("override", [None, "--auto-fetch-models", "--no-auto-fetch-models"])
-@pytest.mark.parametrize("environment", ["0", "1"])
-def test_fetch_policy_survives_replay_and_environment_defaults(entrypoint, tmp_path, monkeypatch, original_flag, override, environment):
-    """Honor explicit fetch choices while preserving environment defaults.
-
-    Parameters
-    ----------
-    entrypoint : types.ModuleType
-        Real runner module loaded by the fixture.
-    tmp_path : pathlib.Path
-        Directory containing the saved manifest and test model location.
-    monkeypatch : pytest.MonkeyPatch
-        Fixture controlling the environment and observing resolver arguments.
-    original_flag, override : str or None
-        Saved and replay fetch choices; None leaves the policy unspecified.
-    environment : str
-        Environment default, enabled or disabled.
-    """
-    monkeypatch.setenv("CAVISE_MODELS_AUTO_FETCH", environment)
-    arguments = ["-t", "demo", "--with-coperception", "--model-id", "missing", "--with-advcp"]
-    if original_flag:
-        arguments.append(original_flag)
-    _, saved_command, _ = entrypoint.resolve_launch_arguments(arguments)
-    run_metadata.write_json(tmp_path / "run_manifest.json", {"launch": {"argv": saved_command}})
-    replay_arguments = ["--replay-from", str(tmp_path)]
-    if override:
-        replay_arguments.append(override)
-    restored, command, _ = entrypoint.resolve_launch_arguments(replay_arguments)
-    selected = override or original_flag
-    expected = None if selected is None else selected == "--no-auto-fetch-models"
-    assert restored.no_auto_fetch_models is expected
-    assert entrypoint.arg_parse(command).no_auto_fetch_models is expected
-    resolve_bundle = Mock(return_value=tmp_path / "resolved")
-    monkeypatch.setattr(entrypoint.model_resolver, "resolve_bundle", resolve_bundle)
-    entrypoint.model_resolver.resolve_runtime_models(restored)
-    assert [call.kwargs["auto_fetch"] for call in resolve_bundle.call_args_list] == [None if expected is None else not expected] * 2
-
-
-def test_explicit_fetch_clones_missing_bundle_despite_disabled_environment(entrypoint, tmp_path, monkeypatch):
-    """Fetch a real local Git bundle when the explicit CLI enables fetching.
-
-    Parameters
-    ----------
-    entrypoint : types.ModuleType
-        Real runner module loaded by the fixture.
-    tmp_path : pathlib.Path
-        Workspace for the source Git repository and sparse destination.
-    monkeypatch : pytest.MonkeyPatch
-        Fixture disabling the default automatic-fetch policy.
-    """
-    monkeypatch.setenv("CAVISE_MODELS_AUTO_FETCH", "0")
-    source = tmp_path / "source"
-    bundle = source / "coperception/test-model"
-    bundle.mkdir(parents=True)
-    (bundle / "artifact.bin").write_bytes(b"model")
-    digest = hashlib.sha256(b"model").hexdigest()
-    (bundle / "meta.yaml").write_text(
-        f"schema_version: 1\nid: test-model\nkind: coperception-checkpoint\nartifacts:\n  - path: artifact.bin\n    size: 5\n    sha256: {digest}\n"
-    )
-    subprocess.run(["git", "init", "--initial-branch=main", str(source)], check=True, capture_output=True)
-    subprocess.run(["git", "-C", str(source), "add", "."], check=True, capture_output=True)
-    subprocess.run(
-        ["git", "-C", str(source), "-c", "user.name=OpenCDA tests", "-c", "user.email=tests@example.invalid", "commit", "-m", "Add test model"],
-        check=True,
-        capture_output=True,
-    )
-    options, _, _ = entrypoint.resolve_launch_arguments(
-        [
-            "-t",
-            "demo",
-            "--with-coperception",
-            "--model-id",
-            "test-model",
-            "--models-root",
-            str(tmp_path / "checkout"),
-            "--models-repository",
-            source.as_uri(),
-            "--auto-fetch-models",
-        ]
-    )
-    entrypoint.model_resolver.resolve_runtime_models(options)
-    assert (Path(options.model_dir) / "artifact.bin").read_bytes() == b"model"
-
-
 @pytest.mark.parametrize("replay", [False, True])
 @pytest.mark.parametrize("scenario", ["demo", "demo.v1"])
 @pytest.mark.parametrize("as_path", [False, True])
@@ -221,7 +93,7 @@ def test_same_second_launch_preserves_original_run_artifacts(entrypoint, tmp_pat
     monkeypatch.setitem(sys.modules, scenario_module.__name__, scenario_module)
     monkeypatch.setattr(entrypoint, "install_traceback_handler", Mock())
     monkeypatch.setattr(entrypoint, "show_performance_stats", Mock())
-    monkeypatch.setattr(run_metadata, "collect_code_versions", lambda: {"opencda": {"git": None}})
+    monkeypatch.setattr(run_metadata, "collect_code_versions", lambda: {})
     configs = tmp_path / "opencda/scenario_testing/config_yaml"
     configs.mkdir(parents=True)
     (configs / "default.yaml").write_text("world:\n  seed: 11\n")
@@ -253,6 +125,68 @@ def test_same_second_launch_preserves_original_run_artifacts(entrypoint, tmp_pat
     manifest = run_metadata.load_run_manifest(new_dir)
     assert manifest["status"] == "completed"
     assert manifest["scenario"] == scenario
-    assert manifest["current_time"] == "2026_11_11_00_00_00_2"
-    assert scenario_module.run_scenario.call_args.kwargs["current_time"] == manifest["current_time"]
+    assert scenario_module.run_scenario.call_args.kwargs["current_time"] == "2026_11_11_00_00_00_2"
     assert (new_dir / entrypoint.DEFAULT_LOG_FILENAME).is_file()
+
+
+def test_replay_uses_saved_configuration_after_source_changes(entrypoint, tmp_path, monkeypatch):
+    """Pass the same resolved scenario to the runtime after source YAML changes.
+
+    Parameters
+    ----------
+    entrypoint : types.ModuleType
+        Real runner with a stubbed simulation runtime.
+    tmp_path : pathlib.Path
+        Workspace for original configuration and experiment outputs.
+    monkeypatch : pytest.MonkeyPatch
+        Fixture selecting paths and observing scenario execution.
+    """
+    monkeypatch.chdir(tmp_path)
+    configs = tmp_path / "opencda/scenario_testing/config_yaml"
+    configs.mkdir(parents=True)
+    (configs / "default.yaml").write_text("world:\n  seed: 11\n  client_port: 2000\n")
+    (configs / "demo.yaml").write_text("world:\n  client_port: 3000\n")
+    runtime = ModuleType("opencda.scenario_testing.scenario")
+    runtime.run_scenario = Mock()
+    monkeypatch.setitem(sys.modules, runtime.__name__, runtime)
+    monkeypatch.setattr(entrypoint, "create_logger", Mock())
+    monkeypatch.setattr(entrypoint, "install_traceback_handler", Mock())
+    monkeypatch.setattr(entrypoint, "show_performance_stats", Mock())
+    monkeypatch.setattr(run_metadata, "collect_code_versions", lambda: {})
+    original = tmp_path / "original"
+    monkeypatch.setattr(entrypoint, "get_default_output_path", lambda *args: original)
+    monkeypatch.setattr(sys, "argv", ["opencda.py", "-t", "demo", "--ticks", "50", "--save-vis"])
+    entrypoint.main()
+    original_config = runtime.run_scenario.call_args.args[1]
+    (configs / "default.yaml").write_text("world:\n  seed: 999\n  added: true\n")
+    (configs / "demo.yaml").unlink()
+    monkeypatch.setattr(entrypoint, "get_default_output_path", lambda *args: tmp_path / "replay")
+    monkeypatch.setattr(sys, "argv", ["opencda.py", "--replay-from", str(original)])
+    entrypoint.main()
+    options, replay_config = runtime.run_scenario.call_args.args
+    assert replay_config == original_config
+    assert replay_config.world.seed == 11 and replay_config.world.client_port == 3000
+    assert "added" not in replay_config.world
+    assert options.ticks == 50 and options.save_vis
+
+
+def test_legacy_manifest_ignores_removed_capture_options(entrypoint, tmp_path):
+    """Replay an earlier manifest using its resolved local model directory.
+
+    Parameters
+    ----------
+    entrypoint : types.ModuleType
+        Runner exposing replay argument handling.
+    tmp_path : pathlib.Path
+        Directory holding an earlier manifest.
+    """
+    run_metadata.write_json(
+        tmp_path / "run_manifest.json",
+        {
+            "launch": {"argv": ["-t", "demo", "--with-coperception", "--model-id", "model", "--save-predictions", "--auto-fetch-models"]},
+            "checkpoint": {"local_dir": "/saved/model"},
+        },
+    )
+    options, command, _ = entrypoint.resolve_launch_arguments(["--replay-from", str(tmp_path)])
+    assert options.model_dir == "/saved/model" and options.model_id is None
+    assert "--save-predictions" not in command and "--auto-fetch-models" not in command

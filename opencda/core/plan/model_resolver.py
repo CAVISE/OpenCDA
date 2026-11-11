@@ -226,7 +226,7 @@ def _safe_artifact_path(bundle_root: Path, relative_path: object) -> Path:
     return bundle_root.joinpath(*pure_path.parts)
 
 
-def sha256_file(path: Path) -> str:
+def _sha256(path: Path) -> str:
     """Calculate a file's SHA-256 digest.
 
     Parameters
@@ -292,7 +292,7 @@ def validate_bundle(bundle_root: Path, *, bundle_id: str, category: str) -> None
             raise ModelResolutionError(f'Model artifact is missing: "{artifact_path}".')
         if artifact_path.stat().st_size != artifact.get("size"):
             raise ModelResolutionError(f'Model artifact size does not match metadata: "{artifact_path}".')
-        if sha256_file(artifact_path) != artifact.get("sha256"):
+        if _sha256(artifact_path) != artifact.get("sha256"):
             raise ModelResolutionError(f'Model artifact checksum does not match metadata: "{artifact_path}".')
 
 
@@ -399,8 +399,7 @@ def resolve_runtime_models(options: object) -> None:
     models_root = Path(models_root_value) if models_root_value else default_models_root()
     repository_url = getattr(options, "models_repository", None)
     ref = getattr(options, "models_ref", None)
-    no_auto_fetch = getattr(options, "no_auto_fetch_models", None)
-    auto_fetch = None if no_auto_fetch is None else not no_auto_fetch
+    auto_fetch = False if getattr(options, "no_auto_fetch_models", False) else None
 
     if getattr(options, "with_coperception", False):
         model_dir = getattr(options, "model_dir", None)

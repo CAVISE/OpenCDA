@@ -1,16 +1,11 @@
 from __future__ import annotations
 
 import copy
-import weakref
 import os
 import logging
-from contextlib import contextmanager, nullcontext
+from contextlib import nullcontext
 from dataclasses import dataclass
-from importlib import import_module
-from pathlib import Path
-from tempfile import TemporaryDirectory
-from threading import RLock, get_ident
-from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, Iterator, Literal, Mapping, Optional, Tuple, TypeAlias, TypedDict, cast
+from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, Literal, Mapping, Optional, Tuple, TypeAlias, TypedDict, cast
 
 from matplotlib import pyplot as plt
 import numpy as np
@@ -23,7 +18,6 @@ from opencood.tools import train_utils, inference_utils
 from opencood.data_utils.datasets import build_dataset
 from opencood.models.communication_adapters import build_communication_adapter
 from opencood.visualization import vis_utils
-from opencood.utils import box_utils
 from opencda.metrics_tools.collection_models import MetricCollection
 from opencda.metrics_tools.config import resolve_metric_collector_config
 from opencda.metrics_tools.metric_collector import MetricCollector
@@ -48,9 +42,6 @@ else:
     DatasetOpenCOOD: TypeAlias = object
 
 logger = logging.getLogger("cavise.opencda.opencda.core.common.coperception_model_manager")
-# Postprocessors with custom NMS (late-fusion AdvCP) report pre-NMS boxes here.
-RAW_DETECTIONS_HOOK = "record_raw_detections"
-_RAW_NMS_LOCK = RLock()
 
 __all__ = (
     "CoperceptionInferenceResult",
@@ -254,9 +245,9 @@ class CoperceptionVisualizer:
         left_hand: bool = False,
         uncertainty=None,
     ):
-        # Canvas backends are optional and only needed when rendering is enabled.
         import opencood.visualization.simple_plot3d.canvas_3d as canvas_3d
         import opencood.visualization.simple_plot3d.canvas_bev as canvas_bev
+        from opencood.utils import common_utils
 
         config = cls.resolve_visualization_config(visualization_config)
         pc_range = [int(i) for i in pc_range]
@@ -272,10 +263,10 @@ class CoperceptionVisualizer:
         box_line_thickness = int(config["bbox_line_thickness"])
 
         if vis_pred_box and pred_box_tensor is not None:
-            pred_box_np = cls._to_numpy_array(pred_box_tensor)
+            pred_box_np = common_utils.torch_tensor_to_numpy(pred_box_tensor)
             pred_name = [""] * pred_box_np.shape[0]
             if uncertainty is not None:
-                uncertainty_np = cls._to_numpy_array(uncertainty)
+                uncertainty_np = common_utils.torch_tensor_to_numpy(uncertainty)
                 uncertainty_np = np.exp(uncertainty_np)
                 d_a_square = 1.6**2 + 3.9**2
 
@@ -302,7 +293,7 @@ class CoperceptionVisualizer:
             pred_name = []
 
         if vis_gt_box:
-            gt_box_np = cls._to_numpy_array(gt_tensor)
+            gt_box_np = common_utils.torch_tensor_to_numpy(gt_tensor)
             gt_name = [""] * gt_box_np.shape[0]
 
         if method == "bev":
@@ -320,7 +311,7 @@ class CoperceptionVisualizer:
                 canvas.draw_boxes(gt_box_np, colors=gt_color, texts=gt_name, box_line_thickness=box_line_thickness)
             if vis_pred_box and pred_box_np is not None:
                 canvas.draw_boxes(pred_box_np, colors=pred_color, texts=pred_name, box_line_thickness=box_line_thickness)
-            cls._draw_extra_boxes(canvas, method, config, visualization_context)
+            cls._draw_extra_boxes(canvas, method, config, visualization_context, common_utils)
         elif method == "3d":
             canvas = canvas_3d.Canvas_3D(canvas_bg_color=bg_color, left_hand=left_hand)
             canvas_xy, valid_mask = canvas.get_canvas_coords(pcd_np)
@@ -330,7 +321,7 @@ class CoperceptionVisualizer:
                 canvas.draw_boxes(gt_box_np, colors=gt_color, texts=gt_name, box_line_thickness=box_line_thickness)
             if vis_pred_box and pred_box_np is not None:
                 canvas.draw_boxes(pred_box_np, colors=pred_color, texts=pred_name, box_line_thickness=box_line_thickness)
-            cls._draw_extra_boxes(canvas, method, config, visualization_context)
+            cls._draw_extra_boxes(canvas, method, config, visualization_context, common_utils)
         else:
             raise ValueError(f"Unsupported visualization method: {method}")
 
@@ -338,9 +329,19 @@ class CoperceptionVisualizer:
 
     @staticmethod
     def _to_numpy_points(pcd) -> np.ndarray:
-        pcd_np = pcd[0] if isinstance(pcd, list) else pcd
-        if not isinstance(pcd_np, np.ndarray):
-            pcd_np = CoperceptionVisualizer._to_numpy_array(pcd_np)
+        if isinstance(pcd, list):
+            from opencood.utils import common_utils
+
+            pcd_np = [common_utils.torch_tensor_to_numpy(x) for x in pcd]
+            pcd_np = pcd_np[0]
+        else:
+            if isinstance(pcd, np.ndarray):
+                pcd_np = pcd
+            else:
+                from opencood.utils import common_utils
+
+                pcd_np = common_utils.torch_tensor_to_numpy(pcd)
+
         if len(pcd_np.shape) > 2:
             pcd_np = pcd_np[0]
         if pcd_np.shape[1] > 4:
@@ -402,6 +403,8 @@ class CoperceptionVisualizer:
                     continue
 
                 if cav_id != "ego":
+                    from opencood.utils import box_utils
+
                     transformation_matrix = cav_content.get("transformation_matrix")
                     if transformation_matrix is not None:
                         transformation_matrix_np = cls._to_numpy_array(transformation_matrix)
@@ -456,11 +459,11 @@ class CoperceptionVisualizer:
         return {}
 
     @classmethod
-    def _draw_extra_boxes(cls, canvas, method: str, config: Mapping[str, Any], visualization_context):
+    def _draw_extra_boxes(cls, canvas, method: str, config: Mapping[str, Any], visualization_context, common_utils):
         for box_name, box_tensor in cls._get_extra_box_tensors(visualization_context).items():
             if box_tensor is None:
                 continue
-            box_np = cls._to_numpy_array(box_tensor)
+            box_np = common_utils.torch_tensor_to_numpy(box_tensor)
             color = cls._as_uint8_color(config["bbox_colors"][box_name])
             texts = [""] * box_np.shape[0]
             box_line_thickness = int(config["bbox_line_thickness"])
@@ -708,227 +711,6 @@ class CoperceptionModelManager:
             npy_save_path,
         )
 
-    @contextmanager
-    def _capture_raw_detections(self) -> Iterator[list[tuple[Any, Any, Any]]]:
-        """Capture pre-NMS candidates without retaining GPU results.
-
-        Yields
-        ------
-        list of tuple
-            CPU tensor/array snapshots of boxes and scores, plus weak references to
-            the corresponding final score tensors. Custom NMS paths use the
-            postprocessor's record_raw_detections hook or a scoped native-NMS
-            wrapper. FPV-RCNN stage-two boxes are projected into ego coordinates.
-        """
-        calls: list[tuple[Any, Any, Any]] = []
-        post_processor = getattr(getattr(self, "opencood_dataset", None), "post_processor", None)
-        processor_types = {base.__name__ for base in type(post_processor).__mro__}
-        fpvrcnn = "FpvrcnnPostprocessor" in processor_types
-        direct_nms = fpvrcnn or ("CiassdPostprocessor" in processor_types and not getattr(post_processor, "train", False))
-        method_name = "post_process_stage2" if fpvrcnn else "post_process" if direct_nms else "post_process_detections"
-        original = getattr(post_processor, method_name, None)
-        if not getattr(self.opt, "save_predictions", False) or not callable(original):
-            yield calls
-            return
-
-        def record(boxes: Any, scores: Any, result: Any) -> None:
-            """Snapshot candidates and remember the producing result's identity.
-
-            Parameters
-            ----------
-            boxes, scores : tensor or numpy.ndarray or None
-                Score-thresholded candidates before NMS.
-            result : tuple or None
-                Final boxes and scores, or None until a direct NMS call finishes.
-            """
-            # Keep result identity without retaining its GPU tensors or autograd graph.
-            score_ref = weakref.ref(result[1]) if isinstance(result, tuple) and len(result) == 2 and result[1] is not None else None
-            raw_boxes, raw_scores = (
-                value.detach().cpu().clone() if hasattr(value, "detach") else value.copy() if isinstance(value, np.ndarray) else value
-                for value in (boxes, scores)
-            )
-            calls.append((raw_boxes, raw_scores, score_ref))
-
-        def recording(*args: Any, **kwargs: Any) -> Any:
-            """Run post-processing and capture its pre-NMS inputs.
-
-            Parameters
-            ----------
-            *args, **kwargs : Any
-                Original post-processing arguments, forwarded unchanged.
-
-            Returns
-            -------
-            tuple
-                Unchanged result from the original post-processing method.
-            """
-            if not direct_nms:
-                result = original(*args, **kwargs)
-                record(args[0] if args else kwargs["boxes"], args[1] if len(args) > 1 else kwargs["scores"], result)
-                return result
-
-            data_dict = args[0] if args else kwargs["data_dict"]
-            with _RAW_NMS_LOCK:
-                # Loading the CUDA extension is required only by FPV-RCNN stage two.
-                nms_module = import_module("opencood.pcdet_utils.iou3d_nms.iou3d_nms_utils") if fpvrcnn else box_utils
-                nms_name = "nms_gpu" if fpvrcnn else "nms_rotated"
-                original_nms = getattr(nms_module, nms_name)
-                thread = get_ident()
-                start = len(calls)
-
-                def capture_nms(boxes: Any, scores: Any, *nms_args: Any, **nms_kwargs: Any) -> Any:
-                    """Snapshot this call's candidates and preserve native NMS.
-
-                    Parameters
-                    ----------
-                    boxes, scores : tensor or numpy.ndarray
-                        Decoded candidates and confidence scores.
-                    *nms_args, **nms_kwargs : Any
-                        Native NMS parameters forwarded without modification.
-
-                    Returns
-                    -------
-                    Any
-                        Unchanged indices or tuple returned by native NMS.
-                    """
-                    if get_ident() == thread:
-                        raw_boxes = boxes
-                        if fpvrcnn:
-                            corners = box_utils.boxes_to_corners_3d(boxes[:, [0, 1, 2, 5, 4, 3, 6]], order=post_processor.params["order"])
-                            raw_boxes = box_utils.project_box3d(corners, data_dict["ego"]["transformation_matrix"])
-                        record(raw_boxes, scores, None)
-                    return original_nms(boxes, scores, *nms_args, **nms_kwargs)
-
-                try:
-                    setattr(nms_module, nms_name, capture_nms)
-                    result = original(*args, **kwargs)
-                finally:
-                    setattr(nms_module, nms_name, original_nms)
-                if len(calls) == start + 1 and isinstance(result, tuple) and len(result) == 2:
-                    boxes, scores, _ = calls[-1]
-                    calls[-1] = (boxes, scores, weakref.ref(result[1]) if result[1] is not None else None)
-                return result
-
-        had_instance_attribute = method_name in vars(post_processor)
-        had_raw_hook = RAW_DETECTIONS_HOOK in vars(post_processor)
-        original_hook = getattr(post_processor, RAW_DETECTIONS_HOOK, None)
-        try:
-            setattr(post_processor, method_name, recording)
-            setattr(post_processor, RAW_DETECTIONS_HOOK, record)
-            yield calls
-        finally:
-            if had_raw_hook:
-                setattr(post_processor, RAW_DETECTIONS_HOOK, original_hook)
-            elif RAW_DETECTIONS_HOOK in vars(post_processor):
-                delattr(post_processor, RAW_DETECTIONS_HOOK)
-            if had_instance_attribute:
-                setattr(post_processor, method_name, original)
-            else:
-                if method_name in vars(post_processor):
-                    delattr(post_processor, method_name)
-                if getattr(post_processor, method_name, None) is None:
-                    setattr(post_processor, method_name, original)
-
-    def _select_raw_detections(self, calls: list[tuple[Any, Any, Any]], pred_score: Any) -> tuple[Any, Any]:
-        """Select candidates belonging to the exact returned prediction.
-
-        Parameters
-        ----------
-        calls : list of tuple
-            Candidate snapshots and weak result references captured during inference.
-        pred_score : tensor or numpy.ndarray or None
-            Final score object selected by inference, possibly from an earlier
-            AdvCP optimization step.
-
-        Returns
-        -------
-        tuple
-            Raw boxes and scores for that result, or (None, None) if unavailable.
-            Numerically equal scores from a different call are never substituted.
-        """
-        if not calls:
-            if not getattr(self, "_warned_no_raw_detections", False):
-                post_processor = getattr(getattr(self, "opencood_dataset", None), "post_processor", None)
-                logger.warning(
-                    "Pre-NMS boxes are not available for %s, only final predictions are saved.",
-                    type(post_processor).__name__,
-                )
-                self._warned_no_raw_detections = True
-            return None, None
-        # Associate raw candidates with the exact returned score tensor.
-        # Matching numeric scores is unsafe when an attack returns the best
-        # optimization step rather than the last post-processing call.
-        for raw_boxes, raw_scores, score_ref in reversed(calls):
-            if pred_score is not None and score_ref is not None and score_ref() is pred_score:
-                return raw_boxes, raw_scores
-        if calls:
-            logger.warning("Raw detections were captured but none matches the final prediction; raw boxes are not saved for this tick.")
-        return None, None
-
-    def _save_prediction_records(
-        self,
-        tick_number: int,
-        pred_box_tensor: Any,
-        pred_score: Any,
-        gt_box_tensor: Any,
-        visualization_context: Optional[Mapping[str, Any]],
-        raw_box_tensor: Any = None,
-        raw_score: Any = None,
-    ) -> None:
-        """Save pre-NMS candidates, final predictions and ground truth.
-
-        Parameters
-        ----------
-        tick_number : int
-            Simulation tick used in the compressed NPZ filename.
-        pred_box_tensor, pred_score : tensor or numpy.ndarray or None
-            Final predicted boxes and confidence scores.
-        gt_box_tensor : tensor or numpy.ndarray or None
-            Ground-truth boxes.
-        visualization_context : mapping or None
-            Optional attack-specific box collections to include.
-        raw_box_tensor, raw_score : tensor or numpy.ndarray or None, optional
-            Pre-NMS candidates associated with the selected prediction.
-        """
-        arrays: dict[str, Any] = {"tick": np.int64(tick_number)}
-        params = getattr(getattr(getattr(self, "opencood_dataset", None), "post_processor", None), "params", None)
-        if isinstance(params, Mapping):
-            target_args = params.get("target_args") or {}
-            if isinstance(target_args, Mapping) and isinstance(target_args.get("score_threshold"), (int, float)):
-                arrays["score_threshold"] = np.float64(target_args["score_threshold"])
-            if isinstance(params.get("nms_thresh"), (int, float)):
-                arrays["nms_thresh"] = np.float64(params["nms_thresh"])
-        tensors = {
-            "raw_boxes": raw_box_tensor,
-            "raw_scores": raw_score,
-            "pred_boxes": pred_box_tensor,
-            "pred_scores": pred_score,
-            "gt_boxes": gt_box_tensor,
-        }
-        try:
-            extra_boxes = self.VISUALIZER_CLASS._get_extra_box_tensors(visualization_context)
-        except Exception:
-            extra_boxes = {}
-        tensors.update({f"{name}_boxes": tensor for name, tensor in extra_boxes.items()})
-
-        try:
-            for name, tensor in tensors.items():
-                array = CoperceptionVisualizer._to_numpy_array(tensor) if tensor is not None else None
-                if array is not None and (array.dtype == object or not np.issubdtype(array.dtype, np.number)):
-                    raise TypeError(f"expected a numeric tensor/array, got {type(tensor).__name__}")
-                arrays[f"has_{name}"] = np.bool_(array is not None)
-                arrays[name] = array if array is not None else np.empty((0,), dtype=np.float32)
-        except TypeError as error:
-            logger.warning("Skipping prediction record for tick %s: %s", tick_number, error)
-            return
-
-        records_dir = os.path.join("simulation_output", "evaluation_outputs", f"{self.opt.test_scenario}_{self.current_time}", "predictions")
-        os.makedirs(records_dir, exist_ok=True)
-        with TemporaryDirectory(dir=records_dir, prefix=f".tick_{tick_number:06d}_") as temporary_dir:
-            temporary = Path(temporary_dir) / "record.npz"
-            np.savez_compressed(temporary, **arrays)
-            os.replace(temporary, os.path.join(records_dir, f"tick_{tick_number:06d}.npz"))
-
     def _save_visualizations(
         self,
         visualizer_cls,
@@ -1030,7 +812,7 @@ class CoperceptionModelManager:
         batch_data = next(iter(self.data_loader))
         batch_data = train_utils.to_device(batch_data, self.device)
         inference_context = nullcontext() if self._requires_grad_for_inference() else torch.no_grad()
-        with inference_context, self._capture_raw_detections() as raw_detection_calls:
+        with inference_context:
             inference_result = self.inference(batch_data)
             pred_box_tensor = inference_result.pred_box_tensor
             pred_score = inference_result.pred_score
@@ -1046,18 +828,6 @@ class CoperceptionModelManager:
                     visualization_context,
                 )
             )
-
-            if getattr(self.opt, "save_predictions", False):
-                raw_box_tensor, raw_score = self._select_raw_detections(raw_detection_calls, pred_score)
-                self._save_prediction_records(
-                    tick_number,
-                    pred_box_tensor,
-                    pred_score,
-                    gt_box_tensor,
-                    visualization_context,
-                    raw_box_tensor=raw_box_tensor,
-                    raw_score=raw_score,
-                )
 
             if self.opt.save_npy:
                 self._save_prediction_npy(pred_box_tensor, gt_box_tensor, batch_data, 0)

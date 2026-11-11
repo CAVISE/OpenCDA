@@ -190,11 +190,10 @@ CAPI v2 is the data exchange interface between OpenCDA and Artery. In this fork 
 - `--models-root`: Override the models checkout path.
 - `--models-repository`: Override the Git repository used for automatic fetching.
 - `--models-ref`: Branch or tag to clone; defaults to `main`.
-- `--auto-fetch-models` / `--no-auto-fetch-models`: Explicitly allow or disable fetching missing model and runtime asset bundles. When omitted, `CAVISE_MODELS_AUTO_FETCH` controls fetching.
+- `--no-auto-fetch-models`: Fail instead of fetching missing model or runtime asset bundles.
 - `--show-video-vis`: whether to show video visualization result
 - `--save-vis`: whether to save visualization result
 - `--save-npy`: whether to save prediction and gt result in npy_test file
-- `--save-predictions` / `--no-save-predictions`: Save per-tick boxes and confidence scores to `predictions/` in the evaluation output folder (on by default). Capture includes available raw pre-NMS candidates and final predictions for the standard, late-fusion AdvCP, CIASSD evaluation and FPV-RCNN stage-two paths. Custom postprocessors without a supported capture path save final predictions and report missing raw candidates.
 
 Fusion behavior is resolved from the selected model bundle configuration.
 
@@ -254,31 +253,52 @@ python3 opencda.py \
 
 ### Output directories
 
-- `simulation_output/evaluation_outputs/<scenario>_<time>/`: evaluation results and reproducibility metadata:
+- `simulation_output/evaluation_outputs/<scenario>_<time>/`: evaluation results and experiment configuration:
 
   ```text
   <scenario>_<time>/
   ├── report.json, plots/, opencda.log.json
-  ├── reproducibility/
-  │   ├── run_manifest.json   # seed, launch command, code versions, model, device, run status
-  │   ├── config.yaml         # final merged (default + scenario) configuration
-  │   ├── code_diff.patch     # uncommitted OpenCDA changes, if any
-  │   └── inputs/             # copies of source YAMLs, AdvCP config, model config.yaml/meta.yaml
-  └── predictions/
-      └── tick_<N>.npz        # raw_boxes/raw_scores (before NMS), pred_boxes/pred_scores, gt_boxes, thresholds
+  └── reproducibility/
+      ├── run_manifest.json   # scenario, launch arguments, component commits, model, status
+      ├── config.yaml         # final merged configuration with resolved interpolations
+      └── inputs/             # model config.yaml/meta.yaml and optional AdvCP configuration
   ```
 
-  The manifest records bundle IDs and artifact SHA-256 hashes. A repository commit link is included only when the runtime artifacts match that commit. Selected OpenDRIVE and SUMO inputs, including referenced networks, routes and additional files, are hashed and compared on replay. Model weights and external simulation assets must remain available at their runtime paths. Load predictions with `opencda.scenario_testing.utils.run_metadata.load_prediction_records`. `world.seed` also seeds the CARLA Traffic Manager in synchronous mode; matching seeds alone do not guarantee identical results across environments.
+  The manifest records the local commit and dirty flag for CAVISE, OpenCDA,
+  OpenCOOD, SUMO and Artery. It does not save Git patches, inspect package or GPU
+  versions, fingerprint source files, or scan model weights. Perform experiments
+  from committed, clean checkouts: a dirty flag cannot restore uncommitted code.
 
-  Replay from the repository root, optionally overriding saved arguments:
+  Components are found in sibling checkouts (`../opencood`, `../sumo`,
+  `../artery`) and the parent CAVISE checkout. Existing `COMPONENT_WORKSPACE`
+  environment variables can select other locations, for example `SUMO_WORKSPACE`.
+  For images without `.git`, supply the actual build revision through
+  `CAVISE_COMMIT`, `OPENCDA_COMMIT`, `OPENCOOD_COMMIT`, `SUMO_COMMIT`, and
+  `ARTERY_COMMIT`. Otherwise the revision is recorded as unknown, with a warning;
+  supplied build revisions do not establish a clean worktree.
+
+  Replay from the repository root:
 
   ```bash
   python opencda.py --replay-from <run_dir>
-  python opencda.py --replay-from <run_dir> --ticks 50 --model-dir /path/to/model --no-save-predictions
-  python opencda.py --replay-from <run_dir> --no-record --no-save-vis --no-profile
+  python opencda.py --replay-from <run_dir> --ticks 50 --model-dir /path/to/model
   ```
 
-  Boolean options accept a `--no-` form to disable saved settings during replay. Use `--auto-fetch-models` to override a saved `--no-auto-fetch-models` setting.
+  Replay uses the saved final configuration, launch arguments and resolved local
+  model directory. Explicit arguments override the saved ones. Boolean options
+  accept a `--no-` form. Results go into a new directory; the original is retained.
+  Model weights, maps and other external inputs must remain available and unchanged.
+  Model configurations/manifests are copied for reference; weights are not copied
+  or restored. Replay warns about different commits or uncommitted code; it does
+  not change checkouts or synchronize running simulators.
+
+  This feature repeats the experiment setup using the existing scenario loader,
+  model inference, seeding, sensor handling and component lifecycle. It does not
+  guarantee identical metrics or images from a nondeterministic simulation.
+  Validate a run and its replay by comparing their `report.json` and `plots/`.
+  Configuration files are copied as supplied; use experiment configurations
+  without credentials or other sensitive data.
+
 - `simulation_output/coperception/`: cooperative perception predictions, visualizations, and results
 
 ### Repository map

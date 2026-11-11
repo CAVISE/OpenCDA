@@ -56,7 +56,7 @@ class VerbosityLevel(enum.IntEnum):
 
 class JsonFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
-        """Serialize diagnostics without persisting HTTP URL credentials.
+        """Serialize a diagnostic record as JSON.
 
         Parameters
         ----------
@@ -66,7 +66,7 @@ class JsonFormatter(logging.Formatter):
         Returns
         -------
         str
-            JSON record with credential-bearing URLs sanitized in every field.
+            JSON record including any formatted exception.
         """
         payload = {
             "timestamp": datetime.fromtimestamp(
@@ -82,7 +82,7 @@ class JsonFormatter(logging.Formatter):
         if record.exc_info:
             payload["exception"] = self.formatException(record.exc_info)
 
-        return json.dumps(run_metadata.to_jsonable(payload), ensure_ascii=False)
+        return json.dumps(payload, ensure_ascii=False)
 
 
 # Handle cavise log creation, obtain this logger later with a call to
@@ -225,13 +225,6 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
-        "--save-predictions",
-        dest="save_predictions",
-        action=argparse.BooleanOptionalAction,
-        default=True,
-        help="Save per-tick cooperative perception boxes and confidence scores to the evaluation output folder (default: on).",
-    )
-    parser.add_argument(
         "--record", action=argparse.BooleanOptionalAction, default=False, help="Whether to record and save the simulation process to .log file"
     )
     parser.add_argument("-v", "--version", action="version", version=f"OpenCDA v{__version__}")
@@ -274,16 +267,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--models-root", type=str, help="Models checkout path (default: CAVISE_MODELS_ROOT or the sibling models repository).")
     parser.add_argument("--models-repository", type=str, help="Git repository used to fetch missing model bundles.")
     parser.add_argument("--models-ref", type=str, help="Git branch or tag used when cloning the models repository (default: main).")
-    parser.add_argument(
-        "--no-auto-fetch-models", action="store_true", default=None, help="Fail instead of fetching a missing model or runtime asset bundle."
-    )
-    parser.add_argument(
-        "--auto-fetch-models",
-        dest="no_auto_fetch_models",
-        action="store_false",
-        default=None,
-        help="Allow fetching missing model or runtime asset bundles.",
-    )
+    parser.add_argument("--no-auto-fetch-models", action="store_true", help="Fail instead of fetching a missing model or runtime asset bundle.")
     parser.add_argument("--show-video-vis", action=argparse.BooleanOptionalAction, default=False, help="whether to show video visualization result")
     parser.add_argument("--save-vis", action=argparse.BooleanOptionalAction, default=False, help="whether to save visualization result")
     parser.add_argument(
@@ -440,8 +424,6 @@ def resolve_launch_arguments(cli_argv: list[str]) -> tuple[argparse.Namespace, l
 
     Raises
     ------
-    ValueError
-        If a saved merged configuration was redacted or its hash differs.
     FileNotFoundError
         If a required saved manifest or configuration is missing.
     """
@@ -461,20 +443,9 @@ def resolve_launch_arguments(cli_argv: list[str]) -> tuple[argparse.Namespace, l
 
     replay_dir = pathlib.Path(opt.replay_from).resolve()
     manifest = run_metadata.load_run_manifest(replay_dir)
-    if manifest.get("config_redacted"):
-        raise ValueError("Saved replay configuration contains redacted credentials and cannot be replayed without secure replacements.")
-
-    expected_config_hash = manifest.get("config_sha256")
-    if expected_config_hash is not None:
-        saved_config = run_metadata.reproducibility_dir(replay_dir) / run_metadata.CONFIG_FILENAME
-        if not saved_config.is_file():
-            raise FileNotFoundError(f"Saved replay configuration not found: {saved_config}")
-
-        actual_config_hash = run_metadata.sha256_file(saved_config)
-        if actual_config_hash != expected_config_hash:
-            raise ValueError("Saved replay configuration SHA-256 mismatch: config.yaml was modified or corrupted.")
-
     saved_argv = _strip_option(manifest["launch"]["argv"], REPLAY_FLAG)
+    # Ignore options belonging to artifact capture removed from earlier manifests.
+    saved_argv = [arg for arg in saved_argv if arg not in {"--save-predictions", "--no-save-predictions", "--auto-fetch-models"}]
     for flag in REPLAY_OUTPUT_OPTIONS:
         saved_argv = _strip_option(saved_argv, flag)
     for first, second in EXCLUSIVE_OPTIONS:
@@ -488,6 +459,9 @@ def resolve_launch_arguments(cli_argv: list[str]) -> tuple[argparse.Namespace, l
         for name in ("model_id", "model_dir"):
             if name not in supplied:
                 setattr(opt, name, None)
+    model_directory = (manifest.get("model") or {}).get("directory") or (manifest.get("checkpoint") or {}).get("local_dir")
+    if opt.with_coperception and model_directory and not {"model_id", "model_dir"}.intersection(supplied):
+        opt.model_id, opt.model_dir = None, model_directory
     opt._explicit_options = set(supplied)
     opt.replay_from = str(replay_dir)
     if opt.test_scenario is None:
@@ -572,15 +546,10 @@ def main() -> None:
             saved_copy = saved_input.get("copy", "inputs/advcp_config.yaml")
             replay_root = config_yaml.parent.resolve()
             saved_advcp_config = (replay_root / saved_copy).resolve()
-            if not saved_advcp_config.is_relative_to(replay_root) or not saved_advcp_config.is_relative_to(replay_root / "inputs"):
+            if not saved_advcp_config.is_relative_to(replay_root / "inputs"):
                 raise ValueError("Invalid saved AdvCP config path outside the run inputs directory.")
             if not saved_advcp_config.is_file():
                 raise FileNotFoundError(f"Saved AdvCP configuration not found: {saved_advcp_config}")
-            expected_hash = saved_input.get("sha256")
-            if expected_hash is not None and run_metadata.sha256_file(saved_advcp_config) != expected_hash:
-                raise ValueError(f"Saved AdvCP configuration SHA-256 mismatch: {saved_advcp_config.name} was modified or corrupted.")
-            if saved_input.get("redacted"):
-                raise ValueError("Saved AdvCP configuration contains redacted credentials; supply --advcp-config with a secure replacement.")
             advcp_config = saved_advcp_config
         elif not advcp_config.is_file():
             logger.error(f"AdvCP config not found: {advcp_config}")
@@ -606,25 +575,17 @@ def main() -> None:
         evaluation_output_dir,
         opt=opt,
         argv=effective_argv,
-        raw_argv=sys.argv[1:],
         merged_config=scene_dict,
-        current_time=current_time,
-        input_files={
-            "default_config": default_yaml if replay_dir is None else None,
-            "scenario_config": config_yaml if replay_dir is None else None,
-            "replayed_config": config_yaml if replay_dir is not None else None,
-            "advcp_config": pathlib.Path(opt.advcp_config) if opt.with_advcp else None,
-        },
+        input_files={"advcp_config": pathlib.Path(opt.advcp_config) if opt.with_advcp else None},
         replayed_from=opt.replay_from,
     )
 
     runtime_stats: dict[str, Any] = {}
-    run_started_at = time.perf_counter()
     run_status, run_error = "failed", None
     # Record every failure after manifest creation in its final status.
     try:
         if replay_manifest is not None:
-            for warning in run_metadata.compare_with_original(replay_manifest, opt):
+            for warning in run_metadata.compare_with_original(replay_manifest):
                 logger.warning(f"replay may differ from the original run: {warning}")
 
         # Scenario imports CARLA/OpenCOOD and initializes optional runtime components.
@@ -666,7 +627,6 @@ def main() -> None:
         run_metadata.finalize_run_manifest(
             evaluation_output_dir,
             status=run_status,
-            duration_seconds=round(time.perf_counter() - run_started_at, 3),
             error=run_error,
         )
 

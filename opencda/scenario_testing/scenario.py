@@ -266,8 +266,6 @@ class Scenario:
         sensor_sync_config = coperception_config.get("sensor_sync", {}) if isinstance(coperception_config, Mapping) else {}
         sensor_sync_timeout = float(sensor_sync_config.get("timeout_seconds", 1.0)) if isinstance(sensor_sync_config, Mapping) else 1.0
         self.coperception_data_processor = CoperceptionDataProcessor(sensor_sync_timeout_seconds=sensor_sync_timeout)
-        for manager in (*self.single_cav_list, *self.rsu_list):
-            manager.agent.perception_manager.semantic_sync_timeout_seconds = sensor_sync_timeout
         logger.info("created cooperception manager")
 
     def _init_attacks(self, scenario_config: YamlDict) -> None:
