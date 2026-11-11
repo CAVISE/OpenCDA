@@ -110,7 +110,11 @@ def _replay_main(entrypoint, monkeypatch, run_dir: Path, argv: list[str]) -> dic
 
 @pytest.mark.parametrize(
     ("override", "expected_suffix"),
-    [([], "reproducibility/inputs/advcp_config.yaml"), (["--advcp-config", "spoofing_forward"], "advcp-configs/spoofing_forward.yaml")],
+    [
+        ([], "reproducibility/inputs/advcp_config.yaml"),
+        (["--advcp-config", "spoofing_forward"], "advcp-configs/spoofing_forward.yaml"),
+        (["-t", "single_town06_carla"], "reproducibility/inputs/advcp_config.yaml"),
+    ],
 )
 def test_replay_uses_saved_advcp_config_unless_overridden(tmp_path: Path, monkeypatch, merged_config, override, expected_suffix):
     entrypoint = _load_entrypoint()

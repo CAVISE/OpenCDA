@@ -130,8 +130,9 @@ def test_same_second_launch_preserves_original_run_artifacts(entrypoint, tmp_pat
     assert (new_dir / entrypoint.DEFAULT_LOG_FILENAME).is_file()
 
 
-def test_replay_uses_saved_configuration_after_source_changes(entrypoint, tmp_path, monkeypatch):
-    """Pass the same resolved scenario to the runtime after source YAML changes.
+@pytest.mark.parametrize("selection", [None, "name", "path"])
+def test_replay_uses_saved_configuration_after_source_changes(entrypoint, tmp_path, monkeypatch, selection):
+    """Use the snapshot by default and merge an explicitly selected scenario.
 
     Parameters
     ----------
@@ -141,6 +142,8 @@ def test_replay_uses_saved_configuration_after_source_changes(entrypoint, tmp_pa
         Workspace for original configuration and experiment outputs.
     monkeypatch : pytest.MonkeyPatch
         Fixture selecting paths and observing scenario execution.
+    selection : str or None
+        Explicit scenario name/path, or None to retain the saved configuration.
     """
     monkeypatch.chdir(tmp_path)
     configs = tmp_path / "opencda/scenario_testing/config_yaml"
@@ -162,9 +165,20 @@ def test_replay_uses_saved_configuration_after_source_changes(entrypoint, tmp_pa
     (configs / "default.yaml").write_text("world:\n  seed: 999\n  added: true\n")
     (configs / "demo.yaml").unlink()
     monkeypatch.setattr(entrypoint, "get_default_output_path", lambda *args: tmp_path / "replay")
-    monkeypatch.setattr(sys, "argv", ["opencda.py", "--replay-from", str(original)])
+    arguments = ["opencda.py", "--replay-from", str(original)]
+    if selection:
+        other = configs / "other.yaml"
+        other.write_text("world:\n  client_port: 4000\n")
+        arguments += ["-t", "other" if selection == "name" else str(other), "--cosim"]
+    monkeypatch.setattr(sys, "argv", arguments)
     entrypoint.main()
     options, replay_config = runtime.run_scenario.call_args.args
+    if selection:
+        assert options.test_scenario == "other" and options.cosim
+        assert replay_config.world.seed == 999 and replay_config.world.client_port == 4000
+        assert replay_config.world.added
+        assert run_metadata.load_run_manifest(tmp_path / "replay")["scenario"] == "other"
+        return
     assert replay_config == original_config
     assert replay_config.world.seed == 11 and replay_config.world.client_port == 3000
     assert "added" not in replay_config.world
@@ -247,4 +261,42 @@ def test_advcp_replay_preserves_resolved_assets(entrypoint, tmp_path, monkeypatc
         assets.rmdir()
         with pytest.raises(entrypoint.model_resolver.ModelResolutionError, match="Saved AdvCP assets directory"):
             entrypoint.model_resolver.resolve_runtime_models(replay)
+        resolver.assert_not_called()
+
+
+@pytest.mark.parametrize("selector", ["--models-root", "--models-repository", "--models-ref"])
+@pytest.mark.parametrize("logical_model", [False, True])
+def test_replay_model_checkout_overrides(entrypoint, tmp_path, monkeypatch, selector, logical_model):
+    """Honor checkout overrides for logical IDs while retaining explicit model paths.
+
+    Parameters
+    ----------
+    entrypoint : types.ModuleType
+        Real entrypoint and runtime resolver.
+    tmp_path : pathlib.Path
+        Workspace for model directories and the saved manifest.
+    monkeypatch : pytest.MonkeyPatch
+        Fixture observing bundle resolution without network access.
+    selector : str
+        Explicit checkout option supplied during replay.
+    logical_model : bool
+        Whether the original command selected a logical ID or a local directory.
+    """
+    old = tmp_path / "original-model"
+    new = tmp_path / "new-model"
+    old.mkdir()
+    new.mkdir()
+    arguments = ["-t", "demo", "--with-coperception"]
+    arguments += ["--model-id", "example"] if logical_model else ["--model-dir", str(old)]
+    run_metadata.write_json(tmp_path / "run_manifest.json", {"launch": {"argv": arguments}, "model": {"directory": str(old)}})
+    resolver = Mock(return_value=new)
+    monkeypatch.setattr(entrypoint.model_resolver, "resolve_bundle", resolver)
+    options, _, _ = entrypoint.resolve_launch_arguments(["--replay-from", str(tmp_path), selector, "override"])
+    entrypoint.model_resolver.resolve_runtime_models(options)
+    assert options.model_dir == str(new if logical_model else old)
+    if logical_model:
+        assert options.model_id == "example"
+        expected_key = {"--models-root": "models_root", "--models-repository": "repository_url", "--models-ref": "ref"}[selector]
+        assert str(resolver.call_args.kwargs[expected_key]) == "override"
+    else:
         resolver.assert_not_called()

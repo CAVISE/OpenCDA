@@ -460,7 +460,10 @@ def resolve_launch_arguments(cli_argv: list[str]) -> tuple[argparse.Namespace, l
             if name not in supplied:
                 setattr(opt, name, None)
     model_directory = (manifest.get("model") or {}).get("directory") or (manifest.get("checkpoint") or {}).get("local_dir")
-    if opt.with_coperception and model_directory and not {"model_id", "model_dir"}.intersection(supplied):
+    model_overrides = {"model_id", "model_dir"}
+    if opt.model_id:
+        model_overrides.update(("models_root", "models_repository", "models_ref"))
+    if opt.with_coperception and model_directory and not model_overrides.intersection(supplied):
         opt.model_id, opt.model_dir = None, model_directory
     assets_directory = (manifest.get("model") or {}).get("advcp_assets_dir")
     asset_overrides = {"models_root", "models_repository", "models_ref", "advcp_assets_id"}
@@ -520,7 +523,8 @@ def main() -> None:
         config_yaml = cwd / f"opencda/scenario_testing/config_yaml/{opt.test_scenario}.yaml"
     advcp_config_dir = cwd / "opencda/scenario_testing/config_yaml/advcp-configs"
     replay_dir = pathlib.Path(opt.replay_from) if opt.replay_from else None
-    if replay_dir is not None:
+    use_saved_scenario = replay_dir is not None and "test_scenario" not in explicit_options
+    if use_saved_scenario:
         logger.info(f"replaying run from {replay_dir}")
         config_yaml = run_metadata.reproducibility_dir(replay_dir) / run_metadata.CONFIG_FILENAME
     if not config_yaml.is_file():
@@ -548,7 +552,7 @@ def main() -> None:
         if use_saved_advcp_config:
             saved_input = (replay_manifest or {}).get("inputs", {}).get("advcp_config") or {}
             saved_copy = saved_input.get("copy", "inputs/advcp_config.yaml")
-            replay_root = config_yaml.parent.resolve()
+            replay_root = run_metadata.reproducibility_dir(replay_dir).resolve()
             saved_advcp_config = (replay_root / saved_copy).resolve()
             if not saved_advcp_config.is_relative_to(replay_root / "inputs"):
                 raise ValueError("Invalid saved AdvCP config path outside the run inputs directory.")
@@ -563,7 +567,7 @@ def main() -> None:
 
     model_resolver.resolve_runtime_models(opt)
 
-    if replay_dir is not None:
+    if use_saved_scenario:
         # The replay configuration is already merged.
         scene_dict = cast(DictConfig, OmegaConf.load(str(config_yaml)))
     else:
