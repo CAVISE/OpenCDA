@@ -1,6 +1,8 @@
 name: Lint, Format, Type and Unused code checks
 
 on:
+  push:
+    branches: [main]
   pull_request:
 
 jobs:
