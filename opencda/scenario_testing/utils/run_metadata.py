@@ -131,7 +131,7 @@ def write_run_artifacts(
     model = None
     if getattr(opt, "with_coperception", False):
         directory = Path(opt.model_dir).resolve()
-        model = {"id": getattr(opt, "model_id", None), "directory": str(directory)}
+        model = {"id": getattr(opt, "_pinned_model_id", None) or getattr(opt, "model_id", None), "directory": str(directory)}
         if getattr(opt, "with_advcp", False) and getattr(opt, "advcp_assets_dir", None):
             model["advcp_assets_dir"] = str(Path(opt.advcp_assets_dir).resolve())
         inputs.update(model_config=directory / "config.yaml", model_manifest=directory / "meta.yaml")
@@ -148,8 +148,7 @@ def write_run_artifacts(
                 for name in ADVCP_PATH_KEYS:
                     if config.get(name) is not None:
                         asset = Path(str(config[name])).expanduser()
-                        if not asset.is_absolute():
-                            config[name] = str((source.parent / asset).resolve())
+                        config[name] = str(asset if asset.is_absolute() else (source.parent / asset).resolve())
                 target.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
             else:
                 shutil.copy2(source, target)

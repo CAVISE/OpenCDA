@@ -367,3 +367,67 @@ def test_saved_advcp_bundle_is_validated(entrypoint, tmp_path, monkeypatch, chan
         entrypoint.model_resolver.resolve_runtime_models(options)
         assert options.advcp_assets_dir == str(assets)
     fetch.assert_not_called()
+
+
+@pytest.mark.parametrize("logical", [False, True])
+@pytest.mark.parametrize("change", [None, "modify", "delete", "wrong-id"])
+def test_perception_identity_and_validation_survive_replays(entrypoint, tmp_path, monkeypatch, logical, change):
+    """Retain logical identity and validation across three successive replays.
+
+    Parameters
+    ----------
+    entrypoint : types.ModuleType
+        Real parser, replay handling and model resolver.
+    tmp_path : pathlib.Path
+        Workspace for model artifacts and successive manifests.
+    monkeypatch : pytest.MonkeyPatch
+        Fixture observing checkout overrides without network access.
+    logical : bool
+        Whether the original launch uses a logical ID or explicit directory.
+    change : str or None
+        Mutation to the pinned checkpoint after successful replays.
+    """
+    directory = tmp_path / "model"
+    directory.mkdir()
+    weights = directory / "weights.pth"
+    weights.write_bytes(b"data")
+    metadata = {
+        "schema_version": 1,
+        "id": "example",
+        "kind": "coperception-checkpoint",
+        "artifacts": [{"path": "weights.pth", "size": 4, "sha256": hashlib.sha256(b"data").hexdigest()}],
+    }
+    run_metadata.write_json(directory / "meta.yaml", metadata)
+    arguments = ["-t", "demo", "--with-coperception"] + (["--model-id", "example"] if logical else ["--model-dir", str(directory)])
+    options, command, _ = entrypoint.resolve_launch_arguments(arguments)
+    options.model_dir = str(directory)
+    run = tmp_path / "original"
+    config = OmegaConf.create({"world": {"seed": 11}})
+    for index in range(3):
+        run_metadata.write_run_artifacts(run, opt=options, argv=command, merged_config=config)
+        assert run_metadata.load_run_manifest(run)["model"]["id"] == ("example" if logical else None)
+        options, command, _ = entrypoint.resolve_launch_arguments(["--replay-from", str(run)])
+        entrypoint.model_resolver.resolve_runtime_models(options)
+        previous = run
+        run = tmp_path / f"replay-{index}"
+    if change == "modify":
+        weights.write_bytes(b"oops")
+    elif change == "delete":
+        weights.unlink()
+    elif change == "wrong-id":
+        metadata["id"] = "other"
+        run_metadata.write_json(directory / "meta.yaml", metadata)
+    options, _, _ = entrypoint.resolve_launch_arguments(["--replay-from", str(previous)])
+    if logical and change:
+        with pytest.raises(entrypoint.model_resolver.ModelResolutionError):
+            entrypoint.model_resolver.resolve_runtime_models(options)
+    else:
+        entrypoint.model_resolver.resolve_runtime_models(options)
+    alternative = tmp_path / "alternative"
+    alternative.mkdir()
+    resolver = Mock(return_value=alternative)
+    monkeypatch.setattr(entrypoint.model_resolver, "resolve_bundle", resolver)
+    override, _, _ = entrypoint.resolve_launch_arguments(["--replay-from", str(previous), "--models-root", str(tmp_path / "new-checkout")])
+    entrypoint.model_resolver.resolve_runtime_models(override)
+    assert override.model_dir == str(alternative if logical else directory)
+    assert resolver.call_count == (1 if logical else 0)

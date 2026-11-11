@@ -410,6 +410,9 @@ def resolve_runtime_models(options: object) -> None:
             resolved_model_dir = Path(model_dir).expanduser().resolve()
             if not resolved_model_dir.is_dir():
                 raise ModelResolutionError(f'Explicit model directory does not exist: "{resolved_model_dir}".')
+            pinned_id = getattr(options, "_pinned_model_id", None)
+            if pinned_id:
+                validate_bundle(resolved_model_dir, bundle_id=pinned_id, category="coperception")
             setattr(options, "model_dir", str(resolved_model_dir))
         elif model_id:
             resolved_model_dir = resolve_bundle(

@@ -536,3 +536,66 @@ def test_advcp_absolute_symlink_name_is_preserved(tmp_path, merged_config, key):
     assert OmegaConf.load(saved)[key] == str(link)
     assert Path(OmegaConf.load(saved)[key]).stem == "car_000000"
     assert source.read_text() == f"{key}: {link}\n"
+
+
+@pytest.mark.parametrize("recorded_snapshot", [False, True])
+def test_reenable_advcp_distinguishes_uncaptured_and_missing_inputs(tmp_path, monkeypatch, merged_config, recorded_snapshot):
+    """Use the CLI config when uncaptured, but reject a lost recorded snapshot.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Workspace for original and replayed runs.
+    monkeypatch : pytest.MonkeyPatch
+        Fixture substituting the simulation runtime.
+    merged_config : omegaconf.DictConfig
+        Saved final scenario configuration.
+    recorded_snapshot : bool
+        Whether a snapshot was recorded and subsequently lost.
+    """
+    source = tmp_path / "attack.yaml"
+    source.write_text("mode: spoofing\n")
+    original = tmp_path / "original"
+    manifest = run_metadata.write_run_artifacts(
+        original,
+        opt=_make_opt(),
+        merged_config=merged_config,
+        argv=["-t", "single_town06_carla", "--with-coperception", "--model-dir", str(tmp_path / "model"), "--advcp-config", str(source)],
+        input_files={"advcp_config": source} if recorded_snapshot else {},
+    )
+    if recorded_snapshot:
+        (run_metadata.reproducibility_dir(original) / manifest["inputs"]["advcp_config"]["copy"]).unlink()
+        with pytest.raises(FileNotFoundError, match="Saved AdvCP configuration"):
+            _replay_main(_load_entrypoint(), monkeypatch, tmp_path / "replay", ["--replay-from", str(original), "--with-advcp"])
+    else:
+        replay = _replay_main(_load_entrypoint(), monkeypatch, tmp_path / "replay", ["--replay-from", str(original), "--with-advcp"])
+        assert replay["inputs"]["advcp_config"]["source"] == str(source)
+
+
+@pytest.mark.parametrize("key", run_metadata.ADVCP_PATH_KEYS)
+def test_home_relative_advcp_paths_are_frozen(tmp_path, monkeypatch, merged_config, key):
+    """Expand home-relative assets once while preserving absolute symlink names.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Workspace for home directories and the configuration snapshot.
+    monkeypatch : pytest.MonkeyPatch
+        Fixture changing the runtime home directory.
+    merged_config : omegaconf.DictConfig
+        Final scenario configuration.
+    key : str
+        Canonical or legacy asset path key.
+    """
+    home = tmp_path / "original-home"
+    home.mkdir()
+    (home / "mesh.ply").write_bytes(b"mesh")
+    (home / "car_000000.ply").symlink_to(home / "mesh.ply")
+    monkeypatch.setenv("HOME", str(home))
+    source = tmp_path / "attack.yaml"
+    source.write_text(f"{key}: ~/car_000000.ply\n")
+    run = tmp_path / "run"
+    manifest = run_metadata.write_run_artifacts(run, opt=_make_opt(), argv=[], merged_config=merged_config, input_files={"advcp_config": source})
+    monkeypatch.setenv("HOME", str(tmp_path / "different-home"))
+    copy = run_metadata.reproducibility_dir(run) / manifest["inputs"]["advcp_config"]["copy"]
+    assert OmegaConf.load(copy)[key] == str(home / "car_000000.ply")

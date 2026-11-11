@@ -459,12 +459,17 @@ def resolve_launch_arguments(cli_argv: list[str]) -> tuple[argparse.Namespace, l
         for name in ("model_id", "model_dir"):
             if name not in supplied:
                 setattr(opt, name, None)
-    model_directory = (manifest.get("model") or {}).get("directory") or (manifest.get("checkpoint") or {}).get("local_dir")
-    model_overrides = {"model_id", "model_dir"}
-    if opt.model_id:
-        model_overrides.update(("models_root", "models_repository", "models_ref"))
-    if opt.with_coperception and model_directory and not model_overrides.intersection(supplied):
-        opt.model_id, opt.model_dir = None, model_directory
+    saved_model = manifest.get("model") or {}
+    model_directory = saved_model.get("directory") or (manifest.get("checkpoint") or {}).get("local_dir")
+    logical_model_id = opt.model_id or saved_model.get("id")
+    model_selection_overridden = bool({"model_id", "model_dir"}.intersection(supplied))
+    checkout_overridden = bool({"models_root", "models_repository", "models_ref"}.intersection(supplied))
+    if opt.with_coperception and not model_selection_overridden:
+        if logical_model_id and checkout_overridden:
+            opt.model_id, opt.model_dir = logical_model_id, None
+        elif model_directory:
+            opt.model_id, opt.model_dir = None, model_directory
+            opt._pinned_model_id = logical_model_id
     assets_directory = (manifest.get("model") or {}).get("advcp_assets_dir")
     asset_overrides = {"models_root", "models_repository", "models_ref", "advcp_assets_id"}
     if opt.with_advcp and assets_directory and not asset_overrides.intersection(supplied):
@@ -548,9 +553,9 @@ def main() -> None:
             advcp_config = advcp_config.with_suffix(".yaml")
 
         # Replay uses the saved AdvCP config unless explicitly overridden.
-        use_saved_advcp_config = replay_dir is not None and "advcp_config" not in explicit_options
+        saved_input = (replay_manifest or {}).get("inputs", {}).get("advcp_config") or {}
+        use_saved_advcp_config = replay_dir is not None and bool(saved_input) and "advcp_config" not in explicit_options
         if use_saved_advcp_config:
-            saved_input = (replay_manifest or {}).get("inputs", {}).get("advcp_config") or {}
             saved_copy = saved_input.get("copy", "inputs/advcp_config.yaml")
             replay_root = run_metadata.reproducibility_dir(replay_dir).resolve()
             saved_advcp_config = (replay_root / saved_copy).resolve()
