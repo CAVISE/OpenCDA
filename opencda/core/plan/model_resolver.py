@@ -399,7 +399,8 @@ def resolve_runtime_models(options: object) -> None:
     models_root = Path(models_root_value) if models_root_value else default_models_root()
     repository_url = getattr(options, "models_repository", None)
     ref = getattr(options, "models_ref", None)
-    auto_fetch = False if getattr(options, "no_auto_fetch_models", False) else None
+    no_auto_fetch = getattr(options, "no_auto_fetch_models", None)
+    auto_fetch = None if no_auto_fetch is None else not no_auto_fetch
 
     if getattr(options, "with_coperception", False):
         model_dir = getattr(options, "model_dir", None)

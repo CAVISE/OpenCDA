@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import shlex
 import shutil
 import subprocess
 import sys
@@ -33,7 +34,8 @@ def _make_opt(**overrides) -> argparse.Namespace:
 
 @pytest.mark.parametrize("kind", ["xodr", "sumocfg", "network", "routes", "additional"])
 @pytest.mark.parametrize("change", ["modify", "delete"])
-def test_selected_simulation_inputs_are_compared_without_git(tmp_path, monkeypatch, merged_config, kind, change):
+@pytest.mark.parametrize("scenario", ["demo", "demo.v1"])
+def test_selected_simulation_inputs_are_compared_without_git(tmp_path, monkeypatch, merged_config, kind, change, scenario):
     """Detect changed selected map and SUMO inputs in Git-free runs.
 
     Parameters
@@ -46,10 +48,12 @@ def test_selected_simulation_inputs_are_compared_without_git(tmp_path, monkeypat
         Resolved scenario configuration fixture.
     kind, change : str
         Selected runtime input and the mutation applied before replay.
+    scenario : str
+        Selected scenario name, including a name containing a dot.
     """
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(run_metadata, "collect_code_versions", lambda: {"opencda": {"git": None}})
-    assets = tmp_path / "opencda/sumo-assets/demo"
+    assets = tmp_path / "opencda/sumo-assets" / scenario
     assets.mkdir(parents=True)
     external = tmp_path / "external"
     external.mkdir()
@@ -59,14 +63,14 @@ def test_selected_simulation_inputs_are_compared_without_git(tmp_path, monkeypat
     routes.write_text("<routes/>\n")
     additional = assets / "extra.add.xml"
     additional.write_text("<additional/>\n")
-    config = assets / "demo.sumocfg"
+    config = assets / f"{scenario}.sumocfg"
     config.write_text(
         f'<configuration><input><net-file value="{network}"/><route-files value="routes.rou.xml"/>'
         '<additional-files value="extra.add.xml"/></input></configuration>'
     )
-    xodr = assets / "demo.xodr"
+    xodr = assets / f"{scenario}.xodr"
     xodr.write_text("<OpenDRIVE/>\n")
-    opt = _make_opt(xodr=True, cosim=kind != "xodr")
+    opt = _make_opt(test_scenario=scenario, xodr=True, cosim=kind != "xodr")
     original = run_metadata.write_run_artifacts(tmp_path / "run", opt=opt, argv=[], merged_config=merged_config, current_time="t")
     assert not any("Simulation inputs" in warning for warning in run_metadata.compare_with_original(original, opt))
     selected = {"xodr": xodr, "sumocfg": config, "network": network, "routes": routes, "additional": additional}[kind]
@@ -556,6 +560,29 @@ def test_replay_warns_when_gpu_differs(monkeypatch):
     assert not any(warning.startswith("CUDA version differs") for warning in warnings)
 
 
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+@pytest.mark.parametrize("flag", ["cudnn_deterministic", "cudnn_benchmark"])
+def test_replay_compares_cudnn_modes_on_cuda_only(monkeypatch, device, flag):
+    """Warn about changed cuDNN execution modes that can affect GPU results.
+
+    Parameters
+    ----------
+    monkeypatch : pytest.MonkeyPatch
+        Fixture supplying controlled replay device metadata.
+    device : str
+        CPU or CUDA execution selected by the run.
+    flag : str
+        Recorded cuDNN execution mode changed before replay.
+    """
+    original_device = {"torch": {"device": device, "cudnn_deterministic": False, "cudnn_benchmark": False}}
+    monkeypatch.setattr(run_metadata, "collect_device_info", lambda: original_device)
+    assert not any("mode differs" in warning for warning in run_metadata.compare_with_original({"device": original_device}, _make_opt()))
+    current = {"torch": {**original_device["torch"], flag: True}}
+    monkeypatch.setattr(run_metadata, "collect_device_info", lambda: current)
+    warnings = run_metadata.compare_with_original({"device": original_device}, _make_opt())
+    assert any("mode differs" in warning for warning in warnings) is (device == "cuda")
+
+
 def test_replay_does_not_reuse_original_log_file(tmp_path: Path, merged_config):
     """Replay must not overwrite the original run log."""
     entrypoint = _load_entrypoint()
@@ -742,6 +769,54 @@ def test_opencood_source_is_fingerprinted_without_git(tmp_path: Path, monkeypatc
     assert any("OpenCOOD source digest differs" in message for message in warnings)
 
 
+@pytest.mark.parametrize("error_type", [PermissionError, OSError])
+def test_unreadable_unused_source_does_not_abort_run_metadata(tmp_path, monkeypatch, merged_config, error_type):
+    """Keep a valid run usable when optional source assets cannot be hashed.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary package root containing an unused model asset.
+    monkeypatch : pytest.MonkeyPatch
+        Fixture simulating a read failure independently of process privileges.
+    merged_config : omegaconf.DictConfig
+        Valid scenario configuration that does not use the unreadable asset.
+    error_type : type of OSError
+        Filesystem error raised while reading the optional source asset.
+    """
+    asset = tmp_path / "AIM/unused.pth"
+    asset.parent.mkdir()
+    asset.write_bytes(b"unused model")
+    open_file = Path.open
+
+    def deny_asset_read(path, *args, **kwargs):
+        """Simulate the unavailable asset while forwarding other file access.
+
+        Parameters
+        ----------
+        path : pathlib.Path
+            File being accessed by provenance collection or artifact persistence.
+        *args, **kwargs : Any
+            File-opening parameters forwarded unchanged.
+
+        Returns
+        -------
+        IO
+            Normal file stream for all other paths.
+        """
+        if path == asset:
+            raise error_type("source asset is unavailable")
+        return open_file(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", deny_asset_read)
+    monkeypatch.setattr(run_metadata, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(run_metadata, "_module_location", lambda name: None)
+    original = run_metadata.write_run_artifacts(tmp_path / "run", opt=_make_opt(), argv=[], merged_config=merged_config, current_time="t")
+    assert original["status"] == "running"
+    assert original["code"]["opencda"]["source_digest"] is None
+    assert any("source digest is unavailable" in warning for warning in run_metadata.compare_with_original(original, _make_opt()))
+
+
 def test_replay_warns_when_python_version_differs(monkeypatch):
     original = {"code": {"python": "3.11.0"}}
     monkeypatch.setattr(run_metadata, "collect_code_versions", lambda: {"python": "3.12.0"})
@@ -766,6 +841,37 @@ def test_config_integrity_and_legacy_manifest(tmp_path: Path, merged_config):
     del manifest["config_sha256"]
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
     opt, _, _ = entrypoint.resolve_launch_arguments(["--replay-from", str(tmp_path)])
+    assert opt.test_scenario == "demo"
+
+
+@pytest.mark.parametrize("query", ["town=Town%2006", "debug", "value=%7E"])
+def test_credential_free_urls_are_preserved_and_remain_replayable(tmp_path, query):
+    """Preserve harmless URL encoding without marking configuration redacted.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary source YAML and run output directory.
+    query : str
+        Valid credential-free query whose encoding must remain unchanged.
+    """
+    url = f"https://example.com/status?{query}"
+    source = tmp_path / "source.yaml"
+    source.write_text(f"service_url: {url}\n")
+    run = tmp_path / "run"
+    original = run_metadata.write_run_artifacts(
+        run,
+        opt=_make_opt(),
+        argv=["-t", "demo"],
+        merged_config=OmegaConf.create({"world": {"seed": 11}, "service_url": url}),
+        current_time="t",
+        input_files={"scenario_config": source},
+    )
+    assert original["config_redacted"] is False
+    assert original["inputs"]["scenario_config"]["redacted"] is False
+    assert (run / "reproducibility/inputs/scenario_config.yaml").read_bytes() == source.read_bytes()
+    assert OmegaConf.load(run / "reproducibility/config.yaml").service_url == url
+    opt, _, _ = _load_entrypoint().resolve_launch_arguments(["--replay-from", str(run)])
     assert opt.test_scenario == "demo"
 
 
@@ -814,6 +920,174 @@ def test_sensitive_git_diff_is_not_saved(tmp_path: Path, monkeypatch, caplog, fa
     assert not (tmp_path / run_metadata.CODE_DIFF_FILENAME).exists()
     assert "TEST_SECRET_123" not in caplog.text
     assert "refusing to persist" in caplog.text
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git is required")
+@pytest.mark.parametrize("diff_mode", ["binary", "textconv", "forced_text"])
+def test_binary_git_changes_are_not_published_with_credentials(tmp_path, monkeypatch, caplog, diff_mode):
+    """Reject opaque patches whose encoded bytes cannot be credential-scanned.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary Git checkout and artifact directory.
+    monkeypatch : pytest.MonkeyPatch
+        Fixture selecting the temporary checkout for patch capture.
+    caplog : pytest.LogCaptureFixture
+        Fixture checking that diagnostics do not expose the credential.
+    diff_mode : str
+        Git's normal binary mode, a preview filter or an explicit text override.
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init", "-q")
+    source = repo / "data.dat"
+    source.write_bytes(b"\0original")
+    if diff_mode == "textconv":
+        viewer = tmp_path / "preview.py"
+        viewer.write_text('import sys\nsys.stdout.buffer.write(open(sys.argv[1], "rb").read().replace(b"\\0", b"").replace(b"password=", b""))\n')
+        (repo / ".gitattributes").write_text("*.dat diff=preview\n")
+        _git(repo, "config", "diff.preview.textconv", f"{shlex.quote(sys.executable)} {shlex.quote(str(viewer))}")
+    elif diff_mode == "forced_text":
+        (repo / ".gitattributes").write_text("*.dat diff\n")
+    _git(repo, "add", ".")
+    _git(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "Add binary fixture")
+    source.write_bytes(b"\0S3nsitiveValue42" if diff_mode == "forced_text" else b"\0password=S3nsitiveValue42")
+    monkeypatch.setattr(run_metadata, "REPO_ROOT", repo)
+    raw = run_metadata._run_git(repo, "diff", "HEAD", "--binary", preserve_whitespace=True)
+    assert ("GIT binary patch" in raw) is (diff_mode == "binary")
+    assert ("S3nsitiveValue42" in raw) is (diff_mode != "binary")
+
+    assert run_metadata._save_code_diff(tmp_path, {"dirty": True}) is None
+    assert not (tmp_path / run_metadata.CODE_DIFF_FILENAME).exists()
+    assert "S3nsitiveValue42" not in caplog.text
+
+
+@pytest.mark.parametrize("filename", ["config.yaml", "scenario_config.yaml"])
+@pytest.mark.parametrize("error_type", [KeyboardInterrupt, OSError])
+def test_failed_sanitization_does_not_publish_plaintext_inputs(tmp_path, monkeypatch, filename, error_type):
+    """Keep raw YAML outside shared artifacts when sanitization is interrupted.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary source and run output directories.
+    monkeypatch : pytest.MonkeyPatch
+        Fixture interrupting the selected sanitization operation.
+    filename : str
+        Merged or copied configuration whose sanitizer fails.
+    error_type : type of BaseException
+        Failure raised before the selected YAML can be sanitized.
+    """
+    source = tmp_path / "source.yaml"
+    source.write_text("password: TEST_UNPUBLISHED_PASSWORD\n")
+    run_dir = tmp_path / "run"
+    sanitize = run_metadata._redact_yaml_file
+
+    def fail_sanitization(path):
+        """Interrupt the selected sanitizer and forward other configurations.
+
+        Parameters
+        ----------
+        path : pathlib.Path
+            Configuration being sanitized before publication.
+
+        Returns
+        -------
+        bool
+            Redaction status from the normal sanitizer for other paths.
+        """
+        if path.name == filename:
+            raise error_type("sanitization interrupted")
+        return sanitize(path)
+
+    monkeypatch.setattr(run_metadata, "_redact_yaml_file", fail_sanitization)
+    monkeypatch.setattr(run_metadata, "collect_code_versions", lambda: {"opencda": {"git": None}})
+    with pytest.raises(error_type, match="sanitization interrupted"):
+        run_metadata.write_run_artifacts(
+            run_dir,
+            opt=_make_opt(),
+            argv=[],
+            merged_config=OmegaConf.load(source),
+            current_time="t",
+            input_files={"scenario_config": source},
+        )
+    for path in run_dir.rglob("*"):
+        if path.is_file():
+            assert b"TEST_UNPUBLISHED_PASSWORD" not in path.read_bytes()
+    assert source.read_text() == "password: TEST_UNPUBLISHED_PASSWORD\n"
+
+
+@pytest.mark.parametrize(
+    ("key", "filename"),
+    [("scenario_config", "config.yaml"), ("advcp_config", "attack.yaml"), ("advcp_config", "attack.cfg"), ("advcp_config", "attack.link")],
+)
+def test_input_redaction_supports_readonly_advcp_and_non_yaml_suffixes(tmp_path, key, filename):
+    """Sanitize immutable YAML copies and every supported AdvCP filename.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary input and artifact directories.
+    key, filename : str
+        Runtime input role and filename, including a symlink with another suffix.
+    """
+    original = "mode: spoofing\npassword: TEST_READONLY_SECRET\n"
+    target = tmp_path / "source.yaml"
+    target.write_text(original)
+    target.chmod(0o444)
+    source = tmp_path / filename
+    source.symlink_to(target)
+    output = tmp_path / "run"
+
+    copied = run_metadata._copy_inputs(output, {key: source}, _make_opt())
+
+    saved = output / copied[key]["copy"]
+    assert "TEST_READONLY_SECRET" not in saved.read_text()
+    assert run_metadata.REDACTED in saved.read_text()
+    assert copied[key]["redacted"] is True
+    assert copied[key]["sha256"] == run_metadata.sha256_file(saved)
+    assert saved.stat().st_mode & 0o777 == 0o444
+    assert target.read_text() == original
+    assert target.stat().st_mode & 0o777 == 0o444
+
+
+@pytest.mark.parametrize("override", [False, True])
+def test_redacted_advcp_replay_requires_explicit_config(tmp_path, monkeypatch, merged_config, override):
+    """Reject sanitized attack inputs unless replay explicitly replaces them.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary original and replay directories.
+    monkeypatch : pytest.MonkeyPatch
+        Fixture replacing the simulation runtime with the existing scenario stub.
+    merged_config : omegaconf.DictConfig
+        Scenario configuration without credentials.
+    override : bool
+        Whether replay explicitly selects a secure original attack input.
+    """
+    entrypoint = _load_entrypoint()
+    source = tmp_path / "attack.yaml"
+    source.write_text("mode: spoofing\npassword: TEST_ATTACK_SECRET\n")
+    original = tmp_path / "original"
+    manifest = run_metadata.write_run_artifacts(
+        original,
+        opt=_make_opt(),
+        argv=["-t", "demo", "--with-coperception", "--with-advcp", "--advcp-config", str(source)],
+        merged_config=merged_config,
+        current_time="t",
+        input_files={"advcp_config": source},
+    )
+    assert manifest["config_redacted"] is False
+    assert manifest["inputs"]["advcp_config"]["redacted"] is True
+    arguments = ["--replay-from", str(original)]
+    if override:
+        replay = _replay_main(entrypoint, monkeypatch, tmp_path / "replay", [*arguments, "--advcp-config", str(source)])
+        assert replay["launch"]["options"]["advcp_config"] == str(source)
+    else:
+        with pytest.raises(ValueError, match="AdvCP configuration contains redacted credentials"):
+            _replay_main(entrypoint, monkeypatch, tmp_path / "replay", arguments)
 
 
 def test_replay_warns_if_original_dirty_diff_is_missing(monkeypatch):

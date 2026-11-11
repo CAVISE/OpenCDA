@@ -56,6 +56,18 @@ class VerbosityLevel(enum.IntEnum):
 
 class JsonFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
+        """Serialize diagnostics without persisting HTTP URL credentials.
+
+        Parameters
+        ----------
+        record : logging.LogRecord
+            Message and optional exception to store in the run's JSON log.
+
+        Returns
+        -------
+        str
+            JSON record with credential-bearing URLs sanitized in every field.
+        """
         payload = {
             "timestamp": datetime.fromtimestamp(
                 record.created,
@@ -70,7 +82,7 @@ class JsonFormatter(logging.Formatter):
         if record.exc_info:
             payload["exception"] = self.formatException(record.exc_info)
 
-        return json.dumps(payload, ensure_ascii=False)
+        return json.dumps(run_metadata.to_jsonable(payload), ensure_ascii=False)
 
 
 # Handle cavise log creation, obtain this logger later with a call to
@@ -262,12 +274,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--models-root", type=str, help="Models checkout path (default: CAVISE_MODELS_ROOT or the sibling models repository).")
     parser.add_argument("--models-repository", type=str, help="Git repository used to fetch missing model bundles.")
     parser.add_argument("--models-ref", type=str, help="Git branch or tag used when cloning the models repository (default: main).")
-    parser.add_argument("--no-auto-fetch-models", action="store_true", help="Fail instead of fetching a missing model or runtime asset bundle.")
+    parser.add_argument(
+        "--no-auto-fetch-models", action="store_true", default=None, help="Fail instead of fetching a missing model or runtime asset bundle."
+    )
     parser.add_argument(
         "--auto-fetch-models",
         dest="no_auto_fetch_models",
         action="store_false",
-        default=False,
+        default=None,
         help="Allow fetching missing model or runtime asset bundles.",
     )
     parser.add_argument("--show-video-vis", action=argparse.BooleanOptionalAction, default=False, help="whether to show video visualization result")
@@ -295,6 +309,23 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--sumo-adapter-url", default="http://sumo:8080", help="SUMO adapter base URL.")
 
     def verbosity_wrapper(arg: str) -> VerbosityLevel:
+        """Convert a command-line verbosity value to its runtime enum.
+
+        Parameters
+        ----------
+        arg : str
+            Integer verbosity level supplied on the command line.
+
+        Returns
+        -------
+        VerbosityLevel
+            Corresponding supported logging verbosity.
+
+        Raises
+        ------
+        ValueError
+            If the value is not an integer or a supported verbosity level.
+        """
         return VerbosityLevel(int(arg))
 
     parser.add_argument(
@@ -380,7 +411,11 @@ def build_command_from_options(opt: argparse.Namespace, parser: argparse.Argumen
             if not value:
                 argv.append(flag)
         elif value is not None:
-            argv.extend([flag, str(value.value if isinstance(value, enum.Enum) else value)])
+            argument = str(value.value if isinstance(value, enum.Enum) else value)
+            if argument.startswith("-"):
+                argv.append(f"{flag}={argument}")
+            else:
+                argv.extend([flag, argument])
     return argv
 
 
@@ -476,10 +511,23 @@ def main() -> None:
         level = logging.WARNING
 
     scenario_path = pathlib.Path(opt.test_scenario)
-    test_scenario_name = scenario_path.stem
-    log_path = (
-        pathlib.Path(opt.log_file) if opt.log_file is not None else get_default_output_path(test_scenario_name, current_time) / DEFAULT_LOG_FILENAME
-    )
+    test_scenario_name = scenario_path.stem if scenario_path.suffix.lower() == ".yaml" else opt.test_scenario
+    base_output_dir = get_default_output_path(test_scenario_name, current_time)
+    evaluation_output_dir = base_output_dir
+    time_prefix = current_time
+    suffix = 0
+    # Reserve the run before opening its log; same-second launches must not overwrite prior artifacts.
+    while True:
+        try:
+            evaluation_output_dir.mkdir(parents=True, exist_ok=False)
+            break
+        except FileExistsError:
+            if not evaluation_output_dir.exists() and not evaluation_output_dir.is_symlink():
+                raise
+            suffix += 1
+            current_time = f"{time_prefix}_{suffix}"
+            evaluation_output_dir = base_output_dir.with_name(f"{base_output_dir.name}_{suffix}")
+    log_path = pathlib.Path(opt.log_file) if opt.log_file is not None else evaluation_output_dir / DEFAULT_LOG_FILENAME
     logger = create_logger(level=level, filename=str(log_path))
     install_traceback_handler(verbose=verbosity != VerbosityLevel.SILENT)
 
@@ -531,6 +579,8 @@ def main() -> None:
             expected_hash = saved_input.get("sha256")
             if expected_hash is not None and run_metadata.sha256_file(saved_advcp_config) != expected_hash:
                 raise ValueError(f"Saved AdvCP configuration SHA-256 mismatch: {saved_advcp_config.name} was modified or corrupted.")
+            if saved_input.get("redacted"):
+                raise ValueError("Saved AdvCP configuration contains redacted credentials; supply --advcp-config with a secure replacement.")
             advcp_config = saved_advcp_config
         elif not advcp_config.is_file():
             logger.error(f"AdvCP config not found: {advcp_config}")
@@ -552,7 +602,6 @@ def main() -> None:
     # NOTICE: temporary measure (while option is turned off)
     opt.apply_ml = False
 
-    evaluation_output_dir = get_default_output_path(opt.test_scenario, current_time)
     run_metadata.write_run_artifacts(
         evaluation_output_dir,
         opt=opt,

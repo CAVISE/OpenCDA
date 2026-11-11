@@ -190,11 +190,11 @@ CAPI v2 is the data exchange interface between OpenCDA and Artery. In this fork 
 - `--models-root`: Override the models checkout path.
 - `--models-repository`: Override the Git repository used for automatic fetching.
 - `--models-ref`: Branch or tag to clone; defaults to `main`.
-- `--no-auto-fetch-models`: Disable network access and fail when a requested bundle is absent locally.
+- `--auto-fetch-models` / `--no-auto-fetch-models`: Explicitly allow or disable fetching missing model and runtime asset bundles. When omitted, `CAVISE_MODELS_AUTO_FETCH` controls fetching.
 - `--show-video-vis`: whether to show video visualization result
 - `--save-vis`: whether to save visualization result
 - `--save-npy`: whether to save prediction and gt result in npy_test file
-- `--save-predictions` / `--no-save-predictions`: Save per-tick boxes and confidence scores (raw pre-NMS candidates and final predictions) to `predictions/` in the evaluation output folder (on by default). Pre-NMS candidates are not available for CIASSD and FPV-RCNN models, which run NMS inside OpenCOOD.
+- `--save-predictions` / `--no-save-predictions`: Save per-tick boxes and confidence scores to `predictions/` in the evaluation output folder (on by default). Capture includes available raw pre-NMS candidates and final predictions for the standard, late-fusion AdvCP, CIASSD evaluation and FPV-RCNN stage-two paths. Custom postprocessors without a supported capture path save final predictions and report missing raw candidates.
 
 Fusion behavior is resolved from the selected model bundle configuration.
 
@@ -254,7 +254,7 @@ python3 opencda.py \
 
 ### Output directories
 
-- `simulation_output/evaluation_outputs/<scenario>_<time>/`: everything needed to analyse and reproduce a run:
+- `simulation_output/evaluation_outputs/<scenario>_<time>/`: evaluation results and reproducibility metadata:
 
   ```text
   <scenario>_<time>/
@@ -268,7 +268,7 @@ python3 opencda.py \
       └── tick_<N>.npz        # raw_boxes/raw_scores (before NMS), pred_boxes/pred_scores, gt_boxes, thresholds
   ```
 
-  The manifest identifies the model by bundle ID, artifact SHA-256 and a link to the bundle in the models repository at the exact commit. Load predictions with `opencda.scenario_testing.utils.run_metadata.load_prediction_records`. `world.seed` also seeds the CARLA Traffic Manager, so background traffic repeats between runs in synchronous mode.
+  The manifest records bundle IDs and artifact SHA-256 hashes. A repository commit link is included only when the runtime artifacts match that commit. Selected OpenDRIVE and SUMO inputs, including referenced networks, routes and additional files, are hashed and compared on replay. Model weights and external simulation assets must remain available at their runtime paths. Load predictions with `opencda.scenario_testing.utils.run_metadata.load_prediction_records`. `world.seed` also seeds the CARLA Traffic Manager in synchronous mode; matching seeds alone do not guarantee identical results across environments.
 
   Replay from the repository root, optionally overriding saved arguments:
 

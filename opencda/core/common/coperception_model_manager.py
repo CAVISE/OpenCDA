@@ -254,9 +254,9 @@ class CoperceptionVisualizer:
         left_hand: bool = False,
         uncertainty=None,
     ):
+        # Canvas backends are optional and only needed when rendering is enabled.
         import opencood.visualization.simple_plot3d.canvas_3d as canvas_3d
         import opencood.visualization.simple_plot3d.canvas_bev as canvas_bev
-        from opencood.utils import common_utils
 
         config = cls.resolve_visualization_config(visualization_config)
         pc_range = [int(i) for i in pc_range]
@@ -272,10 +272,10 @@ class CoperceptionVisualizer:
         box_line_thickness = int(config["bbox_line_thickness"])
 
         if vis_pred_box and pred_box_tensor is not None:
-            pred_box_np = common_utils.torch_tensor_to_numpy(pred_box_tensor)
+            pred_box_np = cls._to_numpy_array(pred_box_tensor)
             pred_name = [""] * pred_box_np.shape[0]
             if uncertainty is not None:
-                uncertainty_np = common_utils.torch_tensor_to_numpy(uncertainty)
+                uncertainty_np = cls._to_numpy_array(uncertainty)
                 uncertainty_np = np.exp(uncertainty_np)
                 d_a_square = 1.6**2 + 3.9**2
 
@@ -302,7 +302,7 @@ class CoperceptionVisualizer:
             pred_name = []
 
         if vis_gt_box:
-            gt_box_np = common_utils.torch_tensor_to_numpy(gt_tensor)
+            gt_box_np = cls._to_numpy_array(gt_tensor)
             gt_name = [""] * gt_box_np.shape[0]
 
         if method == "bev":
@@ -320,7 +320,7 @@ class CoperceptionVisualizer:
                 canvas.draw_boxes(gt_box_np, colors=gt_color, texts=gt_name, box_line_thickness=box_line_thickness)
             if vis_pred_box and pred_box_np is not None:
                 canvas.draw_boxes(pred_box_np, colors=pred_color, texts=pred_name, box_line_thickness=box_line_thickness)
-            cls._draw_extra_boxes(canvas, method, config, visualization_context, common_utils)
+            cls._draw_extra_boxes(canvas, method, config, visualization_context)
         elif method == "3d":
             canvas = canvas_3d.Canvas_3D(canvas_bg_color=bg_color, left_hand=left_hand)
             canvas_xy, valid_mask = canvas.get_canvas_coords(pcd_np)
@@ -330,7 +330,7 @@ class CoperceptionVisualizer:
                 canvas.draw_boxes(gt_box_np, colors=gt_color, texts=gt_name, box_line_thickness=box_line_thickness)
             if vis_pred_box and pred_box_np is not None:
                 canvas.draw_boxes(pred_box_np, colors=pred_color, texts=pred_name, box_line_thickness=box_line_thickness)
-            cls._draw_extra_boxes(canvas, method, config, visualization_context, common_utils)
+            cls._draw_extra_boxes(canvas, method, config, visualization_context)
         else:
             raise ValueError(f"Unsupported visualization method: {method}")
 
@@ -338,19 +338,9 @@ class CoperceptionVisualizer:
 
     @staticmethod
     def _to_numpy_points(pcd) -> np.ndarray:
-        if isinstance(pcd, list):
-            from opencood.utils import common_utils
-
-            pcd_np = [common_utils.torch_tensor_to_numpy(x) for x in pcd]
-            pcd_np = pcd_np[0]
-        else:
-            if isinstance(pcd, np.ndarray):
-                pcd_np = pcd
-            else:
-                from opencood.utils import common_utils
-
-                pcd_np = common_utils.torch_tensor_to_numpy(pcd)
-
+        pcd_np = pcd[0] if isinstance(pcd, list) else pcd
+        if not isinstance(pcd_np, np.ndarray):
+            pcd_np = CoperceptionVisualizer._to_numpy_array(pcd_np)
         if len(pcd_np.shape) > 2:
             pcd_np = pcd_np[0]
         if pcd_np.shape[1] > 4:
@@ -412,8 +402,6 @@ class CoperceptionVisualizer:
                     continue
 
                 if cav_id != "ego":
-                    from opencood.utils import box_utils
-
                     transformation_matrix = cav_content.get("transformation_matrix")
                     if transformation_matrix is not None:
                         transformation_matrix_np = cls._to_numpy_array(transformation_matrix)
@@ -468,11 +456,11 @@ class CoperceptionVisualizer:
         return {}
 
     @classmethod
-    def _draw_extra_boxes(cls, canvas, method: str, config: Mapping[str, Any], visualization_context, common_utils):
+    def _draw_extra_boxes(cls, canvas, method: str, config: Mapping[str, Any], visualization_context):
         for box_name, box_tensor in cls._get_extra_box_tensors(visualization_context).items():
             if box_tensor is None:
                 continue
-            box_np = common_utils.torch_tensor_to_numpy(box_tensor)
+            box_np = cls._to_numpy_array(box_tensor)
             color = cls._as_uint8_color(config["bbox_colors"][box_name])
             texts = [""] * box_np.shape[0]
             box_line_thickness = int(config["bbox_line_thickness"])

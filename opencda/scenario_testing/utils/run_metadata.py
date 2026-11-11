@@ -16,11 +16,13 @@ import re
 import shlex
 import shutil
 import socket
+import stat
 import subprocess
 import sys
 from datetime import datetime
 from importlib import metadata
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Any, Iterable, Mapping, cast
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from xml.etree import ElementTree
@@ -56,7 +58,7 @@ CHECKPOINT_SUFFIXES = (".pth", ".pt", ".ckpt", ".bin", ".safetensors")
 TRACKED_PACKAGES = ("numpy", "torch", "torchvision", "carla", "omegaconf", "open3d", "opencood", "spconv", "scipy", "PyYAML")
 
 
-def _to_jsonable(value: Any, key: str = "") -> Any:
+def to_jsonable(value: Any, key: str = "") -> Any:
     """Convert metadata to JSON-compatible values and redact credentials.
 
     Parameters
@@ -80,9 +82,9 @@ def _to_jsonable(value: Any, key: str = "") -> Any:
     if isinstance(value, Path):
         value = str(value)
     if isinstance(value, Mapping):
-        return {str(k): _to_jsonable(item, str(k)) for k, item in value.items()}
+        return {str(k): to_jsonable(item, str(k)) for k, item in value.items()}
     if isinstance(value, (list, tuple, set)):
-        return [_to_jsonable(item) for item in value]
+        return [to_jsonable(item) for item in value]
     if isinstance(value, str):
         return _redact_string(value)
     if value is None or isinstance(value, (int, float, bool)):
@@ -116,7 +118,7 @@ SECRET_QUERY_KEYS = frozenset(
 
 
 def _redact_url(url: str) -> str:
-    """Remove HTTP credentials and sensitive query values.
+    """Remove HTTP credentials and sensitive query or fragment values.
 
     Parameters
     ----------
@@ -126,7 +128,7 @@ def _redact_url(url: str) -> str:
     Returns
     -------
     str
-        URL without userinfo and with sensitive query values redacted.
+        URL without userinfo and with sensitive query/fragment values redacted.
     """
     try:
         parsed = urlsplit(url)
@@ -135,13 +137,15 @@ def _redact_url(url: str) -> str:
         host = parsed.netloc.rsplit("@", 1)[-1] if "@" in parsed.netloc else parsed.netloc
         # Removing userinfo instead of inserting a placeholder avoids persisting
         # something that looks like a reusable credential.
-        query = urlencode(
-            [
-                (key, REDACTED if SECRET_KEY_PATTERN.search(key) or key.lower() in SECRET_QUERY_KEYS else value)
-                for key, value in parse_qsl(parsed.query, keep_blank_values=True)
-            ]
-        )
-        return urlunsplit((parsed.scheme, host, parsed.path, query, parsed.fragment))
+        components: dict[str, str] = {}
+        for name in ("query", "fragment"):
+            original = getattr(parsed, name)
+            pairs = parse_qsl(original, keep_blank_values=True)
+            sanitized = [(key, REDACTED if SECRET_KEY_PATTERN.search(key) or key.lower() in SECRET_QUERY_KEYS else value) for key, value in pairs]
+            components[name] = urlencode(sanitized) if sanitized != pairs else original
+        if host == parsed.netloc and components["query"] == parsed.query and components["fragment"] == parsed.fragment:
+            return url
+        return urlunsplit((parsed.scheme, host, parsed.path, components["query"], components["fragment"]))
     except ValueError:
         return REDACTED
 
@@ -282,7 +286,7 @@ def _module_location(module_name: str) -> Path | None:
     return None
 
 
-def collect_source_digest(directory: Path | None = None) -> str:
+def collect_source_digest(directory: Path | None = None) -> str | None:
     """Fingerprint runtime sources, configurations and model assets.
 
     Parameters
@@ -293,8 +297,10 @@ def collect_source_digest(directory: Path | None = None) -> str:
 
     Returns
     -------
-    str
-        SHA-256 digest of sorted relative filenames and file contents.
+    str or None
+        SHA-256 digest of sorted relative filenames and file contents, or None
+        if a source file cannot be read. An unavailable digest is reported
+        without aborting a simulation that does not use the unreadable file.
     """
     digest = hashlib.sha256()
     extensions = {
@@ -332,9 +338,13 @@ def collect_source_digest(directory: Path | None = None) -> str:
         relative_path = source.relative_to(root).as_posix()
         digest.update(relative_path.encode("utf-8"))
         digest.update(b"\0")
-        with source.open("rb") as stream:
-            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-                digest.update(chunk)
+        try:
+            with source.open("rb") as stream:
+                for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                    digest.update(chunk)
+        except OSError as error:
+            logger.warning("Unable to fingerprint source file %s (%s); source digest is unavailable.", source, type(error).__name__)
+            return None
 
     return digest.hexdigest()
 
@@ -820,11 +830,21 @@ def _copy_inputs(output_dir: Path, input_files: Mapping[str, Path | None], opt: 
             continue
         source = Path(source)
         target = inputs_dir / f"{key}{source.suffix}"
-        if key == "advcp_config":
-            _copy_advcp_config(source, target)
-        else:
-            shutil.copy2(source, target)
-        credentials_redacted = _redact_yaml_file(target) if target.suffix.lower() in {".yaml", ".yml"} else False
+        # Raw copies stay outside the shareable run folder until sanitization succeeds.
+        with TemporaryDirectory(prefix="opencda-input-") as temporary_dir:
+            staged = Path(temporary_dir) / target.name
+            if key == "advcp_config":
+                _copy_advcp_config(source, staged)
+            else:
+                shutil.copy2(source, staged)
+            credentials_redacted = False
+            if key == "advcp_config" or target.suffix.lower() in {".yaml", ".yml"}:
+                # Sanitize read-only copies, preserving their permissions when published.
+                source_mode = staged.stat().st_mode
+                staged.chmod(source_mode | stat.S_IWUSR)
+                credentials_redacted = _redact_yaml_file(staged)
+                staged.chmod(source_mode)
+            shutil.copy2(staged, target)
         if credentials_redacted:
             logger.warning("Credentials were redacted from saved input %s; external credentials may be needed for replay.", key)
         copied[key] = {
@@ -849,8 +869,8 @@ def _save_code_diff(output_dir: Path, git_info: Mapping[str, Any] | None) -> str
     Returns
     -------
     str or None
-        Patch filename, or None if there is no diff or it contains potential
-        credentials. Untracked file contents are never copied.
+        Patch filename, or None if there is no diff, potential credentials,
+        or opaque binary changes. Untracked file contents are never copied.
     """
     if not git_info:
         return None
@@ -863,8 +883,11 @@ def _save_code_diff(output_dir: Path, git_info: Mapping[str, Any] | None) -> str
     if not git_info.get("dirty"):
         return None
     logger.warning("OpenCDA has uncommitted changes: they are saved to %s.", CODE_DIFF_FILENAME)
-    diff = _run_git(REPO_ROOT, "diff", "HEAD", "--binary", preserve_whitespace=True)
+    diff = _run_git(REPO_ROOT, "diff", "HEAD", "--binary", "--no-ext-diff", "--no-textconv", preserve_whitespace=True)
     if not diff:
+        return None
+    if "\nGIT binary patch\n" in diff or "\0" in diff:
+        logger.warning("Binary Git patches cannot be inspected for credentials; refusing to persist the patch.")
         return None
     if _redact_string(diff) != diff or SECRET_KEY_PATTERN.search(diff):
         logger.warning("Git patch contains potential credentials; refusing to persist it. Commit or sanitize the changes before sharing this run.")
@@ -884,7 +907,7 @@ def write_json(path: Path, payload: Mapping[str, Any]) -> None:
         Metadata converted to JSON-compatible values before serialization.
     """
     tmp_path = path.with_suffix(path.suffix + ".tmp")
-    tmp_path.write_text(json.dumps(_to_jsonable(payload), indent=2, ensure_ascii=False), encoding="utf-8")
+    tmp_path.write_text(json.dumps(to_jsonable(payload), indent=2, ensure_ascii=False), encoding="utf-8")
     os.replace(tmp_path, path)
 
 
@@ -902,7 +925,9 @@ def collect_simulation_input_hashes(opt: Any) -> dict[str, str | None]:
         Selected filenames and SHA-256 hashes. Missing or unreadable files,
         and unparseable SUMO input references, are marked with None.
     """
-    scenario = Path(str(getattr(opt, "test_scenario", ""))).stem
+    scenario_value = str(getattr(opt, "test_scenario", ""))
+    scenario_path = Path(scenario_value)
+    scenario = scenario_path.stem if scenario_path.suffix.lower() == ".yaml" else scenario_value
     directory = Path("opencda/sumo-assets") / scenario
     paths: list[Path] = []
     hashes: dict[str, str | None] = {}
@@ -971,8 +996,11 @@ def write_run_artifacts(
     safe_argv = _redact_argv(argv)
     command = ["python3", "opencda.py", *safe_argv]
 
-    OmegaConf.save(merged_config, output_dir / CONFIG_FILENAME, resolve=True)
-    config_credentials_redacted = _redact_yaml_file(output_dir / CONFIG_FILENAME)
+    with TemporaryDirectory(prefix="opencda-config-") as temporary_dir:
+        staged_config = Path(temporary_dir) / CONFIG_FILENAME
+        OmegaConf.save(merged_config, staged_config, resolve=True)
+        config_credentials_redacted = _redact_yaml_file(staged_config)
+        shutil.copy2(staged_config, output_dir / CONFIG_FILENAME)
     if config_credentials_redacted:
         logger.warning("Credentials were removed from the saved replay config; a replay requires secure replacements.")
     resolved_config = cast(Mapping[str, Any], OmegaConf.to_container(merged_config, resolve=True))
@@ -1000,7 +1028,7 @@ def write_run_artifacts(
             "command": shlex.join(command),
             "raw_argv": _redact_argv(raw_argv) if raw_argv is not None else None,
             "cwd": os.getcwd(),
-            "options": _to_jsonable(vars(opt)),
+            "options": to_jsonable(vars(opt)),
             "replayed_from": replayed_from,
         },
         "code": code_versions,
@@ -1148,6 +1176,8 @@ def _device_signature(device: Mapping[str, Any] | None) -> dict[str, Any]:
         "gpus": [gpu.get("name") for gpu in torch_info.get("gpus") or []],
         "cuda": torch_info.get("cuda_version"),
         "cudnn": torch_info.get("cudnn_version"),
+        "cudnn_deterministic": torch_info.get("cudnn_deterministic") if torch_info.get("device") == "cuda" else None,
+        "cudnn_benchmark": torch_info.get("cudnn_benchmark") if torch_info.get("device") == "cuda" else None,
     }
 
 
@@ -1179,6 +1209,8 @@ def compare_with_original(original: Mapping[str, Any], opt: Any) -> list[str]:
     for name, label in (("opencda", "OpenCDA"), ("opencood", "OpenCOOD")):
         original_repo = original_code.get(name) or {}
         current_repo = current_code.get(name) or {}
+        if "source_digest" in original_repo and original_repo["source_digest"] is None:
+            warnings.append(f"{label} source digest is unavailable in the original run; exact sources cannot be verified.")
         if original_repo.get("source_digest") and original_repo["source_digest"] != current_repo.get("source_digest"):
             warnings.append(f"{label} source digest differs from the original run (or its source is missing).")
         original_git = original_repo.get("git") or {}
@@ -1228,6 +1260,8 @@ def compare_with_original(original: Mapping[str, Any], opt: Any) -> list[str]:
             ("gpus", "GPU"),
             ("cuda", "CUDA version"),
             ("cudnn", "cuDNN version"),
+            ("cudnn_deterministic", "cuDNN deterministic mode"),
+            ("cudnn_benchmark", "cuDNN benchmark mode"),
             ("platform", "CPU platform"),
             ("machine", "CPU architecture"),
         ):

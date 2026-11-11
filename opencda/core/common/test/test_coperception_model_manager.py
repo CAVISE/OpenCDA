@@ -394,6 +394,30 @@ class TestCoperceptionModelManager:
 
 
 class TestCoperceptionVisualizer:
+    @pytest.mark.parametrize("layout", ["array", "tensor", "tensor_list"])
+    def test_visualization_preserves_lidar_coordinates_and_source_data(self, layout):
+        """Render supported LiDAR inputs without changing the source buffers.
+
+        Parameters
+        ----------
+        layout : str
+            NumPy input, tensor input, or the loader's list-wrapped tensor.
+        """
+        source = np.array([[9, 1, 2, 3, 0.5], [9, 4, 5, 6, 0.7]], dtype=np.float32)
+        tensor = MagicMock()
+        tensor.detach.return_value.cpu.return_value.numpy.return_value = source
+        payload = source if layout == "array" else [tensor] if layout == "tensor_list" else tensor
+        config = CoperceptionVisualizer.resolve_visualization_config({"lidar_point_colors": {"ego": (10, 20, 30)}})
+        batch = {"ego": {"origin_lidar_by_agent": [payload], "origin_lidar_roles": ["ego"]}}
+
+        points, colors = CoperceptionVisualizer._get_lidar_points_and_colors(batch, None, config)
+
+        expected = source[:, 1:].copy()
+        np.testing.assert_array_equal(points, expected)
+        np.testing.assert_array_equal(colors, [[10, 20, 30], [10, 20, 30]])
+        points[:] = 0
+        np.testing.assert_array_equal(source[:, 1:], expected)
+
     def test_resolve_visualization_config_merges_defaults_and_overrides(self):
         config = CoperceptionVisualizer.resolve_visualization_config(
             {
@@ -1148,7 +1172,7 @@ class TestRawDetections:
         np.testing.assert_array_equal(selected_boxes, raw_boxes)
 
     def test_warns_once_when_postprocessor_has_no_raw_detections(self, fake_heavy_deps, caplog):
-        """Warn once when pre-NMS boxes are unavailable for CIASSD/FPV-RCNN."""
+        """Warn once when a postprocessor does not expose pre-NMS candidates."""
         manager = self._manager(fake_heavy_deps)
 
         with caplog.at_level("WARNING"):
