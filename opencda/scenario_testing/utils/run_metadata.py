@@ -148,7 +148,8 @@ def write_run_artifacts(
                 for name in ADVCP_PATH_KEYS:
                     if config.get(name) is not None:
                         asset = Path(str(config[name])).expanduser()
-                        config[name] = str((source.parent / asset).resolve())
+                        if not asset.is_absolute():
+                            config[name] = str((source.parent / asset).resolve())
                 target.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
             else:
                 shutil.copy2(source, target)

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import hashlib
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -230,6 +231,16 @@ def test_advcp_replay_preserves_resolved_assets(entrypoint, tmp_path, monkeypatc
     alternative = tmp_path / "alternative-assets"
     for directory in (model, assets, alternative):
         directory.mkdir()
+    (assets / "mesh.ply").write_bytes(b"mesh")
+    run_metadata.write_json(
+        assets / "meta.yaml",
+        {
+            "schema_version": 1,
+            "id": "base-car",
+            "kind": "advcp-assets",
+            "artifacts": [{"path": "mesh.ply", "size": 4, "sha256": hashlib.sha256(b"mesh").hexdigest()}],
+        },
+    )
     config = tmp_path / "attack.yaml"
     config.write_text("mode: spoofing\n")
     opt, argv, _ = entrypoint.resolve_launch_arguments(
@@ -258,6 +269,8 @@ def test_advcp_replay_preserves_resolved_assets(entrypoint, tmp_path, monkeypatc
     assert replay.advcp_assets_dir == str(alternative if override else assets)
     assert resolver.call_count == (1 if override else 0)
     if not override:
+        (assets / "mesh.ply").unlink()
+        (assets / "meta.yaml").unlink()
         assets.rmdir()
         with pytest.raises(entrypoint.model_resolver.ModelResolutionError, match="Saved AdvCP assets directory"):
             entrypoint.model_resolver.resolve_runtime_models(replay)
@@ -300,3 +313,57 @@ def test_replay_model_checkout_overrides(entrypoint, tmp_path, monkeypatch, sele
         assert str(resolver.call_args.kwargs[expected_key]) == "override"
     else:
         resolver.assert_not_called()
+
+
+@pytest.mark.parametrize("change", [None, "modify", "delete", "wrong-id"])
+def test_saved_advcp_bundle_is_validated(entrypoint, tmp_path, monkeypatch, change):
+    """Validate the saved bundle without fetching a replacement on failure.
+
+    Parameters
+    ----------
+    entrypoint : types.ModuleType
+        Real entrypoint and bundle validator.
+    tmp_path : pathlib.Path
+        Workspace for model, assets and saved run.
+    monkeypatch : pytest.MonkeyPatch
+        Fixture observing unexpected bundle fetching.
+    change : str or None
+        Same-size corruption, missing artifact, wrong identity or no change.
+    """
+    model = tmp_path / "model"
+    model.mkdir()
+    assets = tmp_path / "assets"
+    assets.mkdir()
+    mesh = assets / "mesh.ply"
+    mesh.write_bytes(b"mesh")
+    run_metadata.write_json(
+        assets / "meta.yaml",
+        {
+            "schema_version": 1,
+            "id": "other" if change == "wrong-id" else "base-car",
+            "kind": "advcp-assets",
+            "artifacts": [{"path": "mesh.ply", "size": 4, "sha256": hashlib.sha256(b"mesh").hexdigest()}],
+        },
+    )
+    run_metadata.write_json(
+        tmp_path / "run_manifest.json",
+        {
+            "launch": {"argv": ["-t", "demo", "--with-coperception", "--model-dir", str(model), "--with-advcp"]},
+            "model": {"directory": str(model), "advcp_assets_dir": str(assets)},
+        },
+    )
+    if change == "modify":
+        mesh.write_bytes(b"oops")
+    elif change == "delete":
+        mesh.unlink()
+    fetch = Mock()
+    monkeypatch.setattr(entrypoint.model_resolver, "resolve_bundle", fetch)
+    options, _, _ = entrypoint.resolve_launch_arguments(["--replay-from", str(tmp_path)])
+    if change:
+        message = {"modify": "checksum", "delete": "missing", "wrong-id": "ID does not match"}[change]
+        with pytest.raises(entrypoint.model_resolver.ModelResolutionError, match=message):
+            entrypoint.model_resolver.resolve_runtime_models(options)
+    else:
+        entrypoint.model_resolver.resolve_runtime_models(options)
+        assert options.advcp_assets_dir == str(assets)
+    fetch.assert_not_called()

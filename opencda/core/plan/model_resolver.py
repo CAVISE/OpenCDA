@@ -432,6 +432,7 @@ def resolve_runtime_models(options: object) -> None:
             assets_path = Path(saved_assets_dir).expanduser().resolve()
             if not assets_path.is_dir():
                 raise ModelResolutionError(f'Saved AdvCP assets directory does not exist: "{assets_path}".')
+            validate_bundle(assets_path, bundle_id=getattr(options, "advcp_assets_id", "base-car"), category="advcp")
             setattr(options, "advcp_assets_dir", str(assets_path))
             return
         asset_bundle_id = getattr(options, "advcp_assets_id", "base-car")

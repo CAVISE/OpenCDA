@@ -509,3 +509,30 @@ def test_replay_compares_only_commits_and_dirty_flags(monkeypatch):
     assert run_metadata.compare_with_original({"code": {"opencda": current["opencda"]}}) == []
     legacy = {"code": {"opencda": {"git": current["opencda"], "source_digest": "ignored"}, "packages": {"torch": "ignored"}}}
     assert run_metadata.compare_with_original(legacy) == []
+
+
+@pytest.mark.parametrize("key", run_metadata.ADVCP_PATH_KEYS)
+def test_advcp_absolute_symlink_name_is_preserved(tmp_path, merged_config, key):
+    """Preserve absolute symlink names used to select attack reference dimensions.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Workspace for the mesh, absolute symlink and saved configuration.
+    merged_config : omegaconf.DictConfig
+        Final scenario configuration.
+    key : str
+        Canonical or legacy AdvCP asset path key.
+    """
+    mesh = tmp_path / "mesh.ply"
+    mesh.write_bytes(b"mesh")
+    link = tmp_path / "car_000000.ply"
+    link.symlink_to(mesh)
+    source = tmp_path / "attack.yaml"
+    source.write_text(f"{key}: {link}\n")
+    run = tmp_path / "run"
+    manifest = run_metadata.write_run_artifacts(run, opt=_make_opt(), argv=[], merged_config=merged_config, input_files={"advcp_config": source})
+    saved = run_metadata.reproducibility_dir(run) / manifest["inputs"]["advcp_config"]["copy"]
+    assert OmegaConf.load(saved)[key] == str(link)
+    assert Path(OmegaConf.load(saved)[key]).stem == "car_000000"
+    assert source.read_text() == f"{key}: {link}\n"
