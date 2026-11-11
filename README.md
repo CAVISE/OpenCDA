@@ -11,6 +11,8 @@
   <a href="https://cavise.github.io/Documentation/opencda/index.html"><img alt="Documentation" src="https://img.shields.io/badge/docs-OpenCDA-9BFFCE?style=for-the-badge&logo=readthedocs&logoColor=D9E0EE&labelColor=1E202B" /></a>
   <a href="https://github.com/CAVISE/CAVISE"><img alt="CAVISE" src="https://img.shields.io/badge/CAVISE-main%20repository-9BFFCE?style=for-the-badge&logo=github&logoColor=D9E0EE&labelColor=1E202B" /></a>
   <a href="https://github.com/CAVISE/artery"><img alt="Artery" src="https://img.shields.io/badge/CAVISE-Artery-9BFFCE?style=for-the-badge&logo=github&logoColor=D9E0EE&labelColor=1E202B" /></a>
+  <a href="https://github.com/CAVISE/OpenCDA/actions/workflows/tests.yml"><img alt="Tests on main" src="https://img.shields.io/github/actions/workflow/status/CAVISE/OpenCDA/tests.yml?branch=main&amp;style=for-the-badge&amp;label=Tests&amp;logo=githubactions&amp;logoColor=D9E0EE&amp;labelColor=1E202B" /></a>
+  <a href="https://github.com/CAVISE/OpenCDA/actions/workflows/pull_request.yml"><img alt="Checks on main" src="https://img.shields.io/github/actions/workflow/status/CAVISE/OpenCDA/pull_request.yml?branch=main&amp;style=for-the-badge&amp;label=Checks&amp;logo=githubactions&amp;logoColor=D9E0EE&amp;labelColor=1E202B" /></a>
 </p>
 
 OpenCDA is a research and engineering framework for cooperative driving automation and other various applications built on top of CARLA and SUMO.
