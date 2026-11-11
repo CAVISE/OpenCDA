@@ -427,6 +427,13 @@ def resolve_runtime_models(options: object) -> None:
         raise ModelResolutionError("--model-id and --model-dir require --with-coperception.")
 
     if getattr(options, "with_advcp", False):
+        saved_assets_dir = getattr(options, "advcp_assets_dir", None)
+        if saved_assets_dir:
+            assets_path = Path(saved_assets_dir).expanduser().resolve()
+            if not assets_path.is_dir():
+                raise ModelResolutionError(f'Saved AdvCP assets directory does not exist: "{assets_path}".')
+            setattr(options, "advcp_assets_dir", str(assets_path))
+            return
         asset_bundle_id = getattr(options, "advcp_assets_id", "base-car")
         assets_dir = resolve_bundle(
             "advcp",

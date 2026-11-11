@@ -10,6 +10,7 @@ from types import ModuleType
 from unittest.mock import Mock
 
 import pytest
+from omegaconf import OmegaConf
 
 from opencda.scenario_testing.utils import run_metadata
 
@@ -190,3 +191,60 @@ def test_legacy_manifest_ignores_removed_capture_options(entrypoint, tmp_path):
     options, command, _ = entrypoint.resolve_launch_arguments(["--replay-from", str(tmp_path)])
     assert options.model_dir == "/saved/model" and options.model_id is None
     assert "--save-predictions" not in command and "--auto-fetch-models" not in command
+
+
+@pytest.mark.parametrize("override", [None, "--models-root", "--advcp-assets-id", "--models-repository", "--models-ref"])
+@pytest.mark.parametrize("environment", [None, "different-checkout"])
+def test_advcp_replay_preserves_resolved_assets(entrypoint, tmp_path, monkeypatch, override, environment):
+    """Keep saved AdvCP assets unless an asset selector is explicitly overridden.
+
+    Parameters
+    ----------
+    entrypoint : types.ModuleType
+        Real scenario entrypoint and model resolver.
+    tmp_path : pathlib.Path
+        Workspace for original models, saved inputs and alternative assets.
+    monkeypatch : pytest.MonkeyPatch
+        Fixture controlling environment defaults and bundle resolution.
+    override : str or None
+        Explicit selector that should release the saved asset directory.
+    environment : str or None
+        Changed or removed models-root environment variable.
+    """
+    model = tmp_path / "perception"
+    assets = tmp_path / "original-assets"
+    alternative = tmp_path / "alternative-assets"
+    for directory in (model, assets, alternative):
+        directory.mkdir()
+    config = tmp_path / "attack.yaml"
+    config.write_text("mode: spoofing\n")
+    opt, argv, _ = entrypoint.resolve_launch_arguments(
+        ["-t", "demo", "--with-coperception", "--model-dir", str(model), "--with-advcp", "--advcp-config", str(config)]
+    )
+    monkeypatch.setenv("CAVISE_MODELS_ROOT", str(tmp_path / "original-checkout"))
+    resolver = Mock(return_value=assets)
+    monkeypatch.setattr(entrypoint.model_resolver, "resolve_bundle", resolver)
+    entrypoint.model_resolver.resolve_runtime_models(opt)
+    original = tmp_path / "run"
+    run_metadata.write_run_artifacts(
+        original, opt=opt, argv=argv, merged_config=OmegaConf.create({"world": {"seed": 11}}), input_files={"advcp_config": config}
+    )
+    assert run_metadata.load_run_manifest(original)["model"]["advcp_assets_dir"] == str(assets)
+    if environment is None:
+        monkeypatch.delenv("CAVISE_MODELS_ROOT")
+    else:
+        monkeypatch.setenv("CAVISE_MODELS_ROOT", str(tmp_path / environment))
+    resolver.reset_mock()
+    resolver.return_value = alternative
+    arguments = ["--replay-from", str(original)]
+    if override:
+        arguments += [override, "explicit-value"]
+    replay, _, _ = entrypoint.resolve_launch_arguments(arguments)
+    entrypoint.model_resolver.resolve_runtime_models(replay)
+    assert replay.advcp_assets_dir == str(alternative if override else assets)
+    assert resolver.call_count == (1 if override else 0)
+    if not override:
+        assets.rmdir()
+        with pytest.raises(entrypoint.model_resolver.ModelResolutionError, match="Saved AdvCP assets directory"):
+            entrypoint.model_resolver.resolve_runtime_models(replay)
+        resolver.assert_not_called()

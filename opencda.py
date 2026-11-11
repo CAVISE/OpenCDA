@@ -462,6 +462,10 @@ def resolve_launch_arguments(cli_argv: list[str]) -> tuple[argparse.Namespace, l
     model_directory = (manifest.get("model") or {}).get("directory") or (manifest.get("checkpoint") or {}).get("local_dir")
     if opt.with_coperception and model_directory and not {"model_id", "model_dir"}.intersection(supplied):
         opt.model_id, opt.model_dir = None, model_directory
+    assets_directory = (manifest.get("model") or {}).get("advcp_assets_dir")
+    asset_overrides = {"models_root", "models_repository", "models_ref", "advcp_assets_id"}
+    if opt.with_advcp and assets_directory and not asset_overrides.intersection(supplied):
+        opt.advcp_assets_dir = assets_directory
     opt._explicit_options = set(supplied)
     opt.replay_from = str(replay_dir)
     if opt.test_scenario is None:

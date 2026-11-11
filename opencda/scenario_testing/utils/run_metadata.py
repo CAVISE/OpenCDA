@@ -132,6 +132,8 @@ def write_run_artifacts(
     if getattr(opt, "with_coperception", False):
         directory = Path(opt.model_dir).resolve()
         model = {"id": getattr(opt, "model_id", None), "directory": str(directory)}
+        if getattr(opt, "with_advcp", False) and getattr(opt, "advcp_assets_dir", None):
+            model["advcp_assets_dir"] = str(Path(opt.advcp_assets_dir).resolve())
         inputs.update(model_config=directory / "config.yaml", model_manifest=directory / "meta.yaml")
     copies = {}
     for key, source in inputs.items():
