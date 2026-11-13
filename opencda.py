@@ -174,40 +174,6 @@ def install_traceback_handler(verbose: bool = True, suppress_modules: Collection
 
 
 REPLAY_FLAG = "--replay-from"
-# Remove a saved mutually exclusive option when replay overrides it.
-EXCLUSIVE_OPTIONS = (("--model-id", "--model-dir"),)
-# Do not restore original output paths during replay to avoid overwriting the original run artifacts.
-REPLAY_OUTPUT_OPTIONS = ("--log-file",)
-
-
-def _strip_option(argv: list[str], flag: str) -> list[str]:
-    """Remove a value-taking option in split or equals form.
-
-    Parameters
-    ----------
-    argv : list of str
-        Command arguments to filter without modifying the original list.
-    flag : str
-        Exact option spelling whose occurrences and values are removed.
-
-    Returns
-    -------
-    list of str
-        Arguments with the specified option removed.
-    """
-    cleaned: list[str] = []
-    skip_next = False
-    for arg in argv:
-        if skip_next:
-            skip_next = False
-            continue
-        if arg == flag:
-            skip_next = True
-            continue
-        if arg.startswith(f"{flag}="):
-            continue
-        cleaned.append(arg)
-    return cleaned
 
 
 # Parse command line args.
@@ -219,7 +185,7 @@ def build_parser() -> argparse.ArgumentParser:
     argparse.ArgumentParser
         Parser defining scenario, replay and runtime options and defaults.
     """
-    parser = argparse.ArgumentParser(description="OpenCDA scenario runner.")
+    parser = argparse.ArgumentParser(description="OpenCDA scenario runner.", allow_abbrev=False)
     # opencda basic args
     parser.add_argument(
         "-t",
@@ -234,7 +200,7 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help=(
             "Reproduce a previous run from its evaluation output folder: launch arguments are taken from run_manifest.json "
-            "and the scenario config from reproducibility/config.yaml. Extra arguments given on the command line override the saved ones."
+            "and the scenario config from reproducibility/config.yaml. Use --replay-from on its own; saved experiment parameters cannot be overridden."
         ),
     )
     parser.add_argument(
@@ -375,131 +341,64 @@ def arg_parse(argv: list[str] | None = None, parser: argparse.ArgumentParser | N
     return opt
 
 
-def build_command_from_options(opt: argparse.Namespace, parser: argparse.ArgumentParser | None = None) -> list[str]:
-    """Build canonical launch arguments from resolved options.
-
-    Parameters
-    ----------
-    opt : argparse.Namespace
-        Parsed or replay-merged runtime options.
-    parser : argparse.ArgumentParser, optional
-        Existing parser to reuse; None builds the standard parser.
-
-    Returns
-    -------
-    list of str
-        Canonical non-default arguments, excluding the replay path itself.
-    """
-    argv: list[str] = []
-    for action in (parser or build_parser())._actions:
-        if not action.option_strings or action.dest in {"help", "version", "replay_from"} or not hasattr(opt, action.dest):
-            continue
-        value = getattr(opt, action.dest)
-        if value == action.default:
-            continue
-        flag = max(action.option_strings, key=len)
-        if isinstance(action, argparse.BooleanOptionalAction):
-            positive = next((option for option in action.option_strings if option.startswith("--")), action.option_strings[0])
-            argv.append(positive if value else f"--no-{positive[2:]}")
-        elif isinstance(action, argparse._StoreTrueAction):
-            if value:
-                argv.append(flag)
-        elif isinstance(action, argparse._StoreFalseAction):
-            if not value:
-                argv.append(flag)
-        elif value is not None:
-            argument = str(value.value if isinstance(value, enum.Enum) else value)
-            if argument.startswith("-"):
-                argv.append(f"{flag}={argument}")
-            else:
-                argv.extend([flag, argument])
-    return argv
-
-
 def resolve_launch_arguments(cli_argv: list[str]) -> tuple[argparse.Namespace, list[str], dict | None]:
-    """Merge saved launch options with explicitly supplied CLI values.
+    """Load a new launch or repeat a saved run without parameter overrides.
 
     Parameters
     ----------
     cli_argv : list of str
-        User arguments without the executable name, parsed once. Explicit
-        values override saved values even when equal to parser defaults.
+        Launch arguments, or --replay-from followed by a saved run directory.
 
     Returns
     -------
     argparse.Namespace
-        Effective runtime options; _explicit_options records user-supplied
-        destinations for selecting saved versus overridden AdvCP inputs.
+        Runtime options with saved model and asset paths restored for replay.
     list of str
-        Canonical effective arguments for the new run manifest.
+        Original launch arguments to retain in the next manifest.
     dict or None
-        Original manifest on replay, or None for a new run.
+        Saved manifest for replay, or None for a new run.
 
     Raises
     ------
+    SystemExit
+        If replay is combined with experiment parameters or arguments are invalid.
     FileNotFoundError
-        If a required saved manifest or configuration is missing.
+        If the saved manifest is missing.
     """
     parser = build_parser()
-    # Suppress defaults while parsing the CLI so explicit default values still override saved values.
-    defaults = {action.dest: action.default for action in parser._actions}
-    for action in parser._actions:
-        action.default = argparse.SUPPRESS
-    supplied = vars(arg_parse(cli_argv, parser))
+    opt = arg_parse(cli_argv, parser)
+    if opt.replay_from is not None:
+        replay_parser = argparse.ArgumentParser(add_help=False, allow_abbrev=False)
+        replay_parser.add_argument(REPLAY_FLAG)
+        _, extra = replay_parser.parse_known_args(cli_argv)
+        if extra:
+            parser.error("--replay-from must be used alone; start a new run to change experiment parameters")
     import_runtime_libs()
-    for action in parser._actions:
-        action.default = defaults[action.dest]
-    opt = argparse.Namespace(**{key: value for key, value in defaults.items() if value != argparse.SUPPRESS})
-    vars(opt).update(supplied)
     if opt.replay_from is None:
-        opt._explicit_options = set(supplied)
-        return opt, build_command_from_options(opt, parser), None
+        return opt, list(cli_argv), None
 
     replay_dir = pathlib.Path(opt.replay_from).resolve()
     manifest = run_metadata.load_run_manifest(replay_dir)
-    saved_argv = _strip_option(manifest["launch"]["argv"], REPLAY_FLAG)
-    # Ignore options belonging to artifact capture removed from earlier manifests.
+    saved_argv = list(manifest["launch"]["argv"])
+    # Accept manifests from before prediction capture and auto-fetch flags were removed.
     saved_argv = [arg for arg in saved_argv if arg not in {"--save-predictions", "--no-save-predictions", "--auto-fetch-models"}]
-    for flag in REPLAY_OUTPUT_OPTIONS:
-        saved_argv = _strip_option(saved_argv, flag)
-    for first, second in EXCLUSIVE_OPTIONS:
-        if first.removeprefix("--").replace("-", "_") in supplied:
-            saved_argv = _strip_option(saved_argv, second)
-        if second.removeprefix("--").replace("-", "_") in supplied:
-            saved_argv = _strip_option(saved_argv, first)
-    opt = parser.parse_args(saved_argv)
-    vars(opt).update(supplied)
-    if supplied.get("with_coperception") is False:
-        for name in ("model_id", "model_dir"):
-            if name not in supplied:
-                setattr(opt, name, None)
+    opt = arg_parse(saved_argv, parser)
+    # Give each replay its own log instead of truncating the original run's log.
+    opt.log_file = None
     saved_model = manifest.get("model") or {}
     model_directory = saved_model.get("directory") or (manifest.get("checkpoint") or {}).get("local_dir")
-    logical_model_id = opt.model_id or saved_model.get("id")
-    model_selection_overridden = bool({"model_id", "model_dir"}.intersection(supplied))
-    checkout_overridden = bool({"models_root", "models_repository", "models_ref"}.intersection(supplied))
-    if opt.with_coperception and not model_selection_overridden:
-        if logical_model_id and checkout_overridden:
-            opt.model_id, opt.model_dir = logical_model_id, None
-        elif model_directory:
-            opt.model_id, opt.model_dir = None, model_directory
-            opt._pinned_model_id = logical_model_id
-    assets_directory = (manifest.get("model") or {}).get("advcp_assets_dir")
-    asset_overrides = {"models_root", "models_repository", "models_ref", "advcp_assets_id"}
-    if opt.with_advcp and assets_directory and not asset_overrides.intersection(supplied):
-        opt.advcp_assets_dir = assets_directory
-    opt._explicit_options = set(supplied)
+    if opt.with_coperception and model_directory:
+        opt._pinned_model_id = saved_model.get("id") or opt.model_id
+        opt.model_id, opt.model_dir = None, model_directory
+    if opt.with_advcp and saved_model.get("advcp_assets_dir"):
+        opt.advcp_assets_dir = saved_model["advcp_assets_dir"]
     opt.replay_from = str(replay_dir)
-    if opt.test_scenario is None:
-        parser.error("the saved run and command line do not specify -t/--test-scenario")
-    return opt, build_command_from_options(opt, parser), manifest
+    return opt, saved_argv, manifest
 
 
 def main() -> None:
     global logger
     opt, effective_argv, replay_manifest = resolve_launch_arguments(sys.argv[1:])
-    explicit_options = opt._explicit_options
-    del opt._explicit_options
     current_time = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
 
     verbosity = opt.verbose
@@ -542,7 +441,7 @@ def main() -> None:
         config_yaml = cwd / f"opencda/scenario_testing/config_yaml/{opt.test_scenario}.yaml"
     advcp_config_dir = cwd / "opencda/scenario_testing/config_yaml/advcp-configs"
     replay_dir = pathlib.Path(opt.replay_from) if opt.replay_from else None
-    use_saved_scenario = replay_dir is not None and "test_scenario" not in explicit_options
+    use_saved_scenario = replay_dir is not None
     if use_saved_scenario:
         logger.info(f"replaying run from {replay_dir}")
         config_yaml = run_metadata.reproducibility_dir(replay_dir) / run_metadata.CONFIG_FILENAME
@@ -566,9 +465,9 @@ def main() -> None:
         if advcp_config.suffix == "":
             advcp_config = advcp_config.with_suffix(".yaml")
 
-        # Replay uses the saved AdvCP config unless explicitly overridden.
+        # Replay uses the saved AdvCP configuration.
         saved_input = (replay_manifest or {}).get("inputs", {}).get("advcp_config") or {}
-        use_saved_advcp_config = replay_dir is not None and bool(saved_input) and "advcp_config" not in explicit_options
+        use_saved_advcp_config = replay_dir is not None and bool(saved_input)
         if use_saved_advcp_config:
             saved_copy = saved_input.get("copy", "inputs/advcp_config.yaml")
             replay_root = run_metadata.reproducibility_dir(replay_dir).resolve()

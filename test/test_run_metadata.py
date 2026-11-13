@@ -38,38 +38,11 @@ def _load_entrypoint():
     return module
 
 
-def test_command_is_rebuilt_from_options():
-    entrypoint = _load_entrypoint()
-    opt = entrypoint.arg_parse(["--ticks=5", "-t", "demo", "-c", "--verbose", "1", "--carla-host", "carla"])
-
-    argv = entrypoint.build_command_from_options(opt)
-
-    # Check the canonical command without default options.
-    assert argv == ["--test-scenario", "demo", "--cosim", "--verbose", "1", "--ticks", "5"]
-    assert entrypoint.arg_parse(argv) == opt
-
-
 def test_scenario_or_replay_is_required():
     entrypoint = _load_entrypoint()
     with pytest.raises(SystemExit):
         entrypoint.arg_parse([])
     assert entrypoint.arg_parse(["-t", "demo"]).test_scenario == "demo"
-
-
-def test_replay_cli_model_dir_replaces_saved_model_id(tmp_path: Path, merged_config):
-    entrypoint = _load_entrypoint()
-    run_metadata.write_run_artifacts(
-        tmp_path,
-        opt=_make_opt(),
-        argv=["--test-scenario", "demo", "--with-coperception", "--model-id", "pointpillar-late-opv2v-30"],
-        merged_config=merged_config,
-    )
-
-    opt, argv, _ = entrypoint.resolve_launch_arguments(["--replay-from", str(tmp_path), "--model-dir", "/models/local"])
-
-    assert opt.model_dir == "/models/local"
-    assert opt.model_id is None
-    assert "--model-id" not in argv
 
 
 def test_manifest_is_failed_when_scenario_import_fails(tmp_path: Path, monkeypatch):
@@ -109,15 +82,7 @@ def _replay_main(entrypoint, monkeypatch, run_dir: Path, argv: list[str]) -> dic
     return run_metadata.load_run_manifest(run_dir)
 
 
-@pytest.mark.parametrize(
-    ("override", "expected_suffix"),
-    [
-        ([], "reproducibility/inputs/advcp_config.yaml"),
-        (["--advcp-config", "spoofing_forward"], "advcp-configs/spoofing_forward.yaml"),
-        (["-t", "single_town06_carla"], "reproducibility/inputs/advcp_config.yaml"),
-    ],
-)
-def test_replay_uses_saved_advcp_config_unless_overridden(tmp_path: Path, monkeypatch, merged_config, override, expected_suffix):
+def test_replay_uses_saved_advcp_config(tmp_path: Path, monkeypatch, merged_config):
     entrypoint = _load_entrypoint()
     repo = Path(__file__).resolve().parents[1]
     original_dir = tmp_path / "original"
@@ -138,10 +103,10 @@ def test_replay_uses_saved_advcp_config_unless_overridden(tmp_path: Path, monkey
         input_files={"advcp_config": repo / "opencda/scenario_testing/config_yaml/advcp-configs/example.yaml"},
     )
 
-    manifest = _replay_main(entrypoint, monkeypatch, tmp_path / "replay", ["--replay-from", str(original_dir), *override])
+    manifest = _replay_main(entrypoint, monkeypatch, tmp_path / "replay", ["--replay-from", str(original_dir)])
 
     assert manifest["status"] == "failed"
-    assert manifest["inputs"]["advcp_config"]["source"].endswith(expected_suffix)
+    assert manifest["inputs"]["advcp_config"]["source"].endswith("reproducibility/inputs/advcp_config.yaml")
 
 
 def test_replay_does_not_reuse_original_log_file(tmp_path: Path, merged_config):
@@ -156,10 +121,7 @@ def test_replay_does_not_reuse_original_log_file(tmp_path: Path, merged_config):
 
     opt, argv, _ = entrypoint.resolve_launch_arguments(["--replay-from", str(tmp_path)])
     assert opt.log_file is None
-    assert "--log-file" not in argv
-
-    opt, _, _ = entrypoint.resolve_launch_arguments(["--replay-from", str(tmp_path), "--log-file", "replay.log.json"])
-    assert opt.log_file == "replay.log.json"
+    assert "--log-file" in argv  # Preserve launch history, but use a fresh output path at runtime.
 
 
 def test_saved_advcp_yml_replay_uses_manifest_path(tmp_path: Path, monkeypatch, merged_config):
@@ -170,7 +132,7 @@ def test_saved_advcp_yml_replay_uses_manifest_path(tmp_path: Path, monkeypatch, 
     run_metadata.write_run_artifacts(
         original,
         opt=_make_opt(),
-        argv=["-t", "single_town06_carla", "--with-coperception", "--with-advcp", "--advcp-config", str(source)],
+        argv=["-t", "single_town06_carla", "--with-coperception", "--with-advcp", "--with-advcp", "--advcp-config", str(source)],
         merged_config=merged_config,
         input_files={"advcp_config": source},
     )
@@ -190,7 +152,7 @@ def test_replay_rejects_advcp_copy_path_traversal(tmp_path: Path, monkeypatch, m
     run_metadata.write_run_artifacts(
         original,
         opt=_make_opt(),
-        argv=["-t", "single_town06_carla", "--with-coperception", "--with-advcp", "--advcp-config", str(source)],
+        argv=["-t", "single_town06_carla", "--with-coperception", "--with-advcp", "--with-advcp", "--advcp-config", str(source)],
         merged_config=merged_config,
         input_files={"advcp_config": source},
     )
@@ -295,113 +257,6 @@ def test_system_exit_finalizes_manifest(tmp_path, monkeypatch, exit_code, profil
         assert (run_dir / "profile_output.prof").is_file()
 
 
-def test_replay_parses_cli_once_and_applies_explicit_defaults(tmp_path, monkeypatch):
-    entrypoint = _load_entrypoint()
-    run_metadata.write_json(
-        tmp_path / "run_manifest.json",
-        {
-            "launch": {"argv": ["-t", "demo", "--verbose", "1", "--carla-host", "original", "--model-id", "original-model"]},
-        },
-    )
-    parser = entrypoint.build_parser()
-    parse_args = Mock(wraps=parser.parse_args)
-    monkeypatch.setattr(parser, "parse_args", parse_args)
-    build_parser = Mock(return_value=parser)
-    monkeypatch.setattr(entrypoint, "build_parser", build_parser)
-    cli = ["--replay-from", str(tmp_path), "--verbose=3", "--carla-host", "carla", "--model-dir=/new/model"]
-    opt, command, _ = entrypoint.resolve_launch_arguments(cli)
-    assert opt.verbose == entrypoint.VerbosityLevel.FULL
-    assert opt.carla_host == "carla"
-    assert opt.model_dir == "/new/model" and opt.model_id is None
-    assert "--verbose" not in command and "--carla-host" not in command
-    assert build_parser.call_count == 1
-    assert parse_args.call_count == 2
-    assert parse_args.call_args_list[0].args == (cli,)
-
-
-@pytest.mark.parametrize(
-    "flag",
-    [
-        "record",
-        "free-spectator",
-        "xodr",
-        "cosim",
-        "with-capi",
-        "with-coperception",
-        "show-video-vis",
-        "save-vis",
-        "save-npy",
-        "with-advcp",
-        "manage-components",
-        "profile",
-    ],
-)
-def test_replay_inverse_boolean_overrides_saved_true(tmp_path, flag):
-    """Disable saved side effects and retain that choice in the next replay."""
-    entrypoint = _load_entrypoint()
-    assert getattr(entrypoint.arg_parse(["-t", "demo"]), flag.replace("-", "_")) is False
-    run_metadata.write_json(tmp_path / "run_manifest.json", {"launch": {"argv": ["-t", "demo", f"--{flag}"]}})
-
-    opt, command, _ = entrypoint.resolve_launch_arguments(["--replay-from", str(tmp_path), f"--no-{flag}"])
-
-    assert getattr(opt, flag.replace("-", "_")) is False
-    assert f"--{flag}" not in command
-    assert getattr(entrypoint.arg_parse(command), flag.replace("-", "_")) is False
-    enabled = entrypoint.arg_parse(["-t", "demo", f"--{flag}"])
-    canonical = entrypoint.build_command_from_options(enabled)
-    assert f"--{flag}" in canonical
-    assert entrypoint.arg_parse(canonical) == enabled
-
-
-@pytest.mark.parametrize(
-    "selectors", [["--model-id", "saved-model"], ["--model-dir", "/saved/model"], ["--model-id", "saved-model", "--model-dir", "/saved/model"]]
-)
-def test_replay_disabling_coperception_clears_saved_model_selectors(tmp_path, selectors):
-    """Disable replay perception without resolving the saved model bundle.
-
-    Parameters
-    ----------
-    tmp_path : pathlib.Path
-        Temporary directory supplied by pytest.
-    selectors : list of str
-        Saved model arguments, including legacy manifests with both selectors.
-    """
-    entrypoint = _load_entrypoint()
-    run_metadata.write_json(tmp_path / "run_manifest.json", {"launch": {"argv": ["-t", "demo", "--with-coperception", *selectors]}})
-
-    opt, command, _ = entrypoint.resolve_launch_arguments(["--replay-from", str(tmp_path), "--no-with-coperception"])
-
-    assert opt.with_coperception is False
-    assert opt.model_id is None and opt.model_dir is None
-    assert "--model-id" not in command and "--model-dir" not in command
-    entrypoint.model_resolver.resolve_runtime_models(opt)
-    restored = entrypoint.arg_parse(command)
-    entrypoint.model_resolver.resolve_runtime_models(restored)
-    assert restored.with_coperception is False
-    assert restored.model_id is None and restored.model_dir is None
-
-
-@pytest.mark.parametrize("selector", ["--model-id", "--model-dir"])
-def test_replay_disabling_coperception_preserves_explicit_selector_validation(tmp_path, selector):
-    """Retain validation for an explicitly requested conflicting model.
-
-    Parameters
-    ----------
-    tmp_path : pathlib.Path
-        Temporary directory supplied by pytest.
-    selector : str
-        Model selector explicitly supplied alongside disabled perception.
-    """
-    entrypoint = _load_entrypoint()
-    run_metadata.write_json(tmp_path / "run_manifest.json", {"launch": {"argv": ["-t", "demo", "--with-coperception", "--model-id", "saved-model"]}})
-
-    opt, _, _ = entrypoint.resolve_launch_arguments(["--replay-from", str(tmp_path), "--no-with-coperception", selector, "explicit-model"])
-
-    assert getattr(opt, selector.removeprefix("--").replace("-", "_")) == "explicit-model"
-    with pytest.raises(entrypoint.model_resolver.ModelResolutionError, match="require --with-coperception"):
-        entrypoint.model_resolver.resolve_runtime_models(opt)
-
-
 def test_snapshot_contains_only_experiment_inputs(tmp_path, merged_config, monkeypatch):
     """Retain resolved configuration and commits without environment inventories.
 
@@ -454,8 +309,6 @@ def test_selected_model_manifest_is_copied_without_loading_tagged_config(tmp_pat
     assert manifest["model"] == {"id": "example-model", "directory": str(model)}
     replay, _, _ = _load_entrypoint().resolve_launch_arguments(["--replay-from", str(run)])
     assert replay.model_id is None and replay.model_dir == str(model)
-    overridden, _, _ = _load_entrypoint().resolve_launch_arguments(["--replay-from", str(run), "--model-id", "other"])
-    assert overridden.model_id == "other" and overridden.model_dir is None
 
 
 @pytest.mark.parametrize("key", run_metadata.ADVCP_PATH_KEYS)
@@ -582,7 +435,7 @@ def test_advcp_absolute_symlink_name_is_preserved(tmp_path, merged_config, key):
 
 
 @pytest.mark.parametrize("recorded_snapshot", [False, True])
-def test_reenable_advcp_distinguishes_uncaptured_and_missing_inputs(tmp_path, monkeypatch, merged_config, recorded_snapshot):
+def test_advcp_replay_distinguishes_uncaptured_and_missing_inputs(tmp_path, monkeypatch, merged_config, recorded_snapshot):
     """Use the CLI config when uncaptured, but reject a lost recorded snapshot.
 
     Parameters
@@ -603,15 +456,24 @@ def test_reenable_advcp_distinguishes_uncaptured_and_missing_inputs(tmp_path, mo
         original,
         opt=_make_opt(),
         merged_config=merged_config,
-        argv=["-t", "single_town06_carla", "--with-coperception", "--model-dir", str(tmp_path / "model"), "--advcp-config", str(source)],
+        argv=[
+            "-t",
+            "single_town06_carla",
+            "--with-coperception",
+            "--model-dir",
+            str(tmp_path / "model"),
+            "--with-advcp",
+            "--advcp-config",
+            str(source),
+        ],
         input_files={"advcp_config": source} if recorded_snapshot else {},
     )
     if recorded_snapshot:
         (run_metadata.reproducibility_dir(original) / manifest["inputs"]["advcp_config"]["copy"]).unlink()
         with pytest.raises(FileNotFoundError, match="Saved AdvCP configuration"):
-            _replay_main(_load_entrypoint(), monkeypatch, tmp_path / "replay", ["--replay-from", str(original), "--with-advcp"])
+            _replay_main(_load_entrypoint(), monkeypatch, tmp_path / "replay", ["--replay-from", str(original)])
     else:
-        replay = _replay_main(_load_entrypoint(), monkeypatch, tmp_path / "replay", ["--replay-from", str(original), "--with-advcp"])
+        replay = _replay_main(_load_entrypoint(), monkeypatch, tmp_path / "replay", ["--replay-from", str(original)])
         assert replay["inputs"]["advcp_config"]["source"] == str(source)
 
 

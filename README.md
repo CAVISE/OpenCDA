@@ -160,7 +160,7 @@ python3 opencda.py -t <scenario_name> [options]
 ### Core options
 
 - `-t, --test-scenario`: Required scenario name without the `.yaml` extension (unless `--replay-from` is used). The runner loads `opencda/scenario_testing/config_yaml/<scenario>.yaml` and merges it over `default.yaml`.
-- `--replay-from <run_dir>`: Reproduce a previous run from its `simulation_output/evaluation_outputs/<scenario>_<time>` folder. Launch options are restored from `run_manifest.json`, the configuration from the saved `config.yaml`; arguments given on the command line override the saved ones. Differences in code commit, model checkpoint or device are reported as warnings.
+- `--replay-from <run_dir>`: Reproduce a previous run from its `simulation_output/evaluation_outputs/<scenario>_<time>` folder. Launch options are restored from `run_manifest.json` and the final configuration from the saved `config.yaml`. Use this option on its own. To change experiment parameters, start a new run. Replay warns about different component commits or uncommitted changes.
 - `--record`: Enable the CARLA recorder and per-actor sensor data dumping under `simulation_output/data_dumping/`.
 - `-v, --version`: Show the installed OpenCDA version and exit
 - `--free-spectator`: Leave the CARLA spectator camera under manual control.
@@ -282,12 +282,12 @@ python3 opencda.py \
 
   ```bash
   python opencda.py --replay-from <run_dir>
-  python opencda.py --replay-from <run_dir> --ticks 50 --model-dir /path/to/model
   ```
 
   Replay uses the saved final configuration, launch arguments and resolved local
-  model directory. Arguments supplied on the command line override the saved values.
-  Boolean options accept a `--no-` form. Each replay writes to a new directory
+  model directory. Use `--replay-from` on its own to repeat the saved experiment.
+  Additional launch parameters are rejected. Start a new run if you want to change
+  the configuration. Each replay writes its results and log to a new directory
   and keeps the original results intact.
 
   Keep model weights, maps and other external inputs available and unchanged.
