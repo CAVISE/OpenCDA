@@ -28,6 +28,7 @@ def entrypoint():
     spec = importlib.util.spec_from_file_location("opencda_cli_regressions", Path(__file__).resolve().parents[1] / "opencda.py")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
+    module.import_runtime_libs()
     return module
 
 

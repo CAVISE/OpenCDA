@@ -34,6 +34,7 @@ def _load_entrypoint():
     spec = importlib.util.spec_from_file_location("opencda_entrypoint", Path(__file__).resolve().parents[1] / "opencda.py")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
+    module.import_runtime_libs()
     return module
 
 
@@ -641,3 +642,26 @@ def test_home_relative_advcp_paths_are_frozen(tmp_path, monkeypatch, merged_conf
     monkeypatch.setenv("HOME", str(tmp_path / "different-home"))
     copy = run_metadata.reproducibility_dir(run) / manifest["inputs"]["advcp_config"]["copy"]
     assert OmegaConf.load(copy)[key] == str(home / "car_000000.ply")
+
+
+@pytest.mark.parametrize("flag, expected", [("--help", "usage:"), ("-h", "usage:"), ("--version", "OpenCDA")])
+def test_cli_information_without_runtime_dependencies(flag, expected):
+    """Run informational commands with site-packages disabled.
+
+    Parameters
+    ----------
+    flag : str
+        Help or version option that must exit before runtime imports.
+    expected : str
+        Text expected in the command output.
+    """
+    root = Path(__file__).resolve().parents[1]
+    result = subprocess.run(
+        [sys.executable, "-S", str(root / "opencda.py"), flag],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    assert result.returncode == 0, result.stderr
+    assert expected in result.stdout

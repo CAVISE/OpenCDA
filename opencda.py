@@ -15,29 +15,42 @@ import cProfile
 import pstats
 from collections.abc import Collection
 from contextlib import nullcontext
+from functools import cache
 from types import ModuleType
 from typing import Any, cast
 
-from omegaconf import DictConfig, OmegaConf
-
-try:
-    import coloredlogs
-except ModuleNotFoundError:
-    coloredlogs = None
-
-try:
-    from rich.traceback import install as rich_traceback_install
-except ModuleNotFoundError:
-    rich_traceback_install = None
-
-from opencda.core.plan import model_resolver
-from opencda.scenario_testing import component_lifecycle
-from opencda.scenario_testing.utils import run_metadata
 from opencda.version import __version__
 
 logger = logging.getLogger("cavise.opencda")
 DEFAULT_LOG_FILENAME = "opencda.log.json"
 EVALUATION_OUTPUT_ROOT = pathlib.Path("simulation_output/evaluation_outputs")
+
+
+@cache
+def import_runtime_libs() -> None:
+    """Load simulation dependencies after CLI parsing, once per process.
+
+    Keeping these imports deferred lets help and version commands run without
+    installed runtime packages. Cached loading preserves module references
+    across repeated launches in the same process.
+    """
+    global DictConfig, OmegaConf, coloredlogs, rich_traceback_install
+    global model_resolver, component_lifecycle, run_metadata
+    from omegaconf import DictConfig, OmegaConf
+
+    try:
+        import coloredlogs
+    except ModuleNotFoundError:
+        coloredlogs = None
+
+    try:
+        from rich.traceback import install as rich_traceback_install
+    except ModuleNotFoundError:
+        rich_traceback_install = None
+
+    from opencda.core.plan import model_resolver
+    from opencda.scenario_testing import component_lifecycle
+    from opencda.scenario_testing.utils import run_metadata
 
 
 def get_default_output_path(scenario_name: str, current_time: str) -> pathlib.Path:
@@ -433,6 +446,7 @@ def resolve_launch_arguments(cli_argv: list[str]) -> tuple[argparse.Namespace, l
     for action in parser._actions:
         action.default = argparse.SUPPRESS
     supplied = vars(arg_parse(cli_argv, parser))
+    import_runtime_libs()
     for action in parser._actions:
         action.default = defaults[action.dest]
     opt = argparse.Namespace(**{key: value for key, value in defaults.items() if value != argparse.SUPPRESS})
