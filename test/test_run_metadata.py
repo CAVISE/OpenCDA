@@ -257,8 +257,8 @@ def test_system_exit_finalizes_manifest(tmp_path, monkeypatch, exit_code, profil
         assert (run_dir / "profile_output.prof").is_file()
 
 
-def test_snapshot_contains_only_experiment_inputs(tmp_path, merged_config, monkeypatch):
-    """Retain resolved configuration and commits without environment inventories.
+def test_snapshot_contains_only_experiment_inputs(tmp_path, merged_config):
+    """Retain resolved configuration and experiment inputs.
 
     Parameters
     ----------
@@ -266,14 +266,9 @@ def test_snapshot_contains_only_experiment_inputs(tmp_path, merged_config, monke
         Output directory supplied by pytest.
     merged_config : omegaconf.DictConfig
         Merged configuration containing an interpolation.
-    monkeypatch : pytest.MonkeyPatch
-        Fixture replacing local component discovery.
     """
-    code = {"opencda": {"commit": "abc123", "dirty": True}}
-    monkeypatch.setattr(run_metadata, "collect_code_versions", lambda: code)
     manifest = run_metadata.write_run_artifacts(tmp_path, opt=_make_opt(), argv=["-t", "demo"], merged_config=merged_config)
-    assert manifest["code"] == code
-    assert set(manifest) == {"schema_version", "scenario", "launch", "code", "model", "inputs", "status"}
+    assert set(manifest) == {"schema_version", "scenario", "launch", "model", "inputs", "status"}
     saved = run_metadata.reproducibility_dir(tmp_path)
     assert set(path.name for path in saved.iterdir()) == {"config.yaml", "run_manifest.json"}
     config = OmegaConf.load(saved / "config.yaml")
@@ -336,75 +331,6 @@ def test_advcp_paths_use_symlink_target_directory(tmp_path, merged_config, key):
     saved = run_metadata.reproducibility_dir(tmp_path / "run") / manifest["inputs"]["advcp_config"]["copy"]
     assert OmegaConf.load(saved)[key] == str(assets / "mesh.obj")
     assert source.read_text() == f"{key}: mesh.obj\n"
-
-
-def test_component_revisions_from_real_checkout_and_explicit_fallback(tmp_path, monkeypatch):
-    """Read local Git metadata and avoid reporting a parent as a missing child.
-
-    Parameters
-    ----------
-    tmp_path : pathlib.Path
-        Directory outside a Git checkout.
-    monkeypatch : pytest.MonkeyPatch
-        Fixture configuring component locations and fallback revisions.
-    """
-    root = Path(__file__).resolve().parents[1]
-    for name in ("CAVISE", "OPENCOOD", "SUMO", "ARTERY"):
-        monkeypatch.setenv(f"{name}_WORKSPACE", str(tmp_path / name))
-        monkeypatch.setenv(f"{name}_COMMIT", f"{name.lower()}-build-revision")
-    monkeypatch.setenv("OPENCDA_WORKSPACE", str(root))
-    monkeypatch.setenv("OPENCDA_COMMIT", "outdated-build-value")
-    versions = run_metadata.collect_code_versions()
-    expected = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], check=True, capture_output=True, text=True).stdout.strip()
-    assert versions["opencda"]["commit"] == expected
-    for name in ("cavise", "opencood", "sumo", "artery"):
-        assert versions[name] == {"commit": f"{name}-build-revision", "dirty": None}
-    monkeypatch.setenv("OPENCOOD_WORKSPACE", str(root / "opencda"))
-    monkeypatch.delenv("OPENCOOD_COMMIT")
-    assert run_metadata.collect_code_versions()["opencood"] == {"commit": None, "dirty": None}
-
-
-@pytest.mark.parametrize("git_available", [False, True])
-def test_unavailable_component_commits_do_not_abort(tmp_path, monkeypatch, git_available):
-    """Keep an explicit unknown revision when Git or component sources are absent.
-
-    Parameters
-    ----------
-    tmp_path : pathlib.Path
-        Directory without component checkouts.
-    monkeypatch : pytest.MonkeyPatch
-        Fixture controlling component paths and Git availability.
-    git_available : bool
-        Whether the Git executable can be located.
-    """
-    monkeypatch.setattr(run_metadata, "REPO_ROOT", tmp_path / "opencda")
-    for name in ("CAVISE", "OPENCDA", "OPENCOOD", "SUMO", "ARTERY"):
-        monkeypatch.delenv(f"{name}_COMMIT", raising=False)
-        monkeypatch.delenv(f"{name}_WORKSPACE", raising=False)
-    if not git_available:
-        monkeypatch.setenv("PATH", "")
-    assert all(value == {"commit": None, "dirty": None} for value in run_metadata.collect_code_versions().values())
-
-
-def test_replay_compares_only_commits_and_dirty_flags(monkeypatch):
-    """Warn about changed or unknown revisions and dirty original code.
-
-    Parameters
-    ----------
-    monkeypatch : pytest.MonkeyPatch
-        Fixture supplying the current component revisions.
-    """
-    current = {"opencda": {"commit": "new", "dirty": False}, "sumo": {"commit": None, "dirty": None}}
-    monkeypatch.setattr(run_metadata, "collect_code_versions", lambda: current)
-    original = {"code": {"opencda": {"commit": "old", "dirty": True}, "sumo": {"commit": "sumo-old", "dirty": False}}}
-    warnings = run_metadata.compare_with_original(original)
-    assert len(warnings) == 3
-    assert any("commit differs" in warning for warning in warnings)
-    assert any("uncommitted" in warning for warning in warnings)
-    assert any("unavailable" in warning for warning in warnings)
-    assert run_metadata.compare_with_original({"code": {"opencda": current["opencda"]}}) == []
-    legacy = {"code": {"opencda": {"git": current["opencda"], "source_digest": "ignored"}, "packages": {"torch": "ignored"}}}
-    assert run_metadata.compare_with_original(legacy) == []
 
 
 @pytest.mark.parametrize("key", run_metadata.ADVCP_PATH_KEYS)
@@ -527,76 +453,3 @@ def test_cli_information_without_runtime_dependencies(flag, expected):
     )
     assert result.returncode == 0, result.stderr
     assert expected in result.stdout
-
-
-@pytest.mark.parametrize("change", [None, "untracked", "modified", "staged", "deleted"])
-@pytest.mark.parametrize("worktree", [False, True])
-def test_component_gitpython_status(tmp_path, monkeypatch, change, worktree):
-    """Record commit and dirty state for regular and linked worktrees.
-
-    Parameters
-    ----------
-    tmp_path : pathlib.Path
-        Temporary repositories.
-    monkeypatch : pytest.MonkeyPatch
-        Fixture selecting the component checkout.
-    change : str or None
-        Worktree or index change, or a clean checkout.
-    worktree : bool
-        Whether the component uses a linked Git worktree.
-    """
-    from git import Repo
-
-    root = tmp_path / "source"
-    with Repo.init(root) as repo:
-        (root / "tracked.txt").write_text("original")
-        repo.index.add(["tracked.txt"])
-        with repo.config_writer() as config:
-            config.set_value("user", "name", "OpenCDA tests")
-            config.set_value("user", "email", "tests@example.invalid")
-            config.set_value("commit", "gpgsign", False)
-        commit = repo.index.commit("Initial files").hexsha
-        if worktree:
-            root = tmp_path / "linked"
-            repo.git.worktree("add", "--detach", str(root), "HEAD")
-    if change == "untracked":
-        (root / "new.txt").write_text("new")
-    elif change in {"modified", "staged"}:
-        (root / "tracked.txt").write_text("changed")
-        if change == "staged":
-            with Repo(root) as repo:
-                repo.index.add(["tracked.txt"])
-    elif change == "deleted":
-        (root / "tracked.txt").unlink()
-    monkeypatch.setenv("OPENCDA_WORKSPACE", str(root))
-    assert run_metadata.collect_code_versions()["opencda"] == {"commit": commit, "dirty": change is not None}
-
-
-def test_build_revision_without_git_executable(tmp_path):
-    """Keep environment revisions when GitPython cannot initialize Git.
-
-    Parameters
-    ----------
-    tmp_path : pathlib.Path
-        Empty executable search path for the isolated interpreter.
-    """
-    import os
-
-    env = dict(os.environ, PATH=str(tmp_path), OPENCDA_COMMIT="build-revision")
-    env.pop("GIT_PYTHON_GIT_EXECUTABLE", None)
-    env.pop("GIT_PYTHON_REFRESH", None)
-    root = Path(__file__).resolve().parents[1]
-    result = subprocess.run(
-        [
-            sys.executable,
-            "-c",
-            "from opencda.scenario_testing.utils.run_metadata import collect_code_versions; "
-            "assert collect_code_versions()['opencda'] == {'commit': 'build-revision', 'dirty': None}",
-        ],
-        cwd=root,
-        env=env,
-        capture_output=True,
-        text=True,
-        timeout=10,
-    )
-    assert result.returncode == 0, result.stderr

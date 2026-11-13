@@ -510,10 +510,6 @@ def main() -> None:
     run_status, run_error = "failed", None
     # Record every failure after manifest creation in its final status.
     try:
-        if replay_manifest is not None:
-            for warning in run_metadata.compare_with_original(replay_manifest):
-                logger.warning(f"replay may differ from the original run: {warning}")
-
         # Scenario imports CARLA/OpenCOOD and initializes optional runtime components.
         # Defer it until arguments, model paths and run artifacts are ready.
         from opencda.scenario_testing.scenario import run_scenario
