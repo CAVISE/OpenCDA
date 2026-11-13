@@ -7,8 +7,6 @@ import hashlib
 import logging
 import os
 import re
-import shutil
-import subprocess
 from contextlib import contextmanager
 from pathlib import Path, PurePosixPath
 from typing import Iterator
@@ -90,112 +88,56 @@ def _repository_lock(models_root: Path) -> Iterator[None]:
             fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
 
 
-def _run_git(arguments: list[str], *, timeout: int = 300) -> None:
-    """Run Git and translate command failures into resolution errors.
-
-    Parameters
-    ----------
-    arguments : list[str]
-        Arguments passed to the Git executable.
-    timeout : int, default=300
-        Maximum command duration in seconds.
-
-    Raises
-    ------
-    ModelResolutionError
-        If Git is unavailable, times out, or exits unsuccessfully.
-    """
-    git_executable = shutil.which("git")
-    if git_executable is None:
-        raise ModelResolutionError("Git is required to fetch model bundles, but it is not installed in the runtime environment.")
-
-    command = [git_executable, *arguments]
-    try:
-        subprocess.run(command, check=True, capture_output=True, text=True, timeout=timeout)
-    except subprocess.TimeoutExpired as error:
-        raise ModelResolutionError(f"Git timed out after {timeout} seconds while fetching the requested model bundle.") from error
-    except subprocess.CalledProcessError as error:
-        details = (error.stderr or error.stdout or str(error)).strip()
-        raise ModelResolutionError(f"Git failed while fetching the requested model bundle: {details}") from error
-
-
-def _clone_sparse_repository(models_root: Path, repository_url: str, ref: str, bundle_path: str) -> None:
-    """Create a sparse models checkout containing one bundle.
+def _fetch_model_bundle(models_root: Path, repository_url: str, ref: str, bundle_path: str) -> None:
+    """Fetch a bundle into a sparse checkout through GitPython.
 
     Parameters
     ----------
     models_root : pathlib.Path
-        Destination for the checkout.
+        Existing checkout or empty destination for a new clone.
     repository_url : str
-        Models Git repository URL.
+        Repository to clone if no checkout exists.
     ref : str
-        Branch or tag to clone.
+        Branch or tag containing the requested bundle.
     bundle_path : str
-        Repository-relative bundle path selected for checkout.
+        Repository-relative bundle directory.
 
     Raises
     ------
     ModelResolutionError
-        If the destination is non-empty or Git cannot create the checkout.
+        If Git is unavailable, an operation fails or times out, or the clone
+        destination contains unrelated files.
     """
-    if models_root.exists() and any(models_root.iterdir()):
-        raise ModelResolutionError(
-            f'Model repository root "{models_root}" exists, is not a Git checkout, and is not empty; refusing to overwrite it.'
-        )
+    # Local bundles must remain usable when Git is absent from the runtime.
+    try:
+        from git import Repo
+        from git.exc import GitError
+    except ImportError as error:
+        raise ModelResolutionError("Git and GitPython are required to fetch model bundles.") from error
 
-    _run_git(
-        [
-            "clone",
-            "--filter=blob:none",
-            "--depth=1",
-            "--sparse",
-            "--branch",
-            ref,
-            "--",
-            repository_url,
-            str(models_root),
-        ]
-    )
-    _run_git(["-C", str(models_root), "sparse-checkout", "set", bundle_path])
-
-
-def _expand_sparse_checkout(models_root: Path, bundle_path: str) -> None:
-    """Add a bundle path to an existing sparse checkout.
-
-    Parameters
-    ----------
-    models_root : pathlib.Path
-        Existing models Git checkout.
-    bundle_path : str
-        Repository-relative bundle path to add.
-
-    Raises
-    ------
-    ModelResolutionError
-        If Git cannot update the sparse-checkout definition.
-    """
-    _run_git(["-C", str(models_root), "sparse-checkout", "add", bundle_path])
-
-
-def _fetch_bundle_from_ref(models_root: Path, bundle_path: str, ref: str) -> None:
-    """Fetch a ref and restore one bundle from it.
-
-    Parameters
-    ----------
-    models_root : pathlib.Path
-        Existing models Git checkout.
-    bundle_path : str
-        Repository-relative bundle path to restore.
-    ref : str
-        Remote ref containing the requested bundle.
-
-    Raises
-    ------
-    ModelResolutionError
-        If Git cannot fetch the ref or restore the bundle.
-    """
-    _run_git(["-C", str(models_root), "fetch", "--depth=1", "--end-of-options", "origin", ref])
-    _run_git(["-C", str(models_root), "checkout", "FETCH_HEAD", "--", bundle_path])
+    try:
+        if (models_root / ".git").exists():
+            with Repo(models_root, search_parent_directories=False) as repo:
+                repo.git.sparse_checkout("add", bundle_path, kill_after_timeout=300)
+                if not (models_root / bundle_path).is_dir():
+                    repo.git.fetch("--depth=1", "--end-of-options", "origin", ref, kill_after_timeout=300)
+                    repo.git.checkout("FETCH_HEAD", "--", bundle_path, kill_after_timeout=300)
+        else:
+            if models_root.exists() and any(models_root.iterdir()):
+                raise ModelResolutionError(
+                    f'Model repository root "{models_root}" exists, is not a Git checkout, and is not empty; refusing to overwrite it.'
+                )
+            with Repo.clone_from(
+                repository_url,
+                models_root,
+                branch=ref,
+                depth=1,
+                multi_options=["--filter=blob:none", "--sparse"],
+                kill_after_timeout=300,
+            ) as repo:
+                repo.git.sparse_checkout("set", bundle_path, kill_after_timeout=300)
+    except (GitError, OSError, ValueError) as error:
+        raise ModelResolutionError(f"Git failed while fetching the requested model bundle: {error}") from error
 
 
 def _safe_artifact_path(bundle_root: Path, relative_path: object) -> Path:
@@ -361,17 +303,7 @@ def resolve_bundle(
     with _repository_lock(resolved_root):
         if not bundle_root.is_dir():
             bundle_path = f"{category}/{bundle_id}"
-            if (resolved_root / ".git").is_dir():
-                _expand_sparse_checkout(resolved_root, bundle_path)
-                if not bundle_root.is_dir():
-                    logger.warning(
-                        'Model bundle "%s" is not present in the local checkout; fetching ref %s from origin.',
-                        bundle_path,
-                        resolved_ref,
-                    )
-                    _fetch_bundle_from_ref(resolved_root, bundle_path, resolved_ref)
-            else:
-                _clone_sparse_repository(resolved_root, resolved_repository, resolved_ref, bundle_path)
+            _fetch_model_bundle(resolved_root, resolved_repository, resolved_ref, bundle_path)
 
     if not bundle_root.is_dir():
         raise ModelResolutionError(

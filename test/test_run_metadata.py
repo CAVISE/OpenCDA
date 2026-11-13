@@ -527,3 +527,76 @@ def test_cli_information_without_runtime_dependencies(flag, expected):
     )
     assert result.returncode == 0, result.stderr
     assert expected in result.stdout
+
+
+@pytest.mark.parametrize("change", [None, "untracked", "modified", "staged", "deleted"])
+@pytest.mark.parametrize("worktree", [False, True])
+def test_component_gitpython_status(tmp_path, monkeypatch, change, worktree):
+    """Record commit and dirty state for regular and linked worktrees.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Temporary repositories.
+    monkeypatch : pytest.MonkeyPatch
+        Fixture selecting the component checkout.
+    change : str or None
+        Worktree or index change, or a clean checkout.
+    worktree : bool
+        Whether the component uses a linked Git worktree.
+    """
+    from git import Repo
+
+    root = tmp_path / "source"
+    with Repo.init(root) as repo:
+        (root / "tracked.txt").write_text("original")
+        repo.index.add(["tracked.txt"])
+        with repo.config_writer() as config:
+            config.set_value("user", "name", "OpenCDA tests")
+            config.set_value("user", "email", "tests@example.invalid")
+            config.set_value("commit", "gpgsign", False)
+        commit = repo.index.commit("Initial files").hexsha
+        if worktree:
+            root = tmp_path / "linked"
+            repo.git.worktree("add", "--detach", str(root), "HEAD")
+    if change == "untracked":
+        (root / "new.txt").write_text("new")
+    elif change in {"modified", "staged"}:
+        (root / "tracked.txt").write_text("changed")
+        if change == "staged":
+            with Repo(root) as repo:
+                repo.index.add(["tracked.txt"])
+    elif change == "deleted":
+        (root / "tracked.txt").unlink()
+    monkeypatch.setenv("OPENCDA_WORKSPACE", str(root))
+    assert run_metadata.collect_code_versions()["opencda"] == {"commit": commit, "dirty": change is not None}
+
+
+def test_build_revision_without_git_executable(tmp_path):
+    """Keep environment revisions when GitPython cannot initialize Git.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Empty executable search path for the isolated interpreter.
+    """
+    import os
+
+    env = dict(os.environ, PATH=str(tmp_path), OPENCDA_COMMIT="build-revision")
+    env.pop("GIT_PYTHON_GIT_EXECUTABLE", None)
+    env.pop("GIT_PYTHON_REFRESH", None)
+    root = Path(__file__).resolve().parents[1]
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "from opencda.scenario_testing.utils.run_metadata import collect_code_versions; "
+            "assert collect_code_versions()['opencda'] == {'commit': 'build-revision', 'dirty': None}",
+        ],
+        cwd=root,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    assert result.returncode == 0, result.stderr

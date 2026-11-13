@@ -6,7 +6,6 @@ import json
 import logging
 import os
 import shutil
-import subprocess
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
@@ -40,21 +39,25 @@ def collect_code_versions() -> dict[str, Any]:
     """
     paths = {name: REPO_ROOT.parent / name for name in ("opencood", "sumo", "artery")}
     paths.update(cavise=REPO_ROOT.parent, opencda=REPO_ROOT)
-    versions = {}
+    # GitPython checks for the Git executable on import. Images without it still
+    # need to record build revisions supplied through the environment.
+    versions: dict[str, dict[str, str | bool | None]] = {name: {"commit": os.environ.get(f"{name.upper()}_COMMIT"), "dirty": None} for name in paths}
+    try:
+        from git import Repo
+        from git.exc import GitError
+    except ImportError:
+        return versions
     for name, default_path in paths.items():
         path = Path(os.environ.get(f"{name.upper()}_WORKSPACE", str(default_path)))
-        commit, dirty = os.environ.get(f"{name.upper()}_COMMIT"), None
         try:
-            # Do not mistake a containing CAVISE checkout for a missing component repository.
-            command = ["git", "-C", str(path)]
-            toplevel = subprocess.run(command + ["rev-parse", "--show-toplevel"], check=True, capture_output=True, text=True, timeout=10)
-            if Path(toplevel.stdout.strip()).resolve() == path.resolve():
-                revision = subprocess.run(command + ["rev-parse", "HEAD"], check=True, capture_output=True, text=True, timeout=10)
-                status = subprocess.run(command + ["status", "--porcelain"], check=True, capture_output=True, text=True, timeout=10)
-                commit, dirty = revision.stdout.strip(), bool(status.stdout)
-        except (OSError, subprocess.SubprocessError):
+            with Repo(path, search_parent_directories=False) as repo:
+                if repo.working_tree_dir is not None and Path(repo.working_tree_dir).resolve() == path.resolve():
+                    commit = repo.head.commit.hexsha
+                    # Preserve porcelain status semantics and the command timeout.
+                    dirty = bool(repo.git.status(porcelain=True, kill_after_timeout=10))
+                    versions[name] = {"commit": commit, "dirty": dirty}
+        except (GitError, OSError, ValueError):
             pass
-        versions[name] = {"commit": commit, "dirty": dirty}
     return versions
 
 
