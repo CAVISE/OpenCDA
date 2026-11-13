@@ -252,6 +252,48 @@ def test_managed_components_finalize_manifest(tmp_path, monkeypatch, failure_sta
         assert "adapter.example/v1/status" in manifest["error"]
 
 
+@pytest.mark.parametrize("exit_code", [None, 0, 1, "scenario failed"])
+@pytest.mark.parametrize("profile", [False, True])
+def test_system_exit_finalizes_manifest(tmp_path, monkeypatch, exit_code, profile):
+    """Record explicit scenario exits while preserving their exit semantics.
+
+    Parameters
+    ----------
+    tmp_path : pathlib.Path
+        Isolated output directory for the run artifacts.
+    monkeypatch : pytest.MonkeyPatch
+        Fixture replacing the simulator and configuring the CLI.
+    exit_code : int, str or None
+        Successful or failing SystemExit payload raised by the scenario.
+    profile : bool
+        Whether the profiled scenario execution path is exercised.
+    """
+    entrypoint = _load_entrypoint()
+    run_dir = tmp_path / "run"
+    exit_error = SystemExit(exit_code)
+
+    scenario = ModuleType("opencda.scenario_testing.scenario")
+    scenario.run_scenario = Mock(side_effect=exit_error)
+    monkeypatch.setitem(sys.modules, scenario.__name__, scenario)
+    monkeypatch.chdir(Path(__file__).resolve().parents[1])
+    arguments = ["opencda.py", "-t", "single_town06_carla"]
+    if profile:
+        arguments.append("--profile")
+    monkeypatch.setattr(sys, "argv", arguments)
+    monkeypatch.setattr(entrypoint, "get_default_output_path", lambda *args: run_dir)
+    monkeypatch.setattr(entrypoint, "create_logger", lambda *args, **kwargs: entrypoint.logging.getLogger("test"))
+    monkeypatch.setattr(entrypoint, "install_traceback_handler", lambda *args, **kwargs: None)
+    with pytest.raises(SystemExit) as caught:
+        entrypoint.main()
+    assert caught.value is exit_error
+    manifest = run_metadata.load_run_manifest(run_dir)
+    successful = exit_code is None or exit_code == 0
+    assert manifest["status"] == ("completed" if successful else "failed")
+    assert manifest["error"] == (None if successful else repr(exit_error))
+    if profile:
+        assert (run_dir / "profile_output.prof").is_file()
+
+
 def test_replay_parses_cli_once_and_applies_explicit_defaults(tmp_path, monkeypatch):
     entrypoint = _load_entrypoint()
     run_metadata.write_json(

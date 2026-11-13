@@ -633,6 +633,12 @@ def main() -> None:
     except KeyboardInterrupt:
         run_status = "interrupted"
         raise
+    except SystemExit as error:
+        if error.code is None or error.code == 0:
+            run_status = "completed"
+        else:
+            run_error = repr(error)
+        raise
     except Exception as error:
         run_error = repr(error)
         raise
