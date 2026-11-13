@@ -267,17 +267,16 @@ python3 opencda.py \
   ```
 
   The manifest records the local commit and dirty flag for CAVISE, OpenCDA,
-  OpenCOOD, SUMO and Artery. It does not save Git patches, inspect package or GPU
-  versions, fingerprint source files, or scan model weights. Perform experiments
-  from committed, clean checkouts: a dirty flag cannot restore uncommitted code.
+  OpenCOOD, SUMO and Artery. Commit your changes before running an experiment.
+  The dirty flag indicates uncommitted changes but cannot restore them.
 
-  Components are found in sibling checkouts (`../opencood`, `../sumo`,
-  `../artery`) and the parent CAVISE checkout. Existing `COMPONENT_WORKSPACE`
-  environment variables can select other locations, for example `SUMO_WORKSPACE`.
-  For images without `.git`, supply the actual build revision through
+  By default, the runner looks for components in sibling checkouts (`../opencood`,
+  `../sumo`, `../artery`) and the parent CAVISE checkout. Use `COMPONENT_WORKSPACE`
+  environment variables, such as `SUMO_WORKSPACE`, to select other locations.
+  For images without `.git`, provide the actual build revision through
   `CAVISE_COMMIT`, `OPENCDA_COMMIT`, `OPENCOOD_COMMIT`, `SUMO_COMMIT`, and
-  `ARTERY_COMMIT`. Otherwise the revision is recorded as unknown, with a warning;
-  supplied build revisions do not establish a clean worktree.
+  `ARTERY_COMMIT`. Missing revisions are recorded as unknown and produce a warning.
+  These variables identify the build revision but cannot confirm a clean worktree.
 
   Replay from the repository root:
 
@@ -287,19 +286,21 @@ python3 opencda.py \
   ```
 
   Replay uses the saved final configuration, launch arguments and resolved local
-  model directory. Explicit arguments override the saved ones. Boolean options
-  accept a `--no-` form. Results go into a new directory; the original is retained.
-  Model weights, maps and other external inputs must remain available and unchanged.
-  Model configurations/manifests are copied for reference; weights are not copied
-  or restored. Replay warns about different commits or uncommitted code; it does
-  not change checkouts or synchronize running simulators.
+  model directory. Arguments supplied on the command line override the saved values.
+  Boolean options accept a `--no-` form. Each replay writes to a new directory
+  and keeps the original results intact.
 
-  This feature repeats the experiment setup using the existing scenario loader,
-  model inference, seeding, sensor handling and component lifecycle. It does not
-  guarantee identical metrics or images from a nondeterministic simulation.
-  Validate a run and its replay by comparing their `report.json` and `plots/`.
-  Configuration files are copied as supplied; use experiment configurations
-  without credentials or other sensitive data.
+  Keep model weights, maps and other external inputs available and unchanged.
+  The saved model configurations and manifests are reference copies. Weights
+  are not copied or restored. Replay warns about different commits or uncommitted
+  changes, but leaves checkouts and running simulators as they are.
+
+  Replay uses the same scenario loader, model inference, seeding, sensor handling
+  and component lifecycle as a normal run. Simulation nondeterminism can still
+  produce different metrics or images. Compare `report.json` and `plots/` from
+  the original run and its replay to check the results.
+  Use configuration files without credentials or other sensitive data, since
+  they are copied into the run artifacts as supplied.
 
 - `simulation_output/coperception/`: cooperative perception predictions, visualizations, and results
 
