@@ -160,7 +160,7 @@ python3 opencda.py -t <scenario_name> [options]
 ### Core options
 
 - `-t, --test-scenario`: Required scenario name without the `.yaml` extension (unless `--replay-from` is used). The runner loads `opencda/scenario_testing/config_yaml/<scenario>.yaml` and merges it over `default.yaml`.
-- `--replay-from <run_dir>`: Reproduce a previous run from its `simulation_output/evaluation_outputs/<scenario>_<time>` folder. Launch options are restored from `run_manifest.json` and the final configuration from the saved `config.yaml`. Use this option on its own. To change experiment parameters, start a new run. Replay warns about different component commits or uncommitted changes.
+- `--replay-from <run_dir>`: Reproduce a previous run from its `simulation_output/evaluation_outputs/<scenario>_<time>` folder. Launch options are restored from `run_manifest.json` and the final configuration from the saved `config.yaml`. Use this option on its own. To change experiment parameters, start a new run.
 - `--record`: Enable the CARLA recorder and per-actor sensor data dumping under `simulation_output/data_dumping/`.
 - `-v, --version`: Show the installed OpenCDA version and exit
 - `--free-spectator`: Leave the CARLA spectator camera under manual control.
@@ -261,22 +261,13 @@ python3 opencda.py \
   <scenario>_<time>/
   ├── report.json, plots/, opencda.log.json
   └── reproducibility/
-      ├── run_manifest.json   # scenario, launch arguments, component commits, model, status
+      ├── run_manifest.json   # scenario, launch arguments, model, status
       ├── config.yaml         # final merged configuration with resolved interpolations
       └── inputs/             # model config.yaml/meta.yaml and optional AdvCP configuration
   ```
 
-  The manifest records the local commit and dirty flag for CAVISE, OpenCDA,
-  OpenCOOD, SUMO and Artery. Commit your changes before running an experiment.
-  The dirty flag indicates uncommitted changes but cannot restore them.
-
-  By default, the runner looks for components in sibling checkouts (`../opencood`,
-  `../sumo`, `../artery`) and the parent CAVISE checkout. Use `COMPONENT_WORKSPACE`
-  environment variables, such as `SUMO_WORKSPACE`, to select other locations.
-  For images without `.git`, provide the actual build revision through
-  `CAVISE_COMMIT`, `OPENCDA_COMMIT`, `OPENCOOD_COMMIT`, `SUMO_COMMIT`, and
-  `ARTERY_COMMIT`. Missing revisions are recorded as unknown and produce a warning.
-  These variables identify the build revision but cannot confirm a clean worktree.
+  Run experiments using tested commits of each component. Include those commit
+  hashes when publishing results so others can use the same code.
 
   Replay from the repository root:
 
@@ -292,8 +283,8 @@ python3 opencda.py \
 
   Keep model weights, maps and other external inputs available and unchanged.
   The saved model configurations and manifests are reference copies. Weights
-  are not copied or restored. Replay warns about different commits or uncommitted
-  changes, but leaves checkouts and running simulators as they are.
+  are not copied or restored. Replay leaves checkouts and running simulators as
+  they are.
 
   Replay uses the same scenario loader, model inference, seeding, sensor handling
   and component lifecycle as a normal run. Simulation nondeterminism can still

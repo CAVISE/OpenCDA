@@ -96,7 +96,6 @@ def test_same_second_launch_preserves_original_run_artifacts(entrypoint, tmp_pat
     monkeypatch.setitem(sys.modules, scenario_module.__name__, scenario_module)
     monkeypatch.setattr(entrypoint, "install_traceback_handler", Mock())
     monkeypatch.setattr(entrypoint, "show_performance_stats", Mock())
-    monkeypatch.setattr(run_metadata, "collect_code_versions", lambda: {})
     configs = tmp_path / "opencda/scenario_testing/config_yaml"
     configs.mkdir(parents=True)
     (configs / "default.yaml").write_text("world:\n  seed: 11\n")
@@ -155,7 +154,6 @@ def test_replay_uses_saved_configuration_after_source_changes(entrypoint, tmp_pa
     monkeypatch.setattr(entrypoint, "create_logger", Mock())
     monkeypatch.setattr(entrypoint, "install_traceback_handler", Mock())
     monkeypatch.setattr(entrypoint, "show_performance_stats", Mock())
-    monkeypatch.setattr(run_metadata, "collect_code_versions", lambda: {})
     original = tmp_path / "original"
     monkeypatch.setattr(entrypoint, "get_default_output_path", lambda *args: original)
     monkeypatch.setattr(sys, "argv", ["opencda.py", "-t", "demo", "--ticks", "50", "--save-vis"])

@@ -96,9 +96,9 @@ carla_traffic_manager:
   ignore_walkers_percentage: 0
   random_left_lanechange_percentage: 0
   random_right_lanechange_percentage: 0
-  vehicle_list: ~
-  range:
-    - [-12.17, 404.55, -11.66, 342.80, 4, 4, 100]
+  # vehicle_list: ~
+  # range:
+  #   - [-12.17, 404.55, -11.66, 342.80, 4, 4, 100]
 
 
 scenario:
@@ -107,45 +107,45 @@ scenario:
       spawn_position: [336.93, 5.39, 2.0, 0, 0, 0]
       id: 1
 
-    - name: rsu_town01_54
-      spawn_position: [156.52, 5.49, 2.0, 0, 0, 0]
-      id: 2
+    # - name: rsu_town01_54
+    #   spawn_position: [156.52, 5.49, 2.0, 0, 0, 0]
+    #   id: 2
 
-    - name: rsu_town01_110
-      spawn_position: [91.04, 5.60, 2.0, 0, 0, 0]
-      id: 3
+    # - name: rsu_town01_110
+    #   spawn_position: [91.04, 5.60, 2.0, 0, 0, 0]
+    #   id: 3
 
-    - name: rsu_town01_332
-      spawn_position: [156.08, 51.84, 2.0, 0, 0, 0]
-      id: 4
+    # - name: rsu_town01_332
+    #   spawn_position: [156.08, 51.84, 2.0, 0, 0, 0]
+    #   id: 4
 
-    - name: rsu_town01_171
-      spawn_position: [95.88, 57.15, 2.0, 0, 0, 0]
-      id: 5
+    # - name: rsu_town01_171
+    #   spawn_position: [95.88, 57.15, 2.0, 0, 0, 0]
+    #   id: 5
 
-    - name: rsu_town01_222
-      spawn_position: [331.02, 57.72, 2.0, 0, 0, 0]
-      id: 6
+    # - name: rsu_town01_222
+    #   spawn_position: [331.02, 57.72, 2.0, 0, 0, 0]
+    #   id: 6
 
-    - name: rsu_town01_306
-      spawn_position: [95.90, 130.84, 2.0, 0, 0, 0]
-      id: 7
+    # - name: rsu_town01_306
+    #   spawn_position: [95.90, 130.84, 2.0, 0, 0, 0]
+    #   id: 7
 
-    - name: rsu_town01_278
-      spawn_position: [331.23, 132.12, 2.0, 0, 0, 0]
-      id: 8
+    # - name: rsu_town01_278
+    #   spawn_position: [331.23, 132.12, 2.0, 0, 0, 0]
+    #   id: 8
 
-    - name: rsu_town01_255
-      spawn_position: [95.91, 197.33, 2.0, 0, 0, 0]
-      id: 9
+    # - name: rsu_town01_255
+    #   spawn_position: [95.91, 197.33, 2.0, 0, 0, 0]
+    #   id: 9
 
-    - name: rsu_town01_194
-      spawn_position: [331.23, 197.40, 2.0, 0, 0, 0]
-      id: 10
+    # - name: rsu_town01_194
+    #   spawn_position: [331.23, 197.40, 2.0, 0, 0, 0]
+    #   id: 10
 
-    - name: rsu_town01_87
-      spawn_position: [90.63, 322.94, 2.0, 0, 0, 0]
-      id: 11
+    # - name: rsu_town01_87
+    #   spawn_position: [90.63, 322.94, 2.0, 0, 0, 0]
+    #   id: 11
 
     - name: rsu_town01_143
       spawn_position: [336.72, 323.03, 2.0, 0, 0, 0]
@@ -167,61 +167,61 @@ scenario:
       model: "vehicle.tesla.model3"
       color: [0, 0, 255]
 
-    - name: cav3
-      spawn_position: [92.38, 94.46, 0.30, 0, -90.0, 0]
-      destination: [336.93, 5.39, 0.30]
-      id: 103
-      model: "vehicle.tesla.model3"
-      color: [0, 0, 255]
+    # - name: cav3
+    #   spawn_position: [92.38, 94.46, 0.30, 0, -90.0, 0]
+    #   destination: [336.93, 5.39, 0.30]
+    #   id: 103
+    #   model: "vehicle.tesla.model3"
+    #   color: [0, 0, 255]
 
-    - name: cav4
-      spawn_position: [285.50, 55.48, 0.30, 0, 180.0, 0]
-      destination: [90.63, 322.94, 0.30]
-      id: 104
-      model: "vehicle.tesla.model3"
-      color: [0, 0, 255]
+    # - name: cav4
+    #   spawn_position: [285.50, 55.48, 0.30, 0, 180.0, 0]
+    #   destination: [90.63, 322.94, 0.30]
+    #   id: 104
+    #   model: "vehicle.tesla.model3"
+    #   color: [0, 0, 255]
 
-    - name: cav5
-      spawn_position: [180.33, 133.45, 0.30, 0, 0.0, 0]
-      destination: [336.72, 323.03, 0.30]
-      id: 105
-      model: "vehicle.tesla.model3"
-      color: [0, 0, 255]
+    # - name: cav5
+    #   spawn_position: [180.33, 133.45, 0.30, 0, 0.0, 0]
+    #   destination: [336.72, 323.03, 0.30]
+    #   id: 105
+    #   model: "vehicle.tesla.model3"
+    #   color: [0, 0, 255]
 
-    - name: cav6
-      spawn_position: [199.62, 1.96, 0.30, 0, 0.0, 0]
-      destination: [336.72, 323.03, 0.30]
-      id: 106
-      model: "vehicle.tesla.model3"
-      color: [0, 0, 255]
+    # - name: cav6
+    #   spawn_position: [199.62, 1.96, 0.30, 0, 0.0, 0]
+    #   destination: [336.72, 323.03, 0.30]
+    #   id: 106
+    #   model: "vehicle.tesla.model3"
+    #   color: [0, 0, 255]
 
-    - name: cav7
-      spawn_position: [92.41, 268.20, 0.30, 0, -90.0, 0]
-      destination: [336.93, 5.39, 0.30]
-      id: 107
-      model: "vehicle.tesla.model3"
-      color: [0, 0, 255]
+    # - name: cav7
+    #   spawn_position: [92.41, 268.20, 0.30, 0, -90.0, 0]
+    #   destination: [336.93, 5.39, 0.30]
+    #   id: 107
+    #   model: "vehicle.tesla.model3"
+    #   color: [0, 0, 255]
 
-    - name: cav8
-      spawn_position: [338.73, 278.92, 0.30, 0, -90.0, 0]
-      destination: [90.63, 322.94, 0.30]
-      id: 108
-      model: "vehicle.tesla.model3"
-      color: [0, 0, 255]
+    # - name: cav8
+    #   spawn_position: [338.73, 278.92, 0.30, 0, -90.0, 0]
+    #   destination: [90.63, 322.94, 0.30]
+    #   id: 108
+    #   model: "vehicle.tesla.model3"
+    #   color: [0, 0, 255]
 
-    - name: cav9
-      spawn_position: [202.47, 330.60, 0.30, 0, 0.0, 0]
-      destination: [331.02, 57.72, 0.30]
-      id: 109
-      model: "vehicle.tesla.model3"
-      color: [0, 0, 255]
+    # - name: cav9
+    #   spawn_position: [202.47, 330.60, 0.30, 0, 0.0, 0]
+    #   destination: [331.02, 57.72, 0.30]
+    #   id: 109
+    #   model: "vehicle.tesla.model3"
+    #   color: [0, 0, 255]
 
-    - name: cav10
-      spawn_position: [2.02, 234.62, 0.30, 0, -90.0, 0]
-      destination: [336.72, 5.39, 0.30]
-      id: 110
-      model: "vehicle.tesla.model3"
-      color: [0, 0, 255]
+    # - name: cav10
+    #   spawn_position: [2.02, 234.62, 0.30, 0, -90.0, 0]
+    #   destination: [336.72, 5.39, 0.30]
+    #   id: 110
+    #   model: "vehicle.tesla.model3"
+    #   color: [0, 0, 255]
 
 
 coperception:
