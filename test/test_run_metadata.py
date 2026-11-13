@@ -60,7 +60,7 @@ def test_manifest_is_failed_when_scenario_import_fails(tmp_path: Path, monkeypat
     with pytest.raises(ImportError):
         entrypoint.main()
 
-    manifest = run_metadata.load_run_manifest(run_dir)
+    manifest = json.loads((run_dir / "reproducibility" / "run_manifest.json").read_text(encoding="utf-8"))
     assert manifest["status"] == "failed"
     assert "ImportError" in manifest["error"]
 
@@ -79,7 +79,7 @@ def _replay_main(entrypoint, monkeypatch, run_dir: Path, argv: list[str]) -> dic
     monkeypatch.setitem(sys.modules, "opencda.scenario_testing.scenario", types.ModuleType("opencda.scenario_testing.scenario"))
     with pytest.raises(ImportError):
         entrypoint.main()
-    return run_metadata.load_run_manifest(run_dir)
+    return json.loads((run_dir / "reproducibility" / "run_manifest.json").read_text(encoding="utf-8"))
 
 
 def test_replay_uses_saved_advcp_config(tmp_path: Path, monkeypatch, merged_config):
@@ -207,7 +207,7 @@ def test_managed_components_finalize_manifest(tmp_path, monkeypatch, failure_sta
             entrypoint.main()
     else:
         entrypoint.main()
-    manifest = run_metadata.load_run_manifest(run_dir)
+    manifest = json.loads((run_dir / "reproducibility" / "run_manifest.json").read_text(encoding="utf-8"))
     assert manifest["status"] == ("failed" if failure_stage else "completed")
     assert events == (["start"] if failure_stage == "start" else ["start", "scenario", "stop"])
     if failure_stage:
@@ -249,7 +249,7 @@ def test_system_exit_finalizes_manifest(tmp_path, monkeypatch, exit_code, profil
     with pytest.raises(SystemExit) as caught:
         entrypoint.main()
     assert caught.value is exit_error
-    manifest = run_metadata.load_run_manifest(run_dir)
+    manifest = json.loads((run_dir / "reproducibility" / "run_manifest.json").read_text(encoding="utf-8"))
     successful = exit_code is None or exit_code == 0
     assert manifest["status"] == ("completed" if successful else "failed")
     assert manifest["error"] == (None if successful else repr(exit_error))
@@ -269,13 +269,13 @@ def test_snapshot_contains_only_experiment_inputs(tmp_path, merged_config):
     """
     manifest = run_metadata.write_run_artifacts(tmp_path, opt=_make_opt(), argv=["-t", "demo"], merged_config=merged_config)
     assert set(manifest) == {"schema_version", "scenario", "launch", "model", "inputs", "status"}
-    saved = run_metadata.reproducibility_dir(tmp_path)
+    saved = tmp_path / "reproducibility"
     assert set(path.name for path in saved.iterdir()) == {"config.yaml", "run_manifest.json"}
     config = OmegaConf.load(saved / "config.yaml")
     assert config.ticks == 50 and config.derived == 11
     assert "${" not in (saved / "config.yaml").read_text()
     run_metadata.finalize_run_manifest(tmp_path, status="completed")
-    assert run_metadata.load_run_manifest(saved)["status"] == "completed"
+    assert json.loads((saved / "run_manifest.json").read_text(encoding="utf-8"))["status"] == "completed"
 
 
 def test_selected_model_manifest_is_copied_without_loading_tagged_config(tmp_path, merged_config):
@@ -298,7 +298,7 @@ def test_selected_model_manifest_is_copied_without_loading_tagged_config(tmp_pat
     manifest = run_metadata.write_run_artifacts(
         run, opt=options, argv=["-t", "demo", "--with-coperception", "--model-id", "example-model"], merged_config=merged_config
     )
-    saved = run_metadata.reproducibility_dir(run)
+    saved = run / "reproducibility"
     assert (saved / manifest["inputs"]["model_config"]["copy"]).read_bytes() == content
     assert (saved / manifest["inputs"]["model_manifest"]["copy"]).read_bytes() == (model / "meta.yaml").read_bytes()
     assert manifest["model"] == {"id": "example-model", "directory": str(model)}
@@ -328,7 +328,7 @@ def test_advcp_paths_use_symlink_target_directory(tmp_path, merged_config, key):
     manifest = run_metadata.write_run_artifacts(
         tmp_path / "run", opt=_make_opt(), argv=[], merged_config=merged_config, input_files={"advcp_config": link}
     )
-    saved = run_metadata.reproducibility_dir(tmp_path / "run") / manifest["inputs"]["advcp_config"]["copy"]
+    saved = (tmp_path / "run" / "reproducibility") / manifest["inputs"]["advcp_config"]["copy"]
     assert OmegaConf.load(saved)[key] == str(assets / "mesh.obj")
     assert source.read_text() == f"{key}: mesh.obj\n"
 
@@ -354,7 +354,7 @@ def test_advcp_absolute_symlink_name_is_preserved(tmp_path, merged_config, key):
     source.write_text(f"{key}: {link}\n")
     run = tmp_path / "run"
     manifest = run_metadata.write_run_artifacts(run, opt=_make_opt(), argv=[], merged_config=merged_config, input_files={"advcp_config": source})
-    saved = run_metadata.reproducibility_dir(run) / manifest["inputs"]["advcp_config"]["copy"]
+    saved = (run / "reproducibility") / manifest["inputs"]["advcp_config"]["copy"]
     assert OmegaConf.load(saved)[key] == str(link)
     assert Path(OmegaConf.load(saved)[key]).stem == "car_000000"
     assert source.read_text() == f"{key}: {link}\n"
@@ -395,7 +395,7 @@ def test_advcp_replay_distinguishes_uncaptured_and_missing_inputs(tmp_path, monk
         input_files={"advcp_config": source} if recorded_snapshot else {},
     )
     if recorded_snapshot:
-        (run_metadata.reproducibility_dir(original) / manifest["inputs"]["advcp_config"]["copy"]).unlink()
+        ((original / "reproducibility") / manifest["inputs"]["advcp_config"]["copy"]).unlink()
         with pytest.raises(FileNotFoundError, match="Saved AdvCP configuration"):
             _replay_main(_load_entrypoint(), monkeypatch, tmp_path / "replay", ["--replay-from", str(original)])
     else:
@@ -428,7 +428,7 @@ def test_home_relative_advcp_paths_are_frozen(tmp_path, monkeypatch, merged_conf
     run = tmp_path / "run"
     manifest = run_metadata.write_run_artifacts(run, opt=_make_opt(), argv=[], merged_config=merged_config, input_files={"advcp_config": source})
     monkeypatch.setenv("HOME", str(tmp_path / "different-home"))
-    copy = run_metadata.reproducibility_dir(run) / manifest["inputs"]["advcp_config"]["copy"]
+    copy = (run / "reproducibility") / manifest["inputs"]["advcp_config"]["copy"]
     assert OmegaConf.load(copy)[key] == str(home / "car_000000.ply")
 
 

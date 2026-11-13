@@ -24,23 +24,6 @@ ADVCP_PATH_KEYS = (
 )
 
 
-def reproducibility_dir(run_dir: Path) -> Path:
-    """Locate the saved configuration and manifest of a run.
-
-    Parameters
-    ----------
-    run_dir : pathlib.Path
-        Evaluation output directory or its reproducibility directory.
-
-    Returns
-    -------
-    pathlib.Path
-        Directory containing the reproducibility artifacts.
-    """
-    run_dir = Path(run_dir)
-    return run_dir if (run_dir / MANIFEST_FILENAME).is_file() else run_dir / REPRODUCIBILITY_DIRNAME
-
-
 def write_json(path: Path, payload: Mapping[str, Any]) -> None:
     """Replace a JSON artifact after serialization completes.
 
@@ -134,39 +117,19 @@ def write_run_artifacts(
     return manifest
 
 
-def load_run_manifest(run_dir: Path) -> dict[str, Any]:
-    """Read a previously saved run manifest.
-
-    Parameters
-    ----------
-    run_dir : pathlib.Path
-        Evaluation output or reproducibility directory.
-
-    Returns
-    -------
-    dict
-        Manifest containing the saved launch arguments.
-
-    Raises
-    ------
-    FileNotFoundError
-        If the run manifest is missing.
-    """
-    return json.loads((reproducibility_dir(run_dir) / MANIFEST_FILENAME).read_text(encoding="utf-8"))
-
-
 def finalize_run_manifest(output_dir: Path, *, status: str, error: str | None = None) -> None:
     """Record completion, interruption or failure without replacing run inputs.
 
     Parameters
     ----------
     output_dir : pathlib.Path
-        Evaluation output or reproducibility directory.
+        Evaluation output directory.
     status : str
         Final execution status.
     error : str, optional
         Failure description, or None when no error occurred.
     """
-    manifest = load_run_manifest(output_dir)
+    manifest_path = output_dir / REPRODUCIBILITY_DIRNAME / MANIFEST_FILENAME
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest.update(status=status, error=error)
-    write_json(reproducibility_dir(output_dir) / MANIFEST_FILENAME, manifest)
+    write_json(manifest_path, manifest)

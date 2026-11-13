@@ -378,7 +378,8 @@ def resolve_launch_arguments(cli_argv: list[str]) -> tuple[argparse.Namespace, l
         return opt, list(cli_argv), None
 
     replay_dir = pathlib.Path(opt.replay_from).resolve()
-    manifest = run_metadata.load_run_manifest(replay_dir)
+    manifest_path = replay_dir / run_metadata.REPRODUCIBILITY_DIRNAME / run_metadata.MANIFEST_FILENAME
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     saved_argv = list(manifest["launch"]["argv"])
     # Accept manifests from before prediction capture and auto-fetch flags were removed.
     saved_argv = [arg for arg in saved_argv if arg not in {"--save-predictions", "--no-save-predictions", "--auto-fetch-models"}]
@@ -444,7 +445,7 @@ def main() -> None:
     use_saved_scenario = replay_dir is not None
     if use_saved_scenario:
         logger.info(f"replaying run from {replay_dir}")
-        config_yaml = run_metadata.reproducibility_dir(replay_dir) / run_metadata.CONFIG_FILENAME
+        config_yaml = (replay_dir / run_metadata.REPRODUCIBILITY_DIRNAME) / run_metadata.CONFIG_FILENAME
     if not config_yaml.is_file():
         logger.error(f"{config_yaml} not found!")
         sys.exit(errno.EPERM)
@@ -470,7 +471,7 @@ def main() -> None:
         use_saved_advcp_config = replay_dir is not None and bool(saved_input)
         if use_saved_advcp_config:
             saved_copy = saved_input.get("copy", "inputs/advcp_config.yaml")
-            replay_root = run_metadata.reproducibility_dir(replay_dir).resolve()
+            replay_root = (replay_dir / run_metadata.REPRODUCIBILITY_DIRNAME).resolve()
             saved_advcp_config = (replay_root / saved_copy).resolve()
             if not saved_advcp_config.is_relative_to(replay_root / "inputs"):
                 raise ValueError("Invalid saved AdvCP config path outside the run inputs directory.")

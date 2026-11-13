@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib.util
 import hashlib
 import sys
+import json
 from datetime import datetime
 from pathlib import Path
 from types import ModuleType
@@ -54,7 +55,8 @@ def test_leading_dash_values_round_trip_through_replay(entrypoint, tmp_path, mon
         monkeypatch.chdir(tmp_path)
         arguments.append("--with-coperception")
     original, command, _ = entrypoint.resolve_launch_arguments(arguments)
-    run_metadata.write_json(tmp_path / "run_manifest.json", {"launch": {"argv": command}})
+    (tmp_path / "reproducibility").mkdir()
+    run_metadata.write_json(tmp_path / "reproducibility" / "run_manifest.json", {"launch": {"argv": command}})
     restored, replay_command, _ = entrypoint.resolve_launch_arguments(["--replay-from", str(tmp_path)])
     destination = flag[2:].replace("-", "_")
     assert getattr(original, destination) == value
@@ -124,7 +126,7 @@ def test_same_second_launch_preserves_original_run_artifacts(entrypoint, tmp_pat
     assert all(path.read_bytes() == contents for path, contents in snapshots.items())
     assert (reserved_dir / "existing.txt").read_text() == "keep this run"
     new_dir = original_dir.with_name(f"{original_dir.name}_2")
-    manifest = run_metadata.load_run_manifest(new_dir)
+    manifest = json.loads((new_dir / "reproducibility" / "run_manifest.json").read_text(encoding="utf-8"))
     assert manifest["status"] == "completed"
     assert manifest["scenario"] == scenario
     assert scenario_module.run_scenario.call_args.kwargs["current_time"] == "2026_11_11_00_00_00_2"
@@ -182,8 +184,9 @@ def test_legacy_manifest_ignores_removed_capture_options(entrypoint, tmp_path):
     tmp_path : pathlib.Path
         Directory holding an earlier manifest.
     """
+    (tmp_path / "reproducibility").mkdir()
     run_metadata.write_json(
-        tmp_path / "run_manifest.json",
+        tmp_path / "reproducibility" / "run_manifest.json",
         {
             "launch": {"argv": ["-t", "demo", "--with-coperception", "--model-id", "model", "--save-predictions", "--auto-fetch-models"]},
             "checkpoint": {"local_dir": "/saved/model"},
@@ -237,7 +240,7 @@ def test_advcp_replay_preserves_resolved_assets(entrypoint, tmp_path, monkeypatc
     run_metadata.write_run_artifacts(
         original, opt=opt, argv=argv, merged_config=OmegaConf.create({"world": {"seed": 11}}), input_files={"advcp_config": config}
     )
-    assert run_metadata.load_run_manifest(original)["model"]["advcp_assets_dir"] == str(assets)
+    assert json.loads((original / "reproducibility" / "run_manifest.json").read_text(encoding="utf-8"))["model"]["advcp_assets_dir"] == str(assets)
     if environment is None:
         monkeypatch.delenv("CAVISE_MODELS_ROOT")
     else:
@@ -287,8 +290,9 @@ def test_saved_advcp_bundle_is_validated(entrypoint, tmp_path, monkeypatch, chan
             "artifacts": [{"path": "mesh.ply", "size": 4, "sha256": hashlib.sha256(b"mesh").hexdigest()}],
         },
     )
+    (tmp_path / "reproducibility").mkdir()
     run_metadata.write_json(
-        tmp_path / "run_manifest.json",
+        tmp_path / "reproducibility" / "run_manifest.json",
         {
             "launch": {"argv": ["-t", "demo", "--with-coperception", "--model-dir", str(model), "--with-advcp"]},
             "model": {"directory": str(model), "advcp_assets_dir": str(assets)},
@@ -347,7 +351,9 @@ def test_perception_identity_and_validation_survive_replays(entrypoint, tmp_path
     config = OmegaConf.create({"world": {"seed": 11}})
     for index in range(3):
         run_metadata.write_run_artifacts(run, opt=options, argv=command, merged_config=config)
-        assert run_metadata.load_run_manifest(run)["model"]["id"] == ("example" if logical else None)
+        assert json.loads((run / "reproducibility" / "run_manifest.json").read_text(encoding="utf-8"))["model"]["id"] == (
+            "example" if logical else None
+        )
         options, command, _ = entrypoint.resolve_launch_arguments(["--replay-from", str(run)])
         entrypoint.model_resolver.resolve_runtime_models(options)
         previous = run
@@ -428,8 +434,8 @@ def test_replay_retains_original_arguments(entrypoint, tmp_path, replay_form):
     assert command == original
     for index in range(3):
         run = tmp_path / str(index)
-        run.mkdir()
-        run_metadata.write_json(run / "run_manifest.json", {"launch": {"argv": command}})
+        (run / "reproducibility").mkdir(parents=True)
+        run_metadata.write_json(run / "reproducibility" / "run_manifest.json", {"launch": {"argv": command}})
         replay = ["--replay-from", str(run)] if replay_form == "split" else [f"--replay-from={run}"]
         options, command, _ = entrypoint.resolve_launch_arguments(replay)
         assert command == original
