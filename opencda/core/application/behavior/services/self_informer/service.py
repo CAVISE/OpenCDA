@@ -74,20 +74,22 @@ class SelfInformer:
 
     def _build_self_informer_response(
         self,
-    ) -> TransportMessage[SelfInformerResponse]:
+    ) -> tuple[TransportMessage[SelfInformerResponse], ...]:
+        """Return complete state messages; an interceptor may suppress the batch with ()."""
         owner = self._get_owner()
         self.localization = owner.agent.localizer.get_state()
         payload = SelfInformerResponse(localization=self.localization)
-        return TransportMessage(
+        message = TransportMessage(
             src_owner_id=owner.id,
             src_service_type=self.service_type,
             dst_owner_id=owner.id,
             dst_service_type=BROADCAST_SERVICE_TYPE,
             payload=payload,
         )
+        return (message,)
 
     def process(
         self,
         messages: Sequence[TransportMessage[Any]],
     ) -> tuple[TransportMessage[SelfInformerResponse], ...]:
-        return (self._build_self_informer_response(),)
+        return self._build_self_informer_response()
