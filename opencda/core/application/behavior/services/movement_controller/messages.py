@@ -12,6 +12,5 @@ if TYPE_CHECKING:
 class MovementControllerRequestMessage:
     """CAV state and route context routed to the MovementController service."""
 
-
     target_speed: float | None
     target_location: Location | None
