@@ -1,4 +1,4 @@
-"""Input dataclasses for the AIM server behavior service."""
+"""Movement-command payload contract shared by command-producing services."""
 
 from __future__ import annotations
 from dataclasses import dataclass
@@ -11,6 +11,7 @@ if TYPE_CHECKING:
 @dataclass(frozen=True)
 class MovementControllerRequestMessage:
     """CAV state and route context routed to the MovementController service."""
+
 
     target_speed: float | None
     target_location: Location | None

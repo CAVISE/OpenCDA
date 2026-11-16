@@ -7,7 +7,7 @@ import weakref
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
-from opencda.core.application.behavior.capability import CapabilityBindings
+from opencda.core.application.behavior.capability import Capability, CapabilityBindings
 from opencda.core.application.behavior.registry import BehaviorServiceRegistry
 from opencda.core.application.behavior.transport_message import TransportMessage
 from opencda.core.application.behavior.services.movement_controller import MovementControllerRequestMessage
@@ -22,14 +22,16 @@ logger = logging.getLogger("cavise.opencda.opencda.core.application.behavior.ser
 
 @BehaviorServiceRegistry.register
 class DefaultMovementRequest:
-    """Behavior service that emits a no-op movement request as a fallback control input."""
+    """Emit fallback commands that delegate movement planning to the local behavior agent."""
 
     service_type: str = "default_movement_request"
     priority: int = 3
 
     @property
     def capability_bindings(self) -> CapabilityBindings:
-        return {}
+        return {
+            Capability.COMMAND_SUBMIT: self._build_default_movement_request,
+        }
 
     def __init__(self, priority: int = 3) -> None:
         self.priority = priority
@@ -59,19 +61,21 @@ class DefaultMovementRequest:
             owner_id=owner.id,
         )
 
-    def _build_default_movement_request(self) -> TransportMessage[MovementControllerRequestMessage]:
+    def _build_default_movement_request(self) -> tuple[TransportMessage[MovementControllerRequestMessage], ...]:
+        """Return complete fallback messages; an interceptor may replace the batch with ()."""
         owner = self._get_owner()
         payload = MovementControllerRequestMessage(target_speed=None, target_location=None)
-        return TransportMessage(
+        message = TransportMessage(
             src_owner_id=owner.id,
             src_service_type=self.service_type,
             dst_owner_id=owner.id,
             dst_service_type="movement_controller",
             payload=payload,
         )
+        return (message,)
 
     def process(
         self,
         messages: Sequence[TransportMessage[Any]],
     ) -> tuple[TransportMessage[MovementControllerRequestMessage], ...]:
-        return (self._build_default_movement_request(),)
+        return self._build_default_movement_request()
