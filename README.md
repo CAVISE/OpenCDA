@@ -159,7 +159,8 @@ python3 opencda.py -t <scenario_name> [options]
 
 ### Core options
 
-- `-t, --test-scenario`: Required scenario name without the `.yaml` extension. The runner loads `opencda/scenario_testing/config_yaml/<scenario>.yaml` and merges it over `default.yaml`.
+- `-t, --test-scenario`: Required scenario name without the `.yaml` extension (unless `--replay-from` is used). The runner loads `opencda/scenario_testing/config_yaml/<scenario>.yaml` and merges it over `default.yaml`.
+- `--replay-from <run_dir>`: Reproduce a previous run from its `simulation_output/evaluation_outputs/<scenario>_<time>` folder. Launch options are restored from `run_manifest.json` and the final configuration from the saved `config.yaml`. Use this option on its own. To change experiment parameters, start a new run.
 - `--record`: Enable the CARLA recorder and per-actor sensor data dumping under `simulation_output/data_dumping/`.
 - `-v, --version`: Show the installed OpenCDA version and exit
 - `--free-spectator`: Leave the CARLA spectator camera under manual control.
@@ -191,7 +192,7 @@ CAPI v2 is the data exchange interface between OpenCDA and Artery. In this fork 
 - `--models-root`: Override the models checkout path.
 - `--models-repository`: Override the Git repository used for automatic fetching.
 - `--models-ref`: Branch or tag to clone; defaults to `main`.
-- `--no-auto-fetch-models`: Disable network access and fail when a requested bundle is absent locally.
+- `--no-auto-fetch-models`: Fail instead of fetching missing model or runtime asset bundles.
 - `--show-video-vis`: whether to show video visualization result
 - `--save-vis`: whether to save visualization result
 - `--save-npy`: whether to save prediction and gt result in npy_test file
@@ -254,7 +255,44 @@ python3 opencda.py \
 
 ### Output directories
 
-- `simulation_output/evaluation_outputs/`: JSON evaluation reports and generated metric plots
+- `simulation_output/evaluation_outputs/<scenario>_<time>/`: evaluation results and experiment configuration:
+
+  ```text
+  <scenario>_<time>/
+  ├── report.json, plots/, opencda.log.json
+  └── reproducibility/
+      ├── run_manifest.json   # scenario, launch arguments, model, status
+      ├── config.yaml         # final merged configuration with resolved interpolations
+      └── inputs/             # model config.yaml/meta.yaml and optional AdvCP configuration
+  ```
+
+  Run experiments using tested commits of each component. Include those commit
+  hashes when publishing results so others can use the same code.
+
+  Replay from the repository root:
+
+  ```bash
+  python opencda.py --replay-from <run_dir>
+  ```
+
+  Replay uses the saved final configuration, launch arguments and resolved local
+  model directory. Use `--replay-from` on its own to repeat the saved experiment.
+  Additional launch parameters are rejected. Start a new run if you want to change
+  the configuration. Each replay writes its results and log to a new directory
+  and keeps the original results intact.
+
+  Keep model weights, maps and other external inputs available and unchanged.
+  The saved model configurations and manifests are reference copies. Weights
+  are not copied or restored. Replay leaves checkouts and running simulators as
+  they are.
+
+  Replay uses the same scenario loader, model inference, seeding, sensor handling
+  and component lifecycle as a normal run. Simulation nondeterminism can still
+  produce different metrics or images. Compare `report.json` and `plots/` from
+  the original run and its replay to check the results.
+  Use configuration files without credentials or other sensitive data, since
+  they are copied into the run artifacts as supplied.
+
 - `simulation_output/coperception/`: cooperative perception predictions, visualizations, and results
 
 ### Repository map
