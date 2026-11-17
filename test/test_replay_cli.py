@@ -441,3 +441,53 @@ def test_replay_retains_original_arguments(entrypoint, tmp_path, replay_form):
         assert command == original
         assert options.ticks == 50 and options.save_vis and not options.record
         assert options.verbose == 1
+
+
+@pytest.mark.parametrize("scenario", ["demo", "demo.v1", "../demo", "../../demo", "/tmp/demo", "/tmp/demo.yaml"])
+def test_scenario_output_uses_basename(entrypoint, tmp_path, monkeypatch, scenario):
+    """Keep scenario-derived output paths inside the evaluation root."""
+    root = tmp_path / "evaluations"
+    monkeypatch.setattr(entrypoint, "EVALUATION_OUTPUT_ROOT", root)
+    output = entrypoint.get_default_output_path(scenario, "timestamp")
+    identifier = "demo.v1" if scenario == "demo.v1" else "demo"
+    assert output == root / f"{identifier}_timestamp"
+    assert output.resolve().is_relative_to(root.resolve())
+
+
+def test_scenario_output_rejects_external_symlink(entrypoint, tmp_path, monkeypatch):
+    """Reject an existing output symlink pointing outside the evaluation root."""
+    root = tmp_path / "evaluations"
+    root.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (root / "demo_timestamp").symlink_to(outside, target_is_directory=True)
+    monkeypatch.setattr(entrypoint, "EVALUATION_OUTPUT_ROOT", root)
+    with pytest.raises(ValueError, match="evaluation root"):
+        entrypoint.get_default_output_path("demo", "timestamp")
+
+
+@pytest.mark.parametrize("scenario", ["/", ".", ".."])
+def test_scenario_output_rejects_missing_basename(entrypoint, scenario):
+    """Reject identifiers which consist only of directory navigation."""
+    with pytest.raises(ValueError, match="basename"):
+        entrypoint.get_default_output_path(scenario, "timestamp")
+
+
+@pytest.mark.parametrize("absolute", [False, True])
+def test_missing_scenario_cannot_create_external_run_directory(entrypoint, tmp_path, monkeypatch, absolute):
+    """Exercise directory reservation and logging before a missing-config exit."""
+    working = tmp_path / "working"
+    working.mkdir()
+    monkeypatch.chdir(working)
+    root = working / "evaluations"
+    monkeypatch.setattr(entrypoint, "EVALUATION_OUTPUT_ROOT", root)
+    monkeypatch.setattr(entrypoint, "install_traceback_handler", lambda **kwargs: None)
+    scenario = str(tmp_path / "missing") if absolute else "../missing"
+    monkeypatch.setattr(sys, "argv", ["opencda.py", "-t", scenario])
+    with pytest.raises(SystemExit):
+        entrypoint.main()
+    runs = list(root.iterdir())
+    assert len(runs) == 1
+    assert runs[0].name.startswith("missing_")
+    assert (runs[0] / entrypoint.DEFAULT_LOG_FILENAME).is_file()
+    assert not list(tmp_path.glob("missing_*"))

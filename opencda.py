@@ -54,7 +54,14 @@ def import_runtime_libs() -> None:
 
 
 def get_default_output_path(scenario_name: str, current_time: str) -> pathlib.Path:
-    return EVALUATION_OUTPUT_ROOT / f"{scenario_name}_{current_time}"
+    scenario_path = pathlib.Path(scenario_name)
+    identifier = scenario_path.stem if scenario_path.suffix.lower() == ".yaml" else scenario_path.name
+    if identifier in ("", ".", ".."):
+        raise ValueError("Scenario must have a nonempty basename.")
+    output_path = EVALUATION_OUTPUT_ROOT / f"{identifier}_{current_time}"
+    if not output_path.resolve().is_relative_to(EVALUATION_OUTPUT_ROOT.resolve()):
+        raise ValueError("Scenario output path must remain inside the evaluation root.")
+    return output_path
 
 
 class VerbosityLevel(enum.IntEnum):
@@ -411,7 +418,7 @@ def main() -> None:
         level = logging.WARNING
 
     scenario_path = pathlib.Path(opt.test_scenario)
-    test_scenario_name = scenario_path.stem if scenario_path.suffix.lower() == ".yaml" else opt.test_scenario
+    test_scenario_name = scenario_path.stem if scenario_path.suffix.lower() == ".yaml" else scenario_path.name
     base_output_dir = get_default_output_path(test_scenario_name, current_time)
     evaluation_output_dir = base_output_dir
     time_prefix = current_time
