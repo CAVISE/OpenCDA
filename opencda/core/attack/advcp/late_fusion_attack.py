@@ -291,7 +291,7 @@ class AdvCoperceptionLateFusionAttack:
                 # is a successful attack, not an error: return empty
                 # tensors so the metrics layer can still consume the
                 # tick.
-                gt_box_tensor = dataset.post_processor.generate_gt_bbx(batch_data)
+                gt_box_tensor = AdvCoperceptionLateFusionAttack._generate_gt_boxes(batch_data, dataset)
                 empty_corners = torch.zeros((0, 8, 3), dtype=torch.float32, device=device)
                 empty_score = torch.zeros((0,), dtype=torch.float32, device=device)
                 return empty_corners, empty_score, gt_box_tensor, advcp_context
@@ -331,12 +331,23 @@ class AdvCoperceptionLateFusionAttack:
         pred_box3d_tensor = pred_box3d_tensor[mask, :, :]
         pred_score = scores[mask]
         pred_is_fake_tensor = pred_is_fake_tensor[mask]
-        gt_box_tensor = dataset.post_processor.generate_gt_bbx(batch_data)
+        gt_box_tensor = AdvCoperceptionLateFusionAttack._generate_gt_boxes(batch_data, dataset)
 
         if mode == "spoofing" and torch.any(pred_is_fake_tensor):
             advcp_context.fake_box_tensor = pred_box3d_tensor[pred_is_fake_tensor]  # noqa: DC05
 
         return pred_box3d_tensor, pred_score, gt_box_tensor, advcp_context
+
+    @staticmethod
+    def _generate_gt_boxes(batch_data: Any, dataset: Any) -> torch.Tensor:
+        """
+        Build ground-truth boxes from the CAVs that carry labels.
+
+        In live late fusion usually only ``ego`` has ``object_bbx_center``,
+        while ``generate_gt_bbx`` expects labels in every entry it gets.
+        """
+        labelled = OrderedDict((cav_id, content) for cav_id, content in batch_data.items() if "object_bbx_center" in content)
+        return dataset.post_processor.generate_gt_bbx(labelled)
 
     @staticmethod
     def _compute_removal_keep_mask(
@@ -415,5 +426,5 @@ class AdvCoperceptionLateFusionAttack:
         AdvCPAttackResult
         """
         pred_box_tensor, pred_score = dataset.post_processor.post_process(batch_data, output_dict)
-        gt_box_tensor = dataset.post_processor.generate_gt_bbx(batch_data)
+        gt_box_tensor = AdvCoperceptionLateFusionAttack._generate_gt_boxes(batch_data, dataset)
         return pred_box_tensor, pred_score, gt_box_tensor, advcp_context
