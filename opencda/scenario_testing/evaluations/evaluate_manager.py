@@ -37,6 +37,10 @@ class EvaluationManager(object):
     current_time : str
         Current timestamp, used to name the output folder.
 
+    output_dir : str or pathlib.Path, optional
+        Reserved run directory shared with logs and replay artifacts. When
+        omitted, use the legacy scenario-and-timestamp output location.
+
     Attributes
     ----------
     eval_save_path : str
@@ -44,12 +48,16 @@ class EvaluationManager(object):
 
     """
 
-    def __init__(self, cav_world: CavWorld, script_name: str, current_time: str) -> None:
+    def __init__(self, cav_world: CavWorld, script_name: str, current_time: str, output_dir: str | Path | None = None) -> None:
         self.cav_world = cav_world
 
         current_path = os.path.dirname(os.path.realpath(__file__))
 
-        self.eval_save_path = os.path.join(current_path, "../../../simulation_output/evaluation_outputs", f"{script_name}_{current_time}")
+        self.eval_save_path = (
+            str(output_dir)
+            if output_dir is not None
+            else os.path.join(current_path, "../../../simulation_output/evaluation_outputs", f"{script_name}_{current_time}")
+        )
         if not os.path.exists(self.eval_save_path):
             os.makedirs(self.eval_save_path)
 
