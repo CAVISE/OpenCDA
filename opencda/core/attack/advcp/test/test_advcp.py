@@ -1,6 +1,7 @@
 import pytest
 from unittest.mock import MagicMock, patch
 from importlib import import_module
+import math
 import numpy as np
 
 # The production code imports are now safe because pytest_configure in conftest.py
@@ -1098,3 +1099,33 @@ class TestAdvCoperceptionEarlyFusionAttack:
     def test_early_advcp_density_rejects_numeric_value(self):
         with pytest.raises(ValueError):
             AdvCPAttackHelper.resolve_density(0)
+
+
+class TestLateRemovalRegion:
+    @staticmethod
+    def _inside(centers, region):
+        return AdvCoperceptionLateFusionAttack._centers_in_region(
+            np.asarray(centers, dtype=np.float32).reshape(-1, 2),
+            np.asarray(region, dtype=np.float32),
+        ).tolist()
+
+    def test_large_region_contains_far_centers(self):
+        # IoU of a car with a 1 km region is tiny; containment must still match it.
+        region = [0.0, 0.0, 0.0, 1000.0, 1000.0, 10.0, 0.0]
+        assert self._inside([[10.0, 5.0], [400.0, -450.0], [2000.0, 0.0]], region) == [True, True, False]
+
+    def test_rotated_region_uses_local_frame(self):
+        # 10 m x 2 m region rotated by 90 degrees: its long side runs along Y.
+        region = [0.0, 0.0, 0.0, 10.0, 2.0, 2.0, math.pi / 2]
+        assert self._inside([[0.0, 4.0], [4.0, 0.0]], region) == [True, False]
+
+    def test_region_center_offset(self):
+        region = [100.0, -50.0, 0.0, 4.0, 4.0, 2.0, 0.0]
+        assert self._inside([[101.0, -49.0], [0.0, 0.0]], region) == [True, False]
+
+    def test_center_on_region_edge_is_inside(self):
+        region = [0.0, 0.0, 0.0, 10.0, 2.0, 2.0, 0.0]
+        assert self._inside([[5.0, 0.0], [5.01, 0.0]], region) == [True, False]
+
+    def test_no_centers_returns_empty(self):
+        assert self._inside([], [0.0, 0.0, 0.0, 4.0, 4.0, 2.0, 0.0]) == []

@@ -96,8 +96,9 @@ target-box machinery. The differences live inside each fusion module:
   the target location (suppresses any existing detection there).
 - Late spoofing appends fake detections directly to the attacker's
   per-CAV output. Removal filters out any of the attacker's
-  detections that overlap with the target box by IoU above a
-  threshold.
+  detections whose BEV center lies inside a target box. The target
+  box is treated as a rectangular region, so a large box removes
+  every detection inside it.
 
 ## Glossary
 

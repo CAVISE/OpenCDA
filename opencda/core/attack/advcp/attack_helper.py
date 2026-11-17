@@ -882,8 +882,7 @@ class AdvCPAttackHelper:
 
         Both proposals and target are interpreted as ``lwh`` boxes and
         projected to BEV/XY oriented rectangles. The returned IoU values
-        are used by intermediate-fusion losses and late-fusion removal
-        filtering.
+        are used by intermediate-fusion losses.
 
         Parameters
         ----------
