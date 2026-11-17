@@ -434,6 +434,7 @@ def main() -> None:
             suffix += 1
             current_time = f"{time_prefix}_{suffix}"
             evaluation_output_dir = base_output_dir.with_name(f"{base_output_dir.name}_{suffix}")
+    opt.evaluation_output_dir = str(evaluation_output_dir.resolve())
     log_path = pathlib.Path(opt.log_file) if opt.log_file is not None else evaluation_output_dir / DEFAULT_LOG_FILENAME
     logger = create_logger(level=level, filename=str(log_path))
     install_traceback_handler(verbose=verbosity != VerbosityLevel.SILENT)

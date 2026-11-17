@@ -45,6 +45,92 @@ def test_scenario_or_replay_is_required():
     assert entrypoint.arg_parse(["-t", "demo"]).test_scenario == "demo"
 
 
+@pytest.mark.parametrize("scenario_form", ["nested", "relative_yaml", "absolute_yaml", "flat"])
+@pytest.mark.parametrize("profile", [False, True])
+def test_evaluation_and_replay_share_reserved_run_directory(tmp_path, monkeypatch, scenario_form, profile):
+    """Keep reports, plots and replay inputs together through a same-second replay."""
+    from opencda.core.common.cav_world import CavWorld
+    from opencda.scenario_testing import scenario as scenario_module
+
+    entrypoint = _load_entrypoint()
+    monkeypatch.chdir(tmp_path)
+    config_root = tmp_path / "opencda/scenario_testing/config_yaml"
+    config = config_root / "advcp-scenarios/advcp_check.yaml"
+    config.parent.mkdir(parents=True)
+    (config_root / "default.yaml").write_text("world: {seed: 11}\n", encoding="utf-8")
+    config.write_text("ticks: 2\n", encoding="utf-8")
+    (config_root / "advcp_check.yaml").write_text("ticks: 2\n", encoding="utf-8")
+    scenario_arg = {
+        "nested": "advcp-scenarios/advcp_check",
+        "relative_yaml": str(config.relative_to(tmp_path)),
+        "absolute_yaml": str(config),
+        "flat": "advcp_check",
+    }[scenario_form]
+    fixed_now = entrypoint.datetime.now()
+
+    class FixedDatetime(entrypoint.datetime):
+        @classmethod
+        def now(cls):
+            return fixed_now
+
+    monkeypatch.setattr(entrypoint, "datetime", FixedDatetime)
+    monkeypatch.setattr(entrypoint, "install_traceback_handler", lambda **kwargs: None)
+    monkeypatch.setattr(entrypoint, "show_performance_stats", lambda stats: None)
+    create_logger = entrypoint.create_logger
+
+    def fresh_logger(**kwargs):
+        # Each CLI invocation normally starts in a fresh process.
+        for handler in entrypoint.logger.handlers[:]:
+            entrypoint.logger.removeHandler(handler)
+            handler.close()
+        return create_logger(**kwargs)
+
+    monkeypatch.setattr(entrypoint, "create_logger", fresh_logger)
+
+    # Exercise the real Scenario constructor and evaluator with simulator startup stubbed.
+    def init_manager(self, opt, config):
+        self.cav_world = CavWorld()
+        self.scenario_manager = Mock()
+
+    monkeypatch.setattr(scenario_module.Scenario, "_init_scenario_manager", init_manager)
+    monkeypatch.setattr(scenario_module.Scenario, "_init_agents", lambda self, opt: None)
+    monkeypatch.setattr(scenario_module.map_api, "spawn_helper_2lanefree", Mock(), raising=False)
+    run_dirs = []
+
+    def run_scenario(opt, scene_dict, current_time, runtime_stats):
+        scenario = scenario_module.Scenario(opt, scene_dict, current_time=current_time, runtime_stats=runtime_stats)
+        scenario.scenario_metrics_collector.update({"tick": 0, "vehicles": []})
+        scenario.eval_manager.evaluate(scenario_metrics_collector=scenario.scenario_metrics_collector)
+        run_dirs.append(Path(scenario.eval_manager.eval_save_path))
+
+    monkeypatch.setattr(scenario_module, "run_scenario", run_scenario)
+    argv = ["-t", scenario_arg, *(["--profile"] if profile else [])]
+    monkeypatch.setattr(sys, "argv", ["opencda.py", *argv])
+    entrypoint.main()
+    original = run_dirs[0]
+    original_files = {path.relative_to(original): path.read_bytes() for path in original.rglob("*") if path.is_file()}
+    # Replay must use its snapshot even if the selected source YAML has disappeared.
+    config.unlink()
+    (config_root / "advcp_check.yaml").unlink()
+    monkeypatch.setattr(sys, "argv", ["opencda.py", "--replay-from", str(original)])
+    entrypoint.main()
+    replay = run_dirs[1]
+    assert replay == original.with_name(f"{original.name}_1")
+    assert original.parent == (tmp_path / "simulation_output/evaluation_outputs")
+    assert original.name.startswith("advcp_check_")
+    for run_dir in run_dirs:
+        assert (run_dir / "report.json").is_file()
+        assert list((run_dir / "plots").rglob("*.png"))
+        assert (run_dir / "opencda.log.json").is_file()
+        assert (run_dir / "reproducibility/config.yaml").is_file()
+        assert (run_dir / "profile_output.prof").is_file() == profile
+        manifest = json.loads((run_dir / "reproducibility/run_manifest.json").read_text(encoding="utf-8"))
+        assert manifest["status"] == "completed"
+        assert manifest["launch"]["argv"] == argv
+    assert manifest["launch"]["replayed_from"] == str(original)
+    assert original_files == {path.relative_to(original): path.read_bytes() for path in original.rglob("*") if path.is_file()}
+
+
 def test_manifest_is_failed_when_scenario_import_fails(tmp_path: Path, monkeypatch):
     """Failures after manifest creation must update the run status."""
     entrypoint = _load_entrypoint()
