@@ -780,7 +780,9 @@ class BehaviorAgent(object):
         if self.traffic_light_manager(ego_vehicle_wp) != 0:
             return 0, None
 
+        self._local_planner.refill_waypoint_buffer()
         self._local_planner.buffer_filter()
+        self._local_planner.refill_waypoint_buffer()
         # 2. when the temporary route is finished, we return to the global route
         if len(self.get_local_planner().get_waypoints_queue()) == 0 and len(self.get_local_planner().get_waypoint_buffer()) <= 2:
             if self.debug:
@@ -800,6 +802,15 @@ class BehaviorAgent(object):
 
         # Path generation based on the global route
         rx, ry, rk, ryaw = self._local_planner.generate_path()
+        if not rx:
+            self._local_planner.get_trajectory().clear()
+            logger.warning(
+                "Vehicle %s has no planned path; stopping (route_queue=%d, waypoint_buffer=%d).",
+                self.vehicle.id,
+                len(self._local_planner.get_waypoints_queue()),
+                len(self._local_planner.get_waypoint_buffer()),
+            )
+            return 0, None
 
         # check whether lane change is allowed
         self.lane_change_allowed = self.check_lane_change_permission(lane_change_allowed, collision_detector_enabled, rk)
@@ -829,6 +840,15 @@ class BehaviorAgent(object):
             self.destination_push_flag = 90
             self.set_destination(ego_vehicle_loc, reset_target.transform.location, clean=True, end_reset=False)
             rx, ry, rk, ryaw = self._local_planner.generate_path()
+            if not rx:
+                self._local_planner.get_trajectory().clear()
+                logger.warning(
+                    "Vehicle %s has no planned path; stopping (route_queue=%d, waypoint_buffer=%d).",
+                    self.vehicle.id,
+                    len(self._local_planner.get_waypoints_queue()),
+                    len(self._local_planner.get_waypoint_buffer()),
+                )
+                return 0, None
 
         # 5. the case that vehicle is blocking in front and overtake not
         # allowed or it is doing overtaking the second condition is to

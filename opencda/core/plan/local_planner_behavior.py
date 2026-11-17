@@ -208,6 +208,12 @@ class LocalPlanner(object):
         """
         return self._history_buffer
 
+    def refill_waypoint_buffer(self):
+        """Fill the local buffer from the remaining route when below its threshold."""
+        if len(self._waypoint_buffer) < self.waypoint_update_freq:
+            while self.waypoints_queue and len(self._waypoint_buffer) < self._buffer_size:
+                self._waypoint_buffer.append(self.waypoints_queue.popleft())
+
     def generate_path(self):
         """
         Generate the smooth path using cubic spline.
@@ -227,6 +233,9 @@ class LocalPlanner(object):
             List of planned path points' curvatures.
 
         """
+
+        if not self._waypoint_buffer:
+            return [], [], [], []
 
         # used to save all key spline node
         x = []
@@ -534,13 +543,7 @@ class LocalPlanner(object):
 
         self._target_speed = target_speed
 
-        # Buffering the waypoints. Always keep the waypoint buffer alive
-        if len(self._waypoint_buffer) < self.waypoint_update_freq:
-            for i in range(self._buffer_size - len(self._waypoint_buffer)):
-                if self.waypoints_queue:
-                    self._waypoint_buffer.append(self.waypoints_queue.popleft())
-                else:
-                    break
+        self.refill_waypoint_buffer()
 
         # we will generate the trajectory only if it is not a following vehicle in the platooning
         if not trajectory and len(self._trajectory_buffer) < self.trajectory_update_freq and not following:
