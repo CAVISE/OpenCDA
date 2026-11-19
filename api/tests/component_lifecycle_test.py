@@ -34,3 +34,29 @@ def test_interrupt_during_rollback_still_stops_sumo(monkeypatch):
             pytest.fail("Startup must fail")
     assert calls[-2:] == ["carla/v1/stop", "sumo/v1/stop"]
     assert signal.getsignal(signal.SIGINT) == previous
+
+
+def test_start_intent_survives_lost_adapter_response(tmp_path, monkeypatch):
+    """The supervisor can retry cleanup even if the scenario never receives its start acknowledgement."""
+    from api.state import Store
+    from opencda.scenario_testing.component_lifecycle import ManagedComponents
+
+    monkeypatch.setenv("CAVISE_TASK_ID", "job")
+    monkeypatch.setenv("CAVISE_RUNNER_STATE_DIR", str(tmp_path))
+
+    def request(url, method="POST"):
+        if url.endswith("/status"):
+            return '{"state":"IDLE"}'
+        store = Store(tmp_path)
+        rows = store.db.execute("SELECT task_id, base_url FROM task_components").fetchall()
+        store.close()
+        assert [tuple(row) for row in rows] == [("job", "http://carla")]
+        raise OSError("response lost")
+
+    monkeypatch.setattr("opencda.scenario_testing.component_lifecycle.adapter_request", request)
+    components = ManagedComponents(Namespace())
+    with pytest.raises(OSError, match="response lost"):
+        components._start("http://carla")
+    store = Store(tmp_path)
+    assert store.db.execute("SELECT count(*) FROM task_components").fetchone()[0] == 1
+    store.close()
