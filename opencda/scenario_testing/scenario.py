@@ -106,7 +106,12 @@ class Scenario:
         self.scenario_manager.tick()
         logger.info("completed initial spawn synchronization tick")
 
-        self.eval_manager = EvaluationManager(self.cav_world, script_name=self.scenario_name, current_time=current_time)
+        self.eval_manager = EvaluationManager(
+            self.cav_world,
+            script_name=self.scenario_name,
+            current_time=current_time,
+            output_dir=getattr(opt, "evaluation_output_dir", None),
+        )
 
         self.spectator = self.scenario_manager.world.get_spectator()
 

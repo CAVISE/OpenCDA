@@ -5,6 +5,7 @@ cmake==4.4.4
 
 # API lifecycle tests (including multipart configuration uploads)
 fastapi==0.162.0
+GitPython==3.2.1
 httpx==0.28.1
 
 lxml==6.1.3
