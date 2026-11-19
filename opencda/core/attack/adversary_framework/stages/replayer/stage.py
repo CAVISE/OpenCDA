@@ -26,6 +26,7 @@ class ReplayerStage:
         Capability.REQUEST_SUBMIT,
         Capability.RESPONSE_OBSERVE,
         Capability.RESPONSE_SUBMIT,
+        Capability.COMMAND_OBSERVE,
         Capability.COMMAND_SUBMIT,
     )
     default_capabilities = (Capability.RESPONSE_SUBMIT,)

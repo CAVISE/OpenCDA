@@ -16,6 +16,7 @@ class Capability(str, Enum):
     RESPONSE_OBSERVE = "response.observe"
     RESPONSE_SUBMIT = "response.submit"
 
+    COMMAND_OBSERVE = "command.observe"
     COMMAND_SUBMIT = "command.submit"
 
     STATE_OBSERVE = "state.observe"
