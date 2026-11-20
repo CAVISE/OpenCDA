@@ -3,7 +3,7 @@
 -r requirements-cuda.txt
 
 # Simulation & Control
-carla==0.9.16
+# CARLA cp312 wheel is installed from the server release archive by Dockerfile.
 
 # Packaging, Build & Runtime Utilities
 coloredlogs==15.0.1

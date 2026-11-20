@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1
+
 ARG CUDA_VERSION=13.0.3
 ARG CUDA_DEVEL_DIGEST=sha256:b7ae301dea2c162444795462ce17a05f6a516e5a75944b57af5b88540a1a2266
 ARG CUDA_RUNTIME_DIGEST=sha256:14f6d08d1cd4a96effbfe3101d0b56326f552c199d05e4979ee0bd616df5811b
@@ -49,6 +51,10 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends python3-venv=3.12.* && \
     rm -rf /var/lib/apt/lists/*
 
+# Compose supplies the exact server image as the carla-server build context.
+# hadolint ignore=DL3022
+COPY --from=carla-server /workspace/PythonAPI/carla/dist/*cp312*x86_64.whl /tmp/carla-api/
+
 COPY opencda/requirements.txt opencda/requirements-cuda.txt /tmp/opencda-requirements/
 COPY opencda/api/requirements.txt /tmp/opencda-requirements/api/
 
@@ -59,7 +65,10 @@ RUN python3 -m venv /opt/venv && \
         wheel==0.48.0 \
     && \
     /opt/venv/bin/python -m pip install --no-cache-dir \
-        -r /tmp/opencda-requirements/requirements.txt -r /tmp/opencda-requirements/api/requirements.txt
+        /tmp/carla-api/*.whl \
+        -r /tmp/opencda-requirements/requirements.txt -r /tmp/opencda-requirements/api/requirements.txt \
+    && \
+    /opt/venv/bin/python -c 'import carla; print(carla.Client("localhost", 2000).get_client_version())'
 
 
 FROM python-opencda-dependencies AS python-opencood-dependencies
