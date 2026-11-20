@@ -15,11 +15,11 @@ from opencda.scenario_testing.types import SimulationSnapshot
 
 from .condition_evaluator import collect_snapshot_values, resolve_target_node_ids
 from .models import TargetSpec
+from .interceptor_manager import interceptor_manager
 
 ServiceResolver: TypeAlias = Callable[[str, str | None], tuple[BehaviorService[Any, Any], ...]]
 AttackResultRewriter: TypeAlias = Callable[[Any], Any]
 RestoreCallback: TypeAlias = Callable[[], None]
-_MISSING = object()
 
 logger = logging.getLogger("cavise.opencda.opencda.core.attack.adversary_framework.utils")
 
@@ -113,29 +113,7 @@ def install_output_interceptor(
 ) -> RestoreCallback:
     """Patch a concrete service instance so the capability method rewrites its output."""
     binding = get_capability_binding(service, capability)
-    method_name = getattr(binding, "__name__", None)
-    if not method_name:
-        raise RuntimeError(f"Could not resolve method name for capability '{capability.value}' on service '{service.service_type}'.")
-
-    had_instance_override = method_name in vars(service)
-    previous_attr = vars(service).get(method_name, _MISSING)
-    wrapped_method = wrap_method_output(binding, rewrite_result=rewrite_result)
-
-    setattr(
-        service,
-        method_name,
-        wrapped_method,
-    )
-
-    def restore() -> None:
-        current_attr = vars(service).get(method_name, _MISSING)
-        if current_attr is wrapped_method:
-            if had_instance_override:
-                setattr(service, method_name, previous_attr)
-            else:
-                delattr(service, method_name)
-
-    return restore
+    return interceptor_manager.install(service, binding, rewrite_result)
 
 
 def service_supports_capabilities(

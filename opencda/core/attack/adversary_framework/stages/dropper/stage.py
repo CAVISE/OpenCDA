@@ -21,6 +21,7 @@ logger = logging.getLogger("cavise.opencda.opencda.core.attack.adversary_framewo
 class DropperStage:
     """Replace selected message-producing outputs with an empty batch."""
 
+    persistent_effect = True
     stage_name = "dropper"
     supported_capabilities = (
         Capability.REQUEST_OBSERVE,

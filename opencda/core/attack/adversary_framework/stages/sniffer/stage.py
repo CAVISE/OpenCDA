@@ -21,6 +21,7 @@ logger = logging.getLogger("cavise.opencda.opencda.core.attack.adversary_framewo
 class SnifferStage:
     """Passively observe outputs produced by selected service capabilities."""
 
+    persistent_effect = True
     stage_name = "sniffer"
     supported_capabilities = (
         Capability.REQUEST_OBSERVE,

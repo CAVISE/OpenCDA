@@ -59,3 +59,28 @@ def test_finalize_continues_cleanup_after_destroy_error() -> None:
     second_manager.destroy.assert_called_once_with()
     scenario.scenario_manager.close.assert_called_once_with()
     communication_manager.destroy.assert_called_once_with()
+
+
+def test_destroy_resources_stops_attacks_before_services() -> None:
+    scenario = _scenario()
+    events = []
+    attack = Mock(attack_name="test")
+    attack.mark_stopped.side_effect = lambda: events.append("attack")
+    manager = Mock(id="cav-1")
+    manager.destroy.side_effect = lambda: events.append("service")
+    scenario.attacks = [attack]
+    scenario.single_cav_list = [manager]
+    scenario._destroy_resources()
+    assert events == ["attack", "service"]
+
+
+def test_attack_cleanup_error_does_not_skip_other_resources() -> None:
+    scenario = _scenario()
+    first = Mock(attack_name="first")
+    first.mark_stopped.side_effect = RuntimeError("attack cleanup failed")
+    second = Mock(attack_name="second")
+    scenario.attacks = [first, second]
+    with pytest.raises(RuntimeError, match="attack cleanup failed"):
+        scenario._destroy_resources()
+    second.mark_stopped.assert_called_once_with()
+    scenario.scenario_manager.close.assert_called_once_with()

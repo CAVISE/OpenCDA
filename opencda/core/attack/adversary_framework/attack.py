@@ -53,7 +53,9 @@ class Attack:
         return cls(spec=spec, stages=stages)
 
     def mark_started(self) -> None:
-        """Mark attack runtime as started."""
+        """Start a fresh run, including after a previous terminal state."""
+        if not self.is_active:
+            self.reset_runtime()
         self.is_active = True
         self._set_attack_status(RuntimeStatus.STARTED)
 
@@ -64,21 +66,25 @@ class Attack:
 
     def mark_succeeded(self) -> None:
         """Mark attack runtime as completed successfully."""
+        self._cleanup_stages()
         self.is_active = False
         self._set_attack_status(RuntimeStatus.SUCCESS)
 
     def mark_failed(self) -> None:
         """Mark attack runtime as failed."""
+        self._cleanup_stages()
         self.is_active = False
         self._set_attack_status(RuntimeStatus.FAIL)
 
     def mark_stopped(self) -> None:
         """Mark attack runtime as stopped."""
+        self._cleanup_stages()
         self.is_active = False
         self._set_attack_status(RuntimeStatus.STOPPED)
 
     def reset_runtime(self) -> None:
         """Reset attack and stage runtime state."""
+        self._cleanup_stages()
         self.is_active = False
         self._set_attack_status(RuntimeStatus.INACTIVE)
         for stage_runtime in self.stage_runtimes:
@@ -124,9 +130,6 @@ class Attack:
 
     def deactivate(self) -> None:
         """Deactivate all stages and reset runtime state."""
-        for stage_runtime in self.stage_runtimes:
-            self._deactivate_stage(stage_runtime)
-
         self.reset_runtime()
 
     def resolve_targets(
@@ -149,6 +152,18 @@ class Attack:
         available_services: tuple[BehaviorService[Any, Any], ...],
     ) -> tuple[AttackStageResult, ...]:
         """Advance stage runtime according to configured/default lifecycle rules."""
+        try:
+            return self._run_stage_lifecycle(previous_snapshot, current_snapshot, available_services)
+        except Exception:
+            self.mark_failed()
+            raise
+
+    def _run_stage_lifecycle(
+        self,
+        previous_snapshot: SimulationSnapshot | None,
+        current_snapshot: SimulationSnapshot,
+        available_services: tuple[BehaviorService[Any, Any], ...],
+    ) -> tuple[AttackStageResult, ...]:
         emitted_results: list[AttackStageResult] = []
 
         for stage_runtime in self.stage_runtimes:
@@ -203,7 +218,12 @@ class Attack:
                     emitted_results.append(fail_result)
                     return tuple(emitted_results)
 
-                stage_result = stage_runtime.stage.execute(matched_services)
+                try:
+                    stage_result = stage_runtime.stage.execute(matched_services)
+                except Exception:
+                    self._set_stage_status(stage_runtime, RuntimeStatus.FAIL)
+                    self.mark_failed()
+                    raise
                 stage_runtime.last_result = stage_result
                 self._log_stage_result(stage_runtime, stage_result)
                 emitted_results.append(stage_result)
@@ -218,7 +238,8 @@ class Attack:
                     self.mark_stopped()
                     return tuple(emitted_results)
 
-                if stage_runtime.spec.stage_stop_trigger is None:
+                if stage_runtime.spec.stage_stop_trigger is None and not getattr(stage_runtime.stage, "persistent_effect", False):
+                    self._deactivate_stage(stage_runtime)
                     self._set_stage_status(stage_runtime, RuntimeStatus.SUCCESS)
                 else:
                     self._set_stage_status(stage_runtime, RuntimeStatus.ACTIVE)
@@ -277,7 +298,15 @@ class Attack:
         if index == 0:
             return self.is_active
 
-        return self.stage_runtimes[index - 1].status == RuntimeStatus.SUCCESS
+        previous = self.stage_runtimes[index - 1]
+        # Persistent stages without a stop condition allow the sequence to advance
+        # after installation, but retain their effects until the attack stops.
+        return previous.status == RuntimeStatus.SUCCESS or (
+            previous.status == RuntimeStatus.ACTIVE
+            and previous.spec.stage_stop_trigger is None
+            and previous.last_result is not None
+            and previous.last_result.status == Status.SUCCESS
+        )
 
     def _evaluate_condition(
         self,
@@ -286,6 +315,16 @@ class Attack:
         current_snapshot: SimulationSnapshot,
     ) -> bool:
         return evaluate_condition(self, condition, previous_snapshot, current_snapshot)
+
+    def _cleanup_stages(self) -> None:
+        """Attempt every cleanup even when a custom stage raises."""
+        for stage_runtime in reversed(self.stage_runtimes):
+            try:
+                self._deactivate_stage(stage_runtime)
+            except Exception:
+                logger.exception("Failed to deactivate stage '%s'.", stage_runtime.spec.id)
+            if stage_runtime.status == RuntimeStatus.ACTIVE:
+                self._set_stage_status(stage_runtime, RuntimeStatus.STOPPED)
 
     @staticmethod
     def _deactivate_stage(stage_runtime: StageRuntime) -> None:
