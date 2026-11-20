@@ -32,6 +32,7 @@ from opencda.core.common.world_frame import WorldFrame, WorldFrameBuilder
 from opencda.core.sensing.sensor_factory import build_sensor_actor_bundles, prepare_sensor_spawn_specs
 from opencda.core.sensing.perception.perception_manager import PerceptionRequirements
 from opencda.core.sensing.sensor_types import AgentSensorContext, SensorActorBundle, SensorSpawnSpec
+from opencda.scenario_testing.utils.carla_maps import resolve_carla_map
 from opencda.scenario_testing.utils.customized_map_api import load_customized_world, bcolors
 
 logger = logging.getLogger("cavise.opencda.opencda.scenario_testing.utils.sim_api")
@@ -209,7 +210,9 @@ class ScenarioManager:
                 try:
                     self.client = carla.Client(carla_host, simulation_config["client_port"])
                     self.client.set_timeout(carla_timeout)
-                    world = self.client.load_world(town)
+                    resolved_town = resolve_carla_map(town, self.client.get_available_maps())
+                    logger.info("Loading CARLA map %s (requested %s)", resolved_town, town)
+                    world = self.client.load_world(resolved_town)
                     break
                 except RuntimeError as error:
                     if i < iterations_amount:
