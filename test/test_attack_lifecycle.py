@@ -135,6 +135,8 @@ class LifecycleTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "installation failed"):
                 self.run_attack(attack, [service])
         self.assertEqual(attack.status, RuntimeStatus.FAIL)
+        self.assertEqual(attack.previous_status, RuntimeStatus.STARTED)
+        self.assertEqual(attack.stage_runtimes[0].status, RuntimeStatus.FAIL)
         self.assertEqual(service.output(), (1, 2))
 
     def test_overlapping_attacks_can_stop_in_either_order(self):

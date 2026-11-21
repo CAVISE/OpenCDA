@@ -222,7 +222,6 @@ class Attack:
                     stage_result = stage_runtime.stage.execute(matched_services)
                 except Exception:
                     self._set_stage_status(stage_runtime, RuntimeStatus.FAIL)
-                    self.mark_failed()
                     raise
                 stage_runtime.last_result = stage_result
                 self._log_stage_result(stage_runtime, stage_result)
