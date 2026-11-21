@@ -402,3 +402,9 @@ release before installing `requirements.txt`. Classic scenario towns (`Town01` t
 `Town07`) resolve to the server's advertised `_Opt` map when the original name is
 absent. Install the AdditionalMaps content pack for these towns. This resolves
 names only; SUMO networks and spawn positions still need a runtime check.
+
+OpenCOOD's standalone requirements currently pin CARLA 0.9.16. The integrated
+image removes that pin from its build copies before installing dependencies
+and generating editable package metadata, and supplies the release wheel
+explicitly. A final check in the cooperative-perception image stage verifies
+the imported API version after OpenCOOD installation.

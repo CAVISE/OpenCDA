@@ -75,8 +75,10 @@ FROM python-opencda-dependencies AS python-opencood-dependencies
 
 COPY opencood/requirements.txt /tmp/opencood-requirements/requirements.txt
 
-RUN /opt/venv/bin/python -m pip install --no-cache-dir \
-        -r /tmp/opencood-requirements/requirements.txt
+# OpenCDA owns the simulator API. OpenCOOD's standalone pin must not downgrade it.
+RUN sed -i '/^carla==/d' /tmp/opencood-requirements/requirements.txt && \
+    /opt/venv/bin/python -m pip install --no-cache-dir \
+        /tmp/carla-api/*.whl -r /tmp/opencood-requirements/requirements.txt
 
 
 FROM ubuntu:${UBUNTU_VERSION}@${UBUNTU_DIGEST} AS protobuf-builder
@@ -220,9 +222,12 @@ COPY --chown=${uid}:${gid} opencood/ ${OPENCOOD_WORKSPACE}/
 COPY opencood/docker/sync-cuda-artifacts.sh \
     /usr/local/bin/opencood-sync-cuda-artifacts
 
+# Also remove the standalone pin before generating OpenCOOD's editable metadata.
 RUN chmod 755 /usr/local/bin/opencood-sync-cuda-artifacts && \
+    sed -i '/^carla==/d' "${OPENCOOD_WORKSPACE}/requirements.txt" && \
     python -m pip install --no-cache-dir --no-build-isolation --no-deps \
-        --editable "${OPENCOOD_WORKSPACE}"
+        --editable "${OPENCOOD_WORKSPACE}" && \
+    python -c 'import carla; from importlib.metadata import requires, version; assert carla.Client("localhost", 2000).get_client_version() == version("carla") == "1.0"; assert "carla==0.9.16" not in (requires("opencood") or []); print("CARLA 1.0 API verified after OpenCOOD installation")'
 
 USER ${USER}
 
