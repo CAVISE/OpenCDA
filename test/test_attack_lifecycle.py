@@ -5,8 +5,15 @@ from unittest.mock import patch
 
 from opencda.core.application.behavior.capability import Capability
 from opencda.core.attack.adversary_framework import (
-    Attack, AttackSpec, AttackStageResult, ConditionSpec, RuntimeStatus,
-    StageSpec, Status, TriggerSourceSpec, install_output_interceptor,
+    Attack,
+    AttackSpec,
+    AttackStageResult,
+    ConditionSpec,
+    RuntimeStatus,
+    StageSpec,
+    Status,
+    TriggerSourceSpec,
+    install_output_interceptor,
 )
 from opencda.core.attack.adversary_framework.interceptor_manager import InterceptorManager
 from opencda.core.attack.adversary_framework.stages.dropper.stage import DropperStage
@@ -45,8 +52,10 @@ class InterceptorTests(unittest.TestCase):
 
     def test_instance_override_is_restored(self):
         service = Service()
+
         def output():
             return (9,)
+
         service.output = output
         remove = InterceptorManager().install(service, service.output, lambda value: ())
         self.assertEqual(service.output(), ())
@@ -75,7 +84,10 @@ class InterceptorTests(unittest.TestCase):
     def test_external_replacement_is_not_overwritten_on_cleanup(self):
         service = Service()
         remove = InterceptorManager().install(service, service.output, lambda value: ())
-        replacement = lambda: (7,)
+
+        def replacement():
+            return (7,)
+
         service.output = replacement
         remove()
         self.assertIs(service.output, replacement)
@@ -128,9 +140,11 @@ class LifecycleTests(unittest.TestCase):
         service = Service()
         attack = self.make_attack()
         execute = attack.stages[0].execute
+
         def fail(services):
             execute(services)
             raise RuntimeError("installation failed")
+
         with patch.object(attack.stages[0], "execute", side_effect=fail):
             with self.assertRaisesRegex(RuntimeError, "installation failed"):
                 self.run_attack(attack, [service])
