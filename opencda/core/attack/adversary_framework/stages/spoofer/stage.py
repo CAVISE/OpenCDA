@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, MutableMapping, MutableSequence, Sequence
-from dataclasses import dataclass, is_dataclass
+from dataclasses import dataclass, fields, is_dataclass
 from functools import partial
 import logging
 import re
@@ -13,12 +13,19 @@ from opencda.core.application.behavior.behavior_service_protocol import Behavior
 from opencda.core.application.behavior.capability import Capability
 from opencda.core.application.behavior.transport_message import TransportMessage
 from opencda.core.attack.adversary_framework.models import AttackStageResult, Status
+from opencda.core.attack.adversary_framework.models.config_error import ConfigError
 from opencda.core.attack.adversary_framework.stage_registry import AttackStageRegistry
 from opencda.core.attack.adversary_framework.utils import RestoreCallback, install_output_interceptor, log_stage_object_transition, safe_clone
 
 logger = logging.getLogger("cavise.opencda.opencda.core.attack.adversary_framework.stages.spoofer")
 
 _BRACKET_INDEX_PATTERN = re.compile(r"\[(\d+)\]")
+_ENVELOPE_FIELDS = {field.name: field.type for field in fields(TransportMessage)}
+_MISSING_REASONS = {
+    IndexError: "index is out of range",
+    KeyError: "mapping key is absent",
+    AttributeError: "field is absent",
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -48,7 +55,9 @@ class SpooferStage:
     def __init__(self, capabilities: Sequence[Capability], params: Mapping[str, Any] | None = None) -> None:
         self.capabilities = tuple(capabilities)
         self._restore_callbacks: list[RestoreCallback] = []
-        self._rewrite_rules = self._parse_rewrite_rules(params)
+        self.rewrite_rules = self._parse_rewrite_rules(params)
+        self.config_path = self.stage_name
+        self._reported_missing: set[tuple[int, str]] = set()
 
     def execute(self, services: Sequence[BehaviorService[Any, Any]]) -> AttackStageResult:
         self.deactivate()
@@ -112,15 +121,27 @@ class SpooferStage:
         rewritten_message: TransportMessage[Any] = message
         has_changes = False
 
-        for rewrite_rule in self._rewrite_rules:
-            if not self._path_exists(rewritten_message, rewrite_rule.path):
+        for index, rewrite_rule in enumerate(self.rewrite_rules):
+            try:
+                current_value = self._resolve_path_value(rewritten_message, rewrite_rule.path)
+            except (AttributeError, IndexError, KeyError, TypeError, ValueError) as exc:
+                reason = _MISSING_REASONS.get(type(exc), "value cannot be traversed")
+                if (index, reason) not in self._reported_missing:
+                    logger.warning(
+                        "%s.params.rewrites[%d].path: skipping rule for '%s' because %s.",
+                        self.config_path,
+                        index,
+                        ".".join(rewrite_rule.path),
+                        reason,
+                    )
+                    self._reported_missing.add((index, reason))
                 continue
 
             if not has_changes:
                 rewritten_message = safe_clone(message)
                 has_changes = True
+                current_value = self._resolve_path_value(rewritten_message, rewrite_rule.path)
 
-            current_value = self._resolve_path_value(rewritten_message, rewrite_rule.path)
             spoofed_value = self._apply_operation(current_value, rewrite_rule)
             self._assign_path_value(rewritten_message, rewrite_rule.path, spoofed_value)
 
@@ -128,36 +149,39 @@ class SpooferStage:
 
     @classmethod
     def _parse_rewrite_rules(cls, params: Mapping[str, Any] | None) -> tuple[RewriteRule, ...]:
-        if params is None:
-            raise ValueError("SpooferStage requires 'params.rewrites' configuration.")
-
-        raw_rewrites = params.get("rewrites")
+        raw_rewrites = params.get("rewrites") if params is not None else None
         if not isinstance(raw_rewrites, Sequence) or isinstance(raw_rewrites, (str, bytes, bytearray)):
-            raise ValueError("SpooferStage requires 'params.rewrites' to be a sequence of mappings.")
+            raise ConfigError("rewrites", "Expected a list of rewrite rules.")
         if not raw_rewrites:
-            raise ValueError("SpooferStage requires at least one rewrite rule in 'params.rewrites'.")
+            raise ConfigError("rewrites", "Expected at least one rewrite rule.")
 
         rewrite_rules: list[RewriteRule] = []
         for index, raw_rewrite in enumerate(raw_rewrites):
+            location = f"rewrites[{index}]"
             if not isinstance(raw_rewrite, Mapping):
-                raise ValueError(f"SpooferStage rewrite #{index} must be a mapping.")
+                raise ConfigError(location, "Expected a mapping.")
 
             raw_path = raw_rewrite.get("path")
             if not isinstance(raw_path, str) or not raw_path:
-                raise ValueError(f"SpooferStage rewrite #{index} must define a non-empty string 'path'.")
+                raise ConfigError(f"{location}.path", "Expected a non-empty string.")
 
             try:
                 path = cls._tokenize_path(raw_path)
             except ValueError as exc:
-                raise ValueError(f"SpooferStage rewrite #{index} has invalid path '{raw_path}': {exc}") from exc
+                raise ConfigError(f"{location}.path", f"Invalid path '{raw_path}': {exc}") from exc
+
+            if path[0] not in _ENVELOPE_FIELDS:
+                raise ConfigError(f"{location}.path", f"Unknown transport message field '{path[0]}'.")
+            if _ENVELOPE_FIELDS[path[0]] is str and len(path) > 1:
+                raise ConfigError(f"{location}.path", f"Transport message field '{path[0]}' is a string and has no nested message fields.")
 
             operation = str(raw_rewrite.get("operation", "set"))
             if operation not in cls._supported_operations:
                 supported = ", ".join(sorted(cls._supported_operations))
-                raise ValueError(f"SpooferStage rewrite #{index} has unsupported operation '{operation}'. Supported operations: [{supported}].")
+                raise ConfigError(f"{location}.operation", f"Unsupported operation '{operation}'. Supported operations: [{supported}].")
 
             if "value" not in raw_rewrite:
-                raise ValueError(f"SpooferStage rewrite #{index} must define 'value'.")
+                raise ConfigError(f"{location}.value", "Required field is missing.")
 
             rewrite_rules.append(
                 RewriteRule(
@@ -181,14 +205,6 @@ class SpooferStage:
         if not segments or any(not segment for segment in segments):
             raise ValueError("empty path segment")
         return tuple(segments)
-
-    @staticmethod
-    def _path_exists(root: Any, path: tuple[str, ...]) -> bool:
-        try:
-            SpooferStage._resolve_path_value(root, path)
-        except (AttributeError, IndexError, KeyError, TypeError, ValueError):
-            return False
-        return True
 
     @staticmethod
     def _resolve_path_value(root: Any, path: tuple[str, ...]) -> Any:
