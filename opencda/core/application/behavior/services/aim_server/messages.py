@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Sequence
+from typing import Sequence
 
-if TYPE_CHECKING:
-    from opencda.core.application.behavior.types import Location, Transform
+from opencda.core.application.behavior.types import Location, Transform
 
 
 @dataclass(frozen=True)

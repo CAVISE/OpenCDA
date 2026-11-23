@@ -7,7 +7,7 @@ import weakref
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
-from opencda.core.application.behavior.capability import Capability, CapabilityBindings
+from opencda.core.application.behavior.capability import Capability, CapabilityBindings, CapabilityPayloads
 from opencda.core.application.behavior.registry import BehaviorServiceRegistry
 from opencda.core.application.behavior.transport_message import TransportMessage
 from opencda.core.application.behavior.services.movement_controller import MovementControllerRequestMessage
@@ -26,6 +26,10 @@ class DefaultMovementRequest:
 
     service_type: str = "default_movement_request"
     priority: int = 3
+
+    capability_payloads: CapabilityPayloads = {
+        Capability.COMMAND_SUBMIT: MovementControllerRequestMessage,
+    }
 
     @property
     def capability_bindings(self) -> CapabilityBindings:
