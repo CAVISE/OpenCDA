@@ -1,4 +1,7 @@
 {
+  "vehicle.ambulance.ford": {
+    "class": "truck"
+  },
   "vehicle.audi.a2": {
     "class": "car"
   },
@@ -14,6 +17,9 @@
   "vehicle.bmw.grandtourer": {
     "class": "car"
   },
+  "vehicle.carlacola.actors": {
+    "class": "truck"
+  },
   "vehicle.chevrolet.impala": {
     "class": "car"
   },
@@ -22,6 +28,9 @@
   },
   "vehicle.diamondback.century": {
     "class": "bicycle"
+  },
+  "vehicle.dodge.charger": {
+    "class": "car"
   },
   "vehicle.dodge.charger_2020": {
     "class": "car"
@@ -32,6 +41,12 @@
   "vehicle.dodge.charger_police_2020": {
     "class": "car"
   },
+  "vehicle.dodgecop.charger": {
+    "class": "car"
+  },
+  "vehicle.firetruck.actors": {
+    "class": "truck"
+  },
   "vehicle.ford.ambulance": {
     "class": "truck"
   },
@@ -40,6 +55,9 @@
   },
   "vehicle.ford.mustang": {
     "class": "car"
+  },
+  "vehicle.fuso.mitsubishi": {
+    "class": "bus"
   },
   "vehicle.gazelle.omafiets": {
     "class": "bicycle"
@@ -52,6 +70,12 @@
   },
   "vehicle.kawasaki.ninja": {
     "class": "motorcycle"
+  },
+  "vehicle.kia.niro": {
+    "class": "car"
+  },
+  "vehicle.lincoln.mkz": {
+    "class": "car"
   },
   "vehicle.lincoln.mkz_2017": {
     "class": "car"
@@ -66,6 +90,9 @@
     "class": "car"
   },
   "vehicle.micro.microlino": {
+    "class": "car"
+  },
+  "vehicle.mini.cooper": {
     "class": "car"
   },
   "vehicle.mini.cooper_s": {
@@ -86,6 +113,12 @@
   "vehicle.seat.leon": {
     "class": "car"
   },
+  "vehicle.sprinter.mercedes": {
+    "class": "van"
+  },
+  "vehicle.taxi.ford": {
+    "class": "car"
+  },
   "vehicle.tesla.cybertruck": {
     "class": "truck"
   },
@@ -94,6 +127,24 @@
   },
   "vehicle.toyota.prius": {
     "class": "car"
+  },
+  "vehicle.ue4.audi.tt": {
+    "class": "car"
+  },
+  "vehicle.ue4.chevrolet.impala": {
+    "class": "car"
+  },
+  "vehicle.ue4.ford.crown": {
+    "class": "car"
+  },
+  "vehicle.ue4.ford.mustang": {
+    "class": "car"
+  },
+  "vehicle.ue4.mercedes.ccc": {
+    "class": "car"
+  },
+  "vehicle.vespa.zx125": {
+    "class": "motorcycle"
   },
   "vehicle.volkswagen.t2": {
     "class": "bus"

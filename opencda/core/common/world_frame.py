@@ -87,12 +87,12 @@ class _TrafficLightGeometryCache:
         forward_vector = trigger_waypoint.transform.get_forward_vector()
         intersection_waypoint = trigger_waypoint
 
-        while not intersection_waypoint.is_intersection:
+        while not intersection_waypoint.is_junction:
             next_waypoints = intersection_waypoint.next(0.5)
             if not next_waypoints:
                 break
             next_waypoint = next_waypoints[0]
-            if not next_waypoint.is_intersection:
+            if not next_waypoint.is_junction:
                 intersection_waypoint = next_waypoint
             else:
                 break

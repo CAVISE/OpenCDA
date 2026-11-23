@@ -1445,78 +1445,19 @@ def test_spawn_vehicle_by_range_random_selects_blueprint_and_sets_color(mocker):
     tm.vehicle_percentage_speed_difference.assert_called_once_with(actor, 15)
 
 
-def test_spawn_vehicle_by_range_random_multi_class_fallback_to_library_filter(mocker, caplog):
-    """If multi_class_vehicle_blueprint_filter returns empty list, spawn_vehicle_by_range falls back to blueprint_library.filter()."""
-    import logging
-    from test import mocked_carla as carla
-
+def test_spawn_vehicle_by_range_rejects_unavailable_classes_instead_of_changing_vehicle_types(mocker):
+    """Missing class metadata must not replace a requested class with arbitrary vehicles."""
     sm, world, _ = _make_scenario_manager(mocker, _minimal_scenario_params())
-
-    blueprint_library = Mock(spec_set=["find", "filter"])
-    blueprint_library.find.return_value = Mock()
-    world.get_blueprint_library.return_value = blueprint_library
-
+    library = Mock(spec_set=["find", "filter"])
+    library.find.side_effect = IndexError("blueprint not found")
+    world.get_blueprint_library.return_value = library
     sm.use_multi_class_bp = True
-    sm.bp_meta = {"vehicle.a": {"class": "sedan"}}
+    sm.bp_meta = {"vehicle.missing": {"class": "sedan"}}
     sm.bp_class_sample_prob = {"sedan": 1.0}
-
-    mocker.patch("opencda.scenario_testing.utils.sim_api.shuffle", side_effect=lambda x: None)
-    mocker.patch("opencda.scenario_testing.utils.sim_api.random.randint", return_value=0)
-    mocker.patch("opencda.scenario_testing.utils.sim_api.np.random.choice", return_value="sedan")
-    mocker.patch("opencda.scenario_testing.utils.sim_api.multi_class_vehicle_blueprint_filter", return_value=[])
-
-    bp_fallback = _make_color_blueprint(recommended_colors=["3,3,3"])
-    blueprint_library.filter.return_value = [bp_fallback]
-    mocker.patch("opencda.scenario_testing.utils.sim_api.random.choice", side_effect=[bp_fallback, "3,3,3"])
-
-    waypoint_transform = carla.Transform(carla.Location(0.0, 0.0, 0.0), carla.Rotation(pitch=0.0, yaw=0.0, roll=0.0))
-    sm.carla_map = Mock()
-    sm.carla_map.get_waypoint.return_value = Mock(transform=waypoint_transform)
-
-    actor = Mock(spec_set=["set_autopilot"])
-    world.try_spawn_actor = Mock(return_value=actor)
-
-    tm = Mock(
-        spec_set=[
-            "auto_lane_change",
-            "ignore_lights_percentage",
-            "ignore_signs_percentage",
-            "ignore_vehicles_percentage",
-            "ignore_walkers_percentage",
-            "random_left_lanechange_percentage",
-            "random_right_lanechange_percentage",
-            "vehicle_percentage_speed_difference",
-        ]
-    )
-    tm.auto_lane_change = Mock()
-    tm.ignore_lights_percentage = Mock()
-    tm.ignore_signs_percentage = Mock()
-    tm.ignore_vehicles_percentage = Mock()
-    tm.ignore_walkers_percentage = Mock()
-    tm.random_left_lanechange_percentage = Mock()
-    tm.random_right_lanechange_percentage = Mock()
-    tm.vehicle_percentage_speed_difference = Mock()
-
-    traffic_config = {
-        "random": True,
-        "auto_lane_change": False,
-        "range": [[0.0, 1.0, 0.0, 1.0, 1.0, 1.0, 1]],
-        "ignore_lights_percentage": 0,
-        "ignore_signs_percentage": 0,
-        "ignore_vehicles_percentage": 0,
-        "ignore_walkers_percentage": 0,
-        "random_left_lanechange_percentage": 0,
-        "random_right_lanechange_percentage": 0,
-        "global_speed_perc": 15,
-    }
-
-    with caplog.at_level(logging.WARNING, logger="cavise.sim_api"):
-        out = sm.spawn_vehicle_by_range(tm, traffic_config, bg_list=[])
-
-    assert out == [actor]
-    blueprint_library.filter.assert_called_once_with("vehicle.*")
-    assert world.try_spawn_actor.call_args.args[0] is bp_fallback
-    assert "No blueprints found for label" in caplog.text
+    with pytest.raises(RuntimeError, match="No configured traffic blueprint class"):
+        sm.spawn_vehicle_by_range(Mock(), {"random": True}, [])
+    world.try_spawn_actor.assert_not_called()
+    library.filter.assert_not_called()
 
 
 def test_create_platoon_manager_uses_map_helper_when_spawn_special_present(mocker, minimal_vehicle_config):

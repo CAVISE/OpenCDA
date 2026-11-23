@@ -119,10 +119,10 @@ def test_builder_caches_traffic_light_geometry_and_refreshes_state() -> None:
     )
     traffic_light.get_state.side_effect = ["RED", "GREEN"]
 
-    waypoint = Mock()
+    waypoint = Mock(spec_set=["road_id", "transform", "is_junction"])
     waypoint.road_id = 7
     waypoint.transform = carla.Transform(carla.Location(x=11.0, y=20.0, z=0.0))
-    waypoint.is_intersection = True
+    waypoint.is_junction = True
     carla_map = Mock()
     carla_map.get_waypoint.return_value = waypoint
 
@@ -166,3 +166,35 @@ def test_shared_actor_value_is_created_once_per_frame_and_namespace() -> None:
     assert first is second
     assert other_namespace is not first
     assert factory.call_count == 2
+
+
+def test_traffic_light_geometry_walks_to_junction_using_current_waypoint_api() -> None:
+    from opencda.core.common.world_frame import _TrafficLightGeometryCache
+
+    traffic_light = _actor(9, "traffic.traffic_light")
+    traffic_light.get_transform.return_value = carla.Transform(carla.Location(x=10.0))
+    traffic_light.trigger_volume = SimpleNamespace(location=carla.Location(), extent=carla.Vector3D(x=1.0, y=1.0, z=1.0))
+    traffic_light.get_state.return_value = "RED"
+
+    junction = SimpleNamespace(is_junction=True)
+    approach = SimpleNamespace(
+        road_id=7,
+        transform=carla.Transform(carla.Location(x=12.0)),
+        is_junction=False,
+        next=lambda _distance: [junction],
+    )
+    trigger = SimpleNamespace(
+        road_id=7,
+        transform=carla.Transform(carla.Location(x=11.0)),
+        is_junction=False,
+        next=lambda _distance: [approach],
+    )
+    assert all(not hasattr(waypoint, "is_intersection") for waypoint in (trigger, approach, junction))
+    carla_map = Mock()
+    carla_map.get_waypoint.return_value = trigger
+
+    captured = _TrafficLightGeometryCache(carla_map).capture(traffic_light)
+
+    assert captured.road_id == 7
+    assert captured.intersection_location is approach.transform.location
+    assert captured.state == "RED"

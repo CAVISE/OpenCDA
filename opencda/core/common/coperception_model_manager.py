@@ -292,9 +292,12 @@ class CoperceptionVisualizer:
             pred_box_np = None
             pred_name = []
 
-        if vis_gt_box:
+        if vis_gt_box and gt_tensor is not None:
             gt_box_np = common_utils.torch_tensor_to_numpy(gt_tensor)
             gt_name = [""] * gt_box_np.shape[0]
+        else:
+            gt_box_np = None
+            gt_name = []
 
         if method == "bev":
             canvas = canvas_bev.Canvas_BEV_heading_right(
@@ -700,13 +703,22 @@ class CoperceptionModelManager:
         return None
 
     def _save_prediction_npy(self, pred_box_tensor, gt_box_tensor, batch_data, index: int) -> None:
+        pcd_points = self._extract_visualization_pcd(batch_data)
+        if pcd_points is None:
+            raise ValueError("Cannot save prediction NPY without an origin_lidar or lidar_np point cloud.")
         npy_dir = f"simulation_output/coperception/npy/{self.opt.test_scenario}_{self.current_time}"
         npy_save_path = os.path.join(npy_dir, "npy")
         os.makedirs(npy_save_path, exist_ok=True)
+        # OpenCOOD uses None for empty results, but its NPY writer requires tensors.
+        # Preserve corner shape, dtype and device when the other box set exists.
+        if pred_box_tensor is None:
+            pred_box_tensor = gt_box_tensor[:0] if gt_box_tensor is not None else torch.empty((0, 8, 3))
+        if gt_box_tensor is None:
+            gt_box_tensor = pred_box_tensor[:0]
         inference_utils.save_prediction_gt(
             pred_box_tensor,
             gt_box_tensor,
-            batch_data["ego"]["origin_lidar"][0],
+            pcd_points,
             index,
             npy_save_path,
         )
@@ -830,7 +842,7 @@ class CoperceptionModelManager:
             )
 
             if self.opt.save_npy:
-                self._save_prediction_npy(pred_box_tensor, gt_box_tensor, batch_data, 0)
+                self._save_prediction_npy(pred_box_tensor, gt_box_tensor, batch_data, tick_number)
 
             if self.opt.save_vis:
                 self._save_visualizations(

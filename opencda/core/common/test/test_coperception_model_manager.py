@@ -294,8 +294,145 @@ class TestCoperceptionModelManager:
         # Check call
         manager_deps["inference_utils"].save_prediction_gt.assert_called()
         args = manager_deps["inference_utils"].save_prediction_gt.call_args[0]
+        assert args[3] == 10
         # args[4] is the path passed to save_prediction_gt
         assert Path(args[4]).resolve() == expected_dir.resolve()
+
+    def test_make_prediction_saves_consecutive_ticks_without_overwriting(self, manager_deps, tmp_path, monkeypatch):
+        """Distinct simulation ticks retain their own prediction payloads on disk."""
+        monkeypatch.chdir(tmp_path)
+        manager = CoperceptionModelManager(DummyOpt(save_npy=True, test_scenario="scen1"), "2023_01_01")
+        manager.data_loader = [{"ego": {"origin_lidar": [np.zeros((2, 4))]}}]
+        manager.opencood_dataset = MagicMock()
+        manager.metrics_collector = MagicMock()
+        first_prediction = np.ones((1, 8, 3))
+        second_prediction = np.full((1, 8, 3), 2.0)
+        monkeypatch.setattr(
+            manager_deps["inference_utils"].inference_late_fusion,
+            "side_effect",
+            [(first_prediction, np.array([0.9]), first_prediction), (second_prediction, np.array([0.8]), second_prediction)],
+        )
+        saved_ticks = []
+
+        def save_prediction_gt(prediction, ground_truth, point_cloud, timestamp, save_path):
+            saved_ticks.append(timestamp)
+            np.save(Path(save_path) / f"{timestamp:04d}_pred.npy", prediction)
+
+        monkeypatch.setattr(manager_deps["inference_utils"], "save_prediction_gt", save_prediction_gt)
+        expected_dir = tmp_path / "simulation_output/coperception/npy/scen1_2023_01_01/npy"
+
+        manager.make_prediction(10)
+        np.testing.assert_array_equal(np.load(expected_dir / "0010_pred.npy", allow_pickle=False), first_prediction)
+        manager.make_prediction(11)
+
+        assert saved_ticks == [10, 11]
+        assert sorted(path.name for path in expected_dir.glob("*_pred.npy")) == ["0010_pred.npy", "0011_pred.npy"]
+        np.testing.assert_array_equal(np.load(expected_dir / "0010_pred.npy", allow_pickle=False), first_prediction)
+        np.testing.assert_array_equal(np.load(expected_dir / "0011_pred.npy", allow_pickle=False), second_prediction)
+
+    @pytest.mark.parametrize("layout", ["unbatched", "list_wrapped", "batched", "v2_batch_index"])
+    def test_save_prediction_retains_complete_numeric_point_cloud(self, layout, manager_deps, tmp_path, monkeypatch):
+        """Saving must retain every point, independently of the collate layout."""
+        monkeypatch.chdir(tmp_path)
+        manager = CoperceptionModelManager(DummyOpt(save_npy=True, test_scenario="cloud"), "2023_01_01")
+        points = np.arange(20, dtype=np.float32).reshape(5, 4)
+        if layout == "list_wrapped":
+            cloud = [points]
+        elif layout == "batched":
+            cloud = points[None, ...]
+        elif layout == "v2_batch_index":
+            manager.hypes["fusion"]["core_method"] = "IntermediateFusionDatasetV2"
+            cloud = np.concatenate((np.zeros((len(points), 1), dtype=points.dtype), points), axis=1)[None, ...]
+        else:
+            cloud = points
+
+        def save_prediction_gt(prediction, ground_truth, point_cloud, timestamp, save_path):
+            assert point_cloud.ndim == 2
+            np.save(Path(save_path) / f"{timestamp:04d}_pcd.npy", point_cloud)
+
+        monkeypatch.setattr(manager_deps["inference_utils"], "save_prediction_gt", save_prediction_gt)
+        nonempty_boxes = np.ones((1, 8, 3), dtype=np.float32)
+        manager._save_prediction_npy(nonempty_boxes, nonempty_boxes, {"ego": {"origin_lidar": cloud}}, 42)
+
+        saved = np.load(tmp_path / "simulation_output/coperception/npy/cloud_2023_01_01/npy/0042_pcd.npy", allow_pickle=False)
+        assert saved.shape == (5, 4)
+        assert saved.dtype == np.float32
+        np.testing.assert_array_equal(saved, points)
+
+    def test_save_prediction_reports_missing_point_cloud(self, manager_deps, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        manager = CoperceptionModelManager(DummyOpt(save_npy=True), "2023_01_01")
+        with pytest.raises(ValueError, match="without an origin_lidar or lidar_np point cloud"):
+            manager._save_prediction_npy(None, None, {"ego": {}}, 42)
+        manager_deps["inference_utils"].save_prediction_gt.assert_not_called()
+
+    @pytest.mark.parametrize("missing", ["prediction", "ground_truth", "both"])
+    def test_missing_box_sets_save_numeric_empty_arrays_and_allow_following_frames(self, missing, manager_deps, tmp_path, monkeypatch):
+        """The serializer rejects None instead of hiding it in object-dtype arrays."""
+
+        class NumericTensor:
+            def __init__(self, array):
+                self.array = np.asarray(array)
+
+            def __getitem__(self, key):
+                return NumericTensor(self.array[key])
+
+            def detach(self):
+                return self
+
+            def cpu(self):
+                return self
+
+            def numpy(self):
+                return self.array
+
+        def save_prediction_gt(prediction, ground_truth, point_cloud, timestamp, save_path):
+            for suffix, tensor in (("pred.npy", prediction), ("gt.npy_test", ground_truth), ("pcd.npy", point_cloud)):
+                # Match OpenCOOD's unconditional tensor conversion and file names.
+                assert isinstance(tensor, NumericTensor)
+                np.save(Path(save_path) / f"{timestamp:04d}_{suffix}", tensor.detach().cpu().numpy())
+
+        monkeypatch.chdir(tmp_path)
+        manager = CoperceptionModelManager(DummyOpt(save_npy=True, test_scenario="scen1"), "2023_01_01")
+        manager.metrics_collector = MagicMock()
+        point_cloud = NumericTensor(np.ones((3, 4), dtype=np.float32))
+        manager.data_loader = [{"ego": {"origin_lidar": [point_cloud]}}]
+        manager.opencood_dataset = MagicMock()
+        prediction = NumericTensor(np.full((1, 8, 3), 2.0, dtype=np.float32))
+        ground_truth = NumericTensor(np.full((2, 8, 3), 5.0, dtype=np.float64))
+        first_prediction = None if missing in {"prediction", "both"} else prediction
+        first_ground_truth = None if missing in {"ground_truth", "both"} else ground_truth
+        empty_factory = MagicMock(side_effect=lambda shape: NumericTensor(np.empty(shape, dtype=np.float32)))
+        monkeypatch.setattr(manager_deps["torch"], "empty", empty_factory, raising=False)
+        monkeypatch.setattr(manager_deps["inference_utils"], "save_prediction_gt", save_prediction_gt)
+        monkeypatch.setattr(
+            manager_deps["inference_utils"].inference_late_fusion,
+            "side_effect",
+            [(first_prediction, None, first_ground_truth), (prediction, np.array([0.9]), ground_truth)],
+        )
+
+        manager.make_prediction(76)
+        first_context = manager.metrics_collector.update.call_args.args[0]
+        assert first_context["pred_box_tensor"] is first_prediction
+        assert first_context["gt_box_tensor"] is first_ground_truth
+        manager.make_prediction(77)
+
+        folder = tmp_path / "simulation_output/coperception/npy/scen1_2023_01_01/npy"
+        saved_pred = np.load(folder / "0076_pred.npy", allow_pickle=False)
+        saved_gt = np.load(folder / "0076_gt.npy_test.npy", allow_pickle=False)
+        assert saved_pred.shape == ((0, 8, 3) if first_prediction is None else (1, 8, 3))
+        assert saved_gt.shape == ((0, 8, 3) if first_ground_truth is None else (2, 8, 3))
+        expected_pred_dtype = ground_truth.array.dtype if missing == "prediction" else prediction.array.dtype
+        assert saved_pred.dtype == expected_pred_dtype
+        assert saved_gt.dtype == (ground_truth.array.dtype if first_ground_truth is not None else expected_pred_dtype)
+        np.testing.assert_array_equal(np.load(folder / "0076_pcd.npy", allow_pickle=False), point_cloud.array)
+        np.testing.assert_array_equal(np.load(folder / "0077_pred.npy", allow_pickle=False), prediction.array)
+        np.testing.assert_array_equal(np.load(folder / "0077_gt.npy_test.npy", allow_pickle=False), ground_truth.array)
+        assert len(list(folder.glob("*_pred.npy"))) == 2
+        if missing == "both":
+            empty_factory.assert_called_once_with((0, 8, 3))
+        else:
+            empty_factory.assert_not_called()
 
     def test_make_prediction_save_vis(self, manager_deps, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
@@ -388,6 +525,63 @@ class TestCoperceptionModelManager:
 
 
 class TestCoperceptionVisualizer:
+    @pytest.mark.parametrize("method", ["bev", "3d"])
+    @pytest.mark.parametrize("missing", ["prediction", "ground_truth", "both", "neither"])
+    def test_render_file_builds_canvas_with_missing_box_sets(self, method, missing, fake_heavy_deps, tmp_path, monkeypatch):
+        """Exercise canvas assembly, rejecting None conversion while retaining clouds and available boxes."""
+        import sys
+        from types import ModuleType
+
+        visualization = fake_heavy_deps["opencood"].visualization
+        plotting = ModuleType("opencood.visualization.simple_plot3d")
+        canvas_3d = ModuleType("opencood.visualization.simple_plot3d.canvas_3d")
+        canvas_bev = ModuleType("opencood.visualization.simple_plot3d.canvas_bev")
+        plotting.canvas_3d = canvas_3d
+        plotting.canvas_bev = canvas_bev
+        monkeypatch.setattr(visualization, "simple_plot3d", plotting, raising=False)
+        for module in (plotting, canvas_3d, canvas_bev):
+            monkeypatch.setitem(sys.modules, module.__name__, module)
+        canvas = MagicMock()
+        canvas.canvas = np.zeros((4, 4, 3), dtype=np.uint8)
+        canvas.get_canvas_coords.return_value = (np.array([[1, 2]]), np.array([True]))
+        canvas_3d.Canvas_3D = MagicMock(return_value=canvas)
+        canvas_bev.Canvas_BEV_heading_right = MagicMock(return_value=canvas)
+        utils = fake_heavy_deps["opencood"].utils
+        common_utils = ModuleType("opencood.utils.common_utils")
+
+        def convert(tensor):
+            assert tensor is not None
+            return np.asarray(tensor)
+
+        common_utils.torch_tensor_to_numpy = MagicMock(side_effect=convert)
+        monkeypatch.setattr(utils, "common_utils", common_utils, raising=False)
+        monkeypatch.setitem(sys.modules, common_utils.__name__, common_utils)
+        module = import_module(CoperceptionVisualizer.__module__)
+        save_image = MagicMock()
+        monkeypatch.setattr(module.plt, "imsave", save_image)
+        prediction = None if missing in {"prediction", "both"} else np.ones((1, 8, 3))
+        ground_truth = None if missing in {"ground_truth", "both"} else np.zeros((2, 8, 3))
+        path = tmp_path / f"{method}.png"
+
+        CoperceptionVisualizer.render_inference_to_file(
+            prediction,
+            ground_truth,
+            np.array([[1.0, 2.0, 0.0, 0.5]]),
+            [-70, -40, -3, 70, 40, 1],
+            path,
+            method=method,
+        )
+
+        expected_sets = int(prediction is not None) + int(ground_truth is not None)
+        assert common_utils.torch_tensor_to_numpy.call_count == expected_sets
+        assert canvas.draw_boxes.call_count == expected_sets
+        canvas.draw_canvas_points.assert_called_once()
+        save_image.assert_called_once()
+        assert save_image.call_args.args[0] == path
+        assert save_image.call_args.args[1] is canvas.canvas
+        factory = canvas_bev.Canvas_BEV_heading_right if method == "bev" else canvas_3d.Canvas_3D
+        factory.assert_called_once()
+
     def test_resolve_visualization_config_merges_defaults_and_overrides(self):
         config = CoperceptionVisualizer.resolve_visualization_config(
             {

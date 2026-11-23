@@ -1224,10 +1224,12 @@ class _FakeWpTransform:
 
 
 class _FakeWaypoint:
-    def __init__(self, *, road_id: int, location, forward_vec, is_intersection: bool, next_wp=None):
+    __slots__ = ("road_id", "transform", "is_junction", "_next")
+
+    def __init__(self, *, road_id: int, location, forward_vec, is_junction: bool, next_wp=None):
         self.road_id = road_id
         self.transform = _FakeWpTransform(location, forward_vec)
-        self.is_intersection = is_intersection
+        self.is_junction = is_junction
         self._next = next_wp
 
     def next(self, _dist: float):
@@ -1262,13 +1264,13 @@ def test_get_active_light_selects_light_on_same_road_and_forward_direction(perce
 
     fv = _FakeForwardVec(1.0, 0.0, 0.0)
 
-    veh_wp = _FakeWaypoint(road_id=7, location=vehicle_loc, forward_vec=fv, is_intersection=False)
+    veh_wp = _FakeWaypoint(road_id=7, location=vehicle_loc, forward_vec=fv, is_junction=False)
     tl_wp = _FakeWaypoint(
         road_id=7,
         location=trigger_loc,
         forward_vec=fv,
-        is_intersection=False,
-        next_wp=_FakeWaypoint(road_id=7, location=intersection_loc, forward_vec=fv, is_intersection=True),
+        is_junction=False,
+        next_wp=_FakeWaypoint(road_id=7, location=intersection_loc, forward_vec=fv, is_junction=True),
     )
 
     fake_map = _FakeMap(
@@ -1284,6 +1286,9 @@ def test_get_active_light_selects_light_on_same_road_and_forward_direction(perce
     tl_actor = Mock(spec_set=[])
     monkeypatch.setattr(TrafficLight, "get_trafficlight_trigger_location", staticmethod(lambda _tl: trigger_loc))
 
+    # Both the approach and junction waypoints deliberately lack the old API field.
+    assert not hasattr(tl_wp, "is_intersection")
+    assert not hasattr(tl_wp._next, "is_intersection")
     active, location = pm._get_active_light([tl_actor], vehicle_loc, veh_wp)
     assert active is tl_actor
     assert location == trigger_loc
@@ -1305,11 +1310,11 @@ def test_get_active_light_returns_last_non_intersection_before_intersection(perc
     intersection_loc = carla.Location(x=11.0, y=0.0, z=0.0)
 
     fv = _FakeForwardVec(1.0, 0.0, 0.0)
-    veh_wp = _FakeWaypoint(road_id=7, location=vehicle_loc, forward_vec=fv, is_intersection=False)
+    veh_wp = _FakeWaypoint(road_id=7, location=vehicle_loc, forward_vec=fv, is_junction=False)
 
-    wp_intersection = _FakeWaypoint(road_id=7, location=intersection_loc, forward_vec=fv, is_intersection=True)
-    wp_pre = _FakeWaypoint(road_id=7, location=pre_int_loc, forward_vec=fv, is_intersection=False, next_wp=wp_intersection)
-    tl_wp = _FakeWaypoint(road_id=7, location=trigger_loc, forward_vec=fv, is_intersection=False, next_wp=wp_pre)
+    wp_intersection = _FakeWaypoint(road_id=7, location=intersection_loc, forward_vec=fv, is_junction=True)
+    wp_pre = _FakeWaypoint(road_id=7, location=pre_int_loc, forward_vec=fv, is_junction=False, next_wp=wp_intersection)
+    tl_wp = _FakeWaypoint(road_id=7, location=trigger_loc, forward_vec=fv, is_junction=False, next_wp=wp_pre)
 
     fake_map = _FakeMap(
         {
@@ -1347,9 +1352,9 @@ def test_get_active_light_returns_none_on_wrong_road_or_reverse_direction(percep
     fv_forward = _FakeForwardVec(1.0, 0.0, 0.0)
     fv_reverse = _FakeForwardVec(-1.0, 0.0, 0.0)
 
-    veh_wp = _FakeWaypoint(road_id=7, location=vehicle_loc, forward_vec=fv_forward, is_intersection=False)
-    tl_wp_wrong_road = _FakeWaypoint(road_id=8, location=trigger_loc, forward_vec=fv_forward, is_intersection=False)
-    tl_wp_reverse = _FakeWaypoint(road_id=7, location=trigger_loc, forward_vec=fv_reverse, is_intersection=False)
+    veh_wp = _FakeWaypoint(road_id=7, location=vehicle_loc, forward_vec=fv_forward, is_junction=False)
+    tl_wp_wrong_road = _FakeWaypoint(road_id=8, location=trigger_loc, forward_vec=fv_forward, is_junction=False)
+    tl_wp_reverse = _FakeWaypoint(road_id=7, location=trigger_loc, forward_vec=fv_reverse, is_junction=False)
 
     tl_actor = Mock(spec_set=[])
 
@@ -1384,8 +1389,8 @@ def test_get_active_light_next_none_breaks_and_returns_current_waypoint_location
     trigger_loc = carla.Location(x=10.0, y=0.0, z=0.0)
 
     fv = _FakeForwardVec(1.0, 0.0, 0.0)
-    veh_wp = _FakeWaypoint(road_id=7, location=vehicle_loc, forward_vec=fv, is_intersection=False)
-    tl_wp = _FakeWaypoint(road_id=7, location=trigger_loc, forward_vec=fv, is_intersection=False, next_wp=None)
+    veh_wp = _FakeWaypoint(road_id=7, location=vehicle_loc, forward_vec=fv, is_junction=False)
+    tl_wp = _FakeWaypoint(road_id=7, location=trigger_loc, forward_vec=fv, is_junction=False, next_wp=None)
 
     fake_map = _FakeMap(
         {
@@ -1428,7 +1433,7 @@ def test_retrieve_traffic_lights_adds_active_light(perception_manager_module, mo
     monkeypatch.setattr(
         pm._map,
         "get_waypoint",
-        lambda _loc: Mock(road_id=1, transform=Mock(get_forward_vector=lambda: Mock(x=1, y=0, z=0)), is_intersection=True, next=lambda _d: [None]),
+        lambda _loc: Mock(road_id=1, transform=Mock(get_forward_vector=lambda: Mock(x=1, y=0, z=0)), is_junction=True, next=lambda _d: [None]),
     )
 
     out = pm.retrieve_traffic_lights({"vehicles": [], "traffic_lights": []})
@@ -1457,7 +1462,7 @@ def test_retrieve_traffic_lights_returns_empty_when_no_active_light(perception_m
 
     monkeypatch.setattr(pm, "_get_active_light", lambda _tl_list, _vl, _vw: (None, None))
     monkeypatch.setattr(
-        pm._map, "get_waypoint", lambda _loc: Mock(road_id=1, transform=Mock(get_forward_vector=lambda: Mock(x=1, y=0, z=0)), is_intersection=True)
+        pm._map, "get_waypoint", lambda _loc: Mock(road_id=1, transform=Mock(get_forward_vector=lambda: Mock(x=1, y=0, z=0)), is_junction=True)
     )
 
     out = pm.retrieve_traffic_lights({"vehicles": [], "traffic_lights": []})

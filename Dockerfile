@@ -27,6 +27,8 @@ RUN apt-get update && \
         libxext6=2:1.3.* \
         libxrender1=1:0.9.* \
         libvulkan1=1.3.* \
+        libegl1=1.7.* \
+        libusb-1.0-0=2:1.0.* \
         libgl1=1.7.* \
         mesa-vulkan-drivers=25.2.* \
         libjpeg-turbo8=2.1.* \

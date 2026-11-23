@@ -408,3 +408,14 @@ image removes that pin from its build copies before installing dependencies
 and generating editable package metadata, and supplies the release wheel
 explicitly. A final check in the cooperative-perception image stage verifies
 the imported API version after OpenCOOD installation.
+
+The traffic blueprint metadata includes the CARLA 1.0 vehicle IDs alongside the
+legacy IDs. Only blueprints installed on the connected server are sampled; missing
+classes are reported and their sampling weights are redistributed. The SUMO
+bridge maps the new bus, truck, emergency, taxi and van IDs to their corresponding
+SUMO classes. Vans use SUMO's passenger class and van shape; OpenCDA's optional
+`van` sampling class requires an explicit probability in the scenario configuration.
+The existing Nissan Patrol SUV sampling category is retained. These categories
+control sampling and traffic integration, not model training labels. A fixed random
+seed does not produce an identical fleet across CARLA releases with different
+blueprint libraries.
