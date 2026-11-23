@@ -15,6 +15,39 @@ from omegaconf import OmegaConf
 YamlDict: TypeAlias = dict[str, Any]
 
 
+class _SafeConfigLoader(yaml.SafeLoader):
+    """Read data-only config files with OpenCDA's scientific notation support."""
+
+
+def _add_float_resolver(loader: type[yaml.Loader] | type[yaml.SafeLoader]) -> None:
+    loader.add_implicit_resolver(
+        "tag:yaml.org,2002:float",
+        re.compile(
+            """^(?:
+         [-+]?(?:[0-9][0-9_]*)\\.[0-9_]*(?:[eE][-+]?[0-9]+)?
+        |[-+]?(?:[0-9][0-9_]*)(?:[eE][-+]?[0-9]+)
+        |\\.[0-9_]+(?:[eE][-+][0-9]+)?
+        |[-+]?[0-9][0-9_]*(?::[0-5]?[0-9])+\\.[0-9_]*
+        |[-+]?\\.(?:inf|Inf|INF)
+        |\\.(?:nan|NaN|NAN))$""",
+            re.X,
+        ),
+        list("-+0123456789."),
+    )
+
+
+_add_float_resolver(_SafeConfigLoader)
+
+
+def read_config_mapping(file: str | PathLike[str]) -> YamlDict:
+    """Read a data-only YAML definition without adding scenario metadata."""
+    with open(file, "r", encoding="utf-8") as stream:
+        param = yaml.load(stream, Loader=_SafeConfigLoader)
+    if not isinstance(param, dict):
+        raise ValueError(f"{file}: expected a top-level mapping.")
+    return param
+
+
 def load_yaml(file: str | PathLike[str]) -> YamlDict:
     """
     Load yaml file and return a dictionary.
@@ -30,20 +63,7 @@ def load_yaml(file: str | PathLike[str]) -> YamlDict:
     """
 
     loader = yaml.Loader
-    loader.add_implicit_resolver(
-        "tag:yaml.org,2002:float",
-        re.compile(
-            """^(?:
-         [-+]?(?:[0-9][0-9_]*)\\.[0-9_]*(?:[eE][-+]?[0-9]+)?
-        |[-+]?(?:[0-9][0-9_]*)(?:[eE][-+]?[0-9]+)
-        |\\.[0-9_]+(?:[eE][-+][0-9]+)?
-        |[-+]?[0-9][0-9_]*(?::[0-5]?[0-9])+\\.[0-9_]*
-        |[-+]?\\.(?:inf|Inf|INF)
-        |\\.(?:nan|NaN|NAN))$""",
-            re.X,
-        ),
-        list("-+0123456789."),
-    )
+    _add_float_resolver(loader)
     with open(file, "r", encoding="utf-8") as stream:
         param = cast(YamlDict, yaml.load(stream, Loader=loader))
 

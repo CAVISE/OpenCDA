@@ -16,7 +16,7 @@ from omegaconf import DictConfig, OmegaConf
 import opencda.scenario_testing.utils.cosim_api as sim_api
 import opencda.scenario_testing.utils.customized_map_api as map_api
 from opencda.core.application.platooning.platooning_manager import PlatooningManager
-from opencda.core.attack.adversary_framework import Attack, AttackManager, AttackSpec
+from opencda.core.attack.adversary_framework import AttackManager
 from opencda.core.common.agent_manager import AgentManager
 from opencda.core.common.cav_world import CavWorld
 from opencda.core.common.coperception_data_processor import CoperceptionDataProcessor
@@ -24,7 +24,7 @@ from opencda.core.sensing.perception.perception_manager import PerceptionRequire
 from opencda.metrics_tools.metric_collector import MetricCollector
 from opencda.scenario_testing.types import NodeSnapshot, SimulationSnapshot
 from opencda.scenario_testing.evaluations.evaluate_manager import EvaluationManager
-from opencda.scenario_testing.utils.yaml_utils import YamlDict, add_current_time, load_yaml, save_yaml
+from opencda.scenario_testing.utils.yaml_utils import YamlDict, add_current_time, read_config_mapping, save_yaml
 
 from opencda.core.application.behavior import BROADCAST_OWNER_ID, TransportMessage
 
@@ -68,7 +68,15 @@ class Scenario:
             self._abort_simulation("Coperception data processor is required, but it was not initialized.")
         return self.coperception_data_processor
 
-    def __init__(self, opt: argparse.Namespace, scenario_params: DictConfig, current_time: str | None = None, runtime_stats: dict = {}) -> None:
+    def __init__(
+        self,
+        opt: argparse.Namespace,
+        scenario_params: DictConfig,
+        current_time: str | None = None,
+        runtime_stats: dict = {},
+        *,
+        config_file: Path | None = None,
+    ) -> None:
         self.runtime_stats = runtime_stats
         t0 = time.perf_counter()
         self.node_ids: dict[str, dict[int, str]] = {"cav": {}, "rsu": {}, "platoon": {}}
@@ -85,6 +93,8 @@ class Scenario:
         self.coperception_model_manager: CoperceptionModelManager | None = None
         self.coperception_data_processor: CoperceptionDataProcessor | None = None
 
+        self.attack_manager = AttackManager()
+        self._init_attacks(scenario_config, config_file)
         self._init_scenario_manager(opt, scenario_config)
 
         if opt.with_capi:
@@ -117,7 +127,6 @@ class Scenario:
 
         self.messages: list[TransportMessage[Any]] = []
         self.simulation_snapshot = SimulationSnapshot(tick=-1)
-        self.attack_manager = AttackManager()
         self.scenario_metrics_collector = MetricCollector(
             module="scenario",
             entity_id=self.scenario_name,
@@ -127,7 +136,6 @@ class Scenario:
                 "identity_conflict_count": {"warmup_steps": 0},
             },
         )
-        self._init_attacks(scenario_config)
         self.runtime_stats["scenario__init__"] = time.perf_counter() - t0
 
     def _init_scenario_manager(self, opt: argparse.Namespace, scenario_config: YamlDict) -> None:
@@ -273,22 +281,25 @@ class Scenario:
         self.coperception_data_processor = CoperceptionDataProcessor(sensor_sync_timeout_seconds=sensor_sync_timeout)
         logger.info("created cooperception manager")
 
-    def _init_attacks(self, scenario_config: YamlDict) -> None:
+    def _init_attacks(self, scenario_config: YamlDict, config_file: Path | None = None) -> None:
         attacks_config = scenario_config.get("attacks", [])
+        scenario_file = config_file or self.scenario_name
         if not isinstance(attacks_config, list):
-            self._abort_simulation("Scenario config field 'attacks' must be a list of attack names.")
+            self._abort_simulation(f"{scenario_file}: attacks: expected a list of attack names.")
 
-        attacks: list[Attack] = []
-        for attack_name in attacks_config:
+        definitions = []
+        for index, attack_name in enumerate(attacks_config):
             if not isinstance(attack_name, str):
-                self._abort_simulation("Scenario config field 'attacks' must contain only attack names as strings.")
+                self._abort_simulation(f"{scenario_file}: attacks[{index}]: expected an attack name.")
 
             attack_config_path = Path("opencda/core/attack/adversary_framework/attacks") / attack_name / "config.yaml"
-            attack_config = load_yaml(attack_config_path)
-            attack_spec = AttackSpec.from_dict(cast(YamlDict, attack_config["attack"]))
-            attacks.append(Attack.from_spec(attack_spec))
+            try:
+                attack_config = read_config_mapping(attack_config_path)
+            except OSError as exc:
+                self._abort_simulation(f"{scenario_file}: attacks[{index}]: {exc}")
+            definitions.append((attack_config_path, attack_config))
 
-        self.attacks = attacks
+        self.attacks = self.attack_manager.prepare_attacks(definitions, scenario_config)
 
     def _build_simulation_snapshot(self, tick: int) -> SimulationSnapshot:
         vehicle_nodes = tuple(
@@ -651,12 +662,14 @@ class Scenario:
             raise first_exception
 
 
-def run_scenario(opt: argparse.Namespace, scenario_params: DictConfig, current_time: str | None = None, runtime_stats: dict = {}) -> None:
+def run_scenario(
+    opt: argparse.Namespace, scenario_params: DictConfig, current_time: str | None = None, runtime_stats: dict = {}, *, config_file: Path | None = None
+) -> None:
     raised_error: Exception | None = None
     finalization_error: Exception | None = None
     scenario: Scenario | None = None
     try:
-        scenario = Scenario(opt, scenario_params, current_time=current_time, runtime_stats=runtime_stats)
+        scenario = Scenario(opt, scenario_params, current_time=current_time, runtime_stats=runtime_stats, config_file=config_file)
         scenario.run(opt)
     except Exception as error:
         logger.exception("Simulation failed before finalization.")
