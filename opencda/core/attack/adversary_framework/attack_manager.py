@@ -2,14 +2,19 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping, Sequence
 import logging
+from pathlib import Path
+from typing import Any
 
 from opencda.scenario_testing.types import SimulationSnapshot
 
 from .attack import Attack
-from .models import AttackResult, AttackStageResult, RuntimeStatus, Status
+from .models import AttackResult, AttackSpec, AttackStageResult, RuntimeStatus, Status
+from .models.config_error import at_config_path
+from .stages.spoofer.stage import SpooferStage
 from .utils import ServiceResolver
+from .validation import declared_service_names, validate_service_contracts, validate_spec
 
 logger = logging.getLogger("cavise.opencda.opencda.core.attack.adversary_framework.attack_manager")
 
@@ -19,6 +24,27 @@ class AttackManager:
 
     def __init__(self) -> None:
         self.previous_snapshot: SimulationSnapshot | None = None
+
+    def prepare_attacks(self, definitions: Sequence[tuple[Path, Mapping[str, Any]]], scenario_config: Mapping[str, Any]) -> list[Attack]:
+        """Validate all configured definitions before the scenario starts."""
+        if not definitions:
+            return []
+        services = declared_service_names(scenario_config)
+        attacks: list[Attack] = []
+        for filename, definition in definitions:
+            origin = f"{filename}: attack"
+            with at_config_path(origin):
+                if not isinstance(definition, Mapping) or "attack" not in definition:
+                    raise ValueError("Expected a top-level 'attack' mapping.")
+                spec = AttackSpec.from_dict(definition["attack"])
+                validate_spec(spec, services, origin)
+                attack = Attack.from_spec(spec)
+                validate_service_contracts(attack, services)
+            for index, stage in enumerate(attack.stages):
+                if isinstance(stage, SpooferStage):
+                    stage.config_path = f"{origin}.stages[{index}]"
+            attacks.append(attack)
+        return attacks
 
     def evaluate(
         self,
