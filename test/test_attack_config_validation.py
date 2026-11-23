@@ -195,7 +195,7 @@ def test_optional_payload_field_uses_declared_type(caplog):
 
     stage = _rewrite("payload.target_location.x")
     stage["capabilities"] = "command.observe"
-    attack, = _prepare_for_services(stage, ["movement_controller"])
+    (attack,) = _prepare_for_services(stage, ["movement_controller"])
     message = TransportMessage("source", "service", "destination", "service", MovementControllerRequestMessage(None, None))
     assert attack.stages[0]._spoof_message(message) is message
     assert "example.yaml: attack.stages[0].params.rewrites[0].path" in caplog.text
@@ -237,7 +237,8 @@ def test_invalid_attack_file_stops_scenario_before_world_creation(tmp_path, monk
     config.write_text(yaml.safe_dump({"attack": {"name": "example", "targets": target, "stages": [stage]}}), encoding="utf-8")
     init_world = Mock()
     monkeypatch.setattr(Scenario, "_init_scenario_manager", init_world)
-    monkeypatch.setattr(OmegaConf, "to_container", lambda data, **kwargs: dict(data), raising=False)
+    if not hasattr(OmegaConf, "to_container"):
+        monkeypatch.setattr(OmegaConf, "to_container", lambda data, **kwargs: dict(data), raising=False)
     with pytest.raises(ValueError) as exc:
         params = {"attacks": ["example"], "scenario": {"single_cav_list": [{"behavior_services": {"movement_controller": {}}}]}}
         Scenario(SimpleNamespace(test_scenario="example"), OmegaConf.create(params), current_time="test")

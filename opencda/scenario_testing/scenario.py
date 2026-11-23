@@ -663,7 +663,12 @@ class Scenario:
 
 
 def run_scenario(
-    opt: argparse.Namespace, scenario_params: DictConfig, current_time: str | None = None, runtime_stats: dict = {}, *, config_file: Path | None = None
+    opt: argparse.Namespace,
+    scenario_params: DictConfig,
+    current_time: str | None = None,
+    runtime_stats: dict = {},
+    *,
+    config_file: Path | None = None,
 ) -> None:
     raised_error: Exception | None = None
     finalization_error: Exception | None = None

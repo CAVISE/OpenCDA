@@ -97,8 +97,8 @@ def test_evaluation_and_replay_share_reserved_run_directory(tmp_path, monkeypatc
     monkeypatch.setattr(scenario_module.map_api, "spawn_helper_2lanefree", Mock(), raising=False)
     run_dirs = []
 
-    def run_scenario(opt, scene_dict, current_time, runtime_stats):
-        scenario = scenario_module.Scenario(opt, scene_dict, current_time=current_time, runtime_stats=runtime_stats)
+    def run_scenario(opt, scene_dict, current_time, runtime_stats, *, config_file=None):
+        scenario = scenario_module.Scenario(opt, scene_dict, current_time=current_time, runtime_stats=runtime_stats, config_file=config_file)
         scenario.scenario_metrics_collector.update({"tick": 0, "vehicles": []})
         scenario.eval_manager.evaluate(scenario_metrics_collector=scenario.scenario_metrics_collector)
         run_dirs.append(Path(scenario.eval_manager.eval_save_path))
