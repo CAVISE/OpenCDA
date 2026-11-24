@@ -142,8 +142,14 @@ class SpooferStage:
                 has_changes = True
                 current_value = self._resolve_path_value(rewritten_message, rewrite_rule.path)
 
-            spoofed_value = self._apply_operation(current_value, rewrite_rule)
-            self._assign_path_value(rewritten_message, rewrite_rule.path, spoofed_value)
+            try:
+                spoofed_value = self._apply_operation(current_value, rewrite_rule)
+            except (TypeError, ValueError, OverflowError) as exc:
+                raise TypeError(f"{self.config_path}.params.rewrites[{index}].value: {exc}") from exc
+            try:
+                self._assign_path_value(rewritten_message, rewrite_rule.path, spoofed_value)
+            except (TypeError, ValueError, AttributeError, IndexError, KeyError) as exc:
+                raise TypeError(f"{self.config_path}.params.rewrites[{index}].path: {exc}") from exc
 
         return rewritten_message
 
@@ -160,6 +166,9 @@ class SpooferStage:
             location = f"rewrites[{index}]"
             if not isinstance(raw_rewrite, Mapping):
                 raise ConfigError(location, "Expected a mapping.")
+            for key in raw_rewrite:
+                if key not in {"path", "operation", "value"}:
+                    raise ConfigError(f"{location}.{key}", "Unknown field.")
 
             raw_path = raw_rewrite.get("path")
             if not isinstance(raw_path, str) or not raw_path:

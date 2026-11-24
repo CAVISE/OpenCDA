@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any, Protocol
 
 from opencda.scenario_testing.types import NodeSnapshot, SimulationSnapshot
@@ -280,7 +281,7 @@ def _iter_matching_nodes(
 def _extract_field_value(obj: Any, field_name: str | None) -> Any:
     if field_name is None:
         return obj
-    if isinstance(obj, dict):
+    if isinstance(obj, Mapping):
         return obj.get(field_name, _MISSING)
     return getattr(obj, field_name, _MISSING)
 

@@ -21,6 +21,14 @@ logger = logging.getLogger("cavise.opencda.opencda.core.attack.adversary_framewo
 class Attack:
     """Generic attack runtime built entirely from an `AttackSpec`."""
 
+    attack_name: str
+    spec: AttackSpec
+    stages: tuple[AttackStage, ...]
+    is_active: bool
+    status: RuntimeStatus
+    previous_status: RuntimeStatus
+    stage_runtimes: tuple[StageRuntime, ...]
+
     def __init__(self, spec: AttackSpec, stages: tuple[AttackStage, ...]) -> None:
         if len(spec.stages) != len(stages):
             raise ValueError(f"Attack '{spec.name}' defines {len(spec.stages)} stage specs, but received {len(stages)} runtime stage instances.")

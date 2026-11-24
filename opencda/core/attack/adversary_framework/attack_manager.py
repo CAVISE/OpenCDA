@@ -39,7 +39,7 @@ class AttackManager:
                 spec = AttackSpec.from_dict(definition["attack"])
                 validate_spec(spec, services, origin)
                 attack = Attack.from_spec(spec)
-                validate_service_contracts(attack, services)
+                validate_service_contracts(attack, services, origin)
             for index, stage in enumerate(attack.stages):
                 if isinstance(stage, SpooferStage):
                     stage.config_path = f"{origin}.stages[{index}]"
