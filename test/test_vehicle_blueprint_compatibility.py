@@ -1,6 +1,7 @@
 """Missing blueprint handling with a strict simulation of the CARLA library."""
 
 from types import SimpleNamespace
+from collections import Counter
 from unittest.mock import Mock
 
 import pytest
@@ -137,6 +138,42 @@ CARLA_1_0_VEHICLE_IDS = (
     "vehicle.vespa.zx125",
     "vehicle.yamaha.yzf",
 )
+
+
+def test_nonmulticlass_traffic_keeps_model_diversity_on_real_release_catalogue():
+    library = StrictBlueprintLibrary(CARLA_1_0_VEHICLE_IDS)
+    selected = Counter(blueprint.id for blueprint in car_blueprint_filter(library))
+    assert set(selected) == {
+        "vehicle.ue4.audi.tt",
+        "vehicle.ambulance.ford",
+        "vehicle.ue4.ford.crown",
+        "vehicle.mini.cooper",
+        "vehicle.nissan.patrol",
+        "vehicle.dodgecop.charger",
+        "vehicle.dodge.charger",
+        "vehicle.lincoln.mkz",
+    }
+    assert selected["vehicle.nissan.patrol"] == 3
+    assert selected["vehicle.dodgecop.charger"] == 2
+
+
+def test_nonmulticlass_traffic_prefers_legacy_id_when_both_release_names_exist():
+    library = StrictBlueprintLibrary(["vehicle.audi.tt", *CARLA_1_0_VEHICLE_IDS])
+    selected = [blueprint.id for blueprint in car_blueprint_filter(library)]
+    assert "vehicle.audi.tt" in selected
+    assert "vehicle.ue4.audi.tt" not in selected
+    assert "vehicle.ue4.audi.tt" not in library.requested_ids
+
+
+def test_multiclass_metadata_is_not_aliased_or_double_counted():
+    library = StrictBlueprintLibrary(CARLA_1_0_VEHICLE_IDS)
+    metadata = {
+        "vehicle.audi.tt": {"class": "car"},
+        "vehicle.ue4.audi.tt": {"class": "car"},
+    }
+    selected = multi_class_vehicle_blueprint_filter("car", library, metadata)
+    assert [blueprint.id for blueprint in selected] == ["vehicle.ue4.audi.tt"]
+    assert library.requested_ids == ["vehicle.audi.tt", "vehicle.ue4.audi.tt"]
 
 
 @pytest.mark.parametrize("legacy_default", ["vehicle.lincoln.mkz_2017", "vehicle.lincoln.mkz_2020"])

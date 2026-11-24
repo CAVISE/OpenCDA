@@ -89,15 +89,25 @@ def _find_default_actor_blueprint(fallback_model: str, blueprint_library: Any) -
     return blueprint
 
 
-def _find_available_blueprints(model_ids: Sequence[str], blueprint_library: Any) -> list[Any]:
-    """Keep the requested sampling weights while excluding unavailable models."""
+def _find_available_blueprints(model_ids: Sequence[str], blueprint_library: Any, aliases: Mapping[str, str] | None = None) -> list[Any]:
+    """Keep sampling weights, optionally resolving unavailable IDs by release alias."""
     blueprints = []
     missing = []
     for model_id in model_ids:
         try:
-            blueprints.append(blueprint_library.find(model_id))
+            blueprint = blueprint_library.find(model_id)
         except IndexError:
-            missing.append(model_id)
+            alias = aliases.get(model_id) if aliases else None
+            if alias is None:
+                missing.append(model_id)
+                continue
+            try:
+                blueprint = blueprint_library.find(alias)
+            except IndexError:
+                missing.append(model_id)
+                continue
+            logger.info("Traffic blueprint %s is unavailable; using installed blueprint %s.", model_id, alias)
+        blueprints.append(blueprint)
     if missing:
         logger.warning("Skipping unavailable traffic blueprints: %s", ", ".join(dict.fromkeys(missing)))
     return blueprints
@@ -140,7 +150,20 @@ def car_blueprint_filter(blueprint_library: Any) -> list[Any]:
         "vehicle.nissan.patrol",
         "vehicle.nissan.micra",
     )
-    blueprints = _find_available_blueprints(model_ids, blueprint_library)
+    # Resolve renamed preferred models only on this implicit traffic-selection path.
+    # Exact legacy IDs retain priority, and duplicate entries keep their weights.
+    aliases = {
+        "vehicle.audi.tt": "vehicle.ue4.audi.tt",
+        "vehicle.ford.ambulance": "vehicle.ambulance.ford",
+        "vehicle.ford.crown": "vehicle.ue4.ford.crown",
+        "vehicle.mini.cooper_s_2021": "vehicle.mini.cooper",
+        "vehicle.nissan.patrol_2021": "vehicle.nissan.patrol",
+        "vehicle.dodge.charger_police": "vehicle.dodgecop.charger",
+        "vehicle.dodge.charger_police_2020": "vehicle.dodgecop.charger",
+        "vehicle.dodge.charger_2020": "vehicle.dodge.charger",
+        "vehicle.lincoln.mkz_2020": "vehicle.lincoln.mkz",
+    }
+    blueprints = _find_available_blueprints(model_ids, blueprint_library, aliases)
     if not blueprints:
         raise RuntimeError(
             "None of the preferred traffic vehicle blueprints is available. Configure supported vehicle models for this CARLA release."
