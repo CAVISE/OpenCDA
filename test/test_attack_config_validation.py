@@ -38,6 +38,16 @@ def _reference(stage_id: str) -> dict:
         ([{"id": "x", "type": "sniffer"}] * 2, "stages[1].id"),
         ([{"id": "x", "type": "sniffer", "capabilities": ["invalid"]}], "stages[0].capabilities[0]"),
         ([{"id": "x", "type": "dropper", "params": {"drop_rate": 2.0}}], "stages[0].params.drop_rate"),
+        ([{"id": "x", "type": "dropper", "params": {"drop_reate": 0.3}}], "stages[0].params.drop_reate"),
+        ([{"id": "x", "type": "dropper", "params": {"drop_rate": 0.3, "sed": 7}}], "stages[0].params.sed"),
+        (
+            [{"id": "x", "type": "spoofer", "params": {"rewrites": [{"path": "payload", "value": 2}], "operation": "multiply"}}],
+            "stages[0].params.operation",
+        ),
+        (
+            [{"id": "x", "type": "spoofer", "params": {"rewrites": [{"path": "payload", "value": 2, "operaton": "multiply"}]}}],
+            "stages[0].params.rewrites[0].operaton",
+        ),
         ([_rewrite("no_such_field")], "stages[0].params.rewrites[0].path"),
         ([_rewrite("dst_owner_id.child")], "stages[0].params.rewrites[0].path"),
         ([_rewrite("payload[bad]")], "stages[0].params.rewrites[0].path"),
@@ -47,6 +57,19 @@ def test_config_error_identifies_the_original_key(stages, path):
     with pytest.raises(ValueError) as exc:
         _prepare(stages)
     assert str(exc.value).startswith(f"example.yaml: attack.{path}:")
+
+
+def test_config_error_identifies_a_key_outside_attack(tmp_path):
+    config = tmp_path / "example.yaml"
+    config.write_text("attack:\n  name: example\nstop_trigger:\n  source: {kind: snapshot, field: node_id}\n  verb: exists\n", encoding="utf-8")
+    with pytest.raises(ValueError) as exc:
+        AttackManager().prepare_attacks([(config, read_config_mapping(config))], {})
+    assert str(exc.value).startswith(f"{config}: stop_trigger:")
+
+
+@pytest.mark.parametrize("params", [None, {}, {"drop_rate": 0.3}, {"seed": 7}])
+def test_dropper_parameters_remain_optional(params):
+    assert _prepare([{"id": "example", "type": "dropper", "params": params}]).stages
 
 
 @pytest.mark.parametrize("key", ["requirements", "stage_start_trigger", "stage_stop_trigger"])

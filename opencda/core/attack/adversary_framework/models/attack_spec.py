@@ -7,7 +7,7 @@ from typing import Any, Callable, Mapping, Sequence, TypeVar
 
 from opencda.core.application.behavior.capability import Capability
 
-from .config_error import ConfigError, at_config_path
+from .config_error import ConfigError, at_config_path, check_config_keys
 
 T = TypeVar("T")
 
@@ -30,10 +30,13 @@ def _string(value: Any) -> str:
     return value
 
 
-def _check_keys(data: Mapping[str, Any], allowed: set[str]) -> None:
-    for key in data:
-        if key not in allowed:
-            raise ConfigError(str(key), "Unknown field.")
+def _required_string(data: Mapping[str, Any], key: str) -> str:
+    value = _required(data, key)
+    with at_config_path(key):
+        value = _string(value)
+        if not value.strip():
+            raise ValueError("Expected a non-empty string.")
+        return value
 
 
 def _parse_items(items: Any, parse: Callable[[Any], T]) -> tuple[T, ...]:
@@ -78,7 +81,7 @@ class TriggerSourceSpec:
             if kind == "stage":
                 keys.add("stage_id")
         if kind in {"snapshot", "attack", "stage"}:
-            _check_keys(data, keys)
+            check_config_keys(data, keys)
         return cls(
             kind=kind,
             node_type=_optional(data, "node_type", _string),
@@ -129,12 +132,12 @@ class ConditionSpec:
             for key in ("source", "verb"):
                 if key in data:
                     raise ConfigError(key, f"Cannot be combined with '{group}' in the same condition.")
-            _check_keys(data, {group})
+            check_config_keys(data, {group})
             with at_config_path(group):
                 children = _parse_items(data[group], cls.from_dict)
                 return cls(all=children) if group == "all" else cls(any=children)
 
-        _check_keys(data, {"source", "verb", "value"})
+        check_config_keys(data, {"source", "verb", "value"})
         source_data = _required(data, "source")
         with at_config_path("source"):
             source = TriggerSourceSpec.from_dict(source_data)
@@ -154,14 +157,14 @@ class TargetSpec:
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> TargetSpec:
         data = _mapping(data)
-        _check_keys(data, {"kind", "source", "resolve_to", "selection"})
+        check_config_keys(data, {"kind", "source", "resolve_to", "selection"})
         source_data = _required(data, "source")
         with at_config_path("source"):
             source = TriggerSourceSpec.from_dict(source_data)
         resolve_data = _required(data, "resolve_to")
         with at_config_path("resolve_to"):
             resolve_to = _mapping(resolve_data)
-            _check_keys(resolve_to, {"node_type", "service_type"})
+            check_config_keys(resolve_to, {"node_type", "service_type"})
             node_type = str(_required(resolve_to, "node_type"))
             service_type = _optional(resolve_to, "service_type", _string)
         return cls(
@@ -192,7 +195,7 @@ class StageSpec:
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> StageSpec:
         data = _mapping(data)
-        _check_keys(data, {"id", "type", "capabilities", "params", "requirements", "stage_start_trigger", "stage_stop_trigger"})
+        check_config_keys(data, {"id", "type", "capabilities", "params", "requirements", "stage_start_trigger", "stage_stop_trigger"})
         configured_capabilities = data.get("capabilities")
         capabilities: tuple[Capability, ...] | None = None
         if configured_capabilities is not None:
@@ -204,8 +207,8 @@ class StageSpec:
                 if not capabilities:
                     raise ValueError("Expected at least one capability.")
         return cls(
-            id=str(_required(data, "id")),
-            type=str(_required(data, "type")),
+            id=_required_string(data, "id"),
+            type=_required_string(data, "type"),
             capabilities=capabilities,
             params=_optional(data, "params", lambda value: dict(_mapping(value))),
             requirements=_optional(data, "requirements", ConditionSpec.from_dict),
@@ -228,11 +231,11 @@ class AttackSpec:
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> AttackSpec:
         data = _mapping(data)
-        _check_keys(data, {"name", "requirements", "start_trigger", "stop_trigger", "targets", "stages"})
+        check_config_keys(data, {"name", "requirements", "start_trigger", "stop_trigger", "targets", "stages"})
         with at_config_path("stages"):
             stages = _parse_items(data.get("stages", ()), StageSpec.from_dict)
         return cls(
-            name=str(_required(data, "name")),
+            name=_required_string(data, "name"),
             requirements=_optional(data, "requirements", ConditionSpec.from_dict),
             start_trigger=_optional(data, "start_trigger", ConditionSpec.from_dict),
             stop_trigger=_optional(data, "stop_trigger", ConditionSpec.from_dict),

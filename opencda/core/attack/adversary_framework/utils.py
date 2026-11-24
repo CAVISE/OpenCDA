@@ -195,6 +195,8 @@ def resolve_targets(
             source_values,
         )
 
+    available_node_ids = _collect_available_node_ids(current_snapshot, target_spec.resolve_to_node_type)
+    target_node_ids.intersection_update(available_node_ids)
     ordered_target_node_ids = sorted(target_node_ids)
     if target_spec.selection == "first":
         ordered_target_node_ids = ordered_target_node_ids[:1]
@@ -210,7 +212,6 @@ def resolve_targets(
         else:
             missing_node_ids.append(node_id)
 
-    available_node_ids = _collect_available_node_ids(current_snapshot, target_spec.resolve_to_node_type)
     if missing_node_ids:
         logger.warning(
             "Attack %r could not resolve service_type=%r for node_ids=%s. Available %s node_ids in snapshot: %s.",

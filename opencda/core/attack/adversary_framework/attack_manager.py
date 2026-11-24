@@ -11,7 +11,7 @@ from opencda.scenario_testing.types import SimulationSnapshot
 
 from .attack import Attack
 from .models import AttackResult, AttackSpec, AttackStageResult, RuntimeStatus, Status
-from .models.config_error import at_config_path
+from .models.config_error import ConfigError, at_config_path, check_config_keys
 from .stages.spoofer.stage import SpooferStage
 from .utils import ServiceResolver
 from .validation import declared_service_names, validate_service_contracts, validate_spec
@@ -33,9 +33,10 @@ class AttackManager:
         attacks: list[Attack] = []
         for filename, definition in definitions:
             origin = f"{filename}: attack"
+            if not isinstance(definition, Mapping) or "attack" not in definition:
+                raise ConfigError(origin, "Expected a top-level 'attack' mapping.")
+            check_config_keys(definition, {"attack"}, prefix=f"{filename}: ")
             with at_config_path(origin):
-                if not isinstance(definition, Mapping) or "attack" not in definition:
-                    raise ValueError("Expected a top-level 'attack' mapping.")
                 spec = AttackSpec.from_dict(definition["attack"])
                 validate_spec(spec, services, origin)
                 attack = Attack.from_spec(spec)

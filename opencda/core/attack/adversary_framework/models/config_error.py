@@ -1,7 +1,8 @@
 """Location of an invalid value inside an attack definition."""
 
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
+from typing import Any
 
 
 class ConfigError(ValueError):
@@ -9,6 +10,13 @@ class ConfigError(ValueError):
         self.path = path
         self.reason = reason
         super().__init__(f"{path}: {reason}" if path else reason)
+
+
+def check_config_keys(data: Mapping[str, Any], allowed: set[str], *, prefix: str = "") -> None:
+    """Report an unexpected key relative to the current configuration path."""
+    for key in data:
+        if key not in allowed:
+            raise ConfigError(f"{prefix}{key}", "Unknown field.")
 
 
 @contextmanager

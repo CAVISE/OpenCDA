@@ -11,7 +11,7 @@ from typing import Any
 from opencda.core.application.behavior.behavior_service_protocol import BehaviorService
 from opencda.core.application.behavior.capability import Capability
 from opencda.core.attack.adversary_framework.models import AttackStageResult, Status
-from opencda.core.attack.adversary_framework.models.config_error import ConfigError, at_config_path
+from opencda.core.attack.adversary_framework.models.config_error import ConfigError, at_config_path, check_config_keys
 from opencda.core.attack.adversary_framework.stage_registry import AttackStageRegistry
 from opencda.core.attack.adversary_framework.utils import RestoreCallback, install_output_interceptor, log_stage_object_transition
 
@@ -36,6 +36,8 @@ class DropperStage:
     _default_drop_rate = 1.0
 
     def __init__(self, capabilities: Sequence[Capability], params: Mapping[str, Any] | None = None) -> None:
+        if params is not None:
+            check_config_keys(params, {"drop_rate", "seed"})
         self.capabilities = tuple(capabilities)
         self._restore_callbacks: list[RestoreCallback] = []
         self._drop_rate = self._parse_drop_rate(params)

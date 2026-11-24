@@ -13,7 +13,7 @@ from opencda.core.application.behavior.behavior_service_protocol import Behavior
 from opencda.core.application.behavior.capability import Capability
 from opencda.core.application.behavior.transport_message import TransportMessage
 from opencda.core.attack.adversary_framework.models import AttackStageResult, Status
-from opencda.core.attack.adversary_framework.models.config_error import ConfigError
+from opencda.core.attack.adversary_framework.models.config_error import ConfigError, check_config_keys
 from opencda.core.attack.adversary_framework.stage_registry import AttackStageRegistry
 from opencda.core.attack.adversary_framework.utils import RestoreCallback, install_output_interceptor, log_stage_object_transition, safe_clone
 
@@ -155,6 +155,8 @@ class SpooferStage:
 
     @classmethod
     def _parse_rewrite_rules(cls, params: Mapping[str, Any] | None) -> tuple[RewriteRule, ...]:
+        if params is not None:
+            check_config_keys(params, {"rewrites"})
         raw_rewrites = params.get("rewrites") if params is not None else None
         if not isinstance(raw_rewrites, Sequence) or isinstance(raw_rewrites, (str, bytes, bytearray)):
             raise ConfigError("rewrites", "Expected a list of rewrite rules.")
@@ -166,9 +168,7 @@ class SpooferStage:
             location = f"rewrites[{index}]"
             if not isinstance(raw_rewrite, Mapping):
                 raise ConfigError(location, "Expected a mapping.")
-            for key in raw_rewrite:
-                if key not in {"path", "operation", "value"}:
-                    raise ConfigError(f"{location}.{key}", "Unknown field.")
+            check_config_keys(raw_rewrite, {"path", "operation", "value"}, prefix=f"{location}.")
 
             raw_path = raw_rewrite.get("path")
             if not isinstance(raw_path, str) or not raw_path:
