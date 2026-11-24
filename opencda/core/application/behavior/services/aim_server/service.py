@@ -6,7 +6,7 @@ import weakref
 import logging
 from typing import Any, Sequence, cast, TYPE_CHECKING, Mapping
 
-from opencda.core.application.behavior.capability import Capability, CapabilityBindings
+from opencda.core.application.behavior.capability import Capability, CapabilityBindings, CapabilityPayloads
 from opencda.core.application.behavior.registry import BehaviorServiceRegistry
 from opencda.core.application.behavior.services.self_informer import SelfInformerResponse
 from opencda.core.application.behavior.transport_message import BROADCAST_SERVICE_TYPE, TransportMessage
@@ -31,6 +31,12 @@ class AIMServer:
 
     service_type = "aim_server"
     priority = 20
+
+    capability_payloads: CapabilityPayloads = {
+        Capability.REQUEST_OBSERVE: AIMServerRequest,
+        Capability.RESPONSE_SUBMIT: AIMServerResponse,
+        Capability.STATE_OBSERVE: None,
+    }
 
     @property
     def capability_bindings(self) -> CapabilityBindings:

@@ -8,7 +8,7 @@ from collections import deque
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, cast
 
-from opencda.core.application.behavior.capability import Capability, CapabilityBindings
+from opencda.core.application.behavior.capability import Capability, CapabilityBindings, CapabilityPayloads
 from opencda.core.application.behavior.registry import BehaviorServiceRegistry
 from opencda.core.application.behavior.transport_message import TransportMessage, BROADCAST_OWNER_ID, BROADCAST_SERVICE_TYPE
 from opencda.core.application.behavior.services.aim_server import AIMServerRequest, AIMServerResponse
@@ -32,6 +32,12 @@ class AIMClient:
 
     service_type: str = "aim_client"
     priority: int = 20
+
+    capability_payloads: CapabilityPayloads = {
+        Capability.RESPONSE_OBSERVE: AIMServerResponse,
+        Capability.COMMAND_SUBMIT: MovementControllerRequestMessage,
+        Capability.REQUEST_SUBMIT: AIMServerRequest,
+    }
 
     @property
     def capability_bindings(self) -> CapabilityBindings:

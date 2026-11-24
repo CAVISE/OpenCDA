@@ -20,6 +20,8 @@ ServiceResolver: TypeAlias = Callable[[str, str | None], tuple[BehaviorService[A
 AttackResultRewriter: TypeAlias = Callable[[Any], Any]
 RestoreCallback: TypeAlias = Callable[[], None]
 _MISSING = object()
+TARGET_KIND = "service_state_field"
+TARGET_SELECTIONS = frozenset({"all", "first"})
 
 logger = logging.getLogger("cavise.opencda.opencda.core.attack.adversary_framework.utils")
 
@@ -170,9 +172,9 @@ def resolve_targets(
         )
         return ()
 
-    if target_spec.kind != "service_state_field":
+    if target_spec.kind != TARGET_KIND:
         raise ValueError(f"Unsupported target resolution kind '{target_spec.kind}'.")
-    if target_spec.selection not in {"all", "first"}:
+    if target_spec.selection not in TARGET_SELECTIONS:
         raise ValueError(f"Unsupported target selection '{target_spec.selection}'.")
 
     source_values = collect_snapshot_values(target_spec.source, current_snapshot)
@@ -193,6 +195,8 @@ def resolve_targets(
             source_values,
         )
 
+    available_node_ids = _collect_available_node_ids(current_snapshot, target_spec.resolve_to_node_type)
+    target_node_ids.intersection_update(available_node_ids)
     ordered_target_node_ids = sorted(target_node_ids)
     if target_spec.selection == "first":
         ordered_target_node_ids = ordered_target_node_ids[:1]
@@ -208,7 +212,6 @@ def resolve_targets(
         else:
             missing_node_ids.append(node_id)
 
-    available_node_ids = _collect_available_node_ids(current_snapshot, target_spec.resolve_to_node_type)
     if missing_node_ids:
         logger.warning(
             "Attack %r could not resolve service_type=%r for node_ids=%s. Available %s node_ids in snapshot: %s.",

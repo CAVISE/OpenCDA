@@ -10,6 +10,7 @@ from typing import Any, TypeVar, cast
 from opencda.core.application.behavior.capability import Capability
 
 from .attack_stage_protocol import AttackStage
+from .models.config_error import ConfigError, at_config_path
 
 logger = logging.getLogger("cavise.opencda.opencda.core.attack.adversary_framework.stage_registry")
 
@@ -79,7 +80,8 @@ class AttackStageRegistry:
             )
 
         kwargs["capabilities"] = normalized_capabilities
-        return stage_cls(**kwargs)
+        with at_config_path("params"):
+            return stage_cls(**kwargs)
 
     @classmethod
     def _validate_supported_capabilities(
@@ -96,8 +98,13 @@ class AttackStageRegistry:
         if unsupported_capabilities:
             unsupported = ", ".join(capability.value for capability in unsupported_capabilities)
             supported = ", ".join(capability.value for capability in supported_capabilities)
-            raise ValueError(
-                f"Attack stage '{stage_name}' does not support {source_label} capabilities [{unsupported}]. Supported capabilities: [{supported}]."
+            location = "capabilities"
+            if len(capabilities) > 1:
+                index = next(index for index, capability in enumerate(capabilities) if capability in unsupported_capabilities)
+                location = f"{location}[{index}]"
+            raise ConfigError(
+                location,
+                f"Attack stage '{stage_name}' does not support {source_label} capabilities [{unsupported}]. Supported capabilities: [{supported}].",
             )
 
     @classmethod

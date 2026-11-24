@@ -24,3 +24,5 @@ class Capability(str, Enum):
 
 CapabilityBinding: TypeAlias = Callable[..., Any]
 CapabilityBindings: TypeAlias = Mapping[Capability, CapabilityBinding]
+# A None entry declares an operation that does not return transport messages.
+CapabilityPayloads: TypeAlias = Mapping[Capability, type | None]

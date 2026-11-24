@@ -7,7 +7,7 @@ import logging
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
-from opencda.core.application.behavior.capability import Capability, CapabilityBindings
+from opencda.core.application.behavior.capability import Capability, CapabilityBindings, CapabilityPayloads
 from opencda.core.application.behavior.registry import BehaviorServiceRegistry
 from opencda.core.application.behavior.transport_message import TransportMessage, BROADCAST_SERVICE_TYPE
 from .messages import SelfInformerResponse
@@ -27,6 +27,10 @@ class SelfInformer:
 
     service_type: str = "self_informer"
     priority: int = 1
+
+    capability_payloads: CapabilityPayloads = {
+        Capability.REQUEST_SUBMIT: SelfInformerResponse,
+    }
 
     @property
     def capability_bindings(self) -> CapabilityBindings:

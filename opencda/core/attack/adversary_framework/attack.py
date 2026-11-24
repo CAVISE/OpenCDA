@@ -11,6 +11,7 @@ from opencda.scenario_testing.types import SimulationSnapshot
 from .attack_stage_protocol import AttackStage
 from .condition_evaluator import evaluate_condition
 from .models import AttackSpec, AttackStageResult, RuntimeStatus, StageRuntime, Status
+from .models.config_error import ConfigError, at_config_path
 from .stage_registry import AttackStageRegistry
 from .utils import ServiceResolver, match_services, resolve_targets as resolve_configured_targets
 
@@ -20,13 +21,23 @@ logger = logging.getLogger("cavise.opencda.opencda.core.attack.adversary_framewo
 class Attack:
     """Generic attack runtime built entirely from an `AttackSpec`."""
 
+    attack_name: str
+    spec: AttackSpec
+    stages: tuple[AttackStage, ...]
+    is_active: bool
+    status: RuntimeStatus
+    previous_status: RuntimeStatus
+    stage_runtimes: tuple[StageRuntime, ...]
+
     def __init__(self, spec: AttackSpec, stages: tuple[AttackStage, ...]) -> None:
         if len(spec.stages) != len(stages):
             raise ValueError(f"Attack '{spec.name}' defines {len(spec.stages)} stage specs, but received {len(stages)} runtime stage instances.")
 
-        stage_ids = [stage_spec.id for stage_spec in spec.stages]
-        if len(stage_ids) != len(set(stage_ids)):
-            raise ValueError(f"Attack '{spec.name}' defines duplicate stage ids.")
+        stage_ids: set[str] = set()
+        for index, stage_spec in enumerate(spec.stages):
+            if stage_spec.id in stage_ids:
+                raise ConfigError(f"stages[{index}].id", f"Duplicate stage id '{stage_spec.id}'.")
+            stage_ids.add(stage_spec.id)
 
         self.attack_name = spec.name
         self.spec = spec
@@ -39,18 +50,18 @@ class Attack:
     @classmethod
     def from_spec(cls, spec: AttackSpec) -> Attack:
         """Build a generic runtime attack from config and stage registry."""
-        stages = tuple(
-            AttackStageRegistry.create_stage(
-                stage_spec.type,
-                **(
-                    {"capabilities": stage_spec.capabilities, "params": stage_spec.params}
-                    if stage_spec.params is not None
-                    else {"capabilities": stage_spec.capabilities}
-                ),
-            )
-            for stage_spec in spec.stages
-        )
-        return cls(spec=spec, stages=stages)
+        stages = []
+        for index, stage_spec in enumerate(spec.stages):
+            with at_config_path(f"stages[{index}]"):
+                kwargs = {"params": stage_spec.params} if stage_spec.params is not None else {}
+                try:
+                    stage = AttackStageRegistry.create_stage(stage_spec.type, capabilities=stage_spec.capabilities, **kwargs)
+                except KeyError as exc:
+                    if stage_spec.type in AttackStageRegistry.list_stages():
+                        raise
+                    raise ConfigError("type", f"Unknown stage type '{stage_spec.type}'.") from exc
+                stages.append(stage)
+        return cls(spec=spec, stages=tuple(stages))
 
     def mark_started(self) -> None:
         """Mark attack runtime as started."""

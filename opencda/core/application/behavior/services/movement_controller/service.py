@@ -6,7 +6,7 @@ import weakref
 import logging
 from typing import Any, Sequence, TYPE_CHECKING, cast
 
-from opencda.core.application.behavior.capability import Capability, CapabilityBindings
+from opencda.core.application.behavior.capability import Capability, CapabilityBindings, CapabilityPayloads
 from opencda.core.application.behavior.registry import BehaviorServiceRegistry
 from opencda.core.application.behavior.transport_message import TransportMessage, BROADCAST_SERVICE_TYPE
 from opencda.core.application.behavior.types import Location
@@ -28,6 +28,10 @@ class MovementController:
 
     service_type = "movement_controller"
     priority = 100
+
+    capability_payloads: CapabilityPayloads = {
+        Capability.COMMAND_OBSERVE: MovementControllerRequestMessage,
+    }
 
     @property
     def capability_bindings(self) -> CapabilityBindings:

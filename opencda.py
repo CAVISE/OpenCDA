@@ -531,7 +531,7 @@ def main() -> None:
 
                 try:
                     scenario_started_at = time.perf_counter()
-                    run_scenario(opt, scene_dict, current_time=current_time, runtime_stats=runtime_stats)
+                    run_scenario(opt, scene_dict, current_time=current_time, runtime_stats=runtime_stats, config_file=config_yaml)
                     runtime_stats["full_scenario"] = time.perf_counter() - scenario_started_at
                 finally:
                     evaluation_output_dir.mkdir(parents=True, exist_ok=True)
@@ -545,7 +545,7 @@ def main() -> None:
                     stats.print_stats(30)
             else:
                 scenario_started_at = time.perf_counter()
-                run_scenario(opt, scene_dict, current_time=current_time, runtime_stats=runtime_stats)
+                run_scenario(opt, scene_dict, current_time=current_time, runtime_stats=runtime_stats, config_file=config_yaml)
                 runtime_stats["full_scenario"] = time.perf_counter() - scenario_started_at
         run_status = "completed"
     except KeyboardInterrupt:
