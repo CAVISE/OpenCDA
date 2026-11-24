@@ -12,56 +12,75 @@ from opencda.core.application.behavior.capability import CapabilityPayloads
 from opencda.core.application.behavior.registry import BehaviorServiceRegistry
 
 from .attack import Attack
+from .condition_evaluator import CONDITION_VERBS
 from .models import AttackSpec, ConditionSpec, RuntimeStatus
 from .models.config_error import ConfigError
 from .stages.spoofer.stage import SpooferStage
+from .utils import TARGET_KIND, TARGET_SELECTIONS
 
 logger = logging.getLogger("cavise.opencda.opencda.core.attack.adversary_framework.validation")
 
 
-def declared_service_names(config: Mapping[str, Any]) -> set[str]:
-    """Collect service declarations inherited by participants present in the scenario."""
+def declared_service_names(config: Mapping[str, Any]) -> dict[str, set[str]]:
+    """Collect service declarations of existing participants by node type."""
     scenario = config.get("scenario") or {}
     vehicles = list(scenario.get("single_cav_list") or ())
     for platoon in scenario.get("platoon_list") or ():
         vehicles.extend(platoon.get("members", config.get("platoon_base", {}).get("members", ())))
 
-    names: set[str] = set()
-    for base_key, participants in (("vehicle_base", vehicles), ("rsu_base", scenario.get("rsu_list") or ())):
+    services: dict[str, set[str]] = {"vehicle": set(), "rsu": set()}
+    for node_type, participants in (("vehicle", vehicles), ("rsu", scenario.get("rsu_list") or ())):
         if participants:
-            for base in (config.get("agent_base", {}), config.get(base_key, {})):
+            names = services[node_type]
+            for base in (config.get("agent_base", {}), config.get(f"{node_type}_base", {})):
                 names.update(base.get("behavior_services", {}))
             for participant in participants:
                 names.update(participant.get("behavior_services", {}))
-    return names
+    return services
 
 
-def validate_spec(spec: AttackSpec, service_names: set[str], origin: str) -> None:
+def _services_for_node(services: Mapping[str, set[str]], node_type: str | None) -> set[str]:
+    if node_type is not None and node_type in services:
+        return services[node_type]
+    return set().union(*services.values())
+
+
+def _check_service_reference(services: Mapping[str, set[str]], node_type: str | None, name: str | None, path: str) -> None:
+    if name is not None and name not in _services_for_node(services, node_type):
+        owner = f"node type '{node_type}'" if node_type in services else "any scenario participant"
+        raise ConfigError(path, f"Service '{name}' is not declared for {owner}.")
+
+
+def validate_spec(spec: AttackSpec, services: Mapping[str, set[str]], origin: str) -> None:
     targets = spec.targets
-    if targets and targets.resolve_to_service_name is not None and targets.resolve_to_service_name not in service_names:
-        raise ConfigError(
-            "targets.resolve_to.service_type", f"Service '{targets.resolve_to_service_name}' is not declared by any scenario participant."
-        )
+    if targets is not None:
+        if targets.kind != TARGET_KIND:
+            raise ConfigError("targets.kind", f"Unsupported target resolution kind '{targets.kind}'.")
+        if targets.selection not in TARGET_SELECTIONS:
+            raise ConfigError("targets.selection", f"Unsupported target selection '{targets.selection}'.")
+        _check_service_reference(services, targets.resolve_to_node_type, targets.resolve_to_service_name, "targets.resolve_to.service_type")
+        if targets.source.kind == "snapshot":
+            _check_service_reference(services, targets.source.node_type, targets.source.service_type, "targets.source.service_type")
 
     stage_ids = {stage.id for stage in spec.stages}
     for key in ("requirements", "start_trigger", "stop_trigger"):
         condition = getattr(spec, key)
         if condition is not None:
-            _validate_condition(condition, key, spec.name, stage_ids, origin)
+            _validate_condition(condition, key, spec.name, stage_ids, origin, services)
     for index, stage in enumerate(spec.stages):
         for key in ("requirements", "stage_start_trigger", "stage_stop_trigger"):
             condition = getattr(stage, key)
             if condition is not None:
-                _validate_condition(condition, f"stages[{index}].{key}", spec.name, stage_ids, origin)
+                _validate_condition(condition, f"stages[{index}].{key}", spec.name, stage_ids, origin, services)
 
 
-def validate_service_contracts(attack: Attack, service_names: set[str]) -> None:
+def validate_service_contracts(attack: Attack, services: Mapping[str, set[str]]) -> None:
     """Check the normalized stage operations and paths against declared simulation service types."""
     targets = attack.spec.targets
     if targets is None or not attack.stages:
         return
     name_filter = targets.resolve_to_service_name
-    names = {name_filter} if name_filter is not None else service_names
+    names = {name_filter} if name_filter is not None else _services_for_node(services, targets.resolve_to_node_type)
     contracts: list[CapabilityPayloads] = []
     has_dynamic_bindings = False
     for name in sorted(names):
@@ -132,7 +151,9 @@ def _allows_field_path(schema: Any, path: tuple[str, ...]) -> bool:
     return True
 
 
-def _validate_condition(condition: ConditionSpec, path: str, attack_name: str, stage_ids: set[str], origin: str) -> None:
+def _validate_condition(
+    condition: ConditionSpec, path: str, attack_name: str, stage_ids: set[str], origin: str, services: Mapping[str, set[str]]
+) -> None:
     for index, child in enumerate(condition.all):
         source = child.source
         if source is None or child.verb != "eq":
@@ -149,11 +170,17 @@ def _validate_condition(condition: ConditionSpec, path: str, attack_name: str, s
 
     for group in ("all", "any"):
         for index, child in enumerate(getattr(condition, group)):
-            _validate_condition(child, f"{path}.{group}[{index}]", attack_name, stage_ids, origin)
+            _validate_condition(child, f"{path}.{group}[{index}]", attack_name, stage_ids, origin, services)
 
     source = condition.source
     if source is None:
         return
+    if source.kind not in CONDITION_VERBS:
+        raise ConfigError(f"{path}.source.kind", f"Unsupported condition source '{source.kind}'.")
+    if condition.verb not in CONDITION_VERBS[source.kind]:
+        raise ConfigError(f"{path}.verb", f"Unsupported verb '{condition.verb}' for source '{source.kind}'.")
+    if source.kind == "snapshot":
+        _check_service_reference(services, source.node_type, source.service_type, f"{path}.source.service_type")
     if source.kind in {"attack", "stage"}:
         if source.attack_name is not None and source.attack_name != attack_name:
             raise ConfigError(f"{path}.source.attack_name", "Runtime conditions can only reference the current attack.")

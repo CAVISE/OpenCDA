@@ -65,9 +65,9 @@ class TriggerSourceSpec:
         data = _mapping(data)
         return cls(
             kind=str(_required(data, "kind")),
-            node_type=data.get("node_type"),
+            node_type=_optional(data, "node_type", _string),
             node_id=data.get("node_id"),
-            service_type=data.get("service_type"),
+            service_type=_optional(data, "service_type", _string),
             field=data.get("field"),
             attack_name=_optional(data, "attack_name", _string),
             stage_id=_optional(data, "stage_id", _string),

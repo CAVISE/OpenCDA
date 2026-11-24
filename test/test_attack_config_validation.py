@@ -14,9 +14,9 @@ from opencda.core.attack.adversary_framework import AttackManager
 from opencda.scenario_testing.utils.yaml_utils import read_config_mapping
 
 
-def _prepare(stages=(), **attack):
+def _prepare(stages=(), *, scenario_config=None, **attack):
     config = {"attack": {"name": "example", "stages": list(stages), **attack}}
-    return AttackManager().prepare_attacks([(Path("example.yaml"), config)], {})[0]
+    return AttackManager().prepare_attacks([(Path("example.yaml"), config)], scenario_config or {})[0]
 
 
 def _rewrite(path: str) -> dict:
@@ -86,11 +86,12 @@ def test_missing_nested_required_key():
 
 def test_unreachable_trigger_warns_and_allows_preparation(caplog):
     source = {"kind": "snapshot", "service_type": "aim_server", "field": "tracked_vehicle_count"}
-    attack = _prepare(stop_trigger={"source": source, "verb": "lt", "value": 0})
+    scenario = {"scenario": {"rsu_list": [{"behavior_services": {"aim_server": {}}}]}}
+    attack = _prepare(scenario_config=scenario, stop_trigger={"source": source, "verb": "lt", "value": 0})
     assert attack.attack_name == "example"
     assert "example.yaml: attack.stop_trigger.value" in caplog.text
     caplog.clear()
-    _prepare(stop_trigger={"source": source, "verb": "lte", "value": 0})
+    _prepare(scenario_config=scenario, stop_trigger={"source": source, "verb": "lte", "value": 0})
     assert not caplog.records
 
 
@@ -115,6 +116,60 @@ def test_only_existing_participants_contribute_service_declarations():
     assert "example.yaml: attack.targets.resolve_to.service_type" in str(exc.value)
     config["scenario"]["platoon_list"] = [{"members": [{}]}]
     assert len(AttackManager().prepare_attacks(definition, config)) == 1
+
+
+@pytest.mark.parametrize(
+    ("kind", "verb", "key"),
+    [("snapshott", "exists", "source.kind"), ("snapshot", "greater_than", "verb"), ("stage", "added", "verb"), ("attack", "removed", "verb")],
+)
+def test_condition_vocabulary_reports_nested_key(kind, verb, key):
+    condition = {"source": {"kind": kind}, "verb": verb}
+    with pytest.raises(ValueError) as exc:
+        _prepare([{"id": "example", "type": "sniffer", "stage_stop_trigger": {"any": [condition]}}])
+    assert str(exc.value).startswith(f"example.yaml: attack.stages[0].stage_stop_trigger.any[0].{key}:")
+    if verb in {"added", "removed"}:
+        assert _prepare(start_trigger={"source": {"kind": "snapshot"}, "verb": verb})
+
+
+def test_snapshot_condition_service_is_scoped_to_its_node_type():
+    scenario = {"scenario": {"single_cav_list": [{}], "rsu_list": [{}]}, "rsu_base": {"behavior_services": {"example": {}}}}
+    source = {"kind": "snapshot", "service_type": "exmaple"}
+    condition = {"all": [{"source": source, "verb": "exists"}]}
+    with pytest.raises(ValueError) as exc:
+        _prepare(scenario_config=scenario, requirements=condition)
+    assert str(exc.value).startswith("example.yaml: attack.requirements.all[0].source.service_type:")
+    source["service_type"] = "example"
+    assert _prepare(scenario_config=scenario, requirements=condition)
+    source["node_type"] = "vehicle"
+    with pytest.raises(ValueError, match=r"requirements\.all\[0\]\.source\.service_type:"):
+        _prepare(scenario_config=scenario, requirements=condition)
+    source["node_type"] = "rsu"
+    assert _prepare(scenario_config=scenario, requirements=condition)
+
+
+@pytest.mark.parametrize(("key", "value"), [("kind", "unknown"), ("selection", "one")])
+def test_target_modes_are_checked_during_preparation(key, value):
+    target = {"kind": "service_state_field", "source": {"kind": "snapshot"}, "resolve_to": {"node_type": "vehicle"}}
+    with pytest.raises(ValueError) as exc:
+        _prepare(targets={**target, key: value})
+    assert str(exc.value).startswith(f"example.yaml: attack.targets.{key}:")
+
+
+def test_target_services_and_contracts_are_scoped_to_the_requested_node_type():
+    scenario = {"scenario": {"single_cav_list": [{"behavior_services": {"movement_controller": {}}}], "rsu_list": [{}]}}
+    resolve_to = {"node_type": "rsu", "service_type": "movement_controller"}
+    target = {"kind": "service_state_field", "source": {"kind": "snapshot"}, "resolve_to": resolve_to}
+    stage = {**_rewrite("payload"), "capabilities": "command.observe"}
+    with pytest.raises(ValueError, match=r"attack\.targets\.resolve_to\.service_type:"):
+        _prepare([stage], scenario_config=scenario, targets=target)
+    del resolve_to["service_type"]
+    with pytest.raises(ValueError, match=r"attack\.stages\[0\]\.capabilities:"):
+        _prepare([stage], scenario_config=scenario, targets=target)
+    resolve_to["node_type"] = "vehicle"
+    assert _prepare([stage], scenario_config=scenario, targets=target)
+    target["source"] = {"kind": "snapshot", "node_type": "rsu", "service_type": "movement_controller"}
+    with pytest.raises(ValueError, match=r"attack\.targets\.source\.service_type:"):
+        _prepare([stage], scenario_config=scenario, targets=target)
 
 
 @pytest.fixture

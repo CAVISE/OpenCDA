@@ -20,6 +20,8 @@ ServiceResolver: TypeAlias = Callable[[str, str | None], tuple[BehaviorService[A
 AttackResultRewriter: TypeAlias = Callable[[Any], Any]
 RestoreCallback: TypeAlias = Callable[[], None]
 _MISSING = object()
+TARGET_KIND = "service_state_field"
+TARGET_SELECTIONS = frozenset({"all", "first"})
 
 logger = logging.getLogger("cavise.opencda.opencda.core.attack.adversary_framework.utils")
 
@@ -170,9 +172,9 @@ def resolve_targets(
         )
         return ()
 
-    if target_spec.kind != "service_state_field":
+    if target_spec.kind != TARGET_KIND:
         raise ValueError(f"Unsupported target resolution kind '{target_spec.kind}'.")
-    if target_spec.selection not in {"all", "first"}:
+    if target_spec.selection not in TARGET_SELECTIONS:
         raise ValueError(f"Unsupported target selection '{target_spec.selection}'.")
 
     source_values = collect_snapshot_values(target_spec.source, current_snapshot)

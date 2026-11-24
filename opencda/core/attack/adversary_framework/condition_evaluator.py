@@ -9,6 +9,9 @@ from opencda.scenario_testing.types import NodeSnapshot, SimulationSnapshot
 from .models import ConditionSpec, RuntimeStatus, StageRuntime, TriggerSourceSpec
 
 _MISSING = object()
+_COMPARISONS = frozenset({"eq", "gt", "gte", "lt", "lte"})
+_RUNTIME_VERBS = _COMPARISONS | {"exists", "changed", "became", "increased", "decreased"}
+CONDITION_VERBS = {"attack": _RUNTIME_VERBS, "stage": _RUNTIME_VERBS, "snapshot": _RUNTIME_VERBS | {"added", "removed"}}
 
 
 class ConditionRuntime(Protocol):
@@ -125,7 +128,7 @@ def _evaluate_runtime_predicate(
     if verb == "exists":
         return bool(current_values)
 
-    if verb in {"eq", "gt", "gte", "lt", "lte"}:
+    if verb in _COMPARISONS:
         return any(_compare_value(current_value, verb, value) for current_value in current_values.values())
 
     if verb == "changed":
@@ -164,7 +167,7 @@ def _evaluate_snapshot_predicate(
     if verb == "exists":
         return bool(current_values)
 
-    if verb in {"eq", "gt", "gte", "lt", "lte"}:
+    if verb in _COMPARISONS:
         return any(_compare_value(current_value, verb, value) for current_value in current_values.values())
 
     previous_values = dict(collect_snapshot_values(source, previous_snapshot))
