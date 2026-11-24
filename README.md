@@ -390,32 +390,11 @@ python -m api
 
 ## CARLA 1.0 image builds
 
-Use the companion CAVISE workspace change: Compose supplies the selected CARLA
-server image as the `carla-server` named build context. OpenCDA copies and installs
-the bundled Linux x86_64 cp312 wheel instead of downloading another API from PyPI.
-All OpenCDA targets inherit it. Build and start through `run.sh` in the CAVISE root.
-For a direct build, supply `--build-context carla-server=docker-image://carla:1.0-default`
-and use the CAVISE root as the build context.
+Build through the companion CAVISE workspace: Compose supplies the CARLA server
+image as the `carla-server` build context, and OpenCDA installs its bundled cp312
+wheel. For a direct build from the CAVISE root, pass
+`--build-context carla-server=docker-image://carla:1.0-default`.
 
-For a local Python environment, install the wheel from the same unpacked server
-release before installing `requirements.txt`. Classic scenario towns (`Town01` to
-`Town07`) resolve to the server's advertised `_Opt` map when the original name is
-absent. Install the AdditionalMaps content pack for these towns. This resolves
-names only; SUMO networks and spawn positions still need a runtime check.
-
-OpenCOOD's standalone requirements currently pin CARLA 0.9.16. The integrated
-image removes that pin from its build copies before installing dependencies
-and generating editable package metadata, and supplies the release wheel
-explicitly. A final check in the cooperative-perception image stage verifies
-the imported API version after OpenCOOD installation.
-
-The traffic blueprint metadata includes the CARLA 1.0 vehicle IDs alongside the
-legacy IDs. Only blueprints installed on the connected server are sampled; missing
-classes are reported and their sampling weights are redistributed. The SUMO
-bridge maps the new bus, truck, emergency, taxi and van IDs to their corresponding
-SUMO classes. Vans use SUMO's passenger class and van shape; OpenCDA's optional
-`van` sampling class requires an explicit probability in the scenario configuration.
-The existing Nissan Patrol SUV sampling category is retained. These categories
-control sampling and traffic integration, not model training labels. A fixed random
-seed does not produce an identical fleet across CARLA releases with different
-blueprint libraries.
+For a local Python environment, install the wheel from the same server release
+before installing `requirements.txt`. Classic towns such as `Town06` resolve to
+`Town06_Opt` when needed; these maps require the AdditionalMaps pack.

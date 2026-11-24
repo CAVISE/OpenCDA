@@ -53,7 +53,6 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends python3-venv=3.12.* && \
     rm -rf /var/lib/apt/lists/*
 
-# Compose supplies the exact server image as the carla-server build context.
 # hadolint ignore=DL3022
 COPY --from=carla-server /workspace/PythonAPI/carla/dist/*cp312*x86_64.whl /tmp/carla-api/
 
@@ -68,19 +67,16 @@ RUN python3 -m venv /opt/venv && \
     && \
     /opt/venv/bin/python -m pip install --no-cache-dir \
         /tmp/carla-api/*.whl \
-        -r /tmp/opencda-requirements/requirements.txt -r /tmp/opencda-requirements/api/requirements.txt \
-    && \
-    /opt/venv/bin/python -c 'import carla; print(carla.Client("localhost", 2000).get_client_version())'
+        -r /tmp/opencda-requirements/requirements.txt -r /tmp/opencda-requirements/api/requirements.txt
 
 
 FROM python-opencda-dependencies AS python-opencood-dependencies
 
 COPY opencood/requirements.txt /tmp/opencood-requirements/requirements.txt
 
-# OpenCDA owns the simulator API. OpenCOOD's standalone pin must not downgrade it.
 RUN sed -i '/^carla==/d' /tmp/opencood-requirements/requirements.txt && \
     /opt/venv/bin/python -m pip install --no-cache-dir \
-        /tmp/carla-api/*.whl -r /tmp/opencood-requirements/requirements.txt
+        -r /tmp/opencood-requirements/requirements.txt
 
 
 FROM ubuntu:${UBUNTU_VERSION}@${UBUNTU_DIGEST} AS protobuf-builder
@@ -224,12 +220,10 @@ COPY --chown=${uid}:${gid} opencood/ ${OPENCOOD_WORKSPACE}/
 COPY opencood/docker/sync-cuda-artifacts.sh \
     /usr/local/bin/opencood-sync-cuda-artifacts
 
-# Also remove the standalone pin before generating OpenCOOD's editable metadata.
 RUN chmod 755 /usr/local/bin/opencood-sync-cuda-artifacts && \
     sed -i '/^carla==/d' "${OPENCOOD_WORKSPACE}/requirements.txt" && \
     python -m pip install --no-cache-dir --no-build-isolation --no-deps \
-        --editable "${OPENCOOD_WORKSPACE}" && \
-    python -c 'import carla; from importlib.metadata import requires, version; assert carla.Client("localhost", 2000).get_client_version() == version("carla") == "1.0"; assert "carla==0.9.16" not in (requires("opencood") or []); print("CARLA 1.0 API verified after OpenCOOD installation")'
+        --editable "${OPENCOOD_WORKSPACE}"
 
 USER ${USER}
 

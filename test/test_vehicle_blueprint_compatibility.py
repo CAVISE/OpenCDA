@@ -8,7 +8,6 @@ import pytest
 
 from opencda.scenario_testing.utils.sim_api import (
     ScenarioManager,
-    _available_traffic_classes,
     car_blueprint_filter,
     multi_class_vehicle_blueprint_filter,
 )
@@ -50,40 +49,6 @@ def test_class_filter_ignores_removed_models_and_preserves_requested_class():
     library = StrictBlueprintLibrary(["vehicle.car", "vehicle.truck"])
     assert [bp.id for bp in multi_class_vehicle_blueprint_filter("car", library, metadata)] == ["vehicle.car"]
     assert library.requested_ids == ["vehicle.removed", "vehicle.car"]
-
-
-def test_missing_classes_are_excluded_and_remaining_probabilities_are_renormalized():
-    metadata = {
-        "vehicle.car": {"class": "car"},
-        "vehicle.truck": {"class": "truck"},
-        "vehicle.bus": {"class": "bus"},
-    }
-    library = StrictBlueprintLibrary(["vehicle.car", "vehicle.truck"])
-    pools, probabilities = _available_traffic_classes(library, metadata, {"car": 0.2, "truck": 0.6, "bus": 0.2})
-    assert list(pools) == ["car", "truck"]
-    assert probabilities == pytest.approx([0.25, 0.75])
-    assert [pool[0].id for pool in pools.values()] == ["vehicle.car", "vehicle.truck"]
-
-
-def test_zero_probability_classes_are_never_selected_or_resolved():
-    metadata = {"vehicle.car": {"class": "car"}, "vehicle.bus": {"class": "bus"}}
-    library = StrictBlueprintLibrary(["vehicle.car", "vehicle.bus"])
-    pools, probabilities = _available_traffic_classes(library, metadata, {"car": 1.0, "bus": 0.0})
-    assert list(pools) == ["car"]
-    assert probabilities == [1.0]
-    assert library.requested_ids == ["vehicle.car"]
-
-
-@pytest.mark.parametrize("probability", [-0.1, float("inf"), float("nan")])
-def test_invalid_class_probabilities_are_rejected(probability):
-    with pytest.raises(ValueError, match="finite and non-negative"):
-        _available_traffic_classes(StrictBlueprintLibrary([]), {}, {"car": probability})
-
-
-@pytest.mark.parametrize("weights", [{"car": 1.0}, {"car": 0.0}, {}])
-def test_no_usable_class_has_an_actionable_error(weights):
-    with pytest.raises(RuntimeError, match="Update blueprint metadata"):
-        _available_traffic_classes(StrictBlueprintLibrary([]), {"vehicle.removed": {"class": "car"}}, weights)
 
 
 def test_explicit_unavailable_actor_model_is_not_replaced():
@@ -208,7 +173,7 @@ def test_explicit_missing_model_is_not_aliased_despite_an_available_release_mkz(
 def test_missing_legacy_and_release_defaults_require_an_explicit_model(legacy_default):
     manager = ScenarioManager.__new__(ScenarioManager)
     library = StrictBlueprintLibrary(["vehicle.tesla.model3"])
-    with pytest.raises(IndexError, match="Set an available 'model'"):
+    with pytest.raises(IndexError, match="vehicle.lincoln.mkz"):
         manager.prepare_actor_blueprint({}, legacy_default, library)
     assert library.requested_ids == [legacy_default, "vehicle.lincoln.mkz"]
 

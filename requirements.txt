@@ -2,9 +2,6 @@
 --extra-index-url https://download.pytorch.org/whl/cu130
 -r requirements-cuda.txt
 
-# Simulation & Control
-# CARLA cp312 wheel is installed from the server release archive by Dockerfile.
-
 # Packaging, Build & Runtime Utilities
 coloredlogs==15.0.1
 GitPython==3.2.1

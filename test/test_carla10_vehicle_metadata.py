@@ -9,7 +9,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from opencda.scenario_testing.utils.sim_api import _available_traffic_classes
+from opencda.scenario_testing.utils.sim_api import multi_class_vehicle_blueprint_filter
 
 ROOT = Path(__file__).resolve().parents[1]
 # IDs/base_type attributes were reported by the running CARLA 1.0 release.
@@ -102,9 +102,8 @@ def test_live_release_vehicle_is_classified_in_both_metadata_tables(blueprint_me
 
 def test_all_configured_traffic_classes_remain_available_with_live_release(release_library, blueprint_metadata):
     weights = {"car": 0.5, "truck": 0.1, "bus": 0.1, "bicycle": 0.1, "motorcycle": 0.1}
-    pools, probabilities = _available_traffic_classes(release_library, blueprint_metadata, weights)
-    assert list(pools) == list(weights)
-    assert probabilities == pytest.approx([weight / sum(weights.values()) for weight in weights.values()])
+    pools = {label: multi_class_vehicle_blueprint_filter(label, release_library, blueprint_metadata) for label in weights}
+    assert all(pools.values())
     assert {blueprint.id for blueprint in pools["bus"]} == {"vehicle.fuso.mitsubishi"}
     assert {blueprint.id for blueprint in pools["truck"]} == {"vehicle.ambulance.ford", "vehicle.carlacola.actors", "vehicle.firetruck.actors"}
     assert "vehicle.sprinter.mercedes" not in {blueprint.id for pool in pools.values() for blueprint in pool}
