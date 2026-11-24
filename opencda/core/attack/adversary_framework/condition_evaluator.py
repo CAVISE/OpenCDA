@@ -9,7 +9,8 @@ from opencda.scenario_testing.types import NodeSnapshot, SimulationSnapshot
 from .models import ConditionSpec, RuntimeStatus, StageRuntime, TriggerSourceSpec
 
 _MISSING = object()
-_COMPARISONS = frozenset({"eq", "gt", "gte", "lt", "lte"})
+ORDERED_COMPARISONS = frozenset({"gt", "gte", "lt", "lte"})
+_COMPARISONS = ORDERED_COMPARISONS | {"eq"}
 _RUNTIME_VERBS = _COMPARISONS | {"exists", "changed", "became", "increased", "decreased"}
 CONDITION_VERBS = {"attack": _RUNTIME_VERBS, "stage": _RUNTIME_VERBS, "snapshot": _RUNTIME_VERBS | {"added", "removed"}}
 
@@ -129,7 +130,7 @@ def _evaluate_runtime_predicate(
         return bool(current_values)
 
     if verb in _COMPARISONS:
-        return any(_compare_value(current_value, verb, value) for current_value in current_values.values())
+        return any(compare_value(current_value, verb, value) for current_value in current_values.values())
 
     if verb == "changed":
         return any(previous_values.get(key, _MISSING) != current_value for key, current_value in current_values.items())
@@ -168,7 +169,7 @@ def _evaluate_snapshot_predicate(
         return bool(current_values)
 
     if verb in _COMPARISONS:
-        return any(_compare_value(current_value, verb, value) for current_value in current_values.values())
+        return any(compare_value(current_value, verb, value) for current_value in current_values.values())
 
     previous_values = dict(collect_snapshot_values(source, previous_snapshot))
 
@@ -295,7 +296,7 @@ def _extract_runtime_value(
     return _extract_field_value(obj, field_name)
 
 
-def _compare_value(current_value: Any, verb: str, expected_value: Any) -> bool:
+def compare_value(current_value: Any, verb: str, expected_value: Any) -> bool:
     match verb:
         case "eq":
             return current_value == expected_value

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import operator
 from collections.abc import Mapping, Sequence
 from dataclasses import fields, is_dataclass
 from types import UnionType
@@ -10,12 +11,13 @@ from typing import Any, Union, get_args, get_origin, get_type_hints
 
 from opencda.core.application.behavior.capability import CapabilityPayloads
 from opencda.core.application.behavior.registry import BehaviorServiceRegistry
+from opencda.scenario_testing.types import NodeSnapshot
 
 from .attack import Attack
-from .condition_evaluator import CONDITION_VERBS
-from .models import AttackSpec, ConditionSpec, RuntimeStatus
+from .condition_evaluator import CONDITION_VERBS, ORDERED_COMPARISONS, ConditionRuntime, compare_value
+from .models import AttackSpec, ConditionSpec, RuntimeStatus, StageRuntime, TriggerSourceSpec
 from .models.config_error import ConfigError
-from .stages.spoofer.stage import SpooferStage
+from .stages.spoofer.stage import RewriteRule, SpooferStage
 from .utils import TARGET_KIND, TARGET_SELECTIONS
 
 logger = logging.getLogger("cavise.opencda.opencda.core.attack.adversary_framework.validation")
@@ -51,6 +53,17 @@ def _check_service_reference(services: Mapping[str, set[str]], node_type: str | 
         raise ConfigError(path, f"Service '{name}' is not declared for {owner}.")
 
 
+def _check_snapshot_source(source: TriggerSourceSpec, services: Mapping[str, set[str]], path: str) -> None:
+    if source.node_type is not None:
+        _check_node_type(source.node_type, f"{path}.node_type")
+    _check_service_reference(services, source.node_type, source.service_type, f"{path}.service_type")
+
+
+def _check_node_type(node_type: str, path: str) -> None:
+    if node_type not in {"vehicle", "rsu"}:
+        raise ConfigError(path, f"Unknown node type '{node_type}'. Expected 'vehicle' or 'rsu'.")
+
+
 def validate_spec(spec: AttackSpec, services: Mapping[str, set[str]], origin: str) -> None:
     targets = spec.targets
     if targets is not None:
@@ -58,9 +71,11 @@ def validate_spec(spec: AttackSpec, services: Mapping[str, set[str]], origin: st
             raise ConfigError("targets.kind", f"Unsupported target resolution kind '{targets.kind}'.")
         if targets.selection not in TARGET_SELECTIONS:
             raise ConfigError("targets.selection", f"Unsupported target selection '{targets.selection}'.")
+        if targets.source.kind != "snapshot":
+            raise ConfigError("targets.source.kind", f"Unsupported target source '{targets.source.kind}'. Expected 'snapshot'.")
+        _check_snapshot_source(targets.source, services, "targets.source")
+        _check_node_type(targets.resolve_to_node_type, "targets.resolve_to.node_type")
         _check_service_reference(services, targets.resolve_to_node_type, targets.resolve_to_service_name, "targets.resolve_to.service_type")
-        if targets.source.kind == "snapshot":
-            _check_service_reference(services, targets.source.node_type, targets.source.service_type, "targets.source.service_type")
 
     stage_ids = {stage.id for stage in spec.stages}
     for key in ("requirements", "start_trigger", "stop_trigger"):
@@ -108,47 +123,143 @@ def validate_service_contracts(attack: Attack, services: Mapping[str, set[str]])
             operations = ", ".join(capability.value for capability in stage.capabilities)
             raise ConfigError(f"{location}.{key}", f"No declared target service provides the required operations together ({operations}).")
         if isinstance(stage, SpooferStage):
-            payloads = {contract[capability] for contract in compatible for capability in required}
-            for rule_index, rule in enumerate(stage.rewrite_rules):
-                if rule.path[0] == "payload" and not any(_allows_field_path(payload, rule.path[1:]) for payload in payloads if payload is not None):
+            payloads = {payload for contract in compatible for capability in required if (payload := contract[capability]) is not None}
+            _validate_payload_rewrites(stage.rewrite_rules, payloads, location)
+
+
+def _validate_payload_rewrites(rules: tuple[RewriteRule, ...], payloads: set[type], location: str) -> None:
+    # Each message sees the rules in order. A previous rewrite can change the type used by a later one.
+    written: dict[type, dict[tuple[str, ...], tuple[Any, ...]]] = {payload: {} for payload in payloads}
+    for index, rule in enumerate(rules):
+        if rule.path[0] != "payload":
+            continue
+        key = f"{location}.params.rewrites[{index}]"
+        found = False
+        for payload, types_by_path in written.items():
+            types = _field_types(payload, rule.path[1:])
+            if not types:
+                continue
+            found = True
+            if rule.operation == "set":
+                results = (type(rule.value),)
+            else:
+                for parent in reversed(types_by_path):
+                    if rule.path[: len(parent)] == parent:
+                        types = tuple(leaf for schema in types_by_path[parent] for leaf in _field_types(schema, rule.path[len(parent) :]))
+                        break
+                if not types:
+                    continue  # An earlier rewrite removed the field. The usual missing-path diagnostic applies.
+                results = tuple(result for field_type in types if (result := _arithmetic_result_type(field_type, rule)) is not None)
+                if not results:
+                    names = ", ".join(sorted({field_type.__name__ for field_type in types}))
                     raise ConfigError(
-                        f"{location}.params.rewrites[{rule_index}].path",
-                        f"Field path '{'.'.join(rule.path)}' is absent from the declared message types.",
+                        f"{key}.value",
+                        f"Cannot apply '{rule.operation}' to '{'.'.join(rule.path)}' ({names}) with a value of type '{type(rule.value).__name__}'.",
                     )
+            # Keep the most recent assignment last, including when the same path is written twice.
+            types_by_path.pop(rule.path, None)
+            types_by_path[rule.path] = results
+        if not found:
+            raise ConfigError(f"{key}.path", f"Field path '{'.'.join(rule.path)}' is absent from the declared message types.")
 
 
-def _allows_field_path(schema: Any, path: tuple[str, ...]) -> bool:
-    """Reject paths contradicted by a declared type; dynamic values are checked when used."""
-    if not path or schema is Any or schema is object:
-        return True
+def _arithmetic_result_type(field_type: Any, rule: RewriteRule) -> Any:
+    """Check Python's built-in operand types without using message data or invoking extension code."""
+    left = get_origin(field_type) or field_type
+    right = type(rule.value)
+    builtin_types = (bool, int, float, complex, str, bytes, list, tuple, dict, set, frozenset, type(None))
+    if left in builtin_types and right in builtin_types:
+        operation = operator.add if rule.operation == "add" else operator.mul
+        try:
+            return type(operation(left(), right()))
+        except TypeError:
+            return None
+    if is_dataclass(left) and right in builtin_types:
+        method = "__add__" if rule.operation == "add" else "__mul__"
+        if not hasattr(left, method) and not hasattr(left, "__index__"):
+            return None
+    return Any
+
+
+def _field_types(schema: Any, path: tuple[str, ...]) -> tuple[Any, ...]:
+    """Return possible leaf types, an empty tuple for a missing path, or Any for runtime data."""
     origin = get_origin(schema)
     args = get_args(schema)
     if origin in (Union, UnionType):
-        return any(_allows_field_path(member, path) for member in args if member is not type(None))
+        return tuple(leaf for member in args for leaf in _field_types(member, path))
+    if schema is Any or schema is object:
+        return (Any,)
+    if not path:
+        return (schema,)
 
     field, rest = path[0], path[1:]
     if is_dataclass(schema):
         if field not in {item.name for item in fields(schema)}:
-            return False
+            return ()
         try:
             annotations = get_type_hints(schema)
         except (NameError, TypeError):
-            return True
-        return _allows_field_path(annotations[field], rest)
+            return (Any,)
+        return _field_types(annotations[field], rest)
 
     container = origin or schema
     if isinstance(container, type) and issubclass(container, Mapping):
-        return _allows_field_path(args[1], rest) if len(args) == 2 else True
+        return _field_types(args[1], rest) if len(args) == 2 else (Any,)
     if isinstance(container, type) and issubclass(container, (str, bytes, int, float, complex, type(None))):
-        return False
+        return ()
     if isinstance(container, type) and issubclass(container, Sequence):
         if not field.isdigit():
-            return False
+            return ()
         if container is tuple and args and args[-1] is not Ellipsis:
             index = int(field)
-            return index < len(args) and _allows_field_path(args[index], rest)
-        return _allows_field_path(args[0], rest) if args else True
-    return True
+            return _field_types(args[index], rest) if index < len(args) else ()
+        return _field_types(args[0], rest) if args else (Any,)
+    return (Any,)
+
+
+def _condition_field_types(source: TriggerSourceSpec) -> tuple[Any, ...]:
+    if source.field is not None and not isinstance(source.field, str):
+        return (Any,)
+    if source.kind in {"attack", "stage"} and source.field == "status":
+        return (str,)  # The evaluator exposes the status enum's string value.
+    if source.kind == "attack":
+        if source.field is None:
+            return (Attack,)
+        return (get_type_hints(ConditionRuntime).get(source.field, Any),)
+
+    schema: Any = StageRuntime if source.kind == "stage" else NodeSnapshot
+    if source.kind == "snapshot" and source.service_type is not None:
+        try:
+            service = BehaviorServiceRegistry.get_service_class(source.service_type)
+            schema = get_type_hints(service.get_state).get("return", Any)
+        except (KeyError, NameError, TypeError):
+            return (Any,)
+    return _field_types(schema, (source.field,) if source.field is not None else ())
+
+
+def _validate_ordered_comparison(source: TriggerSourceSpec, verb: str, value: Any, path: str) -> None:
+    if value is None:
+        raise ConfigError(path, f"Comparison '{verb}' requires a non-null value.")
+    types = _condition_field_types(source)
+    if not types:
+        return  # Values outside the declared schema are only available at runtime.
+    for annotation in types:
+        kind = get_origin(annotation) or annotation
+        if kind is RuntimeStatus:
+            kind = str
+        if kind in (bool, int, float, str, bytes, list, tuple, dict, set, frozenset, complex, type(None)):
+            try:
+                compare_value(kind(), verb, value)
+            except TypeError:
+                continue
+            return
+        if not is_dataclass(kind) and kind is not Attack:
+            return
+        # A custom comparison can depend on the value in the simulation.
+        if any(getattr(kind, method) is not getattr(object, method) for method in ("__lt__", "__le__", "__gt__", "__ge__")):
+            return
+    names = ", ".join(getattr(annotation, "__name__", str(annotation)) for annotation in types)
+    raise ConfigError(path, f"Cannot apply '{verb}' to '{source.field or source.kind}' ({names}) with a value of type '{type(value).__name__}'.")
 
 
 def _validate_condition(
@@ -180,7 +291,9 @@ def _validate_condition(
     if condition.verb not in CONDITION_VERBS[source.kind]:
         raise ConfigError(f"{path}.verb", f"Unsupported verb '{condition.verb}' for source '{source.kind}'.")
     if source.kind == "snapshot":
-        _check_service_reference(services, source.node_type, source.service_type, f"{path}.source.service_type")
+        _check_snapshot_source(source, services, f"{path}.source")
+    if condition.verb in ORDERED_COMPARISONS:
+        _validate_ordered_comparison(source, condition.verb, condition.value, f"{path}.value")
     if source.kind in {"attack", "stage"}:
         if source.attack_name is not None and source.attack_name != attack_name:
             raise ConfigError(f"{path}.source.attack_name", "Runtime conditions can only reference the current attack.")

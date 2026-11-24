@@ -147,11 +147,70 @@ def test_snapshot_condition_service_is_scoped_to_its_node_type():
     assert _prepare(scenario_config=scenario, requirements=condition)
 
 
+@pytest.mark.parametrize("service", [{}, {"service_type": "example"}])
+def test_unknown_snapshot_node_type_is_rejected_even_when_a_service_matches(service):
+    scenario = {"scenario": {"rsu_list": [{"behavior_services": {"example": {}}}]}}
+    source = {"kind": "snapshot", "node_type": "vehcile", **service}
+    with pytest.raises(ValueError, match=r"attack\.requirements\.all\[0\]\.source\.node_type:"):
+        _prepare(scenario_config=scenario, requirements={"all": [{"source": source, "verb": "exists"}]})
+    target = {"kind": "service_state_field", "source": source, "resolve_to": {"node_type": "vehicle"}}
+    with pytest.raises(ValueError, match=r"attack\.targets\.source\.node_type:"):
+        _prepare(scenario_config=scenario, targets=target)
+    source["node_type"] = None
+    assert _prepare(scenario_config=scenario, targets=target)
+
+
+@pytest.mark.parametrize("verb", ["gt", "gte", "lt", "lte"])
+@pytest.mark.parametrize("operand", [{}, {"vaule": 2}, {"value": None}])
+def test_ordered_comparison_requires_a_value(verb, operand):
+    condition = {"source": {"kind": "snapshot", "field": "node_id"}, "verb": verb, **operand}
+    with pytest.raises(ValueError, match=r"attack\.start_trigger\.any\[0\]\.value:"):
+        _prepare(start_trigger={"any": [condition]})
+    assert _prepare(start_trigger={**condition, "value": "vehicle_0"})
+
+
+@pytest.mark.parametrize("verb", ["gt", "gte", "lt", "lte"])
+def test_ordered_comparison_checks_the_declared_service_field_type(aim_service_types, verb):
+    scenario = {"scenario": {"rsu_list": [{"behavior_services": {"aim_server": {}}}]}}
+    source = {"kind": "snapshot", "service_type": "aim_server", "field": "tracked_vehicle_count"}
+    condition = {"source": source, "verb": verb, "value": "2"}
+    with pytest.raises(ValueError, match=r"example\.yaml: attack\.start_trigger\.any\[0\]\.value:.*tracked_vehicle_count.*int.*str"):
+        _prepare(scenario_config=scenario, start_trigger={"any": [condition]})
+    for threshold in (0, 2.5):
+        assert _prepare(scenario_config=scenario, start_trigger={**condition, "value": threshold})
+
+
+@pytest.mark.parametrize(
+    "source", [{"kind": "snapshot", "field": "node_id"}, {"kind": "stage", "field": "status"}, {"kind": "attack", "field": "attack_name"}]
+)
+def test_ordered_comparison_preserves_string_ordering(source):
+    with pytest.raises(ValueError, match=r"attack\.requirements\.value:"):
+        _prepare(requirements={"source": source, "verb": "lt", "value": 1})
+    assert _prepare(requirements={"source": source, "verb": "lt", "value": "z"})
+
+
+def test_ordered_comparison_with_dynamic_service_state():
+    scenario = {"scenario": {"single_cav_list": [{"behavior_services": {"extension": {}}}]}}
+    condition = {"source": {"kind": "snapshot", "service_type": "extension", "field": "reading"}, "verb": "gt", "value": 0}
+    assert _prepare(scenario_config=scenario, requirements=condition)
+
+
 @pytest.mark.parametrize(("key", "value"), [("kind", "unknown"), ("selection", "one")])
 def test_target_modes_are_checked_during_preparation(key, value):
     target = {"kind": "service_state_field", "source": {"kind": "snapshot"}, "resolve_to": {"node_type": "vehicle"}}
     with pytest.raises(ValueError) as exc:
         _prepare(targets={**target, key: value})
+    assert str(exc.value).startswith(f"example.yaml: attack.targets.{key}:")
+
+
+@pytest.mark.parametrize(
+    ("source_kind", "node_type", "key"),
+    [("snapshott", "vehicle", "source.kind"), ("stage", "rsu", "source.kind"), ("snapshot", "vehcile", "resolve_to.node_type")],
+)
+def test_target_source_and_destination_report_the_invalid_key(source_kind, node_type, key):
+    target = {"kind": "service_state_field", "source": {"kind": source_kind}, "resolve_to": {"node_type": node_type}}
+    with pytest.raises(ValueError) as exc:
+        _prepare(targets=target)
     assert str(exc.value).startswith(f"example.yaml: attack.targets.{key}:")
 
 
@@ -235,6 +294,40 @@ def test_known_message_fields_before_simulation(aim_service_types, path, valid):
         with pytest.raises(ValueError) as exc:
             _prepare_for_services(stage, ["aim_client"], "aim_client")
         assert str(exc.value).startswith("example.yaml: attack.stages[0].params.rewrites[0].path:")
+
+
+@pytest.mark.parametrize("operation", ["add", "multiply"])
+@pytest.mark.parametrize("path", ["payload.speed", "payload.waypoints[0].location.x"])
+def test_arithmetic_rewrites_require_compatible_operands(aim_service_types, path, operation):
+    stage = _rewrite(path)
+    rule = stage["params"]["rewrites"][0]
+    rule.update(operation=operation, value="5")
+    with pytest.raises(ValueError, match=r"example\.yaml: attack\.stages\[0\]\.params\.rewrites\[0\]\.value:") as exc:
+        _prepare_for_services(stage, ["aim_client"])
+    assert "(float) with a value of type 'str'" in str(exc.value)
+    rule["value"] = 5
+    assert _prepare_for_services(stage, ["aim_client"])
+
+
+def test_arithmetic_on_an_optional_field_checks_its_declared_type():
+    stage = {**_rewrite("payload.target_speed"), "capabilities": "command.observe"}
+    rule = stage["params"]["rewrites"][0]
+    rule.update(operation="multiply", value="5")
+    with pytest.raises(ValueError, match=r"rewrites\[0\]\.value:"):
+        _prepare_for_services(stage, ["movement_controller"])
+    rule["value"] = 0
+    assert _prepare_for_services(stage, ["movement_controller"])
+
+
+def test_arithmetic_uses_the_value_type_from_a_previous_rewrite(aim_service_types):
+    stage = _rewrite("payload.speed")
+    rules = stage["params"]["rewrites"]
+    rules[0]["value"] = "abc"
+    rules.append({"path": "payload.speed", "operation": "multiply", "value": 2})
+    assert _prepare_for_services(stage, ["aim_client"])
+    rules.append({"path": "payload.speed", "operation": "add", "value": 1})
+    with pytest.raises(ValueError, match=r"rewrites\[2\]\.value:"):
+        _prepare_for_services(stage, ["aim_client"])
 
 
 def test_payload_depends_on_service_for_the_same_operation(aim_service_types):
