@@ -30,6 +30,12 @@ def _string(value: Any) -> str:
     return value
 
 
+def _check_keys(data: Mapping[str, Any], allowed: set[str]) -> None:
+    for key in data:
+        if key not in allowed:
+            raise ConfigError(str(key), "Unknown field.")
+
+
 def _parse_items(items: Any, parse: Callable[[Any], T]) -> tuple[T, ...]:
     if not isinstance(items, Sequence) or isinstance(items, (str, bytes)):
         raise ValueError("Expected a list.")
@@ -63,12 +69,22 @@ class TriggerSourceSpec:
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> TriggerSourceSpec:
         data = _mapping(data)
+        kind = str(_required(data, "kind"))
+        keys = {"kind", "field"}
+        if kind == "snapshot":
+            keys.update(("node_type", "node_id", "service_type"))
+        elif kind in {"attack", "stage"}:
+            keys.add("attack_name")
+            if kind == "stage":
+                keys.add("stage_id")
+        if kind in {"snapshot", "attack", "stage"}:
+            _check_keys(data, keys)
         return cls(
-            kind=str(_required(data, "kind")),
+            kind=kind,
             node_type=_optional(data, "node_type", _string),
-            node_id=data.get("node_id"),
+            node_id=_optional(data, "node_id", _string),
             service_type=_optional(data, "service_type", _string),
-            field=data.get("field"),
+            field=_optional(data, "field", _string),
             attack_name=_optional(data, "attack_name", _string),
             stage_id=_optional(data, "stage_id", _string),
         )
@@ -113,10 +129,12 @@ class ConditionSpec:
             for key in ("source", "verb"):
                 if key in data:
                     raise ConfigError(key, f"Cannot be combined with '{group}' in the same condition.")
+            _check_keys(data, {group})
             with at_config_path(group):
                 children = _parse_items(data[group], cls.from_dict)
                 return cls(all=children) if group == "all" else cls(any=children)
 
+        _check_keys(data, {"source", "verb", "value"})
         source_data = _required(data, "source")
         with at_config_path("source"):
             source = TriggerSourceSpec.from_dict(source_data)
@@ -136,18 +154,21 @@ class TargetSpec:
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> TargetSpec:
         data = _mapping(data)
+        _check_keys(data, {"kind", "source", "resolve_to", "selection"})
         source_data = _required(data, "source")
         with at_config_path("source"):
             source = TriggerSourceSpec.from_dict(source_data)
         resolve_data = _required(data, "resolve_to")
         with at_config_path("resolve_to"):
             resolve_to = _mapping(resolve_data)
+            _check_keys(resolve_to, {"node_type", "service_type"})
             node_type = str(_required(resolve_to, "node_type"))
+            service_type = _optional(resolve_to, "service_type", _string)
         return cls(
             kind=str(_required(data, "kind")),
             source=source,
             resolve_to_node_type=node_type,
-            resolve_to_service_name=(str(resolve_to["service_type"]) if resolve_to.get("service_type") is not None else None),
+            resolve_to_service_name=service_type,
             selection=str(data.get("selection", "all")),
         )
 
@@ -171,6 +192,7 @@ class StageSpec:
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> StageSpec:
         data = _mapping(data)
+        _check_keys(data, {"id", "type", "capabilities", "params", "requirements", "stage_start_trigger", "stage_stop_trigger"})
         configured_capabilities = data.get("capabilities")
         capabilities: tuple[Capability, ...] | None = None
         if configured_capabilities is not None:
@@ -206,6 +228,7 @@ class AttackSpec:
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> AttackSpec:
         data = _mapping(data)
+        _check_keys(data, {"name", "requirements", "start_trigger", "stop_trigger", "targets", "stages"})
         with at_config_path("stages"):
             stages = _parse_items(data.get("stages", ()), StageSpec.from_dict)
         return cls(

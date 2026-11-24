@@ -2,8 +2,10 @@
 
 import logging
 import sys
+from dataclasses import dataclass
 from pathlib import Path
-from types import SimpleNamespace
+from types import MappingProxyType, SimpleNamespace
+from typing import Mapping, NamedTuple
 from unittest.mock import Mock, patch
 
 import pytest
@@ -11,6 +13,8 @@ import pytest
 from opencda.core.application.behavior.registry import BehaviorServiceRegistry
 from opencda.core.application.behavior.transport_message import TransportMessage
 from opencda.core.attack.adversary_framework import AttackManager
+from opencda.core.attack.adversary_framework.condition_evaluator import evaluate_condition
+from opencda.scenario_testing.types import NodeSnapshot, SimulationSnapshot
 from opencda.scenario_testing.utils.yaml_utils import read_config_mapping
 
 
@@ -58,7 +62,10 @@ def test_attack_condition_can_reference_any_declared_stage(key):
     with pytest.raises(ValueError) as exc:
         _prepare(**{key: _reference("missing")})
     assert f"attack.{key}.source.stage_id" in str(exc.value)
-    attack = _prepare([{"id": "later", "type": "sniffer"}], **{key: _reference("later")})
+    stage = {"id": "later", "type": "sniffer", "capabilities": "command.observe"}
+    targets = {"kind": "service_state_field", "source": {"kind": "snapshot", "field": "node_id"}, "resolve_to": {"node_type": "vehicle"}}
+    scenario = {"scenario": {"single_cav_list": [{"behavior_services": {"movement_controller": {}}}]}}
+    attack = _prepare([stage], scenario_config=scenario, targets=targets, **{key: _reference("later")})
     assert attack.attack_name == "example"
 
 
@@ -76,6 +83,32 @@ def test_yaml_reader_preserves_numeric_literals_and_identifies_invalid_root(tmp_
     with pytest.raises(ValueError) as exc:
         read_config_mapping(config)
     assert str(config) in str(exc.value)
+
+
+def test_yaml_rejects_duplicate_keys_but_allows_merge_overrides(tmp_path):
+    config = tmp_path / "config.yaml"
+    config.write_text("base: &base {value: 1}\ncondition: {<<: *base, value: 2}\n", encoding="utf-8")
+    assert read_config_mapping(config)["condition"] == {"value": 2}
+    config.write_text("condition:\n  value: 1\n  value: 2\n", encoding="utf-8")
+    with pytest.raises(ValueError, match=r"duplicate key 'value'") as exc:
+        read_config_mapping(config)
+    assert f'{config}", line 3' in str(exc.value)
+
+
+@pytest.mark.parametrize(("key", "value"), [("field", ["node_id"]), ("node_id", 123), ("feild", "node_id"), ("field", "nodeid")])
+def test_source_fields_fail_at_the_original_location(key, value):
+    condition = {"source": {"kind": "snapshot", key: value}, "verb": "exists"}
+    with pytest.raises(ValueError, match=rf"attack\.requirements\.source\.{key}:"):
+        _prepare(requirements=condition)
+
+
+def test_unknown_key_and_missing_targets_are_detected():
+    trigger = {"source": {"kind": "snapshot", "field": "node_id"}, "verb": "exists"}
+    stage = {"id": "example", "type": "sniffer"}
+    with pytest.raises(ValueError, match=r"attack\.start_triger:"):
+        _prepare([stage], start_triger=trigger)
+    with pytest.raises(ValueError, match=r"attack\.targets:"):
+        _prepare([stage], start_trigger=trigger)
 
 
 def test_missing_nested_required_key():
@@ -96,8 +129,8 @@ def test_unreachable_trigger_warns_and_allows_preparation(caplog):
 
 
 def test_conflicting_equalities_warn_only_for_a_single_value(caplog):
-    source = {"kind": "snapshot", "field": "example"}
-    conditions = [{"source": source, "verb": "eq", "value": value} for value in (1, 2)]
+    source = {"kind": "snapshot", "field": "node_type"}
+    conditions = [{"source": source, "verb": "eq", "value": value} for value in ("vehicle", "rsu")]
     _prepare(start_trigger={"all": conditions})
     assert not caplog.records  # Different participants can satisfy the two predicates.
     source["node_id"] = "one_node"
@@ -108,7 +141,11 @@ def test_conflicting_equalities_warn_only_for_a_single_value(caplog):
 
 
 def test_only_existing_participants_contribute_service_declarations():
-    targets = {"kind": "service_state_field", "source": {"kind": "snapshot"}, "resolve_to": {"node_type": "vehicle", "service_type": "example"}}
+    targets = {
+        "kind": "service_state_field",
+        "source": {"kind": "snapshot", "field": "node_id"},
+        "resolve_to": {"node_type": "vehicle", "service_type": "example"},
+    }
     definition = [(Path("example.yaml"), {"attack": {"name": "example", "targets": targets}})]
     config = {"vehicle_base": {"behavior_services": {"example": {}}}, "scenario": {"rsu_list": [{}]}}
     with pytest.raises(ValueError) as exc:
@@ -128,7 +165,7 @@ def test_condition_vocabulary_reports_nested_key(kind, verb, key):
         _prepare([{"id": "example", "type": "sniffer", "stage_stop_trigger": {"any": [condition]}}])
     assert str(exc.value).startswith(f"example.yaml: attack.stages[0].stage_stop_trigger.any[0].{key}:")
     if verb in {"added", "removed"}:
-        assert _prepare(start_trigger={"source": {"kind": "snapshot"}, "verb": verb})
+        assert _prepare(start_trigger={"source": {"kind": "snapshot", "field": "service_states"}, "verb": verb})
 
 
 def test_snapshot_condition_service_is_scoped_to_its_node_type():
@@ -150,7 +187,7 @@ def test_snapshot_condition_service_is_scoped_to_its_node_type():
 @pytest.mark.parametrize("service", [{}, {"service_type": "example"}])
 def test_unknown_snapshot_node_type_is_rejected_even_when_a_service_matches(service):
     scenario = {"scenario": {"rsu_list": [{"behavior_services": {"example": {}}}]}}
-    source = {"kind": "snapshot", "node_type": "vehcile", **service}
+    source = {"kind": "snapshot", "node_type": "vehcile", "field": "node_id", **service}
     with pytest.raises(ValueError, match=r"attack\.requirements\.all\[0\]\.source\.node_type:"):
         _prepare(scenario_config=scenario, requirements={"all": [{"source": source, "verb": "exists"}]})
     target = {"kind": "service_state_field", "source": source, "resolve_to": {"node_type": "vehicle"}}
@@ -164,9 +201,10 @@ def test_unknown_snapshot_node_type_is_rejected_even_when_a_service_matches(serv
 @pytest.mark.parametrize("operand", [{}, {"vaule": 2}, {"value": None}])
 def test_ordered_comparison_requires_a_value(verb, operand):
     condition = {"source": {"kind": "snapshot", "field": "node_id"}, "verb": verb, **operand}
-    with pytest.raises(ValueError, match=r"attack\.start_trigger\.any\[0\]\.value:"):
+    key = "vaule" if "vaule" in operand else "value"
+    with pytest.raises(ValueError, match=rf"attack\.start_trigger\.any\[0\]\.{key}:"):
         _prepare(start_trigger={"any": [condition]})
-    assert _prepare(start_trigger={**condition, "value": "vehicle_0"})
+    assert _prepare(start_trigger={"source": condition["source"], "verb": verb, "value": "vehicle_0"})
 
 
 @pytest.mark.parametrize("verb", ["gt", "gte", "lt", "lte"])
@@ -195,9 +233,128 @@ def test_ordered_comparison_with_dynamic_service_state():
     assert _prepare(scenario_config=scenario, requirements=condition)
 
 
+def test_ordered_comparison_rejects_a_nullable_operand():
+    scenario = {"scenario": {"single_cav_list": [{"behavior_services": {"movement_controller": {}}}]}}
+    source = {"kind": "snapshot", "service_type": "movement_controller", "field": "owner_id"}
+    with pytest.raises(ValueError, match=r"attack\.requirements\.value:.*NoneType"):
+        _prepare(scenario_config=scenario, requirements={"source": source, "verb": "gt", "value": "vehicle"})
+
+
+@pytest.mark.parametrize("named_tuple", [True, False])
+def test_snapshot_supported_field_is_validated_and_read(monkeypatch, named_tuple):
+    class Reading(NamedTuple):
+        value: int
+
+    class TupleService:
+        def get_state(self) -> Reading:
+            return Reading(3)
+
+    class MappingService:
+        def get_state(self) -> Mapping[str, int]:
+            return MappingProxyType({"value": 3})
+
+    service = TupleService if named_tuple else MappingService
+    monkeypatch.setitem(BehaviorServiceRegistry._registry, "example", service)
+    scenario = {"scenario": {"single_cav_list": [{"behavior_services": {"example": {}}}]}}
+    condition = {"source": {"kind": "snapshot", "service_type": "example", "field": "value"}, "verb": "gt", "value": 2}
+    attack = _prepare(scenario_config=scenario, requirements=condition)
+    snapshot = SimulationSnapshot(1, vehicle_nodes=(NodeSnapshot("vehicle", "vehicle", {"example": service().get_state()}),))
+    assert evaluate_condition(attack, attack.spec.requirements, None, snapshot)
+    with pytest.raises(ValueError, match=r"attack\.requirements\.value:"):
+        _prepare(scenario_config=scenario, requirements={**condition, "value": "2"})
+
+
+def test_condition_types_include_collection_elements_and_custom_ordering(monkeypatch):
+    from opencda.core.application.behavior.types import Location
+
+    @dataclass
+    class State:
+        readings: list[int]
+        position: Location
+
+    class Service:
+        def get_state(self) -> State:
+            return State([1], Location())
+
+    monkeypatch.setitem(BehaviorServiceRegistry._registry, "example", Service)
+    scenario = {"scenario": {"single_cav_list": [{"behavior_services": {"example": {}}}]}}
+    source = {"kind": "snapshot", "service_type": "example", "field": "readings"}
+    with pytest.raises(ValueError, match=r"attack\.requirements\.value:"):
+        _prepare(scenario_config=scenario, requirements={"source": source, "verb": "gt", "value": ["1"]})
+    assert _prepare(scenario_config=scenario, requirements={"source": source, "verb": "gt", "value": [1]})
+    source["field"] = "position"
+    with pytest.raises(ValueError, match=r"attack\.requirements\.source\.field:"):
+        _prepare(scenario_config=scenario, requirements={"source": source, "verb": "increased"})
+
+
+@pytest.mark.parametrize("verb", ["added", "removed"])
+def test_collection_transitions_validate_the_field_and_element(aim_service_types, verb):
+    scenario = {"scenario": {"rsu_list": [{"behavior_services": {"aim_server": {}}}]}}
+    source = {"kind": "snapshot", "service_type": "aim_server", "field": "tracked_vehicle_count"}
+    condition = {"source": source, "verb": verb}
+    with pytest.raises(ValueError, match=r"attack\.start_trigger\.source\.field:"):
+        _prepare(scenario_config=scenario, start_trigger=condition)
+    source["field"] = "tracked_vehicle_ids"
+    assert _prepare(scenario_config=scenario, start_trigger=condition)
+    assert _prepare(scenario_config=scenario, start_trigger={**condition, "value": "vehicle_1"})
+    with pytest.raises(ValueError, match=r"attack\.start_trigger\.value:"):
+        _prepare(scenario_config=scenario, start_trigger={**condition, "value": ["vehicle_1"]})
+
+
+@pytest.mark.parametrize("verb", ["increased", "decreased"])
+def test_delta_transitions_validate_the_field_and_threshold(aim_service_types, verb):
+    scenario = {"scenario": {"rsu_list": [{"behavior_services": {"aim_server": {}}}]}}
+    source = {"kind": "snapshot", "service_type": "aim_server", "field": "tracked_vehicle_count"}
+    condition = {"source": source, "verb": verb}
+    assert _prepare(scenario_config=scenario, start_trigger=condition)
+    assert _prepare(scenario_config=scenario, start_trigger={**condition, "value": 0.5})
+    with pytest.raises(ValueError, match=r"attack\.start_trigger\.value:"):
+        _prepare(scenario_config=scenario, start_trigger={**condition, "value": "1"})
+    source["field"] = "tracked_vehicle_ids"
+    with pytest.raises(ValueError, match=r"attack\.start_trigger\.source\.field:"):
+        _prepare(scenario_config=scenario, start_trigger=condition)
+
+
+def test_known_snapshot_service_fields_checked_in_conditions_and_targets(aim_service_types):
+    scenario = {"scenario": {"rsu_list": [{"behavior_services": {"aim_server": {}}}]}}
+    source = {"kind": "snapshot", "service_type": "aim_server", "field": "tracked_vehcle_count"}
+    with pytest.raises(ValueError, match=r"example\.yaml: attack\.requirements\.source\.field:"):
+        _prepare(scenario_config=scenario, requirements={"source": source, "verb": "exists"})
+    targets = {"kind": "service_state_field", "source": source, "resolve_to": {"node_type": "vehicle"}}
+    with pytest.raises(ValueError, match=r"example\.yaml: attack\.targets\.source\.field:"):
+        _prepare(scenario_config=scenario, targets=targets)
+    source["field"] = "tracked_vehicle_count"
+    with pytest.raises(ValueError, match=r"attack\.targets\.source\.field:.*node ID"):
+        _prepare(scenario_config=scenario, targets=targets)
+    source["field"] = "tracked_vehicle_ids"
+    assert _prepare(scenario_config=scenario, targets=targets)
+
+
+def test_obvious_condition_contradictions_warn(aim_service_types, caplog):
+    scenario = {"scenario": {"rsu_list": [{"behavior_services": {"aim_server": {}}}]}}
+    source = {"kind": "snapshot", "service_type": "aim_server", "field": "tracked_vehicle_count", "node_id": "rsu"}
+    bounds = [{"source": source, "verb": verb, "value": value} for verb, value in (("gt", 5), ("lt", 2))]
+    _prepare(scenario_config=scenario, requirements={"all": bounds})
+    assert "attack.requirements.all[1].value" in caplog.text
+    condition = {"source": {"kind": "stage", "stage_id": "example", "field": "status"}, "verb": "eq", "value": "success"}
+    _prepare([{"id": "example", "type": "sniffer", "stage_start_trigger": condition}])
+    assert "attack.stages[0].stage_start_trigger.value" in caplog.text
+
+
+def test_condition_value_types_that_cannot_match_warn(aim_service_types, caplog):
+    scenario = {"scenario": {"rsu_list": [{"behavior_services": {"aim_server": {}}}]}}
+    source = {"kind": "snapshot", "service_type": "aim_server", "field": "tracked_vehicle_count"}
+    _prepare(scenario_config=scenario, requirements={"source": source, "verb": "eq", "value": "1"})
+    assert "attack.requirements.value" in caplog.text
+    caplog.clear()
+    source["field"] = "tracked_vehicle_ids"
+    _prepare(scenario_config=scenario, requirements={"source": source, "verb": "added", "value": 1})
+    assert "attack.requirements.value" in caplog.text
+
+
 @pytest.mark.parametrize(("key", "value"), [("kind", "unknown"), ("selection", "one")])
 def test_target_modes_are_checked_during_preparation(key, value):
-    target = {"kind": "service_state_field", "source": {"kind": "snapshot"}, "resolve_to": {"node_type": "vehicle"}}
+    target = {"kind": "service_state_field", "source": {"kind": "snapshot", "field": "node_id"}, "resolve_to": {"node_type": "vehicle"}}
     with pytest.raises(ValueError) as exc:
         _prepare(targets={**target, key: value})
     assert str(exc.value).startswith(f"example.yaml: attack.targets.{key}:")
@@ -208,7 +365,7 @@ def test_target_modes_are_checked_during_preparation(key, value):
     [("snapshott", "vehicle", "source.kind"), ("stage", "rsu", "source.kind"), ("snapshot", "vehcile", "resolve_to.node_type")],
 )
 def test_target_source_and_destination_report_the_invalid_key(source_kind, node_type, key):
-    target = {"kind": "service_state_field", "source": {"kind": source_kind}, "resolve_to": {"node_type": node_type}}
+    target = {"kind": "service_state_field", "source": {"kind": source_kind, "field": "node_id"}, "resolve_to": {"node_type": node_type}}
     with pytest.raises(ValueError) as exc:
         _prepare(targets=target)
     assert str(exc.value).startswith(f"example.yaml: attack.targets.{key}:")
@@ -217,7 +374,7 @@ def test_target_source_and_destination_report_the_invalid_key(source_kind, node_
 def test_target_services_and_contracts_are_scoped_to_the_requested_node_type():
     scenario = {"scenario": {"single_cav_list": [{"behavior_services": {"movement_controller": {}}}], "rsu_list": [{}]}}
     resolve_to = {"node_type": "rsu", "service_type": "movement_controller"}
-    target = {"kind": "service_state_field", "source": {"kind": "snapshot"}, "resolve_to": resolve_to}
+    target = {"kind": "service_state_field", "source": {"kind": "snapshot", "field": "node_id"}, "resolve_to": resolve_to}
     stage = {**_rewrite("payload"), "capabilities": "command.observe"}
     with pytest.raises(ValueError, match=r"attack\.targets\.resolve_to\.service_type:"):
         _prepare([stage], scenario_config=scenario, targets=target)
@@ -253,7 +410,7 @@ def test_bundled_definitions_pass_static_checks(aim_service_types):
 
 
 def _prepare_for_services(stage, services, name=None):
-    target = {"kind": "service_state_field", "source": {"kind": "snapshot"}, "resolve_to": {"node_type": "vehicle"}}
+    target = {"kind": "service_state_field", "source": {"kind": "snapshot", "field": "node_id"}, "resolve_to": {"node_type": "vehicle"}}
     if name is not None:
         target["resolve_to"]["service_type"] = name
     definition = {"attack": {"name": "example", "targets": target, "stages": [stage]}}
@@ -309,14 +466,30 @@ def test_arithmetic_rewrites_require_compatible_operands(aim_service_types, path
     assert _prepare_for_services(stage, ["aim_client"])
 
 
-def test_arithmetic_on_an_optional_field_checks_its_declared_type():
+def test_arithmetic_on_an_optional_field_checks_every_declared_type():
     stage = {**_rewrite("payload.target_speed"), "capabilities": "command.observe"}
     rule = stage["params"]["rewrites"][0]
     rule.update(operation="multiply", value="5")
     with pytest.raises(ValueError, match=r"rewrites\[0\]\.value:"):
         _prepare_for_services(stage, ["movement_controller"])
     rule["value"] = 0
+    with pytest.raises(ValueError, match=r"rewrites\[0\]\.value:.*NoneType"):
+        _prepare_for_services(stage, ["movement_controller"])
+    stage["params"]["rewrites"].insert(0, {"path": "payload.target_speed", "value": 1.0})
     assert _prepare_for_services(stage, ["movement_controller"])
+
+
+@pytest.mark.parametrize(
+    ("operation", "value", "valid"), [("add", 1, False), ("add", "-suffix", True), ("multiply", "1", False), ("multiply", 1, True)]
+)
+def test_arithmetic_rewrites_check_envelope_fields(operation, value, valid):
+    stage = _rewrite("src_owner_id")
+    stage["params"]["rewrites"][0].update(operation=operation, value=value)
+    if valid:
+        assert _prepare([stage])
+    else:
+        with pytest.raises(ValueError, match=r"example\.yaml: attack\.stages\[0\]\.params\.rewrites\[0\]\.value:.*src_owner_id.*str"):
+            _prepare([stage])
 
 
 def test_arithmetic_uses_the_value_type_from_a_previous_rewrite(aim_service_types):
@@ -328,6 +501,56 @@ def test_arithmetic_uses_the_value_type_from_a_previous_rewrite(aim_service_type
     rules.append({"path": "payload.speed", "operation": "add", "value": 1})
     with pytest.raises(ValueError, match=r"rewrites\[2\]\.value:"):
         _prepare_for_services(stage, ["aim_client"])
+
+
+def test_arithmetic_uses_nested_values_written_by_an_earlier_rule():
+    stage = {**_rewrite("payload.target_location"), "capabilities": "command.observe"}
+    rules = stage["params"]["rewrites"]
+    rules[0]["value"] = {"x": "one"}
+    rules.append({"path": "payload.target_location.x", "operation": "add", "value": 1})
+    with pytest.raises(ValueError, match=r"rewrites\[1\]\.value:"):
+        _prepare_for_services(stage, ["movement_controller"])
+    rules[0]["value"] = {"x": 1}
+    assert _prepare_for_services(stage, ["movement_controller"])
+    rules[0]["value"] = {}
+    with pytest.raises(ValueError, match=r"rewrites\[1\]\.path:"):
+        _prepare_for_services(stage, ["movement_controller"])
+
+
+def test_custom_operator_rejects_an_incompatible_operand(aim_service_types):
+    stage = _rewrite("payload.position")
+    stage["params"]["rewrites"][0].update(operation="add", value=1)
+    with pytest.raises(ValueError, match=r"rewrites\[0\]\.value:.*Location"):
+        _prepare_for_services(stage, ["aim_client"])
+
+
+def test_rewrite_checks_direct_assignment_to_an_immutable_sequence(aim_service_types, monkeypatch):
+    from opencda.core.application.behavior.capability import Capability
+    from opencda.core.application.behavior.types import Location
+
+    @dataclass
+    class Message:
+        points: tuple[Location, ...]
+
+    _, server = aim_service_types
+    monkeypatch.setattr(server, "capability_payloads", {Capability.RESPONSE_SUBMIT: Message})
+    stage = {**_rewrite("payload.points[0]"), "capabilities": "response.submit"}
+    with pytest.raises(ValueError, match=r"rewrites\[0\]\.path:.*cannot be written"):
+        _prepare_for_services(stage, ["aim_server"])
+    stage["params"]["rewrites"][0]["path"] = "payload.points[0].x"
+    assert _prepare_for_services(stage, ["aim_server"])
+
+
+def test_dynamic_candidate_does_not_hide_errors_in_known_message_types(monkeypatch, caplog):
+    monkeypatch.setitem(BehaviorServiceRegistry._registry, "extension", type("Extension", (), {}))
+    stage = {**_rewrite("payload.target_speed"), "capabilities": "command.observe"}
+    rule = stage["params"]["rewrites"][0]
+    rule.update(operation="add", value=1)
+    with pytest.raises(ValueError, match=r"rewrites\[0\]\.value:"):
+        _prepare_for_services(stage, ["movement_controller", "extension"])
+    rule["path"] = "payload.target_speeed"
+    assert _prepare_for_services(stage, ["movement_controller", "extension"])
+    assert "example.yaml: attack.stages[0].params.rewrites[0].path" in caplog.text
 
 
 def test_payload_depends_on_service_for_the_same_operation(aim_service_types):
@@ -379,7 +602,7 @@ def test_invalid_attack_file_stops_scenario_before_world_creation(tmp_path, monk
     config.parent.mkdir(parents=True)
     target = {
         "kind": "service_state_field",
-        "source": {"kind": "snapshot"},
+        "source": {"kind": "snapshot", "field": "node_id"},
         "resolve_to": {"node_type": "vehicle", "service_type": "movement_controller"},
     }
     config.write_text(yaml.safe_dump({"attack": {"name": "example", "targets": target, "stages": [stage]}}), encoding="utf-8")
@@ -410,3 +633,12 @@ def test_missing_runtime_value_is_reported_once_without_disabling_the_rule(caplo
     message.payload["items"].append(1)
     assert stage._spoof_message(message).payload["items"] == [0]
     assert message.payload["items"] == [1]
+
+
+def test_runtime_arithmetic_error_names_the_rule_when_the_payload_type_is_dynamic():
+    stage = _rewrite("payload.sample")
+    stage["params"]["rewrites"][0].update(operation="add", value=1)
+    (attack_stage,) = _prepare([stage]).stages
+    message = TransportMessage("source", "service", "destination", "service", {"sample": "text"})
+    with pytest.raises(TypeError, match=r"example\.yaml: attack\.stages\[0\]\.params\.rewrites\[0\]\.value:"):
+        attack_stage._spoof_message(message)
