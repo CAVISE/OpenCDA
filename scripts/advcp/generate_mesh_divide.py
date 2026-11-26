@@ -52,7 +52,7 @@ def _build_parser() -> argparse.ArgumentParser:
         and output path.
     """
     parser = argparse.ArgumentParser(description="Generate AdvCP mesh-division metadata (.pkl).")
-    parser.add_argument("--mesh", type=Path, required=True, help="Input mesh path (.ply or .obj).")
+    parser.add_argument("--mesh", type=Path, required=True, help="Input mesh path (.ply, .obj or .off).")
     parser.add_argument("--mode", choices=("spoof", "remove"), required=True, help="Target divide mode.")
     parser.add_argument("--output", type=Path, required=True, help="Output .pkl path.")
     return parser

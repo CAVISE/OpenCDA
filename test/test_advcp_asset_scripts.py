@@ -2,7 +2,8 @@
 CLI smoke tests for the AdvCP asset scripts in ``scripts/advcp``.
 
 Covers ``generate_car_mesh``, ``generate_mesh_divide``,
-``generate_remove_advshape_assets`` and ``validate_advcp_assets``. The
+``generate_remove_advshape_assets``, ``import_modelnet_cars`` and
+``validate_advcp_assets``. The
 underlying library (``opencda.core.attack.advcp.utils.asset_utils``) is
 tested in ``opencda/core/attack/advcp/test/test_advcp_asset_utils.py``.
 
@@ -31,6 +32,7 @@ from opencda.core.attack.advcp.utils.asset_utils import (
     save_perturbation,
     subdivide_midpoint,
     write_ascii_ply,
+    write_mesh,
 )
 
 
@@ -389,6 +391,131 @@ class TestValidateAdvcpAssetsCLI:
             "9999",
         ]
         from scripts.advcp.validate_advcp_assets import main
+
+        with pytest.raises(SystemExit):
+            main()
+
+
+class TestImportModelnetCars:
+    """Smoke tests for ``scripts.advcp.import_modelnet_cars``."""
+
+    @staticmethod
+    def _write_off(path: Path, mesh: MeshData) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        lines = ["OFF", f"{mesh.vertices.shape[0]} {mesh.faces.shape[0]} 0"]
+        lines += [" ".join(f"{value:.6f}" for value in vertex) for vertex in mesh.vertices]
+        lines += ["3 " + " ".join(str(int(index)) for index in face) for face in mesh.faces]
+        path.write_text("\n".join(lines) + "\n")
+
+    def test_converts_selected_models(self, tmp_output: Path) -> None:
+        import json
+
+        # ModelNet frame: length along Y, Z up, arbitrary (cm) scale.
+        source = subdivide_midpoint(box_mesh(180.0, 450.0, 140.0), levels=3)
+        modelnet_dir = tmp_output / "car"
+        self._write_off(modelnet_dir / "train" / "car_0001.off", source)
+        self._write_off(modelnet_dir / "test" / "car_0200.off", source)
+        output_dir = tmp_output / "out"
+        # Stand-in for models/advcp/base-car/car_mesh_0200.ply.
+        models_root = tmp_output / "models"
+        write_mesh(models_root / "advcp" / "base-car" / "car_mesh_0200.ply", box_mesh(4.30, 1.91, 1.26))
+        sys.argv = [
+            "import_modelnet_cars",
+            "--modelnet-dir",
+            str(modelnet_dir),
+            "--ids",
+            "car_0200",
+            "--max-faces",
+            "200",
+            "--models-root",
+            str(models_root),
+            "--output-dir",
+            str(output_dir),
+        ]
+        from scripts.advcp.import_modelnet_cars import main
+
+        main()
+
+        manifest = json.loads((output_dir / "manifest.json").read_text())
+        assert [entry["id"] for entry in manifest["models"]] == ["car_0200"]
+        entry = manifest["models"][0]
+        assert entry["split"] == "test"
+        assert entry["faces"] <= 200
+        mesh = read_mesh(output_dir / "car_0200" / "car_mesh.ply")
+        size = mesh.vertices.max(axis=0) - mesh.vertices.min(axis=0)
+        assert size[0] == pytest.approx(4.30, abs=1e-6)
+        assert size[0] > size[1]
+        divide = load_divide_pickle(output_dir / "car_0200" / "spoof" / "car_mesh_divide.pkl")
+        assert len(divide) == 8
+
+    def test_bundle_prefix_and_reference_mesh(self, tmp_output: Path) -> None:
+        import json
+
+        modelnet_dir = tmp_output / "car"
+        self._write_off(modelnet_dir / "train" / "car_0002.off", subdivide_midpoint(box_mesh(1.8, 4.5, 1.4), levels=2))
+        reference = tmp_output / "reference.ply"
+        write_mesh(reference, box_mesh(5.0, 2.0, 1.5))
+        output_dir = tmp_output / "advcp"
+        sys.argv = [
+            "import_modelnet_cars",
+            "--modelnet-dir",
+            str(modelnet_dir),
+            "--reference-mesh",
+            str(reference),
+            "--bundle-prefix",
+            "modelnet40-",
+            "--manifest",
+            "modelnet40-car-manifest.json",
+            "--output-dir",
+            str(output_dir),
+        ]
+        from scripts.advcp.import_modelnet_cars import main
+
+        main()
+
+        bundle = output_dir / "modelnet40-car_0002"
+        mesh = read_mesh(bundle / "car_mesh.ply")
+        size = mesh.vertices.max(axis=0) - mesh.vertices.min(axis=0)
+        assert size[0] == pytest.approx(5.0, abs=1e-6)
+        assert (bundle / "spoof" / "car_mesh_divide.pkl").is_file()
+        manifest = json.loads((output_dir / "modelnet40-car-manifest.json").read_text())
+        assert manifest["models"][0]["bundle"] == "modelnet40-car_0002"
+        assert manifest["dimensions_m"] == pytest.approx([5.0, 2.0, 1.5])
+
+    def test_missing_reference_mesh_is_rejected(self, tmp_output: Path) -> None:
+        modelnet_dir = tmp_output / "car"
+        self._write_off(modelnet_dir / "train" / "car_0001.off", subdivide_midpoint(box_mesh(1.8, 4.5, 1.4), levels=1))
+        sys.argv = [
+            "import_modelnet_cars",
+            "--modelnet-dir",
+            str(modelnet_dir),
+            "--models-root",
+            str(tmp_output / "no-models"),
+            "--output-dir",
+            str(tmp_output / "out"),
+        ]
+        from scripts.advcp.import_modelnet_cars import main
+
+        with pytest.raises(SystemExit):
+            main()
+
+    def test_unknown_id_is_rejected(self, tmp_output: Path) -> None:
+        modelnet_dir = tmp_output / "car"
+        self._write_off(modelnet_dir / "train" / "car_0001.off", subdivide_midpoint(box_mesh(1.8, 4.5, 1.4), levels=1))
+        sys.argv = [
+            "import_modelnet_cars",
+            "--modelnet-dir",
+            str(modelnet_dir),
+            "--ids",
+            "car_9999",
+            "--dimensions",
+            "4.3",
+            "1.9",
+            "1.3",
+            "--output-dir",
+            str(tmp_output / "out"),
+        ]
+        from scripts.advcp.import_modelnet_cars import main
 
         with pytest.raises(SystemExit):
             main()

@@ -90,7 +90,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--mesh",
         type=Path,
         default=None,
-        help=("Input mesh path (.ply or .obj). When omitted, the built-in AdvCP template mesh (subdivided box) is used."),
+        help=("Input mesh path (.ply, .obj or .off). When omitted, the built-in AdvCP template mesh (subdivided box) is used."),
     )
     parser.add_argument(
         "--output",

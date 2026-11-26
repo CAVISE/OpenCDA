@@ -11,7 +11,9 @@ Tests cover:
 - Divide-index generation: :func:`generate_divide_indices` for both
   ``"spoof"`` and ``"remove"`` modes.
 - Mesh I/O round-trips: :func:`write_ascii_ply` / :func:`read_mesh`
-  for ASCII PLY, binary PLY, and OBJ formats.
+  for ASCII PLY, binary PLY, OBJ and OFF formats.
+- Mesh simplification and CAD-mesh divides:
+  :func:`decimate_vertex_clustering`, :func:`octant_divide_indices`.
 - Pickle I/O round-trips: :func:`dump_divide_pickle` /
   :func:`load_divide_pickle`.
 - Perturbation I/O round-trips: :func:`save_perturbation` /
@@ -50,6 +52,7 @@ from opencda.core.attack.advcp.utils.asset_utils import (
     blueprint_dimensions_m,
     box_mesh,
     copy_or_generate_mesh,
+    decimate_vertex_clustering,
     divide_piece_face_counts,
     dump_divide_pickle,
     dump_generation_metadata,
@@ -57,10 +60,13 @@ from opencda.core.attack.advcp.utils.asset_utils import (
     load_divide_pickle,
     load_perturbation,
     normalize_bottom_center,
+    octant_divide_indices,
     parse_dimensions_arg,
     read_mesh,
     read_obj,
+    read_off,
     read_ply,
+    remove_unreferenced_vertices,
     save_perturbation,
     scale_to_dimensions,
     subdivide_midpoint,
@@ -729,6 +735,75 @@ class TestReadObj:
         assert mesh.vertices.shape == (8, 3)
         # 6 quads → 12 triangles
         assert mesh.faces.shape[0] == 12
+
+
+class TestReadOff:
+    """Tests for :func:`read_off`."""
+
+    def test_read_off_standard_header(self, tmp_output: Path) -> None:
+        path = tmp_output / "mesh.off"
+        path.write_text("OFF\n# comment\n4 4 0\n0 0 0\n1 0 0\n0 1 0\n0 0 1\n3 0 1 2\n3 0 2 3\n3 0 3 1\n3 1 2 3\n")
+        mesh = read_off(path)
+        assert mesh.vertices.shape == (4, 3)
+        assert mesh.faces.tolist() == [[0, 1, 2], [0, 2, 3], [0, 3, 1], [1, 2, 3]]
+
+    def test_read_off_modelnet_inline_header_and_quads(self, tmp_output: Path) -> None:
+        path = tmp_output / "mesh.off"
+        path.write_text("OFF5 3 0\n0 0 0\n1 0 0\n1 1 0\n0 1 0\n0 0 1\n4 0 1 2 3\n3 0 1 4\n3 1 2 4\n")
+        mesh = read_off(path)
+        assert mesh.vertices.shape == (5, 3)
+        assert mesh.faces.shape == (4, 3)
+
+    def test_read_mesh_dispatches_off(self, tmp_output: Path) -> None:
+        path = tmp_output / "mesh.off"
+        path.write_text("OFF\n4 4 0\n0 0 0\n1 0 0\n0 1 0\n0 0 1\n3 0 1 2\n3 0 2 3\n3 0 3 1\n3 1 2 3\n")
+        assert read_mesh(path).faces.shape == (4, 3)
+
+    def test_read_off_rejects_bad_header(self, tmp_output: Path) -> None:
+        path = tmp_output / "mesh.off"
+        path.write_text("PLY\n")
+        with pytest.raises(ValueError, match="invalid header"):
+            read_off(path)
+
+
+class TestDecimateVertexClustering:
+    """Tests for :func:`decimate_vertex_clustering` and :func:`remove_unreferenced_vertices`."""
+
+    def test_reduces_face_count_below_target(self) -> None:
+        mesh = subdivide_midpoint(box_mesh(4.3, 1.9, 1.3), levels=4)
+        simplified = decimate_vertex_clustering(mesh, target_faces=300)
+        assert 0 < simplified.faces.shape[0] <= 300
+        validate_mesh(simplified, "simplified")
+        np.testing.assert_allclose(
+            simplified.vertices.max(axis=0) - simplified.vertices.min(axis=0), [4.3, 1.9, 1.3], atol=0.5
+        )
+
+    def test_small_mesh_is_unchanged(self, sample_car_mesh: MeshData) -> None:
+        result = decimate_vertex_clustering(sample_car_mesh, target_faces=10_000)
+        assert result.faces.shape == sample_car_mesh.faces.shape
+
+    def test_rejects_tiny_target(self, sample_car_mesh: MeshData) -> None:
+        with pytest.raises(ValueError, match="at least 4"):
+            decimate_vertex_clustering(sample_car_mesh, target_faces=3)
+
+    def test_remove_unreferenced_vertices(self) -> None:
+        mesh = MeshData(
+            vertices=np.array([[9, 9, 9], [0, 0, 0], [1, 0, 0], [0, 1, 0]], dtype=np.float64),
+            faces=np.array([[1, 2, 3]], dtype=np.int32),
+        )
+        result = remove_unreferenced_vertices(mesh)
+        assert result.vertices.shape == (3, 3)
+        assert result.faces.tolist() == [[0, 1, 2]]
+
+
+class TestOctantDivideIndices:
+    """Tests for :func:`octant_divide_indices`."""
+
+    def test_eight_non_empty_pieces_cover_all_faces(self, sample_car_mesh: MeshData) -> None:
+        groups = octant_divide_indices(sample_car_mesh)
+        assert len(groups) == 8
+        validate_divide_pieces(groups, sample_car_mesh.faces, "octants")
+        assert sum(divide_piece_face_counts(groups, sample_car_mesh.faces)) >= sample_car_mesh.faces.shape[0]
 
 
 class TestReadMesh:

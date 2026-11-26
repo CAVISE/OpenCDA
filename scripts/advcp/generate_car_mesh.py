@@ -12,7 +12,7 @@ The mesh can be constructed in two ways:
    user-supplied ``--dimensions``). No CARLA geometry is queried, so this
    approximates only the vehicle's size, not its shape; unknown blueprints
    are rejected unless ``--dimensions`` is given.
-2. **From an external mesh file** — a ``.ply`` or ``.obj`` file is loaded,
+2. **From an external mesh file** — a ``.ply``, ``.obj`` or ``.off`` file is loaded,
    normalised to a bottom-centre frame, and scaled to the target dimensions.
 
 Usage examples
@@ -68,7 +68,7 @@ def _build_parser() -> argparse.ArgumentParser:
         default="vehicle.tesla.model3",
         help="CARLA blueprint id whose approximate dimensions size the generic box (ignored with --dimensions).",
     )
-    parser.add_argument("--mesh-input", type=Path, default=None, help="Optional external .ply/.obj mesh input.")
+    parser.add_argument("--mesh-input", type=Path, default=None, help="Optional external .ply/.obj/.off mesh input.")
     parser.add_argument(
         "--dimensions",
         type=float,

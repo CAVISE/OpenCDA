@@ -495,6 +495,47 @@ def generate_divide_indices(vertices: npt.NDArray[np.float64], mode: str) -> lis
     return normalized_groups
 
 
+def octant_divide_indices(mesh: MeshData) -> list[npt.NDArray[np.int32]]:
+    """Partition a mesh into 8 bounding-box octants by face centroid.
+
+    Unlike the ``spoof`` rule of :func:`generate_divide_indices`, which
+    selects thin slabs at the bounding-box faces and suits box-like
+    meshes, this partition covers every triangle of an arbitrary
+    (e.g. CAD) vehicle mesh: each face is assigned to the octant
+    (front/back x left/right x top/bottom) containing its centroid, and
+    a group holds the vertices of its faces. Vertices on octant seams
+    belong to several groups, so no triangle is lost when the runtime
+    cuts the mesh into pieces with ``select_by_index``.
+
+    Parameters
+    ----------
+    mesh : MeshData
+        Mesh to partition.
+
+    Returns
+    -------
+    list of ndarray of int32
+        8 vertex-index groups, ordered by (x >= mid, y >= mid, z >= mid)
+        bits; an empty octant falls back to all vertex indices.
+    """
+    vertices = np.asarray(mesh.vertices, dtype=np.float64)
+    faces = np.asarray(mesh.faces, dtype=np.int64)
+    mids = (vertices.min(axis=0) + vertices.max(axis=0)) / 2.0
+    centroids = vertices[faces].mean(axis=1)
+    octant = (
+        (centroids[:, 0] >= mids[0]).astype(np.int64) * 4
+        + (centroids[:, 1] >= mids[1]).astype(np.int64) * 2
+        + (centroids[:, 2] >= mids[2]).astype(np.int64)
+    )
+    groups: list[npt.NDArray[np.int32]] = []
+    for index in range(8):
+        members = np.unique(faces[octant == index].reshape(-1))
+        if members.size == 0:
+            members = np.arange(vertices.shape[0])
+        groups.append(members.astype(np.int32))
+    return groups
+
+
 def dump_divide_pickle(indices: list[npt.NDArray[np.int32]], output_path: Path) -> None:
     """Serialize a list of vertex-index groups to a pickle file.
 
@@ -667,14 +708,14 @@ def write_ascii_ply(mesh: MeshData, output_path: Path) -> None:
 
 
 def read_mesh(path: Path) -> MeshData:
-    """Read a mesh from a PLY or OBJ file.
+    """Read a mesh from a PLY, OBJ or OFF file.
 
     The format is inferred from the file extension.
 
     Parameters
     ----------
     path : Path
-        Source file path (``.ply`` or ``.obj``).
+        Source file path (``.ply``, ``.obj`` or ``.off``).
 
     Returns
     -------
@@ -684,14 +725,164 @@ def read_mesh(path: Path) -> MeshData:
     Raises
     ------
     ValueError
-        If the file extension is not ``.ply`` or ``.obj``.
+        If the file extension is not ``.ply``, ``.obj`` or ``.off``.
     """
     suffix = path.suffix.lower()
     if suffix == ".ply":
         return read_ply(path)
     if suffix == ".obj":
         return read_obj(path)
-    raise ValueError(f"Unsupported mesh format '{suffix}'. Expected .ply or .obj.")
+    if suffix == ".off":
+        return read_off(path)
+    raise ValueError(f"Unsupported mesh format '{suffix}'. Expected .ply, .obj or .off.")
+
+
+def read_off(path: Path) -> MeshData:
+    """Read an ASCII Object File Format (OFF) mesh into a MeshData.
+
+    Handles the malformed header found in part of ModelNet, where the
+    counts follow the keyword on the same line (``OFF490 518 0``).
+    Comment lines (``#``) are skipped and polygonal faces with more than
+    3 vertices are fan-triangulated.
+
+    Parameters
+    ----------
+    path : Path
+        Source ``.off`` path.
+
+    Returns
+    -------
+    MeshData
+        Parsed mesh.
+
+    Raises
+    ------
+    ValueError
+        If the header is not an OFF header or the mesh fails validation.
+    """
+    with path.open("r", encoding="utf-8") as handle:
+        lines = (line.split("#", 1)[0].strip() for line in handle)
+        lines = (line for line in lines if line)
+        header = next(lines, "")
+        if not header.startswith("OFF"):
+            raise ValueError(f"OFF mesh '{path}' has an invalid header '{header[:20]}'.")
+        counts = header[3:].split() or next(lines, "").split()
+        vertex_count, face_count = int(counts[0]), int(counts[1])
+        # ``range`` goes first in ``zip`` so no extra line is consumed
+        # from ``lines`` once the count is reached.
+        vertices = np.asarray(
+            [line.split()[:3] for _, line in zip(range(vertex_count), lines)], dtype=np.float64
+        ).reshape(-1, 3)
+        faces: list[tuple[int, int, int]] = []
+        for _, line in zip(range(face_count), lines):
+            tokens = line.split()
+            polygon = [int(token) for token in tokens[1 : 1 + int(tokens[0])]]
+            for idx in range(1, len(polygon) - 1):
+                faces.append((polygon[0], polygon[idx], polygon[idx + 1]))
+    mesh = MeshData(vertices=vertices, faces=np.asarray(faces, dtype=np.int32).reshape(-1, 3))
+    validate_mesh(mesh, f"OFF mesh '{path}'")
+    return mesh
+
+
+def remove_unreferenced_vertices(mesh: MeshData) -> MeshData:
+    """Drop vertices no face refers to and re-index the faces.
+
+    Parameters
+    ----------
+    mesh : MeshData
+        Input mesh.
+
+    Returns
+    -------
+    MeshData
+        Mesh whose vertices are all referenced by at least one face.
+    """
+    faces = np.asarray(mesh.faces, dtype=np.int64)
+    used, inverse = np.unique(faces.reshape(-1), return_inverse=True)
+    vertices = np.asarray(mesh.vertices, dtype=np.float64)[used]
+    return MeshData(vertices=vertices, faces=inverse.reshape(-1, 3).astype(np.int32))
+
+
+def _cluster_vertices(mesh: MeshData, cell_size: float) -> MeshData:
+    """Merge all vertices that fall into the same cubic grid cell.
+
+    Each cluster is replaced by the mean of its vertices; faces that
+    collapse (two or more corners in one cell) and duplicate faces are
+    removed.
+
+    Parameters
+    ----------
+    mesh : MeshData
+        Input mesh.
+    cell_size : float
+        Edge length of the clustering grid, in mesh units.
+
+    Returns
+    -------
+    MeshData
+        Simplified mesh (unreferenced vertices removed).
+    """
+    vertices = np.asarray(mesh.vertices, dtype=np.float64)
+    cells = np.floor((vertices - vertices.min(axis=0)) / cell_size).astype(np.int64)
+    _, cluster_of_vertex = np.unique(cells, axis=0, return_inverse=True)
+    cluster_of_vertex = cluster_of_vertex.reshape(-1)
+    cluster_count = int(cluster_of_vertex.max()) + 1
+    sums = np.zeros((cluster_count, 3), dtype=np.float64)
+    np.add.at(sums, cluster_of_vertex, vertices)
+    cluster_vertices = sums / np.bincount(cluster_of_vertex, minlength=cluster_count)[:, None]
+
+    faces = cluster_of_vertex[np.asarray(mesh.faces, dtype=np.int64)]
+    keep = (faces[:, 0] != faces[:, 1]) & (faces[:, 1] != faces[:, 2]) & (faces[:, 0] != faces[:, 2])
+    faces = faces[keep]
+    _, unique_rows = np.unique(np.sort(faces, axis=1), axis=0, return_index=True)
+    faces = faces[np.sort(unique_rows)]
+    return remove_unreferenced_vertices(MeshData(vertices=cluster_vertices, faces=faces.astype(np.int32)))
+
+
+def decimate_vertex_clustering(mesh: MeshData, target_faces: int, iterations: int = 20) -> MeshData:
+    """Simplify a mesh to roughly *target_faces* triangles.
+
+    Uses uniform vertex clustering and binary-searches the grid cell size
+    so that the result has the largest face count not exceeding
+    *target_faces*. Meshes already at or below the target are returned
+    with only unreferenced vertices removed.
+
+    Parameters
+    ----------
+    mesh : MeshData
+        Input mesh.
+    target_faces : int
+        Upper bound for the number of triangles in the result.
+    iterations : int, optional
+        Number of binary-search steps over the cell size. Defaults to 20.
+
+    Returns
+    -------
+    MeshData
+        Simplified mesh.
+
+    Raises
+    ------
+    ValueError
+        If *target_faces* is smaller than 4.
+    """
+    if target_faces < 4:
+        raise ValueError(f"target_faces must be at least 4, got {target_faces}.")
+    mesh = remove_unreferenced_vertices(mesh)
+    if mesh.faces.shape[0] <= target_faces:
+        return mesh
+    extent = float(np.max(mesh.vertices.max(axis=0) - mesh.vertices.min(axis=0)))
+    low, high = extent * 1e-4, extent / 4.0
+    best = _cluster_vertices(mesh, high)
+    for _ in range(iterations):
+        cell = (low + high) / 2.0
+        candidate = _cluster_vertices(mesh, cell)
+        if candidate.faces.shape[0] > target_faces:
+            low = cell
+        else:
+            high = cell
+            best = candidate
+    return best
 
 
 def read_obj(path: Path) -> MeshData:
