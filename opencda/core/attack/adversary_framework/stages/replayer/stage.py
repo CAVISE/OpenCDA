@@ -20,6 +20,7 @@ logger = logging.getLogger("cavise.opencda.opencda.core.attack.adversary_framewo
 class ReplayerStage:
     """Replay the previous outputs produced by the configured capability handlers."""
 
+    persistent_effect = True
     stage_name = "replayer"
     supported_capabilities = (
         Capability.REQUEST_OBSERVE,
