@@ -1,12 +1,12 @@
-"""AIM server behavior service implementation."""
+"""Movement-command selection and execution behavior service."""
 
 from __future__ import annotations
 
 import weakref
 import logging
-from typing import Any, Sequence, TYPE_CHECKING
+from typing import Any, Sequence, TYPE_CHECKING, cast
 
-from opencda.core.application.behavior.capability import CapabilityBindings
+from opencda.core.application.behavior.capability import Capability, CapabilityBindings
 from opencda.core.application.behavior.registry import BehaviorServiceRegistry
 from opencda.core.application.behavior.transport_message import TransportMessage, BROADCAST_SERVICE_TYPE
 from opencda.core.application.behavior.types import Location
@@ -24,14 +24,16 @@ logger = logging.getLogger("cavise.opencda.opencda.core.application.behavior.ser
 
 @BehaviorServiceRegistry.register
 class MovementController:
-    """Behavior service that runs AIM predictions for a batch of CAV requests."""
+    """Apply the last accepted movement command after capability interception."""
 
     service_type = "movement_controller"
     priority = 100
 
     @property
     def capability_bindings(self) -> CapabilityBindings:
-        return {}
+        return {
+            Capability.COMMAND_OBSERVE: self._filter_messages,
+        }
 
     def __init__(self, priority: int = 100) -> None:
         """
@@ -71,9 +73,14 @@ class MovementController:
 
     def _filter_messages(
         self, messages: Sequence[TransportMessage[MovementControllerRequestMessage | SelfInformerResponse]]
-    ) -> list[MovementControllerRequestMessage]:
+    ) -> tuple[TransportMessage[MovementControllerRequestMessage], ...]:
+        """Return accepted complete messages in input order before selection and control.
+
+        Interceptors may rewrite, suppress, or replay this batch. An empty batch
+        results in no new control call.
+        """
         owner = self._get_owner()
-        valid_messages = []
+        valid_messages: list[TransportMessage[MovementControllerRequestMessage]] = []
         for message in messages:
             if (
                 message.dst_owner_id == owner.id
@@ -81,8 +88,8 @@ class MovementController:
                 and message.dst_service_type in (self.service_type, BROADCAST_SERVICE_TYPE)
                 and isinstance(message.payload, MovementControllerRequestMessage)
             ):
-                valid_messages.append(message.payload)
-        return valid_messages
+                valid_messages.append(cast(TransportMessage[MovementControllerRequestMessage], message))
+        return tuple(valid_messages)
 
     def process(
         self, messages: Sequence[TransportMessage[MovementControllerRequestMessage | SelfInformerResponse]]
@@ -93,7 +100,7 @@ class MovementController:
 
         if len(valid_messages) > 0:
             # TODO: think what to do if multiple messages with different target positions are received - for now we just take the last one
-            request = valid_messages[-1]
+            request = valid_messages[-1].payload
             self._target_location = request.target_location
             owner.agent.control(target_speed=request.target_speed, target_location=request.target_location)
         return ()

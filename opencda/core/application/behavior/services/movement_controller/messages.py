@@ -1,4 +1,4 @@
-"""Input dataclasses for the AIM server behavior service."""
+"""Movement-command payload contract shared by command-producing services."""
 
 from __future__ import annotations
 from dataclasses import dataclass

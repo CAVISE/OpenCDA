@@ -39,6 +39,7 @@ class SpooferStage:
     supported_capabilities = (
         Capability.REQUEST_SUBMIT,
         Capability.RESPONSE_SUBMIT,
+        Capability.COMMAND_OBSERVE,
         Capability.COMMAND_SUBMIT,
     )
     default_capabilities = (Capability.REQUEST_SUBMIT,)
