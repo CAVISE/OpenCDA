@@ -619,6 +619,14 @@ class Scenario:
                 if first_exception is None:
                     first_exception = exc
 
+        for attack in getattr(self, "attacks", ()):
+            try:
+                attack.mark_stopped()
+            except Exception as exc:
+                logger.exception("Failed to stop attack '%s'.", attack.attack_name)
+                if first_exception is None:
+                    first_exception = exc
+
         logger.info("finalizing: destroying %d single cavs", len(self.single_cav_list or ()))
         for manager in self.single_cav_list or ():
             destroy(manager, f"single CAV {manager.id}")

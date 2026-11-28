@@ -34,6 +34,7 @@ class RewriteRule:
 class SpooferStage:
     """Rewrite configured fields on TransportMessage envelopes and payloads."""
 
+    persistent_effect = True
     stage_name = "spoofer"
     supported_capabilities = (
         Capability.REQUEST_SUBMIT,
