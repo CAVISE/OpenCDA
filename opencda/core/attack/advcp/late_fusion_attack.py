@@ -13,8 +13,7 @@ detection list is rewritten before reaching the ego-side NMS:
 
 - Spoofing appends fake detections (with score 1.0) at the configured
   target boxes.
-- Removal filters out any of the attacker's detections that overlap
-  the target boxes by IoU above ``REMOVAL_IOU_THRESHOLD``.
+- Removal filters detections by BEV center containment.
 
 Multiple attackers are handled by iterating over the per-CAV loop and
 applying the corresponding rewrite to each attacker's detection list.
@@ -43,15 +42,7 @@ class AdvCoperceptionLateFusionAttack:
     Late-fusion AdvCP attack runner.
 
     All methods are class / static; instantiation is unnecessary.
-
-    Attributes
-    ----------
-    REMOVAL_IOU_THRESHOLD : float
-        IoU threshold above which an attacker's detection is considered
-        to overlap a removal target box and is dropped.
     """
-
-    REMOVAL_IOU_THRESHOLD = 0.1
 
     @staticmethod
     def run(
@@ -238,12 +229,6 @@ class AdvCoperceptionLateFusionAttack:
                         scores = torch.hstack([scores, injected_scores])
                         is_fake = torch.hstack([is_fake, injected_is_fake])
                     case "removal":
-                        # Late removal means "the attacker withholds
-                        # detections matching the configured target".
-                        # Current semantics are IoU-based: proposals
-                        # overlapping a removal target above the
-                        # threshold are dropped from this attacker's
-                        # local detection list.
                         keep_mask = AdvCoperceptionLateFusionAttack._compute_removal_keep_mask(
                             boxes3d,
                             target_box_tensors,
@@ -291,7 +276,7 @@ class AdvCoperceptionLateFusionAttack:
                 # is a successful attack, not an error: return empty
                 # tensors so the metrics layer can still consume the
                 # tick.
-                gt_box_tensor = dataset.post_processor.generate_gt_bbx(batch_data)
+                gt_box_tensor = dataset.post_processor.generate_gt_bbx({"ego": batch_data["ego"]})
                 empty_corners = torch.zeros((0, 8, 3), dtype=torch.float32, device=device)
                 empty_score = torch.zeros((0,), dtype=torch.float32, device=device)
                 return empty_corners, empty_score, gt_box_tensor, advcp_context
@@ -331,7 +316,7 @@ class AdvCoperceptionLateFusionAttack:
         pred_box3d_tensor = pred_box3d_tensor[mask, :, :]
         pred_score = scores[mask]
         pred_is_fake_tensor = pred_is_fake_tensor[mask]
-        gt_box_tensor = dataset.post_processor.generate_gt_bbx(batch_data)
+        gt_box_tensor = dataset.post_processor.generate_gt_bbx({"ego": batch_data["ego"]})
 
         if mode == "spoofing" and torch.any(pred_is_fake_tensor):
             advcp_context.fake_box_tensor = pred_box3d_tensor[pred_is_fake_tensor]  # noqa: DC05
@@ -343,15 +328,9 @@ class AdvCoperceptionLateFusionAttack:
         boxes3d: torch.Tensor,
         target_boxes: torch.Tensor,
         dataset: Any,
-        iou_threshold: float = REMOVAL_IOU_THRESHOLD,
     ) -> torch.Tensor:
         """
-        Keep-mask for the removal mode: drop proposals overlapping the
-        target boxes.
-
-        Reuses the shared oriented-box IoU helpers from
-        ``AdvCPAttackHelper`` so late and intermediate attacks use the
-        same box-order conversion and BEV IoU implementation.
+        Keep proposals whose BEV centers are outside all removal regions.
 
         Parameters
         ----------
@@ -361,9 +340,6 @@ class AdvCoperceptionLateFusionAttack:
             ``(M, 7)`` target boxes in the same order.
         dataset : Any
             OpenCOOD dataset (provides the ``order`` parameter).
-        iou_threshold : float, optional
-            Overlap threshold above which a proposal is dropped.
-            Defaults to ``REMOVAL_IOU_THRESHOLD``.
 
         Returns
         -------
@@ -377,12 +353,26 @@ class AdvCoperceptionLateFusionAttack:
         boxes_lwh = AdvCPAttackHelper.model_boxes_to_lwh(boxes3d, dataset)
         targets_lwh = AdvCPAttackHelper.model_boxes_to_lwh(target_boxes, dataset)
 
-        # AND the keep mask across every target so that overlap with
-        # any single target removes the proposal.
         keep_mask = torch.ones((boxes3d.shape[0],), dtype=torch.bool, device=boxes3d.device)
         for target_lwh in targets_lwh:
-            ious = AdvCPAttackHelper.compute_iou_weights(boxes_lwh, target_lwh)
-            keep_mask = keep_mask & (ious < iou_threshold)
+            delta = boxes_lwh[:, :2] - target_lwh[:2]
+            yaw = target_lwh[6]
+
+            local_x = torch.cos(yaw) * delta[:, 0] + torch.sin(yaw) * delta[:, 1]
+            local_y = -torch.sin(yaw) * delta[:, 0] + torch.cos(yaw) * delta[:, 1]
+
+            half_length = target_lwh[3] / 2
+            half_width = target_lwh[4] / 2
+
+            scale = max(1.0, abs(float(target_lwh[0])), abs(float(target_lwh[1])),
+                        float(half_length), float(half_width))
+            tolerance = 2 * 2**-23 * scale
+
+            inside = (
+                (abs(local_x) <= half_length + tolerance)
+                & (abs(local_y) <= half_width + tolerance)
+            )
+            keep_mask = keep_mask & ~inside
         return keep_mask
 
     @staticmethod
@@ -415,5 +405,5 @@ class AdvCoperceptionLateFusionAttack:
         AdvCPAttackResult
         """
         pred_box_tensor, pred_score = dataset.post_processor.post_process(batch_data, output_dict)
-        gt_box_tensor = dataset.post_processor.generate_gt_bbx(batch_data)
+        gt_box_tensor = dataset.post_processor.generate_gt_bbx({"ego": batch_data["ego"]})
         return pred_box_tensor, pred_score, gt_box_tensor, advcp_context
