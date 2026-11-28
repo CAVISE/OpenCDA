@@ -33,7 +33,7 @@ class DummyPolygon:
     def centroid(self):
         return self
 
-    def contains(self, _):
+    def covers(self, _):
         return True
 
 

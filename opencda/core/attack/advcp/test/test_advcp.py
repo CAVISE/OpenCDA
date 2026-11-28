@@ -1129,3 +1129,13 @@ class TestLateRemovalRegion:
 
     def test_no_centers_returns_empty(self):
         assert self._inside([], [0.0, 0.0, 0.0, 4.0, 4.0, 2.0, 0.0]) == []
+
+    def test_rotated_region_boundary_with_offset(self):
+        x, y = 120.0, 149.792206
+        yaw = math.pi / 4
+        region = [x, y, 0.0, 10.0, 4.0, 2.0, yaw]
+        centers = [
+            [x + 5.0 * math.cos(yaw), y + 5.0 * math.sin(yaw)],
+            [x + 5.001 * math.cos(yaw), y + 5.001 * math.sin(yaw)],
+        ]
+        assert self._inside(centers, region) == [True, False]

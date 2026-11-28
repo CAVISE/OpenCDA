@@ -35,7 +35,7 @@ def _find_gt_in_removal_zone(
     for i, gt_poly in enumerate(gt_polygons):
         centroid = gt_poly.centroid
         for removal_poly in removal_polygons:
-            if removal_poly.contains(centroid):
+            if removal_poly.covers(centroid):
                 indices.append(i)
                 break
     return indices

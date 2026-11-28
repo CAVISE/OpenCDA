@@ -411,7 +411,10 @@ class AdvCoperceptionLateFusionAttack:
         local_y = -sin_yaw * delta[:, 0] + cos_yaw * delta[:, 1]
         half_length = float(region_lwh[3]) / 2
         half_width = float(region_lwh[4]) / 2
-        return (abs(local_x) <= half_length) & (abs(local_y) <= half_width)
+        # Allow for float32 rounding when translating and rotating centers.
+        scale = max(1.0, abs(float(region_lwh[0])), abs(float(region_lwh[1])), half_length, half_width)
+        tolerance = 2 * 2**-23 * scale
+        return (abs(local_x) <= half_length + tolerance) & (abs(local_y) <= half_width + tolerance)
 
     @staticmethod
     def _run_default_prediction(
