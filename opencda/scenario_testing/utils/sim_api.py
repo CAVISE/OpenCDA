@@ -707,7 +707,7 @@ class ScenarioManager:
                     raise ValueError(f"CAV {agent_manager.id} requires 'destination' unless carla_autopilot is enabled.")
                 destination_config = spawn_spec.config["destination"]
                 destination = carla.Location(x=destination_config[0], y=destination_config[1], z=destination_config[2])
-                agent_manager.agent.set_destination(agent_manager.agent.vehicle.get_location(), destination, clean=True)
+                agent_manager.agent.set_destination(spawn_spec.transform.location, destination, clean=True)
 
             single_cav_list.append(agent_manager)
             logger.info(f"Created CAV with id {agent_manager.id}")
