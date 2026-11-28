@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1
+
 ARG CUDA_VERSION=13.0.3
 ARG CUDA_DEVEL_DIGEST=sha256:b7ae301dea2c162444795462ce17a05f6a516e5a75944b57af5b88540a1a2266
 ARG CUDA_RUNTIME_DIGEST=sha256:14f6d08d1cd4a96effbfe3101d0b56326f552c199d05e4979ee0bd616df5811b
@@ -25,6 +27,8 @@ RUN apt-get update && \
         libxext6=2:1.3.* \
         libxrender1=1:0.9.* \
         libvulkan1=1.3.* \
+        libegl1=1.7.* \
+        libusb-1.0-0=2:1.0.* \
         libgl1=1.7.* \
         mesa-vulkan-drivers=25.2.* \
         libjpeg-turbo8=2.1.* \
@@ -49,6 +53,9 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends python3-venv=3.12.* && \
     rm -rf /var/lib/apt/lists/*
 
+# hadolint ignore=DL3022
+COPY --from=carla-server /workspace/PythonAPI/carla/dist/*cp312*x86_64.whl /tmp/carla-api/
+
 COPY opencda/requirements.txt opencda/requirements-cuda.txt /tmp/opencda-requirements/
 COPY opencda/api/requirements.txt /tmp/opencda-requirements/api/
 
@@ -59,6 +66,7 @@ RUN python3 -m venv /opt/venv && \
         wheel==0.48.0 \
     && \
     /opt/venv/bin/python -m pip install --no-cache-dir \
+        /tmp/carla-api/*.whl \
         -r /tmp/opencda-requirements/requirements.txt -r /tmp/opencda-requirements/api/requirements.txt
 
 
@@ -66,7 +74,8 @@ FROM python-opencda-dependencies AS python-opencood-dependencies
 
 COPY opencood/requirements.txt /tmp/opencood-requirements/requirements.txt
 
-RUN /opt/venv/bin/python -m pip install --no-cache-dir \
+RUN sed -i '/^carla==/d' /tmp/opencood-requirements/requirements.txt && \
+    /opt/venv/bin/python -m pip install --no-cache-dir \
         -r /tmp/opencood-requirements/requirements.txt
 
 
@@ -212,6 +221,7 @@ COPY opencood/docker/sync-cuda-artifacts.sh \
     /usr/local/bin/opencood-sync-cuda-artifacts
 
 RUN chmod 755 /usr/local/bin/opencood-sync-cuda-artifacts && \
+    sed -i '/^carla==/d' "${OPENCOOD_WORKSPACE}/requirements.txt" && \
     python -m pip install --no-cache-dir --no-build-isolation --no-deps \
         --editable "${OPENCOOD_WORKSPACE}"
 

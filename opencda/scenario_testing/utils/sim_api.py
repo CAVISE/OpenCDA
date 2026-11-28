@@ -32,6 +32,7 @@ from opencda.core.common.world_frame import WorldFrame, WorldFrameBuilder
 from opencda.core.sensing.sensor_factory import build_sensor_actor_bundles, prepare_sensor_spawn_specs
 from opencda.core.sensing.perception.perception_manager import PerceptionRequirements
 from opencda.core.sensing.sensor_types import AgentSensorContext, SensorActorBundle, SensorSpawnSpec
+from opencda.scenario_testing.utils.carla_maps import resolve_carla_map
 from opencda.scenario_testing.utils.customized_map_api import load_customized_world, bcolors
 
 logger = logging.getLogger("cavise.opencda.opencda.scenario_testing.utils.sim_api")
@@ -68,6 +69,23 @@ def _chunked[T](items: Sequence[T], chunk_size: int) -> list[Sequence[T]]:
     return [items[start : start + chunk_size] for start in range(0, len(items), chunk_size)]
 
 
+def _find_available_blueprints(model_ids: Sequence[str], blueprint_library: Any, aliases: Mapping[str, str] | None = None) -> list[Any]:
+    blueprints = []
+    for model_id in model_ids:
+        try:
+            blueprint = blueprint_library.find(model_id)
+        except IndexError:
+            alias = aliases.get(model_id) if aliases else None
+            if alias is None:
+                continue
+            try:
+                blueprint = blueprint_library.find(alias)
+            except IndexError:
+                continue
+        blueprints.append(blueprint)
+    return blueprints
+
+
 def car_blueprint_filter(blueprint_library: Any) -> list[Any]:
     """
     Exclude the uncommon vehicles from the default CARLA blueprint library
@@ -84,28 +102,43 @@ def car_blueprint_filter(blueprint_library: Any) -> list[Any]:
         The list of suitable blueprints for vehicles.
     """
 
-    blueprints = [
-        blueprint_library.find("vehicle.audi.a2"),
-        blueprint_library.find("vehicle.audi.tt"),
-        blueprint_library.find("vehicle.ford.ambulance"),
-        blueprint_library.find("vehicle.ford.crown"),
-        blueprint_library.find("vehicle.mini.cooper_s_2021"),
-        blueprint_library.find("vehicle.nissan.micra"),
-        blueprint_library.find("vehicle.nissan.patrol"),
-        blueprint_library.find("vehicle.nissan.patrol_2021"),
-        blueprint_library.find("vehicle.tesla.cybertruck"),
-        blueprint_library.find("vehicle.volkswagen.t2"),
-        blueprint_library.find("vehicle.volkswagen.t2_2021"),
-        blueprint_library.find("vehicle.micro.microlino"),
-        blueprint_library.find("vehicle.dodge.charger_police"),
-        blueprint_library.find("vehicle.dodge.charger_police_2020"),
-        blueprint_library.find("vehicle.dodge.charger_2020"),
-        blueprint_library.find("vehicle.lincoln.mkz_2020"),
-        blueprint_library.find("vehicle.seat.leon"),
-        blueprint_library.find("vehicle.nissan.patrol"),
-        blueprint_library.find("vehicle.nissan.micra"),
-    ]
-
+    model_ids = (
+        "vehicle.audi.a2",
+        "vehicle.audi.tt",
+        "vehicle.ford.ambulance",
+        "vehicle.ford.crown",
+        "vehicle.mini.cooper_s_2021",
+        "vehicle.nissan.micra",
+        "vehicle.nissan.patrol",
+        "vehicle.nissan.patrol_2021",
+        "vehicle.tesla.cybertruck",
+        "vehicle.volkswagen.t2",
+        "vehicle.volkswagen.t2_2021",
+        "vehicle.micro.microlino",
+        "vehicle.dodge.charger_police",
+        "vehicle.dodge.charger_police_2020",
+        "vehicle.dodge.charger_2020",
+        "vehicle.lincoln.mkz_2020",
+        "vehicle.seat.leon",
+        "vehicle.nissan.patrol",
+        "vehicle.nissan.micra",
+    )
+    aliases = {
+        "vehicle.audi.tt": "vehicle.ue4.audi.tt",
+        "vehicle.ford.ambulance": "vehicle.ambulance.ford",
+        "vehicle.ford.crown": "vehicle.ue4.ford.crown",
+        "vehicle.mini.cooper_s_2021": "vehicle.mini.cooper",
+        "vehicle.nissan.patrol_2021": "vehicle.nissan.patrol",
+        "vehicle.dodge.charger_police": "vehicle.dodgecop.charger",
+        "vehicle.dodge.charger_police_2020": "vehicle.dodgecop.charger",
+        "vehicle.dodge.charger_2020": "vehicle.dodge.charger",
+        "vehicle.lincoln.mkz_2020": "vehicle.lincoln.mkz",
+    }
+    blueprints = _find_available_blueprints(model_ids, blueprint_library, aliases)
+    if not blueprints:
+        raise RuntimeError(
+            "None of the preferred traffic vehicle blueprints is available. Configure supported vehicle models for this CARLA release."
+        )
     return blueprints
 
 
@@ -130,7 +163,7 @@ def multi_class_vehicle_blueprint_filter(label: str, blueprint_library: Any, bp_
         List of blueprints that have the class equals the specified label.
 
     """
-    blueprints = [blueprint_library.find(k) for k, v in bp_meta.items() if v["class"] == label]
+    blueprints = _find_available_blueprints([key for key, value in bp_meta.items() if value["class"] == label], blueprint_library)
     return blueprints
 
 
@@ -209,7 +242,7 @@ class ScenarioManager:
                 try:
                     self.client = carla.Client(carla_host, simulation_config["client_port"])
                     self.client.set_timeout(carla_timeout)
-                    world = self.client.load_world(town)
+                    world = self.client.load_world(resolve_carla_map(town, self.client.get_available_maps()))
                     break
                 except RuntimeError as error:
                     if i < iterations_amount:
@@ -539,9 +572,15 @@ class ScenarioManager:
         blueprint_library: Any | None = None,
     ) -> carla.ActorBlueprint:
         """Resolve and configure a CARLA blueprint without spawning an actor."""
-        model = config.get("model", fallback_model)
         library = blueprint_library if blueprint_library is not None else self.world.get_blueprint_library()
-        actor_blueprint = library.find(model)
+        model = config.get("model", fallback_model)
+        try:
+            actor_blueprint = library.find(model)
+        except IndexError:
+            if "model" in config or model not in {"vehicle.lincoln.mkz_2017", "vehicle.lincoln.mkz_2020"}:
+                raise
+            actor_blueprint = library.find("vehicle.lincoln.mkz")
+            logger.warning("Default actor blueprint %s is unavailable; using installed blueprint vehicle.lincoln.mkz.", model)
 
         color = config.get("color")
         if color is not None:
@@ -984,16 +1023,19 @@ class ScenarioManager:
         """
 
         blueprint_library = self.world.get_blueprint_library()
-        if not self.use_multi_class_bp:
-            ego_vehicle_random_list = car_blueprint_filter(blueprint_library)
-        else:
-            label_list = list(self.bp_class_sample_prob.keys())
-            prob = [self.bp_class_sample_prob[itm] for itm in label_list]
+        if traffic_config["random"]:
+            if not self.use_multi_class_bp:
+                ego_vehicle_random_list = car_blueprint_filter(blueprint_library)
+            else:
+                label_list = list(self.bp_class_sample_prob.keys())
+                prob = [self.bp_class_sample_prob[itm] for itm in label_list]
+                total_probability = sum(prob)
+                prob = [weight / total_probability for weight in prob]
 
-        # if not random select, we always choose lincoln.mkz with green color
         color = "0, 255, 0"
         default_model = "vehicle.lincoln.mkz_2020"
-        ego_vehicle_bp = blueprint_library.find(default_model)
+        if not traffic_config["random"]:
+            ego_vehicle_bp = self.prepare_actor_blueprint({}, default_model, blueprint_library)
 
         for i, vehicle_config in enumerate(traffic_config["vehicle_list"]):
             vehicle_config = cast(ConfigDict, vehicle_config)
@@ -1051,16 +1093,19 @@ class ScenarioManager:
             Update traffic list.
         """
         blueprint_library = self.world.get_blueprint_library()
-        if not self.use_multi_class_bp:
-            ego_vehicle_random_list = car_blueprint_filter(blueprint_library)
-        else:
-            label_list = list(self.bp_class_sample_prob.keys())
-            prob = [self.bp_class_sample_prob[itm] for itm in label_list]
+        if traffic_config["random"]:
+            if not self.use_multi_class_bp:
+                ego_vehicle_random_list = car_blueprint_filter(blueprint_library)
+            else:
+                label_list = list(self.bp_class_sample_prob.keys())
+                prob = [self.bp_class_sample_prob[itm] for itm in label_list]
+                total_probability = sum(prob)
+                prob = [weight / total_probability for weight in prob]
 
-        # if not random select, we always choose lincoln.mkz with green color
         color = "0, 255, 0"
         default_model = "vehicle.lincoln.mkz_2020"
-        ego_vehicle_bp = blueprint_library.find(default_model)
+        if not traffic_config["random"]:
+            ego_vehicle_bp = self.prepare_actor_blueprint({}, default_model, blueprint_library)
 
         spawn_ranges = traffic_config["range"]
         spawn_set: set[tuple[float, float, float, float, float, float]] = set()

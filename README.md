@@ -387,3 +387,14 @@ while it finishes cleanup. Do not start another task until it exits.
 docker exec -it opencda bash
 python -m api
 ```
+
+## CARLA 1.0 image builds
+
+Build through the companion CAVISE workspace: Compose supplies the CARLA server
+image as the `carla-server` build context, and OpenCDA installs its bundled cp312
+wheel. For a direct build from the CAVISE root, pass
+`--build-context carla-server=docker-image://carla:1.0-default`.
+
+For a local Python environment, install the wheel from the same server release
+before installing `requirements.txt`. Classic towns such as `Town06` resolve to
+`Town06_Opt` when needed; these maps require the AdditionalMaps pack.

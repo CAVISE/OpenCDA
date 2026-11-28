@@ -352,9 +352,9 @@ class TrafficLightDector(object):
         # Advance the waypoints until the intersection
         wps = []
         for wpx in ini_wps:
-            while not wpx.is_intersection:
+            while not wpx.is_junction:
                 next_wp = wpx.next(0.5)[0]
-                if next_wp and not next_wp.is_intersection:
+                if next_wp and not next_wp.is_junction:
                     wpx = next_wp
                 else:
                     break

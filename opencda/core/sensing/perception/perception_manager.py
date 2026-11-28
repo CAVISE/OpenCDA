@@ -1010,9 +1010,9 @@ class PerceptionManager:
 
             if dot_ve_wp < 0:
                 continue
-            while not object_waypoint.is_intersection:
+            while not object_waypoint.is_junction:
                 next_waypoint = object_waypoint.next(0.5)[0]
-                if next_waypoint and not next_waypoint.is_intersection:
+                if next_waypoint and not next_waypoint.is_junction:
                     object_waypoint = next_waypoint
                 else:
                     break

@@ -10,6 +10,9 @@
       "guiShape": "moped",
       "vClass": "ignoring"
     },
+    "vehicle.ambulance.ford": {
+      "vClass": "emergency"
+    },
     "vehicle.audi.a2": {
       "vClass": "passenger"
     },
@@ -28,6 +31,9 @@
     "vehicle.bmw.isetta": {
       "vClass": "evehicle"
     },
+    "vehicle.carlacola.actors": {
+      "vClass": "truck"
+    },
     "vehicle.carlamotors.carlacola": {
       "guiShape": "truck",
       "vClass": "truck"
@@ -41,9 +47,22 @@
     "vehicle.diamondback.century": {
       "vClass": "bicycle"
     },
+    "vehicle.dodge.charger": {
+      "vClass": "passenger"
+    },
     "vehicle.dodge_charger.police": {
       "guiShape": "police",
       "vClass": "authority"
+    },
+    "vehicle.dodgecop.charger": {
+      "guiShape": "police",
+      "vClass": "authority"
+    },
+    "vehicle.firetruck.actors": {
+      "vClass": "emergency"
+    },
+    "vehicle.fuso.mitsubishi": {
+      "vClass": "bus"
     },
     "vehicle.gazelle.omafiets": {
       "vClass": "bicycle"
@@ -57,10 +76,19 @@
     "vehicle.kawasaki.ninja": {
       "vClass": "motorcycle"
     },
+    "vehicle.kia.niro": {
+      "vClass": "passenger"
+    },
+    "vehicle.lincoln.mkz": {
+      "vClass": "passenger"
+    },
     "vehicle.lincoln.mkz2017": {
       "vClass": "passenger"
     },
     "vehicle.mercedes-benz.coupe": {
+      "vClass": "passenger"
+    },
+    "vehicle.mini.cooper": {
       "vClass": "passenger"
     },
     "vehicle.mini.cooperst": {
@@ -78,6 +106,13 @@
     "vehicle.seat.leon": {
       "vClass": "passenger"
     },
+    "vehicle.sprinter.mercedes": {
+      "vClass": "passenger",
+      "guiShape": "passenger/van"
+    },
+    "vehicle.taxi.ford": {
+      "vClass": "taxi"
+    },
     "vehicle.tesla.cybertruck": {
       "vClass": "evehicle"
     },
@@ -86,6 +121,24 @@
     },
     "vehicle.toyota.prius": {
       "vClass": "evehicle"
+    },
+    "vehicle.ue4.audi.tt": {
+      "vClass": "passenger"
+    },
+    "vehicle.ue4.chevrolet.impala": {
+      "vClass": "passenger"
+    },
+    "vehicle.ue4.ford.crown": {
+      "vClass": "passenger"
+    },
+    "vehicle.ue4.ford.mustang": {
+      "vClass": "passenger"
+    },
+    "vehicle.ue4.mercedes.ccc": {
+      "vClass": "passenger"
+    },
+    "vehicle.vespa.zx125": {
+      "vClass": "motorcycle"
     },
     "vehicle.volkswagen.t2": {
       "guiShape": "passenger/van",

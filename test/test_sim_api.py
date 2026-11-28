@@ -1339,7 +1339,8 @@ def test_spawn_vehicles_by_list_random_selects_blueprint_and_sets_color(mocker):
     tm.auto_lane_change.assert_called_once_with(actor, False)
 
 
-def test_spawn_vehicles_by_list_random_multi_class_uses_label_sampling_and_filter(mocker):
+@pytest.mark.parametrize("weights", [{"sedan": 1.0}, {"sedan": 0.9}])
+def test_spawn_vehicles_by_list_random_multi_class_uses_label_sampling_and_filter(mocker, weights):
     """spawn_vehicles_by_list with random=True and use_multi_class_bp=True uses np.random.choice  multi_class_vehicle_blueprint_filter."""
     sm, world, _ = _make_scenario_manager(mocker, _minimal_scenario_params())
 
@@ -1349,7 +1350,7 @@ def test_spawn_vehicles_by_list_random_multi_class_uses_label_sampling_and_filte
 
     sm.use_multi_class_bp = True
     sm.bp_meta = {"vehicle.a": {"class": "sedan"}}
-    sm.bp_class_sample_prob = {"sedan": 1.0}
+    sm.bp_class_sample_prob = weights
 
     bp_random = _make_color_blueprint(recommended_colors=["7,7,7"])
     np_choice = mocker.patch("opencda.scenario_testing.utils.sim_api.np.random.choice", return_value="sedan")
