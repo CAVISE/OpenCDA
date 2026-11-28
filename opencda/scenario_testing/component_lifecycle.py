@@ -9,6 +9,8 @@ from typing import Literal, Self
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
+from api.state import retain_component
+
 logger = logging.getLogger(__name__)
 
 
@@ -50,6 +52,7 @@ class ManagedComponents:
         available = json.loads(status).get("state") in {"IDLE", "STOPPED", "FAILED"}
         if not available:
             raise RuntimeError(f"Component adapter is already occupied: {base}")
+        retain_component(base)
         self.started.append(base)
         query = "?" + urlencode(params) if params else ""
         adapter_request(f"{base}/v1/run{query}")

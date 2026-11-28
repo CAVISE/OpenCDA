@@ -1,120 +1,84 @@
-"""API lifecycle regression tests; no simulator installation is required."""
+"""Runner contract tests use private storage and fake execution, never simulators."""
 
 import asyncio
-import importlib.util
-import logging
-from collections.abc import Coroutine, Iterator
-from types import ModuleType
-from typing import Any
-from pathlib import Path
+import os
 from unittest.mock import AsyncMock, Mock
+from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
 
-
-@pytest.fixture
-def api(monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> ModuleType:
-    spec = importlib.util.spec_from_file_location("component_api", Path(__file__).resolve().parents[1] / "main.py")
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    caplog.set_level(logging.DEBUG, logger=module.logger.name)
-    if hasattr(module, "_group_exists"):
-        monkeypatch.setattr(module, "_group_exists", lambda pid: False)
-    return module
+from api import main
+from api.runner import Runner
+from api.state import Store, process_identity
 
 
 @pytest.fixture
-def client(api: ModuleType) -> Iterator[TestClient]:
-    yield TestClient(api.app)
+def client(tmp_path, monkeypatch):
+    """Serve a configured binding while replacing only outbound enrollment."""
+    monkeypatch.setenv("CAVISE_RUNNER_STATE_DIR", str(tmp_path))
+    monkeypatch.setenv("CAVISE_REGISTRATION_ID", str(uuid4()))
+    monkeypatch.setenv("CAVISE_REGISTRATION_TOKEN", "test-secret")
+    monkeypatch.setenv("CAVISE_MANAGER_URL", "http://manager")
+    monkeypatch.setenv("CAVISE_RUNNER_API_URL", "http://runner")
+    monkeypatch.setattr(Runner, "enroll", AsyncMock())
+    with TestClient(main.app, headers={"Authorization": "Bearer test-secret"}) as client:
+        yield client
 
 
-@pytest.fixture
-def process(api: ModuleType, monkeypatch: pytest.MonkeyPatch) -> Mock:
-    process = Mock(pid=12345, returncode=None)
-
-    async def wait() -> int:
-        process.returncode = 0
-        return 0
-
-    process.wait = AsyncMock(side_effect=wait)
-    monkeypatch.setattr(api, "process", process)
-    if hasattr(api, "os"):
-        monkeypatch.setattr(api.os, "killpg", process.send_signal)
-    return process
-
-
-def test_idle(client: TestClient) -> None:
-    assert client.get("/v1/status").json()["state"] == "IDLE"
-    assert client.post("/v1/stop").json()["state"] == "IDLE"
-
-
-def test_stop_and_repeat(api: ModuleType, client: TestClient, process: Mock, caplog: pytest.LogCaptureFixture) -> None:
-    assert client.post("/v1/stop").json() == {"state": "STOPPED", "pid": 12345, "returncode": 0}
-    assert api.process is None
-    assert client.post("/v1/stop").status_code == 200
-    assert process.send_signal.call_count == 1
-    assert "Process stopped" in caplog.text
+def test_snapshot_and_authentication(client):
+    """The snapshot matches Manager fields; credentials never authorize public reads implicitly."""
+    snapshot = client.get("/v1/status").json()
+    assert snapshot["occupancy"] == "idle" and snapshot["current_task"] is None
+    assert snapshot["registration_id"] != snapshot["runner_id"] != snapshot["instance_id"]
+    assert client.get("/v1/status").json() == snapshot
+    assert "test-secret" not in str(snapshot)
+    for method, path in [
+        ("GET", "/v1/status"),
+        ("GET", "/v1/tasks/a"),
+        ("POST", "/v1/run"),
+        ("POST", "/v1/stop"),
+        ("DELETE", "/v1/registration"),
+    ]:
+        response = client.request(method, path, headers={"Authorization": "Bearer wrong"})
+        assert response.status_code == 401
+        assert set(response.json()) == {"code", "message"}
+    assert client.get("/healthz", headers={"Authorization": ""}).json() == {"status": "ok"}
 
 
-def test_disappeared_process(api: ModuleType, client: TestClient, process: Mock, caplog: pytest.LogCaptureFixture) -> None:
-    process.send_signal.side_effect = ProcessLookupError()
-    assert client.post("/v1/stop").status_code == 200
-    assert api.process is None
-    assert "already exited" in caplog.text
-
-
-def test_signal_failure_can_retry(api: ModuleType, client: TestClient, process: Mock, caplog: pytest.LogCaptureFixture) -> None:
-    process.send_signal.side_effect = PermissionError("private detail")
-    response = client.post("/v1/stop")
-    assert response.status_code == 500
-    assert "private detail" not in response.text
-    assert api.process is process and not api.stop_requested
-    assert any(record.exc_info for record in caplog.records)
-    process.send_signal.side_effect = None
-    assert client.post("/v1/stop").status_code == 200
-
-
-def test_timeout_can_retry(
-    api: ModuleType, client: TestClient, process: Mock, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
-) -> None:
-    async def timeout(awaitable: Coroutine[Any, Any, Any], timeout: float) -> None:
-        awaitable.close()
-        raise asyncio.TimeoutError()
-
-    with monkeypatch.context() as patch:
-        patch.setattr(api.asyncio, "wait_for", timeout)
-        assert client.post("/v1/stop").status_code == 504
-    assert api.process is process and api.stop_requested
-    assert "Stop timed out" in caplog.text
-    assert client.post("/v1/stop").status_code == 200
-    assert process.send_signal.call_count == 1
-
-
-def test_start_and_duplicate(api: ModuleType, client: TestClient, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
-    spawn = AsyncMock(return_value=Mock(pid=12345, returncode=None))
-    monkeypatch.setattr(api.asyncio, "create_subprocess_exec", spawn)
-    monkeypatch.setattr(Path, "is_file", lambda path: True)
-    assert client.post("/v1/run?scenario=demo").status_code in (200, 202)
-    assert client.get("/v1/status").json()["pid"] == 12345
-    assert client.post("/v1/run?scenario=demo").status_code in (200, 409)
-    assert spawn.await_count == 1
-    assert "started" in caplog.text
-
-
-def test_start_failure_can_retry(api: ModuleType, client: TestClient, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
-    spawn = AsyncMock(side_effect=FileNotFoundError("private executable"))
-    monkeypatch.setattr(api.asyncio, "create_subprocess_exec", spawn)
-    monkeypatch.setattr(Path, "is_file", lambda path: True)
+def test_revocation_and_retired_token(client):
+    """A lost acknowledgement can be retried, while every ordinary route rejects the retired token."""
+    response = client.delete("/v1/registration")
+    assert response.status_code == 204
+    response = client.delete("/v1/registration")
+    assert response.status_code == 204
+    assert client.get("/v1/status").status_code == 401
     response = client.post("/v1/run?scenario=demo")
-    assert response.status_code == 500
-    assert "private executable" not in response.text
-    assert api.process is None
-    assert any(record.exc_info for record in caplog.records)
-    spawn.side_effect = None
-    spawn.return_value = Mock(pid=12345, returncode=None)
-    assert client.post("/v1/run?scenario=demo").status_code in (200, 202)
+    assert response.status_code == 401
+
+
+def test_start_duplicate_and_busy_unbinding(client, monkeypatch):
+    """Accepted preparation is durable and prevents a second run or unbinding."""
+    spawn = AsyncMock(return_value=Mock(pid=os.getpid()))
+    monkeypatch.setattr(main.asyncio, "create_subprocess_exec", spawn)
+    response = client.post("/v1/run?scenario=demo")
+    assert response.status_code == 202
+    task_id = response.json()["task_id"]
+    assert client.get("/v1/status").json()["current_task"] == {"id": task_id, "state": "PREPARING"}
+    response = client.post("/v1/run?scenario=demo")
+    assert response.status_code == 409
+    response = client.delete("/v1/registration")
+    assert response.status_code == 409
+    assert spawn.await_count == 1
+
+
+def test_spawn_failure_releases_reservation(client, monkeypatch):
+    """A failed exec records failure and leaves the node available for correction."""
+    spawn = AsyncMock(side_effect=FileNotFoundError("private executable"))
+    monkeypatch.setattr(main.asyncio, "create_subprocess_exec", spawn)
+    response = client.post("/v1/run?scenario=demo")
+    assert response.status_code == 500 and "private executable" not in response.text
+    assert client.get("/v1/status").json()["occupancy"] == "idle"
 
 
 @pytest.mark.parametrize(
@@ -126,45 +90,196 @@ def test_start_failure_can_retry(api: ModuleType, client: TestClient, monkeypatc
         ("demo.yaml", b"x" * (1024 * 1024 + 1), 413),
     ],
 )
-def test_upload_validation(client: TestClient, name: str, content: bytes, code: int, caplog: pytest.LogCaptureFixture) -> None:
-    assert client.post("/v1/run", files={"config": (name, content)}).status_code == code
-    assert "rejected" in caplog.text
+def test_upload_validation(client, name, content, code):
+    """Invalid uploads do not reserve execution or create task state."""
+    response = client.post("/v1/run", files={"config": (name, content)})
+    assert response.status_code == code
+    assert client.get("/v1/status").json()["occupancy"] == "idle"
 
 
-@pytest.mark.parametrize("query", ["", "?scenario=", "?scenario=%20"])
-def test_name_validation(client: TestClient, query: str) -> None:
-    assert client.post("/v1/run" + query).status_code == 422
+def test_uploaded_name_and_content_preserved(client, monkeypatch, tmp_path):
+    """The original scenario stem remains available for SUMO asset selection."""
+    monkeypatch.setattr(main, "TASKS_DIR", tmp_path / "uploads")
+    spawn = AsyncMock(return_value=Mock(pid=os.getpid()))
+    monkeypatch.setattr(main.asyncio, "create_subprocess_exec", spawn)
+    response = client.post("/v1/run", files={"config": ("../demo.yaml", b"a: 1")})
+    assert response.status_code == 202
+    saved = tmp_path / "uploads" / response.json()["task_id"] / "demo.yaml"
+    assert saved.read_bytes() == b"a: 1"
+    assert str(saved) in spawn.call_args.args
 
 
-def test_upload_save_failure_and_retry(
-    api: ModuleType, client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    monkeypatch.setattr(api, "TASKS_DIR", tmp_path)
-    monkeypatch.setattr(api.asyncio, "create_subprocess_exec", AsyncMock(return_value=Mock(pid=12345, returncode=None)))
-    with monkeypatch.context() as patch:
-        patch.setattr(Path, "write_bytes", Mock(side_effect=OSError("disk full")))
-        assert client.post("/v1/run", files={"config": ("demo.yaml", b"a: 1")}).status_code == 500
-    assert api.process is None
-    assert any(record.exc_info for record in caplog.records)
-    assert client.post("/v1/run", files={"config": ("demo.yaml", b"a: 1")}).status_code == 202
+def test_identity_recovery_and_tombstone(tmp_path):
+    """Installation identity survives restart; uncertain tasks remain occupied and old tokens cannot revoke replacements."""
+    store = Store(tmp_path)
+    runner_id = store.runner_id
+    store.configure(str(uuid4()), "old", "http://manager", "http://runner")
+    revoked = store.revoke("old")
+    assert revoked
+    store.close()
+    store = Store(tmp_path)
+    assert store.runner_id == runner_id
+    assert store.authorized("old", tombstone=True) and not store.authorized("old")
+    store.configure(str(uuid4()), "new", "http://manager", "http://runner")
+    revoked = store.revoke("old")
+    assert revoked and store.authorized("new")
+    with store.db:
+        store.db.execute("INSERT INTO tasks(id, state, active) VALUES ('lost', 'RUNNING', 1)")
+    runner = Runner(store)
+    snapshot = runner.snapshot()
+    assert snapshot["occupancy"] == "unknown" and snapshot["current_task"]["id"] == "lost"
+    revoked = store.revoke("new")
+    assert not revoked
+    assert (tmp_path / "runner.sqlite3").stat().st_mode & 0o777 == 0o600
+    assert tmp_path.stat().st_mode & 0o777 == 0o700
+    store.close()
 
 
-def test_shutdown_stops_tracked_process(api, process):
-    with TestClient(api.app):
-        pass
-    assert api.process is None
-    process.wait.assert_awaited()
-    process.send_signal.assert_called_once()
+def test_enrollment_retries_same_identity(tmp_path, monkeypatch):
+    """Transient enrollment failure preserves credentials and retries the exact binding."""
+    import httpx
+    from api import runner as module
+
+    async def exercise():
+        store = Store(tmp_path)
+        store.configure(str(uuid4()), "secret", "http://manager", "http://runner")
+        runner = Runner(store)
+        requests = []
+
+        def respond(request):
+            requests.append(request)
+            return httpx.Response(503 if len(requests) == 1 else 200)
+
+        client = httpx.AsyncClient(transport=httpx.MockTransport(respond))
+        monkeypatch.setattr(module.httpx, "AsyncClient", lambda **kwargs: client)
+        monkeypatch.setattr(module.asyncio, "sleep", AsyncMock())
+        await runner.enroll()
+        assert len(requests) == 2
+        assert requests[0].content == requests[1].content
+        assert requests[0].headers["Authorization"] == "Bearer secret"
+        store.close()
+
+    asyncio.run(exercise())
 
 
-@pytest.mark.parametrize("returncode", [1, 2, -9])
-def test_failed_exit_preserved_after_stop(api, client, process, returncode):
-    process.returncode = returncode
-    process.wait = AsyncMock(return_value=returncode)
-    expected = {"state": "FAILED", "pid": process.pid, "returncode": returncode}
-    assert client.get("/v1/status").json() == expected
-    assert client.post("/v1/stop").json() == expected
-    assert api.process is None
-    assert client.get("/v1/status").json() == expected
-    assert client.post("/v1/stop").json() == expected
-    process.send_signal.assert_not_called()
+def test_independent_recorder_survives_api_owner(tmp_path):
+    """A separate recorder writes the result after its original API connection closes."""
+    import subprocess
+    import sys
+
+    store = Store(tmp_path)
+    with store.db:
+        store.db.execute("INSERT INTO tasks(id, state, active) VALUES ('job', 'PREPARING', 1)")
+    script = (
+        "from pathlib import Path; from api import supervisor; import sys; "
+        "supervisor.components_idle = lambda: True; "
+        "supervisor.supervise(Path(sys.argv[1]), 'job', [sys.executable, '-c', 'import time; time.sleep(0.1)'])"
+    )
+    recorder = subprocess.Popen([sys.executable, "-c", script, str(tmp_path)])
+    store.close()
+    try:
+        assert recorder.wait(timeout=5) == 0
+        restored = Store(tmp_path)
+        result = restored.db.execute("SELECT state, active FROM tasks WHERE id = 'job'").fetchone()
+        assert tuple(result) == ("SUCCEEDED", 0)
+        restored.close()
+    finally:
+        if recorder.poll() is None:
+            recorder.kill()
+            recorder.wait()
+
+
+def test_cancellation_waits_for_component_cleanup(tmp_path, monkeypatch):
+    """A cancelled child does not release occupancy until uncertain adapter cleanup becomes confirmed."""
+    from api import supervisor
+
+    store = Store(tmp_path)
+    with store.db:
+        store.db.execute("INSERT INTO tasks(id, state, active, cancel_requested) VALUES ('cancel', 'PREPARING', 1, 1)")
+    child = Mock(pid=12345, returncode=0)
+    child.poll.side_effect = [None, 0]
+    monkeypatch.setattr(supervisor.subprocess, "Popen", lambda *args, **kwargs: child)
+    signal_process = Mock()
+    monkeypatch.setattr(supervisor.os, "killpg", signal_process)
+    monkeypatch.setattr(supervisor, "group_has_live_members", lambda group: False)
+    cleanup = iter([False, True])
+    monkeypatch.setattr(supervisor, "components_idle", lambda: next(cleanup))
+
+    def pause(delay):
+        if delay == 2:
+            row = store.db.execute("SELECT state, active FROM tasks WHERE id = 'cancel'").fetchone()
+            assert tuple(row) == ("UNKNOWN", 1)
+
+    monkeypatch.setattr(supervisor.time, "sleep", pause)
+    supervisor.supervise(tmp_path, "cancel", ["fake-scenario"])
+    row = store.db.execute("SELECT state, active FROM tasks WHERE id = 'cancel'").fetchone()
+    assert tuple(row) == ("CANCELLED", 0)
+    signal_process.assert_called_once_with(12345, supervisor.signal.SIGINT)
+    store.close()
+
+
+def test_status_remains_available_during_stop(tmp_path, monkeypatch):
+    """A slow cancellation wait leaves status responsive and returns only after durable completion."""
+    import httpx
+
+    async def exercise():
+        store = Store(tmp_path)
+        store.configure(str(uuid4()), "secret", "http://manager", "http://runner")
+        with store.db:
+            store.db.execute("INSERT INTO tasks VALUES ('running', 'RUNNING', 1, ?, ?, 0)", (os.getpid(), process_identity(os.getpid())))
+        runner = Runner(store)
+        monkeypatch.setattr(main, "runner", runner)
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=main.app), base_url="http://runner", headers={"Authorization": "Bearer secret"}
+        ) as client:
+            stopping = asyncio.create_task(client.post("/v1/stop"))
+            try:
+                while not store.db.execute("SELECT cancel_requested FROM tasks").fetchone()[0]:
+                    await asyncio.sleep(0)
+                response = await asyncio.wait_for(client.get("/v1/status"), timeout=1)
+                assert response.json()["occupancy"] == "busy"
+                with store.db:
+                    store.db.execute("UPDATE tasks SET active = 0, state = 'CANCELLED'")
+                assert (await stopping).json()["occupancy"] == "idle"
+            finally:
+                stopping.cancel()
+                await asyncio.gather(stopping, return_exceptions=True)
+        store.close()
+
+    asyncio.run(exercise())
+
+
+def test_cleanup_retries_only_retained_components(tmp_path, monkeypatch):
+    """A transient stop failure retains ownership and a later attempt completes cleanup without touching other adapters."""
+    import io
+    from api import supervisor
+
+    store = Store(tmp_path)
+    with store.db:
+        store.db.execute("INSERT INTO task_components VALUES ('job', 'http://owned')")
+    calls = []
+    stopping = False
+    fail_stop = True
+
+    def request(url, timeout):
+        nonlocal stopping, fail_stop
+        address = url if isinstance(url, str) else url.full_url
+        calls.append(address)
+        if address.endswith("/stop"):
+            if fail_stop:
+                fail_stop = False
+                raise OSError("temporary outage")
+            stopping = True
+            return io.BytesIO(b"{}")
+        return io.BytesIO(b'{"state":"STOPPED"}' if stopping else b'{"state":"RUNNING"}')
+
+    monkeypatch.setattr(supervisor, "urlopen", request)
+    complete = supervisor.retry_component_cleanup(store, "job")
+    assert not complete
+    assert store.db.execute("SELECT count(*) FROM task_components").fetchone()[0] == 1
+    complete = supervisor.retry_component_cleanup(store, "job")
+    assert complete
+    assert store.db.execute("SELECT count(*) FROM task_components").fetchone()[0] == 0
+    assert calls.count("http://owned/v1/stop") == 2
+    assert all(address.startswith("http://owned/") for address in calls)
+    store.close()
